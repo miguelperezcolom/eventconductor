@@ -5,8 +5,12 @@ import java.util.Map;
 public record Step(
         String id,
         String workflowDefinitionId,
+        StepType type,
         String name,
         String description,
-        Map<String, Object> variables
+        Map<String, Object> variables,
+        boolean rollbackable,
+        long timeout,
+        int retries
 ) {
 }

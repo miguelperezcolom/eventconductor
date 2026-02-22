@@ -15,10 +15,18 @@ public class StepEntity {
 
     String workflowDefinitionId;
 
+    String type;
+
     String name;
 
     String description;
 
     String variables;
+
+    boolean rollbackable;
+
+    long timeout;
+
+    int retries;
 
 }
