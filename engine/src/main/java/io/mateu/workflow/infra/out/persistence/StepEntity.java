@@ -17,6 +17,8 @@ public class StepEntity {
 
     String type;
 
+    String precondition;
+
     String name;
 
     String description;
@@ -28,5 +30,7 @@ public class StepEntity {
     long timeout;
 
     int retries;
+
+    String compensationStepId;
 
 }

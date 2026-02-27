@@ -1,0 +1,57 @@
+services:
+  postgres-db:
+    image: postgres:latest
+    container_name: postgres-db
+    restart: always
+    environment:
+      - POSTGRES_DB=rumbo
+      - POSTGRES_USER=user_app
+      - POSTGRES_PASSWORD=user_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql
+      # ESTA ES LA LÍNEA NUEVA:
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql-
+
+  # --- REDPANDA (KAFKA REPLACEMENT) ---
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:latest
+    container_name: redpanda-broker
+    command:
+      - redpanda start
+      - --kafka-addr internal://0.0.0.0:19092,external://0.0.0.0:9092
+      - --advertise-kafka-addr internal://redpanda:19092,external://127.0.0.1:9092
+      - --pandaproxy-addr 0.0.0.0:8082
+      - --advertise-pandaproxy-addr 127.0.0.1:8082
+      - --rpc-addr 0.0.0.0:33145
+      - --advertise-rpc-addr redpanda:33145
+      - --mode dev-container # Optimiza para desarrollo (menos requisitos de hardware)
+    ports:
+      - "9092:9092"   # Para IntelliJ y Spring Boot (desde tu Linux)
+      - "19092:19092"
+      - "8081:8081"
+      - "8082:8082"
+    networks:
+      - backend
+
+  # --- REDPANDA CONSOLE (GUI) ---
+  redpanda-console:
+    image: docker.redpanda.com/redpandadata/console:latest
+    container_name: redpanda-console
+    environment:
+      # CORRECCIÓN: Usamos el puerto INTERNAL y el nombre del servicio
+      KAFKA_BROKERS: redpanda:19092
+    ports:
+      - "8888:8080" # CAMBIO: He puesto 8888 para que no choque con nada
+    depends_on:
+      - redpanda
+    networks:
+      - backend
+
+networks:
+  backend:
+    driver: bridge
+
+volumes:
+  pg_data:

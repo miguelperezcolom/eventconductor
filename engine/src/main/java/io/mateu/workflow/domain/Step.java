@@ -6,11 +6,13 @@ public record Step(
         String id,
         String workflowDefinitionId,
         StepType type,
+        StepPrecondition precondition,
         String name,
         String description,
         Map<String, Object> variables,
         boolean rollbackable,
         long timeout,
-        int retries
+        int retries,
+        String compensationStepId
 ) {
 }

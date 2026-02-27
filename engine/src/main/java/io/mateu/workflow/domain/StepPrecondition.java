@@ -1,4 +1,4 @@
 package io.mateu.workflow.domain;
 
-public record StepPrecondition() {
+public record StepPrecondition(String stepId, String expression) {
 }
