@@ -6,7 +6,7 @@ import io.mateu.uidl.data.Pageable;
 import java.util.List;
 import java.util.Optional;
 
-public interface Repository<EntityType, IdType> {
+public interface CrudAdapter<EntityType, IdType> {
 
     void saveAll(List<EntityType> entities);
 

@@ -1,4 +1,6 @@
 package io.mateu.workflow.domain;
 
-public record StepPrecondition(String stepId, String expression) {
+import io.mateu.uidl.annotations.Colspan;
+
+public record StepPrecondition(String stepId, @Colspan(3) String expression) {
 }

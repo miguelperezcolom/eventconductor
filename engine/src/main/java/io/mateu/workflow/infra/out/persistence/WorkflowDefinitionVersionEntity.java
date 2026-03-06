@@ -7,15 +7,13 @@ import lombok.Setter;
 
 @Entity
 @Getter@Setter
-public class WorkflowDefinitionEntity {
+public class WorkflowDefinitionVersionEntity {
     @Id
     private String id;
 
-    String name;
+    String workflowDefinitionId;
 
-    String description;
-
-    String status;
+    int version;
 
     String json;
 

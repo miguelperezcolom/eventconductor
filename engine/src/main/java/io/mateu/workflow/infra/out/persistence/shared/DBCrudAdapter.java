@@ -4,7 +4,7 @@ import io.mateu.core.infra.declarative.Entity;
 import io.mateu.uidl.data.ListingData;
 import io.mateu.uidl.data.Page;
 import io.mateu.uidl.data.Pageable;
-import io.mateu.uidl.interfaces.Repository;
+import io.mateu.uidl.interfaces.CrudAdapter;
 import io.mateu.workflow.infra.out.shared.Operation;
 import io.mateu.workflow.infra.out.shared.OutboxEvent;
 import lombok.RequiredArgsConstructor;
@@ -22,7 +22,7 @@ import static io.mateu.core.infra.reflection.read.ValueProvider.getValue;
 
 @RequiredArgsConstructor
 @Slf4j
-public abstract class DBRepository<EntityType extends Entity<IdType>, IdType> implements Repository<EntityType, IdType> {
+public abstract class DBCrudAdapter<EntityType extends Entity<IdType>, IdType> implements CrudAdapter<EntityType, IdType> {
 
     private final GenericEntityRepository repository;
     private final StreamBridge streamBridge;
