@@ -10,7 +10,9 @@
   <name>mateu-workflow</name>
   <url>http://maven.apache.org</url>
   <modules>
-    <module>engine</module>
+    <module>workflow-engine</module>
+      <module>forms-engine</module>
+      <module>sample-worker</module>
     <module>app</module>
   </modules>
 

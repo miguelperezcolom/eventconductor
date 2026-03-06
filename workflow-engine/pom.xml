@@ -7,10 +7,10 @@
         <version>1.0-SNAPSHOT</version>
     </parent>
 
-    <artifactId>engine</artifactId>
+    <artifactId>workflow-engine</artifactId>
     <packaging>jar</packaging>
 
-    <name>engine</name>
+    <name>workflow-engine</name>
     <url>http://maven.apache.org</url>
 
     <properties>
