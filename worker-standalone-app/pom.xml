@@ -9,9 +9,9 @@
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
     <groupId>io.mateu.workflow</groupId>
-    <artifactId>app</artifactId>
+    <artifactId>worker-standalone-app</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>app</name>
+    <name>worker-standalone-app</name>
     <description>app</description>
     <url/>
     <licenses>

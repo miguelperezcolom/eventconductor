@@ -13,7 +13,10 @@
     <module>workflow-engine</module>
       <module>forms-engine</module>
       <module>sample-worker</module>
-    <module>app</module>
+      <module>orchestrator-standalone-app</module>
+      <module>forms-standalone-app</module>
+      <module>worker-standalone-app</module>
+    <module>dev-app</module>
   </modules>
 
   <properties>
