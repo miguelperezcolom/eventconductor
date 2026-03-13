@@ -5,6 +5,8 @@ import io.mateu.uidl.data.ListingData;
 import io.mateu.uidl.data.Page;
 import io.mateu.uidl.data.Pageable;
 import io.mateu.uidl.interfaces.CrudAdapter;
+import io.mateu.workflow.domain.shared.AggregateRepository;
+import io.mateu.workflow.domain.shared.AggregateRoot;
 import io.mateu.workflow.infra.out.shared.Operation;
 import io.mateu.workflow.infra.out.shared.OutboxEvent;
 import lombok.RequiredArgsConstructor;
@@ -22,7 +24,7 @@ import static io.mateu.core.infra.reflection.read.ValueProvider.getValue;
 
 @RequiredArgsConstructor
 @Slf4j
-public abstract class DBCrudAdapter<EntityType extends Entity<IdType>, IdType> implements CrudAdapter<EntityType, IdType> {
+public abstract class DBCrudAdapter<EntityType extends Entity<IdType>, IdType> implements CrudAdapter<EntityType, IdType>, AggregateRepository<EntityType, IdType> {
 
     private final GenericEntityRepository repository;
     private final StreamBridge streamBridge;
@@ -40,9 +42,16 @@ public abstract class DBCrudAdapter<EntityType extends Entity<IdType>, IdType> i
                     Operation.Modify,
                     toJson(entity)
             ));
-
             if (enviado) {
                 log.info("Evento enviado a Redpanda correctamente");
+            }
+
+            if (entity instanceof AggregateRoot aggregateRoot) {
+                var events = aggregateRoot.popEvents();
+                events.forEach(event ->
+                        streamBridge.send(
+                                "domain-out-0",
+                                event));
             }
         });
     }
@@ -108,5 +117,31 @@ public abstract class DBCrudAdapter<EntityType extends Entity<IdType>, IdType> i
 
     public void reset() {
         repository.deleteAll();
+    }
+
+    @Override
+    public EntityType save(EntityType entity) {
+        repository.save(new GenericEntity("" + entity.id(), name(entity), entityClass().getSimpleName(), 0, toJson(entity)));
+        if (entity instanceof AggregateRoot aggregateRoot) {
+            var events = aggregateRoot.popEvents();
+            events.forEach(event ->
+                    streamBridge.send(
+                            "domain-out-0",
+                            event));
+        }
+        return entity;
+    }
+
+    @Override
+    public EntityType delete(EntityType entity) {
+        repository.deleteById("" + entity.id());
+        if (entity instanceof AggregateRoot aggregateRoot) {
+            var events = aggregateRoot.popEvents();
+            events.forEach(event ->
+                    streamBridge.send(
+                            "domain-out-0",
+                            event));
+        }
+        return entity;
     }
 }

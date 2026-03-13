@@ -1,7 +1,7 @@
 package io.mateu.workflow.infra.out.persistence;
 
 import io.mateu.workflow.application.out.ProcessCrudAdapter;
-import io.mateu.workflow.domain.Process;
+import io.mateu.workflow.domain.aggregates.Process;
 import io.mateu.workflow.infra.out.persistence.shared.DBCrudAdapter;
 import io.mateu.workflow.infra.out.persistence.shared.GenericEntityRepository;
 import org.springframework.cloud.stream.function.StreamBridge;

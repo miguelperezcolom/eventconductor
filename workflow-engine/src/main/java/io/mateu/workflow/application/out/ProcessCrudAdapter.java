@@ -1,6 +1,7 @@
 package io.mateu.workflow.application.out;
 
-import io.mateu.workflow.domain.Process;
+import io.mateu.core.infra.declarative.SimpleEntity;
+import io.mateu.uidl.interfaces.CrudAdapter;
 
-public interface ProcessCrudAdapter extends CrudAdapter<Process, String> {
+public interface ProcessCrudAdapter extends CrudAdapter<SimpleEntity, SimpleEntity, SimpleEntity, SimpleEntity, SimpleEntity, SimpleEntity, String> {
 }

@@ -1,16 +1,12 @@
 package io.mateu.workflow.infra.in.ui;
 
-import io.mateu.uidl.annotations.MateuUI;
 import io.mateu.uidl.annotations.Menu;
-import io.mateu.workflow.infra.in.ui.pages.Forms;
+import io.mateu.uidl.annotations.UI;
 import io.mateu.workflow.infra.in.ui.pages.Processes;
-import io.mateu.workflow.infra.in.ui.pages.WorkflowDefinitions;
+import io.mateu.workflow.infra.in.ui.pages.workflowdefinition.WorkflowDefinitions;
 
-@MateuUI("/workflow")
+@UI("/workflow")
 public class WorkflowHome {
-
-    @Menu
-    Forms forms;
 
     @Menu
     WorkflowDefinitions definitions;
