@@ -17,4 +17,9 @@ public record Form(
         @MasterDetail(minHeightWhenDetailVisible = "26rem;")
         List<Field> fields
 ) implements Identifiable {
+
+    @Override
+    public String toString() {
+        return name != null?name:"New form";
+    }
 }

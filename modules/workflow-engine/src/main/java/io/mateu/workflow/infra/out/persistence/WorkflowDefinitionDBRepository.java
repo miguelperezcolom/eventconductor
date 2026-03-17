@@ -42,8 +42,8 @@ public class WorkflowDefinitionDBRepository implements WorkflowDefinitionReposit
                 workflowDefinition.name(),
                 workflowDefinition.version(),
                 workflowDefinition.description(),
-                toJson(workflowDefinition.steps()),
-                workflowDefinition.status().name()
+                workflowDefinition.status().name(),
+                toJson(workflowDefinition.steps())
         ));
         return workflowDefinition.id();
     }

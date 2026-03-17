@@ -1,9 +1,21 @@
 package io.mateu.workflow.infra.in.ui.adapters;
 
-import io.mateu.uidl.data.NoFilters;
-import io.mateu.uidl.interfaces.CrudAdapter;
-import io.mateu.workflow.infra.in.ui.pages.workflowdefinition.WorkflowDefinitionRow;
-import io.mateu.workflow.infra.in.ui.pages.workflowdefinition.WorkflowDefinitionView;
+import io.mateu.core.infra.declarative.AutoCrudAdapter;
+import io.mateu.uidl.interfaces.CrudRepository;
+import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
+import io.mateu.workflow.domain.aggregates.WorkflowDefinition;
+import lombok.AllArgsConstructor;
+import org.springframework.stereotype.Service;
 
-public interface WorkflowDefinitionCrudAdapter extends CrudAdapter<WorkflowDefinitionView, WorkflowDefinitionView, WorkflowDefinitionView, NoFilters, WorkflowDefinitionRow, String> {
+@Service
+@AllArgsConstructor
+public class WorkflowDefinitionCrudAdapter  extends AutoCrudAdapter<WorkflowDefinition> {
+
+    final WorkflowDefinitionRepository repository;
+
+    @Override
+    public CrudRepository<WorkflowDefinition> repository() {
+        return repository;
+    }
+
 }

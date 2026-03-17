@@ -1,4 +1,4 @@
-package io.mateu.workflow.infra.in.ui.pages.workflowdefinition;
+package io.mateu.workflow.infra.in.ui.suppliers;
 
 import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.uidl.interfaces.LabelSupplier;

@@ -1,5 +1,6 @@
 package io.mateu.workflow.infra.out.persistence;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import lombok.AllArgsConstructor;
@@ -16,15 +17,18 @@ public class ProcessEntity {
 
     private String businessKey;
 
+    @Column(columnDefinition = "TEXT")
     private String variables;
 
     private String status;
 
     private int completionPercentage;
 
+    @Column(columnDefinition = "TEXT")
     private String log;
 
     private String workflowDefinitionId;
     private int workflowDefinitionVersion;
+    @Column(columnDefinition = "TEXT")
     private String workflowDefinitionJson;
 }

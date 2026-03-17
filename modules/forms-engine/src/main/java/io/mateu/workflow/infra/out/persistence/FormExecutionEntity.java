@@ -1,6 +1,7 @@
 package io.mateu.workflow.infra.out.persistence;
 
-import jakarta.persistence.Column;
+import io.mateu.workflow.domain.Value;
+import io.mateu.workflow.domain.Variable;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import lombok.AllArgsConstructor;
@@ -8,27 +9,21 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.util.List;
+
 @Entity
 @Getter@Setter
 @NoArgsConstructor@AllArgsConstructor
-public class StepExecutionEntity {
+public class FormExecutionEntity {
     @Id
     private String id;
-
+    String formId;
     String processId;
-
-    String workflowDefinitionId;
-
     String stepId;
-
-    @Column(columnDefinition = "TEXT")
-    String stepJson;
-
-    @Column(columnDefinition = "TEXT")
-    String  variables;
-
+    String stepExecutionId;
+    String variables;
+    String values;
     String status;
-
-    String workerId;
-
+    String userId;
+    String userGroup;
 }

@@ -13,6 +13,7 @@ import io.mateu.uidl.annotations.GeneratedValue;
 import io.mateu.uidl.annotations.HiddenInCreate;
 import io.mateu.uidl.annotations.KPI;
 import io.mateu.uidl.annotations.MasterDetail;
+import jakarta.persistence.Column;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -33,10 +34,13 @@ public class Process extends AggregateRoot implements Identifiable {
     @HiddenInCreate
     @GeneratedValue(UUIDValueGenerator.class)
     private String id;
+    @ReadOnly
     private String workflowDefinitionId;
+    @ReadOnly
     private int workflowDefinitionVersion;
     @Hidden
     private String workflowDefinitionJson;
+    @ReadOnly
     private String businessKey;
     @Colspan(2)
     @MasterDetail(minHeightWhenDetailVisible = "16rem;")

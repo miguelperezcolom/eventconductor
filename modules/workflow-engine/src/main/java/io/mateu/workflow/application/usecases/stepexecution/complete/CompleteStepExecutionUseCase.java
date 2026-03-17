@@ -1,5 +1,6 @@
 package io.mateu.workflow.application.usecases.stepexecution.complete;
 
+import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.infra.in.ui.adapters.ProcessCrudAdapter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -8,7 +9,7 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class CompleteStepExecutionUseCase {
 
-    final ProcessCrudAdapter processCrudAdapter;
+    final ProcessRepository processRepository;
 
     public void handle(CompleteStepExecutionCommand command) {
         // leer ejecución paso

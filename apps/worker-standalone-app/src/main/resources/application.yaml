@@ -22,7 +22,7 @@ spring:
 
   # --- Configuración de Base de Datos (PostgreSQL) ---
   datasource:
-    url: jdbc:postgresql://127.0.0.1:5432/rumbo
+    url: jdbc:postgresql://127.0.0.1:5432/workflow
     username: user_app
     password: user_password
     driver-class-name: org.postgresql.Driver

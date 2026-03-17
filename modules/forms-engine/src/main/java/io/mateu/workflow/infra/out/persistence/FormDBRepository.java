@@ -44,8 +44,20 @@ public class FormDBRepository implements FormRepository {
 
     @Override
     public String save(Form form) {
-        form.fields().stream().map(field -> new FieldEntity()).forEach(fieldEntityRepository::save);
-        formEntityRepository.save(new FormEntity());
+        if (form.fields() != null) {
+            form.fields().stream().map(field -> new FieldEntity(
+                field.id(),
+                    form.id(),
+                    field.label(),
+                    field.dataType().name(),
+                    field.stereotype().name(),
+                    field.required(),
+                    field.description()
+            )).forEach(fieldEntityRepository::save);
+        }
+        formEntityRepository.save(new FormEntity(
+                form.id(), form.name(), form.description()
+        ));
         return form.id();
     }
 
