@@ -3,20 +3,21 @@
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>io.mateu.workflow</groupId>
-  <artifactId>mateu-workflow</artifactId>
+  <artifactId>eventconductor</artifactId>
   <version>1.0-SNAPSHOT</version>
   <packaging>pom</packaging>
 
-  <name>mateu-workflow</name>
+  <name>eventconductor</name>
   <url>http://maven.apache.org</url>
   <modules>
-    <module>workflow-engine</module>
-      <module>forms-engine</module>
-      <module>sample-worker</module>
-      <module>orchestrator-standalone-app</module>
-      <module>forms-standalone-app</module>
-      <module>worker-standalone-app</module>
-    <module>dev-app</module>
+    <module>modules/workflow-engine</module>
+      <module>modules/forms-engine</module>
+      <module>modules/sample-worker</module>
+      <module>apps/orchestrator-standalone-app</module>
+      <module>apps/forms-standalone-app</module>
+      <module>apps/worker-standalone-app</module>
+    <module>apps/dev-app</module>
+      <module>modules/shared</module>
   </modules>
 
   <properties>
