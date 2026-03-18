@@ -6,13 +6,23 @@ import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
 import io.mateu.workflow.ddd.AggregateRepository;
 import io.mateu.workflow.domain.aggregates.Process;
 import io.mateu.workflow.domain.aggregates.StepExecution;
+import io.mateu.workflow.infra.out.persistence.OutboxMessageEntity;
+import io.mateu.workflow.infra.out.persistence.OutboxMessageEntityRepository;
+import io.mateu.workflow.infra.out.persistence.OutboxMessageStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.UUID;
+
+import static io.mateu.core.infra.JsonSerializer.toJson;
 
 @Service
 @RequiredArgsConstructor
 public class CreateProcessUseCase {
 
+    final OutboxMessageEntityRepository outboxMessageEntityRepository;
     final ProcessRepository processRepository;
     final WorkflowDefinitionRepository workflowDefinitionRepository;
     final StepExecutionRepository stepExecutionRepository;
@@ -21,18 +31,22 @@ public class CreateProcessUseCase {
         // crear y grabar proceso
         var workflowDefinition = workflowDefinitionRepository.findById(command.workflowDefinitionId()).orElseThrow();
         var stepExecutions = workflowDefinition.steps().stream()
-                .map(step -> StepExecution.create(step, command.processId()))
-                .map(stepExecutionRepository::save)
-                .toList();
+                .map(step -> StepExecution.create(step, command.processId())).toList();
 
-        processRepository.save(Process
+        stepExecutions.forEach(stepExecutionRepository::save);
+
+        var process = Process
                 .create(
                         command.processId(),
                         workflowDefinition,
                         command.businessKey(),
-                        command.variables()
-                ));
+                        command.variables() != null?command.variables(): List.of()
+                );
+        processRepository.save(process);
+
         // enviar evento proceso creado (para step over)
+
+
     }
 
 }

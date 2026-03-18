@@ -19,8 +19,8 @@ import static io.mateu.core.infra.JsonSerializer.toJson;
 @RequiredArgsConstructor
 public class ProcessDBRepository implements ProcessRepository {
 
-    final StreamBridge streamBridge;
     final ProcessEntityRepository processEntityRepository;
+    final OutboxMessageEntityRepository outboxMessageEntityRepository;
 
     @Override
     public Optional<Process> findById(String id) {
@@ -54,6 +54,9 @@ public class ProcessDBRepository implements ProcessRepository {
                 process.getWorkflowDefinitionVersion(),
                 process.getWorkflowDefinitionJson()
         ));
+        process.popEvents().stream()
+                .map(OutboxMessageEntity::new)
+                .forEach(outboxMessageEntityRepository::save);
         return process.getId();
     }
 

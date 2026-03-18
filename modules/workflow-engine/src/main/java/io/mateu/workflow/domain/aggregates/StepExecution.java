@@ -3,7 +3,9 @@ package io.mateu.workflow.domain.aggregates;
 import io.mateu.uidl.annotations.HiddenInList;
 import io.mateu.uidl.interfaces.Identifiable;
 import io.mateu.workflow.ddd.AggregateRoot;
-import io.mateu.workflow.dtos.events.TaskExecutionRequested;
+import io.mateu.workflow.dtos.events.domain.StepExecutionStatusChanged;
+import io.mateu.workflow.dtos.events.integration.TaskExecutionRequested;
+import io.mateu.workflow.dtos.events.integration.TaskStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -11,8 +13,6 @@ import lombok.NoArgsConstructor;
 import lombok.With;
 
 import java.util.List;
-import java.util.Map;
-import java.util.Objects;
 import java.util.UUID;
 
 import static io.mateu.core.infra.JsonSerializer.toJson;
@@ -48,6 +48,14 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
                 .variables(List.of())
                 .status(StepExecutionStatus.CREATED)
                 .build();
+        stepExecution.send(new TaskExecutionRequested(
+                stepExecution.id(),
+                stepExecution.getProcessId(),
+                stepExecution.getWorkflowDefinitionId(),
+                stepExecution.getStepId(),
+                stepExecution.getVariables().stream()
+                .map(variable -> new io.mateu.workflow.dtos.Variable(variable.name(), variable.value()))
+                .toList()));
         return stepExecution;
     }
 
@@ -61,6 +69,12 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
         send(new TaskExecutionRequested(id, processId, workflowDefinitionId, stepId, variables.stream()
                 .map(variable -> new io.mateu.workflow.dtos.Variable(variable.name(), variable.value()))
                 .toList()));
+        status = StepExecutionStatus.PENDING;
         return this;
+    }
+
+    public void updateStatus(StepExecutionStatus status) {
+        this.status = status;
+        send(new StepExecutionStatusChanged(id, processId, TaskStatus.valueOf(status.name())));
     }
 }

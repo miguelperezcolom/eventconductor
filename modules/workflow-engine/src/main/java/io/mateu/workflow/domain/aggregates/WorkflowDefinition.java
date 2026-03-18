@@ -24,6 +24,6 @@ public record WorkflowDefinition(
 
     @Override
     public String toString() {
-        return id != null?id:"New workflow definition";
+        return id != null?name:"New workflow definition";
     }
 }

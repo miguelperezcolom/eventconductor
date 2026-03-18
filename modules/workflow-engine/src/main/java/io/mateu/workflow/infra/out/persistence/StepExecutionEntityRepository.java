@@ -7,5 +7,5 @@ import org.springframework.data.repository.CrudRepository;
 import java.util.List;
 
 public interface StepExecutionEntityRepository extends JpaRepository<StepExecutionEntity, String> {
-    List<StepExecution> findAllByProcessId(String processId);
+    List<StepExecutionEntity> findAllByProcessId(String processId);
 }

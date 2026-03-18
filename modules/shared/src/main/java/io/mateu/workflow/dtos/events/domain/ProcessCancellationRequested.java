@@ -1,4 +1,4 @@
-package io.mateu.workflow.dtos.events;
+package io.mateu.workflow.dtos.events.domain;
 
 import io.mateu.workflow.ddd.DomainEvent;
 

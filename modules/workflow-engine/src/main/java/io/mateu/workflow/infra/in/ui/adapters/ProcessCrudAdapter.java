@@ -1,21 +1,69 @@
 package io.mateu.workflow.infra.in.ui.adapters;
 
+import io.mateu.core.domain.Humanizer;
 import io.mateu.core.infra.declarative.AutoCrudAdapter;
+import io.mateu.uidl.data.*;
+import io.mateu.uidl.interfaces.CrudAdapter;
 import io.mateu.uidl.interfaces.CrudRepository;
+import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.domain.aggregates.Process;
+import io.mateu.workflow.domain.aggregates.ProcessStatus;
+import io.mateu.workflow.infra.in.ui.pages.process.CreateProcessForm;
+import io.mateu.workflow.infra.in.ui.pages.process.ProcessRow;
+import io.mateu.workflow.infra.in.ui.pages.process.ProcessViewModel;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+
+import static io.mateu.core.domain.Humanizer.toUpperCaseFirst;
+
 @Service
 @RequiredArgsConstructor
-public class ProcessCrudAdapter extends AutoCrudAdapter<Process> {
+public class ProcessCrudAdapter implements CrudAdapter<ProcessViewModel, NoEditor<String>, NoCreationForm<String>, NoFilters, ProcessRow, String> {
 
     final ProcessRepository repository;
 
     @Override
-    public CrudRepository<Process> repository() {
-        return repository;
+    public ListingData<ProcessRow> search(String searchText, NoFilters noFilters, Pageable pageable) {
+        return ListingData.of(repository.findAll().stream()
+                .map(process -> new ProcessRow(process.id(),
+                        process.getWorkflowDefinitionId(),
+                        map(process.getStatus()),
+                        process.getCompletionPercentage()))
+                .toList());
     }
 
+    private Status map(ProcessStatus status) {
+        StatusType statusType = switch (status) {
+            case PENDING -> StatusType.INFO;
+            case RUNNING -> StatusType.WARNING;
+            case COMPLETED -> StatusType.SUCCESS;
+            case CANCELLED -> StatusType.NONE;
+            case ERROR -> StatusType.DANGER;
+        };
+        return new Status(statusType, toUpperCaseFirst(status.name()));
+    }
+
+    @Override
+    public void deleteAllById(List<String> selectedIds) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public ProcessViewModel getView(String id) {
+        Process process = repository.findById(id).orElse(null);
+        return new ProcessViewModel(process.id(), process.getWorkflowDefinitionId(), map(process.getStatus()));
+    }
+
+    @Override
+    public NoEditor<String> getEditor(String id) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public NoCreationForm<String> getCreationForm(HttpRequest httpRequest) {
+        throw new UnsupportedOperationException();
+    }
 }

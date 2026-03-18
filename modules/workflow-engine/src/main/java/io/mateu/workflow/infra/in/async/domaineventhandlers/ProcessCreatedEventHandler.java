@@ -4,7 +4,7 @@ import io.mateu.workflow.application.usecases.process.start.StartProcessCommand;
 import io.mateu.workflow.application.usecases.process.start.StartProcessUseCase;
 import io.mateu.workflow.ddd.DomainEvent;
 import io.mateu.workflow.ddd.DomainEventHandler;
-import io.mateu.workflow.dtos.events.ProcessCreated;
+import io.mateu.workflow.dtos.events.domain.ProcessCreated;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 

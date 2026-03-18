@@ -29,7 +29,6 @@ public class StartProcessUseCase {
                 .map(Pair::key)
                 .map(stepExecution -> stepExecution.start(process.getVariables()))
                 .forEach(stepExecutionRepository::save);
-        processRepository.save(process.withStatus(ProcessStatus.RUNNING));
         // enviar evento proceso creado (para step over)
     }
 

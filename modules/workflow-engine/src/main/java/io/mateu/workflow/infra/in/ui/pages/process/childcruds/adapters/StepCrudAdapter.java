@@ -1,0 +1,75 @@
+package io.mateu.workflow.infra.in.ui.pages.process.childcruds.adapters;
+
+import io.mateu.core.domain.Humanizer;
+import io.mateu.core.infra.declarative.AutoListAdapter;
+import io.mateu.uidl.data.Status;
+import io.mateu.uidl.data.StatusType;
+import io.mateu.uidl.interfaces.CrudRepository;
+import io.mateu.workflow.domain.aggregates.StepExecutionStatus;
+import io.mateu.workflow.infra.in.ui.pages.process.childcruds.Resource;
+import io.mateu.workflow.infra.in.ui.pages.process.childcruds.Step;
+import io.mateu.workflow.infra.out.persistence.ResourceEntityRepository;
+import io.mateu.workflow.infra.out.persistence.StepExecutionEntityRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.context.annotation.Scope;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+import java.util.Optional;
+
+import static io.mateu.core.domain.Humanizer.toUpperCaseFirst;
+
+@Service
+@Scope("prototype")
+@RequiredArgsConstructor
+public class StepCrudAdapter extends AutoListAdapter<Step> {
+
+    final StepExecutionEntityRepository repository;
+    private String processId;
+
+    public StepCrudAdapter withProcessId(String processId) {
+        this.processId = processId;
+        return this;
+    }
+
+    @Override
+    public CrudRepository<Step> repository() {
+        return new CrudRepository<Step>() {
+            @Override
+            public Optional<Step> findById(String id) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public String save(Step entity) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public List<Step> findAll() {
+                return repository.findAllByProcessId(processId).stream()
+                        .map(entity -> new Step(processId, entity.getId(), entity.getStepId(), map(entity.getStatus())))
+                        .toList();
+            }
+
+            @Override
+            public void deleteAllById(List<String> selectedIds) {
+                throw new UnsupportedOperationException();
+            }
+        };
+    }
+
+    private Status map(String rawStatus) {
+        StepExecutionStatus status = StepExecutionStatus.valueOf(rawStatus);
+        StatusType statusType = switch (status) {
+            case CREATED -> StatusType.NONE;
+            case PENDING -> StatusType.INFO;
+            case RUNNING -> StatusType.WARNING;
+            case COMPLETED -> StatusType.SUCCESS;
+            case CANCELLED -> StatusType.DANGER;
+            case ERROR -> StatusType.DANGER;
+        };
+        return new Status(statusType, toUpperCaseFirst(status.name()));
+    }
+
+}

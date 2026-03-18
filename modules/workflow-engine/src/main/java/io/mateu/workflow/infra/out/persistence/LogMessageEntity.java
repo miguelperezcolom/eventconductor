@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
 @Entity
 @Getter@Setter
 @NoArgsConstructor@AllArgsConstructor
-public class LogMessage {
+public class LogMessageEntity {
     @Id
     private String id;
 

@@ -4,7 +4,7 @@ import io.mateu.workflow.application.usecases.stepexecution.start.StartStepExecu
 import io.mateu.workflow.application.usecases.stepexecution.start.StartStepExecutionUseCase;
 import io.mateu.workflow.ddd.DomainEvent;
 import io.mateu.workflow.ddd.DomainEventHandler;
-import io.mateu.workflow.dtos.events.TaskExecutionRequested;
+import io.mateu.workflow.dtos.events.integration.TaskExecutionRequested;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 

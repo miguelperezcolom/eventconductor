@@ -1,7 +1,9 @@
-package io.mateu.workflow.infra.in.ui.pages;
+package io.mateu.workflow.infra.in.ui.pages.process;
 
 import io.mateu.core.infra.declarative.FormViewModel;
 import io.mateu.uidl.annotations.*;
+import io.mateu.uidl.fluent.Action;
+import io.mateu.uidl.fluent.ActionSupplier;
 import io.mateu.workflow.application.usecases.process.create.CreateProcessCommand;
 import io.mateu.workflow.application.usecases.process.create.CreateProcessUseCase;
 import io.mateu.workflow.domain.aggregates.Variable;
@@ -18,7 +20,7 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 @FormLayout(columns = 1)
-public class CreateProcessForm extends FormViewModel {
+public class CreateProcessForm extends FormViewModel implements ActionSupplier {
 
     final CreateProcessUseCase createProcessUseCase;
 
@@ -44,4 +46,8 @@ public class CreateProcessForm extends FormViewModel {
         return URI.create("/processes/" + processId);
     }
 
+    @Override
+    public List<Action> actions() {
+        return List.of(Action.builder().id("create").validationRequired(true).build());
+    }
 }

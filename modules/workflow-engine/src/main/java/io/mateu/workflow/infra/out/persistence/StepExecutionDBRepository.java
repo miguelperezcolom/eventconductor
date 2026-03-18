@@ -7,8 +7,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.cloud.stream.function.StreamBridge;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 import static io.mateu.core.infra.JsonSerializer.listFromJson;
 import static io.mateu.core.infra.JsonSerializer.toJson;
@@ -19,6 +21,7 @@ public class StepExecutionDBRepository implements StepExecutionRepository {
 
     final StreamBridge streamBridge;
     final StepExecutionEntityRepository stepExecutionEntityRepository;
+    final OutboxMessageEntityRepository outboxMessageEntityRepository;
 
     @Override
     public Optional<StepExecution> findById(String id) {
@@ -50,6 +53,11 @@ public class StepExecutionDBRepository implements StepExecutionRepository {
                 stepExecution.getStatus().name(),
                 stepExecution.getWorkerId()
         ));
+
+        stepExecution.popEvents().stream()
+                .map(OutboxMessageEntity::new)
+                .forEach(outboxMessageEntityRepository::save);
+
         return stepExecution.id();
     }
 
@@ -65,6 +73,6 @@ public class StepExecutionDBRepository implements StepExecutionRepository {
 
     @Override
     public List<StepExecution> findByProcess(Process process) {
-        return stepExecutionEntityRepository.findAllByProcessId(process.id());
+        return stepExecutionEntityRepository.findAllByProcessId(process.id()).stream().map(this::map).toList();
     }
 }

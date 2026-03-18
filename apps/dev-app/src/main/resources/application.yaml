@@ -25,7 +25,7 @@ spring:
           destination: domain
           content-type: application/json
         worker-out-0:
-          destination: worker
+          destination: downstream
           content-type: application/json
         processDomainEvent-in-0:
           destination: domain

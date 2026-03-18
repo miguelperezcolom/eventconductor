@@ -1,4 +1,4 @@
-package io.mateu.workflow.dtos.events;
+package io.mateu.workflow.dtos.events.integration;
 
 import io.mateu.workflow.ddd.DomainEvent;
 import io.mateu.workflow.dtos.MessageType;
