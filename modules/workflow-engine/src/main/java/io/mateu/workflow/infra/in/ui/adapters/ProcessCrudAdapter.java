@@ -1,15 +1,11 @@
 package io.mateu.workflow.infra.in.ui.adapters;
 
-import io.mateu.core.domain.Humanizer;
-import io.mateu.core.infra.declarative.AutoCrudAdapter;
 import io.mateu.uidl.data.*;
 import io.mateu.uidl.interfaces.CrudAdapter;
-import io.mateu.uidl.interfaces.CrudRepository;
 import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.domain.aggregates.Process;
 import io.mateu.workflow.domain.aggregates.ProcessStatus;
-import io.mateu.workflow.infra.in.ui.pages.process.CreateProcessForm;
 import io.mateu.workflow.infra.in.ui.pages.process.ProcessRow;
 import io.mateu.workflow.infra.in.ui.pages.process.ProcessViewModel;
 import lombok.RequiredArgsConstructor;
@@ -28,8 +24,10 @@ public class ProcessCrudAdapter implements CrudAdapter<ProcessViewModel, NoEdito
     @Override
     public ListingData<ProcessRow> search(String searchText, NoFilters noFilters, Pageable pageable) {
         return ListingData.of(repository.findAll().stream()
+                        .filter(process -> searchText == null || searchText.isEmpty() ||
+                                process.searchableText().toLowerCase().contains(searchText.toLowerCase()))
                 .map(process -> new ProcessRow(process.id(),
-                        process.getWorkflowDefinitionId(),
+                        process.getName(),
                         map(process.getStatus()),
                         process.getCompletionPercentage()))
                 .toList());
@@ -54,7 +52,7 @@ public class ProcessCrudAdapter implements CrudAdapter<ProcessViewModel, NoEdito
     @Override
     public ProcessViewModel getView(String id) {
         Process process = repository.findById(id).orElse(null);
-        return new ProcessViewModel(process.id(), process.getWorkflowDefinitionId(), map(process.getStatus()));
+        return new ProcessViewModel(process.id(), process.getName(), map(process.getStatus()));
     }
 
     @Override

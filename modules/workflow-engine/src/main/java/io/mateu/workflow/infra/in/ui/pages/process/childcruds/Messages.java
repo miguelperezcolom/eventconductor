@@ -4,6 +4,7 @@ import io.mateu.core.infra.declarative.AutoListAdapter;
 import io.mateu.core.infra.declarative.AutoListOrchestrator;
 import io.mateu.uidl.annotations.ReadOnly;
 import io.mateu.uidl.annotations.Style;
+import io.mateu.workflow.infra.in.ui.pages.process.childcruds.adapters.MessageCrudAdapter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -20,10 +21,10 @@ public class Messages extends AutoListOrchestrator<Message> {
         return this;
     }
 
-    final AutoListAdapter<Message> adapter;
+    final MessageCrudAdapter adapter;
 
     @Override
     public AutoListAdapter<Message> simpleListAdapter() {
-        return adapter;
+        return adapter.withProcessId(processId);
     }
 }

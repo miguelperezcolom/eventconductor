@@ -10,6 +10,7 @@ import io.mateu.uidl.data.NoCreationForm;
 import io.mateu.uidl.data.NoEditor;
 import io.mateu.uidl.data.NoFilters;
 import io.mateu.uidl.fluent.OnLoadTrigger;
+import io.mateu.uidl.fluent.OnSuccessTrigger;
 import io.mateu.uidl.fluent.Trigger;
 import io.mateu.uidl.interfaces.CrudAdapter;
 import io.mateu.uidl.interfaces.HttpRequest;
@@ -50,7 +51,8 @@ public class Processes extends CrudOrchestrator<ProcessViewModel, NoEditor<Strin
     public List<Trigger> triggers(HttpRequest httpRequest) {
         if (isViewing(httpRequest)) {
             var triggers = new ArrayList<Trigger>(super.triggers(httpRequest));
-            triggers.add(new OnLoadTrigger("refresh", 1000, -1, ""));
+            triggers.add(new OnLoadTrigger("view", 1000, 1, "state.status.type != 'SUCCESS'"));
+            triggers.add(new OnSuccessTrigger("view", "view", "state.status.type != 'SUCCESS'", 1000));
             return triggers;
         }
         return super.triggers(httpRequest);

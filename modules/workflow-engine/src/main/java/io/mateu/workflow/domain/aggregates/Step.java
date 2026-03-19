@@ -1,26 +1,26 @@
 package io.mateu.workflow.domain.aggregates;
 
-import io.mateu.uidl.annotations.Colspan;
-import io.mateu.uidl.annotations.FormLayout;
-import io.mateu.uidl.annotations.Hidden;
-import io.mateu.uidl.annotations.HiddenInList;
+import io.mateu.uidl.annotations.*;
 import io.mateu.uidl.interfaces.Identifiable;
 
 @FormLayout(columns = 4)
 public record Step(
+        @Section(value = "Main", style = "width: 25%;")
         String id,
         @Hidden
         String workflowDefinitionId,
         StepType type,
         String name,
         String description,
-        @Colspan(4)
+        @Section(value = "Precondition", style = "width: 25%;")
         @HiddenInList
         StepPrecondition precondition,
+        @Section(value = "Execution", style = "width: 25%;")
         @HiddenInList
-        String binding,
+        String topic,
         @HiddenInList
         String formId,
+        @Section(value = "Reliability", style = "width: 25%;")
         @HiddenInList
         boolean rollbackable,
         @HiddenInList

@@ -5,6 +5,7 @@ import io.mateu.uidl.annotations.*;
 import io.mateu.uidl.data.Status;
 import io.mateu.uidl.di.MateuBeanProvider;
 import io.mateu.uidl.fluent.OnLoadTrigger;
+import io.mateu.uidl.fluent.OnSuccessTrigger;
 import io.mateu.uidl.fluent.Trigger;
 import io.mateu.uidl.fluent.TriggersSupplier;
 import io.mateu.uidl.interfaces.CrudEditorForm;
@@ -17,13 +18,14 @@ import io.mateu.workflow.infra.in.ui.pages.process.childcruds.Steps;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
 
 @NoArgsConstructor
 @Getter
 @ReadOnly
-public class ProcessViewModel {
+public class ProcessViewModel implements TriggersSupplier {
 
     String id;
 
@@ -61,5 +63,13 @@ public class ProcessViewModel {
     @Toolbar
     public void cancel() {
 
+    }
+
+    @Override
+    public List<Trigger> triggers(HttpRequest httpRequest) {
+        var triggers = new ArrayList<Trigger>();
+        triggers.add(new OnLoadTrigger("view", 1000, 1, "state.status.type != 'SUCCESS'"));
+        triggers.add(new OnSuccessTrigger("view", "view", "state.status.type != 'SUCCESS'", 1000));
+        return triggers;
     }
 }

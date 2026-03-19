@@ -31,6 +31,7 @@ public class Process extends AggregateRoot implements Identifiable {
     @HiddenInCreate
     @GeneratedValue(UUIDValueGenerator.class)
     private String id;
+    private String name;
     @ReadOnly
     private String workflowDefinitionId;
     @ReadOnly
@@ -54,6 +55,7 @@ public class Process extends AggregateRoot implements Identifiable {
             List<Variable> variables) {
         var process = Process.builder()
                 .id(processId)
+                .name(workflowDefinition.name())
                 .workflowDefinitionId(workflowDefinition.id())
                 .workflowDefinitionJson(toJson(workflowDefinition))
                 .workflowDefinitionVersion(workflowDefinition.version())
@@ -75,6 +77,10 @@ public class Process extends AggregateRoot implements Identifiable {
         @Override
         public String id() {
             return id;
+        }
+
+        public String searchableText() {
+        return name + " " + businessKey;
         }
 
 }

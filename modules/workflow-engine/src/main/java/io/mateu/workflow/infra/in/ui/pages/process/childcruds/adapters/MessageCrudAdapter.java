@@ -41,7 +41,7 @@ public class MessageCrudAdapter extends AutoListAdapter<Message> {
             public List<Message> findAll() {
                 return repository.findAllByProcessId(processId).stream()
                         .filter(entity -> !"error".equals(entity.getMessageType()))
-                        .map(entity -> new Message(processId, entity.getId(), entity.getMessage()))
+                        .map(entity -> new Message(processId, entity.getId(), entity.getTimestamp(), entity.getMessage()))
                         .toList();
             }
 

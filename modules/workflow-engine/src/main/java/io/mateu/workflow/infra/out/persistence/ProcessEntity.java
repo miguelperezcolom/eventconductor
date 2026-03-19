@@ -17,6 +17,8 @@ public class ProcessEntity {
 
     private String businessKey;
 
+    private String name;
+
     @Column(columnDefinition = "TEXT")
     private String variables;
 

@@ -43,7 +43,7 @@ public class ErrorCrudAdapter extends AutoListAdapter<Error> {
             public List<Error> findAll() {
                 return repository.findAllByProcessId(processId).stream()
                         .filter(entity -> "error".equals(entity.getMessageType()))
-                        .map(entity -> new Error(processId, entity.getId(), entity.getMessage()))
+                        .map(entity -> new Error(processId, entity.getId(), entity.getTimestamp(), entity.getMessage()))
                         .toList();
             }
 

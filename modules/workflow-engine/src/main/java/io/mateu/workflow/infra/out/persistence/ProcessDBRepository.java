@@ -31,6 +31,7 @@ public class ProcessDBRepository implements ProcessRepository {
     private Process map(ProcessEntity entity) {
         return new Process(
                 entity.getId(),
+                entity.getName(),
                 entity.getWorkflowDefinitionId(),
                 entity.getWorkflowDefinitionVersion(),
                 entity.getWorkflowDefinitionJson(),
@@ -46,6 +47,7 @@ public class ProcessDBRepository implements ProcessRepository {
         processEntityRepository.save(new ProcessEntity(
                 process.getId(),
                 process.getBusinessKey(),
+                process.getName(),
                 toJson(process.getVariables()),
                 process.getStatus().name(),
                 process.getCompletionPercentage(),
