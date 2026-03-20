@@ -5,10 +5,16 @@
     <option name="originalFiles">
       <list>
         <option value="$PROJECT_DIR$/pom.xml" />
+        <option value="$PROJECT_DIR$/shell/pom.xml" />
+        <option value="$PROJECT_DIR$/content-service/pom.xml" />
+        <option value="$PROJECT_DIR$/users-service/pom.xml" />
+        <option value="$PROJECT_DIR$/control-plane-service/pom.xml" />
+        <option value="$PROJECT_DIR$/demo/pom.xml" />
       </list>
     </option>
     <option name="ignoredFiles">
       <set>
+        <option value="$PROJECT_DIR$/shell/pom.xml" />
         <option value="$PROJECT_DIR$/ui/pom.xml" />
       </set>
     </option>
