@@ -5,6 +5,8 @@ import io.mateu.uidl.annotations.*;
 import io.mateu.uidl.data.FormPosition;
 import io.mateu.uidl.interfaces.Identifiable;
 import io.mateu.uidl.interfaces.Searchable;
+import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
 
 import java.util.List;
 
@@ -13,10 +15,12 @@ public record WorkflowDefinition(
         @GeneratedValue(UUIDValueGenerator.class)
         @HiddenInCreate
         String id,
+        @NotEmpty
         String name,
         @Hidden
         int version,
         String description,
+        @NotNull
         WorkflowDefinitionStatus status,
         @Colspan(5)
         @DetailFormCustomisation(position = FormPosition.modalRight, style = "display: block; min-width: 90rem;")

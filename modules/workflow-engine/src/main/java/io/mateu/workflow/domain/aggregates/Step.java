@@ -2,14 +2,19 @@ package io.mateu.workflow.domain.aggregates;
 
 import io.mateu.uidl.annotations.*;
 import io.mateu.uidl.interfaces.Identifiable;
+import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
 
 @FormLayout(columns = 4)
 public record Step(
         @Section(value = "Main", style = "width: 25%;")
+        @NotEmpty
         String id,
         @Hidden
         String workflowDefinitionId,
+        @NotNull
         StepType type,
+        @NotEmpty
         String name,
         String description,
         @Section(value = "Precondition", style = "width: 25%;")
