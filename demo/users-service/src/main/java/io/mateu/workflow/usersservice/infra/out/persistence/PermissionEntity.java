@@ -26,4 +26,6 @@ public class PermissionEntity {
 
     String description;
 
+    String scope;
+
 }

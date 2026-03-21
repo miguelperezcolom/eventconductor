@@ -7,6 +7,7 @@ import io.mateu.uidl.data.Pageable;
 import io.mateu.workflow.usersservice.application.out.PermissionRepository;
 import io.mateu.workflow.usersservice.domain.aggregates.permission.Permission;
 import io.mateu.workflow.usersservice.domain.aggregates.permission.vo.PermissionId;
+import io.mateu.workflow.usersservice.domain.aggregates.permission.vo.Scope;
 import io.mateu.workflow.usersservice.domain.aggregates.shared.vo.Description;
 import io.mateu.workflow.usersservice.domain.aggregates.shared.vo.Name;
 import lombok.RequiredArgsConstructor;
@@ -30,7 +31,8 @@ public class PermissionDBRepository implements PermissionRepository {
         return new Permission(
                 new PermissionId(permissionEntity.id),
                 new Name(permissionEntity.name),
-                new Description(permissionEntity.description)
+                new Description(permissionEntity.description),
+                new Scope(permissionEntity.scope)
         );
     }
 
@@ -38,7 +40,8 @@ public class PermissionDBRepository implements PermissionRepository {
         return new PermissionEntity(
                 permission.getId() != null?Long.valueOf(permission.getId().id()):null,
                 permission.getName().name(),
-                permission.getDescription().description()
+                permission.getDescription().description(),
+                permission.getScope().scope()
         );
     }
 

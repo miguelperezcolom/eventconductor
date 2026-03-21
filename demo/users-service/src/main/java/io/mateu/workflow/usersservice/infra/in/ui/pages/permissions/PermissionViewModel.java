@@ -30,18 +30,19 @@ public class PermissionViewModel implements Identifiable, CrudEditorForm<String>
     String id;
     @NotEmpty String name;
     String description;
+    String scope;
 
     final CreatePermissionUseCase createPermissionUseCase;
     final SavePermissionUseCase savePermissionUseCase;
 
     @Override
     public String create(HttpRequest httpRequest) {
-        return createPermissionUseCase.handle(new CreatePermissionCommand(name, description));
+        return createPermissionUseCase.handle(new CreatePermissionCommand(name, description, scope));
     }
 
     @Override
     public void save(HttpRequest httpRequest) {
-        savePermissionUseCase.handle(new SavePermissionCommand(id, name, description));
+        savePermissionUseCase.handle(new SavePermissionCommand(id, name, description, scope));
     }
 
     @Override
@@ -53,6 +54,7 @@ public class PermissionViewModel implements Identifiable, CrudEditorForm<String>
         id = String.valueOf(permission.getId().id());
         name = permission.getName().name();
         description = permission.getDescription().description();
+        scope = permission.getScope().scope();
         return this;
     }
 

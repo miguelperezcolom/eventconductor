@@ -40,7 +40,8 @@ public class PermissionCrudAdapter implements CrudAdapter<
                 .map(permission -> new PermissionRow(
                         permission.getId().id().toString(),
                         permission.getName().name(),
-                        permission.getDescription().description()))
+                        permission.getDescription().description(),
+                        permission.getScope().scope()))
                 .toList()));
     }
 
