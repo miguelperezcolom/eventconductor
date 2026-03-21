@@ -5,6 +5,7 @@ import io.mateu.uidl.annotations.UI;
 import io.mateu.workflow.usersservice.infra.in.ui.pages.permissions.PermissionsCrudOrchestrator;
 import io.mateu.workflow.usersservice.infra.in.ui.pages.roles.RolesCrudOrchestrator;
 import io.mateu.workflow.usersservice.infra.in.ui.pages.usergroups.UserGroupCrudOrchestrator;
+import io.mateu.workflow.usersservice.infra.in.ui.pages.users.UsersCrudOrchestrator;
 
 @UI("")
 public class UsersHome {
@@ -17,4 +18,7 @@ public class UsersHome {
 
     @Menu
     UserGroupCrudOrchestrator userGroups;
+
+    @Menu
+    UsersCrudOrchestrator users;
 }
