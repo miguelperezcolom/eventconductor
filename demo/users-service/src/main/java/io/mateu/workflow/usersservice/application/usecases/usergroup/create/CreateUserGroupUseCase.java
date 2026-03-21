@@ -1,11 +1,15 @@
 package io.mateu.workflow.usersservice.application.usecases.usergroup.create;
 
+import io.mateu.workflow.usersservice.application.out.UserGroupRepository;
 import io.mateu.workflow.usersservice.application.out.UserRepository;
 import io.mateu.workflow.usersservice.application.usecases.user.create.CreateUserCommand;
+import io.mateu.workflow.usersservice.domain.aggregates.shared.vo.Description;
 import io.mateu.workflow.usersservice.domain.aggregates.shared.vo.Email;
 import io.mateu.workflow.usersservice.domain.aggregates.shared.vo.Name;
 import io.mateu.workflow.usersservice.domain.aggregates.user.User;
 import io.mateu.workflow.usersservice.domain.aggregates.user.vo.UserId;
+import io.mateu.workflow.usersservice.domain.aggregates.usergroup.UserGroup;
+import io.mateu.workflow.usersservice.domain.aggregates.usergroup.vo.UserGroupId;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -13,13 +17,13 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class CreateUserGroupUseCase {
 
-    final UserRepository repository;
+    final UserGroupRepository repository;
 
-    public void handle(CreateUserCommand command) {
-        repository.save(User.of(
-                new UserId(command.id()),
+    public void handle(CreateUserGroupCommand command) {
+        repository.save(UserGroup.of(
+                new UserGroupId(command.id()),
                 new Name(command.name()),
-                new Email(command.email())
+                new Description(command.description())
         ));
     }
 

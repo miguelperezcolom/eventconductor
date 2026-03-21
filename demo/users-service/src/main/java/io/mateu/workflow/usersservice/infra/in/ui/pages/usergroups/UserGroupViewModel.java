@@ -1,0 +1,65 @@
+package io.mateu.workflow.usersservice.infra.in.ui.pages.usergroups;
+
+import io.mateu.uidl.annotations.EditableOnlyWhenCreating;
+import io.mateu.uidl.interfaces.CrudCreationForm;
+import io.mateu.uidl.interfaces.CrudEditorForm;
+import io.mateu.uidl.interfaces.HttpRequest;
+import io.mateu.uidl.interfaces.Identifiable;
+import io.mateu.workflow.usersservice.application.usecases.role.create.CreateRoleCommand;
+import io.mateu.workflow.usersservice.application.usecases.role.create.CreateRoleUseCase;
+import io.mateu.workflow.usersservice.application.usecases.role.save.SaveRoleCommand;
+import io.mateu.workflow.usersservice.application.usecases.role.save.SaveRoleUseCase;
+import io.mateu.workflow.usersservice.application.usecases.user.create.CreateUserCommand;
+import io.mateu.workflow.usersservice.application.usecases.usergroup.create.CreateUserGroupCommand;
+import io.mateu.workflow.usersservice.application.usecases.usergroup.create.CreateUserGroupUseCase;
+import io.mateu.workflow.usersservice.application.usecases.usergroup.save.SaveUserGroupCommand;
+import io.mateu.workflow.usersservice.application.usecases.usergroup.save.SaveUserGroupUseCase;
+import io.mateu.workflow.usersservice.domain.aggregates.role.Role;
+import io.mateu.workflow.usersservice.domain.aggregates.usergroup.UserGroup;
+import io.mateu.workflow.usersservice.domain.aggregates.usergroup.vo.UserGroupId;
+import jakarta.validation.constraints.NotEmpty;
+import lombok.RequiredArgsConstructor;
+import org.springframework.context.annotation.Scope;
+import org.springframework.stereotype.Service;
+
+@Service
+@Scope("prototype")
+@RequiredArgsConstructor
+public class UserGroupViewModel implements Identifiable, CrudEditorForm<String>, CrudCreationForm<String> {
+    @EditableOnlyWhenCreating
+            @NotEmpty
+    String id;
+    @NotEmpty String name;
+    String description;
+
+    final CreateUserGroupUseCase createPermissionUseCase;
+    final SaveUserGroupUseCase savePermissionUseCase;
+
+    @Override
+    public String create(HttpRequest httpRequest) {
+        createPermissionUseCase.handle(new CreateUserGroupCommand(id, name, description));
+        return id;
+    }
+
+    @Override
+    public void save(HttpRequest httpRequest) {
+        savePermissionUseCase.handle(new SaveUserGroupCommand(id, name, description));
+    }
+
+    @Override
+    public String id() {
+        return id;
+    }
+
+    public UserGroupViewModel load(UserGroup permission) {
+        id = permission.getId().id();
+        name = permission.getName().name();
+        description = permission.getDescription().description();
+        return this;
+    }
+
+    @Override
+    public String toString() {
+        return id != null ? name : "New role";
+    }
+}
