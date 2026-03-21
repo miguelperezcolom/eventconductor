@@ -14,8 +14,8 @@ public class CreatePermissionUseCase {
 
     final PermissionRepository repository;
 
-    public void handle(CreatePermissionCommand command) {
-        repository.save(Permission.of(new Name(command.name()), new Description(command.description())));
+    public String handle(CreatePermissionCommand command) {
+        return repository.save(Permission.of(new Name(command.name()), new Description(command.description()))).id().toString();
     }
 
 }

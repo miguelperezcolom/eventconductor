@@ -1,9 +1,10 @@
 package io.mateu.workflow.usersservice.infra.out.persistence;
 
-import io.mateu.workflow.usersservice.application.out.RoleRepository;
+import io.mateu.uidl.data.ListingData;
+import io.mateu.uidl.data.Page;
+import io.mateu.uidl.data.Pageable;
 import io.mateu.workflow.usersservice.application.out.UserGroupRepository;
-import io.mateu.workflow.usersservice.domain.aggregates.role.Role;
-import io.mateu.workflow.usersservice.domain.aggregates.role.vo.RoleId;
+import io.mateu.workflow.usersservice.domain.aggregates.permission.Permission;
 import io.mateu.workflow.usersservice.domain.aggregates.shared.vo.Description;
 import io.mateu.workflow.usersservice.domain.aggregates.shared.vo.Name;
 import io.mateu.workflow.usersservice.domain.aggregates.shared.vo.Status;
@@ -50,8 +51,14 @@ public class UserGroupDBRepository implements UserGroupRepository {
     }
 
     @Override
-    public List<UserGroup> findAll() {
-        return repository.findAll().stream().map(this::toDomain).toList();
+    public ListingData<UserGroup> findAll(String searchText,
+                                          Object filters, Pageable pageable) {
+        var page = repository.findAllByNameContainingIgnoreCase(searchText, org.springframework.data.domain.Pageable
+                .ofSize(pageable.size())
+                .withPage(pageable.page())
+        );
+        return new ListingData(new Page("", page.getSize(), page.getNumber(), page.getTotalElements(),
+                page.getContent().stream().map(this::toDomain).toList()));
     }
 
     @Override
