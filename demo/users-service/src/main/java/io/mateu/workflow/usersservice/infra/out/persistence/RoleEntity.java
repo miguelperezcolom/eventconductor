@@ -17,4 +17,6 @@ public class RoleEntity {
 
     String description;
 
+    String permissionsJson;
+
 }

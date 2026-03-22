@@ -3,6 +3,7 @@ package io.mateu.workflow.usersservice.domain.aggregates.role;
 
 import io.mateu.uidl.interfaces.Identifiable;
 import io.mateu.workflow.ddd.AggregateRoot;
+import io.mateu.workflow.usersservice.domain.aggregates.permission.vo.PermissionId;
 import io.mateu.workflow.usersservice.domain.aggregates.role.vo.RoleId;
 import io.mateu.workflow.usersservice.domain.aggregates.shared.vo.Description;
 import io.mateu.workflow.usersservice.domain.aggregates.shared.vo.Name;
@@ -12,6 +13,8 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.With;
+
+import java.util.List;
 
 @With
 @NoArgsConstructor@AllArgsConstructor
@@ -24,8 +27,10 @@ public class Role extends AggregateRoot implements Identifiable {
 
     Description description;
 
-    public static Role of(RoleId id, Name name, Description description) {
-        return new Role(id, name, description);
+    List<PermissionId> permissions;
+
+    public static Role of(RoleId id, Name name, Description description, List<PermissionId> permissions) {
+        return new Role(id, name, description, permissions);
     }
 
     @Override

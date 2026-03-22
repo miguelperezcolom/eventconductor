@@ -20,6 +20,9 @@ public class SaveRoleUseCase {
         repository.save(role
                 .withName(new Name(command.name()))
                 .withDescription(new Description(command.description()))
+                .withPermissions(command.permissionIds().stream()
+                        .map(Long::valueOf)
+                        .map(PermissionId::new).toList())
         );
     }
 

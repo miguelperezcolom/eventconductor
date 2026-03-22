@@ -5,6 +5,7 @@ import io.mateu.uidl.data.Page;
 import io.mateu.uidl.data.Pageable;
 import io.mateu.workflow.usersservice.application.out.RoleRepository;
 import io.mateu.workflow.usersservice.domain.aggregates.permission.Permission;
+import io.mateu.workflow.usersservice.domain.aggregates.permission.vo.PermissionId;
 import io.mateu.workflow.usersservice.domain.aggregates.role.Role;
 import io.mateu.workflow.usersservice.domain.aggregates.role.vo.RoleId;
 import io.mateu.workflow.usersservice.domain.aggregates.shared.vo.Description;
@@ -14,6 +15,9 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Optional;
+
+import static io.mateu.core.infra.JsonSerializer.listFromJson;
+import static io.mateu.core.infra.JsonSerializer.toJson;
 
 @Service
 @RequiredArgsConstructor
@@ -30,7 +34,10 @@ public class RoleDBRepository implements RoleRepository {
         return new Role(
                 new RoleId(entity.id),
                 new Name(entity.name),
-                new Description(entity.description)
+                new Description(entity.description),
+                listFromJson(entity.permissionsJson, String.class).stream()
+                        .map(Long::valueOf)
+                        .map(PermissionId::new).toList()
         );
     }
 
@@ -38,7 +45,8 @@ public class RoleDBRepository implements RoleRepository {
         return new RoleEntity(
                 permission.getId().id(),
                 permission.getName().name(),
-                permission.getDescription().description()
+                permission.getDescription().description(),
+                toJson(permission.getPermissions().stream().map(PermissionId::id).toList())
         );
     }
 

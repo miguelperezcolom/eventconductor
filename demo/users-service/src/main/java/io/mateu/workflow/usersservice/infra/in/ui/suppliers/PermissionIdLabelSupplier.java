@@ -1,28 +1,28 @@
-package io.mateu.workflow.usersservice.application.usecases.role.create;
+package io.mateu.workflow.usersservice.infra.in.ui.suppliers;
 
+import io.mateu.uidl.interfaces.HttpRequest;
+import io.mateu.uidl.interfaces.LabelSupplier;
 import io.mateu.workflow.usersservice.application.out.PermissionRepository;
 import io.mateu.workflow.usersservice.application.out.RoleRepository;
 import io.mateu.workflow.usersservice.domain.aggregates.permission.Permission;
 import io.mateu.workflow.usersservice.domain.aggregates.permission.vo.PermissionId;
 import io.mateu.workflow.usersservice.domain.aggregates.role.Role;
 import io.mateu.workflow.usersservice.domain.aggregates.role.vo.RoleId;
-import io.mateu.workflow.usersservice.domain.aggregates.shared.vo.Description;
 import io.mateu.workflow.usersservice.domain.aggregates.shared.vo.Name;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
-public class CreateRoleUseCase {
+public class PermissionIdLabelSupplier implements LabelSupplier {
 
-    final RoleRepository repository;
+    final PermissionRepository formRepository;
 
-    public void handle(CreateRoleCommand command) {
-        repository.save(Role.of(new RoleId(command.id()),
-                new Name(command.name()),
-                new Description(command.description()),
-                command.permissionIds().stream().map(Long::valueOf).map(PermissionId::new).toList()
-        ));
+    @Override
+    public String label(Object id, HttpRequest httpRequest) {
+        return formRepository.findById(new PermissionId(Long.valueOf((String) id)))
+                .map(Permission::getName)
+                .map(Name::name)
+                .orElse("No permission with id " + id);
     }
-
 }
