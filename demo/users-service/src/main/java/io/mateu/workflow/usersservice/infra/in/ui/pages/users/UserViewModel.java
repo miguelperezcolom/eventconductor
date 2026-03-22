@@ -10,13 +10,8 @@ import io.mateu.workflow.usersservice.application.usecases.user.create.CreateUse
 import io.mateu.workflow.usersservice.application.usecases.user.create.CreateUserUseCase;
 import io.mateu.workflow.usersservice.application.usecases.user.save.SaveUserCommand;
 import io.mateu.workflow.usersservice.application.usecases.user.save.SaveUserUseCase;
-import io.mateu.workflow.usersservice.application.usecases.usergroup.create.CreateUserGroupCommand;
-import io.mateu.workflow.usersservice.application.usecases.usergroup.create.CreateUserGroupUseCase;
-import io.mateu.workflow.usersservice.application.usecases.usergroup.save.SaveUserGroupCommand;
-import io.mateu.workflow.usersservice.application.usecases.usergroup.save.SaveUserGroupUseCase;
 import io.mateu.workflow.usersservice.domain.aggregates.role.vo.RoleId;
 import io.mateu.workflow.usersservice.domain.aggregates.user.User;
-import io.mateu.workflow.usersservice.domain.aggregates.usergroup.UserGroup;
 import io.mateu.workflow.usersservice.domain.aggregates.usergroup.vo.UserGroupId;
 import io.mateu.workflow.usersservice.infra.in.ui.suppliers.RoleIdLabelSupplier;
 import io.mateu.workflow.usersservice.infra.in.ui.suppliers.RoleIdOptionsSupplier;
@@ -43,18 +38,18 @@ public class UserViewModel implements Identifiable, CrudEditorForm<String>, Crud
     @ForeignKey(search = RoleIdOptionsSupplier.class, label = RoleIdLabelSupplier.class)
     List<String> roles;
 
-    final CreateUserUseCase createPermissionUseCase;
-    final SaveUserUseCase savePermissionUseCase;
+    final CreateUserUseCase createUserUseCase;
+    final SaveUserUseCase saveUserUseCase;
 
     @Override
     public String create(HttpRequest httpRequest) {
-        createPermissionUseCase.handle(new CreateUserCommand(id, name, email, groups, roles));
+        createUserUseCase.handle(new CreateUserCommand(id, name, email, groups, roles));
         return id;
     }
 
     @Override
     public void save(HttpRequest httpRequest) {
-        savePermissionUseCase.handle(new SaveUserCommand(id, name, email, groups, roles));
+        saveUserUseCase.handle(new SaveUserCommand(id, name, email, groups, roles));
     }
 
     @Override
@@ -62,12 +57,12 @@ public class UserViewModel implements Identifiable, CrudEditorForm<String>, Crud
         return id;
     }
 
-    public UserViewModel load(User permission) {
-        id = permission.getId().id();
-        name = permission.getName().name();
-        email = permission.getEmail().email();
-        roles = permission.getRoles().stream().map(RoleId::id).toList();
-        groups = permission.getGroups().stream().map(UserGroupId::id).toList();
+    public UserViewModel load(User user) {
+        id = user.getId().id();
+        name = user.getName().name();
+        email = user.getEmail().email();
+        roles = user.getRoles().stream().map(RoleId::id).toList();
+        groups = user.getGroups().stream().map(UserGroupId::id).toList();
         return this;
     }
 

@@ -5,18 +5,11 @@ import io.mateu.uidl.interfaces.CrudCreationForm;
 import io.mateu.uidl.interfaces.CrudEditorForm;
 import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.uidl.interfaces.Identifiable;
-import io.mateu.workflow.usersservice.application.usecases.role.create.CreateRoleCommand;
-import io.mateu.workflow.usersservice.application.usecases.role.create.CreateRoleUseCase;
-import io.mateu.workflow.usersservice.application.usecases.role.save.SaveRoleCommand;
-import io.mateu.workflow.usersservice.application.usecases.role.save.SaveRoleUseCase;
-import io.mateu.workflow.usersservice.application.usecases.user.create.CreateUserCommand;
 import io.mateu.workflow.usersservice.application.usecases.usergroup.create.CreateUserGroupCommand;
 import io.mateu.workflow.usersservice.application.usecases.usergroup.create.CreateUserGroupUseCase;
 import io.mateu.workflow.usersservice.application.usecases.usergroup.save.SaveUserGroupCommand;
 import io.mateu.workflow.usersservice.application.usecases.usergroup.save.SaveUserGroupUseCase;
-import io.mateu.workflow.usersservice.domain.aggregates.role.Role;
 import io.mateu.workflow.usersservice.domain.aggregates.usergroup.UserGroup;
-import io.mateu.workflow.usersservice.domain.aggregates.usergroup.vo.UserGroupId;
 import jakarta.validation.constraints.NotEmpty;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Scope;
@@ -32,18 +25,18 @@ public class UserGroupViewModel implements Identifiable, CrudEditorForm<String>,
     @NotEmpty String name;
     String description;
 
-    final CreateUserGroupUseCase createPermissionUseCase;
-    final SaveUserGroupUseCase savePermissionUseCase;
+    final CreateUserGroupUseCase createUserGroupUseCase;
+    final SaveUserGroupUseCase saveUserGroupUseCase;
 
     @Override
     public String create(HttpRequest httpRequest) {
-        createPermissionUseCase.handle(new CreateUserGroupCommand(id, name, description));
+        createUserGroupUseCase.handle(new CreateUserGroupCommand(id, name, description));
         return id;
     }
 
     @Override
     public void save(HttpRequest httpRequest) {
-        savePermissionUseCase.handle(new SaveUserGroupCommand(id, name, description));
+        saveUserGroupUseCase.handle(new SaveUserGroupCommand(id, name, description));
     }
 
     @Override
@@ -51,10 +44,10 @@ public class UserGroupViewModel implements Identifiable, CrudEditorForm<String>,
         return id;
     }
 
-    public UserGroupViewModel load(UserGroup permission) {
-        id = permission.getId().id();
-        name = permission.getName().name();
-        description = permission.getDescription().description();
+    public UserGroupViewModel load(UserGroup userGroup) {
+        id = userGroup.getId().id();
+        name = userGroup.getName().name();
+        description = userGroup.getDescription().description();
         return this;
     }
 

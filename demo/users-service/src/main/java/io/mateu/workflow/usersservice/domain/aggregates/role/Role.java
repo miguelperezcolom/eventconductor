@@ -7,19 +7,15 @@ import io.mateu.workflow.usersservice.domain.aggregates.permission.vo.Permission
 import io.mateu.workflow.usersservice.domain.aggregates.role.vo.RoleId;
 import io.mateu.workflow.usersservice.domain.aggregates.shared.vo.Description;
 import io.mateu.workflow.usersservice.domain.aggregates.shared.vo.Name;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import lombok.With;
 
 import java.util.List;
 
-@With
 @NoArgsConstructor@AllArgsConstructor
 @Getter
-public class Role extends AggregateRoot implements Identifiable {
+public class Role extends AggregateRoot {
 
     RoleId id;
 
@@ -33,8 +29,9 @@ public class Role extends AggregateRoot implements Identifiable {
         return new Role(id, name, description, permissions);
     }
 
-    @Override
-    public String id() {
-        return id.id();
+    public void update(Name name, Description description, List<PermissionId> permissions) {
+        this.name = name;
+        this.description = description;
+        this.permissions = permissions;
     }
 }

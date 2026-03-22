@@ -1,4 +1,4 @@
-package io.mateu.workflow.usersservice.infra.in.ui.pages.users;
+package io.mateu.workflow.usersservice.application.query.dto;
 
 public record UserRow(String id, String name, String email) {
 }

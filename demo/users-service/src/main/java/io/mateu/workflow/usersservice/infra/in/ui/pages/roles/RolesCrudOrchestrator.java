@@ -4,6 +4,7 @@ import io.mateu.core.infra.declarative.CrudOrchestrator;
 import io.mateu.uidl.annotations.Title;
 import io.mateu.uidl.data.NoFilters;
 import io.mateu.uidl.interfaces.CrudAdapter;
+import io.mateu.workflow.usersservice.application.query.dto.RoleRow;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Service;

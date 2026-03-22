@@ -6,20 +6,15 @@ import io.mateu.uidl.interfaces.CrudCreationForm;
 import io.mateu.uidl.interfaces.CrudEditorForm;
 import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.uidl.interfaces.Identifiable;
-import io.mateu.workflow.usersservice.application.out.PermissionRepository;
 import io.mateu.workflow.usersservice.application.usecases.permission.create.CreatePermissionCommand;
 import io.mateu.workflow.usersservice.application.usecases.permission.create.CreatePermissionUseCase;
 import io.mateu.workflow.usersservice.application.usecases.permission.save.SavePermissionCommand;
 import io.mateu.workflow.usersservice.application.usecases.permission.save.SavePermissionUseCase;
 import io.mateu.workflow.usersservice.domain.aggregates.permission.Permission;
 import jakarta.validation.constraints.NotEmpty;
-import lombok.AllArgsConstructor;
-import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Service;
-
-import java.util.Objects;
 
 @Service
 @Scope("prototype")

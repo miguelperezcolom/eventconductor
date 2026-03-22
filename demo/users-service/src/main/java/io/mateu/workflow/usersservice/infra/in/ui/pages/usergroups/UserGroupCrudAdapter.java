@@ -2,13 +2,12 @@ package io.mateu.workflow.usersservice.infra.in.ui.pages.usergroups;
 
 import io.mateu.uidl.data.ListingData;
 import io.mateu.uidl.data.NoFilters;
-import io.mateu.uidl.data.Page;
 import io.mateu.uidl.data.Pageable;
 import io.mateu.uidl.interfaces.CrudAdapter;
 import io.mateu.uidl.interfaces.HttpRequest;
-import io.mateu.workflow.usersservice.application.out.RoleRepository;
 import io.mateu.workflow.usersservice.application.out.UserGroupRepository;
-import io.mateu.workflow.usersservice.domain.aggregates.role.vo.RoleId;
+import io.mateu.workflow.usersservice.application.query.UserGroupQueryService;
+import io.mateu.workflow.usersservice.application.query.dto.UserGroupRow;
 import io.mateu.workflow.usersservice.domain.aggregates.usergroup.vo.UserGroupId;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Scope;
@@ -30,20 +29,13 @@ public class UserGroupCrudAdapter implements CrudAdapter<
 
     final UserGroupViewModel viewModel;
     final UserGroupRepository repository;
+    final UserGroupQueryService queryService;
 
     @Override
     public ListingData<UserGroupRow> search(String searchText,
                                             NoFilters filters,
                                             Pageable pageable) {
-        var data = repository.findAll(searchText, filters, pageable);
-        return new ListingData(new Page(searchText, data.page().pageSize(),
-                data.page().pageNumber(),
-                data.page().totalElements(), data.page().content().stream()
-                .map(permission -> new UserGroupRow(
-                        permission.getId().id().toString(),
-                        permission.getName().name(),
-                        permission.getDescription().description()))
-                .toList()));
+        return queryService.findAll(searchText, filters, pageable);
     }
 
     @Override

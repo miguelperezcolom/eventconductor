@@ -1,10 +1,6 @@
 package io.mateu.workflow.usersservice.infra.out.persistence;
 
-import io.mateu.uidl.data.ListingData;
-import io.mateu.uidl.data.Page;
-import io.mateu.uidl.data.Pageable;
 import io.mateu.workflow.usersservice.application.out.RoleRepository;
-import io.mateu.workflow.usersservice.domain.aggregates.permission.Permission;
 import io.mateu.workflow.usersservice.domain.aggregates.permission.vo.PermissionId;
 import io.mateu.workflow.usersservice.domain.aggregates.role.Role;
 import io.mateu.workflow.usersservice.domain.aggregates.role.vo.RoleId;
@@ -41,29 +37,18 @@ public class RoleDBRepository implements RoleRepository {
         );
     }
 
-    private RoleEntity toEntity(Role permission) {
+    private RoleEntity toEntity(Role role) {
         return new RoleEntity(
-                permission.getId().id(),
-                permission.getName().name(),
-                permission.getDescription().description(),
-                toJson(permission.getPermissions().stream().map(PermissionId::id).toList())
+                role.getId().id(),
+                role.getName().name(),
+                role.getDescription().description(),
+                toJson(role.getPermissions().stream().map(PermissionId::id).toList())
         );
     }
 
     @Override
-    public RoleId save(Role permission) {
-        return new RoleId(repository.save(toEntity(permission)).id);
-    }
-
-    @Override
-    public ListingData<Role> findAll(String searchText,
-                                     Object filters, Pageable pageable) {
-        var page = repository.findAllByNameContainingIgnoreCase(searchText, org.springframework.data.domain.Pageable
-                .ofSize(pageable.size())
-                .withPage(pageable.page())
-        );
-        return new ListingData(new Page("", page.getSize(), page.getNumber(), page.getTotalElements(),
-                page.getContent().stream().map(this::toDomain).toList()));
+    public RoleId save(Role role) {
+        return new RoleId(repository.save(toEntity(role)).id);
     }
 
     @Override

@@ -1,10 +1,6 @@
 package io.mateu.workflow.usersservice.infra.out.persistence;
 
-import io.mateu.uidl.data.ListingData;
-import io.mateu.uidl.data.Page;
-import io.mateu.uidl.data.Pageable;
 import io.mateu.workflow.usersservice.application.out.UserRepository;
-import io.mateu.workflow.usersservice.domain.aggregates.permission.Permission;
 import io.mateu.workflow.usersservice.domain.aggregates.role.vo.RoleId;
 import io.mateu.workflow.usersservice.domain.aggregates.shared.vo.Email;
 import io.mateu.workflow.usersservice.domain.aggregates.shared.vo.Name;
@@ -43,32 +39,22 @@ public class UserDBRepository implements UserRepository {
         );
     }
 
-    private UserEntity toEntity(User User) {
+    private UserEntity toEntity(User user) {
         return new UserEntity(
-                User.getId().id(),
-                User.getName().name(),
-                User.getEmail().email(),
-                toJson(User.getGroups().stream().map(UserGroupId::id).toList()),
-                toJson(User.getRoles().stream().map(RoleId::id).toList()),
-                User.getStatus().name()
+                user.getId().id(),
+                user.getName().name(),
+                user.getEmail().email(),
+                toJson(user.getGroups().stream().map(UserGroupId::id).toList()),
+                toJson(user.getRoles().stream().map(RoleId::id).toList()),
+                user.getStatus().name()
         );
     }
 
     @Override
-    public UserId save(User permission) {
-        return new UserId(repository.save(toEntity(permission)).id);
+    public UserId save(User user) {
+        return new UserId(repository.save(toEntity(user)).id);
     }
 
-    @Override
-    public ListingData<User> findAll(String searchText,
-                                     Object filters, Pageable pageable) {
-        var page = repository.findAllByNameContainingIgnoreCase(searchText, org.springframework.data.domain.Pageable
-                .ofSize(pageable.size())
-                .withPage(pageable.page())
-        );
-        return new ListingData(new Page(searchText, page.getSize(), page.getNumber(), page.getTotalElements(),
-                page.getContent().stream().map(this::toDomain).toList()));
-    }
 
     @Override
     public void deleteAllById(List<UserId> selectedIds) {

@@ -2,13 +2,12 @@ package io.mateu.workflow.usersservice.infra.in.ui.pages.roles;
 
 import io.mateu.uidl.data.ListingData;
 import io.mateu.uidl.data.NoFilters;
-import io.mateu.uidl.data.Page;
 import io.mateu.uidl.data.Pageable;
 import io.mateu.uidl.interfaces.CrudAdapter;
 import io.mateu.uidl.interfaces.HttpRequest;
-import io.mateu.workflow.usersservice.application.out.PermissionRepository;
 import io.mateu.workflow.usersservice.application.out.RoleRepository;
-import io.mateu.workflow.usersservice.domain.aggregates.permission.vo.PermissionId;
+import io.mateu.workflow.usersservice.application.query.RoleQueryService;
+import io.mateu.workflow.usersservice.application.query.dto.RoleRow;
 import io.mateu.workflow.usersservice.domain.aggregates.role.vo.RoleId;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Scope;
@@ -30,20 +29,13 @@ public class RoleCrudAdapter implements CrudAdapter<
 
     final RoleViewModel viewModel;
     final RoleRepository repository;
+    final RoleQueryService queryService;
 
     @Override
     public ListingData<RoleRow> search(String searchText,
                                        NoFilters filters,
                                        Pageable pageable) {
-        var data = repository.findAll(searchText, filters, pageable);
-        return new ListingData(new Page(searchText, data.page().pageSize(),
-                data.page().pageNumber(),
-                data.page().totalElements(), data.page().content().stream()
-                .map(permission -> new RoleRow(
-                        permission.getId().id().toString(),
-                        permission.getName().name(),
-                        permission.getDescription().description()))
-                .toList()));
+        return queryService.findAll(searchText, filters, pageable);
     }
 
     @Override
