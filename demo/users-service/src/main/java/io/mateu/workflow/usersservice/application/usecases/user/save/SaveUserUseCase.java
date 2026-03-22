@@ -2,6 +2,7 @@ package io.mateu.workflow.usersservice.application.usecases.user.save;
 
 import io.mateu.workflow.usersservice.application.out.UserGroupRepository;
 import io.mateu.workflow.usersservice.application.out.UserRepository;
+import io.mateu.workflow.usersservice.domain.aggregates.role.vo.RoleId;
 import io.mateu.workflow.usersservice.domain.aggregates.shared.vo.Description;
 import io.mateu.workflow.usersservice.domain.aggregates.shared.vo.Email;
 import io.mateu.workflow.usersservice.domain.aggregates.shared.vo.Name;
@@ -21,6 +22,8 @@ public class SaveUserUseCase {
         repository.save(role
                 .withName(new Name(command.name()))
                 .withEmail(new Email(command.email()))
+                .withGroups(command.groups().stream().map(UserGroupId::new).toList())
+                .withRoles(command.roles().stream().map(RoleId::new).toList())
         );
     }
 
