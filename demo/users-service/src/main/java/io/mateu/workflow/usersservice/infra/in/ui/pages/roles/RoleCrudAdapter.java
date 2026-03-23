@@ -8,6 +8,8 @@ import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.workflow.usersservice.application.out.RoleRepository;
 import io.mateu.workflow.usersservice.application.query.RoleQueryService;
 import io.mateu.workflow.usersservice.application.query.dto.RoleRow;
+import io.mateu.workflow.usersservice.application.usecases.role.delete.DeleteRoleCommand;
+import io.mateu.workflow.usersservice.application.usecases.role.delete.DeleteRoleUseCase;
 import io.mateu.workflow.usersservice.domain.aggregates.role.vo.RoleId;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Scope;
@@ -28,7 +30,7 @@ public class RoleCrudAdapter implements CrudAdapter<
         > {
 
     final RoleViewModel viewModel;
-    final RoleRepository repository;
+    final DeleteRoleUseCase deleteRoleUseCase;
     final RoleQueryService queryService;
 
     @Override
@@ -40,22 +42,20 @@ public class RoleCrudAdapter implements CrudAdapter<
 
     @Override
     public void deleteAllById(List<String> selectedIds) {
-        repository.deleteAllById(selectedIds.stream()
-                .map(RoleId::new)
-                .toList());
+        deleteRoleUseCase.handle(new DeleteRoleCommand(selectedIds));
     }
 
     @Override
     public RoleViewModel getView(String id) {
-        return viewModel.load(repository
-                .findById(new RoleId(id))
+        return viewModel.load(queryService
+                .getById(id)
                 .orElseThrow());
     }
 
     @Override
     public RoleViewModel getEditor(String id) {
-        return viewModel.load(repository
-                .findById(new RoleId(id))
+        return viewModel.load(queryService
+                .getById(id)
                 .orElseThrow());
     }
 

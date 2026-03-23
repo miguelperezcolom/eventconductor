@@ -8,6 +8,8 @@ import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.workflow.usersservice.application.out.UserRepository;
 import io.mateu.workflow.usersservice.application.query.UserQueryService;
 import io.mateu.workflow.usersservice.application.query.dto.UserRow;
+import io.mateu.workflow.usersservice.application.usecases.user.delete.DeleteUserCommand;
+import io.mateu.workflow.usersservice.application.usecases.user.delete.DeleteUserUseCase;
 import io.mateu.workflow.usersservice.domain.aggregates.user.vo.UserId;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Scope;
@@ -28,7 +30,7 @@ public class UserCrudAdapter implements CrudAdapter<
         > {
 
     final UserViewModel viewModel;
-    final UserRepository repository;
+    final DeleteUserUseCase deleteUserUseCase;
     final UserQueryService queryService;
 
     @Override
@@ -40,22 +42,20 @@ public class UserCrudAdapter implements CrudAdapter<
 
     @Override
     public void deleteAllById(List<String> selectedIds) {
-        repository.deleteAllById(selectedIds.stream()
-                .map(UserId::new)
-                .toList());
+        deleteUserUseCase.handle(new DeleteUserCommand(selectedIds));
     }
 
     @Override
     public UserViewModel getView(String id) {
-        return viewModel.load(repository
-                .findById(new UserId(id))
+        return viewModel.load(queryService
+                .getById(id)
                 .orElseThrow());
     }
 
     @Override
     public UserViewModel getEditor(String id) {
-        return viewModel.load(repository
-                .findById(new UserId(id))
+        return viewModel.load(queryService
+                .getById(id)
                 .orElseThrow());
     }
 

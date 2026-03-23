@@ -8,6 +8,8 @@ import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.workflow.usersservice.application.out.UserGroupRepository;
 import io.mateu.workflow.usersservice.application.query.UserGroupQueryService;
 import io.mateu.workflow.usersservice.application.query.dto.UserGroupRow;
+import io.mateu.workflow.usersservice.application.usecases.usergroup.delete.DeleteUserGroupCommand;
+import io.mateu.workflow.usersservice.application.usecases.usergroup.delete.DeleteUserGroupUseCase;
 import io.mateu.workflow.usersservice.domain.aggregates.usergroup.vo.UserGroupId;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Scope;
@@ -28,7 +30,7 @@ public class UserGroupCrudAdapter implements CrudAdapter<
         > {
 
     final UserGroupViewModel viewModel;
-    final UserGroupRepository repository;
+    final DeleteUserGroupUseCase deleteUserGroupUseCase;
     final UserGroupQueryService queryService;
 
     @Override
@@ -40,22 +42,20 @@ public class UserGroupCrudAdapter implements CrudAdapter<
 
     @Override
     public void deleteAllById(List<String> selectedIds) {
-        repository.deleteAllById(selectedIds.stream()
-                .map(UserGroupId::new)
-                .toList());
+        deleteUserGroupUseCase.handle(new DeleteUserGroupCommand(selectedIds));
     }
 
     @Override
     public UserGroupViewModel getView(String id) {
-        return viewModel.load(repository
-                .findById(new UserGroupId(id))
+        return viewModel.load(queryService
+                .getById(id)
                 .orElseThrow());
     }
 
     @Override
     public UserGroupViewModel getEditor(String id) {
-        return viewModel.load(repository
-                .findById(new UserGroupId(id))
+        return viewModel.load(queryService
+                .getById(id)
                 .orElseThrow());
     }
 

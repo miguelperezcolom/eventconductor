@@ -8,6 +8,8 @@ import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.workflow.usersservice.application.out.PermissionRepository;
 import io.mateu.workflow.usersservice.application.query.PermissionQueryService;
 import io.mateu.workflow.usersservice.application.query.dto.PermissionRow;
+import io.mateu.workflow.usersservice.application.usecases.permission.delete.DeletePermissionCommand;
+import io.mateu.workflow.usersservice.application.usecases.permission.delete.DeletePermissionUseCase;
 import io.mateu.workflow.usersservice.domain.aggregates.permission.vo.PermissionId;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Scope;
@@ -28,7 +30,7 @@ public class PermissionCrudAdapter implements CrudAdapter<
         > {
 
     final PermissionViewModel viewModel;
-    final PermissionRepository repository;
+    final DeletePermissionUseCase deletePermissionUseCase;
     final PermissionQueryService queryService;
 
     @Override
@@ -40,23 +42,20 @@ public class PermissionCrudAdapter implements CrudAdapter<
 
     @Override
     public void deleteAllById(List<String> selectedIds) {
-        repository.deleteAllById(selectedIds.stream()
-                .map(Long::valueOf)
-                .map(PermissionId::new)
-                .toList());
+        deletePermissionUseCase.handle(new DeletePermissionCommand(selectedIds));
     }
 
     @Override
     public PermissionViewModel getView(String id) {
-        return viewModel.load(repository
-                .findById(new PermissionId(Long.valueOf(id)))
+        return viewModel.load(queryService
+                .getById(id)
                 .orElseThrow());
     }
 
     @Override
     public PermissionViewModel getEditor(String id) {
-        return viewModel.load(repository
-                .findById(new PermissionId(Long.valueOf(id)))
+        return viewModel.load(queryService
+                .getById(id)
                 .orElseThrow());
     }
 

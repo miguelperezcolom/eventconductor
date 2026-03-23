@@ -6,6 +6,7 @@ import io.mateu.uidl.interfaces.CrudCreationForm;
 import io.mateu.uidl.interfaces.CrudEditorForm;
 import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.uidl.interfaces.Identifiable;
+import io.mateu.workflow.usersservice.application.query.dto.PermissionDto;
 import io.mateu.workflow.usersservice.application.usecases.permission.create.CreatePermissionCommand;
 import io.mateu.workflow.usersservice.application.usecases.permission.create.CreatePermissionUseCase;
 import io.mateu.workflow.usersservice.application.usecases.permission.save.SavePermissionCommand;
@@ -45,11 +46,11 @@ public class PermissionViewModel implements Identifiable, CrudEditorForm<String>
         return id;
     }
 
-    public PermissionViewModel load(Permission permission) {
-        id = String.valueOf(permission.getId().id());
-        name = permission.getName().name();
-        description = permission.getDescription().description();
-        scope = permission.getScope().scope();
+    public PermissionViewModel load(PermissionDto permission) {
+        id = String.valueOf(permission.id());
+        name = permission.name();
+        description = permission.description();
+        scope = permission.scope();
         return this;
     }
 

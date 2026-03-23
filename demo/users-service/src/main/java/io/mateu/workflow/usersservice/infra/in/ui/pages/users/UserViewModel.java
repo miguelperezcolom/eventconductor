@@ -6,6 +6,7 @@ import io.mateu.uidl.interfaces.CrudCreationForm;
 import io.mateu.uidl.interfaces.CrudEditorForm;
 import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.uidl.interfaces.Identifiable;
+import io.mateu.workflow.usersservice.application.query.dto.UserDto;
 import io.mateu.workflow.usersservice.application.usecases.user.create.CreateUserCommand;
 import io.mateu.workflow.usersservice.application.usecases.user.create.CreateUserUseCase;
 import io.mateu.workflow.usersservice.application.usecases.user.save.SaveUserCommand;
@@ -57,12 +58,12 @@ public class UserViewModel implements Identifiable, CrudEditorForm<String>, Crud
         return id;
     }
 
-    public UserViewModel load(User user) {
-        id = user.getId().id();
-        name = user.getName().name();
-        email = user.getEmail().email();
-        roles = user.getRoles().stream().map(RoleId::id).toList();
-        groups = user.getGroups().stream().map(UserGroupId::id).toList();
+    public UserViewModel load(UserDto user) {
+        id = user.id();
+        name = user.name();
+        email = user.email();
+        roles = user.roleIds();
+        groups = user.groupIds();
         return this;
     }
 
