@@ -7,10 +7,12 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.SequenceGenerator;
 import lombok.AllArgsConstructor;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 @Entity
 @AllArgsConstructor@NoArgsConstructor
+@Getter
 public class PermissionEntity {
 
     @Id
