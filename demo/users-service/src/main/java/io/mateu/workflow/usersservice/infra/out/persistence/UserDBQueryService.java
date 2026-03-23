@@ -4,10 +4,15 @@ import io.mateu.uidl.data.ListingData;
 import io.mateu.uidl.data.Page;
 import io.mateu.uidl.data.Pageable;
 import io.mateu.workflow.usersservice.application.query.UserQueryService;
+import io.mateu.workflow.usersservice.application.query.dto.UserDto;
 import io.mateu.workflow.usersservice.application.query.dto.UserRow;
 import io.mateu.workflow.usersservice.domain.aggregates.user.vo.UserId;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+
+import java.util.Optional;
+
+import static io.mateu.core.infra.JsonSerializer.listFromJson;
 
 @Service
 @RequiredArgsConstructor
@@ -24,8 +29,19 @@ public class UserDBQueryService implements UserQueryService {
     }
 
     @Override
-    public String getLabel(UserId id) {
-        return repository.findById(id.id()).map(UserEntity::getName).orElse("Unknown user");
+    public String getLabel(String id) {
+        return repository.findById(id).map(UserEntity::getName).orElse("Unknown user");
+    }
+
+    @Override
+    public Optional<UserDto> getById(String id) {
+        return repository.findById(id).map(entity -> new UserDto(
+                entity.getId(),
+                entity.getName(),
+                entity.getEmail(),
+                listFromJson(entity.getGroupsJson(), String.class),
+                listFromJson(entity.getRolesJson(), String.class)
+        ));
     }
 
     @Override

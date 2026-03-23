@@ -4,10 +4,13 @@ import io.mateu.uidl.data.ListingData;
 import io.mateu.uidl.data.Page;
 import io.mateu.uidl.data.Pageable;
 import io.mateu.workflow.usersservice.application.query.UserGroupQueryService;
+import io.mateu.workflow.usersservice.application.query.dto.UserGroupDto;
 import io.mateu.workflow.usersservice.application.query.dto.UserGroupRow;
 import io.mateu.workflow.usersservice.domain.aggregates.usergroup.vo.UserGroupId;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -24,8 +27,17 @@ public class UserGroupDBQueryService implements UserGroupQueryService {
     }
 
     @Override
-    public String getLabel(UserGroupId id) {
-        return repository.findById(id.id()).map(UserGroupEntity::getName).orElse("Unknown user group");
+    public String getLabel(String id) {
+        return repository.findById(id).map(UserGroupEntity::getName).orElse("Unknown user group");
+    }
+
+    @Override
+    public Optional<UserGroupDto> getById(String id) {
+        return repository.findById(id).map(entity -> new UserGroupDto(
+                entity.getId(),
+                entity.getName(),
+                entity.getDescription()
+        ));
     }
 
     @Override
