@@ -15,6 +15,6 @@ public class UserGroupIdLabelSupplier implements LabelSupplier {
 
     @Override
     public String label(Object id, HttpRequest httpRequest) {
-        return queryService.getLabel(new UserGroupId((String) id));
+        return queryService.getLabel((String) id);
     }
 }

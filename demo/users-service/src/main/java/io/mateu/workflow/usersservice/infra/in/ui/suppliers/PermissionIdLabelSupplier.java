@@ -15,6 +15,6 @@ public class PermissionIdLabelSupplier implements LabelSupplier {
 
     @Override
     public String label(Object id, HttpRequest httpRequest) {
-        return queryService.getLabel(new PermissionId(Long.valueOf((String) id)));
+        return queryService.getLabel((String) id);
     }
 }
