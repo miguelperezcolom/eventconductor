@@ -1,24 +1,30 @@
 package io.mateu.workflow.controlplaneservice.infra.in.ui;
 
 import io.mateu.uidl.annotations.Menu;
+import io.mateu.workflow.controlplaneservice.infra.in.ui.pages.asset.AssetCrudOrchestrator;
+import io.mateu.workflow.controlplaneservice.infra.in.ui.pages.assetversion.AssetVersionCrudOrchestrator;
+import io.mateu.workflow.controlplaneservice.infra.in.ui.pages.country.CountryCrudOrchestrator;
+import io.mateu.workflow.controlplaneservice.infra.in.ui.pages.environment.EnvironmentCrudOrchestrator;
+import io.mateu.workflow.controlplaneservice.infra.in.ui.pages.language.LanguageCrudOrchestrator;
+import io.mateu.workflow.controlplaneservice.infra.in.ui.pages.page.PageCrudOrchestrator;
+import io.mateu.workflow.controlplaneservice.infra.in.ui.pages.release.ReleaseCrudOrchestrator;
+import io.mateu.workflow.controlplaneservice.infra.in.ui.pages.resource.ResourceCrudOrchestrator;
+import io.mateu.workflow.controlplaneservice.infra.in.ui.pages.route.RouteCrudOrchestrator;
+import io.mateu.workflow.controlplaneservice.infra.in.ui.pages.site.SiteCrudOrchestrator;
 
 public class ControlPlaneMenu {
 
     @Menu
-    String environments = "Control plane";
+    MasterDataMenu masterData;
 
     @Menu
-    String languages = "Control plane";
-
-
-    @Menu
-    String pages = "Control plane";
+    SitesMenu sites;
 
     @Menu
-    String releases = "Control plane";
-
+    DownloadedContentMenu downloadedContent;
 
     @Menu
-    String changeManagement = "Control plane";
+    ReleasesMenu releases;
+
 
 }

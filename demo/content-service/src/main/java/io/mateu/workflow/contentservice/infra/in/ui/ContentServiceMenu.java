@@ -1,15 +1,17 @@
 package io.mateu.workflow.contentservice.infra.in.ui;
 
 import io.mateu.uidl.annotations.Menu;
-import io.mateu.workflow.contentservice.infra.in.ui.pages.JsonLD;
-import io.mateu.workflow.contentservice.infra.in.ui.pages.LlmsTxt;
+import io.mateu.workflow.contentservice.infra.in.ui.pages.content.ContentCrudOrchestrator;
+import io.mateu.workflow.contentservice.infra.in.ui.pages.contenttype.ContentTypeCrudOrchestrator;
+import io.mateu.workflow.contentservice.infra.in.ui.pages.label.LabelCrudOrchestrator;
 
 public class ContentServiceMenu {
 
     @Menu
-    JsonLD jsonld;
-
+    ContentCrudOrchestrator contents;
     @Menu
-    LlmsTxt llmsTxt;
+    LabelCrudOrchestrator labels;
+    @Menu
+    ContentTypeCrudOrchestrator contentTypes;
 
 }

@@ -17,22 +17,32 @@
             uri: http://localhost:8105
             predicates:
               - Path=/_workflow/**
+            filters:
+              - TokenEnrichmentFilter
           - id: content_service_route
             uri: http://localhost:8104
             predicates:
               - Path=/_content-service/**
+            filters:
+              - TokenEnrichmentFilter
 
           - id: control_plane_route
             uri: http://localhost:8103
             predicates:
               - Path=/_control-plane/**
+            filters:
+              - TokenEnrichmentFilter
 
           - id: users_route
             uri: http://localhost:8102
             predicates:
               - Path=/_users/**
+            filters:
+              - TokenEnrichmentFilter
 
           - id: shell_route
             uri: http://localhost:8101
             predicates:
               - Path=/**
+            filters:
+              - TokenEnrichmentFilter

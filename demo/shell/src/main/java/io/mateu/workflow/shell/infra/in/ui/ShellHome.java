@@ -33,6 +33,9 @@ public class ShellHome implements WidgetSupplier {
     @Menu
     RemoteMenu workflow = new RemoteMenu("/_workflow").withAppServerSideType("io.mateu.workflow.infra.in.ui.WorkflowHome");
 
+    @Menu
+    CheckRequest checkRequest;
+
     @Override
     public java.util.List<Component> widgets(HttpRequest httpRequest) {
         if (httpRequest.getHeaderValue("Authorization") != null && httpRequest.getHeaderValue("Authorization").startsWith("Bearer ")) {

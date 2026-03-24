@@ -11,6 +11,7 @@ import com.nimbusds.jose.crypto.*;
 import com.nimbusds.jwt.*;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 @Component
@@ -34,6 +35,7 @@ public class TokenEnrichmentFilter extends AbstractGatewayFilterFactory<TokenEnr
                 // 2. Mutar la petición con el nuevo token
                 ServerHttpRequest mutatedRequest = exchange.getRequest().mutate()
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + enhancedToken)
+                        .header("X-Token-Before-Auth", "Bearer " + originalToken)
                         .build();
 
                 return chain.filter(exchange.mutate().request(mutatedRequest).build());
@@ -58,7 +60,7 @@ public class TokenEnrichmentFilter extends AbstractGatewayFilterFactory<TokenEnr
             JWTClaimsSet oldClaims = oldToken.getJWTClaimsSet();
 
             // 2. Crear nuevos claims basados en los antiguos + extras
-            List<String> scopes = new ArrayList<>(oldClaims.getStringListClaim("scope"));
+            List<String> scopes = new ArrayList<>(Arrays.stream(oldClaims.getClaimAsString("scope").split(" ")).toList());
             scopes.add("CUSTOM_GATEWAY_SCOPE"); // Tu nuevo scope
             scopes.add("APP_ADMIN");
 
