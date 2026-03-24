@@ -1,0 +1,38 @@
+  server:
+    port: 8091
+  spring:
+    application:
+      name: api-gw
+    cloud:
+      gateway:
+        routes:
+#          - id: mi_servicio
+#            uri: lb://microservicio-backend
+#            predicates:
+#              - Path=/api/**
+#            filters:
+#              - TokenEnrichmentFilter
+
+          - id: orchestrator_route
+            uri: http://localhost:8105
+            predicates:
+              - Path=/_workflow/**
+          - id: content_service_route
+            uri: http://localhost:8104
+            predicates:
+              - Path=/_content-service/**
+
+          - id: control_plane_route
+            uri: http://localhost:8103
+            predicates:
+              - Path=/_control-plane/**
+
+          - id: users_route
+            uri: http://localhost:8102
+            predicates:
+              - Path=/_users/**
+
+          - id: shell_route
+            uri: http://localhost:8101
+            predicates:
+              - Path=/**

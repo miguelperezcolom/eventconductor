@@ -1,19 +1,16 @@
 server:
-  port: 8105
-
-app:
-  features:
-    data-source: mem
-
+  port: 8103
 spring:
-  # --- ConfiguraciÃ³n de Spring Cloud Stream ---
+  application:
+    name: control-plane-service
+  # --- Configuración de Spring Cloud Stream ---
   cloud:
     function:
       definition: consumeOutbox;consumeUpstream;consumeWorkerEvent
     stream:
       kafka:
         binder:
-          # Centralizamos la conexiÃ³n aquÃ­ para el Binder
+          # Centralizamos la conexión aquí para el Binder
           brokers: localhost:9092
           auto-create-topics: true
       bindings:
@@ -26,7 +23,7 @@ spring:
           group: orchestrator-group
         consumeWorkerEvent-in-0:
           destination: downstream
-          group: worker-group # AÃ±ade un grupo para persistir el offset
+          group: worker-group # Añade un grupo para persistir el offset
 
         # OUTPUTS (Para StreamBridge)
         upstream: # Nombre usado en streamBridge.send("upstream", ...)
@@ -36,7 +33,7 @@ spring:
         outbox:
           destination: outbox
 
-  # --- ConfiguraciÃ³n de Base de Datos (PostgreSQL) ---
+  # --- Configuración de Base de Datos (PostgreSQL) ---
   datasource:
     url: jdbc:postgresql://127.0.0.1:5432/workflow
     username: user_app
@@ -56,7 +53,7 @@ spring:
       hibernate:
         format_sql: true
 
-  # --- ConfiguraciÃ³n de Kafka Nativo ---
+  # --- Configuración de Kafka Nativo ---
   kafka:
     bootstrap-servers: localhost:9092
     consumer:
@@ -69,14 +66,10 @@ spring:
       # IMPORTANTE: Cambiado a ByteArraySerializer para evitar el ClassCastException [B cannot be cast to String
       value-serializer: org.apache.kafka.common.serialization.ByteArraySerializer
 
-  jackson:
-    serialization:
-      write-dates-as-timestamps: false
-
 logging:
   level:
     org.hibernate.SQL: DEBUG
     org.hibernate.orm.jdbc.bind: TRACE
     org.springframework.kafka: INFO
-    # He aÃ±adido este para que veas errores detallados del binder si algo falla
+    # He añadido este para que veas errores detallados del binder si algo falla
     org.springframework.cloud.stream: INFO

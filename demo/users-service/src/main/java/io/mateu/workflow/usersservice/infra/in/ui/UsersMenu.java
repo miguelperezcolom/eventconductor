@@ -8,10 +8,17 @@ import io.mateu.workflow.usersservice.infra.in.ui.pages.roles.RolesCrudOrchestra
 import io.mateu.workflow.usersservice.infra.in.ui.pages.usergroups.UserGroupCrudOrchestrator;
 import io.mateu.workflow.usersservice.infra.in.ui.pages.users.UsersCrudOrchestrator;
 
-@UI("/_users")
-@Title("Users")
-public class UsersHome {
+public class UsersMenu {
 
     @Menu
-    UsersMenu users;
+    PermissionsCrudOrchestrator permissions;
+
+    @Menu
+    RolesCrudOrchestrator roles;
+
+    @Menu
+    UserGroupCrudOrchestrator userGroups;
+
+    @Menu
+    UsersCrudOrchestrator users;
 }

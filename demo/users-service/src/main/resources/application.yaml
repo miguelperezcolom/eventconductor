@@ -1,9 +1,5 @@
 server:
-  port: 8091
-
-app:
-  features:
-    data-source: mem
+  port: 8102
 
 spring:
   # --- Configuración de Spring Cloud Stream ---
