@@ -1,9 +1,19 @@
 package io.mateu.workflow.shell.infra.in.ui;
 
-import io.mateu.uidl.annotations.*;
+import io.mateu.uidl.annotations.EyesOnly;
+import io.mateu.uidl.annotations.FavIcon;
+import io.mateu.uidl.annotations.KeycloakSecured;
+import io.mateu.uidl.annotations.Logo;
+import io.mateu.uidl.annotations.Menu;
+import io.mateu.uidl.annotations.PageTitle;
+import io.mateu.uidl.annotations.Title;
+import io.mateu.uidl.annotations.UI;
 import io.mateu.uidl.data.Anchor;
+import io.mateu.uidl.data.HorizontalLayout;
 import io.mateu.uidl.data.Popover;
 import io.mateu.uidl.data.RemoteMenu;
+import io.mateu.uidl.data.Text;
+import io.mateu.uidl.data.VerticalLayout;
 import io.mateu.uidl.fluent.Component;
 import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.uidl.interfaces.WidgetSupplier;
@@ -42,8 +52,9 @@ public class ShellHome implements WidgetSupplier {
     CheckRequest checkRequest;
 
     @Override
-    public java.util.List<Component> widgets(HttpRequest httpRequest) {
-        if (httpRequest.getHeaderValue("Authorization") != null && httpRequest.getHeaderValue("Authorization").startsWith("Bearer ")) {
+    public List<Component> widgets(HttpRequest httpRequest) {
+        if (httpRequest.getHeaderValue("Authorization") != null
+                && httpRequest.getHeaderValue("Authorization").startsWith("Bearer ")) {
 
             var token = httpRequest.getHeaderValue("Authorization").substring("Bearer ".length());
 
@@ -51,17 +62,12 @@ public class ShellHome implements WidgetSupplier {
 
             var values = fromJson(payload);
 
-//            var claims = Jwts.parser()
-//                    .build()
-//                    .parse(token)
-//                    .getPayload();
-
-            return java.util.List.of(io.mateu.uidl.data.HorizontalLayout.builder().content(java.util.List.of(Popover.builder()
-                    .wrapped(io.mateu.uidl.data.Text.builder().text("Hola, " + values.get("name"))
+            return List.of(HorizontalLayout.builder().content(List.of(Popover.builder()
+                    .wrapped(Text.builder().text("Hola, " + values.get("name"))
                             .style("margin-right: 20px;")
                             .build())
-                    .content(io.mateu.uidl.data.VerticalLayout.builder().content(java.util.List.of(
-                                    new io.mateu.uidl.data.Text("Email: " + values.get("email")),
+                    .content(VerticalLayout.builder().content(List.of(
+                                    new Text("Email: " + values.get("email")),
                                     new Anchor("Logout", "javascript: window.logout();"))
                             ).spacing(true)
                             .padding(true)
