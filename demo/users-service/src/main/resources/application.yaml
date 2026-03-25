@@ -2,6 +2,9 @@ server:
   port: 8102
 
 spring:
+  grpc:
+    server:
+      port: 9091
   # --- Configuración de Spring Cloud Stream ---
   cloud:
     function:

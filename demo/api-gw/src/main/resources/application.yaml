@@ -1,5 +1,17 @@
   server:
     port: 8091
+  app:
+    security:
+      jwt:
+        keystore-path: classpath:keystore.p12
+        keystore-password: riuitar
+        key-alias: gatekeeper
+        key-password: riuitar
+  grpc:
+    client:
+      auth-service: # Este nombre debe coincidir con el de @GrpcClient
+        address: 'static://localhost:9091' # O el nombre del servicio en Kubernetes/Consul
+        negotiation-type: plaintext # Usa TLS en producción, pero plaintext para pruebas locales
   spring:
     application:
       name: api-gw

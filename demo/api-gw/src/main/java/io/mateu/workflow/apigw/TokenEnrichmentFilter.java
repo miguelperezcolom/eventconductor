@@ -1,24 +1,44 @@
 package io.mateu.workflow.apigw;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.nimbusds.jose.*;
+import com.nimbusds.jose.crypto.RSASSASigner;
+import com.nimbusds.jose.jwk.RSAKey;
+import com.nimbusds.jwt.JWTClaimsSet;
+import com.nimbusds.jwt.SignedJWT;
+import io.mateu.demo.lib.AuthServiceGrpc;
+import io.mateu.demo.lib.GetAuthInfoReply;
+import io.mateu.demo.lib.GetAuthInfoRequest;
+import net.devh.boot.grpc.client.inject.GrpcClient;
 import org.springframework.cloud.gateway.filter.GatewayFilter;
 import org.springframework.cloud.gateway.filter.factory.AbstractGatewayFilterFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.stereotype.Component;
-
-import com.nimbusds.jose.*;
-import com.nimbusds.jose.crypto.*;
-import com.nimbusds.jwt.*;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Component
 public class TokenEnrichmentFilter extends AbstractGatewayFilterFactory<TokenEnrichmentFilter.Config> {
 
-    public TokenEnrichmentFilter() {
+    @GrpcClient("auth-service")
+    private AuthServiceGrpc.AuthServiceBlockingStub authServiceStub;
+
+    // Inyectamos el Bean de configuración que lee el Keystore
+    private final RSAKey rsaKey;
+    private final Cache<String, GetAuthInfoReply> authCache; // Inyectamos la caché
+
+    public TokenEnrichmentFilter(RSAKey rsaKey, Cache<String, GetAuthInfoReply> authCache) {
         super(Config.class);
+        this.rsaKey = rsaKey;
+        this.authCache = authCache;
     }
 
     @Override
@@ -29,60 +49,86 @@ public class TokenEnrichmentFilter extends AbstractGatewayFilterFactory<TokenEnr
             if (authHeader != null && authHeader.startsWith("Bearer ")) {
                 String originalToken = authHeader.substring(7);
 
-                // 1. Lógica para extraer scopes actuales y añadir los nuevos
-                String enhancedToken = enrichJwt(originalToken);
-
-                // 2. Mutar la petición con el nuevo token
-                ServerHttpRequest mutatedRequest = exchange.getRequest().mutate()
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + enhancedToken)
-                        .header("X-Token-Before-Auth", "Bearer " + originalToken)
-                        .build();
-
-                return chain.filter(exchange.mutate().request(mutatedRequest).build());
+                return Mono.fromCallable(() -> enrichJwt(originalToken))
+                        .subscribeOn(Schedulers.boundedElastic())
+                        .flatMap(enhancedToken -> {
+                            ServerHttpRequest mutatedRequest = exchange.getRequest().mutate()
+                                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + enhancedToken)
+                                    .header("X-Token-Before-Auth", "Bearer " + originalToken)
+                                    .build();
+                            return chain.filter(exchange.mutate().request(mutatedRequest).build());
+                        })
+                        .onErrorResume(e -> {
+                            // Si algo falla (gRPC caído, token corrupto), logueamos y dejamos pasar el original
+                            // O podrías devolver un 401 aquí.
+                            return chain.filter(exchange);
+                        });
             }
-
             return chain.filter(exchange);
         };
     }
 
-    private String enrichJwtOld(String token) {
-        // Aquí usarías una librería como JJWT o nimbus-jose-jwt
-        // - Decodificar el token
-        // - Añadir los nuevos claims/scopes
-        // - Volver a firmar con una clave que tus microservicios conozcan
-        return token + "_enriched"; // Ejemplo simplificado
-    }
+    private Mono<GetAuthInfoReply> getAuthInfoWithCache(String username) {
+        // Intentamos recuperar de la caché
+        GetAuthInfoReply cached = authCache.getIfPresent(username);
 
-    private String enrichJwt(String token) {
-        try {
-            // 1. Parsear el token original
-            SignedJWT oldToken = SignedJWT.parse(token);
-            JWTClaimsSet oldClaims = oldToken.getJWTClaimsSet();
-
-            // 2. Crear nuevos claims basados en los antiguos + extras
-            List<String> scopes = new ArrayList<>(Arrays.stream(oldClaims.getClaimAsString("scope").split(" ")).toList());
-            scopes.add("CUSTOM_GATEWAY_SCOPE"); // Tu nuevo scope
-            scopes.add("APP_ADMIN");
-
-            JWTClaimsSet newClaims = new JWTClaimsSet.Builder(oldClaims)
-                    .claim("scope", String.join(" ", scopes)) // O como lista, según tu estándar
-                    .issuer("my-api-gateway") // Opcional: cambiar el issuer
-                    .build();
-
-            // 3. Firmar el nuevo token
-            // NOTA: 'sharedSecret' debe tener al menos 256 bits (32 caracteres)
-            JWSSigner signer = new MACSigner("tu_clave_secreta_super_segura_de_32_chars");
-            SignedJWT newToken = new SignedJWT(new JWSHeader(JWSAlgorithm.HS256), newClaims);
-            newToken.sign(signer);
-
-            return newToken.serialize();
-
-        } catch (Exception e) {
-            throw new RuntimeException("Error al procesar el JWT", e);
+        if (cached != null) {
+            return Mono.just(cached);
         }
+
+        // Si no está, llamamos a gRPC en un hilo elástico y guardamos el resultado
+        return Mono.fromCallable(() -> {
+            GetAuthInfoReply reply = authServiceStub.getAuthInfo(
+                    GetAuthInfoRequest.newBuilder().setUser(username).build()
+            );
+            authCache.put(username, reply); // Guardamos en caché para la próxima
+            return reply;
+        }).subscribeOn(Schedulers.boundedElastic());
     }
 
-    public static class Config {
-        // Parámetros de configuración si los necesitas
+    private String enrichJwt(String token) throws Exception {
+        SignedJWT oldToken = SignedJWT.parse(token);
+        JWTClaimsSet oldClaims = oldToken.getJWTClaimsSet();
+
+        // Obtenemos el usuario (asegúrate de que este claim existe en tu token de Keycloak)
+        String username = oldClaims.getClaimAsString("preferred_username");
+        if (username == null) username = oldClaims.getSubject();
+
+        // Bloqueamos brevemente el flujo interno del Callable para obtener el Reply
+        // (Como ya estamos dentro de un Schedulers.boundedElastic, esto es seguro)
+        GetAuthInfoReply authInfo = getAuthInfoWithCache(username).block();
+
+        // Procesar Roles para realm_access.roles
+        List<String> newRoles = Arrays.stream(authInfo.getRoles().split(" "))
+                .filter(r -> !r.isBlank())
+                .collect(Collectors.toList());
+
+        Map<String, Object> realmAccess = new HashMap<>();
+        realmAccess.put("roles", newRoles);
+
+        // Construir nuevos claims manteniendo los anteriores
+        JWTClaimsSet.Builder claimsBuilder = new JWTClaimsSet.Builder(oldClaims);
+
+        claimsBuilder.claim("realm_access", realmAccess);
+        claimsBuilder.claim("scope", authInfo.getScopes());
+        claimsBuilder.issuer("my-api-gateway"); // Identificamos que el Gateway lo modificó
+
+        return signNewToken(claimsBuilder.build());
     }
+
+    private String signNewToken(JWTClaimsSet newClaims) throws JOSEException {
+        // Usamos RS256 con la clave privada del Keystore
+        JWSSigner signer = new RSASSASigner(rsaKey.toRSAPrivateKey());
+
+        JWSHeader header = new JWSHeader.Builder(JWSAlgorithm.RS256)
+                .keyID(rsaKey.getKeyID()) // Importante para que el receptor sepa qué clave usar
+                .build();
+
+        SignedJWT newToken = new SignedJWT(header, newClaims);
+        newToken.sign(signer);
+
+        return newToken.serialize();
+    }
+
+    public static class Config { }
 }

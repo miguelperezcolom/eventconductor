@@ -15,6 +15,10 @@
       <module>control-plane-service</module>
       <module>shell</module>
       <module>users-service</module>
+      <module>sdks/grpc-client</module>
+      <module>sdks/grpc-interface</module>
+      <module>sdks/grpc-bridge</module>
+      <module>sdks/grpc-server</module>
   </modules>
 
   <properties>

@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package io.mateu.demo;
+
+option java_multiple_files = true;
+option java_package = "io.mateu.demo.lib";
+option java_outer_classname = "AuthServiceProto";
+
+// The greeting service definition.
+service AuthService {
+  // Sends a greeting
+  rpc GetAuthInfo (GetAuthInfoRequest) returns (GetAuthInfoReply) {
+  }
+}
+
+// The request message containing the user's name.
+message GetAuthInfoRequest {
+  string user = 1;
+}
+
+// The response message containing the greetings
+message GetAuthInfoReply {
+  string roles = 1;
+  string scopes = 2;
+}

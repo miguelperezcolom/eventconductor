@@ -10,6 +10,8 @@
         <option value="$PROJECT_DIR$/users-service/pom.xml" />
         <option value="$PROJECT_DIR$/control-plane-service/pom.xml" />
         <option value="$PROJECT_DIR$/demo/pom.xml" />
+        <option value="$PROJECT_DIR$/demo/sdks/grpc-client/pom.xml" />
+        <option value="$PROJECT_DIR$/demo/sdks/grpc-interface/pom.xml" />
       </list>
     </option>
     <option name="ignoredFiles">
