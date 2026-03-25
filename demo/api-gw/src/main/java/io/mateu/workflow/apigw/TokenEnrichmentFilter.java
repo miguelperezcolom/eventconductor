@@ -9,6 +9,7 @@ import com.nimbusds.jwt.SignedJWT;
 import io.mateu.demo.lib.AuthServiceGrpc;
 import io.mateu.demo.lib.GetAuthInfoReply;
 import io.mateu.demo.lib.GetAuthInfoRequest;
+import lombok.extern.slf4j.Slf4j;
 import net.devh.boot.grpc.client.inject.GrpcClient;
 import org.springframework.cloud.gateway.filter.GatewayFilter;
 import org.springframework.cloud.gateway.filter.factory.AbstractGatewayFilterFactory;
@@ -26,6 +27,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 @Component
+@Slf4j
 public class TokenEnrichmentFilter extends AbstractGatewayFilterFactory<TokenEnrichmentFilter.Config> {
 
     @GrpcClient("auth-service")
@@ -33,9 +35,9 @@ public class TokenEnrichmentFilter extends AbstractGatewayFilterFactory<TokenEnr
 
     // Inyectamos el Bean de configuración que lee el Keystore
     private final RSAKey rsaKey;
-    private final Cache<String, GetAuthInfoReply> authCache; // Inyectamos la caché
+    private final Cache<String, String> authCache; // Inyectamos la caché
 
-    public TokenEnrichmentFilter(RSAKey rsaKey, Cache<String, GetAuthInfoReply> authCache) {
+    public TokenEnrichmentFilter(RSAKey rsaKey, Cache<String, String> authCache) {
         super(Config.class);
         this.rsaKey = rsaKey;
         this.authCache = authCache;
@@ -69,24 +71,19 @@ public class TokenEnrichmentFilter extends AbstractGatewayFilterFactory<TokenEnr
     }
 
     private Mono<GetAuthInfoReply> getAuthInfoWithCache(String username) {
-        // Intentamos recuperar de la caché
-        GetAuthInfoReply cached = authCache.getIfPresent(username);
-
-        if (cached != null) {
-            return Mono.just(cached);
-        }
-
         // Si no está, llamamos a gRPC en un hilo elástico y guardamos el resultado
-        return Mono.fromCallable(() -> {
-            GetAuthInfoReply reply = authServiceStub.getAuthInfo(
-                    GetAuthInfoRequest.newBuilder().setUser(username).build()
-            );
-            authCache.put(username, reply); // Guardamos en caché para la próxima
-            return reply;
-        }).subscribeOn(Schedulers.boundedElastic());
+        return Mono.fromCallable(() -> authServiceStub.getAuthInfo(
+                GetAuthInfoRequest.newBuilder().setUser(username).build()
+        )).subscribeOn(Schedulers.boundedElastic());
     }
 
     private String enrichJwt(String token) throws Exception {
+        // Intentamos recuperar de la caché
+        String cached = authCache.getIfPresent(token);
+        if (cached != null) return cached;
+
+        log.info("Enriching token");
+
         SignedJWT oldToken = SignedJWT.parse(token);
         JWTClaimsSet oldClaims = oldToken.getJWTClaimsSet();
 
@@ -113,7 +110,9 @@ public class TokenEnrichmentFilter extends AbstractGatewayFilterFactory<TokenEnr
         claimsBuilder.claim("scope", authInfo.getScopes());
         claimsBuilder.issuer("my-api-gateway"); // Identificamos que el Gateway lo modificó
 
-        return signNewToken(claimsBuilder.build());
+        var enrichedToken = signNewToken(claimsBuilder.build());
+        authCache.put(token, enrichedToken); // Guardamos en caché para la próxima
+        return enrichedToken;
     }
 
     private String signNewToken(JWTClaimsSet newClaims) throws JOSEException {

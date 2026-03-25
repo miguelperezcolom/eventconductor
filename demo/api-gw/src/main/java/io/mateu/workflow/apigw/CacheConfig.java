@@ -12,7 +12,7 @@ import java.time.Duration;
 public class CacheConfig {
 
     @Bean
-    public Cache<String, GetAuthInfoReply> authCache() {
+    public Cache<String, String> authCache() {
         return Caffeine.newBuilder()
                 .expireAfterWrite(Duration.ofMinutes(5)) // El permiso expira en 5 min
                 .maximumSize(10000) // Guardamos hasta 10,000 usuarios en memoria
