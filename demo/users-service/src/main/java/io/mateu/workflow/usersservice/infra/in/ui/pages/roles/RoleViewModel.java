@@ -1,7 +1,7 @@
 package io.mateu.workflow.usersservice.infra.in.ui.pages.roles;
 
-import io.mateu.uidl.annotations.EditableOnlyWhenCreating;
-import io.mateu.uidl.annotations.ForeignKey;
+import io.mateu.uidl.annotations.*;
+import io.mateu.uidl.data.FieldStereotype;
 import io.mateu.uidl.interfaces.CrudCreationForm;
 import io.mateu.uidl.interfaces.CrudEditorForm;
 import io.mateu.uidl.interfaces.HttpRequest;
@@ -30,8 +30,13 @@ public class RoleViewModel implements Identifiable, CrudEditorForm<String>, Crud
     @NotEmpty
     String id;
     @NotEmpty String name;
+    @Colspan(2)
+    @Style("width: 100%;")
     String description;
     @ForeignKey(search = PermissionIdOptionsSupplier.class, label = PermissionIdLabelSupplier.class)
+    //@Stereotype(FieldStereotype.checkbox)
+            @Colspan(2)
+            @Style("width: 100%;")
     List<String> permissions;
 
     final CreateRoleUseCase createRoleUseCase;
