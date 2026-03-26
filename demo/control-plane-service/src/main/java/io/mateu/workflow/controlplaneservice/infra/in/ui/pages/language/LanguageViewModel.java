@@ -1,7 +1,6 @@
 package io.mateu.workflow.controlplaneservice.infra.in.ui.pages.language;
 
-import io.mateu.uidl.annotations.HiddenInCreate;
-import io.mateu.uidl.annotations.ReadOnly;
+import io.mateu.uidl.annotations.EditableOnlyWhenCreating;
 import io.mateu.uidl.interfaces.CrudCreationForm;
 import io.mateu.uidl.interfaces.CrudEditorForm;
 import io.mateu.uidl.interfaces.HttpRequest;
@@ -11,7 +10,6 @@ import io.mateu.workflow.controlplaneservice.application.usecases.language.creat
 import io.mateu.workflow.controlplaneservice.application.usecases.language.create.CreateLanguageUseCase;
 import io.mateu.workflow.controlplaneservice.application.usecases.language.update.UpdateLanguageCommand;
 import io.mateu.workflow.controlplaneservice.application.usecases.language.update.UpdateLanguageUseCase;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.language.Language;
 import jakarta.validation.constraints.NotEmpty;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Scope;
@@ -21,9 +19,8 @@ import org.springframework.stereotype.Service;
 @Scope("prototype")
 @RequiredArgsConstructor
 public class LanguageViewModel implements Identifiable, CrudEditorForm<String>, CrudCreationForm<String> {
-        @HiddenInCreate
-        @ReadOnly
-        String id;
+        @EditableOnlyWhenCreating
+        String code;
         @NotEmpty String name;
 
         final CreateLanguageUseCase createLanguageUseCase;
@@ -31,27 +28,27 @@ public class LanguageViewModel implements Identifiable, CrudEditorForm<String>, 
 
         @Override
         public String create(HttpRequest httpRequest) {
-        return createLanguageUseCase.handle(new CreateLanguageCommand(name));
+        return createLanguageUseCase.handle(new CreateLanguageCommand(code, name));
         }
 
         @Override
         public void save(HttpRequest httpRequest) {
-        updateLanguageUseCase.handle(new UpdateLanguageCommand(id, name));
+        updateLanguageUseCase.handle(new UpdateLanguageCommand(code, name));
         }
 
         @Override
         public String id() {
-        return id;
+        return code;
         }
 
         public LanguageViewModel load(LanguageDto language) {
-        id = String.valueOf(language.id());
+        code = String.valueOf(language.code());
         name = language.name();
         return this;
         }
 
         @Override
         public String toString() {
-        return id != null ? name : "New language";
+        return code != null ? name : "New language";
         }
         }

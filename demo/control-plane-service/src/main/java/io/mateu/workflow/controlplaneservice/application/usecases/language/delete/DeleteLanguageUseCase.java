@@ -1,7 +1,7 @@
 package io.mateu.workflow.controlplaneservice.application.usecases.language.delete;
 
 import io.mateu.workflow.controlplaneservice.application.out.LanguageRepository;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.language.vo.LanguageId;
+import io.mateu.workflow.controlplaneservice.domain.aggregates.language.vo.LanguageCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,8 +15,7 @@ final LanguageRepository repository;
 @Transactional
 public void handle(DeleteLanguageCommand command) {
 repository.deleteAllById(command.ids().stream()
-.map(Long::valueOf)
-.map(LanguageId::new)
+.map(LanguageCode::new)
 .toList());
 }
 
