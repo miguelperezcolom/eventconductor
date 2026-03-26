@@ -25,6 +25,6 @@ public ListingData<Option> search(String searchText, Pageable pageable, HttpRequ
     found.page().pageNumber(),
     found.page().totalElements(),
     found.page().content().stream().map(language ->
-    new Option(language.id(), language.name())).toList()));
+    new Option(language.code(), language.name())).toList()));
     }
     }
