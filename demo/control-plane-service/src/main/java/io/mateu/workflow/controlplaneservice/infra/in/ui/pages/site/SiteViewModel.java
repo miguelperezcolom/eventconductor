@@ -1,5 +1,6 @@
 package io.mateu.workflow.controlplaneservice.infra.in.ui.pages.site;
 
+import io.mateu.uidl.annotations.EditableOnlyWhenCreating;
 import io.mateu.uidl.annotations.HiddenInCreate;
 import io.mateu.uidl.annotations.ReadOnly;
 import io.mateu.uidl.interfaces.CrudCreationForm;
@@ -21,22 +22,22 @@ import org.springframework.stereotype.Service;
 @Scope("prototype")
 @RequiredArgsConstructor
 public class SiteViewModel implements Identifiable, CrudEditorForm<String>, CrudCreationForm<String> {
-        @HiddenInCreate
-        @ReadOnly
+        @EditableOnlyWhenCreating
         String id;
         @NotEmpty String name;
+    @NotEmpty String url;
 
         final CreateSiteUseCase createSiteUseCase;
         final UpdateSiteUseCase updateSiteUseCase;
 
         @Override
         public String create(HttpRequest httpRequest) {
-        return createSiteUseCase.handle(new CreateSiteCommand(name));
+        return createSiteUseCase.handle(new CreateSiteCommand(id, name, url));
         }
 
         @Override
         public void save(HttpRequest httpRequest) {
-        updateSiteUseCase.handle(new UpdateSiteCommand(id, name));
+        updateSiteUseCase.handle(new UpdateSiteCommand(id, name, url));
         }
 
         @Override
@@ -47,6 +48,7 @@ public class SiteViewModel implements Identifiable, CrudEditorForm<String>, Crud
         public SiteViewModel load(SiteDto site) {
         id = String.valueOf(site.id());
         name = site.name();
+        url = site.url();
         return this;
         }
 

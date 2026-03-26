@@ -15,7 +15,6 @@ final EnvironmentRepository repository;
 @Transactional
 public void handle(DeleteEnvironmentCommand command) {
 repository.deleteAllById(command.ids().stream()
-.map(Long::valueOf)
 .map(EnvironmentId::new)
 .toList());
 }

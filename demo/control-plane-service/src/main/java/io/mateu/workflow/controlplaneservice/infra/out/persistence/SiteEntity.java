@@ -16,14 +16,10 @@ import lombok.NoArgsConstructor;
 public class SiteEntity {
 
 @Id
-@GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "site_seq_gen")
-@SequenceGenerator(
-name = "site_seq_gen",
-sequenceName = "site_sequence",
-allocationSize = 1
-)
-Long id;
+String id;
 
 String name;
+
+String url;
 
 }

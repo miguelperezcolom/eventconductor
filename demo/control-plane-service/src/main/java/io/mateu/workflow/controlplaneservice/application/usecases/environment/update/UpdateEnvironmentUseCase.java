@@ -15,7 +15,7 @@ final EnvironmentRepository repository;
 
 @Transactional
 public void handle(UpdateEnvironmentCommand command) {
-var environment = repository.findById(new EnvironmentId(Long.valueOf(command.id()))).orElseThrow();
+var environment = repository.findById(new EnvironmentId(command.id())).orElseThrow();
 environment.update(new EnvironmentName(command.name()));
 repository.save(environment);
 }

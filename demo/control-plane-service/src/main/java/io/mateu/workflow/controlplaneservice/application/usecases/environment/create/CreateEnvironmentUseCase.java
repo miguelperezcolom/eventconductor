@@ -16,8 +16,8 @@ final EnvironmentRepository repository;
 
 @Transactional
 public String handle(CreateEnvironmentCommand command) {
-return repository.save(Environment.of(new EnvironmentName(command.name()))
-).id().toString();
+return repository.save(Environment.of(new EnvironmentId(command.id()), new EnvironmentName(command.name()))
+).id();
 }
 
 }

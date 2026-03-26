@@ -25,6 +25,7 @@ final PageEntityRepository repository;
 private PageRow toDomain(PageEntity entity) {
 return new PageRow(
 entity.id.toString(),
+entity.siteId,
 entity.name
 );
 }
@@ -42,7 +43,9 @@ public Optional<PageDto> getById(String id) {
     private PageDto toDto(PageEntity entity) {
     return new PageDto(
     entity.id.toString(),
-    entity.name
+    entity.siteId,
+    entity.name,
+            entity.path
     );
     }
 
