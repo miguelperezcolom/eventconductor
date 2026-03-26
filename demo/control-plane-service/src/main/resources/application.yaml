@@ -1,5 +1,8 @@
 server:
   port: 8103
+github:
+  token: ***REMOVED-LEAKED-GITHUB-PAT***
+  repo: miguelperezcolom/riu-com-copy
 spring:
   application:
     name: control-plane-service

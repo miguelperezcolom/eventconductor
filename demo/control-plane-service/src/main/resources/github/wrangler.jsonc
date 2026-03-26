@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "eventconductor",
+  "name": "riu-com-copy",
   "main": "index.js",
   "compatibility_date": "2025-09-27",
   "vars": {

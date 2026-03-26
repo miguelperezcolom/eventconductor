@@ -15,7 +15,6 @@ final ResourceRepository repository;
 @Transactional
 public void handle(DeleteResourceCommand command) {
 repository.deleteAllById(command.ids().stream()
-.map(Long::valueOf)
 .map(ResourceId::new)
 .toList());
 }
