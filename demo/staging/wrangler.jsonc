@@ -3,6 +3,9 @@
   "name": "eventconductor",
   "main": "index.js",
   "compatibility_date": "2025-09-27",
+  "vars": {
+    "DEFAULT_VERSION": ""
+  },
   "assets": {
     "directory": "./public",
     "binding": "ASSETS"
