@@ -47,7 +47,9 @@ export default {
         }
 
         response.headers.set('x-worker-active', 'true');
-        response.headers.set('x-default-version', env.DEFAULT_VERSION || 'v1-default');
+        response.headers.set('x-default-version', env.DEFAULT_VERSION || 'no-var');
+        response.headers.set('x-resolved-version', version);
+        response.headers.set('x-country-detected', country);
 
         return response;
     }
