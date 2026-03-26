@@ -21,28 +21,31 @@ export async function onRequest(context) {
 
         const targetFile = url.pathname === '/' ? fileName : url.pathname.substring(1);
 
-        // CONSTRUCCIÓN LIMPIA:
-        // Creamos una URL nueva basada en el origen pero SIN los query params del usuario
-        // para que env.ASSETS no se confunda buscando archivos con "?" en el nombre.
-        const assetUrl = new URL(`/${version}/${targetFile}`, url.origin);
+        // LA CLAVE: Construir una Request nueva basada en la original
+        // pero cambiando la URL a una ruta absoluta interna.
+        const assetPath = `/${version}/${targetFile}`;
+        const assetRequest = new Request(new URL(assetPath, url.origin), request);
 
-        const assetResponse = await env.ASSETS.fetch(assetUrl);
+        // Pedimos el asset a Pages
+        const assetResponse = await env.ASSETS.fetch(assetRequest);
 
-        if (assetResponse.status === 404) {
+        // Si falla el asset interno, dejamos que siga el flujo normal (evita el 404 estricto)
+        if (!assetResponse.ok) {
             return next();
         }
 
+        // Clonamos la respuesta para poder modificar cabeceras
         const response = new Response(assetResponse.body, assetResponse);
 
-        // Cookies
+        // Inyectamos Cookies
         response.headers.set('Set-Cookie', `user-country=${country}; Max-Age=2592000; Path=/; Secure; SameSite=Lax`);
         if (!versionMatch) {
             response.headers.append('Set-Cookie', `app-version=${version}; Max-Age=2592000; Path=/; Secure; SameSite=Lax`);
         }
 
-        // Debug
+        // Headers de diagnóstico
         response.headers.set('x-debug-worker', 'active');
-        response.headers.set('x-debug-lookup', assetUrl.pathname);
+        response.headers.set('x-debug-target', assetPath);
 
         return response;
     }
