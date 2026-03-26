@@ -4,7 +4,7 @@
   "main": "index.js",
   "compatibility_date": "2025-09-27",
   "vars": {
-    "OLD_DEFAULT_VERSION": "v0000000001"
+    "DEFAULT_VERSION": "v0000000001" // Este valor se usará si no hay uno en el panel
   },
   "assets": {
     "directory": "./public",
