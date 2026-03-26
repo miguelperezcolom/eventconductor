@@ -31,12 +31,12 @@ entity.name
 
 @Override
 public String getLabel(String id) {
-return repository.findById(Long.valueOf(id)).map(EnvironmentEntity::getName).orElse("Unknown");
+return repository.findById(id).map(EnvironmentEntity::getName).orElse("Unknown");
 }
 
 @Override
 public Optional<EnvironmentDto> getById(String id) {
-    return repository.findById(Long.valueOf(id)).map(this::toDto);
+    return repository.findById(id).map(this::toDto);
     }
 
     private EnvironmentDto toDto(EnvironmentEntity entity) {

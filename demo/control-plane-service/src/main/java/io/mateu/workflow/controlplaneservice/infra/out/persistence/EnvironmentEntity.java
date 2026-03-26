@@ -16,13 +16,7 @@ import lombok.NoArgsConstructor;
 public class EnvironmentEntity {
 
 @Id
-@GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "environment_seq_gen")
-@SequenceGenerator(
-name = "environment_seq_gen",
-sequenceName = "environment_sequence",
-allocationSize = 1
-)
-Long id;
+String id;
 
 String name;
 

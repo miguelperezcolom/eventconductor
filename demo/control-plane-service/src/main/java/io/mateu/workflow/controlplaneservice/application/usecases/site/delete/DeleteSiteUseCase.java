@@ -15,7 +15,6 @@ final SiteRepository repository;
 @Transactional
 public void handle(DeleteSiteCommand command) {
 repository.deleteAllById(command.ids().stream()
-.map(Long::valueOf)
 .map(SiteId::new)
 .toList());
 }

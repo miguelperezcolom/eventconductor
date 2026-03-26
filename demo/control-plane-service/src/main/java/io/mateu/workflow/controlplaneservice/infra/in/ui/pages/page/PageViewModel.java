@@ -1,5 +1,6 @@
 package io.mateu.workflow.controlplaneservice.infra.in.ui.pages.page;
 
+import io.mateu.uidl.annotations.ForeignKey;
 import io.mateu.uidl.annotations.HiddenInCreate;
 import io.mateu.uidl.annotations.ReadOnly;
 import io.mateu.uidl.interfaces.CrudCreationForm;
@@ -12,7 +13,10 @@ import io.mateu.workflow.controlplaneservice.application.usecases.page.create.Cr
 import io.mateu.workflow.controlplaneservice.application.usecases.page.update.UpdatePageCommand;
 import io.mateu.workflow.controlplaneservice.application.usecases.page.update.UpdatePageUseCase;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.page.Page;
+import io.mateu.workflow.controlplaneservice.infra.in.ui.suppliers.SiteIdLabelSupplier;
+import io.mateu.workflow.controlplaneservice.infra.in.ui.suppliers.SiteIdOptionsSupplier;
 import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Service;
@@ -25,18 +29,22 @@ public class PageViewModel implements Identifiable, CrudEditorForm<String>, Crud
         @ReadOnly
         String id;
         @NotEmpty String name;
+        @ForeignKey(search = SiteIdOptionsSupplier.class, label = SiteIdLabelSupplier.class)
+                @NotNull
+        String siteId;
+    @NotEmpty String path;
 
         final CreatePageUseCase createPageUseCase;
         final UpdatePageUseCase updatePageUseCase;
 
         @Override
         public String create(HttpRequest httpRequest) {
-        return createPageUseCase.handle(new CreatePageCommand(name));
+        return createPageUseCase.handle(new CreatePageCommand(siteId, name, path));
         }
 
         @Override
         public void save(HttpRequest httpRequest) {
-        updatePageUseCase.handle(new UpdatePageCommand(id, name));
+        updatePageUseCase.handle(new UpdatePageCommand(id, siteId, name, path));
         }
 
         @Override
@@ -46,7 +54,9 @@ public class PageViewModel implements Identifiable, CrudEditorForm<String>, Crud
 
         public PageViewModel load(PageDto page) {
         id = String.valueOf(page.id());
+        siteId = page.siteId();
         name = page.name();
+        path = page.path();
         return this;
         }
 

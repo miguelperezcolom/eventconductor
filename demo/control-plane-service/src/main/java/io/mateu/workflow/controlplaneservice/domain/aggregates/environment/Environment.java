@@ -20,8 +20,9 @@ EnvironmentId id;
 EnvironmentName name;
 
 
-public static Environment of(EnvironmentName name) {
+public static Environment of(EnvironmentId id, EnvironmentName name) {
 Environment p = new Environment();
+p.id = id;
 p.name = name;
 return p;
 }

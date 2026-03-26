@@ -4,6 +4,7 @@ import io.mateu.workflow.controlplaneservice.application.out.SiteRepository;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.site.Site;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.site.vo.SiteId;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.site.vo.SiteName;
+import io.mateu.workflow.controlplaneservice.domain.aggregates.site.vo.SiteUrl;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -27,14 +28,16 @@ public Optional<Site> findById(SiteId id) {
     private Site toDomain(SiteEntity entity) {
     return new Site(
     new SiteId(entity.id),
-    new SiteName(entity.name)
+    new SiteName(entity.name),
+            new SiteUrl(entity.url)
     );
     }
 
     private SiteEntity toEntity(Site site) {
     return new SiteEntity(
-site.getId() != null?Long.valueOf(site.getId().id()):null,
-site.getName().name()
+site.getId().id(),
+site.getName().name(),
+            site.getUrl().url()
     );
     }
 

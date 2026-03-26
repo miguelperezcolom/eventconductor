@@ -2,6 +2,7 @@ package io.mateu.workflow.controlplaneservice.domain.aggregates.site;
 
 
 import io.mateu.uidl.interfaces.Identifiable;
+import io.mateu.workflow.controlplaneservice.domain.aggregates.site.vo.SiteUrl;
 import io.mateu.workflow.ddd.AggregateRoot;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.site.vo.SiteId;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.site.vo.SiteName;
@@ -19,15 +20,21 @@ SiteId id;
 
 SiteName name;
 
+SiteUrl url;
 
-public static Site of(SiteName name) {
+
+public static Site of(SiteId id, SiteName name, SiteUrl url) {
 Site p = new Site();
+p.id = id;
 p.name = name;
+p.url = url;
 return p;
 }
 
-public void update(SiteName name) {
-this.name = name;
+public void update(SiteName name, SiteUrl url) {
+
+    this.name = name;
+    this.url = url;
 }
 
             }

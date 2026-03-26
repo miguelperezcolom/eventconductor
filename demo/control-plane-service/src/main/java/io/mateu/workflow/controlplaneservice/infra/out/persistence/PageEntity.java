@@ -24,6 +24,10 @@ allocationSize = 1
 )
 Long id;
 
+String siteId;
+
 String name;
+
+String path;
 
 }

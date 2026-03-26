@@ -4,6 +4,8 @@ import io.mateu.workflow.controlplaneservice.application.out.PageRepository;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.page.Page;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.page.vo.PageId;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.page.vo.PageName;
+import io.mateu.workflow.controlplaneservice.domain.aggregates.page.vo.PagePath;
+import io.mateu.workflow.controlplaneservice.domain.aggregates.site.vo.SiteId;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -27,14 +29,19 @@ public Optional<Page> findById(PageId id) {
     private Page toDomain(PageEntity entity) {
     return new Page(
     new PageId(entity.id),
-    new PageName(entity.name)
+    new SiteId(entity.siteId),
+    new PageName(entity.name),
+            new PagePath(entity.path)
+
     );
     }
 
     private PageEntity toEntity(Page page) {
     return new PageEntity(
-page.getId() != null?Long.valueOf(page.getId().id()):null,
-page.getName().name()
+page.getId() != null? page.getId().id() :null,
+page.getSiteId().id(),
+page.getName().name(),
+            page.getPath().path()
     );
     }
 

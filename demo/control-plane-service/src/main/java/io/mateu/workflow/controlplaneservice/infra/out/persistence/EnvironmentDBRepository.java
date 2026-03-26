@@ -33,7 +33,7 @@ public Optional<Environment> findById(EnvironmentId id) {
 
     private EnvironmentEntity toEntity(Environment environment) {
     return new EnvironmentEntity(
-environment.getId() != null?Long.valueOf(environment.getId().id()):null,
+environment.getId().id(),
 environment.getName().name()
     );
     }

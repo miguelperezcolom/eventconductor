@@ -31,18 +31,19 @@ entity.name
 
 @Override
 public String getLabel(String id) {
-return repository.findById(Long.valueOf(id)).map(SiteEntity::getName).orElse("Unknown");
+return repository.findById(id).map(SiteEntity::getName).orElse("Unknown");
 }
 
 @Override
 public Optional<SiteDto> getById(String id) {
-    return repository.findById(Long.valueOf(id)).map(this::toDto);
+    return repository.findById(id).map(this::toDto);
     }
 
     private SiteDto toDto(SiteEntity entity) {
     return new SiteDto(
-    entity.id.toString(),
-    entity.name
+    entity.id,
+    entity.name,
+            entity.url
     );
     }
 
