@@ -1,13 +1,13 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "eventconductor",
-  "main": "index.js", // <--- AÑADE ESTO
+  "main": "index.js",
   "compatibility_date": "2025-09-27",
+  "vars": {
+    "DEFAULT_VERSION": "v0000000001"
+  },
   "assets": {
     "directory": "./public",
-    "binding": "ASSETS" // Esto permite que env.ASSETS funcione
-  },
-  "observability": {
-    "enabled": true
+    "binding": "ASSETS"
   }
 }
