@@ -2,58 +2,61 @@ export default {
     async fetch(request, env, context) {
         const url = new URL(request.url);
 
-        // 1. Assets directos y archivos con extensión (evita procesar CSS/JS)
-        if (url.pathname.startsWith('/v000') || (url.pathname !== '/' && url.pathname.includes('.'))) {
+        // 1. Assets directos y exclusiones
+        const isStaticAsset = /\.(jpg|jpeg|png|gif|css|js|ico|svg|woff2)$/i.test(url.pathname);
+        if (url.pathname.startsWith('/v000') || isStaticAsset) {
             return env.ASSETS.fetch(request);
         }
 
-        // 2. Variables de entorno y headers
+        // 2. Parámetros y Cabeceras
         const country = request.headers.get('cf-ipcountry') || 'XX';
         const cookieHeader = request.headers.get('Cookie') || '';
 
-        // 3. LA CLAVE: Prioridad a la Variable de Entorno
-        // Solo usamos la cookie si NO hay una versión por defecto definida (fallback)
-        // O si quieres permitir que una versión de "QA" sobrescriba la oficial (opcional)
+        // --- LÓGICA DE SELECCIÓN DE VERSIÓN ---
+        // Prioridad 1: Parámetro en URL (?force_version=v0000000003)
+        const forceVersion = url.searchParams.get('force_version');
+
+        // Prioridad 2: Cookie existente
+        const versionMatch = cookieHeader.match(/app-version=(v\d+)/);
+
+        // Prioridad 3: Variable de entorno (Default)
         const defaultVersion = env.DEFAULT_VERSION || 'v0000000001';
 
-        // Si quieres que el usuario PUEDA forzar una versión distinta (ej. para pruebas),
-        // deja la lógica de la cookie. Si quieres que sea IMPOSIBLE quedarse atrás,
-        // usa directamente defaultVersion.
-        const version = defaultVersion;
+        // Resolución final
+        const version = forceVersion || (versionMatch ? versionMatch[1] : defaultVersion);
 
-        // 4. Determinar el archivo
+        // 3. Determinar archivo por País
         let fileName = 'index.html';
         if (country === 'ES') fileName = 'index_ES.html';
         if (country === 'CA') fileName = 'index_CA.html';
 
-        let targetFile = url.pathname === '/' ? fileName : url.pathname.substring(1);
-        if (!targetFile.endsWith('.html')) targetFile += '.html';
+        let targetPath = url.pathname === '/'
+            ? `/${version}/${fileName}`
+            : `/${version}${url.pathname.endsWith('.html') ? url.pathname : url.pathname + '.html'}`;
 
-        const targetPath = `/${version}/${targetFile}`;
+        // 4. Fetch al asset
+        let assetResponse = await env.ASSETS.fetch(new Request(new URL(targetPath, url.origin), request));
 
-        // 5. Fetch al asset
-        const assetUrl = new URL(targetPath, url.origin);
-        const assetResponse = await env.ASSETS.fetch(new Request(assetUrl, { redirect: "manual" }));
-
-        let finalResponse = assetResponse;
-        if (assetResponse.status >= 300 && assetResponse.status < 400) {
-            const location = assetResponse.headers.get("location");
-            if (location) finalResponse = await env.ASSETS.fetch(new URL(location, url.origin));
+        // Fallback si el archivo de país no existe en esa versión específica
+        if (assetResponse.status === 404 && (country === 'ES' || country === 'CA')) {
+            assetResponse = await env.ASSETS.fetch(new Request(new URL(`/${version}/index.html`, url.origin), request));
         }
 
-        if (!finalResponse.ok) {
-            return new Response(`Error: ${targetPath} no existe.`, { status: 404 });
+        if (!assetResponse.ok) {
+            return new Response(`Error: La versión ${version} o el archivo ${targetPath} no existen.`, { status: 404 });
         }
 
-        const response = new Response(finalResponse.body, finalResponse);
+        // 5. Construir Respuesta con Cookies
+        const response = new Response(assetResponse.body, assetResponse);
 
-        // 6. Actualizamos la Cookie para que coincida con la versión actual
-        // Así, si en el futuro necesitas leerla, siempre estará sincronizada.
+        // Seteamos cookies para "recordar" la elección
         response.headers.set('Set-Cookie', `user-country=${country}; Max-Age=2592000; Path=/; Secure; SameSite=Lax`);
         response.headers.append('Set-Cookie', `app-version=${version}; Max-Age=2592000; Path=/; Secure; SameSite=Lax`);
 
-        response.headers.set('x-worker-active', 'true');
+        // Headers de depuración
         response.headers.set('x-resolved-version', version);
+        response.headers.set('x-country-detected', country);
+        if (forceVersion) response.headers.set('x-version-forced', 'true');
 
         return response;
     }
