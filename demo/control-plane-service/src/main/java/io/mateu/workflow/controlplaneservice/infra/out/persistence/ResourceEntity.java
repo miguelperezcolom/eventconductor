@@ -16,14 +16,12 @@ import lombok.NoArgsConstructor;
 public class ResourceEntity {
 
 @Id
-@GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "resource_seq_gen")
-@SequenceGenerator(
-name = "resource_seq_gen",
-sequenceName = "resource_sequence",
-allocationSize = 1
-)
-Long id;
+String id;
 
 String name;
+
+String path;
+
+byte[] content;
 
 }

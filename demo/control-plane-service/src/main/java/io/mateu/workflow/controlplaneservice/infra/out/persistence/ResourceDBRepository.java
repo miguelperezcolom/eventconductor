@@ -2,8 +2,10 @@ package io.mateu.workflow.controlplaneservice.infra.out.persistence;
 
 import io.mateu.workflow.controlplaneservice.application.out.ResourceRepository;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.resource.Resource;
+import io.mateu.workflow.controlplaneservice.domain.aggregates.resource.vo.ResourceContent;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.resource.vo.ResourceId;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.resource.vo.ResourceName;
+import io.mateu.workflow.controlplaneservice.domain.aggregates.resource.vo.ResourcePath;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -27,14 +29,18 @@ public Optional<Resource> findById(ResourceId id) {
     private Resource toDomain(ResourceEntity entity) {
     return new Resource(
     new ResourceId(entity.id),
-    new ResourceName(entity.name)
+    new ResourceName(entity.name),
+            new ResourcePath(entity.path),
+            new ResourceContent(entity.content)
     );
     }
 
     private ResourceEntity toEntity(Resource resource) {
     return new ResourceEntity(
-resource.getId() != null?Long.valueOf(resource.getId().id()):null,
-resource.getName().name()
+resource.getId().id(),
+resource.getName().name(),
+            resource.getPath().path(),
+            resource.getContent().bytes()
     );
     }
 

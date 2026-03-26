@@ -1,5 +1,8 @@
 server:
   port: 8103
+github:
+  token: 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
+  repo: miguelperezcolom/riu-com-copy
 spring:
   application:
     name: control-plane-service

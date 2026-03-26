@@ -15,7 +15,7 @@ final ResourceRepository repository;
 
 @Transactional
 public void handle(UpdateResourceCommand command) {
-var resource = repository.findById(new ResourceId(Long.valueOf(command.id()))).orElseThrow();
+var resource = repository.findById(new ResourceId(command.id())).orElseThrow();
 resource.update(new ResourceName(command.name()));
 repository.save(resource);
 }

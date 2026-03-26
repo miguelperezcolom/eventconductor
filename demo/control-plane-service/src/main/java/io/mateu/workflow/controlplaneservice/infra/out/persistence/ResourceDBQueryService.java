@@ -24,19 +24,19 @@ final ResourceEntityRepository repository;
 
 private ResourceRow toDomain(ResourceEntity entity) {
 return new ResourceRow(
-entity.id.toString(),
+entity.id,
 entity.name
 );
 }
 
 @Override
 public String getLabel(String id) {
-return repository.findById(Long.valueOf(id)).map(ResourceEntity::getName).orElse("Unknown");
+return repository.findById(id).map(ResourceEntity::getName).orElse("Unknown");
 }
 
 @Override
 public Optional<ResourceDto> getById(String id) {
-    return repository.findById(Long.valueOf(id)).map(this::toDto);
+    return repository.findById(id).map(this::toDto);
     }
 
     private ResourceDto toDto(ResourceEntity entity) {
