@@ -4,6 +4,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
-public interface CountryEntityRepository extends JpaRepository<CountryEntity, Long> {
+public interface CountryEntityRepository extends JpaRepository<CountryEntity, String> {
 Page<CountryEntity> findAllByNameContainingIgnoreCase(String searchText, Pageable pageable);
     }

@@ -1,7 +1,6 @@
 package io.mateu.workflow.controlplaneservice.infra.in.ui.pages.country;
 
-import io.mateu.uidl.annotations.HiddenInCreate;
-import io.mateu.uidl.annotations.ReadOnly;
+import io.mateu.uidl.annotations.EditableOnlyWhenCreating;
 import io.mateu.uidl.interfaces.CrudCreationForm;
 import io.mateu.uidl.interfaces.CrudEditorForm;
 import io.mateu.uidl.interfaces.HttpRequest;
@@ -11,7 +10,6 @@ import io.mateu.workflow.controlplaneservice.application.usecases.country.create
 import io.mateu.workflow.controlplaneservice.application.usecases.country.create.CreateCountryUseCase;
 import io.mateu.workflow.controlplaneservice.application.usecases.country.update.UpdateCountryCommand;
 import io.mateu.workflow.controlplaneservice.application.usecases.country.update.UpdateCountryUseCase;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.country.Country;
 import jakarta.validation.constraints.NotEmpty;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Scope;
@@ -21,9 +19,8 @@ import org.springframework.stereotype.Service;
 @Scope("prototype")
 @RequiredArgsConstructor
 public class CountryViewModel implements Identifiable, CrudEditorForm<String>, CrudCreationForm<String> {
-        @HiddenInCreate
-        @ReadOnly
-        String id;
+        @EditableOnlyWhenCreating
+        String code;
         @NotEmpty String name;
 
         final CreateCountryUseCase createCountryUseCase;
@@ -31,27 +28,27 @@ public class CountryViewModel implements Identifiable, CrudEditorForm<String>, C
 
         @Override
         public String create(HttpRequest httpRequest) {
-        return createCountryUseCase.handle(new CreateCountryCommand(name));
+        return createCountryUseCase.handle(new CreateCountryCommand(code, name));
         }
 
         @Override
         public void save(HttpRequest httpRequest) {
-        updateCountryUseCase.handle(new UpdateCountryCommand(id, name));
+        updateCountryUseCase.handle(new UpdateCountryCommand(code, name));
         }
 
         @Override
         public String id() {
-        return id;
+        return code;
         }
 
         public CountryViewModel load(CountryDto country) {
-        id = String.valueOf(country.id());
+        code = country.code();
         name = country.name();
         return this;
         }
 
         @Override
         public String toString() {
-        return id != null ? name : "New country";
+        return code != null ? name : "New country";
         }
         }

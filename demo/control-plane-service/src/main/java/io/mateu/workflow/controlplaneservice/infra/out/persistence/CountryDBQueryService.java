@@ -6,14 +6,10 @@ import io.mateu.uidl.data.Pageable;
 import io.mateu.workflow.controlplaneservice.application.query.CountryQueryService;
 import io.mateu.workflow.controlplaneservice.application.query.dto.CountryDto;
 import io.mateu.workflow.controlplaneservice.application.query.dto.CountryRow;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.country.vo.CountryId;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.country.vo.CountryName;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.Optional;
-
-import static io.mateu.core.infra.JsonSerializer.listFromJson;
 
 
 @Service
@@ -24,24 +20,24 @@ final CountryEntityRepository repository;
 
 private CountryRow toDomain(CountryEntity entity) {
 return new CountryRow(
-entity.id.toString(),
+entity.code,
 entity.name
 );
 }
 
 @Override
 public String getLabel(String id) {
-return repository.findById(Long.valueOf(id)).map(CountryEntity::getName).orElse("Unknown");
+return repository.findById(id).map(CountryEntity::getName).orElse("Unknown");
 }
 
 @Override
 public Optional<CountryDto> getById(String id) {
-    return repository.findById(Long.valueOf(id)).map(this::toDto);
+    return repository.findById(id).map(this::toDto);
     }
 
     private CountryDto toDto(CountryEntity entity) {
     return new CountryDto(
-    entity.id.toString(),
+    entity.code,
     entity.name
     );
     }

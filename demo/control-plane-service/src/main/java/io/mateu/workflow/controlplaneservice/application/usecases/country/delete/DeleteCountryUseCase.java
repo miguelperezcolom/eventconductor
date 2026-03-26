@@ -1,7 +1,7 @@
 package io.mateu.workflow.controlplaneservice.application.usecases.country.delete;
 
 import io.mateu.workflow.controlplaneservice.application.out.CountryRepository;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.country.vo.CountryId;
+import io.mateu.workflow.controlplaneservice.domain.aggregates.country.vo.CountryCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,8 +15,7 @@ final CountryRepository repository;
 @Transactional
 public void handle(DeleteCountryCommand command) {
 repository.deleteAllById(command.ids().stream()
-.map(Long::valueOf)
-.map(CountryId::new)
+.map(CountryCode::new)
 .toList());
 }
 

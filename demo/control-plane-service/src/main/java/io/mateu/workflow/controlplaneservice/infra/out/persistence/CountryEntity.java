@@ -16,13 +16,7 @@ import lombok.NoArgsConstructor;
 public class CountryEntity {
 
 @Id
-@GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "country_seq_gen")
-@SequenceGenerator(
-name = "country_seq_gen",
-sequenceName = "country_sequence",
-allocationSize = 1
-)
-Long id;
+String code;
 
 String name;
 

@@ -12,7 +12,7 @@ import org.springframework.stereotype.Service;
 @Service
 @RequiredArgsConstructor
 @Scope("prototype")
-@Title("Countrys")
+@Title("Countries")
 public class CountryCrudOrchestrator extends CrudOrchestrator<
 CountryViewModel,
 CountryViewModel,

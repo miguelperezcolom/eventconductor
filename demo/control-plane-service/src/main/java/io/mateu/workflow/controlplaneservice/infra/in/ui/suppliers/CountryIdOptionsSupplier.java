@@ -25,6 +25,6 @@ public ListingData<Option> search(String searchText, Pageable pageable, HttpRequ
     found.page().pageNumber(),
     found.page().totalElements(),
     found.page().content().stream().map(country ->
-    new Option(country.id(), country.name())).toList()));
+    new Option(country.code(), country.name())).toList()));
     }
     }
