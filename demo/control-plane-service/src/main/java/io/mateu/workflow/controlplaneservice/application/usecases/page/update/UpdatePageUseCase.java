@@ -2,6 +2,7 @@ package io.mateu.workflow.controlplaneservice.application.usecases.page.update;
 
 import io.mateu.workflow.controlplaneservice.application.out.PageRepository;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.page.vo.PageId;
+import io.mateu.workflow.controlplaneservice.domain.aggregates.page.vo.PageJsonLd;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.page.vo.PageName;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.page.vo.PagePath;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.site.vo.SiteId;
@@ -18,7 +19,12 @@ public class UpdatePageUseCase {
     @Transactional
     public void handle(UpdatePageCommand command) {
         var page = repository.findById(new PageId(Long.valueOf(command.id()))).orElseThrow();
-        page.update(new SiteId(command.siteId()), new PageName(command.name()), new PagePath(command.path()));
+        page.update(
+                new SiteId(command.siteId()),
+                new PageName(command.name()),
+                new PagePath(command.path()),
+                new PageJsonLd(command.jsonLd())
+        );
         repository.save(page);
     }
 

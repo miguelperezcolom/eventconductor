@@ -41,7 +41,8 @@ public class PageDBQueryService implements PageQueryService {
                 entity.id.toString(),
                 entity.siteId,
                 entity.name,
-                entity.path
+                entity.path,
+                entity.jsonLd
         );
     }
 
