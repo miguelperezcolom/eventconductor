@@ -42,7 +42,14 @@ public Optional<ReleaseDto> getById(String id) {
     private ReleaseDto toDto(ReleaseEntity entity) {
     return new ReleaseDto(
     entity.id.toString(),
-    entity.name
+    entity.name,
+            entity.userId,
+            entity.date,
+            entity.environmentId,
+            entity.siteId,
+            listFromJson(entity.pageIdsJson, Long.class).stream().map(String::valueOf).toList(),
+            listFromJson(entity.countryCodesJson, String.class).stream().toList(),
+            listFromJson(entity.languageCodesJson, String.class).stream().toList()
     );
     }
 
