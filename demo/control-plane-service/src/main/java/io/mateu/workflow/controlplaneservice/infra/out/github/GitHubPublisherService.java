@@ -93,6 +93,8 @@ public class GitHubPublisherService {
                 // Sintaxis correcta para RestClient
                 var response = restClient.get()
                         .uri(checkUrl)
+                        // Spring tiene una utilidad para evitar hacer el Base64 a mano:
+                        .headers(headers -> headers.setBasicAuth("test", "test"))
                         .retrieve()
                         .toEntity(String.class);
 
