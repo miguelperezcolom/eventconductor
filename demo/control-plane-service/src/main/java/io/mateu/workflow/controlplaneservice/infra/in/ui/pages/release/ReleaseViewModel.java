@@ -25,11 +25,13 @@ import java.util.List;
 @Scope("prototype")
 @RequiredArgsConstructor
 public class ReleaseViewModel implements Identifiable, CrudEditorForm<String>, CrudCreationForm<String> {
-        @HiddenInCreate
-        @ReadOnly
-        String id;
-        @NotEmpty String name;
-    @NotEmpty String user;
+    @HiddenInCreate
+    @ReadOnly
+    String id;
+    @NotEmpty
+    String name;
+    @NotEmpty
+    String user;
     @HiddenInCreate
     @ReadOnly
     LocalDateTime date = LocalDateTime.now();
@@ -45,25 +47,25 @@ public class ReleaseViewModel implements Identifiable, CrudEditorForm<String>, C
     List<String> languages;
 
 
-        final CreateReleaseUseCase createReleaseUseCase;
-        final UpdateReleaseUseCase updateReleaseUseCase;
+    final CreateReleaseUseCase createReleaseUseCase;
+    final UpdateReleaseUseCase updateReleaseUseCase;
 
-        @Override
-        public String create(HttpRequest httpRequest) {
+    @Override
+    public String create(HttpRequest httpRequest) {
         return createReleaseUseCase.handle(new CreateReleaseCommand(name, user, date, site, pages.stream().map(Long::valueOf).toList(), countries, languages, environment));
-        }
+    }
 
-        @Override
-        public void save(HttpRequest httpRequest) {
+    @Override
+    public void save(HttpRequest httpRequest) {
         updateReleaseUseCase.handle(new UpdateReleaseCommand(id, name, user, date, site, pages.stream().map(Long::valueOf).toList(), countries, languages, environment));
-        }
+    }
 
-        @Override
-        public String id() {
+    @Override
+    public String id() {
         return id;
-        }
+    }
 
-        public ReleaseViewModel load(ReleaseDto release) {
+    public ReleaseViewModel load(ReleaseDto release) {
         id = String.valueOf(release.id());
         name = release.name();
         user = release.user();
@@ -74,10 +76,10 @@ public class ReleaseViewModel implements Identifiable, CrudEditorForm<String>, C
         languages = release.languages();
         environment = release.environment();
         return this;
-        }
+    }
 
-        @Override
-        public String toString() {
+    @Override
+    public String toString() {
         return id != null ? name : "New release";
-        }
-        }
+    }
+}

@@ -7,11 +7,11 @@ import java.util.Optional;
 
 public interface QueryService<DtoType, RowType, IdType> {
 
-ListingData<RowType> findAll(String searchText,
-    Object filters, Pageable pageable);
+    ListingData<RowType> findAll(String searchText,
+                                 Object filters, Pageable pageable);
 
     String getLabel(String id);
 
     Optional<DtoType> getById(String id);
 
-        }
+}

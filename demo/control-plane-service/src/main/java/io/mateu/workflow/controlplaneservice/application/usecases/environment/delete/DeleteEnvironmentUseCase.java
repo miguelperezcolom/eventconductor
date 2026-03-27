@@ -10,13 +10,13 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class DeleteEnvironmentUseCase {
 
-final EnvironmentRepository repository;
+    final EnvironmentRepository repository;
 
-@Transactional
-public void handle(DeleteEnvironmentCommand command) {
-repository.deleteAllById(command.ids().stream()
-.map(EnvironmentId::new)
-.toList());
-}
+    @Transactional
+    public void handle(DeleteEnvironmentCommand command) {
+        repository.deleteAllById(command.ids().stream()
+                .map(EnvironmentId::new)
+                .toList());
+    }
 
 }

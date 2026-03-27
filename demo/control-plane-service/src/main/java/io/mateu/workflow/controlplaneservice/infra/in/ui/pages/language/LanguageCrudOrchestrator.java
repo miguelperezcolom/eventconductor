@@ -14,25 +14,25 @@ import org.springframework.stereotype.Service;
 @Scope("prototype")
 @Title("Languages")
 public class LanguageCrudOrchestrator extends CrudOrchestrator<
-LanguageViewModel,
-LanguageViewModel,
-LanguageViewModel,
-NoFilters,
-LanguageRow,
-String
-> {
+        LanguageViewModel,
+        LanguageViewModel,
+        LanguageViewModel,
+        NoFilters,
+        LanguageRow,
+        String
+        > {
 
-final LanguageCrudAdapter adapter;
+    final LanguageCrudAdapter adapter;
 
-@Override
-public CrudAdapter<LanguageViewModel,
-LanguageViewModel, LanguageViewModel,
-NoFilters, LanguageRow, String> adapter() {
-return adapter;
-}
+    @Override
+    public CrudAdapter<LanguageViewModel,
+            LanguageViewModel, LanguageViewModel,
+            NoFilters, LanguageRow, String> adapter() {
+        return adapter;
+    }
 
-@Override
-public String toId(String s) {
-return s;
-}
+    @Override
+    public String toId(String s) {
+        return s;
+    }
 }

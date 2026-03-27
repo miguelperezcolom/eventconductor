@@ -19,36 +19,37 @@ import org.springframework.stereotype.Service;
 @Scope("prototype")
 @RequiredArgsConstructor
 public class LanguageViewModel implements Identifiable, CrudEditorForm<String>, CrudCreationForm<String> {
-        @EditableOnlyWhenCreating
-        String code;
-        @NotEmpty String name;
+    @EditableOnlyWhenCreating
+    String code;
+    @NotEmpty
+    String name;
 
-        final CreateLanguageUseCase createLanguageUseCase;
-        final UpdateLanguageUseCase updateLanguageUseCase;
+    final CreateLanguageUseCase createLanguageUseCase;
+    final UpdateLanguageUseCase updateLanguageUseCase;
 
-        @Override
-        public String create(HttpRequest httpRequest) {
+    @Override
+    public String create(HttpRequest httpRequest) {
         return createLanguageUseCase.handle(new CreateLanguageCommand(code, name));
-        }
+    }
 
-        @Override
-        public void save(HttpRequest httpRequest) {
+    @Override
+    public void save(HttpRequest httpRequest) {
         updateLanguageUseCase.handle(new UpdateLanguageCommand(code, name));
-        }
+    }
 
-        @Override
-        public String id() {
+    @Override
+    public String id() {
         return code;
-        }
+    }
 
-        public LanguageViewModel load(LanguageDto language) {
+    public LanguageViewModel load(LanguageDto language) {
         code = String.valueOf(language.code());
         name = language.name();
         return this;
-        }
+    }
 
-        @Override
-        public String toString() {
+    @Override
+    public String toString() {
         return code != null ? name : "New language";
-        }
-        }
+    }
+}

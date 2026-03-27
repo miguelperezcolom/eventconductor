@@ -12,7 +12,6 @@ import io.mateu.workflow.controlplaneservice.application.usecases.page.create.Cr
 import io.mateu.workflow.controlplaneservice.application.usecases.page.create.CreatePageUseCase;
 import io.mateu.workflow.controlplaneservice.application.usecases.page.update.UpdatePageCommand;
 import io.mateu.workflow.controlplaneservice.application.usecases.page.update.UpdatePageUseCase;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.page.Page;
 import io.mateu.workflow.controlplaneservice.infra.in.ui.suppliers.SiteIdLabelSupplier;
 import io.mateu.workflow.controlplaneservice.infra.in.ui.suppliers.SiteIdOptionsSupplier;
 import jakarta.validation.constraints.NotEmpty;
@@ -25,43 +24,45 @@ import org.springframework.stereotype.Service;
 @Scope("prototype")
 @RequiredArgsConstructor
 public class PageViewModel implements Identifiable, CrudEditorForm<String>, CrudCreationForm<String> {
-        @HiddenInCreate
-        @ReadOnly
-        String id;
-        @NotEmpty String name;
-        @ForeignKey(search = SiteIdOptionsSupplier.class, label = SiteIdLabelSupplier.class)
-                @NotNull
-        String siteId;
-    @NotEmpty String path;
+    @HiddenInCreate
+    @ReadOnly
+    String id;
+    @NotEmpty
+    String name;
+    @ForeignKey(search = SiteIdOptionsSupplier.class, label = SiteIdLabelSupplier.class)
+    @NotNull
+    String siteId;
+    @NotEmpty
+    String path;
 
-        final CreatePageUseCase createPageUseCase;
-        final UpdatePageUseCase updatePageUseCase;
+    final CreatePageUseCase createPageUseCase;
+    final UpdatePageUseCase updatePageUseCase;
 
-        @Override
-        public String create(HttpRequest httpRequest) {
+    @Override
+    public String create(HttpRequest httpRequest) {
         return createPageUseCase.handle(new CreatePageCommand(siteId, name, path));
-        }
+    }
 
-        @Override
-        public void save(HttpRequest httpRequest) {
+    @Override
+    public void save(HttpRequest httpRequest) {
         updatePageUseCase.handle(new UpdatePageCommand(id, siteId, name, path));
-        }
+    }
 
-        @Override
-        public String id() {
+    @Override
+    public String id() {
         return id;
-        }
+    }
 
-        public PageViewModel load(PageDto page) {
+    public PageViewModel load(PageDto page) {
         id = String.valueOf(page.id());
         siteId = page.siteId();
         name = page.name();
         path = page.path();
         return this;
-        }
+    }
 
-        @Override
-        public String toString() {
+    @Override
+    public String toString() {
         return id != null ? name : "New page";
-        }
-        }
+    }
+}

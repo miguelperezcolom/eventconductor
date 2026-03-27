@@ -14,17 +14,17 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class RouteIdOptionsSupplier implements ForeignKeyOptionsSupplier {
 
-final RouteQueryService queryService;
+    final RouteQueryService queryService;
 
-@Override
-public ListingData<Option> search(String searchText, Pageable pageable, HttpRequest httpRequest) {
-    var found = queryService.findAll(searchText, null, pageable);
-    return new ListingData<>(new Page<>(
-    searchText,
-    found.page().pageSize(),
-    found.page().pageNumber(),
-    found.page().totalElements(),
-    found.page().content().stream().map(route ->
-    new Option(route.id(), route.name())).toList()));
+    @Override
+    public ListingData<Option> search(String searchText, Pageable pageable, HttpRequest httpRequest) {
+        var found = queryService.findAll(searchText, null, pageable);
+        return new ListingData<>(new Page<>(
+                searchText,
+                found.page().pageSize(),
+                found.page().pageNumber(),
+                found.page().totalElements(),
+                found.page().content().stream().map(route ->
+                        new Option(route.id(), route.name())).toList()));
     }
-    }
+}

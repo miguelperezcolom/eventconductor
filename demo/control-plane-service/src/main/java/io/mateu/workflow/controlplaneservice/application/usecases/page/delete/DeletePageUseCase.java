@@ -10,14 +10,14 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class DeletePageUseCase {
 
-final PageRepository repository;
+    final PageRepository repository;
 
-@Transactional
-public void handle(DeletePageCommand command) {
-repository.deleteAllById(command.ids().stream()
-.map(Long::valueOf)
-.map(PageId::new)
-.toList());
-}
+    @Transactional
+    public void handle(DeletePageCommand command) {
+        repository.deleteAllById(command.ids().stream()
+                .map(Long::valueOf)
+                .map(PageId::new)
+                .toList());
+    }
 
 }

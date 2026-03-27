@@ -14,25 +14,25 @@ import org.springframework.stereotype.Service;
 @Scope("prototype")
 @Title("Routes")
 public class RouteCrudOrchestrator extends CrudOrchestrator<
-RouteViewModel,
-RouteViewModel,
-RouteViewModel,
-NoFilters,
-RouteRow,
-String
-> {
+        RouteViewModel,
+        RouteViewModel,
+        RouteViewModel,
+        NoFilters,
+        RouteRow,
+        String
+        > {
 
-final RouteCrudAdapter adapter;
+    final RouteCrudAdapter adapter;
 
-@Override
-public CrudAdapter<RouteViewModel,
-RouteViewModel, RouteViewModel,
-NoFilters, RouteRow, String> adapter() {
-return adapter;
-}
+    @Override
+    public CrudAdapter<RouteViewModel,
+            RouteViewModel, RouteViewModel,
+            NoFilters, RouteRow, String> adapter() {
+        return adapter;
+    }
 
-@Override
-public String toId(String s) {
-return s;
-}
+    @Override
+    public String toId(String s) {
+        return s;
+    }
 }

@@ -16,18 +16,18 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class UpdateRouteUseCase {
 
-final RouteRepository repository;
+    final RouteRepository repository;
 
-@Transactional
-public void handle(UpdateRouteCommand command) {
-var route = repository.findById(new RouteId(Long.valueOf(command.id()))).orElseThrow();
-route.update(new RouteName(command.name()),
-        new LanguageCode(command.languageCode()),
-        new CountryCode(command.countryCode()),
-        new PageId(command.pageId()),
-        new RoutePath(command.path()),
-        new RouteUrl(command.url()));
-repository.save(route);
-}
+    @Transactional
+    public void handle(UpdateRouteCommand command) {
+        var route = repository.findById(new RouteId(Long.valueOf(command.id()))).orElseThrow();
+        route.update(new RouteName(command.name()),
+                new LanguageCode(command.languageCode()),
+                new CountryCode(command.countryCode()),
+                new PageId(command.pageId()),
+                new RoutePath(command.path()),
+                new RouteUrl(command.url()));
+        repository.save(route);
+    }
 
 }

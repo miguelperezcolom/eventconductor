@@ -1,12 +1,9 @@
 package io.mateu.workflow.controlplaneservice.infra.out.scrapper;
 
 import io.mateu.workflow.controlplaneservice.ControlPlaneServiceApplication;
-import io.mateu.workflow.controlplaneservice.infra.out.github.GitHubPublisherService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-
-import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest(classes = ControlPlaneServiceApplication.class)
 class WebScrapperServiceTest {

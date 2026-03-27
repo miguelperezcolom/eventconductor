@@ -2,7 +2,6 @@ package io.mateu.workflow.controlplaneservice.application.usecases.page.create;
 
 import io.mateu.workflow.controlplaneservice.application.out.PageRepository;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.page.Page;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.page.vo.PageId;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.page.vo.PageName;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.page.vo.PagePath;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.site.vo.SiteId;
@@ -14,12 +13,12 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class CreatePageUseCase {
 
-final PageRepository repository;
+    final PageRepository repository;
 
-@Transactional
-public String handle(CreatePageCommand command) {
-return repository.save(Page.of(new SiteId(command.siteId()), new PageName(command.name()), new PagePath(command.path()))
-).id().toString();
-}
+    @Transactional
+    public String handle(CreatePageCommand command) {
+        return repository.save(Page.of(new SiteId(command.siteId()), new PageName(command.name()), new PagePath(command.path()))
+        ).id().toString();
+    }
 
 }

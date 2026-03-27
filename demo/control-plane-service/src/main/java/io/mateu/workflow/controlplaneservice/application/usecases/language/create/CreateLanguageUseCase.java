@@ -12,12 +12,12 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class CreateLanguageUseCase {
 
-final LanguageRepository repository;
+    final LanguageRepository repository;
 
-@Transactional
-public String handle(CreateLanguageCommand command) {
-return repository.save(Language.of(new LanguageCode(command.code()), new LanguageName(command.name()))
-).code();
-}
+    @Transactional
+    public String handle(CreateLanguageCommand command) {
+        return repository.save(Language.of(new LanguageCode(command.code()), new LanguageName(command.name()))
+        ).code();
+    }
 
 }

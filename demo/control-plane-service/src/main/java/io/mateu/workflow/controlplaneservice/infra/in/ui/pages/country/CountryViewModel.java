@@ -19,36 +19,37 @@ import org.springframework.stereotype.Service;
 @Scope("prototype")
 @RequiredArgsConstructor
 public class CountryViewModel implements Identifiable, CrudEditorForm<String>, CrudCreationForm<String> {
-        @EditableOnlyWhenCreating
-        String code;
-        @NotEmpty String name;
+    @EditableOnlyWhenCreating
+    String code;
+    @NotEmpty
+    String name;
 
-        final CreateCountryUseCase createCountryUseCase;
-        final UpdateCountryUseCase updateCountryUseCase;
+    final CreateCountryUseCase createCountryUseCase;
+    final UpdateCountryUseCase updateCountryUseCase;
 
-        @Override
-        public String create(HttpRequest httpRequest) {
+    @Override
+    public String create(HttpRequest httpRequest) {
         return createCountryUseCase.handle(new CreateCountryCommand(code, name));
-        }
+    }
 
-        @Override
-        public void save(HttpRequest httpRequest) {
+    @Override
+    public void save(HttpRequest httpRequest) {
         updateCountryUseCase.handle(new UpdateCountryCommand(code, name));
-        }
+    }
 
-        @Override
-        public String id() {
+    @Override
+    public String id() {
         return code;
-        }
+    }
 
-        public CountryViewModel load(CountryDto country) {
+    public CountryViewModel load(CountryDto country) {
         code = country.code();
         name = country.name();
         return this;
-        }
+    }
 
-        @Override
-        public String toString() {
+    @Override
+    public String toString() {
         return code != null ? name : "New country";
-        }
-        }
+    }
+}

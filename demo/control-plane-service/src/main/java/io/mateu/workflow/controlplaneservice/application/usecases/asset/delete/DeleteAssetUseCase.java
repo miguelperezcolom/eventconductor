@@ -10,14 +10,14 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class DeleteAssetUseCase {
 
-final AssetRepository repository;
+    final AssetRepository repository;
 
-@Transactional
-public void handle(DeleteAssetCommand command) {
-repository.deleteAllById(command.ids().stream()
-.map(Long::valueOf)
-.map(AssetId::new)
-.toList());
-}
+    @Transactional
+    public void handle(DeleteAssetCommand command) {
+        repository.deleteAllById(command.ids().stream()
+                .map(Long::valueOf)
+                .map(AssetId::new)
+                .toList());
+    }
 
 }

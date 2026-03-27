@@ -17,16 +17,16 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class CreateResourceUseCase {
 
-final ResourceRepository repository;
+    final ResourceRepository repository;
 
-@Transactional
-public String handle(CreateResourceCommand command) {
-return repository.save(Resource.of(
-        new ResourceId(UUID.randomUUID().toString()),
-        new ResourceName(command.name()),
-        new ResourcePath(""),
-        new ResourceContent("".getBytes(StandardCharsets.UTF_8))
-)).id();
-}
+    @Transactional
+    public String handle(CreateResourceCommand command) {
+        return repository.save(Resource.of(
+                new ResourceId(UUID.randomUUID().toString()),
+                new ResourceName(command.name()),
+                new ResourcePath(""),
+                new ResourceContent("".getBytes(StandardCharsets.UTF_8))
+        )).id();
+    }
 
 }

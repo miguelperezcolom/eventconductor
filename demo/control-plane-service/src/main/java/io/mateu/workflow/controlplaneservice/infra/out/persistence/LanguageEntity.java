@@ -8,13 +8,14 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 @Entity
-@AllArgsConstructor@NoArgsConstructor
+@AllArgsConstructor
+@NoArgsConstructor
 @Getter
 public class LanguageEntity {
 
-@Id
-String code;
+    @Id
+    String code;
 
-String name;
+    String name;
 
 }

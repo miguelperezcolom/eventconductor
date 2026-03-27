@@ -12,9 +12,7 @@ import io.mateu.workflow.controlplaneservice.application.usecases.route.create.C
 import io.mateu.workflow.controlplaneservice.application.usecases.route.create.CreateRouteUseCase;
 import io.mateu.workflow.controlplaneservice.application.usecases.route.update.UpdateRouteCommand;
 import io.mateu.workflow.controlplaneservice.application.usecases.route.update.UpdateRouteUseCase;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.route.Route;
 import io.mateu.workflow.controlplaneservice.infra.in.ui.suppliers.*;
-import jakarta.persistence.Column;
 import jakarta.validation.constraints.NotEmpty;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Scope;
@@ -24,11 +22,12 @@ import org.springframework.stereotype.Service;
 @Scope("prototype")
 @RequiredArgsConstructor
 public class RouteViewModel implements Identifiable, CrudEditorForm<String>, CrudCreationForm<String> {
-        @HiddenInCreate
-        @ReadOnly
-        String id;
-        @NotEmpty String name;
-        @ForeignKey(search = LanguageIdOptionsSupplier.class, label = LanguageIdLabelSupplier.class)
+    @HiddenInCreate
+    @ReadOnly
+    String id;
+    @NotEmpty
+    String name;
+    @ForeignKey(search = LanguageIdOptionsSupplier.class, label = LanguageIdLabelSupplier.class)
     String languageCode;
     @ForeignKey(search = CountryIdOptionsSupplier.class, label = CountryIdLabelSupplier.class)
     String countryCode;
@@ -37,25 +36,25 @@ public class RouteViewModel implements Identifiable, CrudEditorForm<String>, Cru
     String path;
     String url;
 
-        final CreateRouteUseCase createRouteUseCase;
-        final UpdateRouteUseCase updateRouteUseCase;
+    final CreateRouteUseCase createRouteUseCase;
+    final UpdateRouteUseCase updateRouteUseCase;
 
-        @Override
-        public String create(HttpRequest httpRequest) {
+    @Override
+    public String create(HttpRequest httpRequest) {
         return createRouteUseCase.handle(new CreateRouteCommand(name, languageCode, countryCode, Long.valueOf(pageId), path, url));
-        }
+    }
 
-        @Override
-        public void save(HttpRequest httpRequest) {
+    @Override
+    public void save(HttpRequest httpRequest) {
         updateRouteUseCase.handle(new UpdateRouteCommand(id, name, languageCode, countryCode, Long.valueOf(pageId), path, url));
-        }
+    }
 
-        @Override
-        public String id() {
+    @Override
+    public String id() {
         return id;
-        }
+    }
 
-        public RouteViewModel load(RouteDto route) {
+    public RouteViewModel load(RouteDto route) {
         id = String.valueOf(route.id());
         name = route.name();
         languageCode = route.language();
@@ -64,10 +63,10 @@ public class RouteViewModel implements Identifiable, CrudEditorForm<String>, Cru
         path = route.path();
         url = route.url();
         return this;
-        }
+    }
 
-        @Override
-        public String toString() {
+    @Override
+    public String toString() {
         return id != null ? name : "New route";
-        }
-        }
+    }
+}

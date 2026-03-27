@@ -14,25 +14,25 @@ import org.springframework.stereotype.Service;
 @Scope("prototype")
 @Title("Sites")
 public class SiteCrudOrchestrator extends CrudOrchestrator<
-SiteViewModel,
-SiteViewModel,
-SiteViewModel,
-NoFilters,
-SiteRow,
-String
-> {
+        SiteViewModel,
+        SiteViewModel,
+        SiteViewModel,
+        NoFilters,
+        SiteRow,
+        String
+        > {
 
-final SiteCrudAdapter adapter;
+    final SiteCrudAdapter adapter;
 
-@Override
-public CrudAdapter<SiteViewModel,
-SiteViewModel, SiteViewModel,
-NoFilters, SiteRow, String> adapter() {
-return adapter;
-}
+    @Override
+    public CrudAdapter<SiteViewModel,
+            SiteViewModel, SiteViewModel,
+            NoFilters, SiteRow, String> adapter() {
+        return adapter;
+    }
 
-@Override
-public String toId(String s) {
-return s;
-}
+    @Override
+    public String toId(String s) {
+        return s;
+    }
 }

@@ -3,4 +3,4 @@ package io.mateu.workflow.controlplaneservice.application.usecases.resource.dele
 import java.util.List;
 
 public record DeleteResourceCommand(List<String> ids) {
-    }
+}

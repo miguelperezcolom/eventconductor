@@ -5,5 +5,5 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface ReleaseEntityRepository extends JpaRepository<ReleaseEntity, Long> {
-Page<ReleaseEntity> findAllByNameContainingIgnoreCase(String searchText, Pageable pageable);
-    }
+    Page<ReleaseEntity> findAllByNameContainingIgnoreCase(String searchText, Pageable pageable);
+}

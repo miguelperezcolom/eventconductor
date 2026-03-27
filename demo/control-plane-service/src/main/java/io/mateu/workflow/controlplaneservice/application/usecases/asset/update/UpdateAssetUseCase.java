@@ -13,13 +13,13 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class UpdateAssetUseCase {
 
-final AssetRepository repository;
+    final AssetRepository repository;
 
-@Transactional
-public void handle(UpdateAssetCommand command) {
-var asset = repository.findById(new AssetId(Long.valueOf(command.id()))).orElseThrow();
-asset.update(new AssetName(command.name()), new AssetPath(command.path()), new AssetUrl(command.url()));
-repository.save(asset);
-}
+    @Transactional
+    public void handle(UpdateAssetCommand command) {
+        var asset = repository.findById(new AssetId(Long.valueOf(command.id()))).orElseThrow();
+        asset.update(new AssetName(command.name()), new AssetPath(command.path()), new AssetUrl(command.url()));
+        repository.save(asset);
+    }
 
 }

@@ -12,12 +12,12 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class CreateCountryUseCase {
 
-final CountryRepository repository;
+    final CountryRepository repository;
 
-@Transactional
-public String handle(CreateCountryCommand command) {
-return repository.save(Country.of(new CountryCode(command.code()), new CountryName(command.name()))
-).code();
-}
+    @Transactional
+    public String handle(CreateCountryCommand command) {
+        return repository.save(Country.of(new CountryCode(command.code()), new CountryName(command.name()))
+        ).code();
+    }
 
 }

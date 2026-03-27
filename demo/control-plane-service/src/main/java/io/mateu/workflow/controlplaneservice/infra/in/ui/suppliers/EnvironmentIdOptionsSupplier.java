@@ -14,17 +14,17 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class EnvironmentIdOptionsSupplier implements ForeignKeyOptionsSupplier {
 
-final EnvironmentQueryService queryService;
+    final EnvironmentQueryService queryService;
 
-@Override
-public ListingData<Option> search(String searchText, Pageable pageable, HttpRequest httpRequest) {
-    var found = queryService.findAll(searchText, null, pageable);
-    return new ListingData<>(new Page<>(
-    searchText,
-    found.page().pageSize(),
-    found.page().pageNumber(),
-    found.page().totalElements(),
-    found.page().content().stream().map(environment ->
-    new Option(environment.id(), environment.name())).toList()));
+    @Override
+    public ListingData<Option> search(String searchText, Pageable pageable, HttpRequest httpRequest) {
+        var found = queryService.findAll(searchText, null, pageable);
+        return new ListingData<>(new Page<>(
+                searchText,
+                found.page().pageSize(),
+                found.page().pageNumber(),
+                found.page().totalElements(),
+                found.page().content().stream().map(environment ->
+                        new Option(environment.id(), environment.name())).toList()));
     }
-    }
+}

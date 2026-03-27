@@ -13,13 +13,13 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class UpdatePageUseCase {
 
-final PageRepository repository;
+    final PageRepository repository;
 
-@Transactional
-public void handle(UpdatePageCommand command) {
-var page = repository.findById(new PageId(Long.valueOf(command.id()))).orElseThrow();
-page.update(new SiteId(command.siteId()), new PageName(command.name()), new PagePath(command.path()));
-repository.save(page);
-}
+    @Transactional
+    public void handle(UpdatePageCommand command) {
+        var page = repository.findById(new PageId(Long.valueOf(command.id()))).orElseThrow();
+        page.update(new SiteId(command.siteId()), new PageName(command.name()), new PagePath(command.path()));
+        repository.save(page);
+    }
 
 }

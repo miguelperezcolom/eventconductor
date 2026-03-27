@@ -14,25 +14,25 @@ import org.springframework.stereotype.Service;
 @Scope("prototype")
 @Title("Assets")
 public class AssetCrudOrchestrator extends CrudOrchestrator<
-AssetViewModel,
-AssetViewModel,
-AssetViewModel,
-NoFilters,
-AssetRow,
-String
-> {
+        AssetViewModel,
+        AssetViewModel,
+        AssetViewModel,
+        NoFilters,
+        AssetRow,
+        String
+        > {
 
-final AssetCrudAdapter adapter;
+    final AssetCrudAdapter adapter;
 
-@Override
-public CrudAdapter<AssetViewModel,
-AssetViewModel, AssetViewModel,
-NoFilters, AssetRow, String> adapter() {
-return adapter;
-}
+    @Override
+    public CrudAdapter<AssetViewModel,
+            AssetViewModel, AssetViewModel,
+            NoFilters, AssetRow, String> adapter() {
+        return adapter;
+    }
 
-@Override
-public String toId(String s) {
-return s;
-}
+    @Override
+    public String toId(String s) {
+        return s;
+    }
 }

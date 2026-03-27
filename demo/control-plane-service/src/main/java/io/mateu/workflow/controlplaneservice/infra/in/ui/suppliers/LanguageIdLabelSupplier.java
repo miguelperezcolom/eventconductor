@@ -10,10 +10,10 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class LanguageIdLabelSupplier implements LabelSupplier {
 
-final LanguageQueryService queryService;
+    final LanguageQueryService queryService;
 
-@Override
-public String label(Object id, HttpRequest httpRequest) {
-return queryService.getLabel((String) id);
-}
+    @Override
+    public String label(Object id, HttpRequest httpRequest) {
+        return queryService.getLabel((String) id);
+    }
 }

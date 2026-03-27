@@ -11,13 +11,13 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class UpdateEnvironmentUseCase {
 
-final EnvironmentRepository repository;
+    final EnvironmentRepository repository;
 
-@Transactional
-public void handle(UpdateEnvironmentCommand command) {
-var environment = repository.findById(new EnvironmentId(command.id())).orElseThrow();
-environment.update(new EnvironmentName(command.name()));
-repository.save(environment);
-}
+    @Transactional
+    public void handle(UpdateEnvironmentCommand command) {
+        var environment = repository.findById(new EnvironmentId(command.id())).orElseThrow();
+        environment.update(new EnvironmentName(command.name()));
+        repository.save(environment);
+    }
 
 }

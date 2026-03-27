@@ -5,11 +5,11 @@ import java.util.List;
 
 public record CreateReleaseCommand(
         String name,
-                String userId,
-                LocalDateTime date,
-                String siteId,
-                List<Long> pageIds,
-                List<String> countryCodes,
+        String userId,
+        LocalDateTime date,
+        String siteId,
+        List<Long> pageIds,
+        List<String> countryCodes,
         List<String> languageCodes,
-                String environmentId) {
+        String environmentId) {
 }

@@ -19,46 +19,46 @@ import java.util.List;
 @Scope("prototype")
 @RequiredArgsConstructor
 public class LanguageCrudAdapter implements CrudAdapter<
-LanguageViewModel,
-LanguageViewModel,
-LanguageViewModel,
-NoFilters,
-LanguageRow,
-String
-> {
+        LanguageViewModel,
+        LanguageViewModel,
+        LanguageViewModel,
+        NoFilters,
+        LanguageRow,
+        String
+        > {
 
-final LanguageViewModel viewModel;
-final DeleteLanguageUseCase deleteLanguageUseCase;
-final LanguageQueryService queryService;
+    final LanguageViewModel viewModel;
+    final DeleteLanguageUseCase deleteLanguageUseCase;
+    final LanguageQueryService queryService;
 
-@Override
-public ListingData<LanguageRow> search(String searchText,
-    NoFilters filters,
-    Pageable pageable) {
-    return queryService.findAll(searchText, filters, pageable);
+    @Override
+    public ListingData<LanguageRow> search(String searchText,
+                                           NoFilters filters,
+                                           Pageable pageable) {
+        return queryService.findAll(searchText, filters, pageable);
     }
 
     @Override
     public void deleteAllById(List<String> selectedIds) {
         deleteLanguageUseCase.handle(new DeleteLanguageCommand(selectedIds));
-        }
+    }
 
-        @Override
-        public LanguageViewModel getView(String id) {
+    @Override
+    public LanguageViewModel getView(String id) {
         return viewModel.load(queryService
-        .getById(id)
-        .orElseThrow());
-        }
+                .getById(id)
+                .orElseThrow());
+    }
 
-        @Override
-        public LanguageViewModel getEditor(String id) {
+    @Override
+    public LanguageViewModel getEditor(String id) {
         return viewModel.load(queryService
-        .getById(id)
-        .orElseThrow());
-        }
+                .getById(id)
+                .orElseThrow());
+    }
 
-        @Override
-        public LanguageViewModel getCreationForm(HttpRequest httpRequest) {
+    @Override
+    public LanguageViewModel getCreationForm(HttpRequest httpRequest) {
         return viewModel;
-        }
-        }
+    }
+}

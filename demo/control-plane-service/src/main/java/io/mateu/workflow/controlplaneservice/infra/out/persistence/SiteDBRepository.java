@@ -11,43 +11,40 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.Optional;
 
-import static io.mateu.core.infra.JsonSerializer.listFromJson;
-import static io.mateu.core.infra.JsonSerializer.toJson;
-
 @Service
 @RequiredArgsConstructor
 public class SiteDBRepository implements SiteRepository {
 
-final SiteEntityRepository repository;
+    final SiteEntityRepository repository;
 
-@Override
-public Optional<Site> findById(SiteId id) {
-    return repository.findById(id.id()).map(this::toDomain);
+    @Override
+    public Optional<Site> findById(SiteId id) {
+        return repository.findById(id.id()).map(this::toDomain);
     }
 
     private Site toDomain(SiteEntity entity) {
-    return new Site(
-    new SiteId(entity.id),
-    new SiteName(entity.name),
-            new SiteUrl(entity.url)
-    );
+        return new Site(
+                new SiteId(entity.id),
+                new SiteName(entity.name),
+                new SiteUrl(entity.url)
+        );
     }
 
     private SiteEntity toEntity(Site site) {
-    return new SiteEntity(
-site.getId().id(),
-site.getName().name(),
-            site.getUrl().url()
-    );
+        return new SiteEntity(
+                site.getId().id(),
+                site.getName().name(),
+                site.getUrl().url()
+        );
     }
 
     @Override
     public SiteId save(Site site) {
-    return new SiteId(repository.save(toEntity(site)).id);
+        return new SiteId(repository.save(toEntity(site)).id);
     }
 
     @Override
     public void deleteAllById(List<SiteId> selectedIds) {
         repository.deleteAllById(selectedIds.stream().map(SiteId::id).toList());
-        }
-        }
+    }
+}

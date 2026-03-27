@@ -10,13 +10,13 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class DeleteSiteUseCase {
 
-final SiteRepository repository;
+    final SiteRepository repository;
 
-@Transactional
-public void handle(DeleteSiteCommand command) {
-repository.deleteAllById(command.ids().stream()
-.map(SiteId::new)
-.toList());
-}
+    @Transactional
+    public void handle(DeleteSiteCommand command) {
+        repository.deleteAllById(command.ids().stream()
+                .map(SiteId::new)
+                .toList());
+    }
 
 }

@@ -16,41 +16,41 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class LanguageDBQueryService implements LanguageQueryService {
 
-final LanguageEntityRepository repository;
+    final LanguageEntityRepository repository;
 
-private LanguageRow toDomain(LanguageEntity entity) {
-return new LanguageRow(
-entity.code,
-entity.name
-);
-}
+    private LanguageRow toDomain(LanguageEntity entity) {
+        return new LanguageRow(
+                entity.code,
+                entity.name
+        );
+    }
 
-@Override
-public String getLabel(String id) {
-return repository.findById(id).map(LanguageEntity::getName).orElse("Unknown");
-}
+    @Override
+    public String getLabel(String id) {
+        return repository.findById(id).map(LanguageEntity::getName).orElse("Unknown");
+    }
 
-@Override
-public Optional<LanguageDto> getById(String id) {
-    return repository.findById(id).map(this::toDto);
+    @Override
+    public Optional<LanguageDto> getById(String id) {
+        return repository.findById(id).map(this::toDto);
     }
 
     private LanguageDto toDto(LanguageEntity entity) {
-    return new LanguageDto(
-    entity.code,
-    entity.name
-    );
+        return new LanguageDto(
+                entity.code,
+                entity.name
+        );
     }
 
     @Override
     public ListingData<LanguageRow> findAll(String searchText,
-        Object filters, Pageable pageable) {
+                                            Object filters, Pageable pageable) {
         var page = repository.findAllByNameContainingIgnoreCase(searchText, org.springframework.data.domain.Pageable
-        .ofSize(pageable.size())
-        .withPage(pageable.page())
+                .ofSize(pageable.size())
+                .withPage(pageable.page())
         );
         return new ListingData(new Page(searchText, page.getSize(), page.getNumber(), page.getTotalElements(),
-        page.getContent().stream().map(this::toDomain).toList()));
-        }
+                page.getContent().stream().map(this::toDomain).toList()));
+    }
 
-        }
+}

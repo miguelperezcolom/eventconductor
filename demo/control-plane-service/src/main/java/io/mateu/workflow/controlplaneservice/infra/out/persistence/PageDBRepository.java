@@ -12,46 +12,43 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.Optional;
 
-import static io.mateu.core.infra.JsonSerializer.listFromJson;
-import static io.mateu.core.infra.JsonSerializer.toJson;
-
 @Service
 @RequiredArgsConstructor
 public class PageDBRepository implements PageRepository {
 
-final PageEntityRepository repository;
+    final PageEntityRepository repository;
 
-@Override
-public Optional<Page> findById(PageId id) {
-    return repository.findById(id.id()).map(this::toDomain);
+    @Override
+    public Optional<Page> findById(PageId id) {
+        return repository.findById(id.id()).map(this::toDomain);
     }
 
     private Page toDomain(PageEntity entity) {
-    return new Page(
-    new PageId(entity.id),
-    new SiteId(entity.siteId),
-    new PageName(entity.name),
-            new PagePath(entity.path)
+        return new Page(
+                new PageId(entity.id),
+                new SiteId(entity.siteId),
+                new PageName(entity.name),
+                new PagePath(entity.path)
 
-    );
+        );
     }
 
     private PageEntity toEntity(Page page) {
-    return new PageEntity(
-page.getId() != null? page.getId().id() :null,
-page.getSiteId().id(),
-page.getName().name(),
-            page.getPath().path()
-    );
+        return new PageEntity(
+                page.getId() != null ? page.getId().id() : null,
+                page.getSiteId().id(),
+                page.getName().name(),
+                page.getPath().path()
+        );
     }
 
     @Override
     public PageId save(Page page) {
-    return new PageId(repository.save(toEntity(page)).id);
+        return new PageId(repository.save(toEntity(page)).id);
     }
 
     @Override
     public void deleteAllById(List<PageId> selectedIds) {
         repository.deleteAllById(selectedIds.stream().map(PageId::id).toList());
-        }
-        }
+    }
+}

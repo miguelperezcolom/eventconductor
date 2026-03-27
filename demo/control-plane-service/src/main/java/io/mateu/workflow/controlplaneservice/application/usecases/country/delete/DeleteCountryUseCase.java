@@ -10,13 +10,13 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class DeleteCountryUseCase {
 
-final CountryRepository repository;
+    final CountryRepository repository;
 
-@Transactional
-public void handle(DeleteCountryCommand command) {
-repository.deleteAllById(command.ids().stream()
-.map(CountryCode::new)
-.toList());
-}
+    @Transactional
+    public void handle(DeleteCountryCommand command) {
+        repository.deleteAllById(command.ids().stream()
+                .map(CountryCode::new)
+                .toList());
+    }
 
 }
