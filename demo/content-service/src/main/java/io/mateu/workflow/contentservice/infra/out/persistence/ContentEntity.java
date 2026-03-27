@@ -1,11 +1,7 @@
 package io.mateu.workflow.contentservice.infra.out.persistence;
 
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.SequenceGenerator;
+import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -25,5 +21,13 @@ allocationSize = 1
 Long id;
 
 String name;
+
+Long contentTypeId;
+
+    @Column(columnDefinition = "TEXT")
+String labelsJson;
+
+@Column(columnDefinition = "TEXT")
+String valuesJson;
 
 }
