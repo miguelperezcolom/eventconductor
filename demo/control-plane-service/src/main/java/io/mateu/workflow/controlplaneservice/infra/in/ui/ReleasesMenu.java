@@ -6,9 +6,6 @@ import io.mateu.workflow.controlplaneservice.infra.in.ui.pages.release.ReleaseCr
 public class ReleasesMenu {
 
     @Menu
-    ReleaseCrudOrchestrator changeControl;
-
-    @Menu
     ReleaseCrudOrchestrator releases;
 
 }
