@@ -22,5 +22,10 @@ From the root project folder:
 java -jar app/target/app-0.0.1-SNAPSHOT.jar
 ```
 
+## Test urls
+
+https://riu-com-copy.miguelperezcolom.workers.dev/faqs/index_ES.html
+https://riu-com-copy.miguelperezcolom.workers.dev/home/index_ES.html
+
 
 
