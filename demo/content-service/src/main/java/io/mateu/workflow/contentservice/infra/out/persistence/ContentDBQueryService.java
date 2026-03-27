@@ -6,6 +6,7 @@ import io.mateu.uidl.data.Pageable;
 import io.mateu.workflow.contentservice.application.query.ContentQueryService;
 import io.mateu.workflow.contentservice.application.query.dto.ContentDto;
 import io.mateu.workflow.contentservice.application.query.dto.ContentRow;
+import io.mateu.workflow.contentservice.application.usecases.content.ContentValueDto;
 import io.mateu.workflow.contentservice.domain.aggregates.content.vo.ContentId;
 import io.mateu.workflow.contentservice.domain.aggregates.content.vo.ContentName;
 import lombok.RequiredArgsConstructor;
@@ -42,7 +43,17 @@ public Optional<ContentDto> getById(String id) {
     private ContentDto toDto(ContentEntity entity) {
     return new ContentDto(
     entity.id.toString(),
-    entity.name
+    entity.name,
+            entity.contentTypeId.toString(),
+            listFromJson(entity.labelsJson, Long.class).stream()
+                    .map(String::valueOf).toList(),
+            listFromJson(entity.valuesJson, ContentValueEntity.class).stream()
+                    .map(value -> new ContentValueDto(
+                            value.country(),
+                            value.language(),
+                            value.value()
+                            )
+                    ).toList()
     );
     }
 
