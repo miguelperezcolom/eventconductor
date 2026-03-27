@@ -25,6 +25,10 @@ public class PageEntity {
 
     String name;
 
+    @Column(columnDefinition = "TEXT")
     String path;
+
+    @Column(columnDefinition = "TEXT")
+    String jsonLd;
 
 }

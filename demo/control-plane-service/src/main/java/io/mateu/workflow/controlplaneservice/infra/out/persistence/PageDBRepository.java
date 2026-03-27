@@ -3,6 +3,7 @@ package io.mateu.workflow.controlplaneservice.infra.out.persistence;
 import io.mateu.workflow.controlplaneservice.application.out.PageRepository;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.page.Page;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.page.vo.PageId;
+import io.mateu.workflow.controlplaneservice.domain.aggregates.page.vo.PageJsonLd;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.page.vo.PageName;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.page.vo.PagePath;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.site.vo.SiteId;
@@ -28,8 +29,8 @@ public class PageDBRepository implements PageRepository {
                 new PageId(entity.id),
                 new SiteId(entity.siteId),
                 new PageName(entity.name),
-                new PagePath(entity.path)
-
+                new PagePath(entity.path),
+                new PageJsonLd(entity.jsonLd)
         );
     }
 
@@ -38,7 +39,8 @@ public class PageDBRepository implements PageRepository {
                 page.getId() != null ? page.getId().id() : null,
                 page.getSiteId().id(),
                 page.getName().name(),
-                page.getPath().path()
+                page.getPath().path(),
+                page.getJsonLd().json()
         );
     }
 

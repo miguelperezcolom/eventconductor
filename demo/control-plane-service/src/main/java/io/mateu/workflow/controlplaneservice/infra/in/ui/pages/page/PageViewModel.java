@@ -3,6 +3,8 @@ package io.mateu.workflow.controlplaneservice.infra.in.ui.pages.page;
 import io.mateu.uidl.annotations.ForeignKey;
 import io.mateu.uidl.annotations.HiddenInCreate;
 import io.mateu.uidl.annotations.ReadOnly;
+import io.mateu.uidl.annotations.Stereotype;
+import io.mateu.uidl.data.FieldStereotype;
 import io.mateu.uidl.interfaces.CrudCreationForm;
 import io.mateu.uidl.interfaces.CrudEditorForm;
 import io.mateu.uidl.interfaces.HttpRequest;
@@ -34,18 +36,21 @@ public class PageViewModel implements Identifiable, CrudEditorForm<String>, Crud
     String siteId;
     @NotEmpty
     String path;
+    @NotEmpty
+            @Stereotype(FieldStereotype.textarea)
+    String jsonLd;
 
     final CreatePageUseCase createPageUseCase;
     final UpdatePageUseCase updatePageUseCase;
 
     @Override
     public String create(HttpRequest httpRequest) {
-        return createPageUseCase.handle(new CreatePageCommand(siteId, name, path));
+        return createPageUseCase.handle(new CreatePageCommand(siteId, name, path, jsonLd));
     }
 
     @Override
     public void save(HttpRequest httpRequest) {
-        updatePageUseCase.handle(new UpdatePageCommand(id, siteId, name, path));
+        updatePageUseCase.handle(new UpdatePageCommand(id, siteId, name, path, jsonLd));
     }
 
     @Override
@@ -58,6 +63,7 @@ public class PageViewModel implements Identifiable, CrudEditorForm<String>, Crud
         siteId = page.siteId();
         name = page.name();
         path = page.path();
+        jsonLd = page.jsonLd();
         return this;
     }
 
