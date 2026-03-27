@@ -10,13 +10,13 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class DeleteResourceUseCase {
 
-final ResourceRepository repository;
+    final ResourceRepository repository;
 
-@Transactional
-public void handle(DeleteResourceCommand command) {
-repository.deleteAllById(command.ids().stream()
-.map(ResourceId::new)
-.toList());
-}
+    @Transactional
+    public void handle(DeleteResourceCommand command) {
+        repository.deleteAllById(command.ids().stream()
+                .map(ResourceId::new)
+                .toList());
+    }
 
 }

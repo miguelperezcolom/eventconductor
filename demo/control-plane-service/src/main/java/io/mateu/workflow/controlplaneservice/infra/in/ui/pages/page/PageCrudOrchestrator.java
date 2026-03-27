@@ -14,25 +14,25 @@ import org.springframework.stereotype.Service;
 @Scope("prototype")
 @Title("Pages")
 public class PageCrudOrchestrator extends CrudOrchestrator<
-PageViewModel,
-PageViewModel,
-PageViewModel,
-NoFilters,
-PageRow,
-String
-> {
+        PageViewModel,
+        PageViewModel,
+        PageViewModel,
+        NoFilters,
+        PageRow,
+        String
+        > {
 
-final PageCrudAdapter adapter;
+    final PageCrudAdapter adapter;
 
-@Override
-public CrudAdapter<PageViewModel,
-PageViewModel, PageViewModel,
-NoFilters, PageRow, String> adapter() {
-return adapter;
-}
+    @Override
+    public CrudAdapter<PageViewModel,
+            PageViewModel, PageViewModel,
+            NoFilters, PageRow, String> adapter() {
+        return adapter;
+    }
 
-@Override
-public String toId(String s) {
-return s;
-}
+    @Override
+    public String toId(String s) {
+        return s;
+    }
 }

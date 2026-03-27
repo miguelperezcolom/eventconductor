@@ -10,14 +10,14 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class DeleteReleaseUseCase {
 
-final ReleaseRepository repository;
+    final ReleaseRepository repository;
 
-@Transactional
-public void handle(DeleteReleaseCommand command) {
-repository.deleteAllById(command.ids().stream()
-.map(Long::valueOf)
-.map(ReleaseId::new)
-.toList());
-}
+    @Transactional
+    public void handle(DeleteReleaseCommand command) {
+        repository.deleteAllById(command.ids().stream()
+                .map(Long::valueOf)
+                .map(ReleaseId::new)
+                .toList());
+    }
 
 }

@@ -3,4 +3,4 @@ package io.mateu.workflow.controlplaneservice.application.usecases.country.delet
 import java.util.List;
 
 public record DeleteCountryCommand(List<String> ids) {
-    }
+}

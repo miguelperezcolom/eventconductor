@@ -10,13 +10,13 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class DeleteLanguageUseCase {
 
-final LanguageRepository repository;
+    final LanguageRepository repository;
 
-@Transactional
-public void handle(DeleteLanguageCommand command) {
-repository.deleteAllById(command.ids().stream()
-.map(LanguageCode::new)
-.toList());
-}
+    @Transactional
+    public void handle(DeleteLanguageCommand command) {
+        repository.deleteAllById(command.ids().stream()
+                .map(LanguageCode::new)
+                .toList());
+    }
 
 }

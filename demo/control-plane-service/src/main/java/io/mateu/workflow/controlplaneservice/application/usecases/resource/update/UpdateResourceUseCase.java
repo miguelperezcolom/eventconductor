@@ -11,13 +11,13 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class UpdateResourceUseCase {
 
-final ResourceRepository repository;
+    final ResourceRepository repository;
 
-@Transactional
-public void handle(UpdateResourceCommand command) {
-var resource = repository.findById(new ResourceId(command.id())).orElseThrow();
-resource.update(new ResourceName(command.name()));
-repository.save(resource);
-}
+    @Transactional
+    public void handle(UpdateResourceCommand command) {
+        var resource = repository.findById(new ResourceId(command.id())).orElseThrow();
+        resource.update(new ResourceName(command.name()));
+        repository.save(resource);
+    }
 
 }

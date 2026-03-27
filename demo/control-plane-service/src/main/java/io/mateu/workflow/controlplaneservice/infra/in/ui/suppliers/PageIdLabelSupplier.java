@@ -3,7 +3,6 @@ package io.mateu.workflow.controlplaneservice.infra.in.ui.suppliers;
 import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.uidl.interfaces.LabelSupplier;
 import io.mateu.workflow.controlplaneservice.application.query.PageQueryService;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.page.vo.PageId;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -11,10 +10,10 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class PageIdLabelSupplier implements LabelSupplier {
 
-final PageQueryService queryService;
+    final PageQueryService queryService;
 
-@Override
-public String label(Object id, HttpRequest httpRequest) {
-return queryService.getLabel((String) id);
-}
+    @Override
+    public String label(Object id, HttpRequest httpRequest) {
+        return queryService.getLabel((String) id);
+    }
 }

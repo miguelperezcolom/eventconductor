@@ -18,20 +18,20 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class UpdateReleaseUseCase {
 
-final ReleaseRepository repository;
+    final ReleaseRepository repository;
 
-@Transactional
-public void handle(UpdateReleaseCommand command) {
-var release = repository.findById(new ReleaseId(Long.valueOf(command.id()))).orElseThrow();
-release.update(new ReleaseName(command.name()),
-        new UserId(command.userId()),
-        new ReleaseDate(command.date()),
-        new EnvironmentId(command.environmentId()),
-        new SiteId(command.siteId()),
-        command.pageIds().stream().map(PageId::new).toList(),
-        command.countryCodes().stream().map(CountryCode::new).toList(),
-        command.languageCodes().stream().map(LanguageCode::new).toList());
-repository.save(release);
-}
+    @Transactional
+    public void handle(UpdateReleaseCommand command) {
+        var release = repository.findById(new ReleaseId(Long.valueOf(command.id()))).orElseThrow();
+        release.update(new ReleaseName(command.name()),
+                new UserId(command.userId()),
+                new ReleaseDate(command.date()),
+                new EnvironmentId(command.environmentId()),
+                new SiteId(command.siteId()),
+                command.pageIds().stream().map(PageId::new).toList(),
+                command.countryCodes().stream().map(CountryCode::new).toList(),
+                command.languageCodes().stream().map(LanguageCode::new).toList());
+        repository.save(release);
+    }
 
 }

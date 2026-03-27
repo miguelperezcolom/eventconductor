@@ -14,17 +14,17 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class AssetIdOptionsSupplier implements ForeignKeyOptionsSupplier {
 
-final AssetQueryService queryService;
+    final AssetQueryService queryService;
 
-@Override
-public ListingData<Option> search(String searchText, Pageable pageable, HttpRequest httpRequest) {
-    var found = queryService.findAll(searchText, null, pageable);
-    return new ListingData<>(new Page<>(
-    searchText,
-    found.page().pageSize(),
-    found.page().pageNumber(),
-    found.page().totalElements(),
-    found.page().content().stream().map(asset ->
-    new Option(asset.id(), asset.name())).toList()));
+    @Override
+    public ListingData<Option> search(String searchText, Pageable pageable, HttpRequest httpRequest) {
+        var found = queryService.findAll(searchText, null, pageable);
+        return new ListingData<>(new Page<>(
+                searchText,
+                found.page().pageSize(),
+                found.page().pageNumber(),
+                found.page().totalElements(),
+                found.page().content().stream().map(asset ->
+                        new Option(asset.id(), asset.name())).toList()));
     }
-    }
+}

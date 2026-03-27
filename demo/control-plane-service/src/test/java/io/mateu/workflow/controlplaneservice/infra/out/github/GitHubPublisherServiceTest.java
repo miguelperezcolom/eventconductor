@@ -11,8 +11,6 @@ import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
-import static org.junit.jupiter.api.Assertions.*;
-
 @SpringBootTest(classes = ControlPlaneServiceApplication.class)
 class GitHubPublisherServiceTest {
 

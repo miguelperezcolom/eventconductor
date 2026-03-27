@@ -14,34 +14,34 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class LanguageDBRepository implements LanguageRepository {
 
-final LanguageEntityRepository repository;
+    final LanguageEntityRepository repository;
 
-@Override
-public Optional<Language> findById(LanguageCode id) {
-    return repository.findById(id.code()).map(this::toDomain);
+    @Override
+    public Optional<Language> findById(LanguageCode id) {
+        return repository.findById(id.code()).map(this::toDomain);
     }
 
     private Language toDomain(LanguageEntity entity) {
-    return new Language(
-    new LanguageCode(entity.code),
-    new LanguageName(entity.name)
-    );
+        return new Language(
+                new LanguageCode(entity.code),
+                new LanguageName(entity.name)
+        );
     }
 
     private LanguageEntity toEntity(Language language) {
-    return new LanguageEntity(
-language.getCode().code(),
-language.getName().name()
-    );
+        return new LanguageEntity(
+                language.getCode().code(),
+                language.getName().name()
+        );
     }
 
     @Override
     public LanguageCode save(Language language) {
-    return new LanguageCode(repository.save(toEntity(language)).code);
+        return new LanguageCode(repository.save(toEntity(language)).code);
     }
 
     @Override
     public void deleteAllById(List<LanguageCode> selectedIds) {
         repository.deleteAllById(selectedIds.stream().map(LanguageCode::code).toList());
-        }
-        }
+    }
+}

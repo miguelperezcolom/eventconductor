@@ -14,25 +14,25 @@ import org.springframework.stereotype.Service;
 @Scope("prototype")
 @Title("Releases")
 public class ReleaseCrudOrchestrator extends CrudOrchestrator<
-ReleaseViewModel,
-ReleaseViewModel,
-ReleaseViewModel,
-NoFilters,
-ReleaseRow,
-String
-> {
+        ReleaseViewModel,
+        ReleaseViewModel,
+        ReleaseViewModel,
+        NoFilters,
+        ReleaseRow,
+        String
+        > {
 
-final ReleaseCrudAdapter adapter;
+    final ReleaseCrudAdapter adapter;
 
-@Override
-public CrudAdapter<ReleaseViewModel,
-ReleaseViewModel, ReleaseViewModel,
-NoFilters, ReleaseRow, String> adapter() {
-return adapter;
-}
+    @Override
+    public CrudAdapter<ReleaseViewModel,
+            ReleaseViewModel, ReleaseViewModel,
+            NoFilters, ReleaseRow, String> adapter() {
+        return adapter;
+    }
 
-@Override
-public String toId(String s) {
-return s;
-}
+    @Override
+    public String toId(String s) {
+        return s;
+    }
 }

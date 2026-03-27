@@ -11,7 +11,6 @@ import io.mateu.workflow.controlplaneservice.application.usecases.resource.creat
 import io.mateu.workflow.controlplaneservice.application.usecases.resource.create.CreateResourceUseCase;
 import io.mateu.workflow.controlplaneservice.application.usecases.resource.update.UpdateResourceCommand;
 import io.mateu.workflow.controlplaneservice.application.usecases.resource.update.UpdateResourceUseCase;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.resource.Resource;
 import jakarta.validation.constraints.NotEmpty;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Scope;
@@ -21,37 +20,38 @@ import org.springframework.stereotype.Service;
 @Scope("prototype")
 @RequiredArgsConstructor
 public class ResourceViewModel implements Identifiable, CrudEditorForm<String>, CrudCreationForm<String> {
-        @HiddenInCreate
-        @ReadOnly
-        String id;
-        @NotEmpty String name;
+    @HiddenInCreate
+    @ReadOnly
+    String id;
+    @NotEmpty
+    String name;
 
-        final CreateResourceUseCase createResourceUseCase;
-        final UpdateResourceUseCase updateResourceUseCase;
+    final CreateResourceUseCase createResourceUseCase;
+    final UpdateResourceUseCase updateResourceUseCase;
 
-        @Override
-        public String create(HttpRequest httpRequest) {
+    @Override
+    public String create(HttpRequest httpRequest) {
         return createResourceUseCase.handle(new CreateResourceCommand(name));
-        }
+    }
 
-        @Override
-        public void save(HttpRequest httpRequest) {
+    @Override
+    public void save(HttpRequest httpRequest) {
         updateResourceUseCase.handle(new UpdateResourceCommand(id, name));
-        }
+    }
 
-        @Override
-        public String id() {
+    @Override
+    public String id() {
         return id;
-        }
+    }
 
-        public ResourceViewModel load(ResourceDto resource) {
+    public ResourceViewModel load(ResourceDto resource) {
         id = String.valueOf(resource.id());
         name = resource.name();
         return this;
-        }
+    }
 
-        @Override
-        public String toString() {
+    @Override
+    public String toString() {
         return id != null ? name : "New resource";
-        }
-        }
+    }
+}

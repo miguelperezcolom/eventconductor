@@ -3,4 +3,4 @@ package io.mateu.workflow.controlplaneservice.application.usecases.language.dele
 import java.util.List;
 
 public record DeleteLanguageCommand(List<String> ids) {
-    }
+}

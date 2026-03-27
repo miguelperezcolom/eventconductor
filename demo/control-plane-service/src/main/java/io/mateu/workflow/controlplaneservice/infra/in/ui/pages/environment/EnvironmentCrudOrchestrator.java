@@ -14,25 +14,25 @@ import org.springframework.stereotype.Service;
 @Scope("prototype")
 @Title("Environments")
 public class EnvironmentCrudOrchestrator extends CrudOrchestrator<
-EnvironmentViewModel,
-EnvironmentViewModel,
-EnvironmentViewModel,
-NoFilters,
-EnvironmentRow,
-String
-> {
+        EnvironmentViewModel,
+        EnvironmentViewModel,
+        EnvironmentViewModel,
+        NoFilters,
+        EnvironmentRow,
+        String
+        > {
 
-final EnvironmentCrudAdapter adapter;
+    final EnvironmentCrudAdapter adapter;
 
-@Override
-public CrudAdapter<EnvironmentViewModel,
-EnvironmentViewModel, EnvironmentViewModel,
-NoFilters, EnvironmentRow, String> adapter() {
-return adapter;
-}
+    @Override
+    public CrudAdapter<EnvironmentViewModel,
+            EnvironmentViewModel, EnvironmentViewModel,
+            NoFilters, EnvironmentRow, String> adapter() {
+        return adapter;
+    }
 
-@Override
-public String toId(String s) {
-return s;
-}
+    @Override
+    public String toId(String s) {
+        return s;
+    }
 }

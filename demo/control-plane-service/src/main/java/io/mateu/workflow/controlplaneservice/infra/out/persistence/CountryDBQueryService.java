@@ -16,41 +16,41 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class CountryDBQueryService implements CountryQueryService {
 
-final CountryEntityRepository repository;
+    final CountryEntityRepository repository;
 
-private CountryRow toDomain(CountryEntity entity) {
-return new CountryRow(
-entity.code,
-entity.name
-);
-}
+    private CountryRow toDomain(CountryEntity entity) {
+        return new CountryRow(
+                entity.code,
+                entity.name
+        );
+    }
 
-@Override
-public String getLabel(String id) {
-return repository.findById(id).map(CountryEntity::getName).orElse("Unknown");
-}
+    @Override
+    public String getLabel(String id) {
+        return repository.findById(id).map(CountryEntity::getName).orElse("Unknown");
+    }
 
-@Override
-public Optional<CountryDto> getById(String id) {
-    return repository.findById(id).map(this::toDto);
+    @Override
+    public Optional<CountryDto> getById(String id) {
+        return repository.findById(id).map(this::toDto);
     }
 
     private CountryDto toDto(CountryEntity entity) {
-    return new CountryDto(
-    entity.code,
-    entity.name
-    );
+        return new CountryDto(
+                entity.code,
+                entity.name
+        );
     }
 
     @Override
     public ListingData<CountryRow> findAll(String searchText,
-        Object filters, Pageable pageable) {
+                                           Object filters, Pageable pageable) {
         var page = repository.findAllByNameContainingIgnoreCase(searchText, org.springframework.data.domain.Pageable
-        .ofSize(pageable.size())
-        .withPage(pageable.page())
+                .ofSize(pageable.size())
+                .withPage(pageable.page())
         );
         return new ListingData(new Page(searchText, page.getSize(), page.getNumber(), page.getTotalElements(),
-        page.getContent().stream().map(this::toDomain).toList()));
-        }
+                page.getContent().stream().map(this::toDomain).toList()));
+    }
 
-        }
+}

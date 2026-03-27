@@ -12,13 +12,13 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class UpdateSiteUseCase {
 
-final SiteRepository repository;
+    final SiteRepository repository;
 
-@Transactional
-public void handle(UpdateSiteCommand command) {
-var site = repository.findById(new SiteId(command.id())).orElseThrow();
-site.update(new SiteName(command.name()), new SiteUrl(command.url()));
-repository.save(site);
-}
+    @Transactional
+    public void handle(UpdateSiteCommand command) {
+        var site = repository.findById(new SiteId(command.id())).orElseThrow();
+        site.update(new SiteName(command.name()), new SiteUrl(command.url()));
+        repository.save(site);
+    }
 
 }

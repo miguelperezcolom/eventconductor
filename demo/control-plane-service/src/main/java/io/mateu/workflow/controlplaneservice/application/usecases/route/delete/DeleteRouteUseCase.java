@@ -10,14 +10,14 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class DeleteRouteUseCase {
 
-final RouteRepository repository;
+    final RouteRepository repository;
 
-@Transactional
-public void handle(DeleteRouteCommand command) {
-repository.deleteAllById(command.ids().stream()
-.map(Long::valueOf)
-.map(RouteId::new)
-.toList());
-}
+    @Transactional
+    public void handle(DeleteRouteCommand command) {
+        repository.deleteAllById(command.ids().stream()
+                .map(Long::valueOf)
+                .map(RouteId::new)
+                .toList());
+    }
 
 }

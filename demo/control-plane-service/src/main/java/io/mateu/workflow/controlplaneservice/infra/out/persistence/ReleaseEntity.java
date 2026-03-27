@@ -1,21 +1,12 @@
 package io.mateu.workflow.controlplaneservice.infra.out.persistence;
 
 
-import io.mateu.workflow.controlplaneservice.domain.aggregates.country.vo.CountryCode;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.language.vo.LanguageCode;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.page.vo.PageId;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.release.vo.ReleaseDate;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.release.vo.ReleaseId;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.release.vo.ReleaseName;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.release.vo.UserId;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.site.vo.SiteId;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
-import java.util.List;
 
 @Entity
 @AllArgsConstructor

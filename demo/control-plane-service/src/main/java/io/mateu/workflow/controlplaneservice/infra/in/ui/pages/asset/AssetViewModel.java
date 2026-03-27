@@ -11,7 +11,6 @@ import io.mateu.workflow.controlplaneservice.application.usecases.asset.create.C
 import io.mateu.workflow.controlplaneservice.application.usecases.asset.create.CreateAssetUseCase;
 import io.mateu.workflow.controlplaneservice.application.usecases.asset.update.UpdateAssetCommand;
 import io.mateu.workflow.controlplaneservice.application.usecases.asset.update.UpdateAssetUseCase;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.asset.Asset;
 import jakarta.validation.constraints.NotEmpty;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Scope;
@@ -21,41 +20,44 @@ import org.springframework.stereotype.Service;
 @Scope("prototype")
 @RequiredArgsConstructor
 public class AssetViewModel implements Identifiable, CrudEditorForm<String>, CrudCreationForm<String> {
-        @HiddenInCreate
-        @ReadOnly
-        String id;
-        @NotEmpty String name;
-    @NotEmpty String path;
-    @NotEmpty String url;
+    @HiddenInCreate
+    @ReadOnly
+    String id;
+    @NotEmpty
+    String name;
+    @NotEmpty
+    String path;
+    @NotEmpty
+    String url;
 
-        final CreateAssetUseCase createAssetUseCase;
-        final UpdateAssetUseCase updateAssetUseCase;
+    final CreateAssetUseCase createAssetUseCase;
+    final UpdateAssetUseCase updateAssetUseCase;
 
-        @Override
-        public String create(HttpRequest httpRequest) {
+    @Override
+    public String create(HttpRequest httpRequest) {
         return createAssetUseCase.handle(new CreateAssetCommand(name, path, url));
-        }
+    }
 
-        @Override
-        public void save(HttpRequest httpRequest) {
+    @Override
+    public void save(HttpRequest httpRequest) {
         updateAssetUseCase.handle(new UpdateAssetCommand(id, name, path, url));
-        }
+    }
 
-        @Override
-        public String id() {
+    @Override
+    public String id() {
         return id;
-        }
+    }
 
-        public AssetViewModel load(AssetDto asset) {
+    public AssetViewModel load(AssetDto asset) {
         id = String.valueOf(asset.id());
         name = asset.name();
         path = asset.path();
         url = asset.url();
         return this;
-        }
+    }
 
-        @Override
-        public String toString() {
+    @Override
+    public String toString() {
         return id != null ? name : "New asset";
-        }
-        }
+    }
+}

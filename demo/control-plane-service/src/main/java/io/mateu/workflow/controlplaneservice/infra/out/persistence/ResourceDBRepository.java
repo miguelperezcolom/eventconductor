@@ -12,45 +12,42 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.Optional;
 
-import static io.mateu.core.infra.JsonSerializer.listFromJson;
-import static io.mateu.core.infra.JsonSerializer.toJson;
-
 @Service
 @RequiredArgsConstructor
 public class ResourceDBRepository implements ResourceRepository {
 
-final ResourceEntityRepository repository;
+    final ResourceEntityRepository repository;
 
-@Override
-public Optional<Resource> findById(ResourceId id) {
-    return repository.findById(id.id()).map(this::toDomain);
+    @Override
+    public Optional<Resource> findById(ResourceId id) {
+        return repository.findById(id.id()).map(this::toDomain);
     }
 
     private Resource toDomain(ResourceEntity entity) {
-    return new Resource(
-    new ResourceId(entity.id),
-    new ResourceName(entity.name),
-            new ResourcePath(entity.path),
-            new ResourceContent(entity.content)
-    );
+        return new Resource(
+                new ResourceId(entity.id),
+                new ResourceName(entity.name),
+                new ResourcePath(entity.path),
+                new ResourceContent(entity.content)
+        );
     }
 
     private ResourceEntity toEntity(Resource resource) {
-    return new ResourceEntity(
-resource.getId().id(),
-resource.getName().name(),
-            resource.getPath().path(),
-            resource.getContent().bytes()
-    );
+        return new ResourceEntity(
+                resource.getId().id(),
+                resource.getName().name(),
+                resource.getPath().path(),
+                resource.getContent().bytes()
+        );
     }
 
     @Override
     public ResourceId save(Resource resource) {
-    return new ResourceId(repository.save(toEntity(resource)).id);
+        return new ResourceId(repository.save(toEntity(resource)).id);
     }
 
     @Override
     public void deleteAllById(List<ResourceId> selectedIds) {
         repository.deleteAllById(selectedIds.stream().map(ResourceId::id).toList());
-        }
-        }
+    }
+}

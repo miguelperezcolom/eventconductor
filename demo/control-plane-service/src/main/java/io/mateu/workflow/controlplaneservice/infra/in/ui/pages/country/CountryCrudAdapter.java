@@ -19,46 +19,46 @@ import java.util.List;
 @Scope("prototype")
 @RequiredArgsConstructor
 public class CountryCrudAdapter implements CrudAdapter<
-CountryViewModel,
-CountryViewModel,
-CountryViewModel,
-NoFilters,
-CountryRow,
-String
-> {
+        CountryViewModel,
+        CountryViewModel,
+        CountryViewModel,
+        NoFilters,
+        CountryRow,
+        String
+        > {
 
-final CountryViewModel viewModel;
-final DeleteCountryUseCase deleteCountryUseCase;
-final CountryQueryService queryService;
+    final CountryViewModel viewModel;
+    final DeleteCountryUseCase deleteCountryUseCase;
+    final CountryQueryService queryService;
 
-@Override
-public ListingData<CountryRow> search(String searchText,
-    NoFilters filters,
-    Pageable pageable) {
-    return queryService.findAll(searchText, filters, pageable);
+    @Override
+    public ListingData<CountryRow> search(String searchText,
+                                          NoFilters filters,
+                                          Pageable pageable) {
+        return queryService.findAll(searchText, filters, pageable);
     }
 
     @Override
     public void deleteAllById(List<String> selectedIds) {
         deleteCountryUseCase.handle(new DeleteCountryCommand(selectedIds));
-        }
+    }
 
-        @Override
-        public CountryViewModel getView(String id) {
+    @Override
+    public CountryViewModel getView(String id) {
         return viewModel.load(queryService
-        .getById(id)
-        .orElseThrow());
-        }
+                .getById(id)
+                .orElseThrow());
+    }
 
-        @Override
-        public CountryViewModel getEditor(String id) {
+    @Override
+    public CountryViewModel getEditor(String id) {
         return viewModel.load(queryService
-        .getById(id)
-        .orElseThrow());
-        }
+                .getById(id)
+                .orElseThrow());
+    }
 
-        @Override
-        public CountryViewModel getCreationForm(HttpRequest httpRequest) {
+    @Override
+    public CountryViewModel getCreationForm(HttpRequest httpRequest) {
         return viewModel;
-        }
-        }
+    }
+}

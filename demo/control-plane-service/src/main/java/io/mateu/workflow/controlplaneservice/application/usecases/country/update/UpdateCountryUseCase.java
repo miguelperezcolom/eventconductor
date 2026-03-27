@@ -11,13 +11,13 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class UpdateCountryUseCase {
 
-final CountryRepository repository;
+    final CountryRepository repository;
 
-@Transactional
-public void handle(UpdateCountryCommand command) {
-var country = repository.findById(new CountryCode(command.code())).orElseThrow();
-country.update(new CountryName(command.name()));
-repository.save(country);
-}
+    @Transactional
+    public void handle(UpdateCountryCommand command) {
+        var country = repository.findById(new CountryCode(command.code())).orElseThrow();
+        country.update(new CountryName(command.name()));
+        repository.save(country);
+    }
 
 }

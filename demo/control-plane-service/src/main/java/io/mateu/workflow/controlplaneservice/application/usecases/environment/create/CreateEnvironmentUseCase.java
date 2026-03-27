@@ -12,12 +12,12 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class CreateEnvironmentUseCase {
 
-final EnvironmentRepository repository;
+    final EnvironmentRepository repository;
 
-@Transactional
-public String handle(CreateEnvironmentCommand command) {
-return repository.save(Environment.of(new EnvironmentId(command.id()), new EnvironmentName(command.name()))
-).id();
-}
+    @Transactional
+    public String handle(CreateEnvironmentCommand command) {
+        return repository.save(Environment.of(new EnvironmentId(command.id()), new EnvironmentName(command.name()))
+        ).id();
+    }
 
 }

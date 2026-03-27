@@ -10,41 +10,38 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.Optional;
 
-import static io.mateu.core.infra.JsonSerializer.listFromJson;
-import static io.mateu.core.infra.JsonSerializer.toJson;
-
 @Service
 @RequiredArgsConstructor
 public class EnvironmentDBRepository implements EnvironmentRepository {
 
-final EnvironmentEntityRepository repository;
+    final EnvironmentEntityRepository repository;
 
-@Override
-public Optional<Environment> findById(EnvironmentId id) {
-    return repository.findById(id.id()).map(this::toDomain);
+    @Override
+    public Optional<Environment> findById(EnvironmentId id) {
+        return repository.findById(id.id()).map(this::toDomain);
     }
 
     private Environment toDomain(EnvironmentEntity entity) {
-    return new Environment(
-    new EnvironmentId(entity.id),
-    new EnvironmentName(entity.name)
-    );
+        return new Environment(
+                new EnvironmentId(entity.id),
+                new EnvironmentName(entity.name)
+        );
     }
 
     private EnvironmentEntity toEntity(Environment environment) {
-    return new EnvironmentEntity(
-environment.getId().id(),
-environment.getName().name()
-    );
+        return new EnvironmentEntity(
+                environment.getId().id(),
+                environment.getName().name()
+        );
     }
 
     @Override
     public EnvironmentId save(Environment environment) {
-    return new EnvironmentId(repository.save(toEntity(environment)).id);
+        return new EnvironmentId(repository.save(toEntity(environment)).id);
     }
 
     @Override
     public void deleteAllById(List<EnvironmentId> selectedIds) {
         repository.deleteAllById(selectedIds.stream().map(EnvironmentId::id).toList());
-        }
-        }
+    }
+}

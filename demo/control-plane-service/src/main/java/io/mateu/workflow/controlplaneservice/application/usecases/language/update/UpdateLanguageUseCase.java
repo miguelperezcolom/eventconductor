@@ -11,13 +11,13 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class UpdateLanguageUseCase {
 
-final LanguageRepository repository;
+    final LanguageRepository repository;
 
-@Transactional
-public void handle(UpdateLanguageCommand command) {
-var language = repository.findById(new LanguageCode(command.code())).orElseThrow();
-language.update(new LanguageName(command.name()));
-repository.save(language);
-}
+    @Transactional
+    public void handle(UpdateLanguageCommand command) {
+        var language = repository.findById(new LanguageCode(command.code())).orElseThrow();
+        language.update(new LanguageName(command.name()));
+        repository.save(language);
+    }
 
 }

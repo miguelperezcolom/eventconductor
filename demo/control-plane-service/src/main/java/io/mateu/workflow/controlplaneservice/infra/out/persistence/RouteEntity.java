@@ -1,31 +1,27 @@
 package io.mateu.workflow.controlplaneservice.infra.out.persistence;
 
 
-import io.mateu.workflow.controlplaneservice.domain.aggregates.country.vo.CountryCode;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.language.vo.LanguageCode;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.page.vo.PageId;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.route.vo.RoutePath;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.route.vo.RouteUrl;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 @Entity
-@AllArgsConstructor@NoArgsConstructor
+@AllArgsConstructor
+@NoArgsConstructor
 @Getter
 public class RouteEntity {
 
-@Id
-@GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "route_seq_gen")
-@SequenceGenerator(
-name = "route_seq_gen",
-sequenceName = "route_sequence",
-allocationSize = 1
-)
-Long id;
+    @Id
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "route_seq_gen")
+    @SequenceGenerator(
+            name = "route_seq_gen",
+            sequenceName = "route_sequence",
+            allocationSize = 1
+    )
+    Long id;
 
-String name;
+    String name;
 
     String languageCode;
 

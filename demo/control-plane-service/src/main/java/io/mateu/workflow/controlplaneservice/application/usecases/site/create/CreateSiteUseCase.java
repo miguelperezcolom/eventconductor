@@ -13,12 +13,12 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class CreateSiteUseCase {
 
-final SiteRepository repository;
+    final SiteRepository repository;
 
-@Transactional
-public String handle(CreateSiteCommand command) {
-return repository.save(Site.of(new SiteId(command.id()), new SiteName(command.name()), new SiteUrl(command.url()))
-).id();
-}
+    @Transactional
+    public String handle(CreateSiteCommand command) {
+        return repository.save(Site.of(new SiteId(command.id()), new SiteName(command.name()), new SiteUrl(command.url()))
+        ).id();
+    }
 
 }
