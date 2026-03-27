@@ -1,11 +1,12 @@
 package io.mateu.workflow.controlplaneservice.infra.out.persistence;
 
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.SequenceGenerator;
+import io.mateu.workflow.controlplaneservice.domain.aggregates.country.vo.CountryCode;
+import io.mateu.workflow.controlplaneservice.domain.aggregates.language.vo.LanguageCode;
+import io.mateu.workflow.controlplaneservice.domain.aggregates.page.vo.PageId;
+import io.mateu.workflow.controlplaneservice.domain.aggregates.route.vo.RoutePath;
+import io.mateu.workflow.controlplaneservice.domain.aggregates.route.vo.RouteUrl;
+import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -25,5 +26,17 @@ allocationSize = 1
 Long id;
 
 String name;
+
+    String languageCode;
+
+    String countryCode;
+
+    Long pageId;
+
+    @Column(columnDefinition = "TEXT")
+    String path;
+
+    @Column(columnDefinition = "TEXT")
+    String url;
 
 }

@@ -42,7 +42,12 @@ public Optional<RouteDto> getById(String id) {
     private RouteDto toDto(RouteEntity entity) {
     return new RouteDto(
     entity.id.toString(),
-    entity.name
+    entity.name,
+            entity.languageCode,
+            entity.countryCode,
+            entity.pageId,
+            entity.path,
+            entity.url
     );
     }
 
