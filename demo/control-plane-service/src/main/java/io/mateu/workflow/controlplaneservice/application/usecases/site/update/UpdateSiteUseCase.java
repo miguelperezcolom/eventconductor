@@ -2,6 +2,7 @@ package io.mateu.workflow.controlplaneservice.application.usecases.site.update;
 
 import io.mateu.workflow.controlplaneservice.application.out.SiteRepository;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.site.vo.SiteId;
+import io.mateu.workflow.controlplaneservice.domain.aggregates.site.vo.SiteLlmsTxt;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.site.vo.SiteName;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.site.vo.SiteUrl;
 import lombok.RequiredArgsConstructor;
@@ -17,7 +18,7 @@ public class UpdateSiteUseCase {
     @Transactional
     public void handle(UpdateSiteCommand command) {
         var site = repository.findById(new SiteId(command.id())).orElseThrow();
-        site.update(new SiteName(command.name()), new SiteUrl(command.url()));
+        site.update(new SiteName(command.name()), new SiteUrl(command.url()), new SiteLlmsTxt(command.llmsTxt()));
         repository.save(site);
     }
 

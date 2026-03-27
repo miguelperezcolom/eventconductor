@@ -39,7 +39,8 @@ public class SiteDBQueryService implements SiteQueryService {
         return new SiteDto(
                 entity.id,
                 entity.name,
-                entity.url
+                entity.url,
+                entity.llmsTxt
         );
     }
 

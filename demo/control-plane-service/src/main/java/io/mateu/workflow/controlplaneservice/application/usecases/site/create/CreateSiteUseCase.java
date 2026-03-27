@@ -3,6 +3,7 @@ package io.mateu.workflow.controlplaneservice.application.usecases.site.create;
 import io.mateu.workflow.controlplaneservice.application.out.SiteRepository;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.site.Site;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.site.vo.SiteId;
+import io.mateu.workflow.controlplaneservice.domain.aggregates.site.vo.SiteLlmsTxt;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.site.vo.SiteName;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.site.vo.SiteUrl;
 import lombok.RequiredArgsConstructor;
@@ -17,7 +18,10 @@ public class CreateSiteUseCase {
 
     @Transactional
     public String handle(CreateSiteCommand command) {
-        return repository.save(Site.of(new SiteId(command.id()), new SiteName(command.name()), new SiteUrl(command.url()))
+        return repository.save(Site.of(new SiteId(command.id()),
+                new SiteName(command.name()),
+                new SiteUrl(command.url()),
+                new SiteLlmsTxt(command.llmsTxt()))
         ).id();
     }
 

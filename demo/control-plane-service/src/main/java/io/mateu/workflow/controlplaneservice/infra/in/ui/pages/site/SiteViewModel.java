@@ -1,6 +1,8 @@
 package io.mateu.workflow.controlplaneservice.infra.in.ui.pages.site;
 
 import io.mateu.uidl.annotations.EditableOnlyWhenCreating;
+import io.mateu.uidl.annotations.Stereotype;
+import io.mateu.uidl.data.FieldStereotype;
 import io.mateu.uidl.interfaces.CrudCreationForm;
 import io.mateu.uidl.interfaces.CrudEditorForm;
 import io.mateu.uidl.interfaces.HttpRequest;
@@ -25,18 +27,21 @@ public class SiteViewModel implements Identifiable, CrudEditorForm<String>, Crud
     String name;
     @NotEmpty
     String url;
+    @NotEmpty
+            @Stereotype(FieldStereotype.textarea)
+    String llmsTxt;
 
     final CreateSiteUseCase createSiteUseCase;
     final UpdateSiteUseCase updateSiteUseCase;
 
     @Override
     public String create(HttpRequest httpRequest) {
-        return createSiteUseCase.handle(new CreateSiteCommand(id, name, url));
+        return createSiteUseCase.handle(new CreateSiteCommand(id, name, url, llmsTxt));
     }
 
     @Override
     public void save(HttpRequest httpRequest) {
-        updateSiteUseCase.handle(new UpdateSiteCommand(id, name, url));
+        updateSiteUseCase.handle(new UpdateSiteCommand(id, name, url, llmsTxt));
     }
 
     @Override
@@ -48,6 +53,7 @@ public class SiteViewModel implements Identifiable, CrudEditorForm<String>, Crud
         id = String.valueOf(site.id());
         name = site.name();
         url = site.url();
+        llmsTxt = site.llmsTxt();
         return this;
     }
 
