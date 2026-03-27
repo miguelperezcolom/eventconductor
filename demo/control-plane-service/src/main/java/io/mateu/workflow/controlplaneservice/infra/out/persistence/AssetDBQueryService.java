@@ -42,7 +42,8 @@ public Optional<AssetDto> getById(String id) {
     private AssetDto toDto(AssetEntity entity) {
     return new AssetDto(
     entity.id.toString(),
-    entity.name
+    entity.name,
+            entity.path, entity.url
     );
     }
 
