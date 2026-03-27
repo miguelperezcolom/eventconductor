@@ -1,5 +1,6 @@
 package io.mateu.workflow.controlplaneservice.infra.in.ui.pages.release;
 
+import io.mateu.uidl.annotations.ForeignKey;
 import io.mateu.uidl.annotations.HiddenInCreate;
 import io.mateu.uidl.annotations.ReadOnly;
 import io.mateu.uidl.interfaces.CrudCreationForm;
@@ -11,11 +12,14 @@ import io.mateu.workflow.controlplaneservice.application.usecases.release.create
 import io.mateu.workflow.controlplaneservice.application.usecases.release.create.CreateReleaseUseCase;
 import io.mateu.workflow.controlplaneservice.application.usecases.release.update.UpdateReleaseCommand;
 import io.mateu.workflow.controlplaneservice.application.usecases.release.update.UpdateReleaseUseCase;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.release.Release;
+import io.mateu.workflow.controlplaneservice.infra.in.ui.suppliers.*;
 import jakarta.validation.constraints.NotEmpty;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Service;
+
+import java.time.LocalDateTime;
+import java.util.List;
 
 @Service
 @Scope("prototype")
@@ -25,18 +29,33 @@ public class ReleaseViewModel implements Identifiable, CrudEditorForm<String>, C
         @ReadOnly
         String id;
         @NotEmpty String name;
+    @NotEmpty String user;
+    @HiddenInCreate
+    @ReadOnly
+    LocalDateTime date = LocalDateTime.now();
+    @ForeignKey(search = EnvironmentIdOptionsSupplier.class, label = EnvironmentIdLabelSupplier.class)
+    String environment;
+    @ForeignKey(search = SiteIdOptionsSupplier.class, label = SiteIdLabelSupplier.class)
+    String site;
+    @ForeignKey(search = PageIdOptionsSupplier.class, label = PageIdLabelSupplier.class)
+    List<String> pages;
+    @ForeignKey(search = CountryIdOptionsSupplier.class, label = CountryIdLabelSupplier.class)
+    List<String> countries;
+    @ForeignKey(search = LanguageIdOptionsSupplier.class, label = LanguageIdLabelSupplier.class)
+    List<String> languages;
+
 
         final CreateReleaseUseCase createReleaseUseCase;
         final UpdateReleaseUseCase updateReleaseUseCase;
 
         @Override
         public String create(HttpRequest httpRequest) {
-        return createReleaseUseCase.handle(new CreateReleaseCommand(name));
+        return createReleaseUseCase.handle(new CreateReleaseCommand(name, user, date, site, pages.stream().map(Long::valueOf).toList(), countries, languages, environment));
         }
 
         @Override
         public void save(HttpRequest httpRequest) {
-        updateReleaseUseCase.handle(new UpdateReleaseCommand(id, name));
+        updateReleaseUseCase.handle(new UpdateReleaseCommand(id, name, user, date, site, pages.stream().map(Long::valueOf).toList(), countries, languages, environment));
         }
 
         @Override
@@ -47,6 +66,13 @@ public class ReleaseViewModel implements Identifiable, CrudEditorForm<String>, C
         public ReleaseViewModel load(ReleaseDto release) {
         id = String.valueOf(release.id());
         name = release.name();
+        user = release.user();
+        date = release.date();
+        site = release.site();
+        pages = release.pages();
+        countries = release.countries();
+        languages = release.languages();
+        environment = release.environment();
         return this;
         }
 
