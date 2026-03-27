@@ -4,6 +4,8 @@ import io.mateu.workflow.controlplaneservice.application.out.AssetRepository;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.asset.Asset;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.asset.vo.AssetId;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.asset.vo.AssetName;
+import io.mateu.workflow.controlplaneservice.domain.aggregates.asset.vo.AssetPath;
+import io.mateu.workflow.controlplaneservice.domain.aggregates.asset.vo.AssetUrl;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -27,14 +29,18 @@ public Optional<Asset> findById(AssetId id) {
     private Asset toDomain(AssetEntity entity) {
     return new Asset(
     new AssetId(entity.id),
-    new AssetName(entity.name)
+    new AssetName(entity.name),
+            new AssetPath(entity.path),
+            new AssetUrl(entity.url)
     );
     }
 
     private AssetEntity toEntity(Asset asset) {
     return new AssetEntity(
-asset.getId() != null?Long.valueOf(asset.getId().id()):null,
-asset.getName().name()
+asset.getId() != null? asset.getId().id() :null,
+asset.getName().name(),
+            asset.getPath().path(),
+            asset.getUrl().url()
     );
     }
 

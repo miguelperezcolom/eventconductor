@@ -25,18 +25,20 @@ public class AssetViewModel implements Identifiable, CrudEditorForm<String>, Cru
         @ReadOnly
         String id;
         @NotEmpty String name;
+    @NotEmpty String path;
+    @NotEmpty String url;
 
         final CreateAssetUseCase createAssetUseCase;
         final UpdateAssetUseCase updateAssetUseCase;
 
         @Override
         public String create(HttpRequest httpRequest) {
-        return createAssetUseCase.handle(new CreateAssetCommand(name));
+        return createAssetUseCase.handle(new CreateAssetCommand(name, path, url));
         }
 
         @Override
         public void save(HttpRequest httpRequest) {
-        updateAssetUseCase.handle(new UpdateAssetCommand(id, name));
+        updateAssetUseCase.handle(new UpdateAssetCommand(id, name, path, url));
         }
 
         @Override
@@ -47,6 +49,8 @@ public class AssetViewModel implements Identifiable, CrudEditorForm<String>, Cru
         public AssetViewModel load(AssetDto asset) {
         id = String.valueOf(asset.id());
         name = asset.name();
+        path = asset.path();
+        url = asset.url();
         return this;
         }
 
