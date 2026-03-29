@@ -11,6 +11,8 @@ import io.mateu.workflow.controlplaneservice.application.query.dto.DeploymentDto
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.Comparator;
+
 @Service
 @RequiredArgsConstructor
 public class DeploymentDBQueryService implements DeploymentQueryService {
@@ -19,7 +21,7 @@ public class DeploymentDBQueryService implements DeploymentQueryService {
 
     @Override
     public ListingData<DeploymentDto> findAll(String searchText, Object filters, Pageable pageable) {
-        var all = repository.findAll();
+        var all = repository.findAll().stream().sorted(Comparator.comparing(a -> a.name)).toList();
         return ListingData.<DeploymentDto>builder()
                 .page(Page.<DeploymentDto>builder()
                         .pageNumber(0)
@@ -29,12 +31,18 @@ public class DeploymentDBQueryService implements DeploymentQueryService {
                         .content(all.stream()
                                 .map(page -> new DeploymentDto(
                                         page.id.toString(),
-                                        page.name,
+                                        cleanPath(page.path),
                                         page.countryCode,
-                                        "202603271530"
+                                        page.releaseId
                                 ))
                                 .toList())
                         .build())
                 .build();
+    }
+
+    private String cleanPath(String path) {
+        if (path == null || path.isBlank()) return "/";
+        if (path.endsWith("/")) return path.substring(0, path.length() - 1);
+        return path;
     }
 }

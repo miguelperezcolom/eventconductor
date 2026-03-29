@@ -5,6 +5,7 @@ import io.mateu.workflow.controlplaneservice.domain.aggregates.asset.vo.AssetId;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.asset.vo.AssetName;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.asset.vo.AssetPath;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.asset.vo.AssetUrl;
+import io.mateu.workflow.controlplaneservice.domain.aggregates.country.vo.CountryCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,7 +19,12 @@ public class UpdateAssetUseCase {
     @Transactional
     public void handle(UpdateAssetCommand command) {
         var asset = repository.findById(new AssetId(Long.valueOf(command.id()))).orElseThrow();
-        asset.update(new AssetName(command.name()), new AssetPath(command.path()), new AssetUrl(command.url()));
+        asset.update(
+                new AssetName(command.name()),
+                new AssetPath(command.path()),
+                new AssetUrl(command.url()),
+                new CountryCode(command.countryCode())
+        );
         repository.save(asset);
     }
 

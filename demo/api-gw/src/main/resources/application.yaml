@@ -11,7 +11,7 @@
     client:
       auth-service: # Este nombre debe coincidir con el de @GrpcClient
         address: 'static://localhost:9091' # O el nombre del servicio en Kubernetes/Consul
-        negotiation-type: plaintext # Usa TLS en producción, pero plaintext para pruebas locales
+        negotiation-type: plaintext # Usa TLS en produccion, pero plaintext para pruebas locales
   spring:
     application:
       name: api-gw

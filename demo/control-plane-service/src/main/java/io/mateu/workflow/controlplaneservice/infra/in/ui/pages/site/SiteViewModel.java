@@ -2,6 +2,7 @@ package io.mateu.workflow.controlplaneservice.infra.in.ui.pages.site;
 
 import io.mateu.uidl.annotations.EditableOnlyWhenCreating;
 import io.mateu.uidl.annotations.Stereotype;
+import io.mateu.uidl.annotations.Toolbar;
 import io.mateu.uidl.data.FieldStereotype;
 import io.mateu.uidl.interfaces.CrudCreationForm;
 import io.mateu.uidl.interfaces.CrudEditorForm;
@@ -61,4 +62,5 @@ public class SiteViewModel implements Identifiable, CrudEditorForm<String>, Crud
     public String toString() {
         return id != null ? name : "New site";
     }
+
 }

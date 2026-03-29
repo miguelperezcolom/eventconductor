@@ -9,6 +9,7 @@ import io.mateu.workflow.controlplaneservice.domain.aggregates.release.Release;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.release.vo.ReleaseDate;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.release.vo.ReleaseId;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.release.vo.ReleaseName;
+import io.mateu.workflow.controlplaneservice.domain.aggregates.release.vo.ReleaseStatus;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.release.vo.UserId;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.site.vo.SiteId;
 import lombok.RequiredArgsConstructor;
@@ -39,9 +40,7 @@ public class ReleaseDBRepository implements ReleaseRepository {
                 new ReleaseDate(entity.date),
                 new EnvironmentId(entity.environmentId),
                 new SiteId(entity.siteId),
-                listFromJson(entity.pageIdsJson, Long.class).stream().map(PageId::new).toList(),
-                listFromJson(entity.countryCodesJson, String.class).stream().map(CountryCode::new).toList(),
-                listFromJson(entity.languageCodesJson, String.class).stream().map(LanguageCode::new).toList()
+                ReleaseStatus.valueOf(entity.status)
         );
     }
 
@@ -51,10 +50,8 @@ public class ReleaseDBRepository implements ReleaseRepository {
                 release.getName().name(),
                 release.getUser().name(),
                 release.getDate().dateTime(),
-                toJson(release.getLanguages().stream().map(LanguageCode::code).toList()),
-                toJson(release.getPages().stream().map(PageId::id).toList()),
-                toJson(release.getCountries().stream().map(CountryCode::code).toList()),
-                release.getEnvironment().id(), release.getSite().id()
+                release.getEnvironment().id(), release.getSite().id(),
+                release.getStatus().name()
         );
     }
 
@@ -66,5 +63,10 @@ public class ReleaseDBRepository implements ReleaseRepository {
     @Override
     public void deleteAllById(List<ReleaseId> selectedIds) {
         repository.deleteAllById(selectedIds.stream().map(ReleaseId::id).toList());
+    }
+
+    @Override
+    public List<Release> findAll() {
+        return repository.findAll().stream().map(this::toDomain).toList();
     }
 }

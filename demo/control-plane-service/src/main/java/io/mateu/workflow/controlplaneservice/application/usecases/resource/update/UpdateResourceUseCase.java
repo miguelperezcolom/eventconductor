@@ -16,7 +16,7 @@ public class UpdateResourceUseCase {
     @Transactional
     public void handle(UpdateResourceCommand command) {
         var resource = repository.findById(new ResourceId(command.id())).orElseThrow();
-        resource.update(new ResourceName(command.name()));
+        resource.update(new ResourceName(command.name()), resource.getPath(), resource.getContent());
         repository.save(resource);
     }
 

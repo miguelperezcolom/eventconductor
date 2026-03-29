@@ -8,6 +8,7 @@ import io.mateu.workflow.controlplaneservice.domain.aggregates.page.vo.PageId;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.release.Release;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.release.vo.ReleaseDate;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.release.vo.ReleaseName;
+import io.mateu.workflow.controlplaneservice.domain.aggregates.release.vo.ReleaseStatus;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.release.vo.UserId;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.site.vo.SiteId;
 import lombok.RequiredArgsConstructor;
@@ -28,9 +29,7 @@ public class CreateReleaseUseCase {
                         new ReleaseDate(command.date()),
                         new EnvironmentId(command.environmentId()),
                         new SiteId(command.siteId()),
-                        command.pageIds().stream().map(PageId::new).toList(),
-                        command.countryCodes().stream().map(CountryCode::new).toList(),
-                        command.languageCodes().stream().map(LanguageCode::new).toList()
+                        ReleaseStatus.New
                 )
         ).id().toString();
     }

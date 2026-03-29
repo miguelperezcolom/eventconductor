@@ -27,10 +27,7 @@ public class UpdateReleaseUseCase {
                 new UserId(command.userId()),
                 new ReleaseDate(command.date()),
                 new EnvironmentId(command.environmentId()),
-                new SiteId(command.siteId()),
-                command.pageIds().stream().map(PageId::new).toList(),
-                command.countryCodes().stream().map(CountryCode::new).toList(),
-                command.languageCodes().stream().map(LanguageCode::new).toList());
+                new SiteId(command.siteId()));
         repository.save(release);
     }
 

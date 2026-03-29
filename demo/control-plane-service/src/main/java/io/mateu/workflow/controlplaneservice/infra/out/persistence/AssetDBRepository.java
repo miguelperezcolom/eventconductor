@@ -6,6 +6,8 @@ import io.mateu.workflow.controlplaneservice.domain.aggregates.asset.vo.AssetId;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.asset.vo.AssetName;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.asset.vo.AssetPath;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.asset.vo.AssetUrl;
+import io.mateu.workflow.controlplaneservice.domain.aggregates.country.vo.CountryCode;
+import io.mateu.workflow.controlplaneservice.domain.aggregates.route.vo.RouteUrl;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -28,7 +30,8 @@ public class AssetDBRepository implements AssetRepository {
                 new AssetId(entity.id),
                 new AssetName(entity.name),
                 new AssetPath(entity.path),
-                new AssetUrl(entity.url)
+                new AssetUrl(entity.url),
+                new CountryCode(entity.countryCode)
         );
     }
 
@@ -37,7 +40,8 @@ public class AssetDBRepository implements AssetRepository {
                 asset.getId() != null ? asset.getId().id() : null,
                 asset.getName().name(),
                 asset.getPath().path(),
-                asset.getUrl().url()
+                asset.getUrl().url(),
+                asset.getCountry().code()
         );
     }
 
@@ -49,5 +53,10 @@ public class AssetDBRepository implements AssetRepository {
     @Override
     public void deleteAllById(List<AssetId> selectedIds) {
         repository.deleteAllById(selectedIds.stream().map(AssetId::id).toList());
+    }
+
+    @Override
+    public Optional<Asset> findByUrlAndCountry(RouteUrl url, CountryCode country) {
+        return repository.findByUrlAndCountryCode(url.url(), country.code()).map(this::toDomain);
     }
 }

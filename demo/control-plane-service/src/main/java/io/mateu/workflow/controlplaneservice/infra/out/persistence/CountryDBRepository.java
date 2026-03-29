@@ -44,4 +44,9 @@ public class CountryDBRepository implements CountryRepository {
     public void deleteAllById(List<CountryCode> selectedIds) {
         repository.deleteAllById(selectedIds.stream().map(CountryCode::code).toList());
     }
+
+    @Override
+    public List<Country> findAll() {
+        return repository.findAll().stream().map(this::toDomain).toList();
+    }
 }

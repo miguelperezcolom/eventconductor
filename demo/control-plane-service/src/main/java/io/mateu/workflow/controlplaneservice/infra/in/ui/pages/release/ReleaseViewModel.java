@@ -39,25 +39,18 @@ public class ReleaseViewModel implements Identifiable, CrudEditorForm<String>, C
     String environment;
     @ForeignKey(search = SiteIdOptionsSupplier.class, label = SiteIdLabelSupplier.class)
     String site;
-    @ForeignKey(search = PageIdOptionsSupplier.class, label = PageIdLabelSupplier.class)
-    List<String> pages;
-    @ForeignKey(search = CountryIdOptionsSupplier.class, label = CountryIdLabelSupplier.class)
-    List<String> countries;
-    @ForeignKey(search = LanguageIdOptionsSupplier.class, label = LanguageIdLabelSupplier.class)
-    List<String> languages;
-
 
     final CreateReleaseUseCase createReleaseUseCase;
     final UpdateReleaseUseCase updateReleaseUseCase;
 
     @Override
     public String create(HttpRequest httpRequest) {
-        return createReleaseUseCase.handle(new CreateReleaseCommand(name, user, date, site, pages.stream().map(Long::valueOf).toList(), countries, languages, environment));
+        return createReleaseUseCase.handle(new CreateReleaseCommand(name, user, date, site, environment));
     }
 
     @Override
     public void save(HttpRequest httpRequest) {
-        updateReleaseUseCase.handle(new UpdateReleaseCommand(id, name, user, date, site, pages.stream().map(Long::valueOf).toList(), countries, languages, environment));
+        updateReleaseUseCase.handle(new UpdateReleaseCommand(id, name, user, date, site, environment));
     }
 
     @Override
@@ -71,9 +64,6 @@ public class ReleaseViewModel implements Identifiable, CrudEditorForm<String>, C
         user = release.user();
         date = release.date();
         site = release.site();
-        pages = release.pages();
-        countries = release.countries();
-        languages = release.languages();
         environment = release.environment();
         return this;
     }

@@ -53,4 +53,9 @@ public class PageDBRepository implements PageRepository {
     public void deleteAllById(List<PageId> selectedIds) {
         repository.deleteAllById(selectedIds.stream().map(PageId::id).toList());
     }
+
+    @Override
+    public List<Page> findBySiteId(SiteId siteId) {
+        return repository.findBySiteId(siteId.id()).stream().map(this::toDomain).toList();
+    }
 }

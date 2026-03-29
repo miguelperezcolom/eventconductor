@@ -1,4 +1,4 @@
 package io.mateu.workflow.controlplaneservice.application.usecases.asset.update;
 
-public record UpdateAssetCommand(String id, String name, String path, String url) {
+public record UpdateAssetCommand(String id, String name, String path, String url, String countryCode) {
 }

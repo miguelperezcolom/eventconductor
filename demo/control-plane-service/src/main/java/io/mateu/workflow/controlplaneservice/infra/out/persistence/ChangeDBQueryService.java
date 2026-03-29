@@ -25,15 +25,22 @@ public class ChangeDBQueryService implements ChangeQueryService {
                         .totalElements(all.size())
                         .searchSignature(searchText)
                         .content(all.stream()
-                                .map(page -> new ChangeDto(
-                                        page.id.toString(),
-                                        page.name,
-                                        page.countryCode,
-                                        page.languageCode,
-                                        ChangeStatus.Changed
+                                .map(route -> new ChangeDto(
+                                        route.id.toString(),
+                                        route.name,
+                                        route.countryCode,
+                                        route.languageCode,
+                                        getStatus(route)
                                 ))
                                 .toList())
                         .build())
                 .build();
+    }
+
+    private ChangeStatus getStatus(RouteEntity route) {
+        if (route.deployedHash.equals(route.hash)) {
+            return ChangeStatus.Released;
+        }
+        return ChangeStatus.Changed;
     }
 }

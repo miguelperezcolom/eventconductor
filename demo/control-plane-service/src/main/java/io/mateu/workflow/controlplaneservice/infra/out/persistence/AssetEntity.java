@@ -29,4 +29,6 @@ public class AssetEntity {
     @Column(columnDefinition = "TEXT")
     String url;
 
+    String countryCode;
+
 }

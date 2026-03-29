@@ -5,6 +5,7 @@ import io.mateu.workflow.controlplaneservice.domain.aggregates.asset.Asset;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.asset.vo.AssetName;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.asset.vo.AssetPath;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.asset.vo.AssetUrl;
+import io.mateu.workflow.controlplaneservice.domain.aggregates.country.vo.CountryCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,7 +18,11 @@ public class CreateAssetUseCase {
 
     @Transactional
     public String handle(CreateAssetCommand command) {
-        return repository.save(Asset.of(new AssetName(command.name()), new AssetPath(command.path()), new AssetUrl(command.url()))
+        return repository.save(Asset.of(
+                new AssetName(command.name()),
+                new AssetPath(command.path()),
+                new AssetUrl(command.url()),
+                new CountryCode(command.countryCode()))
         ).id().toString();
     }
 

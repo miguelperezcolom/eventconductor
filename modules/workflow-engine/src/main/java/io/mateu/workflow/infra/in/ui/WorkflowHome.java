@@ -1,6 +1,7 @@
 package io.mateu.workflow.infra.in.ui;
 
 import io.mateu.uidl.annotations.*;
+import io.mateu.uidl.data.FieldStereotype;
 import io.mateu.workflow.infra.in.ui.pages.process.Processes;
 import io.mateu.workflow.infra.in.ui.pages.WorkflowDefinitions;
 
@@ -12,7 +13,7 @@ import io.mateu.workflow.infra.in.ui.pages.WorkflowDefinitions;
 @Title("Workflow")
 public class WorkflowHome {
 
-    @Html
+    @Stereotype(FieldStereotype.html)
     String message = "<p>Welcome to the event driven orchestrator.</p>" +
             "<p>Here you will be able to create workflow definitions and processes.</p>";
 
