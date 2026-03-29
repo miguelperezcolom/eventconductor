@@ -4,7 +4,9 @@ import io.mateu.workflow.controlplaneservice.application.out.RouteRepository;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.country.vo.CountryCode;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.language.vo.LanguageCode;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.page.vo.PageId;
+import io.mateu.workflow.controlplaneservice.domain.aggregates.release.vo.ReleaseId;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.route.Route;
+import io.mateu.workflow.controlplaneservice.domain.aggregates.route.vo.RouteHash;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.route.vo.RouteId;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.route.vo.RouteName;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.route.vo.RoutePath;
@@ -34,7 +36,10 @@ public class RouteDBRepository implements RouteRepository {
                 new CountryCode(entity.countryCode),
                 new PageId(entity.pageId),
                 new RoutePath(entity.path),
-                new RouteUrl(entity.url)
+                new RouteUrl(entity.url),
+                new RouteHash(entity.hash),
+                new RouteHash(entity.deployedHash),
+                new ReleaseId(entity.releaseId)
         );
     }
 
@@ -46,7 +51,10 @@ public class RouteDBRepository implements RouteRepository {
                 route.getCountry().code(),
                 route.getPage().id(),
                 route.getPath().path(),
-                route.getUrl().url()
+                route.getUrl().url(),
+                route.getHash().hash(),
+                route.getDeployedHash().hash(),
+                route.getRelease() != null ? route.getRelease().id() : null
         );
     }
 
@@ -58,5 +66,10 @@ public class RouteDBRepository implements RouteRepository {
     @Override
     public void deleteAllById(List<RouteId> selectedIds) {
         repository.deleteAllById(selectedIds.stream().map(RouteId::id).toList());
+    }
+
+    @Override
+    public List<Route> findAll() {
+        return repository.findAll().stream().map(this::toDomain).toList();
     }
 }

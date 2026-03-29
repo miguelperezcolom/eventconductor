@@ -29,17 +29,10 @@ public class ReleaseEntity {
 
     LocalDateTime date;
 
-    @Column(columnDefinition = "TEXT")
-    String languageCodesJson;
-
-    @Column(columnDefinition = "TEXT")
-    String pageIdsJson;
-
-    @Column(columnDefinition = "TEXT")
-    String countryCodesJson;
-
     String environmentId;
 
     String siteId;
+
+    String status;
 
 }

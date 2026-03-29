@@ -22,7 +22,7 @@ class GitHubPublisherServiceTest {
         System.out.println("Hola!");
         Path path = Paths.get("./tmp/riu/");
         System.out.println("path = " + path.toAbsolutePath());
-        service.publishAndVerify("v" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmm")), path);
+        service.publishAndVerify("v" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmm")), path, null);
     }
 
 }

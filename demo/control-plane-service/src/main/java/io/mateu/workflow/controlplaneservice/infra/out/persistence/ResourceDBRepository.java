@@ -1,6 +1,7 @@
 package io.mateu.workflow.controlplaneservice.infra.out.persistence;
 
 import io.mateu.workflow.controlplaneservice.application.out.ResourceRepository;
+import io.mateu.workflow.controlplaneservice.domain.aggregates.asset.vo.AssetId;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.resource.Resource;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.resource.vo.ResourceContent;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.resource.vo.ResourceId;
@@ -50,4 +51,5 @@ public class ResourceDBRepository implements ResourceRepository {
     public void deleteAllById(List<ResourceId> selectedIds) {
         repository.deleteAllById(selectedIds.stream().map(ResourceId::id).toList());
     }
+
 }

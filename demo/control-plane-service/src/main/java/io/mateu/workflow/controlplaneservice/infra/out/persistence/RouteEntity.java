@@ -35,4 +35,12 @@ public class RouteEntity {
     @Column(columnDefinition = "TEXT")
     String url;
 
+    @Column(columnDefinition = "TEXT")
+    String hash;
+
+    @Column(columnDefinition = "TEXT")
+    String deployedHash;
+
+    Long releaseId;
+
 }

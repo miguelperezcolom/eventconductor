@@ -7,8 +7,5 @@ public record UpdateReleaseCommand(String id, String name,
                                    String userId,
                                    LocalDateTime date,
                                    String siteId,
-                                   List<Long> pageIds,
-                                   List<String> countryCodes,
-                                   List<String> languageCodes,
                                    String environmentId) {
 }

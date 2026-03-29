@@ -15,6 +15,7 @@ import io.mateu.uidl.fluent.Trigger;
 import io.mateu.uidl.interfaces.CrudAdapter;
 import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.workflow.infra.in.ui.adapters.ProcessCrudAdapter;
+import io.mateu.workflow.infra.in.ui.adapters.SimpleProcessCrudAdapter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Service;
@@ -26,14 +27,14 @@ import java.util.List;
 @Service
 @Scope("prototype")
 @RequiredArgsConstructor
-public class Processes extends CrudOrchestrator<ProcessViewModel, NoEditor<String>, NoCreationForm<String>, NoFilters, ProcessRow, String> {
+public class Processes extends CrudOrchestrator<SimpleProcessViewModel, NoEditor<String>, NoCreationForm<String>, NoFilters, ProcessRow, String> {
 
-    final ProcessCrudAdapter processCrudAdapter;
+    final SimpleProcessCrudAdapter processCrudAdapter;
     final CreateProcessForm createProcessForm;
 
 
     @Override
-    public CrudAdapter<ProcessViewModel, NoEditor<String>, NoCreationForm<String>, NoFilters, ProcessRow, String> adapter() {
+    public CrudAdapter<SimpleProcessViewModel, NoEditor<String>, NoCreationForm<String>, NoFilters, ProcessRow, String> adapter() {
         return processCrudAdapter;
     }
 

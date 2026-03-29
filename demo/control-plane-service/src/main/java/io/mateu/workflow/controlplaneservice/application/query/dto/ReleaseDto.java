@@ -7,8 +7,5 @@ public record ReleaseDto(String id, String name,
                          String user,
                          LocalDateTime date,
                          String environment,
-                         String site,
-                         List<String> pages,
-                         List<String> countries,
-                         List<String> languages) {
+                         String site) {
 }

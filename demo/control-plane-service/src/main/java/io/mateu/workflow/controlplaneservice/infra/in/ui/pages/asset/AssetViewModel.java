@@ -1,5 +1,6 @@
 package io.mateu.workflow.controlplaneservice.infra.in.ui.pages.asset;
 
+import io.mateu.uidl.annotations.ForeignKey;
 import io.mateu.uidl.annotations.HiddenInCreate;
 import io.mateu.uidl.annotations.ReadOnly;
 import io.mateu.uidl.interfaces.CrudCreationForm;
@@ -11,6 +12,8 @@ import io.mateu.workflow.controlplaneservice.application.usecases.asset.create.C
 import io.mateu.workflow.controlplaneservice.application.usecases.asset.create.CreateAssetUseCase;
 import io.mateu.workflow.controlplaneservice.application.usecases.asset.update.UpdateAssetCommand;
 import io.mateu.workflow.controlplaneservice.application.usecases.asset.update.UpdateAssetUseCase;
+import io.mateu.workflow.controlplaneservice.infra.in.ui.suppliers.CountryIdLabelSupplier;
+import io.mateu.workflow.controlplaneservice.infra.in.ui.suppliers.CountryIdOptionsSupplier;
 import jakarta.validation.constraints.NotEmpty;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Scope;
@@ -29,18 +32,20 @@ public class AssetViewModel implements Identifiable, CrudEditorForm<String>, Cru
     String path;
     @NotEmpty
     String url;
+    @ForeignKey(search = CountryIdOptionsSupplier.class, label = CountryIdLabelSupplier.class)
+    String country;
 
     final CreateAssetUseCase createAssetUseCase;
     final UpdateAssetUseCase updateAssetUseCase;
 
     @Override
     public String create(HttpRequest httpRequest) {
-        return createAssetUseCase.handle(new CreateAssetCommand(name, path, url));
+        return createAssetUseCase.handle(new CreateAssetCommand(name, path, url, country));
     }
 
     @Override
     public void save(HttpRequest httpRequest) {
-        updateAssetUseCase.handle(new UpdateAssetCommand(id, name, path, url));
+        updateAssetUseCase.handle(new UpdateAssetCommand(id, name, path, url, country));
     }
 
     @Override
@@ -53,6 +58,7 @@ public class AssetViewModel implements Identifiable, CrudEditorForm<String>, Cru
         name = asset.name();
         path = asset.path();
         url = asset.url();
+        country = asset.countryCode();
         return this;
     }
 

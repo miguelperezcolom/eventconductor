@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.mateu.dtos.PairDto;
 import io.mateu.uidl.annotations.*;
+import io.mateu.uidl.data.FieldStereotype;
 import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.uidl.interfaces.PostHydrationHandler;
 import jakarta.servlet.http.HttpServletRequest;
@@ -36,19 +37,19 @@ public class CheckRequest implements PostHydrationHandler {
 
     @Tab("JWT")
     @Colspan(2)
-            @Html
+            @Stereotype(FieldStereotype.html)
     String header;
     @Colspan(2)
-            @Html
+    @Stereotype(FieldStereotype.html)
     String payload;
 
     @Tab("Former JWT")
     @Colspan(2)
-    @Html
+    @Stereotype(FieldStereotype.html)
             @Label("Header")
     String header0;
     @Colspan(2)
-    @Html
+    @Stereotype(FieldStereotype.html)
     @Label("Payload")
     String payload0;
 
@@ -77,15 +78,21 @@ public class CheckRequest implements PostHydrationHandler {
         payload = "<pre>" + payload + "</pre>";
 
         auth = request.getHeader("X-Token-Before-Auth");
-        jwt = auth.split(" ")[1];
+        if (auth != null && auth.contains(" ")) {
+            jwt = auth.split(" ")[1];
 
-        chunks = jwt.split("\\.");
+            chunks = jwt.split("\\.");
 
-        // El índice 0 es el Header, el 1 es el Payload (el JSON con los datos)
-        header0 = new String(Base64.getUrlDecoder().decode(chunks[0]));
-        payload0 = new String(Base64.getUrlDecoder().decode(chunks[1]));
+            // El índice 0 es el Header, el 1 es el Payload (el JSON con los datos)
+            header0 = new String(Base64.getUrlDecoder().decode(chunks[0]));
+            payload0 = new String(Base64.getUrlDecoder().decode(chunks[1]));
 
-        payload0 = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(mapper.readValue(payload0, Object.class));
-        payload0 = "<pre>" + payload0 + "</pre>";
+            payload0 = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(mapper.readValue(payload0, Object.class));
+            payload0 = "<pre>" + payload0 + "</pre>";
+        } else {
+            header0 = "";
+            payload0 = "";
+        }
+
     }
 }

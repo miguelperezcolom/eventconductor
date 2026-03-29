@@ -39,7 +39,8 @@ public class AssetDBQueryService implements AssetQueryService {
         return new AssetDto(
                 entity.id.toString(),
                 entity.name,
-                entity.path, entity.url
+                entity.path, entity.url,
+                entity.countryCode
         );
     }
 

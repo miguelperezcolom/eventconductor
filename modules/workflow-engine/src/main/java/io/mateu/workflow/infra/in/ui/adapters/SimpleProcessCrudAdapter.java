@@ -1,0 +1,114 @@
+package io.mateu.workflow.infra.in.ui.adapters;
+
+import io.mateu.uidl.data.ListingData;
+import io.mateu.uidl.data.NoCreationForm;
+import io.mateu.uidl.data.NoEditor;
+import io.mateu.uidl.data.NoFilters;
+import io.mateu.uidl.data.Pageable;
+import io.mateu.uidl.data.Status;
+import io.mateu.uidl.data.StatusType;
+import io.mateu.uidl.interfaces.CrudAdapter;
+import io.mateu.uidl.interfaces.HttpRequest;
+import io.mateu.workflow.application.out.ProcessRepository;
+import io.mateu.workflow.domain.aggregates.Process;
+import io.mateu.workflow.domain.aggregates.ProcessStatus;
+import io.mateu.workflow.domain.aggregates.StepExecutionStatus;
+import io.mateu.workflow.infra.in.ui.pages.process.ProcessRow;
+import io.mateu.workflow.infra.in.ui.pages.process.ProcessViewModel;
+import io.mateu.workflow.infra.in.ui.pages.process.SimpleProcessViewModel;
+import io.mateu.workflow.infra.in.ui.pages.process.childcruds.Error;
+import io.mateu.workflow.infra.in.ui.pages.process.childcruds.Message;
+import io.mateu.workflow.infra.in.ui.pages.process.childcruds.Resource;
+import io.mateu.workflow.infra.in.ui.pages.process.childcruds.Step;
+import io.mateu.workflow.infra.out.persistence.LogMessageEntityRepository;
+import io.mateu.workflow.infra.out.persistence.ResourceEntityRepository;
+import io.mateu.workflow.infra.out.persistence.StepExecutionEntityRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+
+import static io.mateu.core.domain.Humanizer.toUpperCaseFirst;
+
+@Service
+@RequiredArgsConstructor
+public class SimpleProcessCrudAdapter implements CrudAdapter<SimpleProcessViewModel, NoEditor<String>, NoCreationForm<String>, NoFilters, ProcessRow, String> {
+
+    final ProcessRepository repository;
+    final StepExecutionEntityRepository stepExecutionEntityRepository;
+    final LogMessageEntityRepository logMessageEntityRepository;
+    final ResourceEntityRepository resourceEntityRepository;
+
+
+    @Override
+    public ListingData<ProcessRow> search(String searchText, NoFilters noFilters, Pageable pageable) {
+        return ListingData.of(repository.findAll().stream()
+                        .filter(process -> searchText == null || searchText.isEmpty() ||
+                                process.searchableText().toLowerCase().contains(searchText.toLowerCase()))
+                .map(process -> new ProcessRow(process.id(),
+                        process.getName(),
+                        map(process.getStatus()),
+                        process.getCompletionPercentage()))
+                .toList());
+    }
+
+    private Status map(ProcessStatus status) {
+        StatusType statusType = switch (status) {
+            case PENDING -> StatusType.INFO;
+            case RUNNING -> StatusType.WARNING;
+            case COMPLETED -> StatusType.SUCCESS;
+            case CANCELLED -> StatusType.NONE;
+            case ERROR -> StatusType.DANGER;
+        };
+        return new Status(statusType, toUpperCaseFirst(status.name()));
+    }
+
+    @Override
+    public void deleteAllById(List<String> selectedIds) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public SimpleProcessViewModel getView(String id) {
+        Process process = repository.findById(id).orElse(null);
+        return new SimpleProcessViewModel(process.id(), process.getName(), map(process.getStatus()),
+                stepExecutionEntityRepository.findAllByProcessId(id).stream()
+                        .map(entity -> new Step(id, entity.getId(), entity.getStepId(), mapStepStatus(entity.getStatus())))
+                        .toList(),
+                logMessageEntityRepository.findAllByProcessId(id).stream()
+                        .filter(entity -> !"error".equals(entity.getMessageType()))
+                        .map(entity -> new Message(id, entity.getId(), entity.getTimestamp(), entity.getMessage()))
+                        .toList(),
+                logMessageEntityRepository.findAllByProcessId(id).stream()
+                        .filter(entity -> "error".equals(entity.getMessageType()))
+                        .map(entity -> new Error(id, entity.getId(), entity.getTimestamp(), entity.getMessage()))
+                        .toList(),
+                resourceEntityRepository.findAllByProcessId(id).stream()
+                        .map(entity -> new Resource(id, entity.getId(), entity.getName(), entity.getUrl()))
+                        .toList()
+                );
+    }
+
+    private Status mapStepStatus(String rawStatus) {
+        StepExecutionStatus status = StepExecutionStatus.valueOf(rawStatus);
+        StatusType statusType = switch (status) {
+            case CREATED -> StatusType.NONE;
+            case PENDING -> StatusType.INFO;
+            case RUNNING -> StatusType.WARNING;
+            case COMPLETED -> StatusType.SUCCESS;
+            case CANCELLED -> StatusType.DANGER;
+            case ERROR -> StatusType.DANGER;
+        };
+        return new Status(statusType, toUpperCaseFirst(status.name()));
+    }
+
+    @Override
+    public NoEditor<String> getEditor(String id) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public NoCreationForm<String> getCreationForm(HttpRequest httpRequest) {
+        throw new UnsupportedOperationException();
+    }
+}

@@ -34,8 +34,10 @@ public class Resource extends AggregateRoot {
         return p;
     }
 
-    public void update(ResourceName name) {
+    public void update(ResourceName name, ResourcePath path, ResourceContent content) {
         this.name = name;
+        this.path = path;
+        this.content = content;
     }
 
 }

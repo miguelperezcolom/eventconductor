@@ -4,6 +4,8 @@ package io.mateu.workflow.controlplaneservice.domain.aggregates.route;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.country.vo.CountryCode;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.language.vo.LanguageCode;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.page.vo.PageId;
+import io.mateu.workflow.controlplaneservice.domain.aggregates.release.vo.ReleaseId;
+import io.mateu.workflow.controlplaneservice.domain.aggregates.route.vo.RouteHash;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.route.vo.RouteId;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.route.vo.RouteName;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.route.vo.RoutePath;
@@ -32,6 +34,12 @@ public class Route extends AggregateRoot {
 
     RouteUrl url;
 
+    RouteHash hash;
+
+    RouteHash deployedHash;
+
+    ReleaseId release;
+
 
     public static Route of(RouteName name, LanguageCode language, CountryCode country, PageId page, RoutePath path, RouteUrl url) {
         Route p = new Route();
@@ -41,6 +49,8 @@ public class Route extends AggregateRoot {
         p.page = page;
         p.path = path;
         p.url = url;
+        p.hash = new RouteHash("");
+        p.deployedHash = new RouteHash("");
         return p;
     }
 
@@ -53,4 +63,15 @@ public class Route extends AggregateRoot {
         this.url = url;
     }
 
+    public void updateHash(RouteHash routeHash) {
+        this.hash = routeHash;
+    }
+
+    public void updateDeployedHash(RouteHash routeHash) {
+        this.deployedHash = routeHash;
+    }
+
+    public void updateRelease(ReleaseId release) {
+        this.release = release;
+    }
 }

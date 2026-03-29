@@ -44,4 +44,9 @@ public class LanguageDBRepository implements LanguageRepository {
     public void deleteAllById(List<LanguageCode> selectedIds) {
         repository.deleteAllById(selectedIds.stream().map(LanguageCode::code).toList());
     }
+
+    @Override
+    public List<Language> findAll() {
+        return repository.findAll().stream().map(this::toDomain).toList();
+    }
 }

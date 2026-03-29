@@ -1,8 +1,10 @@
 package io.mateu.workflow.controlplaneservice.infra.out.persistence;
 
+import io.mateu.uidl.data.ColumnAction;
 import io.mateu.uidl.data.ListingData;
 import io.mateu.uidl.data.Page;
 import io.mateu.uidl.data.Pageable;
+import io.mateu.uidl.fluent.Action;
 import io.mateu.workflow.controlplaneservice.application.query.RouteQueryService;
 import io.mateu.workflow.controlplaneservice.application.query.dto.RouteDto;
 import io.mateu.workflow.controlplaneservice.application.query.dto.RouteRow;
@@ -21,7 +23,10 @@ public class RouteDBQueryService implements RouteQueryService {
     private RouteRow toDomain(RouteEntity entity) {
         return new RouteRow(
                 entity.id.toString(),
-                entity.name
+                entity.name,
+                entity.deployedHash,
+                entity.hash,
+                new ColumnAction("action-on-row-changeHash", "Simulate change")
         );
     }
 
