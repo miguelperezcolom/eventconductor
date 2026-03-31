@@ -39,7 +39,8 @@ public class RouteDBRepository implements RouteRepository {
                 new RouteUrl(entity.url),
                 new RouteHash(entity.hash),
                 new RouteHash(entity.deployedHash),
-                new ReleaseId(entity.releaseId)
+                new ReleaseId(entity.releaseId),
+                new ReleaseId(entity.plannedReleaseId)
         );
     }
 
@@ -54,7 +55,8 @@ public class RouteDBRepository implements RouteRepository {
                 route.getUrl().url(),
                 route.getHash().hash(),
                 route.getDeployedHash().hash(),
-                route.getRelease() != null ? route.getRelease().id() : null
+                route.getRelease() != null ? route.getRelease().id() : null,
+                route.getPlannedRelease() != null ? route.getPlannedRelease().id() : null
         );
     }
 

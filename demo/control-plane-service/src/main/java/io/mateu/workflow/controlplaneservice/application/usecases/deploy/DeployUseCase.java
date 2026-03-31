@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 @Transactional
@@ -53,9 +54,14 @@ public class DeployUseCase implements ProgressReporter {
             steps.add(new Step("x", "4", "Update releases", new Status(StatusType.INFO, "Pending")));
 
             try {
-                publisher.publishReleaseVersionAndVerify(command.releaseId(), this);
+                var deploymentId = UUID.randomUUID().toString();
+                publisher.publishReleaseVersionAndVerify(deploymentId, command.releaseId(), this);
 
-                routeRepository.findAll().forEach(route -> {
+                routeRepository.findAll().stream()
+                        .filter(route -> command.routeIds() == null
+                                || command.routeIds().isEmpty()
+                                || command.routeIds().contains("" + route.getId().id()))
+                        .forEach(route -> {
                     route.updateRelease(new ReleaseId(Long.valueOf(command.releaseId())));
                     routeRepository.save(route);
                 });

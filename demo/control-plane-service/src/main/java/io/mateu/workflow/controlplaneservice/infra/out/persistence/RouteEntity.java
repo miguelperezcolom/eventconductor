@@ -43,4 +43,5 @@ public class RouteEntity {
 
     Long releaseId;
 
+    Long plannedReleaseId;
 }

@@ -14,7 +14,7 @@ public class CloudFlareVerifierService {
 
     private final RestClient restClient;
 
-    public void verify(String versionTag, ProgressReporter progressReporter) throws IOException {
+    public void verify(String deploymentId, ProgressReporter progressReporter) throws IOException {
         progressReporter.update(2, StatusType.WARNING);
         // 2. Verificación en Cloudflare (Polling)
         int maxAttempts = 12; // 2 minutos máximo (12 * 10s)
@@ -32,10 +32,10 @@ public class CloudFlareVerifierService {
                         .retrieve()
                         .toEntity(String.class);
 
-                String resolvedVersion = response.getHeaders().getFirst("x-version");
+                String resolvedVersion = response.getHeaders().getFirst("x-deployment-id");
 
-                if (("v" + versionTag).equals(resolvedVersion)) {
-                    progressReporter.log("✅ Verified: Version " + versionTag + " is live.");
+                if (deploymentId.equals(resolvedVersion)) {
+                    progressReporter.log("✅ Verified: Deployment " + deploymentId + " is live.");
                     progressReporter.update(2, StatusType.SUCCESS);
                     return;
                 }

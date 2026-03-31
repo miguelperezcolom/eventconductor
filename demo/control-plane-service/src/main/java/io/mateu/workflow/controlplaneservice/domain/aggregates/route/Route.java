@@ -40,6 +40,8 @@ public class Route extends AggregateRoot {
 
     ReleaseId release;
 
+    ReleaseId plannedRelease;
+
 
     public static Route of(RouteName name, LanguageCode language, CountryCode country, PageId page, RoutePath path, RouteUrl url) {
         Route p = new Route();
@@ -73,5 +75,9 @@ public class Route extends AggregateRoot {
 
     public void updateRelease(ReleaseId release) {
         this.release = release;
+    }
+
+    public void updatePlannedRelease(ReleaseId release) {
+        this.plannedRelease = release;
     }
 }
