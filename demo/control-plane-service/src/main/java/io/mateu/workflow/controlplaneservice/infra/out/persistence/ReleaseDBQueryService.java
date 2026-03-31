@@ -14,6 +14,7 @@ import io.mateu.workflow.controlplaneservice.domain.aggregates.release.vo.Releas
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.time.format.DateTimeFormatter;
 import java.util.Optional;
 
 import static io.mateu.core.infra.JsonSerializer.listFromJson;
@@ -26,9 +27,13 @@ public class ReleaseDBQueryService implements ReleaseQueryService {
     final ReleaseEntityRepository repository;
 
     private ReleaseRow toDomain(ReleaseEntity entity) {
+        var dtf = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
         return new ReleaseRow(
                 entity.id.toString(),
+                entity.siteId,
                 entity.name,
+                entity.userId,
+                entity.date.format(dtf),
                 toStatus(entity.status),
                 new ColumnActionGroup(new ColumnAction[]{
                         new ColumnAction("action-on-row-setAsBlue", "Set as blue"),

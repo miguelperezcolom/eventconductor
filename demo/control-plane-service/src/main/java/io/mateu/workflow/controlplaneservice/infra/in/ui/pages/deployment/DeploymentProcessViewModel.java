@@ -13,6 +13,7 @@ import io.mateu.uidl.fluent.OnLoadTrigger;
 import io.mateu.uidl.fluent.OnSuccessTrigger;
 import io.mateu.uidl.fluent.Trigger;
 import io.mateu.uidl.fluent.TriggersSupplier;
+import io.mateu.uidl.interfaces.Form;
 import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.workflow.controlplaneservice.application.usecases.deploy.DeployUseCase;
 import io.mateu.workflow.controlplaneservice.infra.in.ui.pages.deployment.process.Resource;
@@ -34,7 +35,7 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 @Style("max-width:900px;margin: auto;")
-public class DeploymentProcessViewModel implements TriggersSupplier {
+public class DeploymentProcessViewModel implements TriggersSupplier, Form {
 
     private final DeployUseCase deployUseCase;
 
