@@ -66,6 +66,7 @@ public class SiteCrudOrchestrator extends CrudOrchestrator<
     @SneakyThrows
     @ViewToolbarButton
     public Object scrap(SiteViewModel site, HttpRequest httpRequest) {
+        scrapeProcessViewModel.reset();
         steps.clear();
         messages.clear();
         errors.clear();

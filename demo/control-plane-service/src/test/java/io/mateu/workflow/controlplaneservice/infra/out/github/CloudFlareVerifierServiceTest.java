@@ -1,6 +1,7 @@
 package io.mateu.workflow.controlplaneservice.infra.out.github;
 
 import io.mateu.workflow.controlplaneservice.ControlPlaneServiceApplication;
+import io.mateu.workflow.controlplaneservice.application.usecases.ProgressReporter;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -11,18 +12,20 @@ import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
+import static org.mockito.Mockito.mock;
+
 @SpringBootTest(classes = ControlPlaneServiceApplication.class)
-class GitHubPublisherServiceTest {
+class CloudFlareVerifierServiceTest {
 
     @Autowired
-    GitHubPublisherService service;
+    CloudFlareVerifierService service;
 
     @Test
     void works() throws IOException {
         System.out.println("Hola!");
         Path path = Paths.get("./tmp/riu/");
         System.out.println("path = " + path.toAbsolutePath());
-        service.publishAndVerify("v" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmm")), path, null);
+        service.verify("v" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmm")), mock(ProgressReporter.class));
     }
 
 }

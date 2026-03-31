@@ -1,69 +1,81 @@
 package io.mateu.workflow.controlplaneservice.application.usecases.createrelease;
 
-import io.mateu.workflow.controlplaneservice.application.out.AssetRepository;
-import io.mateu.workflow.controlplaneservice.application.out.CountryRepository;
-import io.mateu.workflow.controlplaneservice.application.out.EnvironmentRepository;
-import io.mateu.workflow.controlplaneservice.application.out.LanguageRepository;
+import io.mateu.uidl.data.Status;
+import io.mateu.uidl.data.StatusType;
 import io.mateu.workflow.controlplaneservice.application.out.ReleaseRepository;
-import io.mateu.workflow.controlplaneservice.application.out.ResourceRepository;
 import io.mateu.workflow.controlplaneservice.application.out.RouteRepository;
-import io.mateu.workflow.controlplaneservice.application.out.SiteRepository;
-import io.mateu.workflow.controlplaneservice.application.query.ChangeQueryService;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.country.vo.CountryCode;
+import io.mateu.workflow.controlplaneservice.application.usecases.ProgressReporter;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.environment.vo.EnvironmentId;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.language.vo.LanguageCode;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.page.vo.PageId;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.release.Release;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.release.vo.ReleaseDate;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.release.vo.ReleaseName;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.release.vo.ReleaseStatus;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.release.vo.UserId;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.resource.Resource;
+import io.mateu.workflow.controlplaneservice.domain.aggregates.release.vo.*;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.site.vo.SiteId;
+import io.mateu.workflow.controlplaneservice.infra.in.ui.pages.deployment.process.Error;
+import io.mateu.workflow.controlplaneservice.infra.in.ui.pages.deployment.process.Message;
+import io.mateu.workflow.controlplaneservice.infra.in.ui.pages.deployment.process.Resource;
+import io.mateu.workflow.controlplaneservice.infra.in.ui.pages.deployment.process.Step;
+import io.mateu.workflow.controlplaneservice.infra.out.github.GitHubReleaseFolderPublisherService;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Service("createrelease.CreateReleaseUseCase")
 @Transactional
 @Slf4j
 @RequiredArgsConstructor
-public class CreateReleaseUseCase {
+public class CreateReleaseUseCase implements ProgressReporter {
 
     final RouteRepository routeRepository;
-    final SiteRepository siteRepository;
     final ReleaseRepository releaseRepository;
-    final CountryRepository countryRepository;
-    final LanguageRepository languageRepository;
-    final AssetRepository assetRepository;
-    final ResourceRepository resourceRepository;
-    final EnvironmentRepository environmentRepository;
+    final GitHubReleaseFolderPublisherService publisher;
 
+    @Getter
+    final List<Step> steps = new ArrayList<>();
+    @Getter
+    final List<Message> messages = new ArrayList<>();
+    @Getter
+    final List<Error> errors = new ArrayList<>();
+    @Getter
+    final List<Resource> resources = new ArrayList<>();
+
+    @SneakyThrows
     public void handle(CreateReleaseCommand command) {
         log.info("create release {}", command);
+        reset();
+
+        steps.add(new Step("x", "1", "Create content", new Status(StatusType.INFO, "Pending")));
+        steps.add(new Step("x", "2", "Push", new Status(StatusType.INFO, "Pending")));
+
         var routes = routeRepository.findAll();
 
-        var site = siteRepository.findById(new SiteId(command.siteId())).orElseThrow();
-
-        var release = Release.of(
+        var releaseId = releaseRepository.save(Release.of(
                 new ReleaseName(command.name()),
                 new UserId(command.userId()),
                 new ReleaseDate(LocalDateTime.now()),
-                new EnvironmentId(command.environmentId()),
                 new SiteId(command.siteId()),
                 ReleaseStatus.New
-        );
+        ));
 
-        releaseRepository.save(release);
+        publisher.publishReleaseFolderAndVerify("" + releaseId.id(), this);
 
         routes.forEach(route -> {
             route.updateDeployedHash(route.getHash());
             routeRepository.save(route);
         });
 
+        releaseRepository.findAll().stream().filter(release -> release.getStatus().equals(ReleaseStatus.Green)).forEach(release -> {
+            release.updateStatus(ReleaseStatus.Archived);
+            releaseRepository.save(release);
+        });
+        var release = releaseRepository.findById(releaseId).orElseThrow();
+        release.updateStatus(ReleaseStatus.Green);
+        releaseRepository.save(release);
 
     }
 

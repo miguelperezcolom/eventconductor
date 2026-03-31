@@ -31,30 +31,26 @@ public class Release extends AggregateRoot {
 
     ReleaseDate date;
 
-    EnvironmentId environment;
-
     SiteId site;
 
     ReleaseStatus status;
 
 
-    public static Release of(ReleaseName name, UserId user, ReleaseDate date, EnvironmentId environment, SiteId site, ReleaseStatus status) {
+    public static Release of(ReleaseName name, UserId user, ReleaseDate date, SiteId site, ReleaseStatus status) {
         Release p = new Release();
         p.name = name;
         p.user = user;
         p.date = date;
         p.site = site;
-        p.environment = environment;
         p.status = status;
         return p;
     }
 
-    public void update(ReleaseName name, UserId user, ReleaseDate date, EnvironmentId environment, SiteId site) {
+    public void update(ReleaseName name, UserId user, ReleaseDate date, SiteId site) {
         this.name = name;
         this.user = user;
         this.date = date;
         this.site = site;
-        this.environment = environment;
     }
 
     public void updateStatus(ReleaseStatus status) {

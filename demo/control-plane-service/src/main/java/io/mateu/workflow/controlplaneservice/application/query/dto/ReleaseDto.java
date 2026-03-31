@@ -6,6 +6,5 @@ import java.util.List;
 public record ReleaseDto(String id, String name,
                          String user,
                          LocalDateTime date,
-                         String environment,
                          String site) {
 }

@@ -29,15 +29,11 @@ import java.util.stream.Collectors;
 @Slf4j
 @Trigger(type = TriggerType.OnLoad, actionId = "search")
 @Trigger(type = TriggerType.OnSuccess, calledActionId = "deployRelease", actionId = "search")
-@Trigger(type = TriggerType.OnSuccess, calledActionId = "deployBlue", actionId = "search")
-@Trigger(type = TriggerType.OnSuccess, calledActionId = "deployGreen", actionId = "search")
 public class Deployer implements ListingBackend<NoFilters, DeploymentRow> {
 
     final DeployReleaseForm deployReleaseForm;
     final DeploymentQueryService queryService;
     final ReleaseRepository releaseRepository;
-    final DeployUseCase deployUseCase;
-    final DeploymentProcessViewModel deploymentProcessViewModel;
 
     @Override
     public ListingData<DeploymentRow> search(String searchText, NoFilters filters, Pageable pageable, HttpRequest httpRequest) {
@@ -80,21 +76,5 @@ public class Deployer implements ListingBackend<NoFilters, DeploymentRow> {
     public DeployReleaseForm deployRelease(List<DeploymentRow> selectedRows) {
         log.info("deploy release {}", selectedRows);
         return deployReleaseForm.withRouteIds(selectedRows.stream().map(DeploymentRow::id).toList());
-    }
-
-    @Toolbar
-    public DeploymentProcessViewModel deployBlue(List<DeploymentRow> selectedRows) {
-        log.info("deploy blue {}", selectedRows);
-        deploymentProcessViewModel.reset();
-        new Thread(() -> deployUseCase.handle(new DeployCommand(selectedRows.stream().map(DeploymentRow::id).toList(), "Blue"))).start();
-        return deploymentProcessViewModel;
-    }
-
-    @Toolbar
-    public DeploymentProcessViewModel deployGreen(List<DeploymentRow> selectedRows) {
-        log.info("deploy green {}", selectedRows);
-        deploymentProcessViewModel.reset();
-        new Thread(() -> deployUseCase.handle(new DeployCommand(selectedRows.stream().map(DeploymentRow::id).toList(), "Green"))).start();
-        return deploymentProcessViewModel;
     }
 }

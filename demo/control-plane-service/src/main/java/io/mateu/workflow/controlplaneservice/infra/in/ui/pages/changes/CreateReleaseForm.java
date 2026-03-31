@@ -11,6 +11,7 @@ import io.mateu.uidl.interfaces.Hydratable;
 import io.mateu.uidl.interfaces.Page;
 import io.mateu.workflow.controlplaneservice.application.usecases.createrelease.CreateReleaseCommand;
 import io.mateu.workflow.controlplaneservice.application.usecases.createrelease.CreateReleaseUseCase;
+import io.mateu.workflow.controlplaneservice.application.usecases.deploy.DeployCommand;
 import io.mateu.workflow.controlplaneservice.infra.in.ui.suppliers.EnvironmentIdLabelSupplier;
 import io.mateu.workflow.controlplaneservice.infra.in.ui.suppliers.EnvironmentIdOptionsSupplier;
 import io.mateu.workflow.controlplaneservice.infra.in.ui.suppliers.SiteIdLabelSupplier;
@@ -23,6 +24,7 @@ import org.springframework.stereotype.Service;
 
 import java.net.URI;
 import java.util.Base64;
+import java.util.List;
 import java.util.Map;
 
 import static io.mateu.core.infra.JsonSerializer.fromJson;
@@ -34,22 +36,21 @@ import static io.mateu.core.infra.JsonSerializer.fromJson;
 public class CreateReleaseForm {
 
     final CreateReleaseUseCase useCase;
+    final CreateReleaseProcessViewModel createReleaseProcessViewModel;
 
     @ReadOnly
     String user;
-    @NotEmpty
-    String name;
-    @ForeignKey(search = EnvironmentIdOptionsSupplier.class, label = EnvironmentIdLabelSupplier.class)
-            @NotNull
-    String environment;
     @ForeignKey(search = SiteIdOptionsSupplier.class, label = SiteIdLabelSupplier.class)
     @NotNull
     String site;
+    @NotEmpty
+    String name;
 
     @Toolbar
-    URI create() {
-        useCase.handle(new CreateReleaseCommand(name, site, user, environment));
-        return URI.create("/controlPlane/releases");
+    Object create() {
+        createReleaseProcessViewModel.reset();
+        new Thread(() -> useCase.handle(new CreateReleaseCommand(name, site, user))).start();
+        return createReleaseProcessViewModel;
     }
 
     public CreateReleaseForm withUser(String user) {

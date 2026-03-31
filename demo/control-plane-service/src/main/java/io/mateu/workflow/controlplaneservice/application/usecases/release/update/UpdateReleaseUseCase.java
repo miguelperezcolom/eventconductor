@@ -26,7 +26,6 @@ public class UpdateReleaseUseCase {
         release.update(new ReleaseName(command.name()),
                 new UserId(command.userId()),
                 new ReleaseDate(command.date()),
-                new EnvironmentId(command.environmentId()),
                 new SiteId(command.siteId()));
         repository.save(release);
     }
