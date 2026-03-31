@@ -3,6 +3,7 @@ package io.mateu.workflow.controlplaneservice.infra.in.ui;
 import io.mateu.uidl.annotations.Menu;
 import io.mateu.workflow.controlplaneservice.infra.in.ui.pages.changes.Changes;
 import io.mateu.workflow.controlplaneservice.infra.in.ui.pages.deployment.Deployer;
+import io.mateu.workflow.controlplaneservice.infra.in.ui.pages.release.ReleaseCrudOrchestrator;
 
 public class ControlPlaneMenu {
 
@@ -16,7 +17,7 @@ public class ControlPlaneMenu {
     DownloadedContentMenu downloadedContent;
 
     @Menu
-    ReleasesMenu releases;
+    ReleaseCrudOrchestrator releases;
 
     @Menu
     Changes changes;

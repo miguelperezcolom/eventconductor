@@ -29,8 +29,6 @@ public class ReleaseEntity {
 
     LocalDateTime date;
 
-    String environmentId;
-
     String siteId;
 
     String status;

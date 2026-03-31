@@ -63,7 +63,6 @@ public class ReleaseDBQueryService implements ReleaseQueryService {
                 entity.name,
                 entity.userId,
                 entity.date,
-                entity.environmentId,
                 entity.siteId
         );
     }

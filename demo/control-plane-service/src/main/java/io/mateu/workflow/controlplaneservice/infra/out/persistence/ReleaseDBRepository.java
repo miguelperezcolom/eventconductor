@@ -38,7 +38,6 @@ public class ReleaseDBRepository implements ReleaseRepository {
                 new ReleaseName(entity.name),
                 new UserId(entity.userId),
                 new ReleaseDate(entity.date),
-                new EnvironmentId(entity.environmentId),
                 new SiteId(entity.siteId),
                 ReleaseStatus.valueOf(entity.status)
         );
@@ -50,7 +49,7 @@ public class ReleaseDBRepository implements ReleaseRepository {
                 release.getName().name(),
                 release.getUser().name(),
                 release.getDate().dateTime(),
-                release.getEnvironment().id(), release.getSite().id(),
+                release.getSite().id(),
                 release.getStatus().name()
         );
     }

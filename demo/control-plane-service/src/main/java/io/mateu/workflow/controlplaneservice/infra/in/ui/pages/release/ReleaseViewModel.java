@@ -64,7 +64,6 @@ public class ReleaseViewModel implements Identifiable, CrudEditorForm<String>, C
         user = release.user();
         date = release.date();
         site = release.site();
-        environment = release.environment();
         return this;
     }
 
