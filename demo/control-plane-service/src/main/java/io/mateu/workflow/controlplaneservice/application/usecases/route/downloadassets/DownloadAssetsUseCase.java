@@ -78,14 +78,14 @@ public class DownloadAssetsUseCase {
                       resourceRepository.save(Resource.of(
                               resourceId,
                               new ResourceName(r.getUrl().url() + "_" + r.getCountry().code()),
-                              new ResourcePath(normalizePath(r.getPath().path())),
+                              new ResourcePath(normalizePath(r.getPath().path(), r.getCountry().code())),
                               new ResourceContent(content.getBytes(StandardCharsets.UTF_8))
                               ));
                   } else {
                       var resource = resourceFound.get();
                       resource.update(
                               new ResourceName(r.getUrl().url() + "_" + r.getCountry().code()),
-                              new ResourcePath(normalizePath(r.getPath().path())),
+                              new ResourcePath(normalizePath(r.getPath().path(), r.getCountry().code())),
                               new ResourceContent(content.getBytes(StandardCharsets.UTF_8))
                       );
                       resourceRepository.save(resource);
@@ -96,14 +96,14 @@ public class DownloadAssetsUseCase {
                 });
     }
 
-    private String normalizePath(String path) {
+    private String normalizePath(String path, String countryCode) {
         if (path.contains(".")) {
             return path;
         }
         if (!path.endsWith("/")) {
             path = path + "/";
         }
-        return path + "index.html";
+        return path + "index_" + countryCode + ".html";
     }
 
     @SneakyThrows

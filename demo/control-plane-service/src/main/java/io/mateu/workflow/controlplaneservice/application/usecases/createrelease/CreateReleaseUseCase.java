@@ -89,6 +89,7 @@ public class CreateReleaseUseCase implements ProgressReporter {
 
                 status = new Status(StatusType.SUCCESS, "Complete");
             } catch (Throwable e) {
+                log.error("error", e);
                 failed();
                 status = new Status(StatusType.DANGER, "Error");
             }

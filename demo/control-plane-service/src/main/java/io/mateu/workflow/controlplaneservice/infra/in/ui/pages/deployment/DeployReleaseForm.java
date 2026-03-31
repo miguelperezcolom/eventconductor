@@ -8,6 +8,7 @@ import io.mateu.uidl.annotations.Title;
 import io.mateu.uidl.annotations.Toolbar;
 import io.mateu.workflow.controlplaneservice.application.usecases.deploy.DeployCommand;
 import io.mateu.workflow.controlplaneservice.application.usecases.deploy.DeployUseCase;
+import io.mateu.workflow.controlplaneservice.application.usecases.deploy.SetPlannedReleaseUseCase;
 import io.mateu.workflow.controlplaneservice.infra.in.ui.suppliers.ReleaseIdLabelSupplier;
 import io.mateu.workflow.controlplaneservice.infra.in.ui.suppliers.ReleaseIdOptionsSupplier;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +27,7 @@ public class DeployReleaseForm {
 
     final DeploymentProcessViewModel deploymentProcessViewModel;
     final DeployUseCase useCase;
+    final SetPlannedReleaseUseCase setPlannedReleaseUseCase;
 
     @ForeignKey(search = ReleaseIdOptionsSupplier.class, label = ReleaseIdLabelSupplier.class)
     String release;
@@ -35,8 +37,10 @@ public class DeployReleaseForm {
 
     @Toolbar
     public Object deploy() {
+        var command = new DeployCommand(routes.stream().map(DeploymentRow::id).toList(), release);
+        setPlannedReleaseUseCase.handle(command);
         deploymentProcessViewModel.reset();
-        new Thread(() -> useCase.handle(new DeployCommand(List.of(), release))).start();
+        new Thread(() -> useCase.handle(command)).start();
         return deploymentProcessViewModel;
     }
 

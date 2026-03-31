@@ -4,7 +4,6 @@
   "main": "index.js",
   "compatibility_date": "2025-09-27",
   "vars": {
-    "DEFAULT_VERSION": "v0000000002", // Este valor se usará si no hay uno en el panel
     "BASIC_USER": "test",
     "BASIC_PASS": "test"
   },
