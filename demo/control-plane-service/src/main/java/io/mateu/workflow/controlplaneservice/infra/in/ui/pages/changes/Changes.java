@@ -1,9 +1,6 @@
 package io.mateu.workflow.controlplaneservice.infra.in.ui.pages.changes;
 
-import io.mateu.uidl.annotations.Title;
-import io.mateu.uidl.annotations.Toolbar;
-import io.mateu.uidl.annotations.Trigger;
-import io.mateu.uidl.annotations.TriggerType;
+import io.mateu.uidl.annotations.*;
 import io.mateu.uidl.data.*;
 import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.uidl.interfaces.ListingBackend;
@@ -25,6 +22,7 @@ import static io.mateu.core.infra.JsonSerializer.fromJson;
 @RequiredArgsConstructor
 @Trigger(type = TriggerType.OnLoad, actionId = "search")
 @Slf4j
+@Style("max-width:900px;margin: auto;")
 public class Changes implements ListingBackend<NoFilters, ChangeRow> {
 
     final ChangeQueryService queryService;
@@ -69,4 +67,5 @@ public class Changes implements ListingBackend<NoFilters, ChangeRow> {
 
         return createReleaseForm.withUser(user);
     }
+
 }

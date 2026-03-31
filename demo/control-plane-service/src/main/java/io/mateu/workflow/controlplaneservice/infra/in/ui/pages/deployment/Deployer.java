@@ -1,9 +1,6 @@
 package io.mateu.workflow.controlplaneservice.infra.in.ui.pages.deployment;
 
-import io.mateu.uidl.annotations.Title;
-import io.mateu.uidl.annotations.Toolbar;
-import io.mateu.uidl.annotations.Trigger;
-import io.mateu.uidl.annotations.TriggerType;
+import io.mateu.uidl.annotations.*;
 import io.mateu.uidl.data.*;
 import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.uidl.interfaces.ListingBackend;
@@ -27,6 +24,7 @@ import java.util.stream.Collectors;
 @Slf4j
 @Trigger(type = TriggerType.OnLoad, actionId = "search")
 @Trigger(type = TriggerType.OnSuccess, calledActionId = "deployRelease", actionId = "search")
+@Style("max-width:900px;margin: auto;")
 public class Deployer implements ListingBackend<NoFilters, DeploymentRow> {
 
     final DeployReleaseForm deployReleaseForm;
@@ -74,5 +72,10 @@ public class Deployer implements ListingBackend<NoFilters, DeploymentRow> {
     public DeployReleaseForm deployRelease(List<DeploymentRow> selectedRows) {
         log.info("deploy release {}", selectedRows);
         return deployReleaseForm.withRoutes(selectedRows);
+    }
+
+    @Override
+    public boolean selectionEnabled() {
+        return true;
     }
 }

@@ -1,10 +1,7 @@
 package io.mateu.workflow.controlplaneservice.infra.in.ui.pages.release;
 
 import io.mateu.core.infra.declarative.CrudOrchestrator;
-import io.mateu.uidl.annotations.ListToolbarButton;
-import io.mateu.uidl.annotations.Title;
-import io.mateu.uidl.annotations.TriggerType;
-import io.mateu.uidl.annotations.ViewToolbarButton;
+import io.mateu.uidl.annotations.*;
 import io.mateu.uidl.data.NoFilters;
 import io.mateu.uidl.data.Status;
 import io.mateu.uidl.data.StatusType;
@@ -33,6 +30,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 @Scope("prototype")
 @Title("Releases")
+@ReadOnly
 public class ReleaseCrudOrchestrator extends CrudOrchestrator<
         ReleaseViewModel,
         ReleaseViewModel,
@@ -77,5 +75,10 @@ public class ReleaseCrudOrchestrator extends CrudOrchestrator<
         triggers.add(new OnSuccessTrigger("search", "action-on-row-setAsBlue"));
         triggers.add(new OnSuccessTrigger("search","action-on-row-setAsGreen"));
         return triggers;
+    }
+
+    @Override
+    public boolean selectionEnabled() {
+        return false;
     }
 }

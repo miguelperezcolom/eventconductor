@@ -62,17 +62,13 @@ public class TokenEnrichmentFilter extends AbstractGatewayFilterFactory<TokenEnr
                             return chain.filter(exchange.mutate().request(mutatedRequest).build());
                         })
                         .onErrorResume(e -> {
-                            // Si algo falla (gRPC caído, token corrupto), logueamos y dejamos pasar el original
-                            // O podrías devolver un 401 aquí.
                             log.error("Error enriching token", e);
-                            exchange.getResponse().getHeaders().add("X-Reason", e.getMessage());
-
-//                            return chain.filter(exchange);
 
 //                            exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
 //                            exchange.getResponse().getHeaders().add("X-Reason", e.getMessage());
 //                            return exchange.getResponse().setComplete();
 
+                            exchange.getResponse().getHeaders().add("X-Reason", "Token enrichment failed: " + e.getMessage());
                             return chain.filter(exchange);
                         });
             }
