@@ -9,8 +9,6 @@ import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.uidl.interfaces.ListingBackend;
 import io.mateu.workflow.controlplaneservice.application.out.ReleaseRepository;
 import io.mateu.workflow.controlplaneservice.application.query.DeploymentQueryService;
-import io.mateu.workflow.controlplaneservice.application.usecases.deploy.DeployCommand;
-import io.mateu.workflow.controlplaneservice.application.usecases.deploy.DeployUseCase;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.release.Release;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -75,6 +73,6 @@ public class Deployer implements ListingBackend<NoFilters, DeploymentRow> {
     @Toolbar
     public DeployReleaseForm deployRelease(List<DeploymentRow> selectedRows) {
         log.info("deploy release {}", selectedRows);
-        return deployReleaseForm.withRouteIds(selectedRows.stream().map(DeploymentRow::id).toList());
+        return deployReleaseForm.withRoutes(selectedRows);
     }
 }

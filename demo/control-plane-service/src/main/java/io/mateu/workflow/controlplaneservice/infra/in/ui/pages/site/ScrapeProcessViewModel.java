@@ -57,11 +57,6 @@ public class ScrapeProcessViewModel implements TriggersSupplier {
         return "Download Riu.com";
     }
 
-    @Toolbar
-    public void cancel() {
-
-    }
-
     @SneakyThrows
     public Object refresh() {
         SiteCrudOrchestrator siteCrudOrchestrator = MateuBeanProvider.getBean(SiteCrudOrchestrator.class);
@@ -74,6 +69,9 @@ public class ScrapeProcessViewModel implements TriggersSupplier {
         if (steps.size() > 0 && steps.stream()
                 .filter(step -> !step.status().type().equals(StatusType.SUCCESS)).toList().size() == 0)
             status = new Status(StatusType.SUCCESS, "Completed");
+        if (steps.size() > 0 && steps.stream()
+                .filter(step -> step.status().type().equals(StatusType.DANGER)).toList().size() > 0)
+            status = new Status(StatusType.DANGER, "Error");
         if (status.type().equals(StatusType.SUCCESS)) {
             return new URI("/controlPlane/routes");
         }
@@ -83,8 +81,8 @@ public class ScrapeProcessViewModel implements TriggersSupplier {
     @Override
     public List<Trigger> triggers(HttpRequest httpRequest) {
         var triggers = new ArrayList<Trigger>();
-        triggers.add(new OnLoadTrigger("refresh", 1000, 1, "state.status.type != 'SUCCESS'"));
-        triggers.add(new OnSuccessTrigger("refresh", "refresh", "state.status.type != 'SUCCESS'", 1000));
+        triggers.add(new OnLoadTrigger("refresh", 1000, 1, "state.status.type != 'SUCCESS' && state.status.type != 'DANGER'"));
+        triggers.add(new OnSuccessTrigger("refresh", "refresh", "state.status.type != 'SUCCESS' && state.status.type != 'DANGER'", 1000));
         return triggers;
     }
 

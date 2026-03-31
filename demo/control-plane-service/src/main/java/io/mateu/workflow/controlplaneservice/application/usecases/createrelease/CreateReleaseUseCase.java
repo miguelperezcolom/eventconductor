@@ -35,6 +35,7 @@ public class CreateReleaseUseCase implements ProgressReporter {
     final ReleaseRepository releaseRepository;
     final GitHubReleaseFolderPublisherService publisher;
 
+    Status status;
     @Getter
     final List<Step> steps = new ArrayList<>();
     @Getter
@@ -47,35 +48,52 @@ public class CreateReleaseUseCase implements ProgressReporter {
     @SneakyThrows
     public void handle(CreateReleaseCommand command) {
         log.info("create release {}", command);
-        reset();
 
-        steps.add(new Step("x", "1", "Create content", new Status(StatusType.INFO, "Pending")));
-        steps.add(new Step("x", "2", "Push", new Status(StatusType.INFO, "Pending")));
+        if (status == null || status.type().equals(StatusType.SUCCESS)  || status.type().equals(StatusType.DANGER)  || status.type().equals(StatusType.NONE)) {
 
-        var routes = routeRepository.findAll();
+            status = new Status(StatusType.WARNING, "Running");
 
-        var releaseId = releaseRepository.save(Release.of(
-                new ReleaseName(command.name()),
-                new UserId(command.userId()),
-                new ReleaseDate(LocalDateTime.now()),
-                new SiteId(command.siteId()),
-                ReleaseStatus.New
-        ));
+            reset();
 
-        publisher.publishReleaseFolderAndVerify("" + releaseId.id(), this);
+            steps.add(new Step("x", "1", "Create content", new Status(StatusType.INFO, "Pending")));
+            steps.add(new Step("x", "2", "Push", new Status(StatusType.INFO, "Pending")));
 
-        routes.forEach(route -> {
-            route.updateDeployedHash(route.getHash());
-            routeRepository.save(route);
-        });
+            try {
 
-        releaseRepository.findAll().stream().filter(release -> release.getStatus().equals(ReleaseStatus.Green)).forEach(release -> {
-            release.updateStatus(ReleaseStatus.Archived);
-            releaseRepository.save(release);
-        });
-        var release = releaseRepository.findById(releaseId).orElseThrow();
-        release.updateStatus(ReleaseStatus.Green);
-        releaseRepository.save(release);
+                status = new Status(StatusType.WARNING, "Running");
+
+                var routes = routeRepository.findAll();
+
+                var releaseId = releaseRepository.save(Release.of(
+                        new ReleaseName(command.name()),
+                        new UserId(command.userId()),
+                        new ReleaseDate(LocalDateTime.now()),
+                        new SiteId(command.siteId()),
+                        ReleaseStatus.New
+                ));
+
+                publisher.publishReleaseFolderAndVerify("" + releaseId.id(), this);
+
+                routes.forEach(route -> {
+                    route.updateDeployedHash(route.getHash());
+                    routeRepository.save(route);
+                });
+
+                releaseRepository.findAll().stream().filter(release -> release.getStatus().equals(ReleaseStatus.Green)).forEach(release -> {
+                    release.updateStatus(ReleaseStatus.Archived);
+                    releaseRepository.save(release);
+                });
+                var release = releaseRepository.findById(releaseId).orElseThrow();
+                release.updateStatus(ReleaseStatus.Green);
+                releaseRepository.save(release);
+
+                status = new Status(StatusType.SUCCESS, "Complete");
+            } catch (Throwable e) {
+                failed();
+                status = new Status(StatusType.DANGER, "Error");
+            }
+
+        }
 
     }
 
