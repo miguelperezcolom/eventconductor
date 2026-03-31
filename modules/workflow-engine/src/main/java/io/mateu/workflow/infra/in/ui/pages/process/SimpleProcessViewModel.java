@@ -69,11 +69,6 @@ public class SimpleProcessViewModel implements TriggersSupplier {
         return "Process " + id;
     }
 
-    @Toolbar
-    public void cancel() {
-
-    }
-
     @Override
     public List<Trigger> triggers(HttpRequest httpRequest) {
         var triggers = new ArrayList<Trigger>();

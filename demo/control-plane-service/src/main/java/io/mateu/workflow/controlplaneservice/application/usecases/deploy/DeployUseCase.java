@@ -29,6 +29,7 @@ public class DeployUseCase implements ProgressReporter {
     final RouteRepository routeRepository;
     final GitHubReleaseSettingPublisherService publisher;
 
+    Status status;
     @Getter
     final List<Step> steps = new ArrayList<>();
     @Getter
@@ -41,21 +42,33 @@ public class DeployUseCase implements ProgressReporter {
     @SneakyThrows
     public void handle(DeployCommand command) {
         log.info("deploying release {} for routes {}", command.releaseId(), command.routeIds());
-        reset();
+        if (status == null || status.type().equals(StatusType.SUCCESS)  || status.type().equals(StatusType.DANGER)  || status.type().equals(StatusType.NONE)) {
+            reset();
 
-        steps.add(new Step("x", "1", "Create content", new Status(StatusType.INFO, "Pending")));
-        steps.add(new Step("x", "2", "Push", new Status(StatusType.INFO, "Pending")));
-        steps.add(new Step("x", "3", "Verify deployment", new Status(StatusType.INFO, "Pending")));
-        steps.add(new Step("x", "4", "Update releases", new Status(StatusType.INFO, "Pending")));
+            status = new Status(StatusType.WARNING, "Running");
 
-        publisher.publishReleaseVersionAndVerify(command.releaseId(), this);
+            steps.add(new Step("x", "1", "Create content", new Status(StatusType.INFO, "Pending")));
+            steps.add(new Step("x", "2", "Push", new Status(StatusType.INFO, "Pending")));
+            steps.add(new Step("x", "3", "Verify deployment", new Status(StatusType.INFO, "Pending")));
+            steps.add(new Step("x", "4", "Update releases", new Status(StatusType.INFO, "Pending")));
 
-        routeRepository.findAll().forEach(route -> {
-            route.updateRelease(new ReleaseId(Long.valueOf(command.releaseId())));
-            routeRepository.save(route);
-        });
+            try {
+                publisher.publishReleaseVersionAndVerify(command.releaseId(), this);
 
-        update(3, StatusType.SUCCESS);
+                routeRepository.findAll().forEach(route -> {
+                    route.updateRelease(new ReleaseId(Long.valueOf(command.releaseId())));
+                    routeRepository.save(route);
+                });
+
+                update(3, StatusType.SUCCESS);
+
+                status = new Status(StatusType.SUCCESS, "Complete");
+            } catch (Throwable e) {
+                failed();
+                status = new Status(StatusType.DANGER, "Error");
+            }
+
+        }
 
     }
 

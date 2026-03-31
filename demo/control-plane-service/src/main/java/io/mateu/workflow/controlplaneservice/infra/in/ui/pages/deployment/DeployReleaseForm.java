@@ -31,7 +31,7 @@ public class DeployReleaseForm {
     String release;
 
     @ReadOnly
-    List<String> routeIds;
+    List<DeploymentRow> routes;
 
     @Toolbar
     public Object deploy() {
@@ -40,8 +40,8 @@ public class DeployReleaseForm {
         return deploymentProcessViewModel;
     }
 
-    public DeployReleaseForm withRouteIds(List<String> routeIds) {
-        this.routeIds = routeIds;
+    public DeployReleaseForm withRoutes(List<DeploymentRow> routeIds) {
+        this.routes = routeIds;
         return this;
     }
 }

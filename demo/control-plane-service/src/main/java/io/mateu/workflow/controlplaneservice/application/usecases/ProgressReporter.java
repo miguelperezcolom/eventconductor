@@ -42,4 +42,13 @@ public interface ProgressReporter {
         getResources().clear();
     }
 
+    default void failed() {
+       for (var i = 0; i < getSteps().size(); i++) {
+           var step = getSteps().get(i);
+           if (step.status().type().equals(StatusType.INFO)) {
+               getSteps().set(i, new Step(step.processId(), step.id(), step.name(), new Status(StatusType.NONE, "Cancelled")));
+           }
+       }
+    }
+
 }

@@ -41,6 +41,7 @@ public class SiteCrudOrchestrator extends CrudOrchestrator<
         String
         > {
 
+    Status status;
     List<Step> steps = new ArrayList<>();
     List<Message> messages = new ArrayList<>();
     List<Error> errors = new ArrayList<>();
@@ -66,21 +67,42 @@ public class SiteCrudOrchestrator extends CrudOrchestrator<
     @SneakyThrows
     @ViewToolbarButton
     public Object scrap(SiteViewModel site, HttpRequest httpRequest) {
-        scrapeProcessViewModel.reset();
-        steps.clear();
-        messages.clear();
-        errors.clear();
-        resources.clear();
-        steps.add(new Step("x", "0", "Create urls", new Status(StatusType.INFO, "Pending")));
-        steps.add(new Step("x", "1", "Download", new Status(StatusType.INFO, "Pending")));
-        new Thread(() -> {
-            steps.set(0, new Step("x", "0", "Create urls", new Status(StatusType.WARNING, "Running")));
-            scrapUseCase.handle(new ScrapCommand(site.id));
-            steps.set(0, new Step("x", "0", "Create urls", new Status(StatusType.SUCCESS, "Complete")));
-            steps.set(1, new Step("x", "1", "Download", new Status(StatusType.WARNING, "Running")));
-            downloadAssetsUseCase.handle(new DownloadAssetsCommand(site.id));
-            steps.set(1, new Step("x", "1", "Download", new Status(StatusType.SUCCESS, "Complete")));
-        }).start();
+        if (status == null || status.type().equals(StatusType.SUCCESS)  || status.type().equals(StatusType.DANGER)  || status.type().equals(StatusType.NONE)) {
+
+            status = new Status(StatusType.WARNING, "Running");
+
+            scrapeProcessViewModel.reset();
+            steps.clear();
+            messages.clear();
+            errors.clear();
+            resources.clear();
+            steps.add(new Step("x", "0", "Create urls", new Status(StatusType.INFO, "Pending")));
+            steps.add(new Step("x", "1", "Download", new Status(StatusType.INFO, "Pending")));
+            new Thread(() -> {
+                try {
+                    steps.set(0, new Step("x", "0", "Create urls", new Status(StatusType.WARNING, "Running")));
+                    scrapUseCase.handle(new ScrapCommand(site.id));
+                    steps.set(0, new Step("x", "0", "Create urls", new Status(StatusType.SUCCESS, "Complete")));
+                    steps.set(1, new Step("x", "1", "Download", new Status(StatusType.WARNING, "Running")));
+                    downloadAssetsUseCase.handle(new DownloadAssetsCommand(site.id));
+                    steps.set(1, new Step("x", "1", "Download", new Status(StatusType.SUCCESS, "Complete")));
+
+                    status = new Status(StatusType.SUCCESS, "Complete");
+                } catch (Throwable e) {
+                    failed();
+                    status = new Status(StatusType.DANGER, "Error");
+                }
+            }).start();
+        }
         return scrapeProcessViewModel;
+    }
+
+    void failed() {
+        for (var i = 0; i < steps.size(); i++) {
+            var step = steps.get(i);
+            if (step.status().type().equals(StatusType.INFO)) {
+                steps.set(i, new Step(step.processId(), step.id(), step.name(), new Status(StatusType.NONE, "Cancelled")));
+            }
+        }
     }
 }
