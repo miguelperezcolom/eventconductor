@@ -17,7 +17,7 @@ public class CloudFlareVerifierService {
     public void verify(String deploymentId, ProgressReporter progressReporter) throws IOException {
         progressReporter.update(2, StatusType.WARNING);
         // 2. Verificación en Cloudflare (Polling)
-        int maxAttempts = 12; // 2 minutos máximo (12 * 10s)
+        int maxAttempts = 30; // 2 minutos máximo (12 * 10s)
         String checkUrl = "https://riu-com-copy.miguelperezcolom.workers.dev";
 
         for (int i = 0; i < maxAttempts; i++) {
