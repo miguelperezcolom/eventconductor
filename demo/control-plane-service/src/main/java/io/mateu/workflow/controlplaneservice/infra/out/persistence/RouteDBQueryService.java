@@ -4,7 +4,6 @@ import io.mateu.uidl.data.ColumnAction;
 import io.mateu.uidl.data.ListingData;
 import io.mateu.uidl.data.Page;
 import io.mateu.uidl.data.Pageable;
-import io.mateu.uidl.fluent.Action;
 import io.mateu.workflow.controlplaneservice.application.query.RouteQueryService;
 import io.mateu.workflow.controlplaneservice.application.query.dto.RouteDto;
 import io.mateu.workflow.controlplaneservice.application.query.dto.RouteRow;
@@ -55,7 +54,7 @@ public class RouteDBQueryService implements RouteQueryService {
     @Override
     public ListingData<RouteRow> findAll(String searchText,
                                          Object filters, Pageable pageable) {
-        var page = repository.findAllByNameContainingIgnoreCase(searchText, org.springframework.data.domain.Pageable
+        var page = repository.findAllByNameContainingIgnoreCaseOrderByName(searchText, org.springframework.data.domain.Pageable
                 .ofSize(pageable.size())
                 .withPage(pageable.page())
         );

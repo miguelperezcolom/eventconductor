@@ -31,20 +31,16 @@ import static io.mateu.core.infra.JsonSerializer.fromJson;
 @Logo("/images/riu.svg")
 public class ShellHome implements WidgetSupplier {
 
-    //@EyesOnly(roles = "admin")
     @Menu
     RemoteMenu users = new RemoteMenu("/_users").withAppServerSideType("io.mateu.workflow.usersservice.infra.in.ui.UsersHome");
 
 
-    //@EyesOnly(roles = {"admin", "operator"})
     @Menu
     RemoteMenu content = new RemoteMenu("/_content-service").withAppServerSideType("io.mateu.workflow.contentservice.infra.in.ui.ContentServiceHome");
 
-    //@EyesOnly(roles = {"admin", "operator"})
     @Menu
     RemoteMenu controlPlane = new RemoteMenu("/_control-plane").withAppServerSideType("io.mateu.workflow.controlplaneservice.infra.in.ui.ControlPlaneHome");
 
-    //@EyesOnly(scopes = {"workflow:read"})
     @Menu
     RemoteMenu workflow = new RemoteMenu("/_workflow").withAppServerSideType("io.mateu.workflow.infra.in.ui.WorkflowHome");
 
