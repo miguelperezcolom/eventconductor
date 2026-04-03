@@ -37,6 +37,7 @@ public class RoleViewModel implements Identifiable, CrudEditorForm<String>, Crud
     //@Stereotype(FieldStereotype.checkbox)
             @Colspan(2)
             @Style("width: 100%;")
+            @Stereotype(FieldStereotype.checkbox)
     List<String> permissions;
 
     final CreateRoleUseCase createRoleUseCase;
