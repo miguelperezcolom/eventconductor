@@ -34,7 +34,7 @@ public class WorkerKafkaConsumerConfig {
 
                     // 2. Delay y segundo envío
                     return Mono.just(event)
-                            .delayElement(Duration.ofSeconds(5))
+                            .delayElement(Duration.ofSeconds(2))
                             .map(e -> new TaskStatusChanged(e.taskExecutionId(), TaskStatus.COMPLETED))
                             .doOnNext(completedEvent -> streamBridge.send("upstream", completedEvent))
                             .then(); // Convertimos a Mono<Void> para este evento

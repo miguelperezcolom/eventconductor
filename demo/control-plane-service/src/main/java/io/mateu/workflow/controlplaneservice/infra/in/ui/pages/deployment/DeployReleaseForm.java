@@ -1,6 +1,6 @@
 package io.mateu.workflow.controlplaneservice.infra.in.ui.pages.deployment;
 
-import io.mateu.uidl.annotations.ForeignKey;
+import io.mateu.uidl.annotations.Lookup;
 import io.mateu.uidl.annotations.FormLayout;
 import io.mateu.uidl.annotations.ReadOnly;
 import io.mateu.uidl.annotations.Style;
@@ -29,7 +29,7 @@ public class DeployReleaseForm {
     final DeployUseCase useCase;
     final SetPlannedReleaseUseCase setPlannedReleaseUseCase;
 
-    @ForeignKey(search = ReleaseIdOptionsSupplier.class, label = ReleaseIdLabelSupplier.class)
+    @Lookup(search = ReleaseIdOptionsSupplier.class, label = ReleaseIdLabelSupplier.class)
     String release;
 
     @ReadOnly

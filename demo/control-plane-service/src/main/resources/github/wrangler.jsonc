@@ -5,10 +5,15 @@
   "compatibility_date": "2025-09-27",
   "vars": {
     "BASIC_USER": "test",
-    "BASIC_PASS": "test"
+    "BASIC_PASS": "test",
+    "DEPLOYMENT_ID": "9252ac0e-e14e-4d0e-8989-e1c9eb344359",
+    "DEFAULT_VERSION": "v31",
+    "ROUTE_VERSIONS_JSON": "{\n  \"/en/\" : \"v31\",\n  \"/es/\" : \"v31\",\n  \"/en/faq\" : \"v31\",\n  \"/es/faq\" : \"v31\"\n}"
   },
-  "assets": {
-    "directory": "./public",
-    "binding": "ASSETS"
-  }
+  "r2_buckets": [
+    {
+      "binding": "MY_BUCKET",
+      "bucket_name": "riu-assets"
+    }
+  ]
 }

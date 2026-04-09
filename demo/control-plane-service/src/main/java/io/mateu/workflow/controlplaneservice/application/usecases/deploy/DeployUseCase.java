@@ -70,7 +70,7 @@ public class DeployUseCase implements ProgressReporter {
 
                 status = new Status(StatusType.SUCCESS, "Complete");
             } catch (Throwable e) {
-                failed();
+                failed(e);
                 status = new Status(StatusType.DANGER, "Error");
             }
 

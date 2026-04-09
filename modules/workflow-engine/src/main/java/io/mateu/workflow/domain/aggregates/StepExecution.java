@@ -36,9 +36,10 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
     private List<Variable> variables;
     private StepExecutionStatus status;
     private String workerId;
+    private long order;
 
 
-    public static StepExecution create(Step step, String processId) {
+    public static StepExecution create(Step step, String processId, int position) {
         var stepExecution = StepExecution.builder()
                 .id(UUID.randomUUID().toString())
                 .processId(processId)
@@ -47,15 +48,8 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
                 .stepJson(toJson(step))
                 .variables(List.of())
                 .status(StepExecutionStatus.CREATED)
+                .order(position)
                 .build();
-        stepExecution.send(new TaskExecutionRequested(
-                stepExecution.id(),
-                stepExecution.getProcessId(),
-                stepExecution.getWorkflowDefinitionId(),
-                stepExecution.getStepId(),
-                stepExecution.getVariables().stream()
-                .map(variable -> new io.mateu.workflow.dtos.Variable(variable.name(), variable.value()))
-                .toList()));
         return stepExecution;
     }
 

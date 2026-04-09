@@ -21,6 +21,7 @@ public record Step(
         @HiddenInList
         StepPrecondition precondition,
         @Section(value = "Execution", style = "width: 25%;")
+        boolean parallel,
         @HiddenInList
         String topic,
         @HiddenInList
@@ -33,6 +34,7 @@ public record Step(
         @HiddenInList
         int retries,
         @HiddenInList
+        @Hidden("!state['steps-rollbackable']")
         String compensationStepId
 ) implements Identifiable {
 }

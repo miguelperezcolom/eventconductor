@@ -14,7 +14,7 @@ public class RoleIdLabelSupplier implements LabelSupplier {
     final RoleQueryService queryService;
 
     @Override
-    public String label(Object id, HttpRequest httpRequest) {
+    public String label(String fieldId, Object id, HttpRequest httpRequest) {
         return queryService.getLabel((String) id);
     }
 }

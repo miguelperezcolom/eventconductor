@@ -3,20 +3,14 @@ package io.mateu.workflow.application.usecases.process.create;
 import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
-import io.mateu.workflow.ddd.AggregateRepository;
 import io.mateu.workflow.domain.aggregates.Process;
 import io.mateu.workflow.domain.aggregates.StepExecution;
-import io.mateu.workflow.infra.out.persistence.OutboxMessageEntity;
 import io.mateu.workflow.infra.out.persistence.OutboxMessageEntityRepository;
-import io.mateu.workflow.infra.out.persistence.OutboxMessageStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
 import java.util.List;
-import java.util.UUID;
-
-import static io.mateu.core.infra.JsonSerializer.toJson;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @Service
 @RequiredArgsConstructor
@@ -30,8 +24,9 @@ public class CreateProcessUseCase {
     public void handle(CreateProcessCommand command) {
         // crear y grabar proceso
         var workflowDefinition = workflowDefinitionRepository.findById(command.workflowDefinitionId()).orElseThrow();
+        AtomicInteger position = new AtomicInteger(1);
         var stepExecutions = workflowDefinition.steps().stream()
-                .map(step -> StepExecution.create(step, command.processId())).toList();
+                .map(step -> StepExecution.create(step, command.processId(), position.getAndIncrement())).toList();
 
         stepExecutions.forEach(stepExecutionRepository::save);
 

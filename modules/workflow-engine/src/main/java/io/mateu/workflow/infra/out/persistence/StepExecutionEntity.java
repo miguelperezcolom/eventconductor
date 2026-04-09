@@ -31,4 +31,7 @@ public class StepExecutionEntity {
 
     String workerId;
 
+    @Column(name = "_order")
+    long order;
+
 }

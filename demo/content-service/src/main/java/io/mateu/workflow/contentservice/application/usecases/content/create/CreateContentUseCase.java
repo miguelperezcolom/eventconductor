@@ -2,9 +2,7 @@ package io.mateu.workflow.contentservice.application.usecases.content.create;
 
 import io.mateu.workflow.contentservice.application.out.ContentRepository;
 import io.mateu.workflow.contentservice.domain.aggregates.content.Content;
-import io.mateu.workflow.contentservice.domain.aggregates.content.vo.ContentId;
-import io.mateu.workflow.contentservice.domain.aggregates.content.vo.ContentName;
-import io.mateu.workflow.contentservice.domain.aggregates.content.vo.ContentValue;
+import io.mateu.workflow.contentservice.domain.aggregates.content.vo.*;
 import io.mateu.workflow.contentservice.domain.aggregates.contenttype.vo.ContentTypeId;
 import io.mateu.workflow.contentservice.domain.aggregates.label.vo.LabelId;
 import lombok.RequiredArgsConstructor;

@@ -29,7 +29,7 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 @Style("max-width:900px;margin: auto;")
-public class CreateReleaseProcessViewModel implements TriggersSupplier, Form {
+public class CreateReleaseProcessViewModel implements TriggersSupplier, Page, Form {
 
     private final CreateReleaseUseCase useCase;
 

@@ -14,7 +14,7 @@ public class FormIdLabelSupplier implements LabelSupplier {
     final FormRepository formRepository;
 
     @Override
-    public String label(Object id, HttpRequest httpRequest) {
+    public String label(String fieldId, Object id, HttpRequest httpRequest) {
         return formRepository.findById((String) id)
                 .map(Form::name)
                 .orElse("No form with id " + id);

@@ -1,6 +1,6 @@
 package io.mateu.workflow.controlplaneservice.infra.in.ui.pages.release;
 
-import io.mateu.uidl.annotations.ForeignKey;
+import io.mateu.uidl.annotations.Lookup;
 import io.mateu.uidl.annotations.HiddenInCreate;
 import io.mateu.uidl.annotations.ReadOnly;
 import io.mateu.uidl.interfaces.CrudCreationForm;
@@ -35,9 +35,9 @@ public class ReleaseViewModel implements Identifiable, CrudEditorForm<String>, C
     @HiddenInCreate
     @ReadOnly
     LocalDateTime date = LocalDateTime.now();
-    @ForeignKey(search = EnvironmentIdOptionsSupplier.class, label = EnvironmentIdLabelSupplier.class)
+    @Lookup(search = EnvironmentIdOptionsSupplier.class, label = EnvironmentIdLabelSupplier.class)
     String environment;
-    @ForeignKey(search = SiteIdOptionsSupplier.class, label = SiteIdLabelSupplier.class)
+    @Lookup(search = SiteIdOptionsSupplier.class, label = SiteIdLabelSupplier.class)
     String site;
 
     final CreateReleaseUseCase createReleaseUseCase;

@@ -1,7 +1,7 @@
 package io.mateu.workflow.controlplaneservice.infra.in.ui.pages.changes;
 
 import io.mateu.uidl.annotations.Button;
-import io.mateu.uidl.annotations.ForeignKey;
+import io.mateu.uidl.annotations.Lookup;
 import io.mateu.uidl.annotations.ReadOnly;
 import io.mateu.uidl.annotations.Style;
 import io.mateu.uidl.annotations.Title;
@@ -40,7 +40,7 @@ public class CreateReleaseForm {
 
     @ReadOnly
     String user;
-    @ForeignKey(search = SiteIdOptionsSupplier.class, label = SiteIdLabelSupplier.class)
+    @Lookup(search = SiteIdOptionsSupplier.class, label = SiteIdLabelSupplier.class)
     @NotNull
     String site;
     @NotEmpty
