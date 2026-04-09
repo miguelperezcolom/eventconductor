@@ -4,6 +4,7 @@ import io.mateu.workflow.application.out.LogMessageRepository;
 import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.domain.aggregates.LogMessage;
+import io.mateu.workflow.domain.aggregates.Process;
 import io.mateu.workflow.domain.aggregates.ProcessStatus;
 import io.mateu.workflow.domain.aggregates.StepExecution;
 import io.mateu.workflow.domain.aggregates.StepExecutionStatus;
@@ -41,7 +42,18 @@ public class ProcessUpdateStepExecutionUpdateUseCase {
                 status = ProcessStatus.RUNNING;
             }
         }
-        repository.save(process.withStatus(status));
+        var percent = Math.round(100d * executions.stream().filter(e -> StepExecutionStatus.COMPLETED.equals(e.getStatus())).count() / (double) executions.size());
+        process = process.withStatus(status).withCompletionPercentage((int) percent);
+        if (process.getStarted() == null && (status.equals(ProcessStatus.RUNNING)
+                || status.equals(ProcessStatus.COMPLETED)
+                || status.equals(ProcessStatus.ERROR))) {
+            process = process.withStarted(LocalDateTime.now());
+        }
+        if (process.getFinished() == null && (status.equals(ProcessStatus.COMPLETED)
+                || status.equals(ProcessStatus.ERROR))) {
+            process = process.withFinished(LocalDateTime.now());
+        }
+        repository.save(process);
     }
 
 }

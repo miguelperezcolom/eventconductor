@@ -8,6 +8,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.time.LocalDateTime;
+
 @Entity
 @Getter@Setter
 @NoArgsConstructor@AllArgsConstructor
@@ -33,4 +35,8 @@ public class ProcessEntity {
     private int workflowDefinitionVersion;
     @Column(columnDefinition = "TEXT")
     private String workflowDefinitionJson;
+
+    private LocalDateTime created;
+    private LocalDateTime started;
+    private LocalDateTime finished;
 }
