@@ -5,7 +5,7 @@ import io.mateu.uidl.data.FieldStereotype;
 import io.mateu.workflow.infra.in.ui.pages.FormExecutions;
 import io.mateu.workflow.infra.in.ui.pages.Forms;
 
-@UI("/forms")
+@UI("/_forms")
 @KeycloakSecured(url = "https://lemur-11.cloud-iam.com/auth", realm = "mateu", clientId = "demo")
 @FavIcon("/images/riu.svg")
 @PageTitle("Forms")
