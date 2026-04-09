@@ -38,7 +38,10 @@ public class ProcessDBRepository implements ProcessRepository {
                 entity.getBusinessKey(),
                 listFromJson(entity.getVariables(), Variable.class),
                 ProcessStatus.valueOf(entity.getStatus()),
-                entity.getCompletionPercentage()
+                entity.getCompletionPercentage(),
+                entity.getCreated(),
+                entity.getStarted(),
+                entity.getFinished()
         );
     }
 
@@ -54,7 +57,10 @@ public class ProcessDBRepository implements ProcessRepository {
                 "log",
                 process.getWorkflowDefinitionId(),
                 process.getWorkflowDefinitionVersion(),
-                process.getWorkflowDefinitionJson()
+                process.getWorkflowDefinitionJson(),
+                process.getCreated(),
+                process.getStarted(),
+                process.getFinished()
         ));
         process.popEvents().stream()
                 .map(OutboxMessageEntity::new)

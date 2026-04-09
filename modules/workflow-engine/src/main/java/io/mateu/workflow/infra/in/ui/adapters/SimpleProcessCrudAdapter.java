@@ -25,6 +25,9 @@ import io.mateu.workflow.infra.out.persistence.StepExecutionEntityRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.Comparator;
 import java.util.List;
 
 import static io.mateu.core.domain.Humanizer.toUpperCaseFirst;
@@ -41,17 +44,21 @@ public class SimpleProcessCrudAdapter implements CrudAdapter<SimpleProcessViewMo
 
     @Override
     public ListingData<ProcessRow> search(String searchText, NoFilters noFilters, Pageable pageable) {
+        var dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
         return ListingData.of(repository.findAll().stream()
                         .filter(process -> searchText == null || searchText.isEmpty() ||
                                 process.searchableText().toLowerCase().contains(searchText.toLowerCase()))
                 .map(process -> new ProcessRow(process.id(),
                         process.getName(),
-                        map(process.getStatus()),
-                        process.getCompletionPercentage()))
+                        map(process.getStatus(), process.getCompletionPercentage()),
+                        process.getCreated() != null? process.getCreated().format(dtf):null,
+                        process.getStarted() != null? process.getStarted().format(dtf):null,
+                        process.getFinished() != null? process.getFinished().format(dtf):null))
+                        .sorted(Comparator.comparing(ProcessRow::created).reversed())
                 .toList());
     }
 
-    private Status map(ProcessStatus status) {
+    private Status map(ProcessStatus status, int completionPercentage) {
         StatusType statusType = switch (status) {
             case PENDING -> StatusType.INFO;
             case RUNNING -> StatusType.WARNING;
@@ -59,7 +66,7 @@ public class SimpleProcessCrudAdapter implements CrudAdapter<SimpleProcessViewMo
             case CANCELLED -> StatusType.NONE;
             case ERROR -> StatusType.DANGER;
         };
-        return new Status(statusType, toUpperCaseFirst(status.name()));
+        return new Status(statusType, toUpperCaseFirst(status.name()) + " (" + completionPercentage + "%)");
     }
 
     @Override
@@ -70,7 +77,7 @@ public class SimpleProcessCrudAdapter implements CrudAdapter<SimpleProcessViewMo
     @Override
     public SimpleProcessViewModel getView(String id) {
         Process process = repository.findById(id).orElse(null);
-        return new SimpleProcessViewModel(process.id(), process.getName(), map(process.getStatus()),
+        return new SimpleProcessViewModel(process.id(), process.getName(), map(process.getStatus(), process.getCompletionPercentage()),
                 stepExecutionEntityRepository.findAllByProcessIdOrderByOrder(id).stream()
                         .map(entity -> new Step(id, entity.getId(), entity.getStepId(), mapStepStatus(entity.getStatus())))
                         .toList(),

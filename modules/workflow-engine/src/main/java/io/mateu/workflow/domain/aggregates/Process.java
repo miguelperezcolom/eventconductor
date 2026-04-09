@@ -17,6 +17,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.With;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static io.mateu.core.infra.JsonSerializer.toJson;
@@ -47,6 +48,12 @@ public class Process extends AggregateRoot implements Identifiable {
     private ProcessStatus status;
     @KPI
     private int completionPercentage;
+    @ReadOnly
+    private LocalDateTime created;
+    @ReadOnly
+    private LocalDateTime started;
+    @ReadOnly
+    private LocalDateTime finished;
 
     public static Process create(
             String processId,
@@ -62,6 +69,7 @@ public class Process extends AggregateRoot implements Identifiable {
                 .businessKey(businessKey)
                 .variables(variables)
                 .status(ProcessStatus.PENDING)
+                .created(LocalDateTime.now())
                 .build();
         process.send(new ProcessCreated(processId, variables.stream()
                 .map(variable -> new io.mateu.workflow.dtos.Variable(variable.name(), variable.value()))
