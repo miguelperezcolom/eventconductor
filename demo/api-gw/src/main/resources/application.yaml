@@ -25,6 +25,12 @@
 #            filters:
 #              - TokenEnrichmentFilter
 
+          - id: forms_route
+            uri: http://localhost:8105
+            predicates:
+              - Path=/_forms/**
+            filters:
+              - TokenEnrichmentFilter
           - id: orchestrator_route
             uri: http://localhost:8105
             predicates:

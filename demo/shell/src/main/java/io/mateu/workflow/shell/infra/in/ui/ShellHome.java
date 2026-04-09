@@ -1,17 +1,10 @@
 package io.mateu.workflow.shell.infra.in.ui;
 
-import io.mateu.uidl.annotations.EyesOnly;
-import io.mateu.uidl.annotations.FavIcon;
-import io.mateu.uidl.annotations.KeycloakSecured;
-import io.mateu.uidl.annotations.Logo;
+import io.mateu.uidl.StyleConstants;
+import io.mateu.uidl.annotations.*;
 import io.mateu.uidl.annotations.Menu;
-import io.mateu.uidl.annotations.PageTitle;
-import io.mateu.uidl.annotations.Title;
-import io.mateu.uidl.annotations.UI;
-import io.mateu.uidl.data.Anchor;
+import io.mateu.uidl.data.*;
 import io.mateu.uidl.data.HorizontalLayout;
-import io.mateu.uidl.data.Popover;
-import io.mateu.uidl.data.RemoteMenu;
 import io.mateu.uidl.data.Text;
 import io.mateu.uidl.data.VerticalLayout;
 import io.mateu.uidl.fluent.Component;
@@ -20,6 +13,7 @@ import io.mateu.uidl.interfaces.WidgetSupplier;
 
 import java.util.Base64;
 import java.util.List;
+import java.util.Map;
 
 import static io.mateu.core.infra.JsonSerializer.fromJson;
 
@@ -27,8 +21,9 @@ import static io.mateu.core.infra.JsonSerializer.fromJson;
 @Title("Console")
 @KeycloakSecured(url = "https://lemur-11.cloud-iam.com/auth", realm = "mateu", clientId = "demo")
 @FavIcon("/images/riu.svg")
-@PageTitle("Console")
+@PageTitle("Home")
 @Logo("/images/riu.svg")
+@Style(StyleConstants.CONTAINER)
 public class ShellHome implements WidgetSupplier {
 
     @Menu
@@ -45,7 +40,25 @@ public class ShellHome implements WidgetSupplier {
     RemoteMenu workflow = new RemoteMenu("/_workflow").withAppServerSideType("io.mateu.workflow.infra.in.ui.WorkflowHome");
 
     @Menu
+    RemoteMenu forms = new RemoteMenu("/_forms").withAppServerSideType("io.mateu.workflow.infra.in.ui.FormsHome");
+
+    @Menu
     CheckRequest checkRequest;
+
+    /*
+    {"appServerSideType":"io.mateu.workflow.infra.in.ui.WorkflowHome",
+    "appState":{},
+    "initiatorComponentId":"ux_2deb36bd-131e-430a-a5ac-a763f7e2400d",
+    "consumedRoute":"",
+    "route":"/_page",
+    "actionId":""}
+     */
+
+    MicroFrontend dashboard = MicroFrontend.builder()
+            .baseUrl("/_workflow")
+            .appServerSideType("io.mateu.workflow.infra.in.ui.WorkflowHome")
+            .route("/_page")
+            .build();
 
     @Override
     public List<Component> widgets(HttpRequest httpRequest) {
