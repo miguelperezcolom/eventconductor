@@ -33,7 +33,7 @@ public class RoleViewModel implements Identifiable, CrudEditorForm<String>, Crud
     @Colspan(2)
     @Style("width: 100%;")
     String description;
-    @ForeignKey(search = PermissionIdOptionsSupplier.class, label = PermissionIdLabelSupplier.class)
+    @Lookup(search = PermissionIdOptionsSupplier.class, label = PermissionIdLabelSupplier.class)
     //@Stereotype(FieldStereotype.checkbox)
             @Colspan(2)
             @Style("width: 100%;")

@@ -2,14 +2,17 @@ package io.mateu.workflow.application.usecases.process.start;
 
 import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
+import io.mateu.workflow.domain.aggregates.*;
 import io.mateu.workflow.domain.aggregates.Process;
-import io.mateu.workflow.domain.aggregates.ProcessStatus;
-import io.mateu.workflow.domain.aggregates.Step;
-import io.mateu.workflow.domain.aggregates.StepExecution;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
 import static io.mateu.core.infra.JsonSerializer.pojoFromJson;
+import static io.mateu.workflow.application.services.JEXLEvaluator.eval;
 
 record Pair<K, V>(K key, V value) {}
 
@@ -21,15 +24,7 @@ public class StartProcessUseCase {
     final StepExecutionRepository stepExecutionRepository;
 
     public void handle(StartProcessCommand command) {
-        // crear y grabar proceso
-        var process = processRepository.findById(command.processId()).orElseThrow();
-        stepExecutionRepository.findByProcess(process).stream()
-                .map(stepExecution -> new Pair<StepExecution, Step>(stepExecution, pojoFromJson(stepExecution.getStepJson(), Step.class)))
-                .filter(pair -> pair.value().precondition() == null || pair.value().precondition().stepId() == null || pair.value().precondition().stepId().isEmpty())
-                .map(Pair::key)
-                .map(stepExecution -> stepExecution.start(process.getVariables()))
-                .forEach(stepExecutionRepository::save);
-        // enviar evento proceso creado (para step over)
+
     }
 
 }

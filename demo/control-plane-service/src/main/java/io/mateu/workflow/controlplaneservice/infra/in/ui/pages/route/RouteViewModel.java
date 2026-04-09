@@ -1,6 +1,6 @@
 package io.mateu.workflow.controlplaneservice.infra.in.ui.pages.route;
 
-import io.mateu.uidl.annotations.ForeignKey;
+import io.mateu.uidl.annotations.Lookup;
 import io.mateu.uidl.annotations.HiddenInCreate;
 import io.mateu.uidl.annotations.ReadOnly;
 import io.mateu.uidl.interfaces.CrudCreationForm;
@@ -27,11 +27,11 @@ public class RouteViewModel implements Identifiable, CrudEditorForm<String>, Cru
     String id;
     @NotEmpty
     String name;
-    @ForeignKey(search = LanguageIdOptionsSupplier.class, label = LanguageIdLabelSupplier.class)
+    @Lookup(search = LanguageIdOptionsSupplier.class, label = LanguageIdLabelSupplier.class)
     String languageCode;
-    @ForeignKey(search = CountryIdOptionsSupplier.class, label = CountryIdLabelSupplier.class)
+    @Lookup(search = CountryIdOptionsSupplier.class, label = CountryIdLabelSupplier.class)
     String countryCode;
-    @ForeignKey(search = PageIdOptionsSupplier.class, label = PageIdLabelSupplier.class)
+    @Lookup(search = PageIdOptionsSupplier.class, label = PageIdLabelSupplier.class)
     String pageId;
     String path;
     String url;

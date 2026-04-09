@@ -5,7 +5,6 @@ import io.mateu.uidl.data.StatusType;
 import io.mateu.workflow.controlplaneservice.application.out.ReleaseRepository;
 import io.mateu.workflow.controlplaneservice.application.out.RouteRepository;
 import io.mateu.workflow.controlplaneservice.application.usecases.ProgressReporter;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.environment.vo.EnvironmentId;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.release.Release;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.release.vo.*;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.site.vo.SiteId;
@@ -13,7 +12,7 @@ import io.mateu.workflow.controlplaneservice.infra.in.ui.pages.deployment.proces
 import io.mateu.workflow.controlplaneservice.infra.in.ui.pages.deployment.process.Message;
 import io.mateu.workflow.controlplaneservice.infra.in.ui.pages.deployment.process.Resource;
 import io.mateu.workflow.controlplaneservice.infra.in.ui.pages.deployment.process.Step;
-import io.mateu.workflow.controlplaneservice.infra.out.github.GitHubReleaseFolderPublisherService;
+import io.mateu.workflow.controlplaneservice.infra.out.r2.R2ReleaseFolderPublisherService;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
@@ -33,7 +32,7 @@ public class CreateReleaseUseCase implements ProgressReporter {
 
     final RouteRepository routeRepository;
     final ReleaseRepository releaseRepository;
-    final GitHubReleaseFolderPublisherService publisher;
+    final R2ReleaseFolderPublisherService publisher;
 
     Status status;
     @Getter
@@ -90,7 +89,7 @@ public class CreateReleaseUseCase implements ProgressReporter {
                 status = new Status(StatusType.SUCCESS, "Complete");
             } catch (Throwable e) {
                 log.error("error", e);
-                failed();
+                failed(e);
                 status = new Status(StatusType.DANGER, "Error");
             }
 

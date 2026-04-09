@@ -31,6 +31,9 @@ public class WorkflowDefinitionDBRepository implements WorkflowDefinitionReposit
                 entity.getVersion(),
                 entity.getDescription(),
                 WorkflowDefinitionStatus.valueOf(entity.getStatus()),
+                entity.isLimitConcurrentExecutions(),
+                entity.getMaxConcurrentExecutions(),
+                entity.isEnqueueOnLimit(),
                 listFromJson(entity.getStepsJson(), Step.class)
         );
     }
@@ -43,7 +46,10 @@ public class WorkflowDefinitionDBRepository implements WorkflowDefinitionReposit
                 workflowDefinition.version(),
                 workflowDefinition.description(),
                 workflowDefinition.status().name(),
-                toJson(workflowDefinition.steps())
+                toJson(workflowDefinition.steps()),
+                workflowDefinition.limitConcurrentExecutions(),
+                workflowDefinition.maxConcurrentExecutions(),
+                workflowDefinition.enqueueOnLimit()
         ));
         return workflowDefinition.id();
     }

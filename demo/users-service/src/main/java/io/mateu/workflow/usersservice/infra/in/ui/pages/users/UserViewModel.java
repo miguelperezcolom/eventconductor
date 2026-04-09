@@ -2,7 +2,7 @@ package io.mateu.workflow.usersservice.infra.in.ui.pages.users;
 
 import io.mateu.uidl.annotations.Colspan;
 import io.mateu.uidl.annotations.EditableOnlyWhenCreating;
-import io.mateu.uidl.annotations.ForeignKey;
+import io.mateu.uidl.annotations.Lookup;
 import io.mateu.uidl.annotations.Style;
 import io.mateu.uidl.interfaces.CrudCreationForm;
 import io.mateu.uidl.interfaces.CrudEditorForm;
@@ -36,9 +36,9 @@ public class UserViewModel implements Identifiable, CrudEditorForm<String>, Crud
     String id;
     @NotEmpty String name;
     String email;
-    @ForeignKey(search = UserGroupIdOptionsSupplier.class, label = UserGroupIdLabelSupplier.class)
+    @Lookup(search = UserGroupIdOptionsSupplier.class, label = UserGroupIdLabelSupplier.class)
     List<String> groups;
-    @ForeignKey(search = RoleIdOptionsSupplier.class, label = RoleIdLabelSupplier.class)
+    @Lookup(search = RoleIdOptionsSupplier.class, label = RoleIdLabelSupplier.class)
             @Colspan(2)
             @Style("width: 100%;")
     List<String> roles;

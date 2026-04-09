@@ -14,7 +14,6 @@ import io.mateu.workflow.domain.aggregates.Process;
 import io.mateu.workflow.domain.aggregates.ProcessStatus;
 import io.mateu.workflow.domain.aggregates.StepExecutionStatus;
 import io.mateu.workflow.infra.in.ui.pages.process.ProcessRow;
-import io.mateu.workflow.infra.in.ui.pages.process.ProcessViewModel;
 import io.mateu.workflow.infra.in.ui.pages.process.SimpleProcessViewModel;
 import io.mateu.workflow.infra.in.ui.pages.process.childcruds.Error;
 import io.mateu.workflow.infra.in.ui.pages.process.childcruds.Message;
@@ -72,7 +71,7 @@ public class SimpleProcessCrudAdapter implements CrudAdapter<SimpleProcessViewMo
     public SimpleProcessViewModel getView(String id) {
         Process process = repository.findById(id).orElse(null);
         return new SimpleProcessViewModel(process.id(), process.getName(), map(process.getStatus()),
-                stepExecutionEntityRepository.findAllByProcessId(id).stream()
+                stepExecutionEntityRepository.findAllByProcessIdOrderByOrder(id).stream()
                         .map(entity -> new Step(id, entity.getId(), entity.getStepId(), mapStepStatus(entity.getStatus())))
                         .toList(),
                 logMessageEntityRepository.findAllByProcessId(id).stream()

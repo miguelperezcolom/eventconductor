@@ -1,6 +1,6 @@
 package io.mateu.workflow.controlplaneservice.infra.in.ui.pages.page;
 
-import io.mateu.uidl.annotations.ForeignKey;
+import io.mateu.uidl.annotations.Lookup;
 import io.mateu.uidl.annotations.HiddenInCreate;
 import io.mateu.uidl.annotations.ReadOnly;
 import io.mateu.uidl.annotations.Stereotype;
@@ -31,7 +31,7 @@ public class PageViewModel implements Identifiable, CrudEditorForm<String>, Crud
     String id;
     @NotEmpty
     String name;
-    @ForeignKey(search = SiteIdOptionsSupplier.class, label = SiteIdLabelSupplier.class)
+    @Lookup(search = SiteIdOptionsSupplier.class, label = SiteIdLabelSupplier.class)
     @NotNull
     String siteId;
     @NotEmpty

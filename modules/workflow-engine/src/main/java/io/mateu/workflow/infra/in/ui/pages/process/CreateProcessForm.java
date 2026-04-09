@@ -20,14 +20,14 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 @FormLayout(columns = 1)
-public class CreateProcessForm extends FormViewModel implements ActionSupplier {
+public class CreateProcessForm implements ActionSupplier {
 
     final CreateProcessUseCase createProcessUseCase;
 
-    @ForeignKey(search = WorkflowDefinitionIdOptionsSupplier.class, label = WorkflowDefinitionIdLabelSupplier.class)
+    @Lookup(search = WorkflowDefinitionIdOptionsSupplier.class, label = WorkflowDefinitionIdLabelSupplier.class)
     @NotNull
     @Label("Workflow Definition")
-    String workflowDefinitionId = "d1";
+    String workflowDefinitionId;
 
     String businessKey;
 

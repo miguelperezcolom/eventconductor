@@ -42,7 +42,13 @@ public interface ProgressReporter {
         getResources().clear();
     }
 
-    default void failed() {
+    default void failed(Throwable e) {
+        if (e != null) {
+            e.printStackTrace();
+            getErrors().add(new Error("x", "" + getErrors().size(), LocalDateTime.now(), e.getClass().getSimpleName() + ": " + e.getMessage()));
+        } else {
+            getErrors().add(new Error("x", "" + getErrors().size(), LocalDateTime.now(), "No exception provided."));
+        }
        for (var i = 0; i < getSteps().size(); i++) {
            var step = getSteps().get(i);
            if (step.status().type().equals(StatusType.INFO)) {

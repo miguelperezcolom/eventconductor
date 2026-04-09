@@ -16,7 +16,7 @@ public record FormExecution(
         @HiddenInCreate
         String id,
         @NotEmpty
-        @ForeignKey(search = FormIdOptionsSupplier.class, label = FormIdLabelSupplier.class)
+        @Lookup(search = FormIdOptionsSupplier.class, label = FormIdLabelSupplier.class)
         String formId,
         String processId,
         String stepId,

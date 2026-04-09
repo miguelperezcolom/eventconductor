@@ -14,9 +14,9 @@ public class WorkflowDefinitionIdLabelSupplier implements LabelSupplier {
     final WorkflowDefinitionRepository workflowDefinitionRepository;
 
     @Override
-    public String label(Object id, HttpRequest httpRequest) {
+    public String label(String fieldId, Object id, HttpRequest httpRequest) {
         return workflowDefinitionRepository.findById((String) id)
                 .map(WorkflowDefinition::name)
-                .orElse("No workflow definition with id " + id);
+                .orElse(null);
     }
 }

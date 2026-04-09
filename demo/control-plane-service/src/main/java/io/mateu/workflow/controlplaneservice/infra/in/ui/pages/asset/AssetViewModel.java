@@ -1,6 +1,6 @@
 package io.mateu.workflow.controlplaneservice.infra.in.ui.pages.asset;
 
-import io.mateu.uidl.annotations.ForeignKey;
+import io.mateu.uidl.annotations.Lookup;
 import io.mateu.uidl.annotations.HiddenInCreate;
 import io.mateu.uidl.annotations.ReadOnly;
 import io.mateu.uidl.interfaces.CrudCreationForm;
@@ -32,7 +32,7 @@ public class AssetViewModel implements Identifiable, CrudEditorForm<String>, Cru
     String path;
     @NotEmpty
     String url;
-    @ForeignKey(search = CountryIdOptionsSupplier.class, label = CountryIdLabelSupplier.class)
+    @Lookup(search = CountryIdOptionsSupplier.class, label = CountryIdLabelSupplier.class)
     String country;
 
     final CreateAssetUseCase createAssetUseCase;

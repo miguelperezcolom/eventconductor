@@ -2,9 +2,7 @@ package io.mateu.workflow.contentservice.infra.out.persistence;
 
 import io.mateu.workflow.contentservice.application.out.ContentRepository;
 import io.mateu.workflow.contentservice.domain.aggregates.content.Content;
-import io.mateu.workflow.contentservice.domain.aggregates.content.vo.ContentId;
-import io.mateu.workflow.contentservice.domain.aggregates.content.vo.ContentName;
-import io.mateu.workflow.contentservice.domain.aggregates.content.vo.ContentValue;
+import io.mateu.workflow.contentservice.domain.aggregates.content.vo.*;
 import io.mateu.workflow.contentservice.domain.aggregates.contenttype.vo.ContentTypeId;
 import io.mateu.workflow.contentservice.domain.aggregates.label.vo.LabelId;
 import lombok.RequiredArgsConstructor;
@@ -35,7 +33,7 @@ public Optional<Content> findById(ContentId id) {
             listFromJson(entity.labelsJson, Long.class).stream().map(LabelId::new).toList(),
             listFromJson(entity.valuesJson, ContentValueEntity.class).stream()
                     .map(
-                            value -> new ContentValue(value.language(), value.country(), value.value())
+                            value -> new ContentValue(LanguageCode.valueOf(value.language()), CountryCode.valueOf(value.country()), value.value())
                     ).toList()
     );
     }
@@ -46,7 +44,7 @@ content.getId() != null? content.getId().id() :null,
 content.getName().name(),
             content.getContentType().id(), toJson(content.getLabels().stream().map(LabelId::id).toList()),
             toJson(content.getValues().stream().map(
-                    value -> new ContentValueEntity(value.countryCode(), value.languageCode(), value.value())
+                    value -> new ContentValueEntity(value.countryCode().name(), value.languageCode().name(), value.value())
             ).toList())
     );
     }

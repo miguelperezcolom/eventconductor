@@ -9,6 +9,8 @@ import io.mateu.workflow.contentservice.application.query.dto.ContentRow;
 import io.mateu.workflow.contentservice.application.usecases.content.ContentValueDto;
 import io.mateu.workflow.contentservice.domain.aggregates.content.vo.ContentId;
 import io.mateu.workflow.contentservice.domain.aggregates.content.vo.ContentName;
+import io.mateu.workflow.contentservice.domain.aggregates.content.vo.CountryCode;
+import io.mateu.workflow.contentservice.domain.aggregates.content.vo.LanguageCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -49,8 +51,8 @@ public Optional<ContentDto> getById(String id) {
                     .map(String::valueOf).toList(),
             listFromJson(entity.valuesJson, ContentValueEntity.class).stream()
                     .map(value -> new ContentValueDto(
-                            value.country(),
-                            value.language(),
+                            CountryCode.valueOf(value.country()),
+                            LanguageCode.valueOf(value.language()),
                             value.value()
                             )
                     ).toList()

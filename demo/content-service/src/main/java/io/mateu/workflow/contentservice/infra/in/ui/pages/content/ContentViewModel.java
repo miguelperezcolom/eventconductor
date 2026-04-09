@@ -32,9 +32,9 @@ public class ContentViewModel implements Identifiable, CrudEditorForm<String>, C
         @ReadOnly
         String id;
         @NotEmpty String name;
-        @ForeignKey(search = ContentTypeIdOptionsSupplier.class, label = ContentTypeIdLabelSupplier.class)
+        @Lookup(search = ContentTypeIdOptionsSupplier.class, label = ContentTypeIdLabelSupplier.class)
         String contentType;
-        @ForeignKey(search = LabelIdOptionsSupplier.class, label = LabelIdLabelSupplier.class)
+        @Lookup(search = LabelIdOptionsSupplier.class, label = LabelIdLabelSupplier.class)
         List<String> labels;
                 @MasterDetail(minHeightWhenDetailVisible = "26rem;")
                 @Colspan(2)

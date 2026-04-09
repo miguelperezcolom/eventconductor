@@ -7,10 +7,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.cloud.stream.function.StreamBridge;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 
 import static io.mateu.core.infra.JsonSerializer.listFromJson;
 import static io.mateu.core.infra.JsonSerializer.toJson;
@@ -37,7 +35,8 @@ public class StepExecutionDBRepository implements StepExecutionRepository {
                 entity.getStepJson(),
                 listFromJson(entity.getVariables(), Variable.class),
                 StepExecutionStatus.valueOf(entity.getStatus()),
-                entity.getWorkerId()
+                entity.getWorkerId(),
+                entity.getOrder()
         );
     }
 
@@ -51,7 +50,8 @@ public class StepExecutionDBRepository implements StepExecutionRepository {
                 stepExecution.getStepJson(),
                 toJson(stepExecution.getVariables()),
                 stepExecution.getStatus().name(),
-                stepExecution.getWorkerId()
+                stepExecution.getWorkerId(),
+                stepExecution.getOrder()
         ));
 
         stepExecution.popEvents().stream()
@@ -73,6 +73,7 @@ public class StepExecutionDBRepository implements StepExecutionRepository {
 
     @Override
     public List<StepExecution> findByProcess(Process process) {
-        return stepExecutionEntityRepository.findAllByProcessId(process.id()).stream().map(this::map).toList();
+        return stepExecutionEntityRepository.findAllByProcessIdOrderByOrder(process.id()).stream()
+                .map(this::map).toList();
     }
 }
