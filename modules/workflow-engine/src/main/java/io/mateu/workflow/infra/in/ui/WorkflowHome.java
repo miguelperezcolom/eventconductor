@@ -64,6 +64,13 @@ public class WorkflowHome implements PostHydrationHandler {
                                                         .build())
                                                 .build())
                                         .build())
+                                .build(),
+                        Chart.builder()
+                                .chartType(ChartType.doughnut)
+                                .chartData(data.processesByDefinitionChartData())
+                                .chartOptions(ChartOptions.builder()
+                                        .maintainAspectRatio(false)
+                                        .build())
                                 .build()
                 ))
                 .style("width: 100%;justify-content: space-around; margin-bottom: 2rem;align-items: center;")

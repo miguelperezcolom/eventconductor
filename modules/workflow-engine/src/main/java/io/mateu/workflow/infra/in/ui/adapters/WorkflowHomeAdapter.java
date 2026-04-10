@@ -31,6 +31,9 @@ public class WorkflowHomeAdapter {
         Map<String, Double> processesByStatus = processEntityRepository.findAll().stream()
                 .collect(LinkedHashMap::new, (m, p) ->
                         m.put(p.getStatus(), m.getOrDefault(p.getStatus(), 0D) + 1L), HashMap::putAll);
+        Map<String, Double> userTasksByStatus = processEntityRepository.findAll().stream()
+                .collect(LinkedHashMap::new, (m, p) ->
+                        m.put(p.getStatus(), m.getOrDefault(p.getStatus(), 0D) + 1L), HashMap::putAll);
 
         return WorkflowHomeData.builder()
                 .processDefinitionsCount(workflowDefinitionEntityRepository.count())
@@ -58,6 +61,13 @@ public class WorkflowHomeAdapter {
                         .datasets(List.of(ChartDataset.builder()
                                 .label("Processes")
                                 .data(processesByStatus.values().stream().toList())
+                                .build()))
+                        .build())
+                .userTasksChartData(ChartData.builder()
+                        .labels(processesByDefinition.keySet().stream().toList())
+                        .datasets(List.of(ChartDataset.builder()
+                                .label("label 1")
+                                .data(processesByDefinition.values().stream().toList())
                                 .build()))
                         .build())
                 .build();
