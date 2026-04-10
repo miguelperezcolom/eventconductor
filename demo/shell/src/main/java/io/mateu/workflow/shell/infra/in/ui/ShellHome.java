@@ -11,6 +11,7 @@ import io.mateu.uidl.fluent.Component;
 import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.uidl.interfaces.WidgetSupplier;
 
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
@@ -62,8 +63,12 @@ public class ShellHome implements WidgetSupplier {
 
     @Override
     public List<Component> widgets(HttpRequest httpRequest) {
+
+        List<Component> widgets = new ArrayList<>();
+
         if (httpRequest.getHeaderValue("Authorization") != null
                 && httpRequest.getHeaderValue("Authorization").startsWith("Bearer ")) {
+
 
             var token = httpRequest.getHeaderValue("Authorization").substring("Bearer ".length());
 
@@ -71,7 +76,10 @@ public class ShellHome implements WidgetSupplier {
 
             var values = fromJson(payload);
 
-            return List.of(HorizontalLayout.builder().content(List.of(Popover.builder()
+            widgets.add(HorizontalLayout.builder().content(List.of(MicroFrontend.builder()
+                    .baseUrl("/_forms")
+                    .route("/my-tasks")
+                    .build(), Popover.builder()
                     .wrapped(Text.builder().text("Hola, " + values.get("name"))
                             .style("margin-right: 20px;")
                             .build())
@@ -81,8 +89,10 @@ public class ShellHome implements WidgetSupplier {
                             ).spacing(true)
                             .padding(true)
                             .build())
-                    .build())).build());
+                    .build()))
+                            .style("align-items: flex-end;")
+                    .build());
         }
-        return List.of();
+        return widgets;
     }
 }
