@@ -7,6 +7,7 @@ import lombok.Builder;
 public record WorkflowHomeData(
         ChartData processesByDefinitionChartData,
         ChartData processesByStatusChartData,
+        ChartData userTasksChartData,
         long processDefinitionsCount,
         long processesCount,
         long activeProcessesCount,
