@@ -1,5 +1,6 @@
 package io.mateu.workflow.infra.out.persistence;
 
+import io.mateu.uidl.annotations.FormLayout;
 import io.mateu.uidl.data.FieldDataType;
 import io.mateu.uidl.data.FieldStereotype;
 import io.mateu.workflow.application.out.FormExecutionRepository;
@@ -35,11 +36,11 @@ public class FormExecutionDBRepository implements FormExecutionRepository {
                 entity.getProcessId(),
                 entity.getStepId(),
                 entity.getStepExecutionId(),
-                listFromJson(entity.getVariables(), Variable.class),
-                listFromJson(entity.getValues(), Value.class),
                 FormExecutionStatus.valueOf(entity.getStatus()),
                 entity.getUserId(),
-                entity.getUserGroup()
+                entity.getUserGroup(),
+                listFromJson(entity.getVariables(), Variable.class),
+                listFromJson(entity.getValues(), Value.class)
                 );
     }
 

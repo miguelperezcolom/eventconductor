@@ -14,10 +14,7 @@ import io.mateu.workflow.infra.in.ui.pages.Forms;
 public class FormsHome {
 
     @Menu
-    Forms forms;
-
-    @Menu
-    FormExecutions executions;
+    FormsMenu forms;
 
     @Stereotype(FieldStereotype.html)
     String message = "<p>Welcome to the forms engine.</p>" +

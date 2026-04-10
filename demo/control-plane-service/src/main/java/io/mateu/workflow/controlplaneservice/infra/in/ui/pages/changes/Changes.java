@@ -2,6 +2,7 @@ package io.mateu.workflow.controlplaneservice.infra.in.ui.pages.changes;
 
 import io.mateu.uidl.annotations.*;
 import io.mateu.uidl.data.*;
+import io.mateu.uidl.data.Status;
 import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.uidl.interfaces.ListingBackend;
 import io.mateu.workflow.controlplaneservice.application.query.ChangeQueryService;
