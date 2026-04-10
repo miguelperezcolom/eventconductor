@@ -25,6 +25,20 @@ public class TasksWidget implements Hydratable {
 
     @Override
     public void hydrate(HttpRequest httpRequest) {
-        content = "xxxx";
+        content = "<a href=\"/forms/tasks\" style=\"\n" +
+                "    text-decoration: none;\n" +
+                "    xcolor: #3498db;\n" +
+                "    xfont-weight: bold;\n" +
+                "    animation: fade 2s ease-in-out infinite alternate;\n" +
+                "\">\n" +
+                "    You have tasks!\n" +
+                "</a>\n" +
+                "\n" +
+                "<style>\n" +
+                "    @keyframes fade {\n" +
+                "        from { opacity: 1; }\n" +
+                "        to { opacity: 0; }\n" +
+                "    }\n" +
+                "</style>";
     }
 }
