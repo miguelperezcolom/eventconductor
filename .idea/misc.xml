@@ -16,6 +16,9 @@
     </option>
     <option name="ignoredFiles">
       <set>
+        <option value="$PROJECT_DIR$/demo/sdks/grpc-bridge/pom.xml" />
+        <option value="$PROJECT_DIR$/demo/sdks/grpc-client/pom.xml" />
+        <option value="$PROJECT_DIR$/demo/sdks/grpc-server/pom.xml" />
         <option value="$PROJECT_DIR$/shell/pom.xml" />
         <option value="$PROJECT_DIR$/ui/pom.xml" />
       </set>
