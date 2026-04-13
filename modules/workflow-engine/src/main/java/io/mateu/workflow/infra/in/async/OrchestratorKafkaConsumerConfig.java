@@ -10,12 +10,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.messaging.Message;
-import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Schedulers;
 
 import java.util.function.Consumer;
-import java.util.function.Function;
 
 @Configuration
 @RequiredArgsConstructor
@@ -26,31 +22,20 @@ public class OrchestratorKafkaConsumerConfig {
     final ProcessUpstreamEventUseCase processUpstreamEventUseCase;
 
     @Bean
-    public Function<Flux<Message<DomainEvent>>, Mono<Void>> consumeOutbox() {
-        return flux -> flux
-                .concatMap(message -> {
+    public Consumer<Message<DomainEvent>> consumeOutbox() {
+        return message -> {
                     DomainEvent event = message.getPayload(); // Aquí Spring ya debió convertirlo
-                    return Mono.fromRunnable(() -> {
-                                log.info("Procesando: {}", event);
-                                processDomainEventUseCase.handle(new ProcessDomainEventCommand(event));
-                            })
-                            .subscribeOn(Schedulers.boundedElastic());
-                })
-                .then();
+                    log.info("Procesando: {}", event);
+                    processDomainEventUseCase.handle(new ProcessDomainEventCommand(event));
+                };
     }
 
     @Bean
-    public Function<Flux<Message<DomainEvent>>, Mono<Void>> consumeUpstream() {
-        return flux -> flux
-                .concatMap(message -> {
-                    DomainEvent event = message.getPayload(); // Aquí Spring ya debió convertirlo
-                    return Mono.fromRunnable(() -> {
-                                log.info("Procesando: {}", event);
-                                processUpstreamEventUseCase.handle(new ProcessUpstreamEventCommand(event));
-                            })
-                            .subscribeOn(Schedulers.boundedElastic());
-                })
-                .then();
+    public Consumer<DomainEvent> consumeUpstream() {
+        return event -> {
+            log.info("Procesando: {}", event);
+            processUpstreamEventUseCase.handle(new ProcessUpstreamEventCommand(event));
+        };
     }
 
 }

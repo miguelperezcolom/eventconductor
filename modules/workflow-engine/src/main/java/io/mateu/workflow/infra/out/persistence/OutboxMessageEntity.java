@@ -1,6 +1,7 @@
 package io.mateu.workflow.infra.out.persistence;
 
 import io.mateu.workflow.ddd.DomainEvent;
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import lombok.AllArgsConstructor;
@@ -29,6 +30,7 @@ public class OutboxMessageEntity {
 
     private String messageType;
 
+    @Column(columnDefinition = "TEXT")
     private String payload;
 
     public OutboxMessageEntity(DomainEvent event) {

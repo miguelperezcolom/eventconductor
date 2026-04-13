@@ -77,4 +77,10 @@ public class ProcessDBRepository implements ProcessRepository {
     public void deleteAllById(List<String> selectedIds) {
         processEntityRepository.deleteAllById(selectedIds);
     }
+
+    @Override
+    public Optional<Process> findByBusinessKey(String businessKey) {
+        return processEntityRepository.findByBusinessKey(businessKey)
+                .map(this::map);
+    }
 }

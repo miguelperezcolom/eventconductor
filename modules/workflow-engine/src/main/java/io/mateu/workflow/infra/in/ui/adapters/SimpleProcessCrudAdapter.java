@@ -76,7 +76,7 @@ public class SimpleProcessCrudAdapter implements CrudAdapter<SimpleProcessViewMo
 
     @Override
     public SimpleProcessViewModel getView(String id) {
-        Process process = repository.findById(id).orElse(null);
+        Process process = repository.findById(id).orElse(repository.findByBusinessKey(id).orElse(null));
         return new SimpleProcessViewModel(process.id(), process.getName(), map(process.getStatus(), process.getCompletionPercentage()),
                 stepExecutionEntityRepository.findAllByProcessIdOrderByOrder(id).stream()
                         .map(entity -> new Step(id, entity.getId(), entity.getStepId(), mapStepStatus(entity.getStatus())))

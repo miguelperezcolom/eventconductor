@@ -56,19 +56,6 @@ spring:
       hibernate:
         format_sql: true
 
-  # --- Configuración de Kafka Nativo ---
-  kafka:
-    bootstrap-servers: localhost:9092
-    consumer:
-      group-id: my-group
-      auto-offset-reset: earliest
-      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-    producer:
-      key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      # IMPORTANTE: Cambiado a ByteArraySerializer para evitar el ClassCastException [B cannot be cast to String
-      value-serializer: org.apache.kafka.common.serialization.ByteArraySerializer
-
   jackson:
     serialization:
       write-dates-as-timestamps: false

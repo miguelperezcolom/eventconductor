@@ -46,7 +46,7 @@ public class WorkflowDefinitionDBRepository implements WorkflowDefinitionReposit
                 workflowDefinition.version(),
                 workflowDefinition.description(),
                 workflowDefinition.status().name(),
-                toJson(workflowDefinition.steps()),
+                toJson(workflowDefinition.steps().stream().map(step -> step.withWorkflowDefinitionId(workflowDefinition.id())).toList()),
                 workflowDefinition.limitConcurrentExecutions(),
                 workflowDefinition.maxConcurrentExecutions(),
                 workflowDefinition.enqueueOnLimit()
