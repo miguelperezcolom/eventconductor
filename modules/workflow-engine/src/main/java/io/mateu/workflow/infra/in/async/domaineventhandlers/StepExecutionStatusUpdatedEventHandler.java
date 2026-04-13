@@ -1,5 +1,6 @@
 package io.mateu.workflow.infra.in.async.domaineventhandlers;
 
+import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.usecases.process.stepover.StepOverProcessCommand;
 import io.mateu.workflow.application.usecases.process.stepover.StepOverProcessUseCase;
 import io.mateu.workflow.application.usecases.process.update.ProcessStepExecutionUpdateCommand;
@@ -18,6 +19,7 @@ public class StepExecutionStatusUpdatedEventHandler implements DomainEventHandle
 
     final ProcessUpdateStepExecutionUpdateUseCase processUpdateStepExecutionUpdateUseCase;
     final StepOverProcessUseCase stepOverProcessUseCase;
+    final StepExecutionRepository stepExecutionRepository;
 
     @Override
     public Class<? extends DomainEvent> eventClass() {
@@ -26,7 +28,8 @@ public class StepExecutionStatusUpdatedEventHandler implements DomainEventHandle
 
     @Override
     public void handle(StepExecutionStatusChanged e) {
-        processUpdateStepExecutionUpdateUseCase.handle(new ProcessStepExecutionUpdateCommand(e.processId()));
-        stepOverProcessUseCase.handle(new StepOverProcessCommand(e.processId()));
+        var stepExecution = stepExecutionRepository.findById(e.stepExecutionId()).orElseThrow();
+        processUpdateStepExecutionUpdateUseCase.handle(new ProcessStepExecutionUpdateCommand(stepExecution.getProcessId()));
+        stepOverProcessUseCase.handle(new StepOverProcessCommand(stepExecution.getProcessId()));
     }
 }

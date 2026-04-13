@@ -91,4 +91,16 @@ public class Process extends AggregateRoot implements Identifiable {
         return name + " " + businessKey;
         }
 
+    public void updateVariables(List<Variable> variables) {
+        if (variables == null) {
+            return;
+        }
+        if (this.variables == null) {
+            this.variables = new java.util.ArrayList<>();
+        }
+        variables.forEach(v -> {
+            this.variables.removeIf(x -> x.name().equals(v.name()));
+        });
+        this.variables.addAll(variables);
+    }
 }

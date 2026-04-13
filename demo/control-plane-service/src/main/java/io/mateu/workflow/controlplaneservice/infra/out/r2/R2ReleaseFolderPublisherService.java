@@ -4,9 +4,15 @@ import io.mateu.uidl.data.StatusType;
 import io.mateu.workflow.controlplaneservice.application.usecases.ProgressReporter;
 import io.mateu.workflow.controlplaneservice.infra.out.github.CloudFlareVerifierService;
 import io.mateu.workflow.controlplaneservice.infra.out.persistence.ResourceEntityRepository;
+import io.mateu.workflow.dtos.MessageType;
+import io.mateu.workflow.dtos.Variable;
+import io.mateu.workflow.dtos.events.domain.StepExecutionStatusChanged;
+import io.mateu.workflow.dtos.events.integration.TaskLogEmitted;
+import io.mateu.workflow.dtos.events.integration.TaskStatus;
 import lombok.RequiredArgsConstructor;
 import org.kohsuke.github.*;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cloud.stream.function.StreamBridge;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.core.sync.RequestBody;
@@ -14,6 +20,7 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 import java.io.IOException;
 import java.nio.file.Paths;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -22,8 +29,9 @@ public class R2ReleaseFolderPublisherService {
 
     final ResourceEntityRepository resourceEntityRepository;
     final CloudFlareVerifierService publisher;
+    final StreamBridge streamBridge;
 
-    public void publishReleaseFolderToGitHub(String versionTag, ProgressReporter progressReporter) throws IOException {
+    public void publishReleaseFolderToGitHub(String versionTag, String stepExecutionId) throws IOException {
         // 1. Conectar con GitHub
         var client = R2Client.getClient();
 
@@ -121,23 +129,24 @@ public class R2ReleaseFolderPublisherService {
 
                     client.putObject(putOb, RequestBody.fromString(html));
 
-                    progressReporter.log("" + relativePath + " added.");
+                    streamBridge.send("upstream", new TaskLogEmitted(
+                            stepExecutionId,
+                            MessageType.Info,
+                            "" + relativePath + " added."));
                 } catch (IOException e) {
                     throw new RuntimeException("Error leyendo archivo para R2", e);
                 }
             });
 
-        progressReporter.update(0, StatusType.SUCCESS);
-        progressReporter.update(1, StatusType.WARNING);
-
-        progressReporter.log("✅ Versión " + versionTag + " publicada en R2");
+        streamBridge.send("upstream", new TaskLogEmitted(
+                stepExecutionId,
+                MessageType.Info,
+                "✅ Versión " + versionTag + " publicada en R2"));
     }
 
 
-    public void publishReleaseFolderAndVerify(String versionTag, ProgressReporter progressReporter) throws IOException {
-        progressReporter.update(0, StatusType.WARNING);
-        publishReleaseFolderToGitHub(versionTag, progressReporter);
-        progressReporter.update(1, StatusType.SUCCESS);
+    public void publishReleaseFolderAndVerify(String versionTag, String stepExecutionId) throws IOException {
+        publishReleaseFolderToGitHub(versionTag, stepExecutionId);
     }
 
 }

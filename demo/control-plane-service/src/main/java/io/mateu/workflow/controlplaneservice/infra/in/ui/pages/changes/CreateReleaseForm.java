@@ -1,33 +1,17 @@
 package io.mateu.workflow.controlplaneservice.infra.in.ui.pages.changes;
 
-import io.mateu.uidl.annotations.Button;
-import io.mateu.uidl.annotations.Lookup;
-import io.mateu.uidl.annotations.ReadOnly;
-import io.mateu.uidl.annotations.Style;
-import io.mateu.uidl.annotations.Title;
-import io.mateu.uidl.annotations.Toolbar;
-import io.mateu.uidl.interfaces.HttpRequest;
-import io.mateu.uidl.interfaces.Hydratable;
-import io.mateu.uidl.interfaces.Page;
-import io.mateu.workflow.controlplaneservice.application.usecases.createrelease.CreateReleaseCommand;
-import io.mateu.workflow.controlplaneservice.application.usecases.createrelease.CreateReleaseUseCase;
-import io.mateu.workflow.controlplaneservice.application.usecases.deploy.DeployCommand;
-import io.mateu.workflow.controlplaneservice.infra.in.ui.suppliers.EnvironmentIdLabelSupplier;
-import io.mateu.workflow.controlplaneservice.infra.in.ui.suppliers.EnvironmentIdOptionsSupplier;
+import io.mateu.uidl.annotations.*;
+import io.mateu.workflow.controlplaneservice.application.usecases.changes.createrelease.AskForReleaseCreationCommand;
+import io.mateu.workflow.controlplaneservice.application.usecases.changes.createrelease.AskForReleaseCreationUseCase;
 import io.mateu.workflow.controlplaneservice.infra.in.ui.suppliers.SiteIdLabelSupplier;
 import io.mateu.workflow.controlplaneservice.infra.in.ui.suppliers.SiteIdOptionsSupplier;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
-import lombok.With;
 import org.springframework.stereotype.Service;
 
 import java.net.URI;
-import java.util.Base64;
-import java.util.List;
-import java.util.Map;
-
-import static io.mateu.core.infra.JsonSerializer.fromJson;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -35,8 +19,7 @@ import static io.mateu.core.infra.JsonSerializer.fromJson;
 @Style("max-width:900px;margin: auto;")
 public class CreateReleaseForm {
 
-    final CreateReleaseUseCase useCase;
-    final CreateReleaseProcessViewModel createReleaseProcessViewModel;
+    final AskForReleaseCreationUseCase useCase;
 
     @ReadOnly
     String user;
@@ -47,10 +30,11 @@ public class CreateReleaseForm {
     String name;
 
     @Toolbar
+    @Action(validationRequired = true)
     Object create() {
-        createReleaseProcessViewModel.reset();
-        new Thread(() -> useCase.handle(new CreateReleaseCommand(name, site, user))).start();
-        return createReleaseProcessViewModel;
+        var businessKey = UUID.randomUUID().toString();
+        useCase.handle(new AskForReleaseCreationCommand(businessKey, name, site, user));
+        return URI.create("/workflow/processes/" + businessKey);
     }
 
     public CreateReleaseForm withUser(String user) {

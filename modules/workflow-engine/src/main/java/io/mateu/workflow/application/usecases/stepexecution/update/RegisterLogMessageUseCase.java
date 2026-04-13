@@ -13,29 +13,22 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
-public class UpdateStepExecutionUseCase {
+public class RegisterLogMessageUseCase {
 
     final StepExecutionRepository repository;
     final LogMessageRepository logMessageRepository;
     final ProcessRepository processRepository;
 
-    public void handle(UpdateStepExecutionCommand command) {
+    public void handle(RegisterLogMessageCommand command) {
         var execution = repository.findById(command.stepId()).orElseThrow();
-
-        var process = processRepository.findById(execution.getProcessId()).orElseThrow();
-        process.updateVariables(command.variables());
-        processRepository.save(process);
-
-        execution.updateStatus(command.status());
-        repository.save(execution);
 
         logMessageRepository.save(new LogMessage(
                 UUID.randomUUID().toString(),
                 LocalDateTime.now(),
                 execution.getProcessId(),
                 execution.id(),
-                MessageType.Info.name(),
-                "Task status changed to " + command.status().name(),
+                command.messageType().name(),
+                command.message(),
                 "x"
         ));
 

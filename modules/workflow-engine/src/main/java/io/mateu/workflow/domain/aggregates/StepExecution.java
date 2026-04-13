@@ -69,6 +69,6 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
 
     public void updateStatus(StepExecutionStatus status) {
         this.status = status;
-        send(new StepExecutionStatusChanged(id, processId, TaskStatus.valueOf(status.name())));
+        send(new StepExecutionStatusChanged(id, TaskStatus.valueOf(status.name()), List.of()));
     }
 }
