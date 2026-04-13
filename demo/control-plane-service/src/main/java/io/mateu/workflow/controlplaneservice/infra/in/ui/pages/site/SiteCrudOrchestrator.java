@@ -1,10 +1,7 @@
 package io.mateu.workflow.controlplaneservice.infra.in.ui.pages.site;
 
 import io.mateu.core.infra.declarative.CrudOrchestrator;
-import io.mateu.uidl.annotations.Label;
-import io.mateu.uidl.annotations.Tab;
 import io.mateu.uidl.annotations.Title;
-import io.mateu.uidl.annotations.Toolbar;
 import io.mateu.uidl.annotations.ViewToolbarButton;
 import io.mateu.uidl.data.NoFilters;
 import io.mateu.uidl.data.Status;
@@ -14,20 +11,20 @@ import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.workflow.controlplaneservice.application.query.dto.SiteRow;
 import io.mateu.workflow.controlplaneservice.application.usecases.route.downloadassets.DownloadAssetsCommand;
 import io.mateu.workflow.controlplaneservice.application.usecases.route.downloadassets.DownloadAssetsUseCase;
-import io.mateu.workflow.controlplaneservice.application.usecases.site.scrap.ScrapCommand;
-import io.mateu.workflow.controlplaneservice.application.usecases.site.scrap.ScrapUseCase;
+import io.mateu.workflow.controlplaneservice.application.usecases.site.scrape.AskForScrapeCommand;
+import io.mateu.workflow.controlplaneservice.application.usecases.site.scrape.AskForScrapeUseCase;
 import io.mateu.workflow.controlplaneservice.infra.in.ui.pages.deployment.process.Error;
 import io.mateu.workflow.controlplaneservice.infra.in.ui.pages.deployment.process.Message;
 import io.mateu.workflow.controlplaneservice.infra.in.ui.pages.deployment.process.Resource;
 import io.mateu.workflow.controlplaneservice.infra.in.ui.pages.deployment.process.Step;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
-import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Service;
 
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -49,7 +46,7 @@ public class SiteCrudOrchestrator extends CrudOrchestrator<
 
     final ScrapeProcessViewModel scrapeProcessViewModel;
     final SiteCrudAdapter adapter;
-    final ScrapUseCase scrapUseCase;
+    final AskForScrapeUseCase askForScrapeUseCase;
     final DownloadAssetsUseCase downloadAssetsUseCase;
 
     @Override
@@ -66,7 +63,16 @@ public class SiteCrudOrchestrator extends CrudOrchestrator<
 
     @SneakyThrows
     @ViewToolbarButton
-    public Object scrap(SiteViewModel site, HttpRequest httpRequest) {
+    public Object scrape(SiteViewModel site, HttpRequest httpRequest) {
+        var processBusinessKey = UUID.randomUUID().toString();
+        askForScrapeUseCase.handle(new AskForScrapeCommand(site.id, processBusinessKey));
+        return URI.create("/workflow/processes/" + processBusinessKey);
+    }
+
+
+    @SneakyThrows
+    //@ViewToolbarButton
+    public Object oldScrape(SiteViewModel site, HttpRequest httpRequest) {
         if (status == null || status.type().equals(StatusType.SUCCESS)  || status.type().equals(StatusType.DANGER)  || status.type().equals(StatusType.NONE)) {
 
             status = new Status(StatusType.WARNING, "Running");
@@ -81,7 +87,7 @@ public class SiteCrudOrchestrator extends CrudOrchestrator<
             new Thread(() -> {
                 try {
                     steps.set(0, new Step("x", "0", "Create urls", new Status(StatusType.WARNING, "Running")));
-                    scrapUseCase.handle(new ScrapCommand(site.id));
+                    askForScrapeUseCase.handle(new AskForScrapeCommand(site.id, ""));
                     steps.set(0, new Step("x", "0", "Create urls", new Status(StatusType.SUCCESS, "Complete")));
                     steps.set(1, new Step("x", "1", "Download", new Status(StatusType.WARNING, "Running")));
                     downloadAssetsUseCase.handle(new DownloadAssetsCommand(site.id));

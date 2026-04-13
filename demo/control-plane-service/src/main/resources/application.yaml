@@ -20,13 +20,10 @@ spring:
         # INPUTS
         consumeOutbox-in-0:
           destination: outbox
-          group: orchestrator-group
-        consumeUpstream-in-0:
-          destination: upstream
-          group: orchestrator-group
+          group: control-plane-group
         consumeWorkerEvent-in-0:
           destination: downstream
-          group: worker-group # A�ade un grupo para persistir el offset
+          group: control-plane-group # A�ade un grupo para persistir el offset
 
         # OUTPUTS (Para StreamBridge)
         upstream: # Nombre usado en streamBridge.send("upstream", ...)

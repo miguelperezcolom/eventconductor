@@ -4,8 +4,10 @@ import io.mateu.uidl.annotations.*;
 import io.mateu.uidl.interfaces.Identifiable;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import lombok.With;
 
 @FormLayout(columns = 4)
+@With
 public record Step(
         @Section(value = "Main", style = "width: 25%;")
         @NotEmpty
