@@ -16,6 +16,8 @@ import org.springframework.cloud.stream.function.StreamBridge;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 @Service
 @Transactional
 @RequiredArgsConstructor
@@ -32,7 +34,7 @@ public class ScrapeUseCase {
     public void handle(ScrapeCommand command) {
         log.info("Scraping site with id {}", command.siteId());
 
-        streamBridge.send("upstream", new TaskStatusChanged(command.taskExecutionId(), TaskStatus.RUNNING));
+        streamBridge.send("upstream", new TaskStatusChanged(command.taskExecutionId(), TaskStatus.RUNNING, List.of()));
 
         var site = siteRepository.findById(new SiteId(command.siteId())).orElseThrow(() -> new IllegalArgumentException("Site not found"));
         var pages = pageRepository.findBySiteId(new SiteId(command.siteId()));
@@ -62,7 +64,7 @@ public class ScrapeUseCase {
 
                 })));
 
-        streamBridge.send("upstream", new TaskStatusChanged(command.taskExecutionId(), TaskStatus.COMPLETED));
+        streamBridge.send("upstream", new TaskStatusChanged(command.taskExecutionId(), TaskStatus.COMPLETED, List.of()));
     }
 
 }
