@@ -4,10 +4,9 @@ import io.mateu.workflow.controlplaneservice.application.usecases.createrelease.
 import io.mateu.workflow.controlplaneservice.application.usecases.createrelease.CreateReleaseUseCase;
 import io.mateu.workflow.controlplaneservice.application.usecases.createrelease.UploadToR2Command;
 import io.mateu.workflow.controlplaneservice.application.usecases.createrelease.UploadToR2UseCase;
-import io.mateu.workflow.controlplaneservice.application.usecases.deploy.DeployCommand;
-import io.mateu.workflow.controlplaneservice.application.usecases.deploy.DeployUseCase;
-import io.mateu.workflow.controlplaneservice.application.usecases.deploy.SetPlannedReleaseUseCase;
-import io.mateu.workflow.controlplaneservice.application.usecases.deploy.VerifyDeploymentUseCase;
+import io.mateu.workflow.controlplaneservice.application.usecases.deploy.*;
+import io.mateu.workflow.controlplaneservice.application.usecases.release.update.UpdateReleaseCommand;
+import io.mateu.workflow.controlplaneservice.application.usecases.release.update.UpdateReleaseUseCase;
 import io.mateu.workflow.controlplaneservice.application.usecases.scrape.ScrapeCommand;
 import io.mateu.workflow.controlplaneservice.application.usecases.scrape.ScrapeUseCase;
 import io.mateu.workflow.ddd.DomainEvent;
@@ -38,6 +37,7 @@ public class WorkerKafkaConsumerConfig {
     final DeployUseCase deployUseCase;
     final VerifyDeploymentUseCase verifyDeploymentUseCase;
     final SetPlannedReleaseUseCase setPlannedReleaseUseCase;
+    final UpdateRoutesUseCase updateRoutesUseCase;
 
     @Bean
     public Consumer<DomainEvent> consumeWorkerEvent() { // Cambiado de Consumer a Function
@@ -113,7 +113,7 @@ public class WorkerKafkaConsumerConfig {
 
               if (taskExecutionRequested.workflowDefinitionId().equals("37632b1d-e294-4174-a5d2-e71f41e70579")
                       && taskExecutionRequested.stepId().equals("update-releases")) {
-                  setPlannedReleaseUseCase.handle(new DeployCommand(taskExecutionRequested.taskExecutionId(),
+                  updateRoutesUseCase.handle(new DeployCommand(taskExecutionRequested.taskExecutionId(),
                           List.of(),
                           taskExecutionRequested.variables().stream()
                                   .filter(variable -> "releaseId".equals(variable.name()))
