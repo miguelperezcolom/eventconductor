@@ -18,6 +18,7 @@ import java.util.UUID;
 @Slf4j
 public class AskForDeploymentUseCase {
 
+    final SetPlannedReleaseUseCase setPlannedReleaseUseCase;
     final StreamBridge streamBridge;
 
     @SneakyThrows
@@ -25,6 +26,8 @@ public class AskForDeploymentUseCase {
         log.info("deploying release {} for routes {}", command.releaseId(), command.routeIds());
 
         var deploymentId = UUID.randomUUID().toString();
+
+        setPlannedReleaseUseCase.handle(new DeployCommand("", command.routeIds(), command.releaseId(), deploymentId));
 
         streamBridge.send("upstream", new ProcessCreationRequested(
                 "37632b1d-e294-4174-a5d2-e71f41e70579",

@@ -48,7 +48,7 @@ spring:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
       ddl-auto: update
-    show-sql: true
+    show-sql: false
     properties:
       hibernate:
         format_sql: true
@@ -68,8 +68,8 @@ spring:
 
 logging:
   level:
-    org.hibernate.SQL: DEBUG
-    org.hibernate.orm.jdbc.bind: TRACE
-    org.springframework.kafka: INFO
+    org.hibernate.SQL: ERROR
+    org.hibernate.orm.jdbc.bind: ERROR
+    org.springframework.kafka: ERROR
     # He a�adido este para que veas errores detallados del binder si algo falla
-    org.springframework.cloud.stream: INFO
+    org.springframework.cloud.stream: ERROR
