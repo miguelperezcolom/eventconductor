@@ -1,17 +1,10 @@
 package io.mateu.workflow.controlplaneservice.infra.out.r2;
 
-import io.mateu.uidl.data.StatusType;
-import io.mateu.workflow.controlplaneservice.application.usecases.ProgressReporter;
 import io.mateu.workflow.controlplaneservice.infra.out.github.CloudFlareVerifierService;
 import io.mateu.workflow.controlplaneservice.infra.out.persistence.ResourceEntityRepository;
 import io.mateu.workflow.dtos.MessageType;
-import io.mateu.workflow.dtos.Variable;
-import io.mateu.workflow.dtos.events.domain.StepExecutionStatusChanged;
 import io.mateu.workflow.dtos.events.integration.TaskLogEmitted;
-import io.mateu.workflow.dtos.events.integration.TaskStatus;
 import lombok.RequiredArgsConstructor;
-import org.kohsuke.github.*;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.stream.function.StreamBridge;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
@@ -19,8 +12,6 @@ import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 import java.io.IOException;
-import java.nio.file.Paths;
-import java.util.List;
 
 @Service
 @RequiredArgsConstructor

@@ -6,16 +6,16 @@ import io.mateu.uidl.annotations.ReadOnly;
 import io.mateu.uidl.annotations.Style;
 import io.mateu.uidl.annotations.Title;
 import io.mateu.uidl.annotations.Toolbar;
-import io.mateu.workflow.controlplaneservice.application.usecases.deploy.DeployCommand;
-import io.mateu.workflow.controlplaneservice.application.usecases.deploy.DeployUseCase;
-import io.mateu.workflow.controlplaneservice.application.usecases.deploy.SetPlannedReleaseUseCase;
+import io.mateu.workflow.controlplaneservice.application.usecases.deploy.*;
 import io.mateu.workflow.controlplaneservice.infra.in.ui.suppliers.ReleaseIdLabelSupplier;
 import io.mateu.workflow.controlplaneservice.infra.in.ui.suppliers.ReleaseIdOptionsSupplier;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.net.URI;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 @Slf4j
@@ -25,9 +25,7 @@ import java.util.List;
 @Style("max-width:900px;margin: auto;")
 public class DeployReleaseForm {
 
-    final DeploymentProcessViewModel deploymentProcessViewModel;
-    final DeployUseCase useCase;
-    final SetPlannedReleaseUseCase setPlannedReleaseUseCase;
+    final AskForDeploymentUseCase useCase;
 
     @Lookup(search = ReleaseIdOptionsSupplier.class, label = ReleaseIdLabelSupplier.class)
     String release;
@@ -37,11 +35,10 @@ public class DeployReleaseForm {
 
     @Toolbar
     public Object deploy() {
-        var command = new DeployCommand(routes.stream().map(DeploymentRow::id).toList(), release);
-        setPlannedReleaseUseCase.handle(command);
-        deploymentProcessViewModel.reset();
-        new Thread(() -> useCase.handle(command)).start();
-        return deploymentProcessViewModel;
+        var businessKey = UUID.randomUUID().toString();
+        var command = new AskForDeploymentCommand(businessKey, routes.stream().map(DeploymentRow::id).toList(), release);
+        useCase.handle(command);
+        return URI.create("/workflow/processes/" + businessKey);
     }
 
     public DeployReleaseForm withRoutes(List<DeploymentRow> routeIds) {

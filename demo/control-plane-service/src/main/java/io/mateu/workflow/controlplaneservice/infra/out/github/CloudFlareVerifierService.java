@@ -1,8 +1,9 @@
 package io.mateu.workflow.controlplaneservice.infra.out.github;
 
-import io.mateu.uidl.data.StatusType;
-import io.mateu.workflow.controlplaneservice.application.usecases.ProgressReporter;
+import io.mateu.workflow.dtos.MessageType;
+import io.mateu.workflow.dtos.events.integration.TaskLogEmitted;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cloud.stream.function.StreamBridge;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
@@ -13,9 +14,9 @@ import java.io.IOException;
 public class CloudFlareVerifierService {
 
     private final RestClient restClient;
+    final StreamBridge streamBridge;
 
-    public void verify(String deploymentId, ProgressReporter progressReporter) throws IOException {
-        progressReporter.update(2, StatusType.WARNING);
+    public void verify(String taskExecutionId, String deploymentId) throws IOException {
         // 2. Verificación en Cloudflare (Polling)
         int maxAttempts = 30; // 2 minutos máximo (12 * 10s)
         String checkUrl = "https://riu-com-copy.miguelperezcolom.workers.dev";
@@ -24,7 +25,10 @@ public class CloudFlareVerifierService {
             try {
                 Thread.sleep(10000); // Esperar 10 segundos
 
-                progressReporter.log("Checking version at " + checkUrl + " (try " + (i + 1) + ").");
+                streamBridge.send("upstream", new TaskLogEmitted(
+                        taskExecutionId,
+                        MessageType.Info,
+                        "Checking version at " + checkUrl + " (try " + (i + 1) + ")."));
 
                 var response = restClient.get()
                         .uri(checkUrl)
@@ -35,19 +39,26 @@ public class CloudFlareVerifierService {
                 String resolvedVersion = response.getHeaders().getFirst("x-deployment-id");
 
                 if (deploymentId.equals(resolvedVersion)) {
-                    progressReporter.log("✅ Verified: Deployment " + deploymentId + " is live.");
-                    progressReporter.update(2, StatusType.SUCCESS);
+                    streamBridge.send("upstream", new TaskLogEmitted(
+                            taskExecutionId,
+                            MessageType.Info,
+                            "✅ Verified: Deployment " + deploymentId + " is live."));
                     return;
                 }
-                progressReporter.log("⏳ Waiting deployment... (try " + (i + 1) + ")");
+                streamBridge.send("upstream", new TaskLogEmitted(
+                        taskExecutionId,
+                        MessageType.Info,
+                        "⏳ Waiting deployment... (try " + (i + 1) + ")"));
 
             } catch (Exception e) {
                 // RestClient lanza excepciones específicas para 404, pero aquí las capturamos
                 // para seguir reintentando mientras Cloudflare propaga el build.
-                progressReporter.log("⏳ Cloudflare not responding (404) or it is propagating... " + e.getMessage());
+                streamBridge.send("upstream", new TaskLogEmitted(
+                        taskExecutionId,
+                        MessageType.Info,
+                        "⏳ Cloudflare not responding (404) or it is propagating... " + e.getMessage()));
             }
         }
-        progressReporter.update(2, StatusType.DANGER);
         throw new RuntimeException("Timeout: GitHub aceptó el cambio, pero Cloudflare no desplegó a tiempo.");
     }
 }

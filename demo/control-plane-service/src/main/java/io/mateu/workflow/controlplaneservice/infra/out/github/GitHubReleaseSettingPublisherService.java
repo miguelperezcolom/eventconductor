@@ -1,13 +1,14 @@
 package io.mateu.workflow.controlplaneservice.infra.out.github;
 
-import io.mateu.uidl.data.StatusType;
-import io.mateu.workflow.controlplaneservice.application.usecases.ProgressReporter;
 import io.mateu.workflow.controlplaneservice.infra.out.persistence.ReleaseEntityRepository;
 import io.mateu.workflow.controlplaneservice.infra.out.persistence.RouteEntityRepository;
 import io.mateu.workflow.controlplaneservice.infra.out.persistence.SiteEntityRepository;
+import io.mateu.workflow.dtos.MessageType;
+import io.mateu.workflow.dtos.events.integration.TaskLogEmitted;
 import lombok.RequiredArgsConstructor;
 import org.kohsuke.github.*;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cloud.stream.function.StreamBridge;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 
@@ -26,6 +27,7 @@ public class GitHubReleaseSettingPublisherService {
     final SiteEntityRepository siteEntityRepository;
     final CloudFlareVerifierService verifierService;
     final RouteEntityRepository routeEntityRepository;
+    final StreamBridge streamBridge;
 
     @Value("${github.token}")
     private String githubToken;
@@ -36,7 +38,7 @@ public class GitHubReleaseSettingPublisherService {
     @Value("classpath:github/wrangler.jsonc")
     private Resource wranglerResource;
 
-    public void setReleaseAndPublishToGitHub(String deploymentId, String versionTag, ProgressReporter progressReporter) throws IOException {
+    public void setReleaseAndPublishToGitHub(String taskExecutionId, String deploymentId, String versionTag) throws IOException {
         // 1. Conectar con GitHub
         GitHub github = new GitHubBuilder().withOAuthToken(githubToken).build();
         GHRepository repository = github.getRepository(repoName);
@@ -53,7 +55,10 @@ public class GitHubReleaseSettingPublisherService {
         // Publicar
         treeBuilder.add("public/llms.txt", llmsTxt.getBytes(java.nio.charset.StandardCharsets.UTF_8), false);
 
-        progressReporter.log("llms.txt added.");
+        streamBridge.send("upstream", new TaskLogEmitted(
+                taskExecutionId,
+                MessageType.Info,
+                "llms.txt added."));
 
 
         Map<String, String> releaseMap = new HashMap<>();
@@ -69,15 +74,16 @@ public class GitHubReleaseSettingPublisherService {
         vars.put("ROUTE_VERSIONS_JSON", toJson(releaseMap));
         // Publicar
         treeBuilder.add("wrangler.jsonc", toJson(wrangler).getBytes(java.nio.charset.StandardCharsets.UTF_8), false);
-        progressReporter.log("wrangler.jsonc updated.");
+        streamBridge.send("upstream", new TaskLogEmitted(
+                taskExecutionId,
+                MessageType.Info,
+                "wrangler.jsonc updated."));
+
 
 //"ROUTE_VERSIONS_JSON": "{\"/es/\": \"v21\", \"/en/\": \"v22\", \"/promo/\": \"v_especial\"}"
 
 
         GHTree newTree = treeBuilder.create();
-
-        progressReporter.update(0, StatusType.SUCCESS);
-        progressReporter.update(1, StatusType.WARNING);
 
         // 4. Crear el Commit
         GHCommit commit = repository.createCommit()
@@ -89,14 +95,10 @@ public class GitHubReleaseSettingPublisherService {
         // 5. Actualizar la rama para que apunte al nuevo commit
         repository.getRef("heads/main").updateTo(commit.getSHA1());
 
-        progressReporter.log("✅ Versión " + versionTag + " publicada en GitHub: " + commit.getSHA1());
-    }
-
-    public void publishReleaseVersionAndVerify(String deploymentId, String versionTag, ProgressReporter progressReporter) throws IOException {
-        progressReporter.update(0, StatusType.WARNING);
-        setReleaseAndPublishToGitHub(deploymentId, versionTag, progressReporter);
-        progressReporter.update(1, StatusType.SUCCESS);
-        verifierService.verify(deploymentId, progressReporter);
+        streamBridge.send("upstream", new TaskLogEmitted(
+                taskExecutionId,
+                MessageType.Info,
+                "✅ Versión " + versionTag + " publicada en GitHub: " + commit.getSHA1()));
     }
 
 }
