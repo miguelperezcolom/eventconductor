@@ -34,24 +34,24 @@ public class CountryCrudAdapter implements CrudAdapter<
     @Override
     public ListingData<CountryRow> search(String searchText,
                                           NoFilters filters,
-                                          Pageable pageable) {
+                                          Pageable pageable, HttpRequest httpRequest) {
         return queryService.findAll(searchText, filters, pageable);
     }
 
     @Override
-    public void deleteAllById(List<String> selectedIds) {
+    public void deleteAllById(List<String> selectedIds, HttpRequest httpRequest) {
         deleteCountryUseCase.handle(new DeleteCountryCommand(selectedIds));
     }
 
     @Override
-    public CountryViewModel getView(String id) {
+    public CountryViewModel getView(String id, HttpRequest httpRequest) {
         return viewModel.load(queryService
                 .getById(id)
                 .orElseThrow());
     }
 
     @Override
-    public CountryViewModel getEditor(String id) {
+    public CountryViewModel getEditor(String id, HttpRequest httpRequest) {
         return viewModel.load(queryService
                 .getById(id)
                 .orElseThrow());

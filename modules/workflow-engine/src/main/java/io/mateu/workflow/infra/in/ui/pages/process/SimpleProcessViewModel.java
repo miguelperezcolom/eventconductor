@@ -12,6 +12,7 @@ import io.mateu.uidl.fluent.OnSuccessTrigger;
 import io.mateu.uidl.fluent.Trigger;
 import io.mateu.uidl.fluent.TriggersSupplier;
 import io.mateu.uidl.interfaces.HttpRequest;
+import io.mateu.workflow.dtos.Variable;
 import io.mateu.workflow.infra.in.ui.pages.process.childcruds.Errors;
 import io.mateu.workflow.infra.in.ui.pages.process.childcruds.Message;
 import io.mateu.workflow.infra.in.ui.pages.process.childcruds.Messages;
@@ -22,6 +23,7 @@ import io.mateu.workflow.infra.in.ui.pages.process.childcruds.Steps;
 import io.mateu.workflow.infra.in.ui.pages.process.childcruds.Error;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.With;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -37,6 +39,9 @@ public class SimpleProcessViewModel implements TriggersSupplier {
     String name;
 
     Status status;
+
+    @ReadOnly
+    String returnTo;
 
     @Tab
     @Label("")
@@ -54,7 +59,19 @@ public class SimpleProcessViewModel implements TriggersSupplier {
     @Label("")
     List<Resource> resources;
 
-    public SimpleProcessViewModel(String id, String name, Status status, List<Step> steps, List<Message> messages, List<Error> errors, List<Resource> resources) {
+    @Tab
+    @Label("")
+    List<Variable> variables;
+
+    public SimpleProcessViewModel(String id,
+                                  String name,
+                                  Status status,
+                                  List<Step> steps,
+                                  List<Message> messages,
+                                  List<Error> errors,
+                                  List<Resource> resources,
+                                  List<Variable> variables,
+                                  String returnTo) {
         this.id = id;
         this.name = name;
         this.status = status;
@@ -62,6 +79,8 @@ public class SimpleProcessViewModel implements TriggersSupplier {
         this.messages = messages;
         this.errors = errors;
         this.resources = resources;
+        this.variables = variables;
+        this.returnTo = returnTo;
     }
 
     @Override

@@ -13,6 +13,7 @@ import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.domain.aggregates.Process;
 import io.mateu.workflow.domain.aggregates.ProcessStatus;
 import io.mateu.workflow.domain.aggregates.StepExecutionStatus;
+import io.mateu.workflow.dtos.Variable;
 import io.mateu.workflow.infra.in.ui.pages.process.ProcessRow;
 import io.mateu.workflow.infra.in.ui.pages.process.SimpleProcessViewModel;
 import io.mateu.workflow.infra.in.ui.pages.process.childcruds.Error;
@@ -30,7 +31,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.List;
 
-import static io.mateu.core.domain.Humanizer.toUpperCaseFirst;
+import static io.mateu.uidl.Humanizer.toUpperCaseFirst;
 
 @Service
 @RequiredArgsConstructor
@@ -43,7 +44,7 @@ public class SimpleProcessCrudAdapter implements CrudAdapter<SimpleProcessViewMo
 
 
     @Override
-    public ListingData<ProcessRow> search(String searchText, NoFilters noFilters, Pageable pageable) {
+    public ListingData<ProcessRow> search(String searchText, NoFilters noFilters, Pageable pageable, HttpRequest httpRequest) {
         var dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
         return ListingData.of(repository.findAll().stream()
                         .filter(process -> searchText == null || searchText.isEmpty() ||
@@ -70,12 +71,12 @@ public class SimpleProcessCrudAdapter implements CrudAdapter<SimpleProcessViewMo
     }
 
     @Override
-    public void deleteAllById(List<String> selectedIds) {
+    public void deleteAllById(List<String> selectedIds, HttpRequest httpRequest) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public SimpleProcessViewModel getView(String id) {
+    public SimpleProcessViewModel getView(String id, HttpRequest httpRequest) {
         Process process = repository.findById(id).orElse(repository.findByBusinessKey(id).orElse(null));
         return new SimpleProcessViewModel(process.id(), process.getName(), map(process.getStatus(), process.getCompletionPercentage()),
                 stepExecutionEntityRepository.findAllByProcessIdOrderByOrder(id).stream()
@@ -91,7 +92,9 @@ public class SimpleProcessCrudAdapter implements CrudAdapter<SimpleProcessViewMo
                         .toList(),
                 resourceEntityRepository.findAllByProcessId(id).stream()
                         .map(entity -> new Resource(id, entity.getId(), entity.getName(), entity.getUrl()))
-                        .toList()
+                        .toList(),
+                process.getVariables().stream().map(variable -> new Variable(variable.name(), variable.value())).toList(),
+                httpRequest.getParameterValue("returnTo")
                 );
     }
 
@@ -109,7 +112,7 @@ public class SimpleProcessCrudAdapter implements CrudAdapter<SimpleProcessViewMo
     }
 
     @Override
-    public NoEditor<String> getEditor(String id) {
+    public NoEditor<String> getEditor(String id, HttpRequest httpRequest) {
         throw new UnsupportedOperationException();
     }
 

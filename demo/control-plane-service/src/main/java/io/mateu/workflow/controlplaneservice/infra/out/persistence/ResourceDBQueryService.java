@@ -38,7 +38,8 @@ public class ResourceDBQueryService implements ResourceQueryService {
     private ResourceDto toDto(ResourceEntity entity) {
         return new ResourceDto(
                 entity.id.toString(),
-                entity.name
+                entity.name,
+                entity.content != null?new String(entity.content):null
         );
     }
 

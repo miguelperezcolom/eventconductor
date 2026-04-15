@@ -36,24 +36,24 @@ final ContentTypeQueryService queryService;
 @Override
 public ListingData<ContentTypeRow> search(String searchText,
     NoFilters filters,
-    Pageable pageable) {
+    Pageable pageable, HttpRequest httpRequest) {
     return queryService.findAll(searchText, filters, pageable);
     }
 
     @Override
-    public void deleteAllById(List<String> selectedIds) {
+    public void deleteAllById(List<String> selectedIds, HttpRequest httpRequest) {
         deleteContentTypeUseCase.handle(new DeleteContentTypeCommand(selectedIds));
         }
 
         @Override
-        public ContentTypeViewModel getView(String id) {
+        public ContentTypeViewModel getView(String id, HttpRequest httpRequest) {
         return viewModel.load(queryService
         .getById(id)
         .orElseThrow());
         }
 
         @Override
-        public ContentTypeViewModel getEditor(String id) {
+        public ContentTypeViewModel getEditor(String id, HttpRequest httpRequest) {
         return viewModel.load(queryService
         .getById(id)
         .orElseThrow());
