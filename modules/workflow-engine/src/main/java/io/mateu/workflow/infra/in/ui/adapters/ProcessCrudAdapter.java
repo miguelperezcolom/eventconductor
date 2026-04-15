@@ -23,7 +23,7 @@ public class ProcessCrudAdapter implements CrudAdapter<ProcessViewModel, NoEdito
     final ProcessRepository repository;
 
     @Override
-    public ListingData<ProcessRow> search(String searchText, NoFilters noFilters, Pageable pageable) {
+    public ListingData<ProcessRow> search(String searchText, NoFilters noFilters, Pageable pageable, HttpRequest httpRequest) {
         var dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
         return ListingData.of(repository.findAll().stream()
                         .filter(process -> searchText == null || searchText.isEmpty() ||
@@ -49,18 +49,18 @@ public class ProcessCrudAdapter implements CrudAdapter<ProcessViewModel, NoEdito
     }
 
     @Override
-    public void deleteAllById(List<String> selectedIds) {
+    public void deleteAllById(List<String> selectedIds, HttpRequest httpRequest) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public ProcessViewModel getView(String id) {
+    public ProcessViewModel getView(String id, HttpRequest httpRequest) {
         Process process = repository.findById(id).orElse(null);
         return new ProcessViewModel(process.id(), process.getName(), map(process.getStatus(), process.getCompletionPercentage()));
     }
 
     @Override
-    public NoEditor<String> getEditor(String id) {
+    public NoEditor<String> getEditor(String id, HttpRequest httpRequest) {
         throw new UnsupportedOperationException();
     }
 

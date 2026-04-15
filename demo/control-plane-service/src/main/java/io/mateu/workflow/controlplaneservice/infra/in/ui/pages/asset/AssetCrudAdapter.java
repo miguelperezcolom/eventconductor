@@ -34,24 +34,24 @@ public class AssetCrudAdapter implements CrudAdapter<
     @Override
     public ListingData<AssetRow> search(String searchText,
                                         NoFilters filters,
-                                        Pageable pageable) {
+                                        Pageable pageable, HttpRequest httpRequest) {
         return queryService.findAll(searchText, filters, pageable);
     }
 
     @Override
-    public void deleteAllById(List<String> selectedIds) {
+    public void deleteAllById(List<String> selectedIds, HttpRequest httpRequest) {
         deleteAssetUseCase.handle(new DeleteAssetCommand(selectedIds));
     }
 
     @Override
-    public AssetViewModel getView(String id) {
+    public AssetViewModel getView(String id, HttpRequest httpRequest) {
         return viewModel.load(queryService
                 .getById(id)
                 .orElseThrow());
     }
 
     @Override
-    public AssetViewModel getEditor(String id) {
+    public AssetViewModel getEditor(String id, HttpRequest httpRequest) {
         return viewModel.load(queryService
                 .getById(id)
                 .orElseThrow());

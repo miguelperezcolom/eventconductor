@@ -36,24 +36,24 @@ final LabelQueryService queryService;
 @Override
 public ListingData<LabelRow> search(String searchText,
     NoFilters filters,
-    Pageable pageable) {
+    Pageable pageable, HttpRequest httpRequest) {
     return queryService.findAll(searchText, filters, pageable);
     }
 
     @Override
-    public void deleteAllById(List<String> selectedIds) {
+    public void deleteAllById(List<String> selectedIds, HttpRequest httpRequest) {
         deleteLabelUseCase.handle(new DeleteLabelCommand(selectedIds));
         }
 
         @Override
-        public LabelViewModel getView(String id) {
+        public LabelViewModel getView(String id, HttpRequest httpRequest) {
         return viewModel.load(queryService
         .getById(id)
         .orElseThrow());
         }
 
         @Override
-        public LabelViewModel getEditor(String id) {
+        public LabelViewModel getEditor(String id, HttpRequest httpRequest) {
         return viewModel.load(queryService
         .getById(id)
         .orElseThrow());

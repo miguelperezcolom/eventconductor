@@ -34,24 +34,24 @@ public class SiteCrudAdapter implements CrudAdapter<
     @Override
     public ListingData<SiteRow> search(String searchText,
                                        NoFilters filters,
-                                       Pageable pageable) {
+                                       Pageable pageable, HttpRequest httpRequest) {
         return queryService.findAll(searchText, filters, pageable);
     }
 
     @Override
-    public void deleteAllById(List<String> selectedIds) {
+    public void deleteAllById(List<String> selectedIds, HttpRequest httpRequest) {
         deleteSiteUseCase.handle(new DeleteSiteCommand(selectedIds));
     }
 
     @Override
-    public SiteViewModel getView(String id) {
+    public SiteViewModel getView(String id, HttpRequest httpRequest) {
         return viewModel.load(queryService
                 .getById(id)
                 .orElseThrow());
     }
 
     @Override
-    public SiteViewModel getEditor(String id) {
+    public SiteViewModel getEditor(String id, HttpRequest httpRequest) {
         return viewModel.load(queryService
                 .getById(id)
                 .orElseThrow());

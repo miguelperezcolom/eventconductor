@@ -36,24 +36,24 @@ public class PermissionCrudAdapter implements CrudAdapter<
     @Override
     public ListingData<PermissionRow> search(String searchText,
                                              NoFilters filters,
-                                             Pageable pageable) {
+                                             Pageable pageable, HttpRequest httpRequest) {
         return queryService.findAll(searchText, filters, pageable);
     }
 
     @Override
-    public void deleteAllById(List<String> selectedIds) {
+    public void deleteAllById(List<String> selectedIds, HttpRequest httpRequest) {
         deletePermissionUseCase.handle(new DeletePermissionCommand(selectedIds));
     }
 
     @Override
-    public PermissionViewModel getView(String id) {
+    public PermissionViewModel getView(String id, HttpRequest httpRequest) {
         return viewModel.load(queryService
                 .getById(id)
                 .orElseThrow());
     }
 
     @Override
-    public PermissionViewModel getEditor(String id) {
+    public PermissionViewModel getEditor(String id, HttpRequest httpRequest) {
         return viewModel.load(queryService
                 .getById(id)
                 .orElseThrow());

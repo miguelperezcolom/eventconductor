@@ -1,7 +1,7 @@
 package io.mateu.workflow.controlplaneservice.infra.in.ui.pages.resource;
 
-import io.mateu.uidl.annotations.HiddenInCreate;
-import io.mateu.uidl.annotations.ReadOnly;
+import io.mateu.uidl.annotations.*;
+import io.mateu.uidl.data.FieldStereotype;
 import io.mateu.uidl.interfaces.CrudCreationForm;
 import io.mateu.uidl.interfaces.CrudEditorForm;
 import io.mateu.uidl.interfaces.HttpRequest;
@@ -25,6 +25,10 @@ public class ResourceViewModel implements Identifiable, CrudEditorForm<String>, 
     String id;
     @NotEmpty
     String name;
+    @ReadOnly
+            @Colspan(2)
+            @Style("width: 100%;")
+    String content;
 
     final CreateResourceUseCase createResourceUseCase;
     final UpdateResourceUseCase updateResourceUseCase;
@@ -47,6 +51,7 @@ public class ResourceViewModel implements Identifiable, CrudEditorForm<String>, 
     public ResourceViewModel load(ResourceDto resource) {
         id = String.valueOf(resource.id());
         name = resource.name();
+        content = resource.content() != null ? (resource.content().length() > 100?resource.content().substring(0, 100) + "...":resource.content()) : "";
         return this;
     }
 
