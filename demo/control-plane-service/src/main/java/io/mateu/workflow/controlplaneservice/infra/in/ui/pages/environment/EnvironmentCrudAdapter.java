@@ -34,24 +34,24 @@ public class EnvironmentCrudAdapter implements CrudAdapter<
     @Override
     public ListingData<EnvironmentRow> search(String searchText,
                                               NoFilters filters,
-                                              Pageable pageable) {
+                                              Pageable pageable, HttpRequest httpRequest) {
         return queryService.findAll(searchText, filters, pageable);
     }
 
     @Override
-    public void deleteAllById(List<String> selectedIds) {
+    public void deleteAllById(List<String> selectedIds, HttpRequest httpRequest) {
         deleteEnvironmentUseCase.handle(new DeleteEnvironmentCommand(selectedIds));
     }
 
     @Override
-    public EnvironmentViewModel getView(String id) {
+    public EnvironmentViewModel getView(String id, HttpRequest httpRequest) {
         return viewModel.load(queryService
                 .getById(id)
                 .orElseThrow());
     }
 
     @Override
-    public EnvironmentViewModel getEditor(String id) {
+    public EnvironmentViewModel getEditor(String id, HttpRequest httpRequest) {
         return viewModel.load(queryService
                 .getById(id)
                 .orElseThrow());

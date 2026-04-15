@@ -36,24 +36,24 @@ public class UserCrudAdapter implements CrudAdapter<
     @Override
     public ListingData<UserRow> search(String searchText,
                                        NoFilters filters,
-                                       Pageable pageable) {
+                                       Pageable pageable, HttpRequest httpRequest) {
         return queryService.findAll(searchText, filters, pageable);
     }
 
     @Override
-    public void deleteAllById(List<String> selectedIds) {
+    public void deleteAllById(List<String> selectedIds, HttpRequest httpRequest) {
         deleteUserUseCase.handle(new DeleteUserCommand(selectedIds));
     }
 
     @Override
-    public UserViewModel getView(String id) {
+    public UserViewModel getView(String id, HttpRequest httpRequest) {
         return viewModel.load(queryService
                 .getById(id)
                 .orElseThrow());
     }
 
     @Override
-    public UserViewModel getEditor(String id) {
+    public UserViewModel getEditor(String id, HttpRequest httpRequest) {
         return viewModel.load(queryService
                 .getById(id)
                 .orElseThrow());
