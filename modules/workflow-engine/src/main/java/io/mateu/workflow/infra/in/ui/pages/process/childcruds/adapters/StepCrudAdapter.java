@@ -14,7 +14,8 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.Optional;
 
-import static io.mateu.core.domain.Humanizer.toUpperCaseFirst;
+import static io.mateu.uidl.Humanizer.toUpperCaseFirst;
+
 
 @Service
 @Scope("prototype")
