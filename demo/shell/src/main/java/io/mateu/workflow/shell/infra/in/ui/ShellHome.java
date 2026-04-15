@@ -38,7 +38,7 @@ public class ShellHome implements WidgetSupplier {
     RemoteMenu controlPlane = new RemoteMenu("/_control-plane").withAppServerSideType("io.mateu.workflow.controlplaneservice.infra.in.ui.ControlPlaneHome");
 
     @Menu
-    RemoteMenu workflow = new RemoteMenu("/_workflow").withAppServerSideType("io.mateu.workflow.infra.in.ui.WorkflowHome");
+        RemoteMenu workflow = new RemoteMenu("/_workflow").withAppServerSideType("io.mateu.workflow.infra.in.ui.WorkflowHome");
 
     @Menu
     RemoteMenu forms = new RemoteMenu("/_forms").withAppServerSideType("io.mateu.workflow.infra.in.ui.FormsHome");

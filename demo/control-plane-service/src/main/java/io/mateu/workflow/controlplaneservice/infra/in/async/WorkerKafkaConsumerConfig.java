@@ -7,6 +7,8 @@ import io.mateu.workflow.controlplaneservice.application.usecases.createrelease.
 import io.mateu.workflow.controlplaneservice.application.usecases.deploy.*;
 import io.mateu.workflow.controlplaneservice.application.usecases.release.update.UpdateReleaseCommand;
 import io.mateu.workflow.controlplaneservice.application.usecases.release.update.UpdateReleaseUseCase;
+import io.mateu.workflow.controlplaneservice.application.usecases.route.downloadassets.DownloadAssetsCommand;
+import io.mateu.workflow.controlplaneservice.application.usecases.route.downloadassets.DownloadAssetsUseCase;
 import io.mateu.workflow.controlplaneservice.application.usecases.scrape.ScrapeCommand;
 import io.mateu.workflow.controlplaneservice.application.usecases.scrape.ScrapeUseCase;
 import io.mateu.workflow.ddd.DomainEvent;
@@ -32,6 +34,7 @@ import java.util.function.Function;
 public class WorkerKafkaConsumerConfig {
 
     final ScrapeUseCase scrapeUseCase;
+    final DownloadAssetsUseCase downloadAssetsUseCase;
     final CreateReleaseUseCase createReleaseUseCase;
     final UploadToR2UseCase uploadToR2UseCase;
     final DeployUseCase deployUseCase;
@@ -48,6 +51,13 @@ public class WorkerKafkaConsumerConfig {
               if (taskExecutionRequested.workflowDefinitionId().equals("52ea7ab0-be39-44e4-af06-88dd61f2b0cd")
                       && taskExecutionRequested.stepId().equals("capturar")) {
                   scrapeUseCase.handle(new ScrapeCommand(taskExecutionRequested.variables().stream()
+                          .filter(variable -> "siteId".equals(variable.name()))
+                          .findAny().orElseThrow().value(),
+                          taskExecutionRequested.taskExecutionId()));
+              }
+              if (taskExecutionRequested.workflowDefinitionId().equals("52ea7ab0-be39-44e4-af06-88dd61f2b0cd")
+                      && taskExecutionRequested.stepId().equals("download")) {
+                  downloadAssetsUseCase.handle(new DownloadAssetsCommand(taskExecutionRequested.variables().stream()
                           .filter(variable -> "siteId".equals(variable.name()))
                           .findAny().orElseThrow().value(),
                           taskExecutionRequested.taskExecutionId()));

@@ -42,7 +42,9 @@ public class ScrapeUseCase {
         var countries = countryRepository.findAll();
         languages.forEach(language -> countries.forEach(country -> pages
                 .forEach(page -> {
-                    var routeUrl = site.getUrl().url() + "/" + language.getCode().code() + page.getPath().path();
+                    var path = page.getPath().path();
+                    if (path.startsWith("/es/")) path = path.substring("/es".length());
+                    var routeUrl = site.getUrl().url() + "/" + language.getCode().code() + path;
 
                     streamBridge.send("upstream", new TaskLogEmitted(command.taskExecutionId(), MessageType.Info, "Scraping " + routeUrl + "..."));
 
@@ -52,11 +54,11 @@ public class ScrapeUseCase {
                             .filter(r -> routeUrl.equals(r.getUrl().url())).findAny();
                     if (found.isEmpty()) {
                         routeRepository.save(Route.of(
-                                new RouteName(site.getId().id() + "/" + language.getCode().code() + page.getPath().path() + "_" + country.getCode().code()),
+                                new RouteName(site.getId().id() + "/" + language.getCode().code() + path + "_" + country.getCode().code()),
                                 language.getCode(),
                                 country.getCode(),
                                 page.getId(),
-                                new RoutePath("/" + language.getCode().code() + page.getPath().path()),
+                                new RoutePath("/" + language.getCode().code() + path),
                                 new RouteUrl(routeUrl)));
                     }
 
