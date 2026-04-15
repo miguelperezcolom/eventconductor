@@ -13,6 +13,7 @@ import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.domain.aggregates.Process;
 import io.mateu.workflow.domain.aggregates.ProcessStatus;
 import io.mateu.workflow.domain.aggregates.StepExecutionStatus;
+import io.mateu.workflow.dtos.Variable;
 import io.mateu.workflow.infra.in.ui.pages.process.ProcessRow;
 import io.mateu.workflow.infra.in.ui.pages.process.SimpleProcessViewModel;
 import io.mateu.workflow.infra.in.ui.pages.process.childcruds.Error;
@@ -31,7 +32,6 @@ import java.util.Comparator;
 import java.util.List;
 
 import static io.mateu.uidl.Humanizer.toUpperCaseFirst;
-
 
 @Service
 @RequiredArgsConstructor
@@ -92,7 +92,9 @@ public class SimpleProcessCrudAdapter implements CrudAdapter<SimpleProcessViewMo
                         .toList(),
                 resourceEntityRepository.findAllByProcessId(id).stream()
                         .map(entity -> new Resource(id, entity.getId(), entity.getName(), entity.getUrl()))
-                        .toList()
+                        .toList(),
+                process.getVariables().stream().map(variable -> new Variable(variable.name(), variable.value())).toList(),
+                httpRequest.getParameterValue("returnTo")
                 );
     }
 

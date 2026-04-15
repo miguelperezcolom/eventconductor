@@ -17,14 +17,20 @@ import io.mateu.workflow.controlplaneservice.domain.aggregates.resource.vo.Resou
 import io.mateu.workflow.controlplaneservice.domain.aggregates.resource.vo.ResourcePath;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.route.vo.RouteHash;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.site.vo.SiteId;
+import io.mateu.workflow.dtos.MessageType;
+import io.mateu.workflow.dtos.events.integration.TaskLogEmitted;
+import io.mateu.workflow.dtos.events.integration.TaskStatus;
+import io.mateu.workflow.dtos.events.integration.TaskStatusChanged;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cloud.stream.function.StreamBridge;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.List;
 
 @Service
 @Transactional
@@ -36,9 +42,13 @@ public class DownloadAssetsUseCase {
     final RouteRepository routeRepository;
     final ResourceRepository resourceRepository;
     final AssetRepository assetRepository;
+    final StreamBridge streamBridge;
 
     public void handle(DownloadAssetsCommand command) {
-        log.info("downloading assets for site {}", command.siteId());
+        streamBridge.send("upstream", new TaskLogEmitted(
+                command.taskExecutionId(),
+                MessageType.Info,
+                "downloading assets for site " + command.siteId()));
         var sitePages = pageRepository.findBySiteId(new SiteId(command.siteId())).stream()
                 .map(Page::getId).toList();
         routeRepository.findAll().stream().filter(r -> sitePages.contains(r.getPage()))
@@ -65,10 +75,17 @@ public class DownloadAssetsUseCase {
 
                   var content = readHtml(r.getUrl().url(), r.getCountry().code());
                   if (content == null) {
-                      log.warn("could not read html from {}", r.getUrl().url());
+                      streamBridge.send("upstream", new TaskLogEmitted(
+                              command.taskExecutionId(),
+                              MessageType.Info,
+                              "could not read html from " + r.getUrl().url()));
                       return;
                   }
-                  log.info("downloaded html from {}", r.getUrl().url());
+                    streamBridge.send("upstream", new TaskLogEmitted(
+                            command.taskExecutionId(),
+                            MessageType.Info,
+                            "downloaded html from " + r.getUrl().url()));
+
 
                   allContent.append(content);
 
@@ -94,6 +111,11 @@ public class DownloadAssetsUseCase {
                   r.updateHash(new RouteHash(md5(allContent.toString())));
                   routeRepository.save(r);
                 });
+
+        streamBridge.send("upstream", new TaskStatusChanged(
+                command.taskExecutionId(),
+                TaskStatus.COMPLETED,
+                List.of()));
     }
 
     private String normalizePath(String path, String countryCode) {

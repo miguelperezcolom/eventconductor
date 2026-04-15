@@ -1,6 +1,7 @@
 package io.mateu.workflow.controlplaneservice.infra.in.ui.pages.page;
 
 import io.mateu.core.infra.declarative.CrudOrchestrator;
+import io.mateu.uidl.annotations.ListToolbarButton;
 import io.mateu.uidl.annotations.Title;
 import io.mateu.uidl.data.NoFilters;
 import io.mateu.uidl.interfaces.CrudAdapter;
@@ -22,6 +23,7 @@ public class PageCrudOrchestrator extends CrudOrchestrator<
         String
         > {
 
+    final ImportPagesForm importPagesForm;
     final PageCrudAdapter adapter;
 
     @Override
@@ -34,5 +36,10 @@ public class PageCrudOrchestrator extends CrudOrchestrator<
     @Override
     public String toId(String s) {
         return s;
+    }
+
+    @ListToolbarButton(rowsSelectedRequired = false, confirmationRequired = false)
+    ImportPagesForm importPages() {
+        return importPagesForm;
     }
 }
