@@ -31,4 +31,7 @@ public class PageEntity {
     @Column(columnDefinition = "TEXT")
     String jsonLd;
 
+    boolean dependsOnLanguage;
+
+    boolean dependsOnCountry;
 }

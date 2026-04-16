@@ -5,7 +5,9 @@ import io.mateu.uidl.annotations.Label;
 import io.mateu.uidl.annotations.ReadOnly;
 import io.mateu.uidl.annotations.Tab;
 import io.mateu.uidl.annotations.Toolbar;
+import io.mateu.uidl.data.State;
 import io.mateu.uidl.data.Status;
+import io.mateu.uidl.data.StatusType;
 import io.mateu.uidl.di.MateuBeanProvider;
 import io.mateu.uidl.fluent.OnLoadTrigger;
 import io.mateu.uidl.fluent.OnSuccessTrigger;
@@ -25,6 +27,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.With;
 
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
@@ -95,4 +98,5 @@ public class SimpleProcessViewModel implements TriggersSupplier {
         triggers.add(new OnSuccessTrigger("refresh", "refresh", "state.status.type != 'SUCCESS'", 1000));
         return triggers;
     }
+
 }

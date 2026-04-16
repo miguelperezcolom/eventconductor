@@ -39,18 +39,20 @@ public class PageViewModel implements Identifiable, CrudEditorForm<String>, Crud
     @NotEmpty
             @Stereotype(FieldStereotype.textarea)
     String jsonLd;
+    boolean dependsOnLanguage;
+    boolean dependsOnCountry;
 
     final CreatePageUseCase createPageUseCase;
     final UpdatePageUseCase updatePageUseCase;
 
     @Override
     public String create(HttpRequest httpRequest) {
-        return createPageUseCase.handle(new CreatePageCommand(siteId, name, path, jsonLd));
+        return createPageUseCase.handle(new CreatePageCommand(siteId, name, path, jsonLd, dependsOnLanguage, dependsOnCountry));
     }
 
     @Override
     public void save(HttpRequest httpRequest) {
-        updatePageUseCase.handle(new UpdatePageCommand(id, siteId, name, path, jsonLd));
+        updatePageUseCase.handle(new UpdatePageCommand(id, siteId, name, path, jsonLd, dependsOnLanguage, dependsOnCountry));
     }
 
     @Override
@@ -64,6 +66,8 @@ public class PageViewModel implements Identifiable, CrudEditorForm<String>, Crud
         name = page.name();
         path = page.path();
         jsonLd = page.jsonLd();
+        dependsOnLanguage = page.dependsOnLanguage();
+        dependsOnCountry = page.dependsOnCountry();
         return this;
     }
 

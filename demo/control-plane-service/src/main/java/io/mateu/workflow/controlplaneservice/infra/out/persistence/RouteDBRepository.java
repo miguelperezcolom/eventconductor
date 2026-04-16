@@ -32,7 +32,7 @@ public class RouteDBRepository implements RouteRepository {
         return new Route(
                 new RouteId(entity.id),
                 new RouteName(entity.name),
-                new LanguageCode(entity.languageCode),
+                entity.languageCode != null?new LanguageCode(entity.languageCode):null,
                 new CountryCode(entity.countryCode),
                 new PageId(entity.pageId),
                 new RoutePath(entity.path),
@@ -48,7 +48,7 @@ public class RouteDBRepository implements RouteRepository {
         return new RouteEntity(
                 route.getId() != null ? route.getId().id() : null,
                 route.getName().name(),
-                route.getLanguage().code(),
+                route.getLanguage() != null?route.getLanguage().code():null,
                 route.getCountry().code(),
                 route.getPage().id(),
                 route.getPath().path(),

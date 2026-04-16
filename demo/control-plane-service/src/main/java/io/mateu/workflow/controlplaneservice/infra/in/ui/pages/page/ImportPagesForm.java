@@ -7,9 +7,7 @@ import io.mateu.uidl.data.FieldStereotype;
 import io.mateu.uidl.di.MateuBeanProvider;
 import io.mateu.workflow.controlplaneservice.application.out.PageRepository;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.page.Page;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.page.vo.PageJsonLd;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.page.vo.PageName;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.page.vo.PagePath;
+import io.mateu.workflow.controlplaneservice.domain.aggregates.page.vo.*;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.site.vo.SiteId;
 import io.mateu.workflow.controlplaneservice.infra.in.ui.suppliers.SiteIdLabelSupplier;
 import io.mateu.workflow.controlplaneservice.infra.in.ui.suppliers.SiteIdOptionsSupplier;
@@ -46,13 +44,23 @@ public class ImportPagesForm {
                 if (line.startsWith("http")) {
                     var noProtocol = line.substring(line.indexOf("//") + 2);
                     var route = noProtocol.substring(noProtocol.indexOf("/"));
-                    var found = pages.stream().filter(page -> page.getPath().path().equals(route)).findFirst();
+                    var dependsOnLanguage = false;
+                    if (route.startsWith("/es")) {
+                        dependsOnLanguage = true;
+                        route = route.substring("/es".length());
+                    }
+                    String finalRoute = route;
+                    var found = pages.stream().filter(page -> page.getPath().path().equals(finalRoute)).findFirst();
                     if (found.isEmpty()) {
+                        var name = extractName(route);
+                        if (name == null || name.isEmpty()) name = "Home";
                         pageRepository.save(Page.of(
                                 siteId,
-                                new PageName(extractName(route)),
-                                new PagePath(route),
-                                new PageJsonLd("{}")
+                                new PageName(name),
+                                new PagePath(route.isEmpty() ? "/" : route),
+                                new PageJsonLd("{}"),
+                                new PageDependsOnLanguage(dependsOnLanguage),
+                                new PageDependsOnCountry(true)
                         ));
                     }
                 }
