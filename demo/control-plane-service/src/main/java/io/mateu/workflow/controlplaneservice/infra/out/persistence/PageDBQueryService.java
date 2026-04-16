@@ -22,7 +22,9 @@ public class PageDBQueryService implements PageQueryService {
         return new PageRow(
                 entity.id.toString(),
                 entity.siteId,
-                entity.name
+                entity.name,
+                entity.dependsOnLanguage,
+                entity.dependsOnCountry
         );
     }
 
@@ -42,7 +44,9 @@ public class PageDBQueryService implements PageQueryService {
                 entity.siteId,
                 entity.name,
                 entity.path,
-                entity.jsonLd
+                entity.jsonLd,
+                entity.dependsOnLanguage,
+                entity.dependsOnCountry
         );
     }
 

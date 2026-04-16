@@ -1,10 +1,16 @@
 package io.mateu.workflow.controlplaneservice.application.usecases.scrape;
 
 import io.mateu.workflow.controlplaneservice.application.out.*;
+import io.mateu.workflow.controlplaneservice.domain.aggregates.country.Country;
+import io.mateu.workflow.controlplaneservice.domain.aggregates.country.vo.CountryCode;
+import io.mateu.workflow.controlplaneservice.domain.aggregates.language.Language;
+import io.mateu.workflow.controlplaneservice.domain.aggregates.language.vo.LanguageCode;
+import io.mateu.workflow.controlplaneservice.domain.aggregates.page.Page;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.route.Route;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.route.vo.RouteName;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.route.vo.RoutePath;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.route.vo.RouteUrl;
+import io.mateu.workflow.controlplaneservice.domain.aggregates.site.Site;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.site.vo.SiteId;
 import io.mateu.workflow.dtos.MessageType;
 import io.mateu.workflow.dtos.events.integration.TaskLogEmitted;
@@ -38,35 +44,60 @@ public class ScrapeUseCase {
 
         var site = siteRepository.findById(new SiteId(command.siteId())).orElseThrow(() -> new IllegalArgumentException("Site not found"));
         var pages = pageRepository.findBySiteId(new SiteId(command.siteId()));
-        var languages = languageRepository.findAll();
+        // páginas que no dependen de idioma ni país
+        pages.stream().filter(page -> !page.getDependsOnLanguage().depends()).filter(page -> !page.getDependsOnCountry().depends()).forEach(page -> {
+                    var path = page.getPath().path();
+                    var routeUrl = site.getUrl().url() + path;
+                    saveRoute(command, null, null, page, routeUrl, site, path);
+                });
+
         var countries = countryRepository.findAll();
-        languages.forEach(language -> countries.forEach(country -> pages
+        // páginas que no dependen de idioma pero si de país
+        countries.forEach(country ->
+                pages.stream().filter(page -> !page.getDependsOnLanguage().depends()).forEach(page -> {
+                    var path = page.getPath().path();
+                    var routeUrl = site.getUrl().url() + path;
+                    saveRoute(command, null, country.getCode(), page, routeUrl, site, path);
+        }));
+        var languages = languageRepository.findAll();
+        // páginas que dependen de idioma pero no de país
+        languages.forEach(language -> pages
+                .stream().filter(page -> page.getDependsOnLanguage().depends())
                 .forEach(page -> {
                     var path = page.getPath().path();
-                    if (path.startsWith("/es/")) path = path.substring("/es".length());
                     var routeUrl = site.getUrl().url() + "/" + language.getCode().code() + path;
+                    var languageCode = language.getCode();
+                    saveRoute(command, languageCode, null, page, routeUrl, site, "/" + languageCode.code() + path);
+                }));
 
-                    streamBridge.send("upstream", new TaskLogEmitted(command.taskExecutionId(), MessageType.Info, "Scraping " + routeUrl + "..."));
-
-
-                    var found = routeRepository.findAll().stream()
-                            .filter(r -> r.getCountry().code().equals(country.getCode().code()))
-                            .filter(r -> routeUrl.equals(r.getUrl().url())).findAny();
-                    if (found.isEmpty()) {
-                        routeRepository.save(Route.of(
-                                new RouteName(site.getId().id() + "/" + language.getCode().code() + path + "_" + country.getCode().code()),
-                                language.getCode(),
-                                country.getCode(),
-                                page.getId(),
-                                new RoutePath("/" + language.getCode().code() + path),
-                                new RouteUrl(routeUrl)));
-                    }
-
-                    streamBridge.send("upstream", new TaskLogEmitted(command.taskExecutionId(), MessageType.Info, "Scrapped " + routeUrl));
-
+        // páginas que no dependen de idioma pero si de país
+        languages.forEach(language -> countries.forEach(country -> pages
+                .stream().filter(page -> page.getDependsOnLanguage().depends())
+                .forEach(page -> {
+                    var path = page.getPath().path();
+                    var routeUrl = site.getUrl().url() + "/" + language.getCode().code() + path;
+                    var languageCode = language.getCode();
+                    saveRoute(command, languageCode, country.getCode(), page, routeUrl, site, "/" + languageCode.code() + path);
                 })));
 
         streamBridge.send("upstream", new TaskStatusChanged(command.taskExecutionId(), TaskStatus.COMPLETED, List.of()));
+    }
+
+    private void saveRoute(ScrapeCommand command, LanguageCode languageCode, CountryCode countryCode, Page page, String routeUrl, Site site, String path) {
+        var found = routeRepository.findAll().stream()
+                .filter(r -> (countryCode == null && r.getCountry() == null) || (countryCode != null && r.getCountry().code().equals(countryCode.code())))
+                .filter(r -> routeUrl.equals(r.getUrl().url())).findAny();
+        if (found.isEmpty()) {
+            routeRepository.save(Route.of(
+                    new RouteName(site.getId().id() + path + (countryCode != null?("_" + countryCode.code()):"")),
+                    languageCode,
+                    countryCode,
+                    page.getId(),
+                    new RoutePath(path),
+                    new RouteUrl(routeUrl)));
+        }
+
+        streamBridge.send("upstream", new TaskLogEmitted(command.taskExecutionId(), MessageType.Info, "Saved " + routeUrl));
     }
 
 }

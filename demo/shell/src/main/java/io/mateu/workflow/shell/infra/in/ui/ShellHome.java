@@ -28,20 +28,20 @@ import static io.mateu.core.infra.JsonSerializer.fromJson;
 public class ShellHome implements WidgetSupplier {
 
     @Menu
-    RemoteMenu users = new RemoteMenu("/_users").withAppServerSideType("io.mateu.workflow.usersservice.infra.in.ui.UsersHome");
+    RemoteMenu users = new RemoteMenu("/_users");
 
 
     @Menu
-    RemoteMenu content = new RemoteMenu("/_content-service").withAppServerSideType("io.mateu.workflow.contentservice.infra.in.ui.ContentServiceHome");
+    RemoteMenu content = new RemoteMenu("/_content-service");
 
     @Menu
-    RemoteMenu controlPlane = new RemoteMenu("/_control-plane").withAppServerSideType("io.mateu.workflow.controlplaneservice.infra.in.ui.ControlPlaneHome");
+    RemoteMenu controlPlane = new RemoteMenu("/_control-plane");
 
     @Menu
-        RemoteMenu workflow = new RemoteMenu("/_workflow").withAppServerSideType("io.mateu.workflow.infra.in.ui.WorkflowHome");
+        RemoteMenu workflow = new RemoteMenu("/_workflow");
 
     @Menu
-    RemoteMenu forms = new RemoteMenu("/_forms").withAppServerSideType("io.mateu.workflow.infra.in.ui.FormsHome");
+    RemoteMenu forms = new RemoteMenu("/_forms");
 
     @Menu
     CheckRequest checkRequest;

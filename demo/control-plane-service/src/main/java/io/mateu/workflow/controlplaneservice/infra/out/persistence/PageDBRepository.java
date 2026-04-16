@@ -2,10 +2,7 @@ package io.mateu.workflow.controlplaneservice.infra.out.persistence;
 
 import io.mateu.workflow.controlplaneservice.application.out.PageRepository;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.page.Page;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.page.vo.PageId;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.page.vo.PageJsonLd;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.page.vo.PageName;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.page.vo.PagePath;
+import io.mateu.workflow.controlplaneservice.domain.aggregates.page.vo.*;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.site.vo.SiteId;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -30,7 +27,9 @@ public class PageDBRepository implements PageRepository {
                 new SiteId(entity.siteId),
                 new PageName(entity.name),
                 new PagePath(entity.path),
-                new PageJsonLd(entity.jsonLd)
+                new PageJsonLd(entity.jsonLd),
+                new PageDependsOnLanguage(entity.dependsOnLanguage),
+                new PageDependsOnCountry(entity.dependsOnCountry)
         );
     }
 
@@ -40,7 +39,9 @@ public class PageDBRepository implements PageRepository {
                 page.getSiteId().id(),
                 page.getName().name(),
                 page.getPath().path(),
-                page.getJsonLd().json()
+                page.getJsonLd().json(),
+                page.getDependsOnLanguage().depends(),
+                page.getDependsOnCountry().depends()
         );
     }
 

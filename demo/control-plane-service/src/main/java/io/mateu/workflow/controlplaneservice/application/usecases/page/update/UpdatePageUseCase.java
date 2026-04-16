@@ -1,10 +1,7 @@
 package io.mateu.workflow.controlplaneservice.application.usecases.page.update;
 
 import io.mateu.workflow.controlplaneservice.application.out.PageRepository;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.page.vo.PageId;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.page.vo.PageJsonLd;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.page.vo.PageName;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.page.vo.PagePath;
+import io.mateu.workflow.controlplaneservice.domain.aggregates.page.vo.*;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.site.vo.SiteId;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -23,7 +20,9 @@ public class UpdatePageUseCase {
                 new SiteId(command.siteId()),
                 new PageName(command.name()),
                 new PagePath(command.path()),
-                new PageJsonLd(command.jsonLd())
+                new PageJsonLd(command.jsonLd()),
+                new PageDependsOnLanguage(command.dependsOnLanguage()),
+                new PageDependsOnCountry(command.dependsOnCountry())
         );
         repository.save(page);
     }
