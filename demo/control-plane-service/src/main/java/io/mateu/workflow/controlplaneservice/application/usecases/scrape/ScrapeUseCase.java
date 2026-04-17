@@ -25,7 +25,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 @Service
-@Transactional
 @RequiredArgsConstructor
 @Slf4j
 public class ScrapeUseCase {
@@ -85,7 +84,7 @@ public class ScrapeUseCase {
 
     private void saveRoute(ScrapeCommand command, LanguageCode languageCode, CountryCode countryCode, Page page, String routeUrl, Site site, String path) {
         var found = routeRepository.findAll().stream()
-                .filter(r -> (countryCode == null && r.getCountry() == null) || (countryCode != null && r.getCountry().code().equals(countryCode.code())))
+                .filter(r -> (countryCode == null && r.getCountry() == null) || (countryCode != null && r.getCountry() != null && r.getCountry().code() != null && r.getCountry().code().equals(countryCode.code())))
                 .filter(r -> routeUrl.equals(r.getUrl().url())).findAny();
         if (found.isEmpty()) {
             routeRepository.save(Route.of(

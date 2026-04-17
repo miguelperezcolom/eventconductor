@@ -11,10 +11,7 @@ import io.mateu.workflow.controlplaneservice.domain.aggregates.asset.vo.AssetPat
 import io.mateu.workflow.controlplaneservice.domain.aggregates.asset.vo.AssetUrl;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.page.Page;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.resource.Resource;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.resource.vo.ResourceContent;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.resource.vo.ResourceId;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.resource.vo.ResourceName;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.resource.vo.ResourcePath;
+import io.mateu.workflow.controlplaneservice.domain.aggregates.resource.vo.*;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.route.vo.RouteHash;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.site.vo.SiteId;
 import io.mateu.workflow.dtos.MessageType;
@@ -30,10 +27,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
-@Transactional
 @RequiredArgsConstructor
 @Slf4j
 public class DownloadAssetsUseCase {
@@ -96,14 +93,20 @@ public class DownloadAssetsUseCase {
                               resourceId,
                               new ResourceName(r.getUrl().url() + "_" + r.getCountry().code()),
                               new ResourcePath(normalizePath(r.getPath().path(), r.getCountry().code())),
-                              new ResourceContent(content.getBytes(StandardCharsets.UTF_8))
+                              new ResourceContent(content.getBytes(StandardCharsets.UTF_8)),
+                              new ResourceStatusCode(200),
+                              new ResourceLastUpdated(LocalDateTime.now()),
+                              new ResourceSize(content.length())
                               ));
                   } else {
                       var resource = resourceFound.get();
                       resource.update(
                               new ResourceName(r.getUrl().url() + "_" + r.getCountry().code()),
                               new ResourcePath(normalizePath(r.getPath().path(), r.getCountry().code())),
-                              new ResourceContent(content.getBytes(StandardCharsets.UTF_8))
+                              new ResourceContent(content.getBytes(StandardCharsets.UTF_8)),
+                              new ResourceStatusCode(200),
+                              new ResourceLastUpdated(LocalDateTime.now()),
+                              new ResourceSize(content.length())
                       );
                       resourceRepository.save(resource);
                   }

@@ -21,7 +21,10 @@ public class ResourceDBQueryService implements ResourceQueryService {
     private ResourceRow toDomain(ResourceEntity entity) {
         return new ResourceRow(
                 entity.id,
-                entity.name
+                entity.name,
+                entity.lastUpdated,
+                entity.statusCode,
+                entity.size
         );
     }
 
@@ -39,7 +42,10 @@ public class ResourceDBQueryService implements ResourceQueryService {
         return new ResourceDto(
                 entity.id.toString(),
                 entity.name,
-                entity.content != null?new String(entity.content):null
+                entity.content != null?new String(entity.content):null,
+                entity.statusCode,
+                entity.lastUpdated,
+                entity.size
         );
     }
 

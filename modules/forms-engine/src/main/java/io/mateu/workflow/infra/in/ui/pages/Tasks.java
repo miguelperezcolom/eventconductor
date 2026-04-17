@@ -72,7 +72,7 @@ public class Tasks implements ListingBackend<NoFilters, TaskRow> {
 
     public URI run(TaskRow selectedRow) {
         log.info("running " + selectedRow);
-        return URI.create("forms/task/" + selectedRow.id());
+        return URI.create("task/" + selectedRow.id());
     }
 
     @Override

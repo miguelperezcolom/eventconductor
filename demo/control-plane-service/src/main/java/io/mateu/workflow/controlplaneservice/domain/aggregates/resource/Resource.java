@@ -1,10 +1,7 @@
 package io.mateu.workflow.controlplaneservice.domain.aggregates.resource;
 
 
-import io.mateu.workflow.controlplaneservice.domain.aggregates.resource.vo.ResourceContent;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.resource.vo.ResourceId;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.resource.vo.ResourceName;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.resource.vo.ResourcePath;
+import io.mateu.workflow.controlplaneservice.domain.aggregates.resource.vo.*;
 import io.mateu.workflow.ddd.AggregateRoot;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -23,21 +20,44 @@ public class Resource extends AggregateRoot {
 
     ResourceContent content;
 
+    ResourceStatusCode statusCode;
 
-    public static Resource of(ResourceId id, ResourceName name, ResourcePath path, ResourceContent content) {
+    ResourceLastUpdated lastUpdated;
+
+    ResourceSize size;
+
+
+    public static Resource of(ResourceId id,
+                              ResourceName name,
+                              ResourcePath path,
+                              ResourceContent content,
+                              ResourceStatusCode statusCode,
+                              ResourceLastUpdated lastUpdated,
+                              ResourceSize size) {
         Resource p = new Resource();
         p.id = id;
         p.name = name;
         p.path = path;
         p.content = content;
+        p.statusCode = statusCode;
+        p.lastUpdated = lastUpdated;
+        p.size = size;
 
         return p;
     }
 
-    public void update(ResourceName name, ResourcePath path, ResourceContent content) {
+    public void update(ResourceName name,
+                       ResourcePath path,
+                       ResourceContent content,
+                       ResourceStatusCode statusCode,
+                       ResourceLastUpdated lastUpdated,
+                       ResourceSize size) {
         this.name = name;
         this.path = path;
         this.content = content;
+        this.statusCode = statusCode;
+        this.lastUpdated = lastUpdated;
+        this.size = size;
     }
 
 }

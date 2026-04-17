@@ -24,7 +24,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-@Route("/task/:_taskId")
+@Route("/forms/task/:_taskId")
 @Service
 @RequiredArgsConstructor
 @Action(id = "complete", validationRequired = true)
@@ -102,7 +102,7 @@ public class Task implements ComponentTreeSupplier, ValidationSupplier, ActionHa
                             .map(key -> new Value(key, state.get(key).toString())).toList())
                     .withStatus(FormExecutionStatus.COMPLETED);
             formExecutionRepository.save(execution);
-            return URI.create("forms/tasks");
+            return URI.create("/forms/tasks");
         }
         if ("claim".equals(actionId)) {
             var execution = formExecutionRepository.findById(_taskId).orElseThrow();
@@ -111,7 +111,7 @@ public class Task implements ComponentTreeSupplier, ValidationSupplier, ActionHa
             formExecutionRepository.save(execution);
         }
         if ("back".equals(actionId)) {
-            return URI.create("forms/tasks");
+            return URI.create("/forms/tasks");
         }
         return this;
     }
