@@ -49,7 +49,7 @@ public class RouteDBRepository implements RouteRepository {
                 route.getId() != null ? route.getId().id() : null,
                 route.getName().name(),
                 route.getLanguage() != null?route.getLanguage().code():null,
-                route.getCountry().code(),
+                route.getCountry() != null?route.getCountry().code():null,
                 route.getPage().id(),
                 route.getPath().path(),
                 route.getUrl().url(),

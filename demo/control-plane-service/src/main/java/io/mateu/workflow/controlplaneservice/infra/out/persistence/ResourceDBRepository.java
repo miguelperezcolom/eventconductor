@@ -3,10 +3,7 @@ package io.mateu.workflow.controlplaneservice.infra.out.persistence;
 import io.mateu.workflow.controlplaneservice.application.out.ResourceRepository;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.asset.vo.AssetId;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.resource.Resource;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.resource.vo.ResourceContent;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.resource.vo.ResourceId;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.resource.vo.ResourceName;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.resource.vo.ResourcePath;
+import io.mateu.workflow.controlplaneservice.domain.aggregates.resource.vo.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -29,7 +26,10 @@ public class ResourceDBRepository implements ResourceRepository {
                 new ResourceId(entity.id),
                 new ResourceName(entity.name),
                 new ResourcePath(entity.path),
-                new ResourceContent(entity.content)
+                new ResourceContent(entity.content),
+                new ResourceStatusCode(entity.statusCode),
+                new ResourceLastUpdated(entity.lastUpdated),
+                new ResourceSize(entity.size)
         );
     }
 
@@ -38,7 +38,10 @@ public class ResourceDBRepository implements ResourceRepository {
                 resource.getId().id(),
                 resource.getName().name(),
                 resource.getPath().path(),
-                resource.getContent().bytes()
+                resource.getContent().bytes(),
+                resource.getStatusCode().code(),
+                resource.getLastUpdated().time(),
+                resource.getSize().size()
         );
     }
 

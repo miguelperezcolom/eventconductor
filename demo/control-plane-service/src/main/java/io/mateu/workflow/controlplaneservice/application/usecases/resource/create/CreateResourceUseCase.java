@@ -2,15 +2,13 @@ package io.mateu.workflow.controlplaneservice.application.usecases.resource.crea
 
 import io.mateu.workflow.controlplaneservice.application.out.ResourceRepository;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.resource.Resource;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.resource.vo.ResourceContent;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.resource.vo.ResourceId;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.resource.vo.ResourceName;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.resource.vo.ResourcePath;
+import io.mateu.workflow.controlplaneservice.domain.aggregates.resource.vo.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Service
@@ -25,7 +23,10 @@ public class CreateResourceUseCase {
                 new ResourceId(UUID.randomUUID().toString()),
                 new ResourceName(command.name()),
                 new ResourcePath(""),
-                new ResourceContent("".getBytes(StandardCharsets.UTF_8))
+                new ResourceContent("".getBytes(StandardCharsets.UTF_8)),
+                new ResourceStatusCode(0),
+                new ResourceLastUpdated(LocalDateTime.now()),
+                new ResourceSize(0)
         )).id();
     }
 
