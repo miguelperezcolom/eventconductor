@@ -1,19 +1,15 @@
-package io.mateu.workflow.controlplaneservice.application.usecases.route.downloadassets;
+package io.mateu.workflow.controlplaneservice.application.usecases.scrape;
 
 import io.mateu.workflow.controlplaneservice.application.out.AssetRepository;
 import io.mateu.workflow.controlplaneservice.application.out.PageRepository;
 import io.mateu.workflow.controlplaneservice.application.out.ResourceRepository;
 import io.mateu.workflow.controlplaneservice.application.out.RouteRepository;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.asset.Asset;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.asset.vo.AssetId;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.asset.vo.AssetName;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.asset.vo.AssetPath;
-import io.mateu.workflow.controlplaneservice.domain.aggregates.asset.vo.AssetUrl;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.page.Page;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.resource.Resource;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.resource.vo.*;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.route.vo.RouteHash;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.site.vo.SiteId;
+import io.mateu.workflow.controlplaneservice.infra.out.scrapper.WebScrapperService;
 import io.mateu.workflow.dtos.MessageType;
 import io.mateu.workflow.dtos.events.integration.TaskLogEmitted;
 import io.mateu.workflow.dtos.events.integration.TaskStatus;
@@ -23,12 +19,12 @@ import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.stream.function.StreamBridge;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @Service
 @RequiredArgsConstructor
@@ -40,38 +36,28 @@ public class DownloadAssetsUseCase {
     final ResourceRepository resourceRepository;
     final AssetRepository assetRepository;
     final StreamBridge streamBridge;
+    final WebScrapperService webScrapperService;
 
     public void handle(DownloadAssetsCommand command) {
         streamBridge.send("upstream", new TaskLogEmitted(
                 command.taskExecutionId(),
                 MessageType.Info,
                 "downloading assets for site " + command.siteId()));
+        AtomicInteger pos = new AtomicInteger(1);
+        long t0 = System.currentTimeMillis();
+        long count = routeRepository.findAll().stream().count();
         var sitePages = pageRepository.findBySiteId(new SiteId(command.siteId())).stream()
                 .map(Page::getId).toList();
         routeRepository.findAll().stream().filter(r -> sitePages.contains(r.getPage()))
                 .forEach(r -> {
-                    var allContent = new StringBuilder();
-                  var assetFound = assetRepository.findByUrlAndCountry(r.getUrl(), r.getCountry());
-                  AssetId assetId = null;
-                  if (assetFound.isEmpty()) {
-                      assetId = assetRepository.save(Asset.of(
-                              new AssetName(r.getUrl().url()),
-                              new AssetPath(r.getPath().path()),
-                              new AssetUrl(r.getUrl().url()),
-                              r.getCountry()));
-                  } else {
-                      var asset = assetFound.get();
-                      asset.update(
-                              new AssetName(r.getUrl().url()),
-                              new AssetPath(r.getPath().path()),
-                              new AssetUrl(r.getUrl().url()),
-                              r.getCountry());
-                      assetRepository.save(asset);
-                      assetId = asset.getId();
-                  }
 
-                  var content = readHtml(r.getUrl().url(), r.getCountry().code());
-                  if (content == null) {
+                    log.info("Processing route {}/{}. Process time is {}minutes", pos.getAndIncrement(), count, (System.currentTimeMillis() - t0) / 60000);
+
+                    var allContent = new StringBuilder();
+
+                  var result = webScrapperService.download(r.getUrl().url(), r.getLanguage() != null?r.getLanguage().code():"en", r.getCountry().code());
+
+                  if (result.statusCode() != 200) {
                       streamBridge.send("upstream", new TaskLogEmitted(
                               command.taskExecutionId(),
                               MessageType.Info,
@@ -83,6 +69,7 @@ public class DownloadAssetsUseCase {
                             MessageType.Info,
                             "downloaded html from " + r.getUrl().url()));
 
+                  var content = new String(result.content());
 
                   allContent.append(content);
 
@@ -94,9 +81,10 @@ public class DownloadAssetsUseCase {
                               new ResourceName(r.getUrl().url() + "_" + r.getCountry().code()),
                               new ResourcePath(normalizePath(r.getPath().path(), r.getCountry().code())),
                               new ResourceContent(content.getBytes(StandardCharsets.UTF_8)),
-                              new ResourceStatusCode(200),
+                              new ResourceStatusCode(result.statusCode()),
                               new ResourceLastUpdated(LocalDateTime.now()),
-                              new ResourceSize(content.length())
+                              new ResourceSize(content.length()),
+                              new ResourceMilliseconds(result.milliSeconds())
                               ));
                   } else {
                       var resource = resourceFound.get();
@@ -104,9 +92,10 @@ public class DownloadAssetsUseCase {
                               new ResourceName(r.getUrl().url() + "_" + r.getCountry().code()),
                               new ResourcePath(normalizePath(r.getPath().path(), r.getCountry().code())),
                               new ResourceContent(content.getBytes(StandardCharsets.UTF_8)),
-                              new ResourceStatusCode(200),
+                              new ResourceStatusCode(result.statusCode()),
                               new ResourceLastUpdated(LocalDateTime.now()),
-                              new ResourceSize(content.length())
+                              new ResourceSize(content.length()),
+                              new ResourceMilliseconds(result.milliSeconds())
                       );
                       resourceRepository.save(resource);
                   }

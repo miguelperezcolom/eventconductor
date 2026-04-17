@@ -8,6 +8,7 @@ public record ResourceDto(
         String content,
         int statusCode,
         LocalDateTime lastUpdated,
-        long size
+        long size,
+        long milliseconds
         ) {
 }

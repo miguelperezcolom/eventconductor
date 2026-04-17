@@ -26,6 +26,12 @@ public class ResourceViewModel implements Identifiable, CrudEditorForm<String>, 
     @NotEmpty
     String name;
     @ReadOnly
+    int statusCode;
+    @ReadOnly
+    long size;
+    @ReadOnly
+    long milliseconds;
+    @ReadOnly
             @Colspan(2)
             @Style("width: 100%;")
     String content;
@@ -52,6 +58,9 @@ public class ResourceViewModel implements Identifiable, CrudEditorForm<String>, 
         id = String.valueOf(resource.id());
         name = resource.name();
         content = resource.content() != null ? (resource.content().length() > 100?resource.content().substring(0, 100) + "...":resource.content()) : "";
+        statusCode = resource.statusCode();
+        size = resource.size();
+        milliseconds = resource.milliseconds();
         return this;
     }
 

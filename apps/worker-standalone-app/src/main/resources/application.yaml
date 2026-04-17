@@ -59,8 +59,12 @@ spring:
 
 logging:
   level:
-    org.hibernate.SQL: DEBUG
-    org.hibernate.orm.jdbc.bind: TRACE
-    org.springframework.kafka: INFO
+    org.hibernate.SQL: error
+    org.hibernate.orm.jdbc.bind: error
+    org.springframework.kafka: error
+    org.springframework.cloud.stream: error
+#    org.hibernate.SQL: DEBUG
+#    org.hibernate.orm.jdbc.bind: TRACE
+#    org.springframework.kafka: INFO
     # He añadido este para que veas errores detallados del binder si algo falla
-    org.springframework.cloud.stream: INFO
+#    org.springframework.cloud.stream: INFO

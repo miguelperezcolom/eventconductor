@@ -5,6 +5,7 @@ import io.mateu.workflow.controlplaneservice.infra.out.persistence.ResourceEntit
 import io.mateu.workflow.dtos.MessageType;
 import io.mateu.workflow.dtos.events.integration.TaskLogEmitted;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.stream.function.StreamBridge;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
@@ -16,6 +17,7 @@ import java.io.IOException;
 @Service
 @RequiredArgsConstructor
 @Primary
+@Slf4j
 public class R2ReleaseFolderPublisherService {
 
     final ResourceEntityRepository resourceEntityRepository;
@@ -118,7 +120,10 @@ public class R2ReleaseFolderPublisherService {
                             .contentType("text/html") // Importante para que el navegador lo renderice bien
                             .build();
 
+                    log.info("Uploading to R2: {}", key);
+                    long t0 = System.currentTimeMillis();
                     client.putObject(putOb, RequestBody.fromString(html));
+                    log.info("Uploaded to R2 in {}ms", System.currentTimeMillis() - t0);
 
                     streamBridge.send("upstream", new TaskLogEmitted(
                             stepExecutionId,

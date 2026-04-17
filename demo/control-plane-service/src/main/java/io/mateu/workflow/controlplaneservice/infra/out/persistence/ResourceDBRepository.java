@@ -29,7 +29,8 @@ public class ResourceDBRepository implements ResourceRepository {
                 new ResourceContent(entity.content),
                 new ResourceStatusCode(entity.statusCode),
                 new ResourceLastUpdated(entity.lastUpdated),
-                new ResourceSize(entity.size)
+                new ResourceSize(entity.size),
+                new ResourceMilliseconds(entity.milliseconds)
         );
     }
 
@@ -41,7 +42,8 @@ public class ResourceDBRepository implements ResourceRepository {
                 resource.getContent().bytes(),
                 resource.getStatusCode().code(),
                 resource.getLastUpdated().time(),
-                resource.getSize().size()
+                resource.getSize().size(),
+                resource.getMilliseconds().milliseconds()
         );
     }
 
