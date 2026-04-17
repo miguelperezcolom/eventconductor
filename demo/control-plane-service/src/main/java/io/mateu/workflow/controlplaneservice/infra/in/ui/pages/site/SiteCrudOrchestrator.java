@@ -7,7 +7,7 @@ import io.mateu.uidl.data.NoFilters;
 import io.mateu.uidl.interfaces.CrudAdapter;
 import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.workflow.controlplaneservice.application.query.dto.SiteRow;
-import io.mateu.workflow.controlplaneservice.application.usecases.route.downloadassets.DownloadAssetsUseCase;
+import io.mateu.workflow.controlplaneservice.application.usecases.scrape.DownloadAssetsUseCase;
 import io.mateu.workflow.controlplaneservice.application.usecases.site.scrape.AskForScrapeCommand;
 import io.mateu.workflow.controlplaneservice.application.usecases.site.scrape.AskForScrapeUseCase;
 import lombok.RequiredArgsConstructor;

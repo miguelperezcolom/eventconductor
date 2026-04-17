@@ -26,7 +26,8 @@ public class CreateResourceUseCase {
                 new ResourceContent("".getBytes(StandardCharsets.UTF_8)),
                 new ResourceStatusCode(0),
                 new ResourceLastUpdated(LocalDateTime.now()),
-                new ResourceSize(0)
+                new ResourceSize(0),
+                new ResourceMilliseconds(0)
         )).id();
     }
 

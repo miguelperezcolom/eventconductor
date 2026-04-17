@@ -30,4 +30,6 @@ public class ResourceEntity {
 
     long size;
 
+    long milliseconds;
+
 }

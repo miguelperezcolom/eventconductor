@@ -26,6 +26,8 @@ public class Resource extends AggregateRoot {
 
     ResourceSize size;
 
+    ResourceMilliseconds milliseconds;
+
 
     public static Resource of(ResourceId id,
                               ResourceName name,
@@ -33,7 +35,8 @@ public class Resource extends AggregateRoot {
                               ResourceContent content,
                               ResourceStatusCode statusCode,
                               ResourceLastUpdated lastUpdated,
-                              ResourceSize size) {
+                              ResourceSize size,
+                              ResourceMilliseconds milliseconds) {
         Resource p = new Resource();
         p.id = id;
         p.name = name;
@@ -42,6 +45,7 @@ public class Resource extends AggregateRoot {
         p.statusCode = statusCode;
         p.lastUpdated = lastUpdated;
         p.size = size;
+        p.milliseconds = milliseconds;
 
         return p;
     }
@@ -51,13 +55,15 @@ public class Resource extends AggregateRoot {
                        ResourceContent content,
                        ResourceStatusCode statusCode,
                        ResourceLastUpdated lastUpdated,
-                       ResourceSize size) {
+                       ResourceSize size,
+                       ResourceMilliseconds milliseconds) {
         this.name = name;
         this.path = path;
         this.content = content;
         this.statusCode = statusCode;
         this.lastUpdated = lastUpdated;
         this.size = size;
+        this.milliseconds = milliseconds;
     }
 
 }

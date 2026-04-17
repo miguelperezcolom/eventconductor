@@ -24,7 +24,8 @@ public class ResourceDBQueryService implements ResourceQueryService {
                 entity.name,
                 entity.lastUpdated,
                 entity.statusCode,
-                entity.size
+                entity.size,
+                entity.milliseconds
         );
     }
 
@@ -45,7 +46,8 @@ public class ResourceDBQueryService implements ResourceQueryService {
                 entity.content != null?new String(entity.content):null,
                 entity.statusCode,
                 entity.lastUpdated,
-                entity.size
+                entity.size,
+                entity.milliseconds
         );
     }
 
