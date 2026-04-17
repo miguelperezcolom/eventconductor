@@ -29,7 +29,11 @@ public class TasksWidget implements Hydratable {
         var tasks = repository.findAll().stream()
                 .filter(task -> !"COMPLETED".equals(task.getStatus())
                         && !"ERROR".equals(task.getStatus())
-                        && (task.getUserId() == null || task.getUserId().isEmpty() || task.getUserId().equals(JwtExtractor.getUsername(httpRequest).orElse("xxx")))
+                        && (
+                                !"ASSIGNED".equals(task.getStatus()) && (task.getUserId() == null
+                                        || task.getUserId().isEmpty())
+                                        || (task.getUserId() != null && task.getUserId().equals(JwtExtractor.getUsername(httpRequest).orElse("xxx")))
+                        )
                 )
                 .count();
 
@@ -41,7 +45,7 @@ public class TasksWidget implements Hydratable {
                     "    animation: fade 2s ease-in-out infinite alternate;\n" +
                     "\">\n" +
                     "    You have tasks!\n" +
-                    "</a>\n" +
+                    "</a>&nbsp;&nbsp;\n" +
                     "\n" +
                     "<style>\n" +
                     "    @keyframes fade {\n" +
@@ -51,7 +55,7 @@ public class TasksWidget implements Hydratable {
                     "</style>";
 
         } else {
-            content = "<a href=\"/forms/tasks\" style=\"text-decoration: none;\">No tasks</a>";
+            content = "<a href=\"/forms/tasks\" style=\"text-decoration: none;\">No tasks</a>&nbsp;&nbsp;";
 
         }
 
