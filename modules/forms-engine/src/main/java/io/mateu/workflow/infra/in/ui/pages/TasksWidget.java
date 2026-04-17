@@ -1,10 +1,8 @@
 package io.mateu.workflow.infra.in.ui.pages;
 
+import io.mateu.core.infra.JwtExtractor;
 import io.mateu.uidl.RouteConstants;
-import io.mateu.uidl.annotations.Route;
-import io.mateu.uidl.annotations.Stereotype;
-import io.mateu.uidl.annotations.Title;
-import io.mateu.uidl.annotations.UI;
+import io.mateu.uidl.annotations.*;
 import io.mateu.uidl.data.FieldStereotype;
 import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.uidl.interfaces.Hydratable;
@@ -16,6 +14,8 @@ import org.springframework.stereotype.Service;
 @Title("")
 @Service
 @RequiredArgsConstructor
+@Trigger(type = TriggerType.OnLoad, actionId = "refresh")
+@Trigger(type = TriggerType.OnSuccess, actionId = "refresh", calledActionId = "refresh", timeoutMillis = 1000)
 public class TasksWidget implements Hydratable {
 
     final FormExecutionEntityRepository repository;
@@ -25,20 +25,35 @@ public class TasksWidget implements Hydratable {
 
     @Override
     public void hydrate(HttpRequest httpRequest) {
-        content = "<a href=\"/forms/tasks\" style=\"\n" +
-                "    text-decoration: none;\n" +
-                "    xcolor: #3498db;\n" +
-                "    xfont-weight: bold;\n" +
-                "    animation: fade 2s ease-in-out infinite alternate;\n" +
-                "\">\n" +
-                "    You have tasks!\n" +
-                "</a>\n" +
-                "\n" +
-                "<style>\n" +
-                "    @keyframes fade {\n" +
-                "        from { opacity: 1; }\n" +
-                "        to { opacity: 0; }\n" +
-                "    }\n" +
-                "</style>";
+
+        var tasks = repository.findAll().stream()
+                .filter(task -> !"COMPLETED".equals(task.getStatus())
+                        && !"ERROR".equals(task.getStatus())
+                        && (task.getUserId() == null || task.getUserId().isEmpty() || task.getUserId().equals(JwtExtractor.getUsername(httpRequest).orElse("xxx")))
+                )
+                .count();
+
+        if (tasks > 0) {
+            content = "<a href=\"/forms/tasks\" style=\"\n" +
+                    "    text-decoration: none;\n" +
+                    "    xcolor: #3498db;\n" +
+                    "    xfont-weight: bold;\n" +
+                    "    animation: fade 2s ease-in-out infinite alternate;\n" +
+                    "\">\n" +
+                    "    You have tasks!\n" +
+                    "</a>\n" +
+                    "\n" +
+                    "<style>\n" +
+                    "    @keyframes fade {\n" +
+                    "        from { opacity: 1; }\n" +
+                    "        to { opacity: 0; }\n" +
+                    "    }\n" +
+                    "</style>";
+
+        } else {
+            content = "<a href=\"/forms/tasks\" style=\"text-decoration: none;\">No tasks</a>";
+
+        }
+
     }
 }
