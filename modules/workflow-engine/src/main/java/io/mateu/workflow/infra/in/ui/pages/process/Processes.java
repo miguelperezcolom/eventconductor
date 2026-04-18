@@ -3,6 +3,8 @@ package io.mateu.workflow.infra.in.ui.pages.process;
 import io.mateu.core.infra.declarative.AutoCrudAdapter;
 import io.mateu.core.infra.declarative.AutoCrudOrchestrator;
 import io.mateu.core.infra.declarative.CrudOrchestrator;
+import io.mateu.dtos.UIFragmentDto;
+import io.mateu.dtos.UIIncrementDto;
 import io.mateu.uidl.annotations.Button;
 import io.mateu.uidl.annotations.ListToolbarButton;
 import io.mateu.uidl.annotations.Toolbar;
@@ -12,6 +14,7 @@ import io.mateu.uidl.fluent.OnSuccessTrigger;
 import io.mateu.uidl.fluent.Trigger;
 import io.mateu.uidl.interfaces.CrudAdapter;
 import io.mateu.uidl.interfaces.HttpRequest;
+import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.domain.aggregates.ProcessStatus;
 import io.mateu.workflow.infra.in.ui.adapters.ProcessCrudAdapter;
 import io.mateu.workflow.infra.in.ui.adapters.SimpleProcessCrudAdapter;
@@ -31,6 +34,7 @@ public class Processes extends CrudOrchestrator<SimpleProcessViewModel, NoEditor
 
     final SimpleProcessCrudAdapter processCrudAdapter;
     final CreateProcessForm createProcessForm;
+    final ProcessRepository processRepository;
 
 
     @Override
@@ -52,8 +56,8 @@ public class Processes extends CrudOrchestrator<SimpleProcessViewModel, NoEditor
     public List<Trigger> triggers(HttpRequest httpRequest) {
         if (isViewing(httpRequest)) {
             var triggers = new ArrayList<Trigger>(super.triggers(httpRequest));
-            triggers.add(new OnLoadTrigger("view", 1000, 1, "state.status.type != 'SUCCESS'"));
-            triggers.add(new OnSuccessTrigger("view", "view", "state.status.type != 'SUCCESS'", 1000));
+            triggers.add(new OnLoadTrigger("refresh", 1000, 1, "state.status.type != 'SUCCESS'"));
+            triggers.add(new OnSuccessTrigger("refresh", "refresh", "state.status.type != 'SUCCESS'", 1000));
             return triggers;
         }
         return super.triggers(httpRequest);
@@ -62,12 +66,19 @@ public class Processes extends CrudOrchestrator<SimpleProcessViewModel, NoEditor
     @Override
     public Object handleAction(String actionId, HttpRequest httpRequest) {
         var result = super.handleAction(actionId, httpRequest);
-        if ("view".equals(httpRequest.runActionRq().actionId())) {
-            if (ProcessStatus.COMPLETED.name().equals(httpRequest.getAttribute("_status"))) {
-                if (httpRequest.getAttribute("_returnTo") != null) {
-                    return URI.create(httpRequest.getAttribute("_returnTo").toString());
+        if ("refresh".equals(httpRequest.runActionRq().actionId())) {
+            var id = (String) httpRequest.runActionRq().componentState().get("id");
+            if (id != null) {
+                Process process = processRepository.findById(id).orElse(processRepository.findByBusinessKey(id).orElse(null));
+                if (ProcessStatus.COMPLETED.equals(process.getStatus())) {
+                    var returnTo = (String) httpRequest.runActionRq().componentState().get("returnTo");
+                    if (returnTo != null) {
+                        return URI.create(returnTo);
+                    }
                 }
+                return new State(process);
             }
+            return UIIncrementDto.builder().build(); // refresh but not in view state... do nothing on client side
         }
         return result;
     }
