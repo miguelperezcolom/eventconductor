@@ -6,6 +6,7 @@ import io.mateu.uidl.data.Pageable;
 import io.mateu.workflow.controlplaneservice.application.query.PageQueryService;
 import io.mateu.workflow.controlplaneservice.application.query.dto.PageDto;
 import io.mateu.workflow.controlplaneservice.application.query.dto.PageRow;
+import io.mateu.workflow.controlplaneservice.domain.aggregates.page.vo.PageChangeFrequency;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -46,7 +47,10 @@ public class PageDBQueryService implements PageQueryService {
                 entity.path,
                 entity.jsonLd,
                 entity.dependsOnLanguage,
-                entity.dependsOnCountry
+                entity.dependsOnCountry,
+                PageChangeFrequency.valueOf(entity.changeFrequency),
+                entity.priority,
+                entity.lastModification
         );
     }
 

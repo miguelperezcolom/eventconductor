@@ -24,7 +24,16 @@
 #              - Path=/api/**
 #            filters:
 #              - TokenEnrichmentFilter
-
+          - id: static_route
+            uri: http://localhost:8107
+            predicates:
+              - Path=/static/**
+          - id: forms_route
+            uri: http://localhost:8106
+            predicates:
+              - Path=/_forms/**
+            filters:
+              - TokenEnrichmentFilter
           - id: forms_route
             uri: http://localhost:8106
             predicates:
@@ -64,3 +73,4 @@
               - Path=/**
             filters:
               - TokenEnrichmentFilter
+

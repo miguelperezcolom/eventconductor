@@ -1,10 +1,17 @@
 package io.mateu.workflow.controlplaneservice.infra.out.persistence;
 
 
+import io.mateu.workflow.controlplaneservice.domain.aggregates.page.vo.PageChangeFrequency;
+import io.mateu.workflow.controlplaneservice.domain.aggregates.page.vo.PageCheck;
+import io.mateu.workflow.controlplaneservice.domain.aggregates.page.vo.PageLastModification;
+import io.mateu.workflow.controlplaneservice.domain.aggregates.page.vo.PagePriority;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+
+import java.time.LocalDateTime;
+import java.util.List;
 
 @Entity
 @AllArgsConstructor
@@ -34,4 +41,13 @@ public class PageEntity {
     boolean dependsOnLanguage;
 
     boolean dependsOnCountry;
+
+    String changeFrequency;
+
+    double priority;
+
+    LocalDateTime lastModification;
+
+    String checks;
+
 }

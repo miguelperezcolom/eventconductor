@@ -4,6 +4,7 @@ import io.mateu.workflow.controlplaneservice.application.out.CountryRepository;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.country.Country;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.country.vo.CountryCode;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.country.vo.CountryName;
+import io.mateu.workflow.controlplaneservice.domain.aggregates.tier.vo.TierId;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,7 +17,7 @@ public class CreateCountryUseCase {
 
     @Transactional
     public String handle(CreateCountryCommand command) {
-        return repository.save(Country.of(new CountryCode(command.code()), new CountryName(command.name()))
+        return repository.save(Country.of(new CountryCode(command.code()), new CountryName(command.name()), new TierId(command.tierId()))
         ).code();
     }
 

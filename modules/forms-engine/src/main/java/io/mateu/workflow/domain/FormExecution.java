@@ -31,6 +31,8 @@ public record FormExecution(
         @NotNull
         @Status(defaultStatus = StatusType.NONE, mappings = {
                 @StatusMapping(from = "", to = StatusType.NONE),
+                @StatusMapping(from = "ASSIGNED", to = StatusType.WARNING),
+                @StatusMapping(from = "COMPLETED", to = StatusType.SUCCESS),
         })
         FormExecutionStatus status,
         String userId,

@@ -3,6 +3,7 @@ package io.mateu.workflow.controlplaneservice.application.usecases.country.updat
 import io.mateu.workflow.controlplaneservice.application.out.CountryRepository;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.country.vo.CountryCode;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.country.vo.CountryName;
+import io.mateu.workflow.controlplaneservice.domain.aggregates.tier.vo.TierId;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,7 +17,7 @@ public class UpdateCountryUseCase {
     @Transactional
     public void handle(UpdateCountryCommand command) {
         var country = repository.findById(new CountryCode(command.code())).orElseThrow();
-        country.update(new CountryName(command.name()));
+        country.update(new CountryName(command.name()), new TierId(command.tierId()));
         repository.save(country);
     }
 

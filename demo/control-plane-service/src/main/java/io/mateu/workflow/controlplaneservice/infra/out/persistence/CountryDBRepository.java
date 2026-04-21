@@ -4,6 +4,7 @@ import io.mateu.workflow.controlplaneservice.application.out.CountryRepository;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.country.Country;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.country.vo.CountryCode;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.country.vo.CountryName;
+import io.mateu.workflow.controlplaneservice.domain.aggregates.tier.vo.TierId;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -24,14 +25,16 @@ public class CountryDBRepository implements CountryRepository {
     private Country toDomain(CountryEntity entity) {
         return new Country(
                 new CountryCode(entity.code),
-                new CountryName(entity.name)
+                new CountryName(entity.name),
+                new TierId(entity.tierId)
         );
     }
 
     private CountryEntity toEntity(Country country) {
         return new CountryEntity(
                 country.getCode().code(),
-                country.getName().name()
+                country.getName().name(),
+                country.getTierId().id()
         );
     }
 

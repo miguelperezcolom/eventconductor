@@ -74,7 +74,7 @@ public class HarAssetDownloader {
             if (status == 0) continue;                        // cancelada, sin respuesta
             if (!url.startsWith(ORIGIN_BASE)) continue;       // es de un tercero, ignorar
 
-            paths.add(url.substring(ORIGIN_BASE.length()));   // guarda el path (/home/...)
+            paths.add(url.substring(ORIGIN_BASE.length()));   // guarda el maskedUrl (/home/...)
         }
         return new ArrayList<>(paths);
     }
@@ -158,7 +158,7 @@ public class HarAssetDownloader {
     // ── Utilidades ────────────────────────────────────────────────────────────
 
     /**
-     * Convierte un path de URL en una ruta local relativa legible,
+     * Convierte un maskedUrl de URL en una ruta local relativa legible,
      * decodificando el percent-encoding (p.ej. %20 → espacio).
      */
     static String toLocalPath(String urlPath) {

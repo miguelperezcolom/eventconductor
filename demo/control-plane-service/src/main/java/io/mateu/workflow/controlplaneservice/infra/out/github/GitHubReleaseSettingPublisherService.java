@@ -1,11 +1,15 @@
 package io.mateu.workflow.controlplaneservice.infra.out.github;
 
-import io.mateu.workflow.controlplaneservice.infra.out.persistence.ReleaseEntityRepository;
-import io.mateu.workflow.controlplaneservice.infra.out.persistence.RouteEntityRepository;
-import io.mateu.workflow.controlplaneservice.infra.out.persistence.SiteEntityRepository;
+import io.mateu.workflow.controlplaneservice.infra.out.persistence.*;
 import io.mateu.workflow.dtos.MessageType;
 import io.mateu.workflow.dtos.events.integration.TaskLogEmitted;
 import lombok.RequiredArgsConstructor;
+import lombok.SneakyThrows;
+import org.jdom2.Document;
+import org.jdom2.Element;
+import org.jdom2.Namespace;
+import org.jdom2.output.Format;
+import org.jdom2.output.XMLOutputter;
 import org.kohsuke.github.*;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.stream.function.StreamBridge;
@@ -13,6 +17,11 @@ import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.io.StringWriter;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -28,6 +37,8 @@ public class GitHubReleaseSettingPublisherService {
     final CloudFlareVerifierService verifierService;
     final RouteEntityRepository routeEntityRepository;
     final StreamBridge streamBridge;
+    private final PageEntityRepository pageEntityRepository;
+    private final LanguageEntityRepository languageEntityRepository;
 
     @Value("${github.token}")
     private String githubToken;
@@ -48,18 +59,6 @@ public class GitHubReleaseSettingPublisherService {
 
         // 3. Crear el "Tree" con los archivos locales
         GHTreeBuilder treeBuilder = repository.createTree().baseTree(baseTreeSha);
-
-        // Leer contenido directamente
-        var siteId = releaseEntityRepository.findById(Long.valueOf(versionTag)).orElseThrow().getSiteId();
-        String llmsTxt = siteEntityRepository.findById(siteId).orElseThrow().getLlmsTxt();
-        // Publicar
-        treeBuilder.add("public/llms.txt", llmsTxt.getBytes(java.nio.charset.StandardCharsets.UTF_8), false);
-
-        streamBridge.send("upstream", new TaskLogEmitted(
-                taskExecutionId,
-                MessageType.Info,
-                "llms.txt added."));
-
 
         Map<String, String> releaseMap = new HashMap<>();
         routeEntityRepository.findAll()
