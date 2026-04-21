@@ -11,9 +11,12 @@ import io.mateu.workflow.controlplaneservice.application.query.dto.ReleaseRow;
 import io.mateu.workflow.controlplaneservice.application.usecases.release.changestatus.ChangeReleaseStatusCommand;
 import io.mateu.workflow.controlplaneservice.application.usecases.release.changestatus.ChangeReleaseStatusUseCase;
 import lombok.RequiredArgsConstructor;
+import lombok.SneakyThrows;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Service;
 
+import java.net.URI;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -59,6 +62,12 @@ public class ReleaseCrudOrchestrator extends CrudOrchestrator<
         changeReleaseStatusUseCase
                 .handle(new ChangeReleaseStatusCommand(
                         List.of((String) data.get("id")), "Green"));
+    }
+
+    @SneakyThrows
+    public Object preview(HttpRequest httpRequest) {
+        var data = (Map<String, Object>) httpRequest.runActionRq().parameters().get("_clickedRow");
+        return URI.create("https://riu-com-copy.miguelperezcolom.workers.dev/?force_version=v" + (String) data.get("id")).toURL();
     }
 
     @Override

@@ -1,0 +1,27 @@
+
+- varios tiers, con nº de peticiones concurrentes y frecuencia
+- asignamos el mercado a un tier
+- creamos release por tier
+- asignamos release por operativa y tier
+
+- adopción progresiva (por operativa, mercado, idioma)
+
+- despliegues blue/green, previsualización y canary
+- despliegue y rollback instantáneo
+
+- index.js con todos los estáticos
+- sitemap.xml dinámico
+- inyectamos llms.txt, json-ld (microformatos) y robots.txt. Cualquier contenido, de hecho
+
+- mapa en kv, páginas en r2
+- sobreescribimos con parámetros de query / cookies
+-
+
+- ojo versiones apis
+
+- control de cambios utiliza chromatic para comparar versiones
+- tests e2e
+
+- operativas
+- hoteles
+- landings

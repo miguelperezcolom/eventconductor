@@ -1,0 +1,17 @@
+Tenemos una web (riu.com) que está construida utilizando microfrontends por ruta. Esto es, para cada ruta tenemos una SPA hecha con angular.
+
+Para favorecer el SEO, hacemos SSG, de manera que tenemos un servidor node (varios pods) sirviendo los htmls.
+
+Estos htmls se cachean en clodflare siguiendo diverss políticas.
+
+Queremos quitar los nodes subiendo directamente a cloudflare los htmls. Esto es, tener un proceso que captura los htmls llamando a los nodes y después los sube a r2 en cloudflare. cloudflare solo sirve los contenidos que tiene en r2.
+
+De esta manera, el servicio es más rápido y, sobre todo, más robusto. También nos permite, entre otras cosas, inyectar los json-ld en los htmls capturados y fácilmente gestionar releases, despliegues blue/green y rollbacks.
+
+El problema es el número de páginas. Tenemos 132 rutas, cada una en 10 idiomas, y varían en función del mercado/país (230).
+
+Podemos hacer llamadas en paralelo, 1 para cada ruta, sin problema. De hecho, incluso podemos hacerlo en paralelo dentro de cada ruta, pero el rendimiento del node es muy pobre así que no debemos abusar.
+
+La idea, para poder hacer que el proceso sea rápido, es establecer tiers/prioridades. Para cada tier podemos definir el nº de peticiones concurrentes que podemos hacer a cada ruta. Luego, asignamos cada mercado a una tier.
+
+COmo resultado, deberíamos poder capturar los htmls de los mercados más relevantes, para toda la web, de manera rápida.

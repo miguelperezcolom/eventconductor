@@ -8,6 +8,8 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
 @NoArgsConstructor
 @AllArgsConstructor
 @Getter
@@ -27,13 +29,25 @@ public class Page extends AggregateRoot {
 
     PageDependsOnCountry dependsOnCountry;
 
+    PageChangeFrequency changeFrequency;
+
+    PagePriority priority;
+
+    PageLastModification lastModification;
+
+    List<PageCheck> checks;
+
 
     public static Page of(SiteId siteId,
                           PageName name,
                           PagePath path,
                           PageJsonLd jsonLd,
                           PageDependsOnLanguage dependsOnLanguage,
-                          PageDependsOnCountry dependsOnCountry) {
+                          PageDependsOnCountry dependsOnCountry,
+                          PageChangeFrequency changeFrequency,
+                          PagePriority priority,
+                          PageLastModification lastModification,
+                          List<PageCheck> checks) {
         Page p = new Page();
         p.siteId = siteId;
         p.name = name;
@@ -41,6 +55,11 @@ public class Page extends AggregateRoot {
         p.jsonLd = jsonLd;
         p.dependsOnLanguage = dependsOnLanguage;
         p.dependsOnCountry = dependsOnCountry;
+        p.changeFrequency = changeFrequency;
+        p.priority = priority;
+        p.lastModification = lastModification;
+        p.checks = checks;
+
         return p;
     }
 
@@ -49,13 +68,19 @@ public class Page extends AggregateRoot {
                        PagePath path,
                        PageJsonLd jsonLd,
                        PageDependsOnLanguage dependsOnLanguage,
-                       PageDependsOnCountry dependsOnCountry) {
+                       PageDependsOnCountry dependsOnCountry,
+                       PageChangeFrequency changeFrequency,
+                       PagePriority priority,
+                       List<PageCheck> checks) {
         this.siteId = siteId;
         this.name = name;
         this.path = path;
         this.jsonLd = jsonLd;
         this.dependsOnLanguage = dependsOnLanguage;
         this.dependsOnCountry = dependsOnCountry;
+        this.changeFrequency = changeFrequency;
+        this.priority = priority;
+        this.checks = checks;
     }
 
 }

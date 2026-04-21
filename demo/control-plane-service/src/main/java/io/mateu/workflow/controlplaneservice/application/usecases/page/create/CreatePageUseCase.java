@@ -8,6 +8,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import static io.mateu.uidl.interfaces.IconKey.List;
+
 @Service
 @RequiredArgsConstructor
 public class CreatePageUseCase {
@@ -22,7 +24,13 @@ public class CreatePageUseCase {
                 new PagePath(command.path()),
                 new PageJsonLd(command.jsonLd()),
                 new PageDependsOnLanguage(command.dependsOnLanguage()),
-                new PageDependsOnCountry(command.dependsOnCountry())
+                new PageDependsOnCountry(command.dependsOnCountry()),
+                command.changeFrequency(),
+                new PagePriority(command.priority()),
+                new PageLastModification(null),
+                command.checks() != null?command.checks().stream()
+                        .map(check -> new PageCheck(check.checkType(), check.value()))
+                        .toList():null
                 )
         ).id().toString();
     }

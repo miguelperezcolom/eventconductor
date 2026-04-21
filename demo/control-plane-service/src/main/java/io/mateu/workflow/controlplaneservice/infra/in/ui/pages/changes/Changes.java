@@ -7,6 +7,8 @@ import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.uidl.interfaces.ListingBackend;
 import io.mateu.workflow.controlplaneservice.application.query.ChangeQueryService;
 import io.mateu.workflow.controlplaneservice.application.query.dto.ChangeStatus;
+import io.mateu.workflow.controlplaneservice.application.usecases.compare.CompareCommand;
+import io.mateu.workflow.controlplaneservice.application.usecases.compare.CompareUseCase;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Scope;
@@ -28,6 +30,7 @@ public class Changes implements ListingBackend<NoFilters, ChangeRow> {
 
     final ChangeQueryService queryService;
     final CreateReleaseForm createReleaseForm;
+    final CompareUseCase compareUseCase;
 
     @Override
     public ListingData<ChangeRow> search(String searchText, NoFilters filters, Pageable pageable, HttpRequest httpRequest) {
@@ -41,10 +44,17 @@ public class Changes implements ListingBackend<NoFilters, ChangeRow> {
                         .content(found.page().content().stream()
                                 .map(dto -> new ChangeRow(
                                         dto.pageId(), dto.page(), dto.country(), dto.language(),
-                                        new Status(mapStatus(dto.status()), dto.status().name())))
+                                        new Status(mapStatus(dto.status()), dto.status().name()),
+                                        new ColumnAction("compare", "Compare")))
                                 .toList())
                         .build())
                 .build();
+    }
+
+    public Object compare(ChangeRow row) {
+        log.info("compare {}", row);
+        var result = compareUseCase.handle(new CompareCommand(row.id()));
+        return new ComparisonResultPage(result);
     }
 
     private StatusType mapStatus(ChangeStatus status) {

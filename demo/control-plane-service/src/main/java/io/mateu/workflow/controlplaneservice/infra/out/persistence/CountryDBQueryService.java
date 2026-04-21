@@ -21,7 +21,8 @@ public class CountryDBQueryService implements CountryQueryService {
     private CountryRow toDomain(CountryEntity entity) {
         return new CountryRow(
                 entity.code,
-                entity.name
+                entity.name,
+                entity.tierId
         );
     }
 
@@ -38,7 +39,8 @@ public class CountryDBQueryService implements CountryQueryService {
     private CountryDto toDto(CountryEntity entity) {
         return new CountryDto(
                 entity.code,
-                entity.name
+                entity.name,
+                entity.tierId
         );
     }
 

@@ -10,6 +10,9 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.Optional;
 
+import static io.mateu.core.infra.JsonSerializer.listFromJson;
+import static io.mateu.core.infra.JsonSerializer.toJson;
+
 @Service
 @RequiredArgsConstructor
 public class PageDBRepository implements PageRepository {
@@ -29,7 +32,11 @@ public class PageDBRepository implements PageRepository {
                 new PagePath(entity.path),
                 new PageJsonLd(entity.jsonLd),
                 new PageDependsOnLanguage(entity.dependsOnLanguage),
-                new PageDependsOnCountry(entity.dependsOnCountry)
+                new PageDependsOnCountry(entity.dependsOnCountry),
+                PageChangeFrequency.valueOf(entity.changeFrequency),
+                new PagePriority(entity.priority),
+                new PageLastModification(entity.lastModification),
+                listFromJson(entity.checks, PageCheck.class)
         );
     }
 
@@ -41,7 +48,11 @@ public class PageDBRepository implements PageRepository {
                 page.getPath().path(),
                 page.getJsonLd().json(),
                 page.getDependsOnLanguage().depends(),
-                page.getDependsOnCountry().depends()
+                page.getDependsOnCountry().depends(),
+                page.getChangeFrequency().name(),
+                page.getPriority().priority(),
+                page.getLastModification().dateTime(),
+                toJson(page.getChecks())
         );
     }
 

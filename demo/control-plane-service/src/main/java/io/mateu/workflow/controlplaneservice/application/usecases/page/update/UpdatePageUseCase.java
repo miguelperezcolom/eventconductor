@@ -22,7 +22,12 @@ public class UpdatePageUseCase {
                 new PagePath(command.path()),
                 new PageJsonLd(command.jsonLd()),
                 new PageDependsOnLanguage(command.dependsOnLanguage()),
-                new PageDependsOnCountry(command.dependsOnCountry())
+                new PageDependsOnCountry(command.dependsOnCountry()),
+                command.changeFrequency(),
+                new PagePriority(command.priority()),
+                command.checks() != null?command.checks().stream()
+                        .map(check -> new PageCheck(check.checkType(), check.value()))
+                        .toList():null
         );
         repository.save(page);
     }

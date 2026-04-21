@@ -18,4 +18,6 @@ public class CountryEntity {
 
     String name;
 
+    String tierId;
+
 }

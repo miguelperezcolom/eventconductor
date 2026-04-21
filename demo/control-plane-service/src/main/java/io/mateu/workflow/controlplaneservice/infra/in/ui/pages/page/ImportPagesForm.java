@@ -17,6 +17,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.net.URI;
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
 
@@ -60,7 +61,11 @@ public class ImportPagesForm {
                                 new PagePath(route.isEmpty() ? "/" : route),
                                 new PageJsonLd("{}"),
                                 new PageDependsOnLanguage(dependsOnLanguage),
-                                new PageDependsOnCountry(true)
+                                new PageDependsOnCountry(true),
+                                PageChangeFrequency.daily,
+                                new PagePriority(1),
+                                new PageLastModification(LocalDateTime.now()),
+                                List.of()
                         ));
                     }
                 }

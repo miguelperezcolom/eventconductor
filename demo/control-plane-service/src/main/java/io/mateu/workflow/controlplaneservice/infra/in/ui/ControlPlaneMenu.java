@@ -17,12 +17,6 @@ public class ControlPlaneMenu {
     DownloadedContentMenu downloadedContent;
 
     @Menu
-    ReleaseCrudOrchestrator releases;
-
-    @Menu
-    Changes changes;
-
-    @Menu
-    Deployer deployer;
+    ReleasesMenu releases;
 
 }

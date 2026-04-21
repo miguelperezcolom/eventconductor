@@ -23,7 +23,7 @@ class CloudFlareVerifierServiceTest {
     void works() throws IOException {
         System.out.println("Hola!");
         Path path = Paths.get("./tmp/riu/");
-        System.out.println("path = " + path.toAbsolutePath());
+        System.out.println("maskedUrl = " + path.toAbsolutePath());
         service.verify("xxx", "v" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmm")));
     }
 

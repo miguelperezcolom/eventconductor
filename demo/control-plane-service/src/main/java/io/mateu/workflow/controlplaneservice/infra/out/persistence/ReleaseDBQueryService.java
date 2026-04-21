@@ -37,7 +37,8 @@ public class ReleaseDBQueryService implements ReleaseQueryService {
                 toStatus(entity.status),
                 new ColumnActionGroup(new ColumnAction[]{
                         new ColumnAction("action-on-row-setAsBlue", "Set as blue"),
-                        new ColumnAction("action-on-row-setAsGreen", "Set as green")
+                        new ColumnAction("action-on-row-setAsGreen", "Set as green"),
+                        new ColumnAction("action-on-row-preview", "Preview")
                 })
         );
     }

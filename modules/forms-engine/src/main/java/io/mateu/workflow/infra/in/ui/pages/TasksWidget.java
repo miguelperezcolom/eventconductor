@@ -4,6 +4,7 @@ import io.mateu.core.infra.JwtExtractor;
 import io.mateu.uidl.RouteConstants;
 import io.mateu.uidl.annotations.*;
 import io.mateu.uidl.data.FieldStereotype;
+import io.mateu.uidl.data.State;
 import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.uidl.interfaces.Hydratable;
 import io.mateu.workflow.infra.out.persistence.FormExecutionEntityRepository;
@@ -14,7 +15,7 @@ import org.springframework.stereotype.Service;
 @Title("")
 @Service
 @RequiredArgsConstructor
-@Trigger(type = TriggerType.OnLoad, actionId = "refresh")
+@Trigger(type = TriggerType.OnLoad, actionId = "refresh", timeoutMillis = 1000)
 @Trigger(type = TriggerType.OnSuccess, actionId = "refresh", calledActionId = "refresh", timeoutMillis = 1000)
 public class TasksWidget implements Hydratable {
 
@@ -22,6 +23,10 @@ public class TasksWidget implements Hydratable {
 
     @Stereotype(FieldStereotype.html)
     String content = "hello";
+
+    Object refresh() {
+        return new State(this);
+    }
 
     @Override
     public void hydrate(HttpRequest httpRequest) {
@@ -56,8 +61,6 @@ public class TasksWidget implements Hydratable {
 
         } else {
             content = "<a href=\"/forms/tasks\" style=\"text-decoration: none;\">No tasks</a>&nbsp;&nbsp;";
-
         }
-
     }
 }
