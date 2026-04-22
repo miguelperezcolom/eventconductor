@@ -1,0 +1,6 @@
+# Ignorar todo el contenido
+*
+
+# Permitir que el .gitignore y el .gitkeep se suban
+!.gitignore
+!.gitkeep
