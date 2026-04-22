@@ -28,11 +28,6 @@ public class ProcessUpdateStepExecutionUpdateUseCase {
         var executions = stepExecutionRepository.findByProcess(process);
         var status = !executions.isEmpty() ? ProcessStatus.COMPLETED:ProcessStatus.PENDING;
         for (StepExecution execution : executions) {
-            if (StepExecutionStatus.CREATED == execution.getStatus()) {
-                status = ProcessStatus.PENDING;
-            }
-        }
-        for (StepExecution execution : executions) {
             if (StepExecutionStatus.PENDING == execution.getStatus()) {
                 status = ProcessStatus.RUNNING;
             }
@@ -43,6 +38,12 @@ public class ProcessUpdateStepExecutionUpdateUseCase {
             }
         }
         var percent = Math.round(100d * executions.stream().filter(e -> StepExecutionStatus.COMPLETED.equals(e.getStatus())).count() / (double) executions.size());
+        if (percent > 0) {
+            status = ProcessStatus.RUNNING;
+        }
+        if (percent == 100) {
+            status = ProcessStatus.COMPLETED;
+        }
         process = process.withStatus(status).withCompletionPercentage((int) percent);
         if (process.getStarted() == null && (status.equals(ProcessStatus.RUNNING)
                 || status.equals(ProcessStatus.COMPLETED)

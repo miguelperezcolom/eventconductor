@@ -84,9 +84,14 @@ public class ScrapeUseCase {
 
     private void saveRoute(ScrapeCommand command, LanguageCode languageCode, CountryCode countryCode, Page page, String routeUrl, Site site, String path) {
         var found = routeRepository.findAll().stream()
-                .filter(r -> (countryCode == null && r.getCountry() == null) || (countryCode != null && r.getCountry() != null && r.getCountry().code() != null && r.getCountry().code().equals(countryCode.code())))
+                .filter(r -> (countryCode == null && (r.getCountry() == null || r.getCountry().code() == null))
+                        || (countryCode != null
+                        && r.getCountry() != null
+                        && r.getCountry().code() != null
+                        && r.getCountry().code().equals(countryCode.code())))
                 .filter(r -> routeUrl.equals(r.getUrl().url())).findAny();
         if (found.isEmpty()) {
+            log.info("Saving new route {} for site {} with country {} and language {}", routeUrl, site.getId().id(), countryCode, languageCode);
             routeRepository.save(Route.of(
                     new RouteName(site.getId().id() + path + (countryCode != null?("_" + countryCode.code()):"")),
                     languageCode,
