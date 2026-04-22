@@ -16,8 +16,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
+
+import static io.mateu.core.infra.JsonSerializer.listFromJson;
 
 @Configuration
 @RequiredArgsConstructor
@@ -109,7 +112,9 @@ public class WorkerKafkaConsumerConfig {
 
               if (taskExecutionRequested.stepId().equals("update-releases")) {
                   new Thread(() -> updateRoutesUseCase.handle(new DeployCommand(taskExecutionRequested.taskExecutionId(),
-                          List.of(),
+                          Arrays.stream(taskExecutionRequested.variables().stream()
+                                  .filter(variable -> "routeIds".equals(variable.name()))
+                                  .findAny().orElseThrow().value().split(",")).toList(),
                           taskExecutionRequested.variables().stream()
                                   .filter(variable -> "releaseId".equals(variable.name()))
                                   .findAny().orElseThrow().value(),
