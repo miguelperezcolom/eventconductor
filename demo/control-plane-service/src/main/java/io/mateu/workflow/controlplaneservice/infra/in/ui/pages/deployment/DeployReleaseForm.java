@@ -11,6 +11,7 @@ import io.mateu.workflow.controlplaneservice.infra.in.ui.suppliers.ReleaseIdLabe
 import io.mateu.workflow.controlplaneservice.infra.in.ui.suppliers.ReleaseIdOptionsSupplier;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Service;
 
 import java.net.URI;
@@ -18,6 +19,7 @@ import java.util.List;
 import java.util.UUID;
 
 @Service
+@Scope("prototype")
 @Slf4j
 @RequiredArgsConstructor
 @Title("Deploy release")
@@ -38,7 +40,7 @@ public class DeployReleaseForm {
         var businessKey = UUID.randomUUID().toString();
         var command = new AskForDeploymentCommand(businessKey, routes.stream().map(DeploymentRow::id).toList(), release);
         useCase.handle(command);
-        return URI.create("/workflow/processes/" + businessKey + "?returnTo=/controlPlane/deployer");
+        return URI.create("/workflow/processes/" + businessKey + "?returnTo=/controlPlane/releases/deployer");
     }
 
     public DeployReleaseForm withRoutes(List<DeploymentRow> routeIds) {

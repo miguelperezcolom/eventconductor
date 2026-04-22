@@ -67,7 +67,7 @@ public class ReleaseCrudOrchestrator extends CrudOrchestrator<
     @SneakyThrows
     public Object preview(HttpRequest httpRequest) {
         var data = (Map<String, Object>) httpRequest.runActionRq().parameters().get("_clickedRow");
-        return URI.create("https://riu-com-copy.miguelperezcolom.workers.dev/?force_version=v" + (String) data.get("id")).toURL();
+        return URI.create("https://riu-com-copy.miguelperezcolom.workers.dev/es?force_version=v" + (String) data.get("id")).toURL();
     }
 
     @Override

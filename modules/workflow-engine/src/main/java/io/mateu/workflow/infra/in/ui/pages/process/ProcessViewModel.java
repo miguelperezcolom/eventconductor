@@ -68,8 +68,9 @@ public class ProcessViewModel implements TriggersSupplier {
     @Override
     public List<Trigger> triggers(HttpRequest httpRequest) {
         var triggers = new ArrayList<Trigger>();
-        triggers.add(new OnLoadTrigger("refresh", 1000, 1, "state.status.type != 'SUCCESS'"));
-        triggers.add(new OnSuccessTrigger("refresh", "refresh", "state.status.type != 'SUCCESS'", 1000));
+        triggers.add(new OnLoadTrigger("view", 3000, 1, "state.status.type != 'SUCCESS'"));
+        //triggers.add(new OnLoadTrigger("refresh", 1000, 1, "state.status.type != 'SUCCESS'"));
+        //triggers.add(new OnSuccessTrigger("refresh", "refresh", "state.status.type != 'SUCCESS'", 1000));
         return triggers;
     }
 }

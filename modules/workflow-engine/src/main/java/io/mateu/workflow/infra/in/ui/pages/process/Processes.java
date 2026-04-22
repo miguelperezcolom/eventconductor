@@ -56,8 +56,9 @@ public class Processes extends CrudOrchestrator<SimpleProcessViewModel, NoEditor
     public List<Trigger> triggers(HttpRequest httpRequest) {
         if (isViewing(httpRequest)) {
             var triggers = new ArrayList<Trigger>(super.triggers(httpRequest));
-            triggers.add(new OnLoadTrigger("refresh", 5000, 1, "state.status.type != 'SUCCESS'"));
-            triggers.add(new OnSuccessTrigger("refresh", "refresh", "state.status.type != 'SUCCESS'", 5000));
+            triggers.add(new OnLoadTrigger("view", 1000, 1, "state.status.type != 'SUCCESS'"));
+            //triggers.add(new OnLoadTrigger("refresh", 5000, 1, "state.status.type != 'SUCCESS'"));
+            //triggers.add(new OnSuccessTrigger("refresh", "refresh", "state.status.type != 'SUCCESS'", 5000));
             return triggers;
         }
         return super.triggers(httpRequest);
@@ -66,19 +67,22 @@ public class Processes extends CrudOrchestrator<SimpleProcessViewModel, NoEditor
     @Override
     public Object handleAction(String actionId, HttpRequest httpRequest) {
         var result = super.handleAction(actionId, httpRequest);
-        if ("refresh".equals(httpRequest.runActionRq().actionId())) {
+        if ("view".equals(httpRequest.runActionRq().actionId())) {
             var id = (String) httpRequest.runActionRq().componentState().get("id");
             if (id != null) {
                 Process process = processRepository.findById(id).orElse(processRepository.findByBusinessKey(id).orElse(null));
                 if (ProcessStatus.COMPLETED.equals(process.getStatus())) {
                     var returnTo = (String) httpRequest.runActionRq().componentState().get("returnTo");
+                    if (returnTo == null) {
+                        if (httpRequest.runActionRq().route().contains("returnTo")) {
+                            returnTo = httpRequest.runActionRq().route().substring(httpRequest.runActionRq().route().indexOf("returnTo=")+"returnTo=".length());
+                        }
+                    }
                     if (returnTo != null) {
                         return URI.create(returnTo);
                     }
                 }
-                return new State(process);
             }
-            return UIIncrementDto.builder().build(); // refresh but not in view state... do nothing on client side
         }
         return result;
     }

@@ -20,6 +20,7 @@ import io.mateu.workflow.infra.in.ui.pages.process.childcruds.Error;
 import io.mateu.workflow.infra.in.ui.pages.process.childcruds.Message;
 import io.mateu.workflow.infra.in.ui.pages.process.childcruds.Resource;
 import io.mateu.workflow.infra.in.ui.pages.process.childcruds.Step;
+import io.mateu.workflow.infra.out.persistence.LogMessageEntity;
 import io.mateu.workflow.infra.out.persistence.LogMessageEntityRepository;
 import io.mateu.workflow.infra.out.persistence.ResourceEntityRepository;
 import io.mateu.workflow.infra.out.persistence.StepExecutionEntityRepository;
@@ -87,10 +88,14 @@ public class SimpleProcessCrudAdapter implements CrudAdapter<SimpleProcessViewMo
                         .toList(),
                 logMessageEntityRepository.findAllByProcessId(id).stream()
                         .filter(entity -> !"error".equals(entity.getMessageType()))
+                        .sorted(Comparator.comparing(LogMessageEntity::getTimestamp).reversed())
+                        .limit(10)
                         .map(entity -> new Message(id, entity.getId(), entity.getTimestamp(), entity.getMessage()))
                         .toList(),
                 logMessageEntityRepository.findAllByProcessId(id).stream()
                         .filter(entity -> "error".equals(entity.getMessageType()))
+                        .sorted(Comparator.comparing(LogMessageEntity::getTimestamp).reversed())
+                        .limit(10)
                         .map(entity -> new Error(id, entity.getId(), entity.getTimestamp(), entity.getMessage()))
                         .toList(),
                 resourceEntityRepository.findAllByProcessId(id).stream()
