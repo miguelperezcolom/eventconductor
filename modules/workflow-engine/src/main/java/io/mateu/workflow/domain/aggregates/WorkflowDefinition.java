@@ -13,8 +13,8 @@ import java.util.List;
 
 @FormLayout(columns = 3)
 public record WorkflowDefinition(
-        @GeneratedValue(UUIDValueGenerator.class)
-        @Hidden
+        //@GeneratedValue(UUIDValueGenerator.class)
+        @HiddenInEditor
         String id,
         @NotEmpty
         String name,
