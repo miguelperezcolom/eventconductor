@@ -15,8 +15,8 @@ import org.springframework.stereotype.Service;
 @Title("")
 @Service
 @RequiredArgsConstructor
-@Trigger(type = TriggerType.OnLoad, actionId = "refresh", timeoutMillis = 1000)
-@Trigger(type = TriggerType.OnSuccess, actionId = "refresh", calledActionId = "refresh", timeoutMillis = 1000)
+@Trigger(type = TriggerType.OnLoad, actionId = "refreshTasks", timeoutMillis = 5000)
+@Trigger(type = TriggerType.OnSuccess, actionId = "refreshTasks", calledActionId = "refreshTasks", timeoutMillis = 5000)
 public class TasksWidget implements Hydratable {
 
     final FormExecutionEntityRepository repository;
@@ -24,7 +24,7 @@ public class TasksWidget implements Hydratable {
     @Stereotype(FieldStereotype.html)
     String content = "hello";
 
-    Object refresh() {
+    Object refreshTasks() {
         return new State(this);
     }
 

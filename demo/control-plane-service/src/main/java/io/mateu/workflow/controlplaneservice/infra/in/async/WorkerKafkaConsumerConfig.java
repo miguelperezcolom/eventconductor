@@ -39,24 +39,21 @@ public class WorkerKafkaConsumerConfig {
           log.info("Received event: " + event);
           if (event instanceof TaskExecutionRequested taskExecutionRequested) {
 
-              if (taskExecutionRequested.workflowDefinitionId().equals("52ea7ab0-be39-44e4-af06-88dd61f2b0cd")
-                      && taskExecutionRequested.stepId().equals("capturar")) {
+              if (taskExecutionRequested.stepId().equals("capturar")) {
                   new Thread(() -> scrapeUseCase.handle(new ScrapeCommand(taskExecutionRequested.variables().stream()
                           .filter(variable -> "siteId".equals(variable.name()))
                           .findAny().orElseThrow().value(),
                           taskExecutionRequested.taskExecutionId()))).start();
               }
 
-              if (taskExecutionRequested.workflowDefinitionId().equals("52ea7ab0-be39-44e4-af06-88dd61f2b0cd")
-                      && taskExecutionRequested.stepId().equals("download")) {
+              if (taskExecutionRequested.stepId().equals("download")) {
                   new Thread(() -> downloadAssetsUseCase.handle(new DownloadAssetsCommand(taskExecutionRequested.variables().stream()
                           .filter(variable -> "siteId".equals(variable.name()))
                           .findAny().orElseThrow().value(),
                           taskExecutionRequested.taskExecutionId()))).start();
               }
 
-              if (taskExecutionRequested.workflowDefinitionId().equals("97caf06c-6716-4dbb-b858-271093694e3c")
-                      && taskExecutionRequested.stepId().equals("create-content")) {
+              if (taskExecutionRequested.stepId().equals("create-content")) {
                   new Thread(() -> createReleaseUseCase.handle(new CreateReleaseCommand(taskExecutionRequested.variables().stream()
                           .filter(variable -> "name".equals(variable.name()))
                           .findAny().orElseThrow().value(),
@@ -69,8 +66,7 @@ public class WorkerKafkaConsumerConfig {
                           taskExecutionRequested.taskExecutionId()))).start();
               }
 
-              if (taskExecutionRequested.workflowDefinitionId().equals("97caf06c-6716-4dbb-b858-271093694e3c")
-                      && taskExecutionRequested.stepId().equals("upload")) {
+              if (taskExecutionRequested.stepId().equals("upload")) {
                   new Thread(() -> uploadToR2UseCase.handle(new UploadToR2Command(taskExecutionRequested.variables().stream()
                           .filter(variable -> "name".equals(variable.name()))
                           .findAny().orElseThrow().value(),
@@ -86,8 +82,7 @@ public class WorkerKafkaConsumerConfig {
                                   .findAny().orElseThrow().value()))).start();
               }
 
-              if (taskExecutionRequested.workflowDefinitionId().equals("37632b1d-e294-4174-a5d2-e71f41e70579")
-                      && taskExecutionRequested.stepId().equals("update-script")) {
+              if (taskExecutionRequested.stepId().equals("update-script")) {
                   new Thread(() -> deployUseCase.handle(new DeployCommand(
                         taskExecutionRequested.taskExecutionId(),
                         List.of(),
@@ -100,8 +95,7 @@ public class WorkerKafkaConsumerConfig {
                         ))).start();
               }
 
-              if (taskExecutionRequested.workflowDefinitionId().equals("37632b1d-e294-4174-a5d2-e71f41e70579")
-                      && taskExecutionRequested.stepId().equals("verify")) {
+              if (taskExecutionRequested.stepId().equals("verify")) {
                   new Thread(() -> verifyDeploymentUseCase.handle(new DeployCommand(taskExecutionRequested.taskExecutionId(),
                             List.of(),
                             taskExecutionRequested.variables().stream()
@@ -113,8 +107,7 @@ public class WorkerKafkaConsumerConfig {
               }
 
 
-              if (taskExecutionRequested.workflowDefinitionId().equals("37632b1d-e294-4174-a5d2-e71f41e70579")
-                      && taskExecutionRequested.stepId().equals("update-releases")) {
+              if (taskExecutionRequested.stepId().equals("update-releases")) {
                   new Thread(() -> updateRoutesUseCase.handle(new DeployCommand(taskExecutionRequested.taskExecutionId(),
                           List.of(),
                           taskExecutionRequested.variables().stream()

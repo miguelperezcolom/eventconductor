@@ -56,8 +56,8 @@ public class Processes extends CrudOrchestrator<SimpleProcessViewModel, NoEditor
     public List<Trigger> triggers(HttpRequest httpRequest) {
         if (isViewing(httpRequest)) {
             var triggers = new ArrayList<Trigger>(super.triggers(httpRequest));
-            triggers.add(new OnLoadTrigger("refresh", 1000, 1, "state.status.type != 'SUCCESS'"));
-            triggers.add(new OnSuccessTrigger("refresh", "refresh", "state.status.type != 'SUCCESS'", 1000));
+            triggers.add(new OnLoadTrigger("refresh", 5000, 1, "state.status.type != 'SUCCESS'"));
+            triggers.add(new OnSuccessTrigger("refresh", "refresh", "state.status.type != 'SUCCESS'", 5000));
             return triggers;
         }
         return super.triggers(httpRequest);
