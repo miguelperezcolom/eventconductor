@@ -48,7 +48,7 @@ spring:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
       ddl-auto: update
-    show-sql: false
+    show-sql: true
     properties:
       hibernate:
         format_sql: true
@@ -77,3 +77,10 @@ logging:
     #    org.springframework.kafka: INFO
     # He añadido este para que veas errores detallados del binder si algo falla
 #    org.springframework.cloud.stream: INFO
+
+
+cloudflare:
+  api-token: ***REMOVED-LEAKED-CLOUDFLARE-TOKEN***
+  account-id: 763e3d775eccbcbc506637be3d39ccc5
+  namespace-id: da72f6197dbd4df1ad550f7c87612b3c
+  base-url: https://api.cloudflare.com/client/v4

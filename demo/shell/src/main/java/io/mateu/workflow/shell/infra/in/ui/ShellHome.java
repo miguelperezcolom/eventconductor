@@ -25,7 +25,7 @@ import static io.mateu.core.infra.JsonSerializer.fromJson;
 @PageTitle("Home")
 @Logo("/images/riu.svg")
 @Style(StyleConstants.CONTAINER)
-public class ShellHome //implements WidgetSupplier
+public class ShellHome implements WidgetSupplier
 {
 
     @Menu
@@ -62,7 +62,7 @@ public class ShellHome //implements WidgetSupplier
             .route("/_page")
             .build();
 
-    //@Override
+    @Override
     public List<Component> widgets(HttpRequest httpRequest) {
 
         List<Component> widgets = new ArrayList<>();

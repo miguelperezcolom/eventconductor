@@ -30,13 +30,16 @@ public class UpdateRoutesUseCase {
         log.info("deploying release {} for routes {}", command.releaseId(), command.routeIds());
 
         routeRepository.findAll().stream()
-                .filter(route -> command.routeIds() == null
-                        || command.routeIds().isEmpty()
-                        || command.routeIds().contains("" + route.getId().id()))
-                .forEach(route -> {
-                    route.updateRelease(new ReleaseId(Long.valueOf(command.releaseId())));
-                    routeRepository.save(route);
-                });
+                .filter(r ->
+                r.getPlannedRelease() != null &&
+                        r.getPlannedRelease().id().equals(Long.valueOf(command.releaseId())) &&
+                        (r.getRelease() == null ||
+                        (!r.getPlannedRelease().equals(r.getRelease()))))
+//                .filter(route -> command.routeIds() == null
+//                        || command.routeIds().isEmpty()
+//                        || command.routeIds().contains("" + route.getId().id()))
+                .peek(route -> route.updateRelease(new ReleaseId(Long.valueOf(command.releaseId()))))
+                .forEach(routeRepository::save);
 
         streamBridge.send("upstream", new TaskStatusChanged(
                 command.taskExecutionId(),
