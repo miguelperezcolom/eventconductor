@@ -30,7 +30,7 @@ public class VerifyDeploymentUseCase {
         log.info("deploying release {} for routes {}", command.releaseId(), command.routeIds());
 
 
-        verifierService.verify(command.taskExecutionId(), command.deploymentId());
+        //verifierService.verify(command.taskExecutionId(), command.deploymentId());
 
         streamBridge.send("upstream", new TaskStatusChanged(
                 command.taskExecutionId(),
