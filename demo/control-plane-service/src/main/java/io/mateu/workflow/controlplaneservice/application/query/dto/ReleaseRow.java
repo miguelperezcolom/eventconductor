@@ -5,5 +5,5 @@ import io.mateu.uidl.data.ColumnAction;
 import io.mateu.uidl.data.ColumnActionGroup;
 import io.mateu.uidl.data.Status;
 
-public record ReleaseRow(@Hidden String id, String site, String name, String user, String date, Status status, ColumnActionGroup action) {
+public record ReleaseRow(String id, String site, String name, String user, String date, Status status, ColumnActionGroup action) {
 }

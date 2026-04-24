@@ -128,7 +128,7 @@ public class DownloadAssetsUseCase {
     }
 
     private String readHtml(String url, String code) {
-        // read from url, setting country id as cookie X-RIU-GP
+        // read from url, setting country code as cookie X-RIU-GP
         try {
             var client = java.net.http.HttpClient.newBuilder()
                     .followRedirects(java.net.http.HttpClient.Redirect.NORMAL)

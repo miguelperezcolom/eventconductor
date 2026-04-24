@@ -6,7 +6,6 @@ import io.mateu.uidl.data.Page;
 import io.mateu.uidl.data.Pageable;
 import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.uidl.interfaces.LookupOptionsSupplier;
-import io.mateu.workflow.controlplaneservice.application.query.CountryQueryService;
 import io.mateu.workflow.controlplaneservice.application.query.TierQueryService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -26,6 +25,6 @@ public class TierIdOptionsSupplier implements LookupOptionsSupplier {
                 found.page().pageNumber(),
                 found.page().totalElements(),
                 found.page().content().stream().map(tier ->
-                        new Option(tier.id(), tier.name())).toList()));
+                        new Option(tier.code(), tier.name())).toList()));
     }
 }

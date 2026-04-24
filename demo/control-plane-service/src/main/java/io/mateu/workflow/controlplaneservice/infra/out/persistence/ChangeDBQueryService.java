@@ -17,7 +17,14 @@ public class ChangeDBQueryService implements ChangeQueryService {
 
     @Override
     public ListingData<ChangeDto> findAll(String searchText, Object filters, Pageable pageable) {
-        var all = repository.findAll();
+        var all = repository.findAllByOrderByPath()
+                .stream()
+                .filter(route ->
+                searchText == null ||
+                searchText.isEmpty() ||
+                        route.path.toLowerCase().contains(searchText)
+                )
+                .toList();
         return ListingData.<ChangeDto>builder()
                 .page(Page.<ChangeDto>builder()
                         .pageNumber(0)

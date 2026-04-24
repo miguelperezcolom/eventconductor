@@ -5,19 +5,13 @@ import io.mateu.workflow.controlplaneservice.infra.out.persistence.*;
 import io.mateu.workflow.dtos.MessageType;
 import io.mateu.workflow.dtos.events.integration.TaskLogEmitted;
 import lombok.RequiredArgsConstructor;
-import org.kohsuke.github.*;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.stream.function.StreamBridge;
 import org.springframework.context.annotation.Primary;
-import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
-
-import static io.mateu.core.infra.JsonSerializer.fromJson;
-import static io.mateu.core.infra.JsonSerializer.toJson;
 
 @Service
 @RequiredArgsConstructor
@@ -46,7 +40,7 @@ public class KVReleaseSettingPublisherService {
                 .stream()
                 .filter(r -> r.getPlannedReleaseId() != null)
                 .forEach(r -> releaseMap.put(
-                        toKvRouteKey(r.getPath()),
+                        toKvRouteKey(r.getCountryCode(), r.getPath()),
                         "v" + r.getPlannedReleaseId()
                 ));
 
@@ -66,9 +60,13 @@ public class KVReleaseSettingPublisherService {
         ));
     }
 
-    private String toKvRouteKey(String path) {
+    private String toKvRouteKey(String countryCode, String path) {
+
+        var prefix = "route:";
+        if (countryCode != null) prefix += countryCode + ":";
+
         if (path == null || path.isBlank() || "/".equals(path)) {
-            return "route:/";
+            return prefix + "/";
         }
 
         String normalized = path.trim();
@@ -81,6 +79,6 @@ public class KVReleaseSettingPublisherService {
             normalized = normalized.substring(0, normalized.length() - 1);
         }
 
-        return "route:" + normalized;
+        return prefix + normalized;
     }
 }

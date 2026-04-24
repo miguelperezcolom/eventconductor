@@ -76,7 +76,7 @@ public class ReleaseDBQueryService implements ReleaseQueryService {
     @Override
     public ListingData<ReleaseRow> findAll(String searchText,
                                            Object filters, Pageable pageable) {
-        var page = repository.findAllByNameContainingIgnoreCaseOrderByNameDesc(searchText, org.springframework.data.domain.Pageable
+        var page = repository.findAllByNameContainingIgnoreCaseOrderByIdDesc(searchText, org.springframework.data.domain.Pageable
                 .ofSize(pageable.size())
                 .withPage(pageable.page())
         );
