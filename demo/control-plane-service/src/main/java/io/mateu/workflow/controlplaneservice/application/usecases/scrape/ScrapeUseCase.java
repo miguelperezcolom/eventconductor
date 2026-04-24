@@ -37,7 +37,7 @@ public class ScrapeUseCase {
     final StreamBridge streamBridge;
 
     public void handle(ScrapeCommand command) {
-        log.info("Scraping site with id {}", command.siteId());
+        log.info("Scraping site with code {}", command.siteId());
 
         streamBridge.send("upstream", new TaskStatusChanged(command.taskExecutionId(), TaskStatus.RUNNING, List.of()));
 

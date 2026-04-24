@@ -37,7 +37,7 @@ public class UpdateRoutesUseCase {
                         (!r.getPlannedRelease().equals(r.getRelease()))))
 //                .filter(route -> command.routeIds() == null
 //                        || command.routeIds().isEmpty()
-//                        || command.routeIds().contains("" + route.getId().id()))
+//                        || command.routeIds().contains("" + route.getId().code()))
                 .peek(route -> route.updateRelease(new ReleaseId(Long.valueOf(command.releaseId()))))
                 .forEach(routeRepository::save);
 
