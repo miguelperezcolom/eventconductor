@@ -16,7 +16,4 @@ public class ControlPlaneMenu {
     @Menu
     DownloadedContentMenu downloadedContent;
 
-    @Menu
-    ReleasesMenu releases;
-
 }

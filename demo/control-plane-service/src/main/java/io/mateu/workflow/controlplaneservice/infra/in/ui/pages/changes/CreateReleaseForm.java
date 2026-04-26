@@ -34,7 +34,7 @@ public class CreateReleaseForm {
     Object create() {
         var businessKey = UUID.randomUUID().toString();
         useCase.handle(new AskForReleaseCreationCommand(businessKey, name, site, user));
-        return URI.create("/workflow/processes/" + businessKey + "?returnTo=/controlPlane/releases/releases");
+        return URI.create("/workflow/processes/" + businessKey + "?returnTo=/releases/releases");
     }
 
     public CreateReleaseForm withUser(String user) {
