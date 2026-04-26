@@ -60,6 +60,13 @@
             filters:
               - TokenEnrichmentFilter
 
+          - id: control_plane_data_route
+            uri: http://localhost:8103
+            predicates:
+              - Path=/_cp-data/**
+            filters:
+              - TokenEnrichmentFilter
+
           - id: users_route
             uri: http://localhost:8102
             predicates:

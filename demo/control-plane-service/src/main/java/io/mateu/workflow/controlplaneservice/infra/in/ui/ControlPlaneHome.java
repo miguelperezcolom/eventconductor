@@ -37,9 +37,6 @@ import java.util.List;
 public class ControlPlaneHome implements PostHydrationHandler {
 
     @Menu
-    ControlPlaneMenu data;
-
-    @Menu
     ReleasesMenu controlPlane;
 
     @Hidden

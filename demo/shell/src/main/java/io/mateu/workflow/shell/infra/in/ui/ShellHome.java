@@ -36,6 +36,9 @@ public class ShellHome implements WidgetSupplier
     RemoteMenu content = new RemoteMenu("/_content-service");
 
     @Menu
+    RemoteMenu data = new RemoteMenu("/_cp-data");
+
+    @Menu
     RemoteMenu controlPlane = new RemoteMenu("/_control-plane");
 
     @Menu
