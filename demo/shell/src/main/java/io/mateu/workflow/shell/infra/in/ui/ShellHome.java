@@ -56,9 +56,15 @@ public class ShellHome implements WidgetSupplier
     "actionId":""}
      */
 
+//    MicroFrontend dashboard = MicroFrontend.builder()
+//            .baseUrl("/_workflow")
+//            .appServerSideType("io.mateu.workflow.infra.in.ui.WorkflowHome")
+//            .route("/_page")
+//            .build();
+
     MicroFrontend dashboard = MicroFrontend.builder()
-            .baseUrl("/_workflow")
-            .appServerSideType("io.mateu.workflow.infra.in.ui.WorkflowHome")
+            .baseUrl("/_control-plane")
+            .appServerSideType("io.mateu.workflow.controlplaneservice.infra.in.ui.ControlPlaneHome")
             .route("/_page")
             .build();
 
