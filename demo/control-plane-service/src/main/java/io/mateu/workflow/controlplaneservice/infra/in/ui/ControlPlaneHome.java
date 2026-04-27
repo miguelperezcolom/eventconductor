@@ -47,8 +47,16 @@ public class ControlPlaneHome implements PostHydrationHandler {
     io.mateu.uidl.data.HorizontalLayout kpis = null;
 
     @Stereotype(FieldStereotype.html)
-    String message = "<p>Welcome to the event driven orchestrator.</p>" +
-            "<p>Here you will be able to create workflow definitions and processes.</p>";
+    String message = "<p>Welcome to the control plane.</p>" +
+            "<p>Here you will be able to: <ul>" +
+            "<li>manage your routes</li>" +
+            "<li>create releases</li>" +
+            "<li>preview your releases</li>" +
+            "<li>review the changes</li>" +
+            "<li>manage blue/green deployments and a/b tests</li>" +
+            "<li>manage your users</li>" +
+            "<li>easily rollback</li>" +
+            "</ul></p>";
 
     @Override
     public void onHydrated(HttpRequest httpRequest) {
@@ -76,8 +84,8 @@ public class ControlPlaneHome implements PostHydrationHandler {
                                         .build())
                                 .build(),
                         Chart.builder()
-                                .chartType(ChartType.doughnut)
-                                .chartData(data.processesByDefinitionChartData())
+                                .chartType(ChartType.polarArea)
+                                .chartData(data.userTasksChartData())
                                 .chartOptions(ChartOptions.builder()
                                         .maintainAspectRatio(false)
                                         .build())
@@ -109,8 +117,13 @@ public class ControlPlaneHome implements PostHydrationHandler {
                                 .style("flex-grow: 1;width: 12rem;")
                                 .build(),
                         Card.builder()
-                                .title(Text.builder().text("User Tasks").build())
+                                .title(Text.builder().text("Languages").build())
                                 .content(Text.builder().text("" + data.userTasksCount()).style("text-align: center;").build())
+                                .style("flex-grow: 1;width: 12rem;")
+                                .build(),
+                        Card.builder()
+                                .title(Text.builder().text("Countries").build())
+                                .content(Text.builder().text("" + data.countriesCount()).style("text-align: center;").build())
                                 .style("flex-grow: 1;width: 12rem;")
                                 .build()
                 ))

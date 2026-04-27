@@ -2,10 +2,7 @@ package io.mateu.workflow.controlplaneservice.infra.in.ui.adapters;
 
 import io.mateu.uidl.data.ChartData;
 import io.mateu.uidl.data.ChartDataset;
-import io.mateu.workflow.controlplaneservice.infra.out.persistence.ReleaseEntity;
-import io.mateu.workflow.controlplaneservice.infra.out.persistence.ReleaseEntityRepository;
-import io.mateu.workflow.controlplaneservice.infra.out.persistence.RouteEntity;
-import io.mateu.workflow.controlplaneservice.infra.out.persistence.RouteEntityRepository;
+import io.mateu.workflow.controlplaneservice.infra.out.persistence.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
@@ -21,6 +18,8 @@ public class ControlPlaneHomeAdapter {
 
     final RouteEntityRepository routeEntityRepository;
     final ReleaseEntityRepository releaseEntityRepository;
+    final LanguageEntityRepository languageEntityRepository;
+    final CountryEntityRepository countryEntityRepository;
 
     public ControlPlaneHomeData fetch() {
 
@@ -33,7 +32,7 @@ public class ControlPlaneHomeAdapter {
                         m.put(released(p), m.getOrDefault(released(p), 0D) + 1L), HashMap::putAll);
         Map<String, Double> userTasksByStatus = routeEntityRepository.findAll().stream()
                 .collect(LinkedHashMap::new, (m, p) ->
-                        m.put(country(p), m.getOrDefault(country(p), 0D) + 1L), HashMap::putAll);
+                        m.put(language(p), m.getOrDefault(language(p), 0D) + 1L), HashMap::putAll);
 
         return ControlPlaneHomeData.builder()
                 .processDefinitionsCount(releaseEntityRepository.count())
@@ -46,10 +45,12 @@ public class ControlPlaneHomeAdapter {
                                 "Changed".equals(released(process)))
                         .count())
                 .processesCount(routeEntityRepository.count())
+                .userTasksCount(languageEntityRepository.count())
+                .countriesCount(countryEntityRepository.count())
                 .processesByDefinitionChartData(ChartData.builder()
                         .labels(processesByDefinition.keySet().stream().toList())
                         .datasets(List.of(ChartDataset.builder()
-                                .label("label 1")
+                                .label("Routes")
                                 .data(processesByDefinition.values().stream().toList())
                                 .build()))
                         .build())
@@ -61,13 +62,20 @@ public class ControlPlaneHomeAdapter {
                                 .build()))
                         .build())
                 .userTasksChartData(ChartData.builder()
-                        .labels(processesByDefinition.keySet().stream().toList())
+                        .labels(userTasksByStatus.keySet().stream().toList())
                         .datasets(List.of(ChartDataset.builder()
-                                .label("label 1")
-                                .data(processesByDefinition.values().stream().toList())
+                                .label("Routes")
+                                .data(userTasksByStatus.values().stream().toList())
                                 .build()))
                         .build())
                 .build();
+    }
+
+    private String language(RouteEntity p) {
+        if (p.getLanguageCode() == null) {
+            return "None";
+        }
+        return p.getLanguageCode();
     }
 
     private String country(RouteEntity p) {
@@ -78,8 +86,8 @@ public class ControlPlaneHomeAdapter {
     }
 
     private String released(RouteEntity p) {
-        if (p.getHash() != null && p.getHash().equals(p.getDeployedHash())) return "Changed";
-        return "Released";
+        if (p.getHash() != null && p.getHash().equals(p.getDeployedHash())) return "Released";
+        return "Changed";
     }
 
     @Cacheable(value = "processDefinitionName", key = "#releaseId")
