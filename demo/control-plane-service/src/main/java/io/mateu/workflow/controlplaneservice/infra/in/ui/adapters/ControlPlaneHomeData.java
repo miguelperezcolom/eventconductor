@@ -13,6 +13,7 @@ public record ControlPlaneHomeData(
         long activeProcessesCount,
         long completedProcessesCount,
         long formDefinitionsCount,
-        long userTasksCount
+        long userTasksCount,
+        long countriesCount
 ) {
 }
