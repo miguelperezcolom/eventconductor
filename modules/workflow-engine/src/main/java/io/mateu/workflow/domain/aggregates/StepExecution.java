@@ -12,6 +12,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.With;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -37,6 +38,7 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
     private StepExecutionStatus status;
     private String workerId;
     private long order;
+    private LocalDateTime startedAt;
 
 
     public static StepExecution create(Step step, String processId, int position) {
@@ -60,6 +62,7 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
 
     public StepExecution start(List<Variable> variables) {
         this.variables = variables;
+        this.startedAt = LocalDateTime.now();
         send(new TaskExecutionRequested(id, processId, workflowDefinitionId, stepId, variables.stream()
                 .map(variable -> new io.mateu.workflow.dtos.Variable(variable.name(), variable.value()))
                 .toList()));

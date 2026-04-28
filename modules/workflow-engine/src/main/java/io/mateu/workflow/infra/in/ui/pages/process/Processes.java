@@ -15,6 +15,8 @@ import io.mateu.uidl.fluent.Trigger;
 import io.mateu.uidl.interfaces.CrudAdapter;
 import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.workflow.application.out.ProcessRepository;
+import io.mateu.workflow.application.usecases.process.retry.RetryProcessCommand;
+import io.mateu.workflow.application.usecases.process.retry.RetryProcessUseCase;
 import io.mateu.workflow.domain.aggregates.ProcessStatus;
 import io.mateu.workflow.infra.in.ui.adapters.ProcessCrudAdapter;
 import io.mateu.workflow.infra.in.ui.adapters.SimpleProcessCrudAdapter;
@@ -35,6 +37,7 @@ public class Processes extends CrudOrchestrator<SimpleProcessViewModel, NoEditor
     final SimpleProcessCrudAdapter processCrudAdapter;
     final CreateProcessForm createProcessForm;
     final ProcessRepository processRepository;
+    final RetryProcessUseCase retryProcessUseCase;
 
 
     @Override
@@ -51,6 +54,19 @@ public class Processes extends CrudOrchestrator<SimpleProcessViewModel, NoEditor
     public CreateProcessForm create() {
         return createProcessForm;
     }
+
+    @ListToolbarButton(rowsSelectedRequired = true)
+    public void retry(List<ProcessRow> selectedRows) {
+        selectedRows.forEach(row -> {
+            retryProcessUseCase.handle(new RetryProcessCommand(row.id()));
+        });
+    }
+
+    @Toolbar
+    public void retry(SimpleProcessViewModel state) {
+        retryProcessUseCase.handle(new RetryProcessCommand(state.getId()));
+    }
+
 
     @Override
     public List<Trigger> triggers(HttpRequest httpRequest) {

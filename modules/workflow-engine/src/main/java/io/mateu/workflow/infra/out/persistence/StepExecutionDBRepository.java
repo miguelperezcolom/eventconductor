@@ -10,6 +10,9 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.Optional;
 
+import static io.mateu.workflow.domain.aggregates.StepExecutionStatus.PENDING;
+import static io.mateu.workflow.domain.aggregates.StepExecutionStatus.RUNNING;
+
 import static io.mateu.core.infra.JsonSerializer.listFromJson;
 import static io.mateu.core.infra.JsonSerializer.toJson;
 
@@ -36,7 +39,8 @@ public class StepExecutionDBRepository implements StepExecutionRepository {
                 listFromJson(entity.getVariables(), Variable.class),
                 StepExecutionStatus.valueOf(entity.getStatus()),
                 entity.getWorkerId(),
-                entity.getOrder()
+                entity.getOrder(),
+                entity.getStartedAt()
         );
     }
 
@@ -51,7 +55,8 @@ public class StepExecutionDBRepository implements StepExecutionRepository {
                 toJson(stepExecution.getVariables()),
                 stepExecution.getStatus().name(),
                 stepExecution.getWorkerId(),
-                stepExecution.getOrder()
+                stepExecution.getOrder(),
+                stepExecution.getStartedAt()
         ));
 
         stepExecution.popEvents().stream()
@@ -75,5 +80,12 @@ public class StepExecutionDBRepository implements StepExecutionRepository {
     public List<StepExecution> findByProcess(Process process) {
         return stepExecutionEntityRepository.findAllByProcessIdOrderByOrder(process.id()).stream()
                 .map(this::map).toList();
+    }
+
+    @Override
+    public List<StepExecution> findPendingOrRunning() {
+        return stepExecutionEntityRepository
+                .findAllByStatusIn(List.of(PENDING.name(), RUNNING.name()))
+                .stream().map(this::map).toList();
     }
 }
