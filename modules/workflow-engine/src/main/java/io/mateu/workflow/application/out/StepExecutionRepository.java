@@ -10,4 +10,6 @@ public interface StepExecutionRepository extends CrudRepository<StepExecution> {
 
     List<StepExecution> findByProcess(Process process);
 
+    List<StepExecution> findPendingOrRunning();
+
 }

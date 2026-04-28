@@ -6,4 +6,5 @@ import java.util.List;
 
 public interface StepExecutionEntityRepository extends JpaRepository<StepExecutionEntity, String> {
     List<StepExecutionEntity> findAllByProcessIdOrderByOrder(String processId);
+    List<StepExecutionEntity> findAllByStatusIn(List<String> statuses);
 }
