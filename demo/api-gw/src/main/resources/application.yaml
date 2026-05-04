@@ -10,7 +10,7 @@
   grpc:
     client:
       auth-service: # Este nombre debe coincidir con el de @GrpcClient
-        address: 'static://localhost:9091' # O el nombre del servicio en Kubernetes/Consul
+        address: 'static://localhost:9191' # O el nombre del servicio en Kubernetes/Consul
         negotiation-type: plaintext # Usa TLS en produccion, pero plaintext para pruebas locales
   spring:
     application:
@@ -71,6 +71,13 @@
             uri: http://localhost:8102
             predicates:
               - Path=/_users/**
+            filters:
+              - TokenEnrichmentFilter
+
+          - id: booking_route
+            uri: http://localhost:8108
+            predicates:
+              - Path=/_booking/**
             filters:
               - TokenEnrichmentFilter
 

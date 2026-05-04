@@ -48,6 +48,9 @@ public class ShellHome implements WidgetSupplier
     RemoteMenu forms = new RemoteMenu("/_forms");
 
     @Menu
+    RemoteMenu booking = new RemoteMenu("/_booking");
+
+    @Menu
     CheckRequest checkRequest;
 
     /*
