@@ -16,7 +16,7 @@ public class App
 
 
         ManagedChannel channel = ManagedChannelBuilder
-                .forAddress("localhost", 9092)
+                .forAddress("localhost", 9192)
                 .usePlaintext()
                 .build();
 

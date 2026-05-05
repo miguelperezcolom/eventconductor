@@ -24,14 +24,21 @@ public class BookingKafkaConsumerConfig {
             log.info("Received event: " + event);
             if (event instanceof TaskExecutionRequested taskExecutionRequested) {
 
-                if (taskExecutionRequested.stepId().equals("cambiar-estado-reserva")) {
+                if (taskExecutionRequested.stepId().equals("confirmar-reserva")) {
                     new Thread(() -> changeBookingStatusUseCase
                             .handle(new ChangeBookingStatusCommand(taskExecutionRequested.variables().stream()
                                     .filter(variable -> "bookingId".equals(variable.name()))
                                     .findAny().orElseThrow().value(),
-                                    BookingStatus.valueOf(taskExecutionRequested.variables().stream()
-                                            .filter(variable -> "status".equals(variable.name()))
-                                            .findAny().orElseThrow().value()),
+                                    BookingStatus.Confirmed,
+                                    taskExecutionRequested.taskExecutionId()))).start();
+                }
+
+                if (taskExecutionRequested.stepId().equals("cancelar-reserva")) {
+                    new Thread(() -> changeBookingStatusUseCase
+                            .handle(new ChangeBookingStatusCommand(taskExecutionRequested.variables().stream()
+                                    .filter(variable -> "bookingId".equals(variable.name()))
+                                    .findAny().orElseThrow().value(),
+                                    BookingStatus.Cancelled,
                                     taskExecutionRequested.taskExecutionId()))).start();
                 }
 

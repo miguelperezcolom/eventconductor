@@ -65,7 +65,7 @@ public class StepCrudAdapter extends AutoListAdapter<Step> {
             case RUNNING -> StatusType.WARNING;
             case COMPLETED -> StatusType.SUCCESS;
             case CANCELLED -> StatusType.DANGER;
-            case ERROR -> StatusType.DANGER;
+            case ERROR, TIMEOUT -> StatusType.DANGER;
         };
         return new Status(statusType, toUpperCaseFirst(status.name()));
     }

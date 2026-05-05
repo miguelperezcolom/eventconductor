@@ -1,6 +1,7 @@
 package io.mateu.workflow.domain.aggregates;
 
 import io.mateu.core.infra.valuegenerators.UUIDValueGenerator;
+import io.mateu.uidl.StyleConstants;
 import io.mateu.uidl.annotations.*;
 import io.mateu.uidl.data.FormPosition;
 import io.mateu.uidl.interfaces.Identifiable;
@@ -11,7 +12,8 @@ import jakarta.validation.constraints.NotNull;
 
 import java.util.List;
 
-@FormLayout(columns = 3)
+@FormLayout(columns = 4)
+@Style(StyleConstants.FULL_WIDTH_WITH_PADDING)
 public record WorkflowDefinition(
         //@GeneratedValue(UUIDValueGenerator.class)
         @HiddenInEditor

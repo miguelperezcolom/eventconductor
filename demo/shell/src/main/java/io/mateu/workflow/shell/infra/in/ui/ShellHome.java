@@ -89,22 +89,22 @@ public class ShellHome implements WidgetSupplier
 
             var values = fromJson(payload);
 
-            widgets.add(HorizontalLayout.builder().content(List.of(MicroFrontend.builder()
-                    .baseUrl("/_forms")
-                    .route("/my-tasks")
-                    .build(), Popover.builder()
-                    .wrapped(Text.builder().text("Hola, " + values.get("name"))
-                            .style("margin-right: 20px;")
-                            .build())
-                    .content(VerticalLayout.builder().content(List.of(
-                                    new Text("Email: " + values.get("email")),
-                                    new Anchor("Logout", "javascript: window.logout();"))
-                            ).spacing(true)
-                            .padding(true)
-                            .build())
-                    .build()))
-                            .style("align-items: flex-end;")
-                    .build());
+//            widgets.add(HorizontalLayout.builder().content(List.of(MicroFrontend.builder()
+//                    .baseUrl("/_forms")
+//                    .route("/my-tasks")
+//                    .build(), Popover.builder()
+//                    .wrapped(Text.builder().text("Hola, " + values.get("name"))
+//                            .style("margin-right: 20px;")
+//                            .build())
+//                    .content(VerticalLayout.builder().content(List.of(
+//                                    new Text("Email: " + values.get("email")),
+//                                    new Anchor("Logout", "javascript: window.logout();"))
+//                            ).spacing(true)
+//                            .padding(true)
+//                            .build())
+//                    .build()))
+//                            .style("align-items: flex-end;")
+//                    .build());
         }
         return widgets;
     }

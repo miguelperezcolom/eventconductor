@@ -20,16 +20,16 @@ services:
     container_name: redpanda-broker
     command:
       - redpanda start
-      - --kafka-addr internal://0.0.0.0:19092,external://0.0.0.0:9092
-      - --advertise-kafka-addr internal://redpanda:19092,external://127.0.0.1:9092
+      - --kafka-addr internal://0.0.0.0:19192,external://0.0.0.0:9192
+      - --advertise-kafka-addr internal://redpanda:19192,external://127.0.0.1:9192
       - --pandaproxy-addr 0.0.0.0:8082
       - --advertise-pandaproxy-addr 127.0.0.1:8082
       - --rpc-addr 0.0.0.0:33145
       - --advertise-rpc-addr redpanda:33145
       - --mode dev-container # Optimiza para desarrollo (menos requisitos de hardware)
     ports:
-      - "9092:9092"   # Para IntelliJ y Spring Boot (desde tu Linux)
-      - "19092:19092"
+      - "9192:9192"   # Para IntelliJ y Spring Boot (desde tu Linux)
+      - "19192:19192"
       - "8081:8081"
       - "8082:8082"
     networks:
@@ -41,7 +41,7 @@ services:
     container_name: redpanda-console
     environment:
       # CORRECCIÓN: Usamos el puerto INTERNAL y el nombre del servicio
-      KAFKA_BROKERS: redpanda:19092
+      KAFKA_BROKERS: redpanda:19192
     ports:
       - "8888:8080" # CAMBIO: He puesto 8888 para que no choque con nada
     depends_on:

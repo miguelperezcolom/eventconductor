@@ -20,7 +20,7 @@ spring:
       kafka:
         binder:
           # Centralizamos la conexi�n aqu� para el Binder
-          brokers: localhost:9092
+          brokers: localhost:9192
           auto-create-topics: true
       bindings:
         # INPUTS
@@ -64,7 +64,7 @@ spring:
 
   # --- Configuraci�n de Kafka Nativo ---
   kafka:
-    bootstrap-servers: localhost:9092
+    bootstrap-servers: localhost:9192
     consumer:
       group-id: my-group
       auto-offset-reset: earliest

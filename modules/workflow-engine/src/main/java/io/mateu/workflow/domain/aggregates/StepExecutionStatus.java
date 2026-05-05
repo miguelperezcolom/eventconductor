@@ -6,5 +6,6 @@ public enum StepExecutionStatus {
     RUNNING,
     COMPLETED,
     CANCELLED,
-    ERROR
+    ERROR,
+    TIMEOUT
 }

@@ -1,8 +1,6 @@
 package io.mateu.workflow.booking.infra.out.persistence;
 
-import io.mateu.uidl.data.ListingData;
-import io.mateu.uidl.data.Page;
-import io.mateu.uidl.data.Pageable;
+import io.mateu.uidl.data.*;
 import io.mateu.workflow.booking.application.out.query.BookingQueryService;
 import io.mateu.workflow.booking.application.out.query.dto.BookingDto;
 import io.mateu.workflow.booking.application.out.query.dto.BookingRow;
@@ -10,6 +8,7 @@ import io.mateu.workflow.booking.domain.aggregates.booking.vo.BookingStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.time.format.DateTimeFormatter;
 import java.util.Optional;
 
 
@@ -23,9 +22,18 @@ public class BookingDBQueryService implements BookingQueryService {
         return new BookingRow(
                 entity.id,
                 entity.leadName,
-                entity.created,
-                BookingStatus.valueOf(entity.status)
+                entity.created.format(DateTimeFormatter.ofPattern("HH:mm:ss")),
+                mapStatus(entity.getStatus())
         );
+    }
+
+    private Status mapStatus(String status) {
+        return new Status(switch (status) {
+            case "Confirmed" -> StatusType.SUCCESS;
+            case "Cancelled" -> StatusType.DANGER;
+            case "Pending" -> StatusType.INFO;
+            default -> StatusType.NONE;
+        }, status);
     }
 
     @Override
@@ -50,7 +58,7 @@ public class BookingDBQueryService implements BookingQueryService {
     @Override
     public ListingData<BookingRow> findAll(String searchText,
                                             Object filters, Pageable pageable) {
-        var page = repository.findAllByLeadNameContainingIgnoreCase(searchText, org.springframework.data.domain.Pageable
+        var page = repository.findAllByLeadNameContainingIgnoreCaseOrderByCreatedDesc(searchText, org.springframework.data.domain.Pageable
                 .ofSize(pageable.size())
                 .withPage(pageable.page())
         );

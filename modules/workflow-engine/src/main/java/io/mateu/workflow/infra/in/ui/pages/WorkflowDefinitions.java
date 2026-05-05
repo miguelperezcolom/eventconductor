@@ -2,6 +2,7 @@ package io.mateu.workflow.infra.in.ui.pages;
 
 import io.mateu.core.infra.declarative.AutoCrudAdapter;
 import io.mateu.core.infra.declarative.AutoCrudOrchestrator;
+import io.mateu.uidl.StyleConstants;
 import io.mateu.workflow.domain.aggregates.WorkflowDefinition;
 import io.mateu.workflow.infra.in.ui.adapters.WorkflowDefinitionCrudAdapter;
 import lombok.RequiredArgsConstructor;
@@ -18,5 +19,10 @@ public class WorkflowDefinitions extends AutoCrudOrchestrator<WorkflowDefinition
     @Override
     public AutoCrudAdapter<WorkflowDefinition> simpleAdapter() {
         return adapter;
+    }
+
+    @Override
+    public String getStyleForView() {
+        return StyleConstants.FULL_WIDTH_WITH_PADDING;
     }
 }

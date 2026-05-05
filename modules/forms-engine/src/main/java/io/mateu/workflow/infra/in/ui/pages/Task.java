@@ -15,7 +15,13 @@ import io.mateu.workflow.application.out.FormRepository;
 import io.mateu.workflow.domain.Field;
 import io.mateu.workflow.domain.FormExecutionStatus;
 import io.mateu.workflow.domain.Value;
+import io.mateu.workflow.dtos.MessageType;
+import io.mateu.workflow.dtos.Variable;
+import io.mateu.workflow.dtos.events.integration.TaskLogEmitted;
+import io.mateu.workflow.dtos.events.integration.TaskStatus;
+import io.mateu.workflow.dtos.events.integration.TaskStatusChanged;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cloud.stream.function.StreamBridge;
 import org.springframework.stereotype.Service;
 
 import java.net.URI;
@@ -32,6 +38,7 @@ public class Task implements ComponentTreeSupplier, ValidationSupplier, ActionHa
 
     final FormExecutionRepository formExecutionRepository;
     final FormRepository formRepository;
+    final StreamBridge streamBridge;
 
     String _taskId;
 
@@ -102,6 +109,20 @@ public class Task implements ComponentTreeSupplier, ValidationSupplier, ActionHa
                             .map(key -> new Value(key, state.get(key).toString())).toList())
                     .withStatus(FormExecutionStatus.COMPLETED);
             formExecutionRepository.save(execution);
+
+            streamBridge.send("upstream", new TaskLogEmitted(
+                    execution.stepExecutionId(),
+                    MessageType.Info,
+                    "form " + execution.formId() + " completed by " + execution.userId()));
+
+            var variables = new ArrayList<Variable>();
+            variables.addAll(execution.values().stream().map(v -> new Variable(v.name(), v.value())).toList());
+
+            streamBridge.send("upstream", new TaskStatusChanged(
+                    execution.stepExecutionId(),
+                    TaskStatus.COMPLETED,
+                    variables));
+
             return URI.create("/forms/tasks");
         }
         if ("claim".equals(actionId)) {
@@ -109,6 +130,10 @@ public class Task implements ComponentTreeSupplier, ValidationSupplier, ActionHa
             execution = execution
                     .withUserId("miguel");
             formExecutionRepository.save(execution);
+            streamBridge.send("upstream", new TaskLogEmitted(
+                    execution.stepExecutionId(),
+                    MessageType.Info,
+                    "form " + execution.formId() + " claimed by " + execution.userId()));
         }
         if ("back".equals(actionId)) {
             return URI.create("/forms/tasks");
