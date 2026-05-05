@@ -1,5 +1,6 @@
 package io.mateu.workflow.booking.application.usecases.booking.create;
 
+import io.mateu.core.infra.valuegenerators.LocatorValueGenerator;
 import io.mateu.workflow.booking.application.out.repository.BookingRepository;
 import io.mateu.workflow.booking.domain.aggregates.booking.Booking;
 import io.mateu.workflow.booking.domain.aggregates.booking.vo.BookingId;
@@ -20,11 +21,12 @@ public class CreateBookingUseCase {
 
     final BookingRepository repository;
     final StreamBridge streamBridge;
+    final LocatorValueGenerator locatorValueGenerator;
 
     @Transactional
     public String handle(CreateBookingCommand command) {
         var id = repository.save(Booking.of(
-                new BookingId(UUID.randomUUID().toString()),
+                new BookingId(locatorValueGenerator.generate().toString()),
                 new Name(command.leadName())
         )).id();
         streamBridge.send("upstream", new ProcessCreationRequested(
