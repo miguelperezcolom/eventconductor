@@ -3,10 +3,7 @@ package io.mateu.workflow.infra.in.ui.pages;
 import io.mateu.uidl.StyleConstants;
 import io.mateu.uidl.annotations.Action;
 import io.mateu.uidl.annotations.Route;
-import io.mateu.uidl.data.Button;
-import io.mateu.uidl.data.FormField;
-import io.mateu.uidl.data.FormRow;
-import io.mateu.uidl.data.Validation;
+import io.mateu.uidl.data.*;
 import io.mateu.uidl.fluent.Component;
 import io.mateu.uidl.fluent.Form;
 import io.mateu.uidl.interfaces.*;
@@ -145,6 +142,8 @@ public class Task implements ComponentTreeSupplier, ValidationSupplier, ActionHa
     public Object state(HttpRequest httpRequest) {
         var execution = formExecutionRepository.findById(_taskId).orElseThrow();
         Map<String, Object> state = new HashMap<>();
+        var form = formRepository.findById(execution.formId()).orElseThrow();
+        form.fields().stream().filter(field -> FieldDataType.bool.equals(field.dataType())).forEach(field -> state.put(field.id(), false));
         state.put("_taskId", _taskId);
         if (execution.values() != null) {
             execution.values().forEach(value -> state.put(value.name(), value.value()));

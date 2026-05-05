@@ -4,6 +4,7 @@ import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.domain.aggregates.*;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -13,6 +14,7 @@ import static io.mateu.workflow.application.services.JEXLEvaluator.eval;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class StepOverProcessUseCase {
 
     final ProcessRepository processRepository;
@@ -47,8 +49,10 @@ public class StepOverProcessUseCase {
                     variables.put("step", step);
                     process.getVariables().forEach(variable -> variables.put(variable.name(), variable.value()));
                     try {
-                        run &= (boolean) eval(step.preconditionExpression(), variables);
+                        Object result = eval(step.preconditionExpression(), variables);
+                        run &= result != null && (result instanceof Boolean b && b || result instanceof String s && !s.isEmpty() && !"false".equals(s));
                     } catch (Exception ignored) {
+                        log.error("Error evaluating precondition expression '" + step.preconditionExpression() + "'", ignored);
                     }
                 }
                 if (run) {
