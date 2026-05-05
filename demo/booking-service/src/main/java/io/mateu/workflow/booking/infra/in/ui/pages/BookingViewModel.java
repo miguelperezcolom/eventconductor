@@ -1,6 +1,7 @@
 package io.mateu.workflow.booking.infra.in.ui.pages;
 
 import io.mateu.uidl.annotations.Avatar;
+import io.mateu.uidl.annotations.Hidden;
 import io.mateu.uidl.annotations.HiddenInCreate;
 import io.mateu.uidl.annotations.ReadOnly;
 import io.mateu.uidl.data.Status;
@@ -27,13 +28,12 @@ import java.util.UUID;
 @Scope("prototype")
 @RequiredArgsConstructor
 public class BookingViewModel implements Identifiable, CrudEditorForm<String>, CrudCreationForm<String> {
-    @HiddenInCreate
-    @ReadOnly
+    @Hidden
     String id;
     @NotEmpty
     String leadName;
     @ReadOnly
-    LocalDateTime created;
+    String created;
     Status status;
 
     final CreateBookingUseCase createResourceUseCase;
@@ -57,7 +57,7 @@ public class BookingViewModel implements Identifiable, CrudEditorForm<String>, C
     public BookingViewModel load(BookingDto resource) {
         id = String.valueOf(resource.id());
         leadName = resource.leadName();
-        created = resource.created();
+        created = resource.created().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss"));
         status = new Status(switch (resource.status()) {
             case Pending -> StatusType.INFO;
             case Confirmed -> StatusType.SUCCESS;
@@ -68,6 +68,6 @@ public class BookingViewModel implements Identifiable, CrudEditorForm<String>, C
 
     @Override
     public String toString() {
-        return id != null ? leadName : "New booking";
+        return id != null ? id : "New booking";
     }
 }
