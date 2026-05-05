@@ -1,0 +1,32 @@
+spring:
+  application:
+    name: ia-agent-service
+
+  # 1. Configuración de Spring AI para Anthropic (Claude)
+  ai:
+    anthropic:
+      api-key: ${ANTHROPIC_API_KEY} # Define esto como variable de entorno
+      model: claude-3-5-sonnet-latest
+      chat:
+        options:
+          temperature: 0.1 # Baja temperatura para mayor precisión técnica
+
+    # 2. Configuración del Cliente MCP
+    mcp:
+      client:
+        enabled: true
+        connections:
+          # Conexión al servidor MCP de EventConductor
+          event-conductor:
+            name: event-conductor-engine
+            type: sse # Usamos Server-Sent Events (HTTP) para microservicios
+            url: http://localhost:8080/mcp/sse # Ajusta a la URL de tu motor
+
+server:
+  port: 8081 # Diferente al del motor (8080) para evitar conflictos en local
+
+# Configuración de logs para ver qué herramientas está usando la IA
+logging:
+  level:
+    org.springframework.ai: DEBUG
+    io.mateu.workflow: INFO
