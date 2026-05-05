@@ -43,7 +43,7 @@ public class CheckTimeoutUseCase {
             return;
         }
 
-        stepExecution.updateStatus(StepExecutionStatus.ERROR);
+        stepExecution.updateStatus(StepExecutionStatus.TIMEOUT);
         stepExecutionRepository.save(stepExecution);
 
         logMessageRepository.save(new LogMessage(

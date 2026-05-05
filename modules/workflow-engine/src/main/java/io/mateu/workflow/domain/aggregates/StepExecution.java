@@ -3,8 +3,10 @@ package io.mateu.workflow.domain.aggregates;
 import io.mateu.uidl.annotations.HiddenInList;
 import io.mateu.uidl.interfaces.Identifiable;
 import io.mateu.workflow.ddd.AggregateRoot;
+import io.mateu.workflow.dtos.MessageType;
 import io.mateu.workflow.dtos.events.domain.StepExecutionStatusChanged;
 import io.mateu.workflow.dtos.events.integration.TaskExecutionRequested;
+import io.mateu.workflow.dtos.events.integration.TaskLogEmitted;
 import io.mateu.workflow.dtos.events.integration.TaskStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -13,9 +15,11 @@ import lombok.NoArgsConstructor;
 import lombok.With;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+import static io.mateu.core.infra.JsonSerializer.pojoFromJson;
 import static io.mateu.core.infra.JsonSerializer.toJson;
 
 @Builder
@@ -63,9 +67,24 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
     public StepExecution start(List<Variable> variables) {
         this.variables = variables;
         this.startedAt = LocalDateTime.now();
-        send(new TaskExecutionRequested(id, processId, workflowDefinitionId, stepId, variables.stream()
-                .map(variable -> new io.mateu.workflow.dtos.Variable(variable.name(), variable.value()))
-                .toList()));
+        var step = pojoFromJson(stepJson, Step.class);
+        if (StepType.USER_TASK.equals(step.type())) {
+            if (step.formId() == null || step.formId().isEmpty()) {
+                status = StepExecutionStatus.ERROR;
+                send(new TaskLogEmitted(id, MessageType.Error, "Step " + step.name() + " has no form id defined."));
+                return this;
+            }
+            var taskVariables = new ArrayList<>(variables);
+            taskVariables.add(new Variable("formId", step.formId()));
+            this.variables = taskVariables;
+            send(new TaskExecutionRequested(id, processId, workflowDefinitionId, stepId, "complete-form", taskVariables.stream()
+                    .map(variable -> new io.mateu.workflow.dtos.Variable(variable.name(), variable.value()))
+                    .toList()));
+        } else {
+            send(new TaskExecutionRequested(id, processId, workflowDefinitionId, stepId, "", variables.stream()
+                    .map(variable -> new io.mateu.workflow.dtos.Variable(variable.name(), variable.value()))
+                    .toList()));
+        }
         status = StepExecutionStatus.PENDING;
         return this;
     }

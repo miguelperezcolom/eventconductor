@@ -1,5 +1,5 @@
 package io.mateu.workflow.domain;
 
 public enum FormExecutionStatus {
-    PENDING, ASSIGNED, COMPLETED
+    PENDING, ASSIGNED, COMPLETED, CANCELLED
 }

@@ -109,12 +109,11 @@ public class SimpleProcessCrudAdapter implements CrudAdapter<SimpleProcessViewMo
     private Status mapStepStatus(String rawStatus) {
         StepExecutionStatus status = StepExecutionStatus.valueOf(rawStatus);
         StatusType statusType = switch (status) {
-            case CREATED -> StatusType.NONE;
+            case CREATED, CANCELLED -> StatusType.NONE;
             case PENDING -> StatusType.INFO;
             case RUNNING -> StatusType.WARNING;
             case COMPLETED -> StatusType.SUCCESS;
-            case CANCELLED -> StatusType.DANGER;
-            case ERROR -> StatusType.DANGER;
+            case ERROR, TIMEOUT -> StatusType.DANGER;
         };
         return new Status(statusType, toUpperCaseFirst(status.name()));
     }

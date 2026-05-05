@@ -1,7 +1,10 @@
 package io.mateu.workflow.booking.infra.in.ui.pages;
 
+import io.mateu.uidl.annotations.Avatar;
 import io.mateu.uidl.annotations.HiddenInCreate;
 import io.mateu.uidl.annotations.ReadOnly;
+import io.mateu.uidl.data.Status;
+import io.mateu.uidl.data.StatusType;
 import io.mateu.uidl.interfaces.CrudCreationForm;
 import io.mateu.uidl.interfaces.CrudEditorForm;
 import io.mateu.uidl.interfaces.HttpRequest;
@@ -31,8 +34,7 @@ public class BookingViewModel implements Identifiable, CrudEditorForm<String>, C
     String leadName;
     @ReadOnly
     LocalDateTime created;
-    @ReadOnly
-    BookingStatus status;
+    Status status;
 
     final CreateBookingUseCase createResourceUseCase;
     final UpdateBookingUseCase updateResourceUseCase;
@@ -56,7 +58,11 @@ public class BookingViewModel implements Identifiable, CrudEditorForm<String>, C
         id = String.valueOf(resource.id());
         leadName = resource.leadName();
         created = resource.created();
-        status = resource.status();
+        status = new Status(switch (resource.status()) {
+            case Pending -> StatusType.INFO;
+            case Confirmed -> StatusType.SUCCESS;
+            case Cancelled -> StatusType.DANGER;
+        }, resource.status().name());
         return this;
     }
 

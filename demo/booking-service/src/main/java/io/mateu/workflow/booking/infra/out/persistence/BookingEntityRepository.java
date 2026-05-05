@@ -5,5 +5,5 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface BookingEntityRepository extends JpaRepository<BookingEntity, String> {
-    Page<BookingEntity> findAllByLeadNameContainingIgnoreCase(String searchText, Pageable pageable);
+    Page<BookingEntity> findAllByLeadNameContainingIgnoreCaseOrderByCreatedDesc(String searchText, Pageable pageable);
 }

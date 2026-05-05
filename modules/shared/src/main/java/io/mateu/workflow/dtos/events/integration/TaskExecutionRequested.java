@@ -10,5 +10,6 @@ public record TaskExecutionRequested(
         String processId,
         String workflowDefinitionId,
         String stepId,
+        String taskId,
         List<Variable> variables) implements DomainEvent {
 }

@@ -23,8 +23,13 @@ public record Step(
         @HiddenInList
         String description,
         @Section(value = "Precondition", style = "width: 25%;")
-        @HiddenInList
-        StepPrecondition precondition,
+
+        //@HiddenInList
+        //StepPrecondition precondition,
+        //@Lookup(search = StepIdOptionsSupplier.class, label = StepLabelSupplier.class)
+        String preconditionStepId,
+        String preconditionExpression,
+
         @Section(value = "Execution", style = "width: 25%;")
         boolean parallel,
         @HiddenInList
@@ -38,13 +43,11 @@ public record Step(
         @Lookup(search = WorkflowDefinitionIdOptionsSupplier.class, label = WorkflowDefinitionIdLabelSupplier.class)
         String childWorkflowDefinitionId,
         @Section(value = "Reliability", style = "width: 25%;")
-        @HiddenInList
         long timeout,
         @HiddenInList
         int retries,
         @HiddenInList
         boolean rollbackable,
-        @HiddenInList
         @Hidden("!state['steps-rollbackable']")
         String compensationStepId
 ) implements Identifiable {

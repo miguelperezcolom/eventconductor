@@ -11,16 +11,16 @@ spring:
       kafka:
         binder:
           # Centralizamos la conexión aquí para el Binder
-          brokers: localhost:9092
+          brokers: localhost:9192
           auto-create-topics: true
       bindings:
         # INPUTS
         consumeOutbox-in-0:
           destination: outbox
-          group: control-plane-group
+          group: booking-service-group
         consumeWorkerEvent-in-0:
           destination: downstream
-          group: control-plane-group # A�ade un grupo para persistir el offset
+          group: booking-service-group # A�ade un grupo para persistir el offset
 
         # OUTPUTS (Para StreamBridge)
         upstream: # Nombre usado en streamBridge.send("upstream", ...)
@@ -52,7 +52,7 @@ spring:
 
   # --- Configuraci�n de Kafka Nativo ---
   kafka:
-    bootstrap-servers: localhost:9092
+    bootstrap-servers: localhost:9192
     consumer:
       group-id: my-group
       auto-offset-reset: earliest

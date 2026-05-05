@@ -28,7 +28,7 @@ public class WorkflowOrchestrator {
     }
 
     // Se ejecuta cada 100ms (ajusta según necesidad)
-    @Scheduled(fixedDelay = 100)
+    //@Scheduled(fixedDelay = 100)
     public void runEventLoop() {
         // 1. Intentar adquirir el Advisory Lock (non-blocking)
         // pg_try_advisory_lock devuelve true si lo obtiene, false si ya está cogido

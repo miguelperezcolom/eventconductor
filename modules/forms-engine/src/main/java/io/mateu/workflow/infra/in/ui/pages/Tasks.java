@@ -10,6 +10,7 @@ import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.uidl.interfaces.ListingBackend;
 import io.mateu.workflow.application.out.FormExecutionRepository;
 import io.mateu.workflow.domain.FormExecutionStatus;
+import io.mateu.workflow.dtos.events.integration.TaskStatus;
 import io.mateu.workflow.infra.out.persistence.FormExecutionEntityRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,7 +19,9 @@ import org.springframework.stereotype.Service;
 import java.net.URI;
 import java.util.List;
 
-record TaskRow(String id, String name, String form, String assignedTo, String status, ColumnAction run) {}
+import static io.mateu.uidl.Humanizer.toUpperCaseFirst;
+
+record TaskRow(String id, String name, String form, String assignedTo, Status status, ColumnAction run) {}
 
 @Service
 @Slf4j
@@ -42,7 +45,7 @@ public class Tasks implements ListingBackend<NoFilters, TaskRow> {
                         entity.getProcessId(),
                         entity.getFormId(),
                         entity.getUserId(),
-                        entity.getStatus(),
+                        mapStatus(entity.getStatus()),
                         ColumnAction.builder()
                                 .methodNameInCrud("run")
                                 .label("Run")
@@ -57,6 +60,17 @@ public class Tasks implements ListingBackend<NoFilters, TaskRow> {
                         .content(content)
                         .build())
                 .build();
+    }
+
+    private Status mapStatus(String status) {
+        StatusType statusType = switch (status) {
+            case "PENDING" -> StatusType.INFO;
+            case "RUNNING" -> StatusType.WARNING;
+            case "COMPLETED" -> StatusType.SUCCESS;
+            case "ERROR" -> StatusType.DANGER;
+            default -> StatusType.NONE;
+        };
+        return new Status(statusType, toUpperCaseFirst(status));
     }
 
     @Toolbar

@@ -2,9 +2,11 @@ package io.mateu.workflow.infra.in.scheduler;
 
 import io.mateu.workflow.application.usecases.scheduler.triggertimeoutchecks.TriggerTimeoutChecksCommand;
 import io.mateu.workflow.application.usecases.scheduler.triggertimeoutchecks.TriggerTimeoutChecksUseCase;
+import io.mateu.workflow.dtos.events.integration.TimeoutCheckRequested;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cloud.stream.function.StreamBridge;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -12,7 +14,7 @@ import org.springframework.stereotype.Service;
 @Slf4j
 public class TimeoutScheduler {
 
-    final TriggerTimeoutChecksUseCase triggerTimeoutChecksUseCase;
+    final StreamBridge streamBridge;
 
     @PostConstruct
     public void start() {
@@ -20,7 +22,7 @@ public class TimeoutScheduler {
             try {
                 while (true) {
                     try {
-                        triggerTimeoutChecksUseCase.handle(new TriggerTimeoutChecksCommand());
+                        streamBridge.send("upstream", new TimeoutCheckRequested());
                     } catch (Throwable e) {
                         log.error("Error checking step timeouts", e);
                     }

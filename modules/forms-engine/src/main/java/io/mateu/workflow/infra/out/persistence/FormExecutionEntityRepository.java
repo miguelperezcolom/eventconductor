@@ -17,4 +17,6 @@ public interface FormExecutionEntityRepository extends JpaRepository<FormExecuti
             Pageable pageable
     );
 
+    List<FormExecutionEntity> findByStepExecutionId(String stepExecutionId);
+
 }
