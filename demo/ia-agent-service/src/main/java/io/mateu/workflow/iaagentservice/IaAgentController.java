@@ -1,8 +1,7 @@
-package io.mateu.workflow.ia.agent;
+package io.mateu.workflow.iaagentservice;
 
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
-import org.springframework.ai.chat.memory.InMemoryChatMemory;
+import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 
@@ -12,14 +11,13 @@ public class IaAgentController {
 
     private final ChatClient chatClient;
 
-    public IaAgentController(ChatClient.Builder builder) {
-        // Configuramos el cliente de chat con memoria para que recuerde el hilo de la conversación
+    public IaAgentController(ChatClient.Builder builder, ToolCallbackProvider toolCallbackProvider) {
         this.chatClient = builder
-                .defaultAdvisors(new MessageChatMemoryAdvisor(new InMemoryChatMemory()))
+                .defaultToolCallbacks(toolCallbackProvider.getToolCallbacks())
                 .defaultSystem("""
                     Eres un asistente experto en orquestación de flujos de trabajo (Sagas).
                     Tu objetivo es ayudar a los operadores a monitorizar, diagnosticar y reparar procesos.
-                    Tienes acceso a herramientas para consultar la base de datos y enviar comandos de reintento.
+                    Tienes acceso a herramientas para consultar el estado del motor y enviar comandos de reintento.
                     Cuando veas un error, analiza los logs primero antes de sugerir un reintento.
                     Se conciso y técnico en tus respuestas.
                     """)
