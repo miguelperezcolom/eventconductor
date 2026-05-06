@@ -6,6 +6,12 @@ app:
     data-source: mem
 
 spring:
+  ai:
+    mcp:
+      server:
+        name: eventconductor-engine
+        version: 1.0.0
+
   # --- Configuración de Spring Cloud Stream ---
   cloud:
     function:
