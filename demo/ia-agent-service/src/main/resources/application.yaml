@@ -2,6 +2,10 @@ spring:
   application:
     name: ia-agent-service
 
+  threads:
+    virtual:
+      enabled: true
+
   # 1. Configuración de Spring AI para Anthropic (Claude)
   ai:
     anthropic:
@@ -17,7 +21,7 @@ spring:
         sse:
           connections:
             event-conductor:
-              url: http://localhost:8091
+              url: http://localhost:8991
 
 server:
   port: 8095

@@ -3,6 +3,7 @@ package io.mateu.workflow.mcp;
 import io.mateu.workflow.application.out.FormExecutionRepository;
 import io.mateu.workflow.application.out.FormRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.stereotype.Component;
 
@@ -10,6 +11,7 @@ import java.util.List;
 
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class FormsMcpTools {
 
     private final FormRepository formRepository;
@@ -28,6 +30,7 @@ public class FormsMcpTools {
 
     @Tool(description = "List all form definitions available in the forms engine")
     public List<FormSummary> listForms() {
+        log.info("Listing forms");
         return formRepository.findAll().stream()
                 .map(f -> new FormSummary(
                         f.id(), f.name(), f.description(),
@@ -37,6 +40,7 @@ public class FormsMcpTools {
 
     @Tool(description = "List all form executions (pending user tasks) with their status and assignment")
     public List<FormExecutionSummary> listFormExecutions() {
+        log.info("Listing form executions");
         return formExecutionRepository.findAll().stream()
                 .map(fe -> new FormExecutionSummary(
                         fe.id(), fe.formId(), fe.processId(),
@@ -47,6 +51,7 @@ public class FormsMcpTools {
 
     @Tool(description = "Get full details of a form execution including variable values")
     public FormExecutionDetail getFormExecution(String id) {
+        log.info("Getting form execution " + id);
         var fe = formExecutionRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("FormExecution not found: " + id));
         var vars = fe.variables() != null

@@ -1,5 +1,5 @@
 server:
-  port: 8091
+  port: 8991
 
 app:
   features:
@@ -39,7 +39,7 @@ spring:
 
   # --- Configuración de Base de Datos (PostgreSQL) ---
   datasource:
-    url: jdbc:postgresql://127.0.0.1:5432/motor
+    url: jdbc:postgresql://127.0.0.1:5432/workflow
     username: user_app
     password: user_password
     driver-class-name: org.postgresql.Driver
@@ -52,7 +52,7 @@ spring:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
       ddl-auto: update
-    show-sql: true
+    show-sql: false
     properties:
       hibernate:
         format_sql: true
@@ -76,8 +76,8 @@ spring:
 
 logging:
   level:
-    org.hibernate.SQL: DEBUG
-    org.hibernate.orm.jdbc.bind: TRACE
-    org.springframework.kafka: INFO
+    org.hibernate.SQL: ERROR
+    org.hibernate.orm.jdbc.bind: ERROR
+    org.springframework.kafka: ERROR
     # He añadido este para que veas errores detallados del binder si algo falla
-    org.springframework.cloud.stream: INFO
+    org.springframework.cloud.stream: ERROR
