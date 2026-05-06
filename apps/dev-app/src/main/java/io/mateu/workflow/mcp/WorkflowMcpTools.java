@@ -7,6 +7,7 @@ import io.mateu.workflow.application.usecases.process.retry.RetryProcessCommand;
 import io.mateu.workflow.application.usecases.process.retry.RetryProcessUseCase;
 import io.mateu.workflow.domain.aggregates.Process;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.stereotype.Component;
 
@@ -14,6 +15,7 @@ import java.util.List;
 
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class WorkflowMcpTools {
 
     private final ProcessRepository processRepository;
@@ -37,6 +39,7 @@ public class WorkflowMcpTools {
 
     @Tool(description = "List all workflow processes with their ID, name, business key, status and completion percentage")
     public List<ProcessSummary> listProcesses() {
+        log.info("Listing processes");
         return processRepository.findAll().stream()
                 .map(p -> new ProcessSummary(
                         p.getId(), p.getName(), p.getBusinessKey(),
@@ -48,6 +51,7 @@ public class WorkflowMcpTools {
 
     @Tool(description = "Get full details of a workflow process including variables and step executions")
     public ProcessDetail getProcessDetails(String processId) {
+        log.info("Getting process " + processId);
         Process process = processRepository.findById(processId)
                 .orElseThrow(() -> new IllegalArgumentException("Process not found: " + processId));
         var steps = stepExecutionRepository.findByProcess(process).stream()
@@ -66,13 +70,16 @@ public class WorkflowMcpTools {
 
     @Tool(description = "Find a workflow process by its business key")
     public ProcessDetail findProcessByBusinessKey(String businessKey) {
+        log.info("Finding process by business key " + businessKey);
         Process process = processRepository.findByBusinessKey(businessKey)
                 .orElseThrow(() -> new IllegalArgumentException("No process found for business key: " + businessKey));
         return getProcessDetails(process.getId());
     }
 
     @Tool(description = "Get log messages for a workflow process")
+    @preau
     public List<LogEntry> getProcessLogs(String processId) {
+        log.info("Getting logs for process " + processId);
         return logMessageRepository.findAll().stream()
                 .filter(log -> processId.equals(log.getProcessId()))
                 .map(log -> new LogEntry(
@@ -84,6 +91,7 @@ public class WorkflowMcpTools {
 
     @Tool(description = "Retry all failed (ERROR) step executions in a workflow process")
     public String retryProcess(String processId) {
+        log.info("Retrying process " + processId);
         retryProcessUseCase.handle(new RetryProcessCommand(processId));
         return "Retry triggered for process " + processId;
     }
