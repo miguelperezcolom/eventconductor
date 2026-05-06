@@ -3,6 +3,12 @@ server:
 spring:
   application:
     name: booking-service
+
+  ai:
+    mcp:
+      server:
+        name: booking-service
+        version: 1.0.0
   # --- Configuración de Spring Cloud Stream ---
   cloud:
     function:

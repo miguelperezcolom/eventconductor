@@ -1,4 +1,4 @@
-package io.mateu.workflow.mcp;
+package io.mateu.workflow.infra.in.mcp;
 
 import io.mateu.workflow.application.out.LogMessageRepository;
 import io.mateu.workflow.application.out.ProcessRepository;
@@ -6,6 +6,7 @@ import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.usecases.process.retry.RetryProcessCommand;
 import io.mateu.workflow.application.usecases.process.retry.RetryProcessUseCase;
 import io.mateu.workflow.domain.aggregates.Process;
+import io.mateu.workflow.mcp.McpTools;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.annotation.Tool;
@@ -16,7 +17,7 @@ import java.util.List;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-public class WorkflowMcpTools {
+public class WorkflowMcpTools implements McpTools {
 
     private final ProcessRepository processRepository;
     private final StepExecutionRepository stepExecutionRepository;
@@ -77,7 +78,6 @@ public class WorkflowMcpTools {
     }
 
     @Tool(description = "Get log messages for a workflow process")
-    @preau
     public List<LogEntry> getProcessLogs(String processId) {
         log.info("Getting logs for process " + processId);
         return logMessageRepository.findAll().stream()

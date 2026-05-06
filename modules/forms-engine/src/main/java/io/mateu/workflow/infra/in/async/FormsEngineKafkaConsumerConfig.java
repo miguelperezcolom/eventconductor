@@ -24,7 +24,7 @@ public class FormsEngineKafkaConsumerConfig {
     final CancelTaskUseCase cancelTaskUseCase;
 
     @Bean
-    public Consumer<DomainEvent> consumeWorkerEvent() {
+    public Consumer<DomainEvent> consumeWorkerEventForFormsEngine() {
         return event -> {
             log.info("Received event: " + event);
             if (event instanceof TaskExecutionRequested(

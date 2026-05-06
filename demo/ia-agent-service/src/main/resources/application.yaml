@@ -22,6 +22,8 @@ spring:
           connections:
             event-conductor:
               url: http://localhost:8991
+            booking-service:
+              url: http://localhost:8108
 
 server:
   port: 8095

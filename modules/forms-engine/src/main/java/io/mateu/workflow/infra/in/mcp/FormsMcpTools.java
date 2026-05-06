@@ -1,7 +1,8 @@
-package io.mateu.workflow.mcp;
+package io.mateu.workflow.infra.in.mcp;
 
 import io.mateu.workflow.application.out.FormExecutionRepository;
 import io.mateu.workflow.application.out.FormRepository;
+import io.mateu.workflow.mcp.McpTools;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.annotation.Tool;
@@ -12,7 +13,7 @@ import java.util.List;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-public class FormsMcpTools {
+public class FormsMcpTools implements McpTools {
 
     private final FormRepository formRepository;
     private final FormExecutionRepository formExecutionRepository;

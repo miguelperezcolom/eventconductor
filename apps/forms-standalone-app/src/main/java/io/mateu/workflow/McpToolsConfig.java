@@ -1,9 +1,7 @@
-package io.mateu.workflow.mcp;
+package io.mateu.workflow;
 
-import io.mateu.workflow.infra.in.mcp.FormsMcpTools;
-import io.mateu.workflow.infra.in.mcp.WorkflowMcpTools;
+import io.mateu.workflow.mcp.McpTools;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.ai.tool.method.MethodToolCallbackProvider;
 import org.springframework.context.annotation.Bean;
@@ -23,4 +21,5 @@ public class McpToolsConfig {
                 .toolObjects(tools.toArray())
                 .build();
     }
+
 }
