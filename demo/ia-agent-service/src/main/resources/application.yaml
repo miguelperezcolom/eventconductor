@@ -14,6 +14,7 @@ spring:
         options:
           model: claude-sonnet-4-5
           temperature: 0.1
+          max-tokens: 4096
 
     # 2. MCP Client: conexiones SSE a los servidores MCP
     mcp:
@@ -21,14 +22,21 @@ spring:
         sse:
           connections:
             event-conductor:
-              url: http://localhost:8991
+              url: http://localhost:8105
+            forms-engine:
+              url: http://localhost:8106
             booking-service:
               url: http://localhost:8108
 
 server:
   port: 8095
 
+
 logging:
   level:
-    org.springframework.ai: DEBUG
+    org.springframework.ai: WARN
     io.mateu.workflow: INFO
+    org:
+      springframework:
+        ai:
+          mcp: TRACE
