@@ -9,6 +9,11 @@ spring:
       server:
         name: booking-service
         version: 1.0.0
+
+  mvc:
+    async:
+      request-timeout: -1   # SSE connections must not expire
+
   # --- Configuración de Spring Cloud Stream ---
   cloud:
     function:

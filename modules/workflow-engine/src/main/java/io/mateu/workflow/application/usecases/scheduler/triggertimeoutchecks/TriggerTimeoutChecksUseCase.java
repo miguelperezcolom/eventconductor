@@ -22,6 +22,7 @@ public class TriggerTimeoutChecksUseCase {
     public void handle(TriggerTimeoutChecksCommand command) {
         var now = LocalDateTime.now();
         stepExecutionRepository.findPendingOrRunning().stream()
+                .filter(se -> se.getProcessId().equals(command.processId()))
                 .filter(se -> se.getStartedAt() != null)
                 .filter(se -> {
                     var step = pojoFromJson(se.getStepJson(), Step.class);
