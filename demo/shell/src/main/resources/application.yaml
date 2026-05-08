@@ -3,11 +3,11 @@ server:
 spring:
   application:
     name: shell
-  security:
-    oauth2:
-      resourceserver:
-        jwt:
+  #security:
+    #oauth2:
+      #resourceserver:
+        #jwt:
           # URL pública de tu API Gateway donde expusiste las claves
-          jwk-set-uri: http://localhost:8091/.well-known/jwks.json
+          #jwk-set-uri: http://localhost:8091/.well-known/jwks.json
           # Opcional: Validar que el issuer coincida con el que pusimos en el filtro
-          issuer-uri: my-api-gateway
+          #issuer-uri: my-api-gateway

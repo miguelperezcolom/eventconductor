@@ -19,6 +19,7 @@ spring:
     # 2. MCP Client: conexiones SSE a los servidores MCP
     mcp:
       client:
+        request-timeout: 60s
         sse:
           connections:
             event-conductor:
