@@ -2,6 +2,7 @@ package io.mateu.workflow.infra.in.mcp;
 
 import io.mateu.workflow.application.out.FormExecutionRepository;
 import io.mateu.workflow.application.out.FormRepository;
+import io.mateu.workflow.application.usecases.gitimport.ImportFormsFromGitUseCase;
 import io.mateu.workflow.mcp.McpSystemContext;
 import io.mateu.workflow.mcp.McpTools;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +32,7 @@ public class FormsMcpTools implements McpTools, McpSystemContext {
 
     private final FormRepository formRepository;
     private final FormExecutionRepository formExecutionRepository;
+    private final ImportFormsFromGitUseCase importFormsFromGitUseCase;
 
     public record FormSummary(String id, String name, String description, int fieldCount) {}
 
@@ -62,6 +64,24 @@ public class FormsMcpTools implements McpTools, McpSystemContext {
                         fe.stepExecutionId(), fe.status().name(),
                         fe.userId(), fe.userGroup()))
                 .toList();
+    }
+
+    @Tool(description = "Import form definitions from configured Git repositories. Scans each repository for JSON files that represent form definitions and upserts them into the system.")
+    public String importFormsFromGit() {
+        log.info("Importing form definitions from Git repositories");
+        var result = importFormsFromGitUseCase.handle();
+        var sb = new StringBuilder();
+        if (!result.imported().isEmpty()) {
+            sb.append("Imported ").append(result.imported().size()).append(" form(s):\n");
+            result.imported().forEach(name -> sb.append("  - ").append(name).append("\n"));
+        } else {
+            sb.append("No new form definitions found.\n");
+        }
+        if (!result.errors().isEmpty()) {
+            sb.append("Errors (").append(result.errors().size()).append("):\n");
+            result.errors().forEach(err -> sb.append("  - ").append(err).append("\n"));
+        }
+        return sb.toString();
     }
 
     @Tool(description = "Get full details of a form execution including variable values")
