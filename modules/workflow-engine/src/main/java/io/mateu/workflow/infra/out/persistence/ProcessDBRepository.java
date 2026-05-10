@@ -5,7 +5,7 @@ import io.mateu.workflow.domain.aggregates.Process;
 import io.mateu.workflow.domain.aggregates.ProcessStatus;
 import io.mateu.workflow.domain.aggregates.Variable;
 import lombok.RequiredArgsConstructor;
-import org.springframework.cloud.stream.function.StreamBridge;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -16,6 +16,7 @@ import static io.mateu.core.infra.JsonSerializer.listFromJson;
 import static io.mateu.core.infra.JsonSerializer.toJson;
 
 @Service
+@ConditionalOnProperty(name = "workflow.persistence", havingValue = "jpa", matchIfMissing = true)
 @RequiredArgsConstructor
 public class ProcessDBRepository implements ProcessRepository {
 
