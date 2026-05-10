@@ -6,6 +6,7 @@ import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.usecases.process.retry.RetryProcessCommand;
 import io.mateu.workflow.application.usecases.process.retry.RetryProcessUseCase;
 import io.mateu.workflow.domain.aggregates.Process;
+import io.mateu.workflow.mcp.McpSystemContext;
 import io.mateu.workflow.mcp.McpTools;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -17,7 +18,21 @@ import java.util.List;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-public class WorkflowMcpTools implements McpTools {
+public class WorkflowMcpTools implements McpTools, McpSystemContext {
+
+    @Override
+    public String getSystemContext() {
+        return """
+                Motor de orquestación de procesos (Sagas/Workflows):
+                - Puedes listar, consultar y diagnosticar procesos de negocio.
+                - Puedes consultar variables de proceso, pasos de ejecución y logs.
+                - Puedes reintentar los pasos fallidos de un proceso en estado ERROR.
+                Estados posibles de un proceso: RUNNING, COMPLETED, ERROR, COMPENSATING, COMPENSATED.
+                Cada proceso tiene un ID único, un businessKey (clave de negocio) y un porcentaje de completado.
+                Los pasos (StepExecution) contienen el workerId que los ejecutó y su estado individual.
+                """;
+    }
+
 
     private final ProcessRepository processRepository;
     private final StepExecutionRepository stepExecutionRepository;

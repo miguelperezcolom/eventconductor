@@ -16,9 +16,12 @@ spring:
           temperature: 0.1
           max-tokens: 4096
 
-    # 2. MCP Client: conexiones SSE a los servidores MCP
+    # 2. MCP Client: URLs leídas por McpSseConnectionProperties para conexiones per-request.
+    # La auto-configuración de clientes persistentes está desactivada (enabled=false)
+    # para evitar que una caída del servidor MCP deje el cliente en estado roto.
     mcp:
       client:
+        enabled: false
         request-timeout: 60s
         sse:
           connections:
