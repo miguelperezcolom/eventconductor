@@ -43,6 +43,8 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
     private String workerId;
     private long order;
     private LocalDateTime startedAt;
+    /** Number of execution attempts already made (0 = first attempt, 1 = first retry, …). */
+    private int attemptCount;
 
 
     public static StepExecution create(Step step, String processId, int position) {
@@ -92,5 +94,17 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
     public void updateStatus(StepExecutionStatus status) {
         this.status = status;
         send(new StepExecutionStatusChanged(id, TaskStatus.valueOf(status.name()), List.of()));
+    }
+
+    /**
+     * Resets this step execution for a new attempt.
+     * Increments {@code attemptCount}, sets status back to CREATED and logs the retry.
+     * Does NOT emit a domain event — the caller is responsible for driving the next cycle.
+     */
+    public void scheduleRetry() {
+        this.attemptCount++;
+        this.status = StepExecutionStatus.CREATED;
+        send(new TaskLogEmitted(id, MessageType.Info,
+                "Auto-retry attempt " + attemptCount + " scheduled for step " + stepId));
     }
 }

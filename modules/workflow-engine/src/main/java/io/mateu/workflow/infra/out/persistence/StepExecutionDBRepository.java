@@ -40,7 +40,8 @@ public class StepExecutionDBRepository implements StepExecutionRepository {
                 StepExecutionStatus.valueOf(entity.getStatus()),
                 entity.getWorkerId(),
                 entity.getOrder(),
-                entity.getStartedAt()
+                entity.getStartedAt(),
+                entity.getAttemptCount()
         );
     }
 
@@ -56,7 +57,8 @@ public class StepExecutionDBRepository implements StepExecutionRepository {
                 stepExecution.getStatus().name(),
                 stepExecution.getWorkerId(),
                 stepExecution.getOrder(),
-                stepExecution.getStartedAt()
+                stepExecution.getStartedAt(),
+                stepExecution.getAttemptCount()
         ));
 
         stepExecution.popEvents().stream()
