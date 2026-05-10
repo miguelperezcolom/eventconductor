@@ -7,6 +7,7 @@ import io.mateu.workflow.booking.application.usecases.booking.create.CreateBooki
 import io.mateu.workflow.booking.application.usecases.booking.create.CreateBookingUseCase;
 import io.mateu.workflow.booking.domain.aggregates.booking.vo.BookingStatus;
 import io.mateu.workflow.booking.infra.out.persistence.BookingEntityRepository;
+import io.mateu.workflow.mcp.McpSystemContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.annotation.Tool;
@@ -17,7 +18,20 @@ import java.util.List;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-public class BookingMcpTools {
+public class BookingMcpTools implements McpSystemContext {
+
+    @Override
+    public String getSystemContext() {
+        return """
+                Servicio de reservas:
+                - Puedes crear reservas para un cliente (leadName).
+                - Puedes listar y consultar reservas existentes.
+                - Puedes cambiar el estado de una reserva.
+                Estados válidos de una reserva: Pending, Confirmed, Cancelled.
+                Cada reserva tiene un ID único, un nombre de cliente (leadName), fecha de creación y estado.
+                """;
+    }
+
 
     private final BookingQueryService bookingQueryService;
     private final BookingEntityRepository bookingEntityRepository;

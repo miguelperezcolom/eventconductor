@@ -2,6 +2,7 @@ package io.mateu.workflow.infra.in.mcp;
 
 import io.mateu.workflow.application.out.FormExecutionRepository;
 import io.mateu.workflow.application.out.FormRepository;
+import io.mateu.workflow.mcp.McpSystemContext;
 import io.mateu.workflow.mcp.McpTools;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -13,7 +14,20 @@ import java.util.List;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-public class FormsMcpTools implements McpTools {
+public class FormsMcpTools implements McpTools, McpSystemContext {
+
+    @Override
+    public String getSystemContext() {
+        return """
+                Motor de formularios (tareas de usuario):
+                - Puedes listar las definiciones de formularios disponibles.
+                - Puedes listar y consultar ejecuciones de formularios (tareas pendientes de usuarios).
+                Estados posibles de una ejecución: PENDING, COMPLETED, CANCELLED.
+                Cada ejecución está asociada a un proceso (processId) y a un paso concreto (stepExecutionId).
+                Puede estar asignada a un usuario (userId) o a un grupo (userGroup).
+                """;
+    }
+
 
     private final FormRepository formRepository;
     private final FormExecutionRepository formExecutionRepository;
