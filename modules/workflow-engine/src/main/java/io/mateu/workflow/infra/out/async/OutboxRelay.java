@@ -5,12 +5,14 @@ import io.mateu.workflow.infra.out.persistence.OutboxMessageStatus;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.cloud.stream.function.StreamBridge;
 import org.springframework.stereotype.Service;
 
 import static io.mateu.core.infra.JsonSerializer.pojoFromJson;
 
 @Service
+@ConditionalOnProperty(name = "workflow.mode", havingValue = "kafka", matchIfMissing = true)
 @RequiredArgsConstructor
 @Slf4j
 public class OutboxRelay {

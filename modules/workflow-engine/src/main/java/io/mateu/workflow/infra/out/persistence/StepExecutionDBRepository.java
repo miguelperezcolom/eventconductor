@@ -4,7 +4,6 @@ import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.domain.aggregates.*;
 import io.mateu.workflow.domain.aggregates.Process;
 import lombok.RequiredArgsConstructor;
-import org.springframework.cloud.stream.function.StreamBridge;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -20,7 +19,6 @@ import static io.mateu.core.infra.JsonSerializer.toJson;
 @RequiredArgsConstructor
 public class StepExecutionDBRepository implements StepExecutionRepository {
 
-    final StreamBridge streamBridge;
     final StepExecutionEntityRepository stepExecutionEntityRepository;
     final OutboxMessageEntityRepository outboxMessageEntityRepository;
 
