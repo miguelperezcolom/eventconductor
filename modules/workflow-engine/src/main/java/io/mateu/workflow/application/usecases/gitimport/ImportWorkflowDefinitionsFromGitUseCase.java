@@ -1,11 +1,8 @@
 package io.mateu.workflow.application.usecases.gitimport;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.networknt.schema.JsonSchemaFactory;
-import com.networknt.schema.SpecVersion;
-import com.networknt.schema.ValidationMessage;
 import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
+import io.mateu.workflow.application.services.WorkflowDefinitionValidator;
 import io.mateu.workflow.domain.aggregates.WorkflowDefinition;
 import io.mateu.workflow.infra.config.GitImportProperties;
 import lombok.RequiredArgsConstructor;
@@ -13,7 +10,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
@@ -22,19 +18,16 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class ImportWorkflowDefinitionsFromGitUseCase {
 
-    private static final String SCHEMA_RESOURCE = "workflow-definition-schema.json";
-
     final GitImportProperties gitImportProperties;
     final WorkflowDefinitionRepository workflowDefinitionRepository;
+    final WorkflowDefinitionValidator workflowDefinitionValidator;
     final ObjectMapper objectMapper;
 
     public ImportWorkflowDefinitionsResult handle() {
@@ -83,15 +76,11 @@ public class ImportWorkflowDefinitionsFromGitUseCase {
     }
 
     private void scanAndImport(Path repoRoot, List<String> imported, List<String> errors) throws IOException {
-        var schema = loadSchema();
         try (var stream = Files.walk(repoRoot)) {
             stream.filter(path -> path.toString().endsWith(".json"))
                     .forEach(jsonFile -> {
                         try {
-                            importJsonFile(jsonFile, repoRoot, schema, imported);
-                        } catch (SchemaValidationException e) {
-                            log.warn("Skipping {} — schema validation failed: {}", jsonFile, e.getMessage());
-                            errors.add("File " + repoRoot.relativize(jsonFile) + ": " + e.getMessage());
+                            importJsonFile(jsonFile, repoRoot, imported);
                         } catch (Exception e) {
                             log.warn("Skipping {}: {}", jsonFile, e.getMessage());
                             errors.add("File " + repoRoot.relativize(jsonFile) + ": " + e.getMessage());
@@ -100,29 +89,12 @@ public class ImportWorkflowDefinitionsFromGitUseCase {
         }
     }
 
-    private com.networknt.schema.JsonSchema loadSchema() throws IOException {
-        var schemaStream = new ClassPathResource(SCHEMA_RESOURCE).getInputStream();
-        return JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V7).getSchema(schemaStream);
-    }
-
-    private void importJsonFile(Path jsonFile,
-                                Path repoRoot,
-                                com.networknt.schema.JsonSchema schema,
-                                List<String> imported) throws IOException {
-        JsonNode node = objectMapper.readTree(jsonFile.toFile());
+    private void importJsonFile(Path jsonFile, Path repoRoot, List<String> imported) throws IOException {
+        var node = objectMapper.readTree(jsonFile.toFile());
 
         // Quick pre-check: must have both "name" and "steps" to be a workflow definition at all.
         if (!node.has("name") || !node.has("steps")) {
             return;
-        }
-
-        // Full schema validation.
-        Set<ValidationMessage> violations = schema.validate(node);
-        if (!violations.isEmpty()) {
-            String details = violations.stream()
-                    .map(ValidationMessage::getMessage)
-                    .collect(Collectors.joining("; "));
-            throw new SchemaValidationException(details);
         }
 
         var definition = objectMapper.treeToValue(node, WorkflowDefinition.class);
@@ -142,6 +114,8 @@ public class ImportWorkflowDefinitionsFromGitUseCase {
             );
         }
 
+        // Validation is delegated to WorkflowDefinitionValidator (called inside repository.save()).
+        // Any violation will throw WorkflowDefinitionValidationException, caught by the caller.
         workflowDefinitionRepository.save(definition);
         log.info("Imported workflow definition '{}' (id={}) from {}",
                 definition.name(), definition.id(), repoRoot.relativize(jsonFile));
@@ -157,12 +131,6 @@ public class ImportWorkflowDefinitionsFromGitUseCase {
             }
         }
         dir.delete();
-    }
-
-    static class SchemaValidationException extends RuntimeException {
-        SchemaValidationException(String message) {
-            super(message);
-        }
     }
 
     public record ImportWorkflowDefinitionsResult(List<String> imported, List<String> errors) {}
