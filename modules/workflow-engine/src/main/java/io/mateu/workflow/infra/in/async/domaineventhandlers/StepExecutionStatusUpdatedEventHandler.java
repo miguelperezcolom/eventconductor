@@ -37,11 +37,15 @@ public class StepExecutionStatusUpdatedEventHandler implements DomainEventHandle
     public void handle(StepExecutionStatusChanged e) {
         var stepExecution = stepExecutionRepository.findById(e.stepExecutionId()).orElseThrow();
 
-        // Auto-retry: if the step failed and the step definition allows more attempts,
-        // reset the execution to CREATED and let StepOverProcessUseCase re-dispatch it.
-        if (TaskStatus.ERROR.equals(e.status())) {
+        // Auto-retry: if the step failed or timed out and the step definition allows more
+        // attempts, cancel the running task (if any), reset the execution to CREATED and
+        // let StepOverProcessUseCase re-dispatch it.
+        if (TaskStatus.ERROR.equals(e.status()) || TaskStatus.TIMEOUT.equals(e.status())) {
             var step = pojoFromJson(stepExecution.getStepJson(), Step.class);
             if (stepExecution.getAttemptCount() < step.retries()) {
+                if (TaskStatus.TIMEOUT.equals(e.status())) {
+                    streamBridge.send("downstream", new TaskCancellationRequested(e.stepExecutionId()));
+                }
                 stepExecution.scheduleRetry();
                 stepExecutionRepository.save(stepExecution);
                 stepOverProcessUseCase.handle(new StepOverProcessCommand(stepExecution.getProcessId()));
