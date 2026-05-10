@@ -46,6 +46,26 @@ public record WorkflowDefinition(
         return name + " " + description;
     }
 
+    /**
+     * Checks domain invariants that cannot be expressed as field-level annotations.
+     *
+     * @throws IllegalStateException if any invariant is violated.
+     */
+    public void checkInvariants() {
+        if (steps == null) return;
+        for (var step : steps) {
+            if (step.id() == null) continue;
+            if (step.id().equals(step.preconditionStepId())) {
+                throw new IllegalStateException(
+                        "Step '" + step.id() + "' cannot have itself as a precondition.");
+            }
+            if (step.id().equals(step.compensationStepId())) {
+                throw new IllegalStateException(
+                        "Step '" + step.id() + "' cannot have itself as a compensation step.");
+            }
+        }
+    }
+
     @Override
     public int maxConcurrentExecutions() {
         return (limitConcurrentExecutions)?maxConcurrentExecutions:1;

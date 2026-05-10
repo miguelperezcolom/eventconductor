@@ -40,6 +40,7 @@ public class WorkflowDefinitionValidator {
     }
 
     public void validate(WorkflowDefinition definition) {
+        definition.checkInvariants();
         try {
             var node = objectMapper.valueToTree(definition);
             Set<ValidationMessage> violations = schema.validate(node);
