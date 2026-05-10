@@ -51,9 +51,11 @@ public class IaAgentController {
      * de los últimos 5 intercambios que se envían al LLM como contexto.
      */
     @GetMapping(value = "/chat", produces = "text/plain;charset=UTF-8")
-    public String chat(@RequestParam String message, @RequestParam String sessionId) {
+    public String chat(@RequestParam String message,
+                       @RequestParam String sessionId,
+                       @RequestHeader(value = "Authorization", required = false) String authorization) {
         log.info("Chat request session={}: '{}'", sessionId, message);
-        try (var tools = mcpFactory.createTools()) {
+        try (var tools = mcpFactory.createTools(authorization)) {
             String systemPrompt = buildSystemPrompt(tools.getServerSystemContext());
             var history = conversationStore.getHistory(sessionId);
 
@@ -93,12 +95,13 @@ public class IaAgentController {
      */
     @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<ServerSentEvent<String>> stream(@RequestParam String message,
-                                                @RequestParam String sessionId) {
+                                                @RequestParam String sessionId,
+                                                @RequestHeader(value = "Authorization", required = false) String authorization) {
         log.info("Stream request session={}: '{}'", sessionId, message);
         var history = conversationStore.getHistory(sessionId);
 
         return Mono.fromCallable(() -> {
-                    try (var tools = mcpFactory.createTools()) {
+                    try (var tools = mcpFactory.createTools(authorization)) {
                         String systemPrompt = buildSystemPrompt(tools.getServerSystemContext());
                         var content = chatClient.prompt()
                                 .system(systemPrompt)
