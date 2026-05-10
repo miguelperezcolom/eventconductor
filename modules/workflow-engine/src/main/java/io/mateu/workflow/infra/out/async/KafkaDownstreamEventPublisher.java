@@ -1,0 +1,21 @@
+package io.mateu.workflow.infra.out.async;
+
+import io.mateu.workflow.application.out.DownstreamEventPublisher;
+import io.mateu.workflow.ddd.DomainEvent;
+import lombok.RequiredArgsConstructor;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.cloud.stream.function.StreamBridge;
+import org.springframework.stereotype.Service;
+
+@Service
+@ConditionalOnProperty(name = "workflow.mode", havingValue = "kafka", matchIfMissing = true)
+@RequiredArgsConstructor
+public class KafkaDownstreamEventPublisher implements DownstreamEventPublisher {
+
+    private final StreamBridge streamBridge;
+
+    @Override
+    public void publish(DomainEvent event) {
+        streamBridge.send("downstream", event);
+    }
+}

@@ -7,6 +7,7 @@ import io.mateu.workflow.application.usecases.processupstreamevent.ProcessUpstre
 import io.mateu.workflow.ddd.DomainEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.messaging.Message;
@@ -14,6 +15,7 @@ import org.springframework.messaging.Message;
 import java.util.function.Consumer;
 
 @Configuration
+@ConditionalOnProperty(name = "workflow.mode", havingValue = "kafka", matchIfMissing = true)
 @RequiredArgsConstructor
 @Slf4j
 public class OrchestratorKafkaConsumerConfig {
