@@ -3,6 +3,7 @@ package io.mateu.workflow.infra.out.persistence;
 import io.mateu.uidl.data.FieldDataType;
 import io.mateu.uidl.data.FieldStereotype;
 import io.mateu.workflow.application.out.FormRepository;
+import io.mateu.workflow.application.services.FormValidator;
 import io.mateu.workflow.domain.Field;
 import io.mateu.workflow.domain.Form;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +20,7 @@ public class FormDBRepository implements FormRepository {
     final FormEntityRepository formEntityRepository;
     final FieldEntityRepository fieldEntityRepository;
     final StreamBridge streamBridge;
+    final FormValidator formValidator;
 
     @Override
     public Optional<Form> findById(String id) {
@@ -44,6 +46,7 @@ public class FormDBRepository implements FormRepository {
 
     @Override
     public String save(Form form) {
+        formValidator.validate(form);
         if (form.fields() != null) {
             form.fields().stream().map(field -> new FieldEntity(
                 field.id(),
