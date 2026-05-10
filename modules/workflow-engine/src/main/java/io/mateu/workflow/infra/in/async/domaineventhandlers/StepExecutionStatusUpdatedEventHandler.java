@@ -1,23 +1,24 @@
 package io.mateu.workflow.infra.in.async.domaineventhandlers;
 
+import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.usecases.process.stepover.StepOverProcessCommand;
 import io.mateu.workflow.application.usecases.process.stepover.StepOverProcessUseCase;
 import io.mateu.workflow.application.usecases.process.update.ProcessStepExecutionUpdateCommand;
 import io.mateu.workflow.application.usecases.process.update.ProcessUpdateStepExecutionUpdateUseCase;
-import io.mateu.workflow.application.usecases.stepexecution.start.StartStepExecutionCommand;
 import io.mateu.workflow.ddd.DomainEvent;
 import io.mateu.workflow.ddd.DomainEventHandler;
 import io.mateu.workflow.domain.aggregates.Step;
+import io.mateu.workflow.domain.aggregates.StepExecution;
+import io.mateu.workflow.domain.aggregates.StepExecutionStatus;
 import io.mateu.workflow.dtos.events.domain.StepExecutionStatusChanged;
 import io.mateu.workflow.dtos.events.integration.TaskCancellationRequested;
-import io.mateu.workflow.dtos.events.integration.TaskExecutionRequested;
 import io.mateu.workflow.dtos.events.integration.TaskStatus;
-
-import static io.mateu.core.infra.JsonSerializer.pojoFromJson;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cloud.stream.function.StreamBridge;
 import org.springframework.stereotype.Service;
+
+import static io.mateu.core.infra.JsonSerializer.pojoFromJson;
 
 @Service
 @RequiredArgsConstructor
@@ -26,6 +27,7 @@ public class StepExecutionStatusUpdatedEventHandler implements DomainEventHandle
     final ProcessUpdateStepExecutionUpdateUseCase processUpdateStepExecutionUpdateUseCase;
     final StepOverProcessUseCase stepOverProcessUseCase;
     final StepExecutionRepository stepExecutionRepository;
+    final ProcessRepository processRepository;
     final StreamBridge streamBridge;
 
     @Override
@@ -37,26 +39,49 @@ public class StepExecutionStatusUpdatedEventHandler implements DomainEventHandle
     public void handle(StepExecutionStatusChanged e) {
         var stepExecution = stepExecutionRepository.findById(e.stepExecutionId()).orElseThrow();
 
-        // Auto-retry: if the step failed or timed out and the step definition allows more
-        // attempts, cancel the running task (if any), reset the execution to CREATED and
-        // let StepOverProcessUseCase re-dispatch it.
         if (TaskStatus.ERROR.equals(e.status()) || TaskStatus.TIMEOUT.equals(e.status())) {
+            // Cancel the worker for timed-out tasks regardless of whether we retry.
+            if (TaskStatus.TIMEOUT.equals(e.status())) {
+                streamBridge.send("downstream", new TaskCancellationRequested(e.stepExecutionId()));
+            }
+
             var step = pojoFromJson(stepExecution.getStepJson(), Step.class);
+
+            // Auto-retry: attempts remaining → reset to CREATED and re-dispatch.
             if (stepExecution.getAttemptCount() < step.retries()) {
-                if (TaskStatus.TIMEOUT.equals(e.status())) {
-                    streamBridge.send("downstream", new TaskCancellationRequested(e.stepExecutionId()));
-                }
                 stepExecution.scheduleRetry();
                 stepExecutionRepository.save(stepExecution);
                 stepOverProcessUseCase.handle(new StepOverProcessCommand(stepExecution.getProcessId()));
                 return;
             }
+
+            // Retries exhausted: start compensation step if the step is rollbackable.
+            triggerCompensation(stepExecution, step);
         }
 
         processUpdateStepExecutionUpdateUseCase.handle(new ProcessStepExecutionUpdateCommand(stepExecution.getProcessId()));
         stepOverProcessUseCase.handle(new StepOverProcessCommand(stepExecution.getProcessId()));
-        if (TaskStatus.TIMEOUT.equals(e.status())) {
-            streamBridge.send("downstream", new TaskCancellationRequested(e.stepExecutionId()));
+    }
+
+    /**
+     * Starts the compensation step (if configured) when a step has exhausted all its
+     * retries.  The compensation step is a regular StepExecution already created at
+     * process-start time; we just call start() on it so it gets dispatched.
+     */
+    private void triggerCompensation(StepExecution stepExecution, Step step) {
+        if (!step.rollbackable()
+                || step.compensationStepId() == null
+                || step.compensationStepId().isBlank()) {
+            return;
         }
+        var process = processRepository.findById(stepExecution.getProcessId()).orElseThrow();
+        stepExecutionRepository.findByProcess(process).stream()
+                .filter(se -> step.compensationStepId().equals(se.getStepId()))
+                .filter(se -> StepExecutionStatus.CREATED.equals(se.getStatus()))
+                .findFirst()
+                .ifPresent(compensation -> {
+                    compensation.start(process.getVariables());
+                    stepExecutionRepository.save(compensation);
+                });
     }
 }
