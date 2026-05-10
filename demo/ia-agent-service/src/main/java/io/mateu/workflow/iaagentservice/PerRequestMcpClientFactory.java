@@ -67,14 +67,23 @@ public class PerRequestMcpClientFactory {
      * session, collects tool callbacks and the "system-context" prompt from each
      * server.  Callers MUST call {@link PerRequestTools#close()} when the prompt
      * finishes (use try-with-resources).
+     *
+     * @param authorizationHeader value of the incoming Authorization header (may be
+     *                            null or blank); when present it is forwarded to every
+     *                            MCP server so they can enforce their own authorization.
      */
-    public PerRequestTools createTools() {
+    public PerRequestTools createTools(String authorizationHeader) {
         List<McpSyncClient> clients = new ArrayList<>();
         List<String> serverContexts = new ArrayList<>();
 
         for (String url : serverUrls) {
             try {
-                var transport = HttpClientSseClientTransport.builder(url).build();
+                var transportBuilder = HttpClientSseClientTransport.builder(url);
+                if (authorizationHeader != null && !authorizationHeader.isBlank()) {
+                    transportBuilder.customizeRequest(
+                            rb -> rb.header("Authorization", authorizationHeader));
+                }
+                var transport = transportBuilder.build();
                 McpSyncClient client = McpClient.sync(transport)
                         .requestTimeout(REQUEST_TIMEOUT)
                         .clientInfo(new McpSchema.Implementation("ia-agent-service", "1.0"))
