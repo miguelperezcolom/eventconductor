@@ -70,7 +70,7 @@ public class ShellHome implements WidgetSupplier
 
     MicroFrontend dashboard = MicroFrontend.builder()
             .baseUrl("/_control-plane")
-            .appServerSideType("io.mateu.workflow.controlplaneservice.infra.in.ui.ControlPlaneHome")
+            .serverSideType("io.mateu.workflow.controlplaneservice.infra.in.ui.ControlPlaneHome")
             .route("/_page")
             .build();
 
