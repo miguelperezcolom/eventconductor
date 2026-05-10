@@ -38,4 +38,6 @@ public class StepExecutionEntity {
 
     LocalDateTime startedAt;
 
+    int attemptCount;
+
 }
