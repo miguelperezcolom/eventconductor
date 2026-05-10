@@ -16,6 +16,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -45,6 +47,7 @@ public class PerRequestMcpClientFactory {
 
     private static final Logger log = LoggerFactory.getLogger(PerRequestMcpClientFactory.class);
     private static final String SYSTEM_CONTEXT_PROMPT = "system-context";
+    private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(5);
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(60);
 
     private final List<String> serverUrls;
@@ -73,31 +76,28 @@ public class PerRequestMcpClientFactory {
      *                            MCP server so they can enforce their own authorization.
      */
     public PerRequestTools createTools(String authorizationHeader) {
+        // Connect to all MCP servers in parallel so total wait = max(individual timeouts)
+        // instead of sum(individual timeouts).
+        List<CompletableFuture<McpConnection>> futures = serverUrls.stream()
+                .map(url -> CompletableFuture.supplyAsync(
+                        () -> connectToServer(url, authorizationHeader), executor))
+                .toList();
+
+        long timeoutSecs = CONNECT_TIMEOUT.toSeconds() + 5;
         List<McpSyncClient> clients = new ArrayList<>();
         List<String> serverContexts = new ArrayList<>();
 
-        for (String url : serverUrls) {
+        for (CompletableFuture<McpConnection> future : futures) {
             try {
-                var transportBuilder = HttpClientSseClientTransport.builder(url);
-                if (authorizationHeader != null && !authorizationHeader.isBlank()) {
-                    transportBuilder.customizeRequest(
-                            rb -> rb.header("Authorization", authorizationHeader));
-                }
-                var transport = transportBuilder.build();
-                McpSyncClient client = McpClient.sync(transport)
-                        .requestTimeout(REQUEST_TIMEOUT)
-                        .clientInfo(new McpSchema.Implementation("ia-agent-service", "1.0"))
-                        .build();
-                client.initialize();
-                clients.add(client);
-                log.debug("MCP client connected: {}", url);
-
-                String ctx = readSystemContext(client, url);
-                if (ctx != null) {
-                    serverContexts.add(ctx);
+                McpConnection conn = future.get(timeoutSecs, TimeUnit.SECONDS);
+                if (conn != null) {
+                    clients.add(conn.client());
+                    if (conn.systemContext() != null) {
+                        serverContexts.add(conn.systemContext());
+                    }
                 }
             } catch (Exception e) {
-                log.warn("Could not connect to MCP server {} — skipping: {}", url, e.getMessage());
+                log.warn("MCP connection timed out or failed: {}", e.getMessage());
             }
         }
 
@@ -105,7 +105,30 @@ public class PerRequestMcpClientFactory {
         ToolCallback[] wrapped = wrapWithExecutor(rawCallbacks);
         log.info("Per-request MCP tools ready: {} tools from {}/{} servers",
                 wrapped.length, clients.size(), serverUrls.size());
-        return new PerRequestTools(clients, wrapped, serverContexts);
+        return new PerRequestTools(clients, wrapped, serverContexts, serverUrls.size());
+    }
+
+    private record McpConnection(McpSyncClient client, String systemContext) {}
+
+    private McpConnection connectToServer(String url, String authorizationHeader) {
+        try {
+            var transportBuilder = HttpClientSseClientTransport.builder(url)
+                    .customizeClient(cb -> cb.connectTimeout(CONNECT_TIMEOUT));
+            if (authorizationHeader != null && !authorizationHeader.isBlank()) {
+                transportBuilder.customizeRequest(
+                        rb -> rb.header("Authorization", authorizationHeader));
+            }
+            McpSyncClient client = McpClient.sync(transportBuilder.build())
+                    .requestTimeout(REQUEST_TIMEOUT)
+                    .clientInfo(new McpSchema.Implementation("ia-agent-service", "1.0"))
+                    .build();
+            client.initialize();
+            log.debug("MCP client connected: {}", url);
+            return new McpConnection(client, readSystemContext(client, url));
+        } catch (Exception e) {
+            log.warn("Could not connect to MCP server {} — skipping: {}", url, e.getMessage());
+            return null;
+        }
     }
 
     private String readSystemContext(McpSyncClient client, String url) {
@@ -150,12 +173,18 @@ public class PerRequestMcpClientFactory {
                             log.info("MCP tool result: {} -> {}", toolName, result);
                             return result;
                         } catch (ExecutionException e) {
-                            log.error("MCP tool {} execution error", toolName, e.getCause());
-                            throw new RuntimeException(
-                                    "Tool " + toolName + " failed: " + e.getCause().getMessage(), e.getCause());
+                            String msg = e.getCause() != null ? e.getCause().getMessage() : e.getMessage();
+                            log.error("MCP tool {} execution error: {}", toolName, msg);
+                            return "{\"error\":true,\"tool\":\"" + toolName + "\","
+                                    + "\"message\":\"HERRAMIENTA NO DISPONIBLE: " + toolName
+                                    + " falló con el error: " + msg + ". "
+                                    + "NO inventes datos. Informa al usuario de este error.\"}";
                         } catch (Exception e) {
-                            log.error("MCP tool {} call failed", toolName, e);
-                            throw new RuntimeException("Tool " + toolName + " timed out or failed", e);
+                            log.error("MCP tool {} call failed: {}", toolName, e.getMessage());
+                            return "{\"error\":true,\"tool\":\"" + toolName + "\","
+                                    + "\"message\":\"HERRAMIENTA NO DISPONIBLE: " + toolName
+                                    + " no respondió a tiempo o no está levantada. "
+                                    + "NO inventes datos. Informa al usuario de este error.\"}";
                         }
                     }
                 })
@@ -168,16 +197,27 @@ public class PerRequestMcpClientFactory {
         private final List<McpSyncClient> clients;
         private final ToolCallback[] callbacks;
         private final List<String> serverContexts;
+        private final int expectedServers;
 
-        PerRequestTools(List<McpSyncClient> clients, ToolCallback[] callbacks, List<String> serverContexts) {
+        PerRequestTools(List<McpSyncClient> clients, ToolCallback[] callbacks,
+                        List<String> serverContexts, int expectedServers) {
             this.clients = clients;
             this.callbacks = callbacks;
             this.serverContexts = serverContexts;
+            this.expectedServers = expectedServers;
         }
 
         public ToolCallback[] getCallbacks() {
             return callbacks;
         }
+
+        /** Returns true when no MCP server connected and no tools are available. */
+        public boolean hasNoServers() {
+            return expectedServers > 0 && clients.isEmpty();
+        }
+
+        public int connectedServers() { return clients.size(); }
+        public int expectedServers()  { return expectedServers; }
 
         /**
          * Returns the combined system-context text contributed by all connected MCP

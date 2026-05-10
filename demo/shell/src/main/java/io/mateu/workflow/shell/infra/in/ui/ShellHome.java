@@ -25,6 +25,7 @@ import static io.mateu.core.infra.JsonSerializer.fromJson;
 @PageTitle("Home")
 @Logo("/images/riu.svg")
 @Style(StyleConstants.CONTAINER)
+@AI(sse = "/ai/api/agent/stream")
 public class ShellHome implements WidgetSupplier
 {
 

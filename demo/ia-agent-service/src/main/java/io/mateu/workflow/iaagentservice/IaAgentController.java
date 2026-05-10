@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
@@ -22,7 +23,7 @@ import java.util.regex.Pattern;
 
 @CrossOrigin(origins = "*")
 @RestController
-@RequestMapping("/api/agent")
+@RequestMapping("/ai/api/agent")
 public class IaAgentController {
 
     private static final Logger log = LoggerFactory.getLogger(IaAgentController.class);
@@ -42,7 +43,8 @@ public class IaAgentController {
                               PerRequestMcpClientFactory mcpFactory,
                               ConversationStore conversationStore,
                               MenuContextStore menuContextStore,
-                              ObjectMapper objectMapper) throws IOException {
+                              ObjectMapper objectMapper,
+                              @Value("${spring.ai.anthropic.api-key}") String anthropicApiKey) throws IOException {
         this.mcpFactory = mcpFactory;
         this.conversationStore = conversationStore;
         this.menuContextStore = menuContextStore;
@@ -50,6 +52,14 @@ public class IaAgentController {
         this.baseSystemPrompt = new ClassPathResource("system-prompt-base.txt")
                 .getContentAsString(StandardCharsets.UTF_8);
         this.chatClient = builder.build();
+
+        if (anthropicApiKey == null || anthropicApiKey.isBlank() || !anthropicApiKey.startsWith("sk-ant-")) {
+            log.error("ANTHROPIC_API_KEY no está configurada o tiene un formato inválido. " +
+                    "Las peticiones al LLM fallarán con 401. " +
+                    "Configura la variable de entorno ANTHROPIC_API_KEY con una clave válida (sk-ant-...).");
+        } else {
+            log.info("Anthropic API key configurada correctamente ({}...)", anthropicApiKey.substring(0, 12));
+        }
     }
 
     // ── Internal types ───────────────────────────────────────────────────────
@@ -80,6 +90,19 @@ public class IaAgentController {
 
     private ServerSentEvent<String> contentEvent(String text) {
         return ServerSentEvent.<String>builder().data(text).build();
+    }
+
+    private ServerSentEvent<String> errorEvent(Throwable e) {
+        String message = e.getClass().getSimpleName() + ": " + e.getMessage();
+        try {
+            String json = objectMapper.writeValueAsString(
+                    java.util.Map.of("event", "agent-error", "detail", java.util.Map.of("message", message)));
+            return ServerSentEvent.<String>builder().data(json).build();
+        } catch (Exception ex) {
+            return ServerSentEvent.<String>builder()
+                    .data("{\"event\":\"agent-error\",\"detail\":{\"message\":\"Error interno\"}}")
+                    .build();
+        }
     }
 
     /**
@@ -117,6 +140,12 @@ public class IaAgentController {
         menuContextStore.update(sessionId, request.menuContext());
 
         try (var tools = mcpFactory.createTools(authorization)) {
+            if (tools.hasNoServers()) {
+                String err = "No hay ningún servidor MCP disponible (" + tools.expectedServers()
+                        + " configurados, 0 conectados). No puedo responder sin acceso a las herramientas.";
+                log.warn("Chat aborted session={}: {}", sessionId, err);
+                return err;
+            }
             String systemPrompt = buildSystemPrompt(tools.getServerSystemContext(), sessionId);
             var history = conversationStore.getHistory(sessionId);
 
@@ -172,6 +201,13 @@ public class IaAgentController {
         // Blocking LLM call on a dedicated thread; cache() so both subscribers share the result.
         Mono<LlmResult> resultMono = Mono.fromCallable(() -> {
                     try (var tools = mcpFactory.createTools(authorization)) {
+                        if (tools.hasNoServers()) {
+                            String err = "No hay ningún servidor MCP disponible ("
+                                    + tools.expectedServers() + " configurados, 0 conectados). "
+                                    + "No puedo responder sin acceso a las herramientas.";
+                            log.warn("Stream aborted session={}: no MCP servers", sessionId);
+                            return new LlmResult(err, 0, 0, 0);
+                        }
                         String systemPrompt = buildSystemPrompt(tools.getServerSystemContext(), sessionId);
                         var chatResponse = chatClient.prompt()
                                 .system(systemPrompt)
@@ -210,17 +246,20 @@ public class IaAgentController {
                 .subscribeOn(Schedulers.boundedElastic())
                 .cache();
 
-        // Periodic token-usage placeholders while the LLM is running
+        // Periodic token-usage placeholders while the LLM is running.
+        // onErrorComplete() so that an LLM error terminates the interval cleanly
+        // without propagating through the concat.
         Flux<ServerSentEvent<String>> periodicTokens = Flux
                 .interval(Duration.ZERO, Duration.ofSeconds(2))
                 .map(i -> tokenEvent(0, 0, 0))
-                .takeUntilOther(resultMono);
+                .takeUntilOther(resultMono.onErrorComplete());
 
-        // Final events: real token counts + optional navigation events + content text
+        // Final events: real token counts + optional navigation events + content text.
+        // On error, emit a structured agent-error SSE event so the client can display
+        // the actual cause (e.g. missing LLM API key).
         Flux<ServerSentEvent<String>> finalEvents = resultMono
                 .doOnError(e -> log.error("Stream error session={} — {}: {}",
                         sessionId, e.getClass().getName(), e.getMessage(), e))
-                .onErrorReturn(new LlmResult("[Error al procesar la solicitud]", 0, 0, 0))
                 .flatMapMany(r -> {
                     var parsed = parseNavigation(r.content());
                     var events = new ArrayList<ServerSentEvent<String>>();
@@ -228,7 +267,8 @@ public class IaAgentController {
                     events.addAll(parsed.navEvents());
                     events.add(contentEvent(parsed.cleanText()));
                     return Flux.fromIterable(events);
-                });
+                })
+                .onErrorResume(e -> Flux.just(errorEvent(e)));
 
         return Flux.concat(periodicTokens, finalEvents);
     }
