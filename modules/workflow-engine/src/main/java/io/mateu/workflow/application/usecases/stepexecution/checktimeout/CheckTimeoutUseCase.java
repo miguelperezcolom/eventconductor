@@ -1,7 +1,6 @@
 package io.mateu.workflow.application.usecases.stepexecution.checktimeout;
 
 import io.mateu.workflow.application.out.LogMessageRepository;
-import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.domain.aggregates.LogMessage;
 import io.mateu.workflow.domain.aggregates.Step;
@@ -21,7 +20,6 @@ import static io.mateu.core.infra.JsonSerializer.pojoFromJson;
 public class CheckTimeoutUseCase {
 
     final StepExecutionRepository stepExecutionRepository;
-    final ProcessRepository processRepository;
     final LogMessageRepository logMessageRepository;
 
     public void handle(CheckTimeoutCommand command) {
@@ -55,18 +53,8 @@ public class CheckTimeoutUseCase {
                 "Step timed out after " + step.timeout() + "ms",
                 "system"
         ));
-
-        if (step.rollbackable() && step.compensationStepId() != null && !step.compensationStepId().isBlank()) {
-            var process = processRepository.findById(stepExecution.getProcessId()).orElseThrow();
-            stepExecutionRepository.findByProcess(process).stream()
-                    .filter(se -> step.compensationStepId().equals(se.getStepId()))
-                    .filter(se -> StepExecutionStatus.CREATED.equals(se.getStatus()))
-                    .findFirst()
-                    .ifPresent(compensation -> {
-                        compensation.start(process.getVariables());
-                        stepExecutionRepository.save(compensation);
-                    });
-        }
+        // Compensation (and retry) is handled centrally by StepExecutionStatusUpdatedEventHandler
+        // when it receives the TIMEOUT status change event.
     }
 
 }
