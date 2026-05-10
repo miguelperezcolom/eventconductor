@@ -7,11 +7,11 @@ public abstract class AggregateRoot {
 
     private final List<DomainEvent> events = new ArrayList<>();
 
-    public void send(DomainEvent event) {
+    public synchronized void send(DomainEvent event) {
         events.add(event);
     }
 
-    public List<DomainEvent> popEvents() {
+    public synchronized List<DomainEvent> popEvents() {
         var accumulated = new ArrayList<DomainEvent>(events);
         events.clear();
         return accumulated;

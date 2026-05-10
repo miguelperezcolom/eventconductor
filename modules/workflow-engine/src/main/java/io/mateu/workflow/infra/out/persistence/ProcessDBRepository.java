@@ -48,9 +48,13 @@ public class ProcessDBRepository implements ProcessRepository {
 
     @Override
     public String save(Process process) {
+        // Normalize empty businessKey to null so the unique constraint does not
+        // reject multiple processes that have no business key.
+        var businessKey = (process.getBusinessKey() == null || process.getBusinessKey().isBlank())
+                ? null : process.getBusinessKey();
         processEntityRepository.save(new ProcessEntity(
                 process.getId(),
-                process.getBusinessKey(),
+                businessKey,
                 process.getName(),
                 toJson(process.getVariables()),
                 process.getStatus().name(),
