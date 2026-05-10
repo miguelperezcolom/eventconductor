@@ -62,9 +62,156 @@ Three deployment modes with no code changes:
 | Single-node with persistence | `embedded` | `jpa` | PostgreSQL only |
 | Full distributed / multi-pod | `kafka` | `jpa` | PostgreSQL + Kafka |
 
-### First-class AI integration
-The `ia-agent-service` demo ships an LLM-powered agent (Claude / Anthropic) that lets
-operators query and control the orchestration engine in natural language via MCP tools.
+### Native AI integration via MCP — the key differentiator
+EventConductor is, to our knowledge, the first workflow engine with a native
+[Model Context Protocol (MCP)](https://modelcontextprotocol.io) integration.
+
+Every module exposes its domain as MCP tools. Any MCP-compatible AI client —
+Claude Desktop, a custom chatbot, an internal copilot — can connect and operate the
+engine in natural language, with no custom integration code:
+
+| What you say | What happens |
+|---|---|
+| "What is the status of order 123?" | Queries process by business key, returns status + variables |
+| "Retry all failed processes from today" | Calls `retryProcess` for each ERROR process |
+| "Show me the pending user tasks for the onboarding workflow" | Lists form executions filtered by workflow |
+| "Import the new workflow definitions from Git" | Triggers `importWorkflowDefinitionsFromGit` |
+| "Cancel booking B-456 and tell me why it failed" | Changes booking status + reads process logs |
+
+The agent is resilient: if one MCP server is down the others continue working normally.
+Each server self-describes its domain via a `system-context` MCP Prompt, so the LLM always
+has up-to-date context without any code changes.
+
+No other workflow engine — Camunda, Temporal, Netflix Conductor — offers this out of the box.
+
+---
+
+## AI agent via MCP
+
+### Architecture
+
+```
+AI client (Claude Desktop, chatbot, copilot…)
+        │  MCP over SSE
+        ▼
+ia-agent-service  (port 8095)
+        │  opens a fresh SSE connection per prompt
+        ├──► orchestrator MCP server  (port 8105)  — workflow engine tools
+        ├──► forms-engine MCP server  (port 8106)  — form definition & execution tools
+        └──► booking-service MCP server (port 8108) — domain-specific business tools
+```
+
+The agent combines system context from all connected MCP servers with the user prompt
+and sends a single request to Claude (Anthropic). Tool calls are executed transparently
+and the final answer is returned as plain text or streamed via SSE.
+
+### Available MCP tools
+
+**Workflow engine** (`orchestrator`, port 8105)
+
+| Tool | Description |
+|---|---|
+| `listProcesses` | All process instances with status and completion % |
+| `getProcessDetails` | Full process detail: variables + all step executions |
+| `findProcessByBusinessKey` | Look up a process by its business key |
+| `getProcessLogs` | Audit trail and log messages for a process |
+| `retryProcess` | Re-trigger all failed (ERROR) steps in a process |
+| `importWorkflowDefinitionsFromGit` | Pull and upsert workflow JSON files from Git |
+
+**Forms engine** (`forms-engine`, port 8106)
+
+| Tool | Description |
+|---|---|
+| `listForms` | All form definitions with field count |
+| `listFormExecutions` | All pending/completed user tasks |
+| `getFormExecution` | Full detail of a form execution including submitted values |
+| `importFormsFromGit` | Pull and upsert form JSON files from Git |
+
+**Custom domain tools** (example: `booking-service`, port 8108)
+
+| Tool | Description |
+|---|---|
+| `createBooking` | Create a new booking for a lead |
+| `listBookings` | All bookings with status |
+| `getBooking` | Full booking detail |
+| `changeBookingStatus` | Change booking status (Pending / Confirmed / Cancelled) |
+
+Any service can expose its own MCP tools by implementing `McpTools` and annotating
+methods with `@Tool`. The agent discovers them automatically.
+
+### Connect Claude Desktop in 5 minutes
+
+1. Start the services:
+
+```bash
+# Terminal 1 — orchestrator (workflow engine MCP server)
+cd apps/orchestrator-standalone-app
+mvn spring-boot:run
+
+# Terminal 2 — forms engine MCP server
+cd apps/forms-standalone-app
+mvn spring-boot:run
+
+# Terminal 3 — AI agent
+export ANTHROPIC_API_KEY=sk-ant-...
+cd demo/ia-agent-service
+mvn spring-boot:run
+```
+
+2. Add to your `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "eventconductor": {
+      "url": "http://localhost:8105/sse",
+      "type": "sse"
+    },
+    "forms-engine": {
+      "url": "http://localhost:8106/sse",
+      "type": "sse"
+    }
+  }
+}
+```
+
+3. Open Claude Desktop. The workflow and forms tools appear automatically in the
+   tool palette. Ask anything:
+
+> *"Show me all running processes and retry the ones that are in error."*
+
+### Extend with your own MCP tools
+
+Add a new MCP tool in any Spring service:
+
+```java
+@Component
+@RequiredArgsConstructor
+public class MyMcpTools implements McpTools, McpSystemContext {
+
+    @Override
+    public String getSystemContext() {
+        return "My domain: describe what the agent can do here.";
+    }
+
+    @Tool(description = "Do something useful")
+    public String doSomething(String param) {
+        // business logic
+        return "Done: " + param;
+    }
+}
+```
+
+Then add your service's MCP endpoint to `ia-agent-service/application.yaml`:
+
+```yaml
+spring.ai.mcp.client.sse.connections:
+  my-service:
+    url: http://localhost:MY_PORT
+```
+
+The agent will pick up the new tools and incorporate your `getSystemContext()` text
+into its system prompt automatically.
 
 ---
 
