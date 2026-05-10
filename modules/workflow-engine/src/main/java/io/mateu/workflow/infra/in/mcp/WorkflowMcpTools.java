@@ -3,6 +3,7 @@ package io.mateu.workflow.infra.in.mcp;
 import io.mateu.workflow.application.out.LogMessageRepository;
 import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
+import io.mateu.workflow.application.usecases.gitimport.ImportWorkflowDefinitionsFromGitUseCase;
 import io.mateu.workflow.application.usecases.process.retry.RetryProcessCommand;
 import io.mateu.workflow.application.usecases.process.retry.RetryProcessUseCase;
 import io.mateu.workflow.domain.aggregates.Process;
@@ -38,6 +39,7 @@ public class WorkflowMcpTools implements McpTools, McpSystemContext {
     private final StepExecutionRepository stepExecutionRepository;
     private final LogMessageRepository logMessageRepository;
     private final RetryProcessUseCase retryProcessUseCase;
+    private final ImportWorkflowDefinitionsFromGitUseCase importWorkflowDefinitionsFromGitUseCase;
 
     public record ProcessSummary(
             String id, String name, String businessKey,
@@ -109,5 +111,23 @@ public class WorkflowMcpTools implements McpTools, McpSystemContext {
         log.info("Retrying process " + processId);
         retryProcessUseCase.handle(new RetryProcessCommand(processId));
         return "Retry triggered for process " + processId;
+    }
+
+    @Tool(description = "Import workflow definitions from configured Git repositories. Scans each repository for JSON files that represent workflow definitions and upserts them into the system.")
+    public String importWorkflowDefinitionsFromGit() {
+        log.info("Importing workflow definitions from Git repositories");
+        var result = importWorkflowDefinitionsFromGitUseCase.handle();
+        var sb = new StringBuilder();
+        if (!result.imported().isEmpty()) {
+            sb.append("Imported ").append(result.imported().size()).append(" definition(s):\n");
+            result.imported().forEach(name -> sb.append("  - ").append(name).append("\n"));
+        } else {
+            sb.append("No new workflow definitions found.\n");
+        }
+        if (!result.errors().isEmpty()) {
+            sb.append("Errors (").append(result.errors().size()).append("):\n");
+            result.errors().forEach(err -> sb.append("  - ").append(err).append("\n"));
+        }
+        return sb.toString();
     }
 }
