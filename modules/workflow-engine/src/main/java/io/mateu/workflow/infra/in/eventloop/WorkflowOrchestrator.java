@@ -4,12 +4,14 @@ import io.mateu.workflow.application.usecases.eventloop.AdvanceCommand;
 import io.mateu.workflow.application.usecases.eventloop.AdvanceUseCase;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
+@ConditionalOnProperty(name = "workflow.persistence", havingValue = "jpa", matchIfMissing = true)
 public class WorkflowOrchestrator {
 
     private static final Logger log = LoggerFactory.getLogger(WorkflowOrchestrator.class);

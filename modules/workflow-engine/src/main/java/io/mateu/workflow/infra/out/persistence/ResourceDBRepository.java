@@ -3,17 +3,17 @@ package io.mateu.workflow.infra.out.persistence;
 import io.mateu.workflow.application.out.ResourceRepository;
 import io.mateu.workflow.domain.aggregates.Resource;
 import lombok.RequiredArgsConstructor;
-import org.springframework.cloud.stream.function.StreamBridge;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Optional;
 
 @Service
+@ConditionalOnProperty(name = "workflow.persistence", havingValue = "jpa", matchIfMissing = true)
 @RequiredArgsConstructor
 public class ResourceDBRepository implements ResourceRepository {
 
-    final StreamBridge streamBridge;
     final ResourceEntityRepository resourceEntityRepository;
 
     @Override
