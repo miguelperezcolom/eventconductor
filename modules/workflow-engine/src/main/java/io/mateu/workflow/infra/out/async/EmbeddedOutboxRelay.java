@@ -9,6 +9,7 @@ import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import static io.mateu.core.infra.JsonSerializer.pojoFromJson;
@@ -20,8 +21,12 @@ import static io.mateu.core.infra.JsonSerializer.pojoFromJson;
 @Slf4j
 public class EmbeddedOutboxRelay {
 
+    // Must differ from WorkflowOrchestrator.LOCK_ID (123456789L) and OutboxRelay.LOCK_ID (111222333L)
+    private static final long LOCK_ID = 444555666L;
+
     final OutboxMessageEntityRepository outboxMessageEntityRepository;
     final ProcessDomainEventUseCase processDomainEventUseCase;
+    final JdbcTemplate jdbcTemplate;
 
     @PostConstruct
     public void iterate() {
@@ -29,21 +34,29 @@ public class EmbeddedOutboxRelay {
             try {
                 while (true) {
                     try {
-                        outboxMessageEntityRepository.findByStatus(OutboxMessageStatus.Pending.name()).forEach(m -> {
-                            log.info("Processing embedded outbox message {}", m.getId());
-                            // Mark as Sent BEFORE processing so a crash after dispatch doesn't cause a duplicate.
-                            // If processing fails we revert to Pending so the message is retried next cycle.
-                            m.setStatus(OutboxMessageStatus.Sent.name());
-                            outboxMessageEntityRepository.save(m);
+                        Boolean acquired = jdbcTemplate.queryForObject(
+                                "SELECT pg_try_advisory_lock(?)", Boolean.class, LOCK_ID);
+                        if (Boolean.TRUE.equals(acquired)) {
                             try {
-                                DomainEvent event = (DomainEvent) pojoFromJson(m.getPayload(), Class.forName(m.getMessageType()));
-                                processDomainEventUseCase.handle(new ProcessDomainEventCommand(event));
-                            } catch (Exception e) {
-                                log.error("Failed to process embedded outbox message {}, reverting to Pending", m.getId(), e);
-                                m.setStatus(OutboxMessageStatus.Pending.name());
-                                outboxMessageEntityRepository.save(m);
+                                outboxMessageEntityRepository.findByStatus(OutboxMessageStatus.Pending.name()).forEach(m -> {
+                                    log.info("Processing embedded outbox message {}", m.getId());
+                                    // Mark as Sent BEFORE processing so a crash after dispatch doesn't cause a duplicate.
+                                    // If processing fails we revert to Pending so the message is retried next cycle.
+                                    m.setStatus(OutboxMessageStatus.Sent.name());
+                                    outboxMessageEntityRepository.save(m);
+                                    try {
+                                        DomainEvent event = (DomainEvent) pojoFromJson(m.getPayload(), Class.forName(m.getMessageType()));
+                                        processDomainEventUseCase.handle(new ProcessDomainEventCommand(event));
+                                    } catch (Exception e) {
+                                        log.error("Failed to process embedded outbox message {}, reverting to Pending", m.getId(), e);
+                                        m.setStatus(OutboxMessageStatus.Pending.name());
+                                        outboxMessageEntityRepository.save(m);
+                                    }
+                                });
+                            } finally {
+                                jdbcTemplate.execute("SELECT pg_advisory_unlock(" + LOCK_ID + ")");
                             }
-                        });
+                        }
                     } catch (Throwable e) {
                         log.error("Error processing embedded outbox messages", e);
                     }
