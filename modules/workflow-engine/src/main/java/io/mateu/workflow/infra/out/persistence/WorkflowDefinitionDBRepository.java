@@ -1,6 +1,7 @@
 package io.mateu.workflow.infra.out.persistence;
 
 import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
+import io.mateu.workflow.application.services.WorkflowDefinitionValidator;
 import io.mateu.workflow.domain.aggregates.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cloud.stream.function.StreamBridge;
@@ -18,6 +19,7 @@ public class WorkflowDefinitionDBRepository implements WorkflowDefinitionReposit
 
     final StreamBridge streamBridge;
     final WorkflowDefinitionEntityRepository workflowDefinitionEntityRepository;
+    final WorkflowDefinitionValidator workflowDefinitionValidator;
 
     @Override
     public Optional<WorkflowDefinition> findById(String id) {
@@ -40,6 +42,7 @@ public class WorkflowDefinitionDBRepository implements WorkflowDefinitionReposit
 
     @Override
     public String save(WorkflowDefinition workflowDefinition) {
+        workflowDefinitionValidator.validate(workflowDefinition);
         workflowDefinitionEntityRepository.save(new WorkflowDefinitionEntity(
                 workflowDefinition.id(),
                 workflowDefinition.name(),
