@@ -13,6 +13,7 @@ import reactor.core.scheduler.Schedulers;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 
 @CrossOrigin(origins = "*")
 @RestController
@@ -33,8 +34,6 @@ public class IaAgentController {
         this.conversationStore = conversationStore;
         this.baseSystemPrompt = new ClassPathResource("system-prompt-base.txt")
                 .getContentAsString(StandardCharsets.UTF_8);
-        // No defaultToolCallbacks nor defaultSystem here: both are injected per-request so
-        // each prompt gets fresh MCP connections and an up-to-date system prompt.
         this.chatClient = builder.build();
     }
 
@@ -45,11 +44,23 @@ public class IaAgentController {
         return baseSystemPrompt + "\n\nContexto de las herramientas disponibles:\n\n" + serverContext;
     }
 
-    /**
-     * Endpoint para hablar con el agente.
-     * sessionId identifica la sesión del navegador; se usa para mantener el historial
-     * de los últimos 5 intercambios que se envían al LLM como contexto.
-     */
+    // ── Internal result record ──────────────────────────────────────────────
+    private record LlmResult(String content, int inputTokens, int outputTokens, int totalTokens) {}
+
+    // ── SSE helpers ─────────────────────────────────────────────────────────
+    private ServerSentEvent<String> tokenEvent(int input, int output, int total) {
+        return ServerSentEvent.<String>builder()
+                .data("{\"inputTokens\":" + input
+                        + ",\"outputTokens\":" + output
+                        + ",\"totalTokens\":" + total + "}")
+                .build();
+    }
+
+    private ServerSentEvent<String> contentEvent(String text) {
+        return ServerSentEvent.<String>builder().data(text).build();
+    }
+
+    // ── /chat  (non-streaming, kept for backwards-compat) ───────────────────
     @GetMapping(value = "/chat", produces = "text/plain;charset=UTF-8")
     public String chat(@RequestParam String message,
                        @RequestParam String sessionId,
@@ -86,12 +97,18 @@ public class IaAgentController {
         }
     }
 
+    // ── /stream  (SSE, with periodic token-usage events) ────────────────────
     /**
-     * Streaming via SSE. Internally uses .call() (not .stream()) because Spring AI 1.0.0
-     * does not execute the tool-call loop when using .stream().content() — tool_use blocks
-     * emitted by the model are silently dropped and no MCP tool is ever invoked.
+     * SSE endpoint. Emits token-usage events every 2 seconds while the LLM is
+     * processing, then a final token-usage event with the real counts followed
+     * by the content event.
      *
-     * sessionId identifica la sesión del navegador para mantener el historial de conversación.
+     * Token payload: {"inputTokens": N, "outputTokens": M, "totalTokens": T}
+     * Content payload: plain text (no wrapping object).
+     *
+     * Internally uses .call() (not .stream()) because Spring AI 1.0.0 does not
+     * execute the tool-call loop when using .stream() — tool_use blocks are
+     * silently dropped and no MCP tool is ever invoked.
      */
     @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<ServerSentEvent<String>> stream(@RequestParam String message,
@@ -100,28 +117,64 @@ public class IaAgentController {
         log.info("Stream request session={}: '{}'", sessionId, message);
         var history = conversationStore.getHistory(sessionId);
 
-        return Mono.fromCallable(() -> {
+        // Blocking LLM call on a dedicated thread; cache() so both takeUntilOther
+        // and the final flatMapMany share the same single execution.
+        Mono<LlmResult> resultMono = Mono.fromCallable(() -> {
                     try (var tools = mcpFactory.createTools(authorization)) {
                         String systemPrompt = buildSystemPrompt(tools.getServerSystemContext());
-                        var content = chatClient.prompt()
+                        var chatResponse = chatClient.prompt()
                                 .system(systemPrompt)
                                 .messages(history)
                                 .user(message)
                                 .toolCallbacks(tools.getCallbacks())
                                 .call()
-                                .content();
-                        log.info("Stream (call) completed session={}: {} chars", sessionId,
-                                content != null ? content.length() : 0);
-                        String result = content != null ? content : "(sin respuesta)";
-                        conversationStore.addExchange(sessionId, message, result);
-                        return result;
+                                .chatResponse();
+
+                        String content = null;
+                        int inputTokens = 0, outputTokens = 0, totalTokens = 0;
+
+                        if (chatResponse != null) {
+                            var result = chatResponse.getResult();
+                            if (result != null && result.getOutput() != null) {
+                                content = result.getOutput().getText();
+                            }
+                            var usage = chatResponse.getMetadata() != null
+                                    ? chatResponse.getMetadata().getUsage() : null;
+                            if (usage != null) {
+                                inputTokens  = usage.getPromptTokens()     != null ? usage.getPromptTokens()     : 0;
+                                outputTokens = usage.getCompletionTokens() != null ? usage.getCompletionTokens() : 0;
+                                totalTokens  = usage.getTotalTokens()      != null ? usage.getTotalTokens()      : 0;
+                            }
+                        }
+
+                        log.info("Stream completed session={}: {} chars, tokens={}/{}/{}",
+                                sessionId, content != null ? content.length() : 0,
+                                inputTokens, outputTokens, totalTokens);
+
+                        String text = (content != null && !content.isBlank()) ? content : "(sin respuesta)";
+                        conversationStore.addExchange(sessionId, message, text);
+                        return new LlmResult(text, inputTokens, outputTokens, totalTokens);
                     }
                 })
                 .subscribeOn(Schedulers.boundedElastic())
+                .cache();
+
+        // Emit a token-usage placeholder every 2 s while the LLM is still running.
+        Flux<ServerSentEvent<String>> periodicTokens = Flux
+                .interval(Duration.ZERO, Duration.ofSeconds(2))
+                .map(i -> tokenEvent(0, 0, 0))
+                .takeUntilOther(resultMono);
+
+        // Once the LLM responds: emit the real token counts, then the content.
+        Flux<ServerSentEvent<String>> finalEvents = resultMono
                 .doOnError(e -> log.error("Stream error session={} — {}: {}",
                         sessionId, e.getClass().getName(), e.getMessage(), e))
-                .onErrorResume(e -> Mono.just("[Error: " + e.getMessage() + "]"))
-                .flatMapMany(content -> Flux.just(
-                        ServerSentEvent.<String>builder().data(content).build()));
+                .onErrorReturn(new LlmResult("[Error al procesar la solicitud]", 0, 0, 0))
+                .flatMapMany(r -> Flux.just(
+                        tokenEvent(r.inputTokens(), r.outputTokens(), r.totalTokens()),
+                        contentEvent(r.content())
+                ));
+
+        return Flux.concat(periodicTokens, finalEvents);
     }
 }
