@@ -27,14 +27,18 @@ public class OutboxRelay {
             while (true) {
                 try {
                     outboxMessageEntityRepository.findByStatus(OutboxMessageStatus.Pending.name()).forEach(m -> {
-                        log.info("Relaying outbox message " + m.getId());
-                        try {
-                            streamBridge.send("outbox", pojoFromJson(m.getPayload(), Class.forName(m.getMessageType())));
-                        } catch (ClassNotFoundException e) {
-                            throw new RuntimeException(e);
-                        }
+                        log.info("Relaying outbox message {}", m.getId());
+                        // Mark as Sent BEFORE sending so a crash after the send doesn't cause a duplicate.
+                        // If the send fails we revert to Pending so the message is retried next cycle.
                         m.setStatus(OutboxMessageStatus.Sent.name());
                         outboxMessageEntityRepository.save(m);
+                        try {
+                            streamBridge.send("outbox", pojoFromJson(m.getPayload(), Class.forName(m.getMessageType())));
+                        } catch (Exception e) {
+                            log.error("Failed to relay outbox message {}, reverting to Pending", m.getId(), e);
+                            m.setStatus(OutboxMessageStatus.Pending.name());
+                            outboxMessageEntityRepository.save(m);
+                        }
                     });
                 } catch (Throwable e) {
                     log.error("Error relaying outbox messages", e);

@@ -3,6 +3,7 @@ package io.mateu.workflow.application.usecases.stepexecution.start;
 import io.mateu.workflow.application.out.DownstreamEventPublisher;
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.domain.aggregates.Step;
+import io.mateu.workflow.domain.aggregates.StepExecutionStatus;
 import io.mateu.workflow.domain.aggregates.StepType;
 import io.mateu.workflow.dtos.Variable;
 import io.mateu.workflow.dtos.events.integration.TaskExecutionRequested;
@@ -22,6 +23,14 @@ public class StartStepExecutionUseCase {
 
     public void handle(StartStepExecutionCommand command) {
         var stepExecution = stepExecutionRepository.findById(command.stepExecutionId()).orElseThrow();
+        // Idempotency: only dispatch if the step is still waiting (PENDING).
+        // A duplicate event arriving after the worker has already responded
+        // (status RUNNING / COMPLETED / ERROR / …) is silently ignored.
+        if (stepExecution.getStatus() != StepExecutionStatus.PENDING) {
+            log.warn("Step execution {} is already in status {}, ignoring duplicate TaskExecutionRequested",
+                    command.stepExecutionId(), stepExecution.getStatus());
+            return;
+        }
         var taskId = "";
         var step = pojoFromJson(stepExecution.getStepJson(), Step.class);
         if (StepType.USER_TASK.equals(step.type())) {

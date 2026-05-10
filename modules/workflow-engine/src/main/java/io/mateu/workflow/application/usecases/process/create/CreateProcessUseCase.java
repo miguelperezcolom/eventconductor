@@ -7,6 +7,7 @@ import io.mateu.workflow.domain.aggregates.Process;
 import io.mateu.workflow.domain.aggregates.StepExecution;
 import io.mateu.workflow.infra.out.persistence.OutboxMessageEntityRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -14,6 +15,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class CreateProcessUseCase {
 
     final OutboxMessageEntityRepository outboxMessageEntityRepository;
@@ -22,7 +24,16 @@ public class CreateProcessUseCase {
     final StepExecutionRepository stepExecutionRepository;
 
     public void handle(CreateProcessCommand command) {
-        // crear y grabar proceso
+        // Idempotency: if a non-empty businessKey is provided and a process already
+        // exists for it, this is a duplicate event — skip silently.
+        if (command.businessKey() != null && !command.businessKey().isBlank()) {
+            if (processRepository.findByBusinessKey(command.businessKey()).isPresent()) {
+                log.warn("Process with businessKey '{}' already exists, ignoring duplicate creation request",
+                        command.businessKey());
+                return;
+            }
+        }
+
         var workflowDefinition = workflowDefinitionRepository.findById(command.workflowDefinitionId()).orElseThrow();
         AtomicInteger position = new AtomicInteger(1);
         var stepExecutions = workflowDefinition.steps().stream()
