@@ -17,6 +17,7 @@ public class ProcessEntity {
     @Id
     private String id;
 
+    @Column(unique = true)
     private String businessKey;
 
     private String name;
