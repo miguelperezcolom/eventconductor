@@ -1,8 +1,70 @@
 # EventConductor — Workflow Engine
 
-Event-driven workflow orchestration engine built with Spring Boot. Supports three deployment
-modes: full distributed (Kafka + PostgreSQL), semi-embedded (no Kafka, with PostgreSQL), and
-fully embedded (no Kafka, no database).
+EventConductor is a production-grade, event-driven workflow orchestration platform for the
+Java/Spring ecosystem. It covers the full lifecycle of a business process — from definition
+to execution to monitoring — without forcing you into BPMN's complexity or an external
+SaaS dependency.
+
+---
+
+## Why EventConductor?
+
+### Distributed by design
+EventConductor is built from the ground up for distributed environments. Multiple orchestrator
+instances coordinate safely using PostgreSQL advisory locks and the outbox pattern, giving you
+horizontal scalability with no single point of failure. Scale from a single JVM to a
+multi-pod Kubernetes cluster without changing a line of business code.
+
+### Infinitely scalable
+Workers are stateless microservices that subscribe to Kafka topics. Add more worker instances
+to handle higher load at any time. The engine never becomes a bottleneck — it delegates all
+business logic to workers and simply drives the state machine.
+
+### Event-driven, not polling
+The orchestration loop is triggered entirely by domain events. No polling loops, no scheduled
+queries that grow with your data. Each state transition is an immutable event stored in the
+outbox table and relayed to the appropriate handler, keeping latency low and audit trails
+complete.
+
+### A DSL designed for business workflows, not diagrams
+BPMN was designed to be drawn, not written. EventConductor's JSON workflow DSL was designed
+to be owned by developers: human-readable, version-controlled, reviewable in a PR, and
+expressive enough to model retries, timeouts, compensation (saga), parallel execution,
+sub-processes, conditional branching (JEXL expressions), and human tasks — all in a single
+flat file.
+
+### Built-in forms engine
+The `forms-engine` module handles form definitions, validation, and rendering. User-task steps
+reference a form by ID; the engine takes care of the rest. Forms are defined in JSON, stored
+in version control, and served dynamically to any front-end.
+
+### Visual editors included
+- **Drag-and-drop workflow editor** — design and modify workflows visually; changes are
+  persisted back as JSON definitions.
+- **Drag-and-drop form editor** — build form layouts visually without writing HTML or schemas.
+
+Both editors are included in the platform UI.
+
+### Full management UI
+A web UI is provided out of the box for operators and developers:
+- Browse and manage workflow definitions
+- Monitor running process instances and step executions
+- Inspect variables, logs, and audit trail per process
+- Trigger and cancel processes manually
+- Manage form definitions
+
+### Deploy anywhere, from a unit test to production
+Three deployment modes with no code changes:
+
+| Scenario | `workflow.mode` | `workflow.persistence` | External dependencies |
+|---|---|---|---|
+| Unit tests / embedded library | `embedded` | `memory` | None |
+| Single-node with persistence | `embedded` | `jpa` | PostgreSQL only |
+| Full distributed / multi-pod | `kafka` | `jpa` | PostgreSQL + Kafka |
+
+### First-class AI integration
+The `ia-agent-service` demo ships an LLM-powered agent (Claude / Anthropic) that lets
+operators query and control the orchestration engine in natural language via MCP tools.
 
 ---
 
