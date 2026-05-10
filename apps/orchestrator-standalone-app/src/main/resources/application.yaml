@@ -70,6 +70,15 @@ spring:
     serialization:
       write-dates-as-timestamps: false
 
+workflow:
+  git-import:
+    repositories:
+      # Example: uncomment and fill in to import workflow definitions from a Git repo at startup
+      # - url: https://github.com/your-org/your-workflows-repo.git
+      #   branch: main
+      #   username: your-username        # optional, for private repos
+      #   password: your-token-or-pass  # optional, for private repos
+
 logging:
   level:
     org.hibernate.SQL: error
