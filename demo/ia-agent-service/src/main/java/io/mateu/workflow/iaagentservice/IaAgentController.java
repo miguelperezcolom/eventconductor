@@ -149,20 +149,36 @@ public class IaAgentController {
             String systemPrompt = buildSystemPrompt(tools.getServerSystemContext(), sessionId);
             var history = conversationStore.getHistory(sessionId);
 
-            var response = chatClient.prompt()
+            var chatResponse = chatClient.prompt()
                     .system(systemPrompt)
                     .messages(history)
                     .user(request.message())
                     .toolCallbacks(tools.getCallbacks())
-                    .call();
+                    .call()
+                    .chatResponse();
 
-            var content = response.content();
-            log.info("Chat response session={}: {} chars", sessionId,
-                    content != null ? content.length() : 0);
+            String content = null;
+            int inputTokens = 0, outputTokens = 0, totalTokens = 0;
+            if (chatResponse != null) {
+                var result = chatResponse.getResult();
+                if (result != null && result.getOutput() != null) {
+                    content = result.getOutput().getText();
+                }
+                var usage = chatResponse.getMetadata() != null ? chatResponse.getMetadata().getUsage() : null;
+                if (usage != null) {
+                    inputTokens  = usage.getPromptTokens()     != null ? usage.getPromptTokens()     : 0;
+                    outputTokens = usage.getCompletionTokens() != null ? usage.getCompletionTokens() : 0;
+                    totalTokens  = usage.getTotalTokens()      != null ? usage.getTotalTokens()      : 0;
+                }
+            }
+            log.info("Chat response session={}: {} chars, tokens={}/{}/{}",
+                    sessionId, content != null ? content.length() : 0,
+                    inputTokens, outputTokens, totalTokens);
 
             String raw = (content != null && !content.isBlank()) ? content : "(sin respuesta)";
             String result = parseNavigation(raw).cleanText();
             conversationStore.addExchange(sessionId, request.message(), result);
+            conversationStore.accumulateTokens(sessionId, inputTokens, outputTokens, totalTokens);
             return result;
         } catch (Exception e) {
             log.error("Error en chat session={} — {}: {}", sessionId, e.getClass().getName(), e.getMessage(), e);
@@ -209,6 +225,7 @@ public class IaAgentController {
                             return new LlmResult(err, 0, 0, 0);
                         }
                         String systemPrompt = buildSystemPrompt(tools.getServerSystemContext(), sessionId);
+                        log.info(systemPrompt);
                         var chatResponse = chatClient.prompt()
                                 .system(systemPrompt)
                                 .messages(history)
@@ -240,7 +257,9 @@ public class IaAgentController {
 
                         String raw = (content != null && !content.isBlank()) ? content : "(sin respuesta)";
                         conversationStore.addExchange(sessionId, request.message(), raw);
-                        return new LlmResult(raw, inputTokens, outputTokens, totalTokens);
+                        conversationStore.accumulateTokens(sessionId, inputTokens, outputTokens, totalTokens);
+                        int[] cumulative = conversationStore.getTotalTokens(sessionId);
+                        return new LlmResult(raw, cumulative[0], cumulative[1], cumulative[2]);
                     }
                 })
                 .subscribeOn(Schedulers.boundedElastic())

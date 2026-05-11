@@ -8,7 +8,6 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 /**
  * Caches the UI menu context per browser session.
@@ -60,10 +59,15 @@ public class MenuContextStore {
                     : "(sin nombre)";
             sb.append("- **").append(label).append("**");
             if (entry.navigation() != null) {
-                sb.append(" — ruta: `").append(entry.navigation().route()).append("`");
-                if (entry.navigation().actionId() != null && !entry.navigation().actionId().isBlank()) {
-                    sb.append(", acción: `").append(entry.navigation().actionId()).append("`");
-                }
+                var nav = entry.navigation();
+                sb.append(" — para abrir esta pantalla emite:\n  `[NAVIGATE:{");
+                sb.append("\"route\":\"").append(nav.route()).append("\"");
+                sb.append(",\"consumedRoute\":\"").append(nvl(nav.consumedRoute())).append("\"");
+                sb.append(",\"actionId\":\"").append(nvl(nav.actionId())).append("\"");
+                sb.append(",\"baseUrl\":\"").append(nvl(nav.baseUrl())).append("\"");
+                sb.append(",\"serverSideType\":\"").append(nvl(nav.serverSideType())).append("\"");
+                sb.append(",\"uriPrefix\":\"").append(nvl(nav.uriPrefix())).append("\"");
+                sb.append("}]`");
             }
             sb.append("\n");
         }
@@ -72,16 +76,15 @@ public class MenuContextStore {
 
 ## Navegación desde el agente
 
-Cuando quieras abrir una pantalla en la UI del usuario (por ejemplo, tras crear un registro \
-con una herramienta MCP), incluye exactamente este bloque en tu respuesta, en una línea aparte:
-
-[NAVIGATE:{"route":"<ruta>","consumedRoute":"","actionId":"<acción>","baseUrl":"<baseUrl>","serverSideType":"<serverSideType>","uriPrefix":""}]
-
-El sistema interceptará ese bloque, lo eliminará del texto mostrado al usuario y navegará \
-automáticamente a la pantalla indicada. Usa los valores exactos del campo `navigation` de \
-la pantalla que quieras abrir.
+Para abrir una pantalla en la UI, incluye en tu respuesta (en una línea aparte) \
+el bloque `[NAVIGATE:{...}]` exacto que aparece junto a la pantalla. \
+El sistema lo interceptará, lo eliminará del texto mostrado al usuario y navegará automáticamente.
 """);
 
         return sb.toString();
+    }
+
+    private static String nvl(String s) {
+        return s != null ? s : "";
     }
 }
