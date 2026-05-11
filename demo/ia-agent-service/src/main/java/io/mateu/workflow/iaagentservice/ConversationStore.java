@@ -14,7 +14,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Stores the last N prompt/response exchanges per browser session.
+ * Stores the last N prompt/response exchanges and cumulative token usage per browser session.
  *
  * Backed by Caffeine so sessions expire automatically after inactivity and memory
  * is bounded.  Uses Cache.asMap().compute() for atomic updates — safe under
@@ -30,8 +30,15 @@ public class ConversationStore {
 
     private final Cache<String, List<Message>> sessions;
 
+    /** Accumulated token counts per session: [inputTokens, outputTokens, totalTokens]. */
+    private final Cache<String, int[]> tokenTotals;
+
     public ConversationStore() {
         this.sessions = Caffeine.newBuilder()
+                .maximumSize(1_000)
+                .expireAfterAccess(30, TimeUnit.MINUTES)
+                .build();
+        this.tokenTotals = Caffeine.newBuilder()
                 .maximumSize(1_000)
                 .expireAfterAccess(30, TimeUnit.MINUTES)
                 .build();
@@ -51,6 +58,19 @@ public class ConversationStore {
      * Appends a user/assistant exchange to the session history and trims the list
      * so at most {@value MAX_EXCHANGES} exchanges are retained.
      */
+    public void accumulateTokens(String sessionId, int input, int output, int total) {
+        tokenTotals.asMap().merge(sessionId, new int[]{input, output, total},
+                (existing, delta) -> new int[]{
+                        existing[0] + delta[0],
+                        existing[1] + delta[1],
+                        existing[2] + delta[2]});
+    }
+
+    public int[] getTotalTokens(String sessionId) {
+        int[] totals = tokenTotals.getIfPresent(sessionId);
+        return totals != null ? totals : new int[]{0, 0, 0};
+    }
+
     public void addExchange(String sessionId, String userText, String assistantText) {
         sessions.asMap().compute(sessionId, (id, existing) -> {
             List<Message> history = existing != null ? new ArrayList<>(existing) : new ArrayList<>();

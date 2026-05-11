@@ -3,8 +3,12 @@ package io.mateu.workflow.infra.in.ui.pages;
 import io.mateu.core.infra.JwtExtractor;
 import io.mateu.uidl.RouteConstants;
 import io.mateu.uidl.annotations.*;
+import io.mateu.uidl.data.Div;
 import io.mateu.uidl.data.FieldStereotype;
 import io.mateu.uidl.data.State;
+import io.mateu.uidl.data.Text;
+import io.mateu.uidl.fluent.Component;
+import io.mateu.uidl.interfaces.ComponentTreeSupplier;
 import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.uidl.interfaces.Hydratable;
 import io.mateu.workflow.infra.out.persistence.FormExecutionEntityRepository;
@@ -17,12 +21,13 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 @Trigger(type = TriggerType.OnLoad, actionId = "refreshTasks", timeoutMillis = 5000)
 @Trigger(type = TriggerType.OnSuccess, actionId = "refreshTasks", calledActionId = "refreshTasks", timeoutMillis = 5000)
-public class TasksWidget implements Hydratable {
+@Action(id = "refreshTasks")
+public class TasksWidget implements Hydratable, ComponentTreeSupplier {
 
     final FormExecutionEntityRepository repository;
 
-    @Stereotype(FieldStereotype.html)
     String content = "hello";
+
 
     Object refreshTasks() {
         return new State(this);
@@ -33,6 +38,7 @@ public class TasksWidget implements Hydratable {
 
         var tasks = repository.findAll().stream()
                 .filter(task -> !"COMPLETED".equals(task.getStatus())
+                        && !"CANCELLED".equals(task.getStatus())
                         && !"ERROR".equals(task.getStatus())
                         && (
                                 !"ASSIGNED".equals(task.getStatus()) && (task.getUserId() == null
@@ -42,25 +48,45 @@ public class TasksWidget implements Hydratable {
                 )
                 .count();
 
-        if (tasks > 0) {
-            content = "<a href=\"/forms/tasks\" style=\"\n" +
-                    "    text-decoration: none;\n" +
-                    "    xcolor: #3498db;\n" +
-                    "    xfont-weight: bold;\n" +
-                    "    animation: fade 2s ease-in-out infinite alternate;\n" +
-                    "\">\n" +
-                    "    You have tasks!\n" +
-                    "</a>&nbsp;&nbsp;\n" +
-                    "\n" +
-                    "<style>\n" +
-                    "    @keyframes fade {\n" +
-                    "        from { opacity: 1; }\n" +
-                    "        to { opacity: 0; }\n" +
-                    "    }\n" +
-                    "</style>";
+        /*
+        route("/forms/tasks")
+                                    .consumedRoute("")
+                                    .baseUrl("/_forms")
+                                    .uriPrefix("")
+                                    .serverSideType("io.mateu.workflow.infra.in.ui.FormsHome")
+         */
 
+        String navonclick = "event.preventDefault(); this.dispatchEvent(new CustomEvent('navigation-requested', {" +
+                "detail: {" +
+                "route: '/forms/tasks'," +
+                "consumedRoute: ''," +
+                "baseUrl: '/_forms'," +
+                "uriPrefix: ''," +
+                "serverSideType: 'io.mateu.workflow.infra.in.ui.FormsHome'" +
+                "}," +
+                "bubbles: true," +
+                "composed: true" +
+                "}))";
+
+        if (tasks > 0) {
+            content = "<a href=\"#\" onclick=\"" + navonclick + "\" style=\"" +
+                    "text-decoration: none;" +
+                    "animation: fade 2s ease-in-out infinite alternate;" +
+                    "\">" +
+                    "You have tasks!" +
+                    "</a>&nbsp;&nbsp;" +
+                    "<style>" +
+                    "@keyframes fade { from { opacity: 1; } to { opacity: 0; } }" +
+                    "</style>";
         } else {
-            content = "<a href=\"/forms/tasks\" style=\"text-decoration: none;\">No tasks</a>&nbsp;&nbsp;";
+            content = "<a href=\"#\" onclick=\"" + navonclick + "\" style=\"text-decoration: none;\">No tasks</a>&nbsp;&nbsp;";
         }
+    }
+
+    @Override
+    public Component component(HttpRequest httpRequest) {
+        return Text.builder()
+                .text("${state.content}")
+                .build();
     }
 }
