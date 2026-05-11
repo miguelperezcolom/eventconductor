@@ -13,12 +13,13 @@
         <option value="$PROJECT_DIR$/demo/sdks/grpc-client/pom.xml" />
         <option value="$PROJECT_DIR$/demo/sdks/grpc-interface/pom.xml" />
         <option value="$PROJECT_DIR$/demo/static-content-server/pom.xml" />
+        <option value="$PROJECT_DIR$/demo/booking/pom.xml" />
+        <option value="$PROJECT_DIR$/demo/ia-agent-service/pom.xml" />
       </list>
     </option>
     <option name="ignoredFiles">
       <set>
         <option value="$PROJECT_DIR$/demo/sdks/grpc-bridge/pom.xml" />
-        <option value="$PROJECT_DIR$/demo/sdks/grpc-client/pom.xml" />
         <option value="$PROJECT_DIR$/demo/sdks/grpc-server/pom.xml" />
         <option value="$PROJECT_DIR$/shell/pom.xml" />
         <option value="$PROJECT_DIR$/ui/pom.xml" />

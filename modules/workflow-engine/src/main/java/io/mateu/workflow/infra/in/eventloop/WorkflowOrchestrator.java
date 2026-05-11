@@ -34,29 +34,30 @@ public class WorkflowOrchestrator {
     public void runEventLoop() {
         // 1. Intentar adquirir el Advisory Lock (non-blocking)
         // pg_try_advisory_lock devuelve true si lo obtiene, false si ya está cogido
-        Boolean lockAcquired = jdbcTemplate.queryForObject(
-                "SELECT pg_try_advisory_lock(?)", Boolean.class, LOCK_ID);
-
-        if (Boolean.TRUE.equals(lockAcquired)) {
+        jdbcTemplate.execute((org.springframework.jdbc.core.ConnectionCallback<Void>) con -> {
+            try (var ps = con.prepareStatement("SELECT pg_try_advisory_lock(?)")) {
+                ps.setLong(1, LOCK_ID);
+                try (var rs = ps.executeQuery()) {
+                    rs.next();
+                    if (!rs.getBoolean(1)) return null;
+                }
+            }
             try {
                 log.debug("Lock adquirido. Iniciando ciclo del orquestador...");
-
-                // 2. Ejecutar la lógica dentro de una transacción
                 transactionTemplate.execute(status -> {
                     workflowService.handle(new AdvanceCommand());
                     return null;
                 });
-
             } catch (Exception e) {
                 log.error("Error en el ciclo del orquestador", e);
             } finally {
-                // 3. Liberar el lock SIEMPRE
-                jdbcTemplate.execute("SELECT pg_advisory_unlock(" + LOCK_ID + ")");
+                try (var ps = con.prepareStatement("SELECT pg_advisory_unlock(?)")) {
+                    ps.setLong(1, LOCK_ID);
+                    ps.execute();
+                }
                 log.debug("Lock liberado.");
             }
-        } else {
-            // No loguear nada aquí para no inundar los logs,
-            // simplemente otro pod está trabajando.
-        }
+            return null;
+        });
     }
 }

@@ -20,7 +20,7 @@ import static io.mateu.core.infra.JsonSerializer.fromJson;
 
 @UI("")
 @Title("Console")
-//@KeycloakSecured(url = "https://lemur-11.cloud-iam.com/auth", realm = "mateu", clientId = "demo")
+@KeycloakSecured(url = "https://lemur-11.cloud-iam.com/auth", realm = "mateu", clientId = "demo")
 @FavIcon("/images/riu.svg")
 @PageTitle("Home")
 @Logo("/images/riu.svg")
@@ -90,22 +90,22 @@ public class ShellHome implements WidgetSupplier
 
             var values = fromJson(payload);
 
-//            widgets.add(HorizontalLayout.builder().content(List.of(MicroFrontend.builder()
-//                    .baseUrl("/_forms")
-//                    .route("/my-tasks")
-//                    .build(), Popover.builder()
-//                    .wrapped(Text.builder().text("Hola, " + values.get("name"))
-//                            .style("margin-right: 20px;")
-//                            .build())
-//                    .content(VerticalLayout.builder().content(List.of(
-//                                    new Text("Email: " + values.get("email")),
-//                                    new Anchor("Logout", "javascript: window.logout();"))
-//                            ).spacing(true)
-//                            .padding(true)
-//                            .build())
-//                    .build()))
-//                            .style("align-items: flex-end;")
-//                    .build());
+            widgets.add(HorizontalLayout.builder().content(List.of(MicroFrontend.builder()
+                    .baseUrl("/_forms")
+                    .route("/my-tasks")
+                    .build(), Popover.builder()
+                    .wrapped(Text.builder().text("Hola, " + values.get("name"))
+                            .style("margin-right: 20px;")
+                            .build())
+                    .content(VerticalLayout.builder().content(List.of(
+                                    new Text("Email: " + values.get("email")),
+                                    new Anchor("Logout", "javascript: window.logout();"))
+                            ).spacing(true)
+                            .padding(true)
+                            .build())
+                    .build()))
+                            .style("align-items: flex-end;")
+                    .build());
         }
         return widgets;
     }

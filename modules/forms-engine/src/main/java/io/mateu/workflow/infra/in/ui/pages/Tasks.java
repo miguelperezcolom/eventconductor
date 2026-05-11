@@ -1,22 +1,19 @@
 package io.mateu.workflow.infra.in.ui.pages;
 
 import io.mateu.core.infra.JwtExtractor;
-import io.mateu.core.infra.declarative.CrudOrchestrator;
+import io.mateu.uidl.annotations.Action;
 import io.mateu.uidl.annotations.Toolbar;
 import io.mateu.uidl.annotations.Trigger;
 import io.mateu.uidl.annotations.TriggerType;
 import io.mateu.uidl.data.*;
 import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.uidl.interfaces.ListingBackend;
-import io.mateu.workflow.application.out.FormExecutionRepository;
 import io.mateu.workflow.domain.FormExecutionStatus;
-import io.mateu.workflow.dtos.events.integration.TaskStatus;
 import io.mateu.workflow.infra.out.persistence.FormExecutionEntityRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.net.URI;
 import java.util.List;
 
 import static io.mateu.uidl.Humanizer.toUpperCaseFirst;
@@ -28,6 +25,7 @@ record TaskRow(String id, String name, String form, String assignedTo, Status st
 @Trigger(type = TriggerType.OnLoad, actionId = "search")
 @Trigger(type = TriggerType.OnSuccess, actionId = "search", calledActionId = "claim")
 @RequiredArgsConstructor
+@Action(id = "run")
 public class Tasks implements ListingBackend<NoFilters, TaskRow> {
 
     final FormExecutionEntityRepository repository;
@@ -84,9 +82,21 @@ public class Tasks implements ListingBackend<NoFilters, TaskRow> {
         });
     }
 
-    public URI run(TaskRow selectedRow) {
+    public UICommand run(TaskRow selectedRow) {
         log.info("running " + selectedRow);
-        return URI.create("task/" + selectedRow.id());
+        return UICommand.builder()
+                .type(UICommandType.DispatchEvent)
+                .data(new DispatchEventData(
+                        "navigation-requested",
+                        NavigationRequestedPayload.builder()
+                                .route("/forms/task/" + selectedRow.id())
+                                .consumedRoute("")
+                                .baseUrl("/_forms")
+                                .uriPrefix("")
+                                .serverSideType("io.mateu.workflow.infra.in.ui.FormsHome")
+                                .build()
+                ))
+                .build();
     }
 
     @Override

@@ -18,12 +18,6 @@
     cloud:
       gateway:
         routes:
-#          - id: mi_servicio
-#            uri: lb://microservicio-backend
-#            predicates:
-#              - Path=/api/**
-#            filters:
-#              - TokenEnrichmentFilter
           - id: static_route
             uri: http://localhost:8107
             predicates:
@@ -87,7 +81,7 @@
               - Path=/ai/**
             filters:
               - TokenEnrichmentFilter
-              -
+
           - id: shell_route
             uri: http://localhost:8101
             predicates:
