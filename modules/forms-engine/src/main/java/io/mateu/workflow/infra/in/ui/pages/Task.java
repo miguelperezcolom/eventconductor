@@ -31,6 +31,8 @@ import java.util.Map;
 @Service
 @RequiredArgsConstructor
 @Action(id = "complete", validationRequired = true)
+@Action(id = "claim")
+@Action(id = "back")
 public class Task implements ComponentTreeSupplier, ValidationSupplier, ActionHandler, StateSupplier {
 
     final FormExecutionRepository formExecutionRepository;
@@ -120,7 +122,19 @@ public class Task implements ComponentTreeSupplier, ValidationSupplier, ActionHa
                     TaskStatus.COMPLETED,
                     variables));
 
-            return URI.create("/forms/tasks");
+            return UICommand.builder()
+                    .type(UICommandType.DispatchEvent)
+                    .data(new DispatchEventData(
+                            "navigation-requested",
+                            NavigationRequestedPayload.builder()
+                                    .route("/forms/tasks")
+                                    .consumedRoute("")
+                                    .baseUrl("/_forms")
+                                    .uriPrefix("")
+                                    .serverSideType("io.mateu.workflow.infra.in.ui.FormsHome")
+                                    .build()
+                    ))
+                    .build();
         }
         if ("claim".equals(actionId)) {
             var execution = formExecutionRepository.findById(_taskId).orElseThrow();
@@ -133,7 +147,19 @@ public class Task implements ComponentTreeSupplier, ValidationSupplier, ActionHa
                     "form " + execution.formId() + " claimed by " + execution.userId()));
         }
         if ("back".equals(actionId)) {
-            return URI.create("/forms/tasks");
+            return UICommand.builder()
+                    .type(UICommandType.DispatchEvent)
+                    .data(new DispatchEventData(
+                            "navigation-requested",
+                            NavigationRequestedPayload.builder()
+                                    .route("/forms/tasks")
+                                    .consumedRoute("")
+                                    .baseUrl("/_forms")
+                                    .uriPrefix("")
+                                    .serverSideType("io.mateu.workflow.infra.in.ui.FormsHome")
+                                    .build()
+                    ))
+                    .build();
         }
         return this;
     }

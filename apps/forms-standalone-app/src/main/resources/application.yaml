@@ -19,7 +19,7 @@ spring:
   # --- Configuración de Spring Cloud Stream ---
   cloud:
     function:
-      definition: consumeWorkerEvent
+      definition: consumeWorkerEventForFormsEngine
     stream:
       kafka:
         binder:
@@ -31,7 +31,7 @@ spring:
         consumeOutbox-in-0:
           destination: outbox
           group: forms-engine-group
-        consumeWorkerEvent-in-0:
+        consumeWorkerEventForFormsEngine-in-0:
           destination: downstream
           group: forms-engine-group # Añade un grupo para persistir el offset
         # OUTPUTS (Para StreamBridge)

@@ -39,23 +39,29 @@ public class TimeoutScheduler {
             try {
                 while (true) {
                     try {
-                        Boolean acquired = jdbcTemplate.queryForObject(
-                                "SELECT pg_try_advisory_lock(?)", Boolean.class, LOCK_ID);
-                        if (Boolean.TRUE.equals(acquired)) {
+                        jdbcTemplate.execute((org.springframework.jdbc.core.ConnectionCallback<Void>) con -> {
+                            try (var ps = con.prepareStatement("SELECT pg_try_advisory_lock(?)")) {
+                                ps.setLong(1, LOCK_ID);
+                                try (var rs = ps.executeQuery()) {
+                                    rs.next();
+                                    if (!rs.getBoolean(1)) return null;
+                                }
+                            }
                             try {
                                 stepExecutionRepository.findPendingOrRunning().forEach(se -> {
-                                    if (StepExecutionStatus.RUNNING.equals(se.getStatus())) {
-                                        var step = pojoFromJson(se.getStepJson(), Step.class);
-                                        if (step.timeout() > 0) {
-                                            upstreamEventPublisher.publish(new TimeoutCheckRequested(se.getProcessId()));
-                                        }
+                                    var step = pojoFromJson(se.getStepJson(), Step.class);
+                                    if (step.timeout() > 0) {
+                                        upstreamEventPublisher.publish(new TimeoutCheckRequested(se.getProcessId()));
                                     }
                                 });
                             } finally {
-                                jdbcTemplate.queryForObject(
-                                        "SELECT pg_advisory_unlock(?)", Boolean.class, LOCK_ID);
+                                try (var ps = con.prepareStatement("SELECT pg_advisory_unlock(?)")) {
+                                    ps.setLong(1, LOCK_ID);
+                                    ps.execute();
+                                }
                             }
-                        }
+                            return null;
+                        });
                     } catch (Throwable e) {
                         log.error("Error checking step timeouts", e);
                     }
