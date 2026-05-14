@@ -6,6 +6,7 @@ import io.mateu.uidl.annotations.*;
 import io.mateu.uidl.data.FormPosition;
 import io.mateu.uidl.interfaces.Identifiable;
 import io.mateu.uidl.interfaces.Searchable;
+import io.mateu.workflow.infra.in.ui.pages.WorkflowDefinitionEditor;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -75,4 +76,5 @@ public record WorkflowDefinition(
     public List<Step> steps() {
         return steps != null?steps:List.of();
     }
+
 }
