@@ -1,0 +1,119 @@
+---
+title: Quick Start
+description: Get EventConductor running in minutes — no external dependencies required.
+---
+
+This guide gets you from zero to a running workflow in under 10 minutes using the **fully embedded** mode (no Kafka, no database needed).
+
+## Prerequisites
+
+- Java 17+
+- Maven 3.8+
+
+## 1. Add the dependency
+
+```xml
+<dependency>
+    <groupId>io.mateu.workflow</groupId>
+    <artifactId>workflow-engine</artifactId>
+    <version>1.0-SNAPSHOT</version>
+</dependency>
+```
+
+## 2. Configure embedded mode
+
+In `src/main/resources/application.properties`:
+
+```properties
+workflow.mode=embedded
+workflow.persistence=memory
+
+spring.autoconfigure.exclude=\
+  org.springframework.cloud.stream.binder.kafka.config.KafkaBinderConfiguration,\
+  org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration,\
+  org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration,\
+  org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration
+```
+
+## 3. Define a workflow
+
+Create `src/main/resources/workflows/hello-world.json`:
+
+```json
+{
+  "id": "hello-world",
+  "name": "Hello World",
+  "version": 1,
+  "status": "ACTIVE",
+  "steps": [
+    {
+      "id": "greet",
+      "type": "ACTION",
+      "name": "Greet the user",
+      "topic": "greet-topic"
+    },
+    {
+      "id": "end",
+      "type": "END",
+      "name": "Done",
+      "preconditionStepId": "greet"
+    }
+  ]
+}
+```
+
+## 4. Implement a worker
+
+```java
+@Bean
+public EmbeddedTaskExecutor greetWorker(UpdateStepExecutionUseCase updateStepExecution) {
+    return request -> {
+        String name = request.variables().stream()
+            .filter(v -> "name".equals(v.name()))
+            .map(Variable::value)
+            .findFirst().orElse("World");
+
+        System.out.println("Hello, " + name + "!");
+
+        updateStepExecution.handle(new UpdateStepExecutionCommand(
+            request.taskExecutionId(),
+            List.of(new Variable("greeting", "Hello, " + name + "!")),
+            "",
+            StepExecutionStatus.COMPLETED
+        ));
+    };
+}
+```
+
+## 5. Start a process
+
+```java
+@Autowired
+ProcessUpstreamEventUseCase processUpstreamEventUseCase;
+
+public void runWorkflow() {
+    processUpstreamEventUseCase.handle(new ProcessUpstreamEventCommand(
+        new ProcessCreationRequested(
+            "hello-world",
+            "my-first-process",
+            List.of(new Variable("name", "Alice"))
+        )
+    ));
+}
+```
+
+## 6. Build and run
+
+```shell
+mvn clean install
+mvn spring-boot:run
+```
+
+You should see `Hello, Alice!` in the logs, and the process will complete automatically.
+
+## Next steps
+
+- Learn about [deployment modes](/guides/deployment-modes/) to add PostgreSQL or Kafka
+- Explore [workflow definitions](/guides/workflow-definitions/) for retries, timeouts, and branching
+- Add [user tasks](/guides/user-tasks/) to pause workflows for human input
+- Connect [Claude Desktop via MCP](/guides/mcp-claude-desktop/)
