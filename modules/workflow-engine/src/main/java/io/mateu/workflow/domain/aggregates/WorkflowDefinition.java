@@ -4,7 +4,11 @@ import io.mateu.core.infra.valuegenerators.UUIDValueGenerator;
 import io.mateu.uidl.StyleConstants;
 import io.mateu.uidl.annotations.*;
 import io.mateu.uidl.data.FormPosition;
+import io.mateu.uidl.data.ListingData;
+import io.mateu.uidl.data.Pageable;
+import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.uidl.interfaces.Identifiable;
+import io.mateu.uidl.interfaces.LookupOptionsSupplier;
 import io.mateu.uidl.interfaces.Searchable;
 import io.mateu.workflow.infra.in.ui.pages.WorkflowDefinitionEditor;
 import jakarta.validation.constraints.Min;
@@ -35,7 +39,7 @@ public record WorkflowDefinition(
         @Colspan(4)
         @DetailFormCustomisation(position = FormPosition.modalRight, style = "display: block; min-width: 90rem;")
         List<Step> steps
-) implements Identifiable, Searchable {
+) implements Identifiable, Searchable, LookupOptionsSupplier {
 
     @Override
     public String toString() {
@@ -77,4 +81,13 @@ public record WorkflowDefinition(
         return steps != null?steps:List.of();
     }
 
+    @Override
+    public ListingData<io.mateu.uidl.data.Option> search(String fieldName, String searchText, Pageable pageable, HttpRequest httpRequest) {
+        return ListingData.of(steps.stream()
+                .map(step -> new io.mateu.uidl.data.Option(
+                        step.id(),
+                        step.name()
+                ))
+                .toList());
+    }
 }

@@ -1,0 +1,40 @@
+---
+title: EventConductor
+description: Production-grade, event-driven workflow orchestration for the Java/Spring ecosystem.
+template: splash
+hero:
+  tagline: Orchestrate business processes without BPMN complexity or SaaS lock-in. Built for distributed Java/Spring environments — with native AI integration via MCP.
+  actions:
+    - text: Get Started
+      link: /guides/introduction/
+      icon: right-arrow
+    - text: View on GitHub
+      link: https://github.com/miguelperezcolom/eventconductor
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+## Why EventConductor?
+
+<CardGrid stagger>
+  <Card title="Distributed by design" icon="rocket">
+    Multiple orchestrator instances coordinate safely using PostgreSQL advisory locks and the outbox pattern. Scale from a single JVM to a multi-pod Kubernetes cluster without changing a line of business code.
+  </Card>
+  <Card title="Event-driven, not polling" icon="approve-check-circle">
+    Every state transition is triggered by a domain event — stored in the outbox table and relayed to the appropriate handler. No polling loops that grow with your data.
+  </Card>
+  <Card title="Developer-first DSL" icon="document">
+    Workflow definitions are JSON files — human-readable, version-controlled, reviewable in a PR. Retries, timeouts, compensation (saga), parallel execution, sub-processes, conditional branching (JEXL), and human tasks in a single flat file.
+  </Card>
+  <Card title="Three deployment modes" icon="setting">
+    Run fully in-process for tests, single-node with PostgreSQL, or fully distributed with Kafka + PostgreSQL — no code changes required.
+  </Card>
+  <Card title="Built-in forms engine" icon="list-format">
+    User-task steps pause the workflow until a human submits a form. Forms are defined in JSON, stored in version control, and served dynamically to any front-end.
+  </Card>
+  <Card title="Native AI via MCP" icon="star">
+    The first workflow engine with native Model Context Protocol (MCP) integration. Any MCP-compatible AI client — Claude Desktop, a chatbot, an internal copilot — can operate the engine in natural language.
+  </Card>
+</CardGrid>

@@ -26,7 +26,7 @@ public record Step(
 
         //@HiddenInList
         //StepPrecondition precondition,
-        //@Lookup(search = StepIdOptionsSupplier.class, label = StepLabelSupplier.class)
+        @Lookup(bubble = true)
         String preconditionStepId,
         String preconditionExpression,
 
@@ -49,6 +49,7 @@ public record Step(
         @HiddenInList
         boolean rollbackable,
         @Hidden("!state['rollbackable']")
+        @Lookup(bubble = true)
         String compensationStepId
 ) implements Identifiable {
 }
