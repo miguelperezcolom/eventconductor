@@ -33,13 +33,13 @@ public record Step(
         @Section(value = "Execution", style = "width: 25%;")
         boolean parallel,
         @HiddenInList
-        @Hidden("state['steps-type'] != 'ACTION'")
+        @Hidden("state['type'] != 'ACTION'")
         String topic,
         @HiddenInList
-        @Hidden("state['steps-type'] != 'USER_TASK'")
+        @Hidden("state['type'] != 'USER_TASK'")
         String formId,
         @HiddenInList
-        @Hidden("state['steps-type'] != 'PROCESS'")
+        @Hidden("state['type'] != 'PROCESS'")
         @Lookup(search = WorkflowDefinitionIdOptionsSupplier.class, label = WorkflowDefinitionIdLabelSupplier.class)
         String childWorkflowDefinitionId,
         @Section(value = "Reliability", style = "width: 25%;")
@@ -48,7 +48,7 @@ public record Step(
         int retries,
         @HiddenInList
         boolean rollbackable,
-        @Hidden("!state['steps-rollbackable']")
+        @Hidden("!state['rollbackable']")
         String compensationStepId
 ) implements Identifiable {
 }

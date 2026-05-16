@@ -4,6 +4,7 @@ import io.mateu.core.infra.declarative.FormViewModel;
 import io.mateu.uidl.annotations.*;
 import io.mateu.uidl.fluent.Action;
 import io.mateu.uidl.fluent.ActionSupplier;
+import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.workflow.application.usecases.process.create.CreateProcessCommand;
 import io.mateu.workflow.application.usecases.process.create.CreateProcessUseCase;
 import io.mateu.workflow.domain.aggregates.Variable;
@@ -47,7 +48,7 @@ public class CreateProcessForm implements ActionSupplier {
     }
 
     @Override
-    public List<Action> actions() {
+    public List<Action> actions(HttpRequest httpRequest) {
         return List.of(Action.builder().id("create").validationRequired(true).build());
     }
 }
