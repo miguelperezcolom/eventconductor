@@ -8,6 +8,8 @@ import io.mateu.uidl.annotations.ListToolbarButton;
 import io.mateu.uidl.annotations.Toolbar;
 import io.mateu.uidl.annotations.ViewToolbarButton;
 import io.mateu.uidl.interfaces.HttpRequest;
+import io.mateu.workflow.application.usecases.workingcopy.CreateWorkingCopyUseCase;
+import io.mateu.workflow.application.usecases.workingcopy.PromoteWorkingCopyUseCase;
 import io.mateu.workflow.domain.aggregates.WorkflowDefinition;
 import io.mateu.workflow.infra.in.ui.adapters.WorkflowDefinitionCrudAdapter;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +24,8 @@ public class WorkflowDefinitions extends AutoCrudOrchestrator<WorkflowDefinition
 
     final WorkflowDefinitionEditor graphEditor;
     final WorkflowDefinitionCrudAdapter adapter;
+    final CreateWorkingCopyUseCase createWorkingCopyUseCase;
+    final PromoteWorkingCopyUseCase promoteWorkingCopyUseCase;
 
     @Override
     public AutoCrudAdapter<WorkflowDefinition> simpleAdapter() {
@@ -41,6 +45,18 @@ public class WorkflowDefinitions extends AutoCrudOrchestrator<WorkflowDefinition
     @ViewToolbarButton
     public WorkflowDefinitionEditor graphEditor(HttpRequest httpRequest) {
         return graphEditor.load(httpRequest.getComponentState(WorkflowDefinition.class).id());
+    }
+
+    @ViewToolbarButton
+    public void createWorkingCopy(HttpRequest httpRequest) {
+        var definition = httpRequest.getComponentState(WorkflowDefinition.class);
+        createWorkingCopyUseCase.handle(definition.id());
+    }
+
+    @ViewToolbarButton
+    public void promoteToProduction(HttpRequest httpRequest) {
+        var definition = httpRequest.getComponentState(WorkflowDefinition.class);
+        promoteWorkingCopyUseCase.handle(definition.id());
     }
 
     @Override

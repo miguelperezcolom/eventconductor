@@ -32,6 +32,7 @@ In `embedded` + `memory` mode, definitions are loaded from `classpath:/workflows
 | `version` | integer | Version number |
 | `description` | string | Optional description |
 | `status` | enum | `DRAFT` \| `ACTIVE` \| `DISABLED` \| `ARCHIVED` |
+| `draftOfId` | string | ID of the production definition this is a working copy of. `null` for production definitions. Set automatically by the UI. |
 | `limitConcurrentExecutions` | boolean | Cap concurrent running instances |
 | `maxConcurrentExecutions` | integer | Max instances (if limit enabled) |
 | `enqueueOnLimit` | boolean | Queue new instances when limit reached |
@@ -44,6 +45,33 @@ In `embedded` + `memory` mode, definitions are loaded from `classpath:/workflows
 | `ACTIVE` | Ready to accept new process instances |
 | `DISABLED` | No new instances allowed; running ones continue |
 | `ARCHIVED` | Retired definition |
+
+## Working copies
+
+A **working copy** is a `DRAFT` clone of an existing production definition. It lets you iterate on a workflow safely while the original continues to run in production.
+
+### Lifecycle
+
+```
+Production definition (ACTIVE)
+        │
+        │  Create working copy
+        ▼
+Working copy (DRAFT, draftOfId = <original id>)
+        │  edit / test / iterate
+        │
+        │  Promote to production
+        ▼
+Production definition updated (version + 1), working copy deleted
+```
+
+### Rules
+
+- Only one working copy per definition is allowed at a time.
+- The working copy has `status = DRAFT` and its `draftOfId` field points to the original definition's ID.
+- Promoting copies all content (steps, description, concurrency settings) onto the original, increments `version` by one, and deletes the working copy. The original's `status` is preserved.
+- The `[draft]` suffix is stripped from the name automatically on promotion.
+- Processes running against the original definition are unaffected until promotion.
 
 ## Step fields
 

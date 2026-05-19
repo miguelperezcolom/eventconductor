@@ -49,6 +49,10 @@
       "description": "When the concurrency limit is reached, enqueue new requests instead of rejecting them.",
       "default": false
     },
+    "draftOfId": {
+      "type": ["string", "null"],
+      "description": "ID of the workflow definition this is a working copy of. Null for production definitions."
+    },
     "steps": {
       "type": "array",
       "description": "Ordered list of steps that make up the workflow.",

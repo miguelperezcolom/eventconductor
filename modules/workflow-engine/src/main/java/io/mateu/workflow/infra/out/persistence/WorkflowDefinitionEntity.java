@@ -25,6 +25,8 @@ public class WorkflowDefinitionEntity {
 
     String status;
 
+    String draftOfId;
+
     @Column(columnDefinition = "TEXT")
     String stepsJson;
 

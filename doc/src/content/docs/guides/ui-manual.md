@@ -62,12 +62,19 @@ The definitions list shows all registered workflow definitions with their ID, na
 | **Delete** | Delete selected definitions |
 | **View** | Open the definition detail and visual editor |
 
+When viewing a single definition, two additional toolbar buttons appear:
+
+| Button | Description |
+|--------|-------------|
+| **Create working copy** | Clone the definition as a `DRAFT` working copy. Fails if a working copy already exists for this definition. |
+| **Promote to production** | Copy the working copy's content back to the original definition (incrementing its version), then delete the working copy. Only available on definitions that are working copies (`draftOfId` is set). |
+
 **Definition statuses** displayed in the Status column:
 
 | Status | Meaning |
 |--------|---------|
 | `ACTIVE` | Accepts new process instances |
-| `DRAFT` | Under construction, not executable |
+| `DRAFT` | Under construction, not executable. If created via **Create working copy**, the definition is linked to its original via `draftOfId`. |
 | `DISABLED` | No new instances; running ones continue |
 | `ARCHIVED` | Retired |
 
