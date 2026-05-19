@@ -39,7 +39,7 @@ class CreateProcessUseCaseTest {
         Step step = new Step("step-1", workflowDefinitionId, StepType.ACTION, "Step 1", "Desc", null, null, false, "topic", null, null, 0, 0, false, null);
         WorkflowDefinition workflowDefinition = new WorkflowDefinition(
                 workflowDefinitionId, "Test Workflow", 1, "Description", WorkflowDefinitionStatus.ACTIVE,
-                false, 0, false, List.of(step)
+                null, false, 0, false, List.of(step)
         );
 
         CreateProcessCommand command = new CreateProcessCommand(

@@ -30,6 +30,8 @@ public record WorkflowDefinition(
         String description,
         @NotNull
         WorkflowDefinitionStatus status,
+        @Hidden
+        String draftOfId,
         boolean limitConcurrentExecutions,
         @Min(0)
         @Hidden("!state.limitConcurrentExecutions")

@@ -48,7 +48,7 @@ public class ClasspathWorkflowDefinitionRepository implements WorkflowDefinition
                                 .toList();
                         def = new WorkflowDefinition(
                                 def.id(), def.name(), def.version(), def.description(),
-                                def.status(), def.limitConcurrentExecutions(),
+                                def.status(), def.draftOfId(), def.limitConcurrentExecutions(),
                                 def.maxConcurrentExecutions(), def.enqueueOnLimit(),
                                 stepsWithId);
                     }

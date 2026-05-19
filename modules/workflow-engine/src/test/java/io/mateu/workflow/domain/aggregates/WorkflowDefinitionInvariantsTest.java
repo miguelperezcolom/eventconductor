@@ -13,7 +13,7 @@ class WorkflowDefinitionInvariantsTest {
         return new WorkflowDefinition(
                 "wd-1", "Test Workflow", 1, "desc",
                 WorkflowDefinitionStatus.DRAFT,
-                false, 0, false, steps
+                null, false, 0, false, steps
         );
     }
 
