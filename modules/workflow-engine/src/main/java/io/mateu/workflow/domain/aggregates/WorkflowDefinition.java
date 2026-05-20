@@ -6,6 +6,7 @@ import io.mateu.uidl.annotations.*;
 import io.mateu.uidl.data.FormPosition;
 import io.mateu.uidl.data.ListingData;
 import io.mateu.uidl.data.Pageable;
+import io.mateu.uidl.data.StatusType;
 import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.uidl.interfaces.Identifiable;
 import io.mateu.uidl.interfaces.LookupOptionsSupplier;
@@ -29,6 +30,13 @@ public record WorkflowDefinition(
         int version,
         String description,
         @NotNull
+        @Status(defaultStatus = StatusType.NONE, mappings = {
+                @StatusMapping(from = "", to = StatusType.NONE),
+                @StatusMapping(from = "DISABLED", to = StatusType.DANGER),
+                @StatusMapping(from = "ARCHIVED", to = StatusType.NONE),
+                @StatusMapping(from = "DRAFT", to = StatusType.WARNING),
+                @StatusMapping(from = "ACTIVE", to = StatusType.SUCCESS),
+        })
         WorkflowDefinitionStatus status,
         @Hidden
         String draftOfId,

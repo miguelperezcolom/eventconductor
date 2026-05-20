@@ -66,6 +66,13 @@ public class WorkflowDefinitionDBRepository implements WorkflowDefinitionReposit
 
     @Override
     public void deleteAllById(List<String> selectedIds) {
+        selectedIds.stream().map(workflowDefinitionEntityRepository::findById)
+                .map(Optional::orElseThrow)
+                .filter(entity -> WorkflowDefinitionStatus.ACTIVE.name().equals(entity.status))
+                .findAny()
+                .ifPresent(entity -> {
+                    throw new RuntimeException("Cannot delete active workflow definition (" + entity.getName() + ")");
+                });
         workflowDefinitionEntityRepository.deleteAllById(selectedIds);
     }
 }

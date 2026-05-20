@@ -3,14 +3,16 @@ package io.mateu.workflow.infra.in.ui.pages;
 import io.mateu.core.infra.declarative.AutoCrudAdapter;
 import io.mateu.core.infra.declarative.AutoCrudOrchestrator;
 import io.mateu.uidl.StyleConstants;
-import io.mateu.uidl.annotations.Action;
 import io.mateu.uidl.annotations.ListToolbarButton;
-import io.mateu.uidl.annotations.Toolbar;
 import io.mateu.uidl.annotations.ViewToolbarButton;
-import io.mateu.uidl.interfaces.HttpRequest;
+import io.mateu.uidl.data.DispatchEventData;
+import io.mateu.uidl.data.NavigationRequestedPayload;
+import io.mateu.uidl.data.UICommand;
+import io.mateu.uidl.data.UICommandType;
 import io.mateu.workflow.application.usecases.workingcopy.CreateWorkingCopyUseCase;
 import io.mateu.workflow.application.usecases.workingcopy.PromoteWorkingCopyUseCase;
 import io.mateu.workflow.domain.aggregates.WorkflowDefinition;
+import io.mateu.workflow.infra.in.ui.WorkflowHome;
 import io.mateu.workflow.infra.in.ui.adapters.WorkflowDefinitionCrudAdapter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Scope;
@@ -19,7 +21,6 @@ import org.springframework.stereotype.Service;
 @Service
 @Scope("prototype")
 @RequiredArgsConstructor
-@Action(id = "action-on-view-graphEditor")
 public class WorkflowDefinitions extends AutoCrudOrchestrator<WorkflowDefinition> {
 
     final WorkflowDefinitionEditor graphEditor;
@@ -43,27 +44,43 @@ public class WorkflowDefinitions extends AutoCrudOrchestrator<WorkflowDefinition
     }
 
     @ViewToolbarButton
-    public WorkflowDefinitionEditor graphEditor(HttpRequest httpRequest) {
-        return graphEditor.load(httpRequest.getComponentState(WorkflowDefinition.class).id());
+    public WorkflowDefinitionEditor graphEditor(WorkflowDefinition definition) {
+        return graphEditor.load(definition.id());
     }
 
     @ViewToolbarButton
-    public void createWorkingCopy(HttpRequest httpRequest) {
-        var definition = httpRequest.getComponentState(WorkflowDefinition.class);
-        createWorkingCopyUseCase.handle(definition.id());
+    public UICommand createWorkingCopy(WorkflowDefinition definition) {
+        return UICommand.builder()
+                .type(UICommandType.DispatchEvent)
+                .data(new DispatchEventData(
+                        "navigation-requested",
+                        NavigationRequestedPayload.builder()
+                                .route("/workflow/definitions/" + createWorkingCopyUseCase.handle(definition.id()))
+                                .consumedRoute("")
+                                .baseUrl("/_workflow")
+                                .uriPrefix("")
+                                .serverSideType(WorkflowHome.class.getName())
+                                .build()
+                ))
+                .build();
+
     }
 
     @ViewToolbarButton
-    public void promoteToProduction(HttpRequest httpRequest) {
-        var definition = httpRequest.getComponentState(WorkflowDefinition.class);
-        promoteWorkingCopyUseCase.handle(definition.id());
+    public UICommand promoteToProduction(WorkflowDefinition definition) {
+        return UICommand.builder()
+                .type(UICommandType.DispatchEvent)
+                .data(new DispatchEventData(
+                        "navigation-requested",
+                        NavigationRequestedPayload.builder()
+                                .route("/workflow/definitions/" + promoteWorkingCopyUseCase.handle(definition.id()))
+                                .consumedRoute("")
+                                .baseUrl("/_workflow")
+                                .uriPrefix("")
+                                .serverSideType(WorkflowHome.class.getName())
+                                .build()
+                ))
+                .build();
     }
 
-    @Override
-    public Object handleAction(String actionId, HttpRequest httpRequest) {
-        if ("action-on-view-graphEditor".equals(actionId)) {
-            return graphEditor(httpRequest);
-        }
-        return super.handleAction(actionId, httpRequest);
-    }
 }
