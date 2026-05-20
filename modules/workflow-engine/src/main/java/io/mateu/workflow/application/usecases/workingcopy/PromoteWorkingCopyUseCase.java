@@ -4,16 +4,18 @@ import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
 import io.mateu.workflow.domain.aggregates.WorkflowDefinition;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
 @Service
 @RequiredArgsConstructor
+@Transactional
 public class PromoteWorkingCopyUseCase {
 
     final WorkflowDefinitionRepository repository;
 
-    public void handle(String workingCopyId) {
+    public String handle(String workingCopyId) {
         var draft = repository.findById(workingCopyId)
                 .orElseThrow(() -> new IllegalArgumentException("Workflow definition not found: " + workingCopyId));
 
@@ -41,5 +43,7 @@ public class PromoteWorkingCopyUseCase {
 
         repository.save(promoted);
         repository.deleteAllById(List.of(workingCopyId));
+
+        return promoted.id();
     }
 }
