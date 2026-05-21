@@ -1,4 +1,4 @@
-package io.mateu.workflow.application.usecases.processupstreamevent;
+package io.mateu.workflow.infra.in.async.processupstreamevent;
 
 import io.mateu.workflow.ddd.DomainEventHandler;
 import lombok.RequiredArgsConstructor;

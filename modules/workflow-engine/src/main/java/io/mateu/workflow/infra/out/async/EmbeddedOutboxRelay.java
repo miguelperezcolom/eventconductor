@@ -1,7 +1,7 @@
 package io.mateu.workflow.infra.out.async;
 
-import io.mateu.workflow.application.usecases.processdomainevent.ProcessDomainEventCommand;
-import io.mateu.workflow.application.usecases.processdomainevent.ProcessDomainEventUseCase;
+import io.mateu.workflow.infra.in.async.processdomainevent.ProcessDomainEventCommand;
+import io.mateu.workflow.infra.in.async.processdomainevent.ProcessDomainEventUseCase;
 import io.mateu.workflow.ddd.DomainEvent;
 import io.mateu.workflow.infra.out.persistence.OutboxMessageEntityRepository;
 import io.mateu.workflow.infra.out.persistence.OutboxMessageStatus;

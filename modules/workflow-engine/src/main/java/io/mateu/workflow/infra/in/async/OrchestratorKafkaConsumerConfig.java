@@ -1,9 +1,9 @@
 package io.mateu.workflow.infra.in.async;
 
-import io.mateu.workflow.application.usecases.processdomainevent.ProcessDomainEventCommand;
-import io.mateu.workflow.application.usecases.processdomainevent.ProcessDomainEventUseCase;
-import io.mateu.workflow.application.usecases.processupstreamevent.ProcessUpstreamEventCommand;
-import io.mateu.workflow.application.usecases.processupstreamevent.ProcessUpstreamEventUseCase;
+import io.mateu.workflow.infra.in.async.processdomainevent.ProcessDomainEventCommand;
+import io.mateu.workflow.infra.in.async.processdomainevent.ProcessDomainEventUseCase;
+import io.mateu.workflow.infra.in.async.processupstreamevent.ProcessUpstreamEventCommand;
+import io.mateu.workflow.infra.in.async.processupstreamevent.ProcessUpstreamEventUseCase;
 import io.mateu.workflow.ddd.DomainEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

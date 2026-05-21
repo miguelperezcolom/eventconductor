@@ -1,4 +1,4 @@
-package io.mateu.workflow.infra.in.async.upstreameventhandlers;
+package io.mateu.workflow.infra.in.async.processupstreamevent.upstreameventhandlers;
 
 import io.mateu.workflow.application.usecases.scheduler.triggertimeoutchecks.TriggerTimeoutChecksCommand;
 import io.mateu.workflow.application.usecases.scheduler.triggertimeoutchecks.TriggerTimeoutChecksUseCase;
