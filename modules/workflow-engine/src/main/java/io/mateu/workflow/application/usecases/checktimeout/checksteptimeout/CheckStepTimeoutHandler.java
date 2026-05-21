@@ -1,4 +1,4 @@
-package io.mateu.workflow.application.usecases.stepexecution.checktimeout;
+package io.mateu.workflow.application.usecases.checktimeout.checksteptimeout;
 
 import io.mateu.workflow.application.out.LogMessageRepository;
 import io.mateu.workflow.application.out.ProcessLockService;
@@ -20,13 +20,13 @@ import static io.mateu.core.infra.JsonSerializer.pojoFromJson;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class CheckTimeoutUseCase {
+public class CheckStepTimeoutHandler {
 
     final StepExecutionRepository stepExecutionRepository;
     final LogMessageRepository logMessageRepository;
     final ProcessLockService processLockService;
 
-    public void handle(CheckTimeoutCommand command) {
+    public void handle(CheckStepTimeoutCommand command) {
         var stepExecution = stepExecutionRepository.findById(command.stepExecutionId()).orElseThrow();
         var processId = stepExecution.getProcessId();
 
