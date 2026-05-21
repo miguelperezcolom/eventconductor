@@ -1,8 +1,8 @@
-package io.mateu.workflow.application.usecases.scheduler.triggertimeoutchecks;
+package io.mateu.workflow.application.usecases.checktimeout;
 
 import io.mateu.workflow.application.out.StepExecutionRepository;
-import io.mateu.workflow.application.usecases.stepexecution.checktimeout.CheckTimeoutCommand;
-import io.mateu.workflow.application.usecases.stepexecution.checktimeout.CheckTimeoutUseCase;
+import io.mateu.workflow.application.usecases.checktimeout.checksteptimeout.CheckStepTimeoutCommand;
+import io.mateu.workflow.application.usecases.checktimeout.checksteptimeout.CheckStepTimeoutHandler;
 import io.mateu.workflow.domain.aggregates.Step;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -14,12 +14,12 @@ import static io.mateu.core.infra.JsonSerializer.pojoFromJson;
 
 @Service
 @RequiredArgsConstructor
-public class TriggerTimeoutChecksUseCase {
+public class CheckTimeoutUseCase {
 
     final StepExecutionRepository stepExecutionRepository;
-    final CheckTimeoutUseCase checkTimeoutUseCase;
+    final CheckStepTimeoutHandler checkTimeoutUseCase;
 
-    public void handle(TriggerTimeoutChecksCommand command) {
+    public void handle(CheckTimeoutCommand command) {
         var now = LocalDateTime.now();
         stepExecutionRepository.findPendingOrRunning().stream()
                 .filter(se -> se.getProcessId().equals(command.processId()))
@@ -29,7 +29,7 @@ public class TriggerTimeoutChecksUseCase {
                     return step.timeout() > 0
                             && se.getStartedAt().plus(step.timeout(), ChronoUnit.MILLIS).isBefore(now);
                 })
-                .forEach(se -> checkTimeoutUseCase.handle(new CheckTimeoutCommand(se.id())));
+                .forEach(se -> checkTimeoutUseCase.handle(new CheckStepTimeoutCommand(se.id())));
     }
 
 }

@@ -1,7 +1,7 @@
 package io.mateu.workflow.infra.in.async.processupstreamevent.upstreameventhandlers;
 
-import io.mateu.workflow.application.usecases.scheduler.triggertimeoutchecks.TriggerTimeoutChecksCommand;
-import io.mateu.workflow.application.usecases.scheduler.triggertimeoutchecks.TriggerTimeoutChecksUseCase;
+import io.mateu.workflow.application.usecases.checktimeout.CheckTimeoutCommand;
+import io.mateu.workflow.application.usecases.checktimeout.CheckTimeoutUseCase;
 import io.mateu.workflow.ddd.DomainEvent;
 import io.mateu.workflow.ddd.DomainEventHandler;
 import io.mateu.workflow.dtos.events.integration.TimeoutCheckRequested;
@@ -12,7 +12,7 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class TimeoutCheckRequestedEventHandler implements DomainEventHandler<TimeoutCheckRequested> {
 
-    final TriggerTimeoutChecksUseCase triggerTimeoutChecksUseCase;
+    final CheckTimeoutUseCase checkTimeoutUseCase;
 
     @Override
     public Class<? extends DomainEvent> eventClass() {
@@ -21,6 +21,6 @@ public class TimeoutCheckRequestedEventHandler implements DomainEventHandler<Tim
 
     @Override
     public void handle(TimeoutCheckRequested e) {
-        triggerTimeoutChecksUseCase.handle(new TriggerTimeoutChecksCommand(e.processId()));
+        checkTimeoutUseCase.handle(new CheckTimeoutCommand(e.processId()));
     }
 }

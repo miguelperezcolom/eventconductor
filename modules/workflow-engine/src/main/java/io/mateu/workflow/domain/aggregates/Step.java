@@ -1,6 +1,7 @@
 package io.mateu.workflow.domain.aggregates;
 
 import io.mateu.uidl.annotations.*;
+import io.mateu.uidl.data.FieldStereotype;
 import io.mateu.uidl.interfaces.Identifiable;
 import io.mateu.workflow.infra.in.ui.suppliers.WorkflowDefinitionIdLabelSupplier;
 import io.mateu.workflow.infra.in.ui.suppliers.WorkflowDefinitionIdOptionsSupplier;
@@ -21,6 +22,7 @@ public record Step(
         @NotEmpty
         String name,
         @HiddenInList
+        @Stereotype(FieldStereotype.textarea)
         String description,
         @Section(value = "Precondition", style = "width: 25%;")
 

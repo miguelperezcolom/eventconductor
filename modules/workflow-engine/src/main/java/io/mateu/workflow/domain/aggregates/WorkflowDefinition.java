@@ -3,10 +3,9 @@ package io.mateu.workflow.domain.aggregates;
 import io.mateu.core.infra.valuegenerators.UUIDValueGenerator;
 import io.mateu.uidl.StyleConstants;
 import io.mateu.uidl.annotations.*;
-import io.mateu.uidl.data.FormPosition;
-import io.mateu.uidl.data.ListingData;
-import io.mateu.uidl.data.Pageable;
-import io.mateu.uidl.data.StatusType;
+import io.mateu.uidl.annotations.FormLayout;
+import io.mateu.uidl.annotations.Status;
+import io.mateu.uidl.data.*;
 import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.uidl.interfaces.Identifiable;
 import io.mateu.uidl.interfaces.LookupOptionsSupplier;
@@ -28,6 +27,7 @@ public record WorkflowDefinition(
         String name,
         @Hidden
         int version,
+        @Stereotype(FieldStereotype.textarea)
         String description,
         @NotNull
         @Status(defaultStatus = StatusType.NONE, mappings = {
