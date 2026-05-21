@@ -1,4 +1,4 @@
-package io.mateu.workflow.application.usecases.processdomainevent;
+package io.mateu.workflow.infra.in.async.processdomainevent;
 
 import io.mateu.workflow.ddd.DomainEventHandler;
 import lombok.RequiredArgsConstructor;

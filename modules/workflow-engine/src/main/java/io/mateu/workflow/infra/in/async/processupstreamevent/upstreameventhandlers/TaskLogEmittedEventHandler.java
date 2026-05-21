@@ -1,4 +1,4 @@
-package io.mateu.workflow.infra.in.async.upstreameventhandlers;
+package io.mateu.workflow.infra.in.async.processupstreamevent.upstreameventhandlers;
 
 import io.mateu.workflow.application.usecases.stepexecution.update.RegisterLogMessageCommand;
 import io.mateu.workflow.application.usecases.stepexecution.update.RegisterLogMessageUseCase;

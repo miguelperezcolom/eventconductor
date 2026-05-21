@@ -1,8 +1,8 @@
 package io.mateu.workflow.infra.out.memory;
 
 import io.mateu.workflow.application.out.StepExecutionRepository;
-import io.mateu.workflow.application.usecases.processdomainevent.ProcessDomainEventCommand;
-import io.mateu.workflow.application.usecases.processdomainevent.ProcessDomainEventUseCase;
+import io.mateu.workflow.infra.in.async.processdomainevent.ProcessDomainEventCommand;
+import io.mateu.workflow.infra.in.async.processdomainevent.ProcessDomainEventUseCase;
 import io.mateu.workflow.domain.aggregates.Process;
 import io.mateu.workflow.domain.aggregates.StepExecution;
 import io.mateu.workflow.domain.aggregates.StepExecutionStatus;

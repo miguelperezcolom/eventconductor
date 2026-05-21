@@ -1,4 +1,4 @@
-package io.mateu.workflow.infra.in.async.domaineventhandlers;
+package io.mateu.workflow.infra.in.async.processdomainevent.domaineventhandlers;
 
 import io.mateu.workflow.application.usecases.process.start.StartProcessCommand;
 import io.mateu.workflow.application.usecases.process.start.StartProcessUseCase;

@@ -47,7 +47,7 @@ public record WorkflowDefinition(
         @Hidden("!state.limitConcurrentExecutions")
         boolean enqueueOnLimit,
         @Colspan(4)
-        @DetailFormCustomisation(position = FormPosition.modalRight, style = "display: block; min-width: 90rem;")
+        @DetailFormCustomisation(position = FormPosition.modalRight, style = "display: block; min-width: 70rem;")
         List<Step> steps
 ) implements Identifiable, Searchable, LookupOptionsSupplier {
 
