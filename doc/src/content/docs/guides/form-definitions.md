@@ -1,11 +1,15 @@
 ---
 title: Form Definitions
-description: Defining forms for user tasks in the EventConductor forms engine.
+description: Defining forms for user tasks in the EventConductor forms engine. Supports JSON and YAML.
 ---
 
-The forms engine manages form definitions and form executions. Forms are defined in JSON, stored in version control, and referenced by `USER_TASK` steps in workflow definitions.
+The forms engine manages form definitions and form executions. Forms can be written in **JSON** or **YAML** (`.json`, `.yaml`, `.yml`), stored in version control, and referenced by `USER_TASK` steps in workflow definitions.
 
 ## Form definition format
+
+Both formats are fully equivalent.
+
+**JSON:**
 
 ```json
 {
@@ -28,6 +32,27 @@ The forms engine manages form definitions and form executions. Forms are defined
     }
   ]
 }
+```
+
+**YAML:**
+
+```yaml
+id: expense-approval-form
+name: Expense Approval
+description: Approve or reject an expense claim
+fields:
+  - id: decision
+    name: Decision
+    type: SELECT
+    required: true
+    options:
+      - APPROVE
+      - REJECT
+
+  - id: comments
+    name: Comments
+    type: TEXTAREA
+    required: false
 ```
 
 ### Top-level fields
@@ -67,7 +92,7 @@ The forms engine manages form definitions and form executions. Forms are defined
 
 ### In-memory mode
 
-Place form JSON files under `src/main/resources/forms/`. They are loaded at startup.
+Place form definition files (`.json`, `.yaml`, or `.yml`) under `src/main/resources/forms/`. They are loaded at startup.
 
 ### JPA mode
 
