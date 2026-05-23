@@ -170,6 +170,60 @@ spring.cloud.stream.function.definition=consumeOutbox;consumeUpstream;consumeWor
 spring.cloud.stream.kafka.binder.auto-create-topics=true
 ```
 
+## Docker / environment variables
+
+Both standalone images are fully configured via environment variables. All variables have defaults so only values that differ from the defaults need to be set.
+
+### orchestrator-standalone-app
+
+| Variable | Default | Maps to |
+|---|---|---|
+| `SERVER_PORT` | `8080` | `server.port` |
+| `WORKFLOW_MODE` | `kafka` | `workflow.mode` |
+| `WORKFLOW_PERSISTENCE` | `jpa` | `workflow.persistence` |
+| `DB_URL` | `jdbc:postgresql://localhost:5432/workflow` | `spring.datasource.url` |
+| `DB_USERNAME` | `workflow` | `spring.datasource.username` |
+| `DB_PASSWORD` | `secret` | `spring.datasource.password` |
+| `DB_DRIVER` | `org.postgresql.Driver` | `spring.datasource.driver-class-name` |
+| `JPA_DIALECT` | `org.hibernate.dialect.PostgreSQLDialect` | `spring.jpa.database-platform` |
+| `DDL_AUTO` | `update` | `spring.jpa.hibernate.ddl-auto` |
+| `DB_POOL_SIZE` | `10` | `spring.hikari.maximum-pool-size` |
+| `DB_CONNECTION_TIMEOUT` | `20000` | `spring.hikari.connection-timeout` (ms) |
+| `KAFKA_BROKERS` | `localhost:9092` | `spring.cloud.stream.kafka.binder.brokers` |
+
+### forms-standalone-app
+
+| Variable | Default | Maps to |
+|---|---|---|
+| `SERVER_PORT` | `8080` | `server.port` |
+| `DB_URL` | `jdbc:postgresql://localhost:5432/workflow` | `spring.datasource.url` |
+| `DB_USERNAME` | `workflow` | `spring.datasource.username` |
+| `DB_PASSWORD` | `secret` | `spring.datasource.password` |
+| `DB_DRIVER` | `org.postgresql.Driver` | `spring.datasource.driver-class-name` |
+| `JPA_DIALECT` | `org.hibernate.dialect.PostgreSQLDialect` | `spring.jpa.database-platform` |
+| `DDL_AUTO` | `update` | `spring.jpa.hibernate.ddl-auto` |
+| `DB_POOL_SIZE` | `10` | `spring.hikari.maximum-pool-size` |
+| `DB_CONNECTION_TIMEOUT` | `20000` | `spring.hikari.connection-timeout` (ms) |
+| `KAFKA_BROKERS` | `localhost:9092` | `spring.cloud.stream.kafka.binder.brokers` |
+
+### Switching databases via environment variables
+
+To use MariaDB instead of PostgreSQL, override the three DB-related variables:
+
+```shell
+DB_URL=jdbc:mariadb://db:3306/workflow
+DB_DRIVER=org.mariadb.jdbc.Driver
+JPA_DIALECT=org.hibernate.dialect.MariaDBDialect
+```
+
+For Oracle (remember the `DBMS_LOCK` grant prerequisite):
+
+```shell
+DB_URL=jdbc:oracle:thin:@db:1521:XE
+DB_DRIVER=oracle.jdbc.OracleDriver
+JPA_DIALECT=org.hibernate.dialect.OracleDialect
+```
+
 ## ia-agent-service configuration
 
 See [ia-agent-service](/guides/ia-agent-service/) for the full `application.yaml` reference.
