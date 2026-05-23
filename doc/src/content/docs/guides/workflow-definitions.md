@@ -105,7 +105,7 @@ Production definition updated (version + 1), working copy deleted
 | `topic` | string | — | Worker topic/destination (ACTION only) |
 | `formId` | string | — | Form identifier (USER_TASK only) |
 | `childWorkflowDefinitionId` | string | — | Child workflow ID (PROCESS only) |
-| `timeout` | integer (ms) | `0` | Max execution time; `0` = no timeout |
+| `timeout` | duration | `0` | Max execution time. ISO 8601 string (`PT30S`, `PT5M`, `PT1H30M`) or integer milliseconds. `0` = no timeout |
 | `retries` | integer | `0` | Auto-retry attempts on ERROR or TIMEOUT |
 | `rollbackable` | boolean | `false` | Trigger compensation step on failure |
 | `compensationStepId` | string | — | Step to run as compensation (requires `rollbackable: true`) |
@@ -135,7 +135,7 @@ Production definition updated (version + 1), working copy deleted
       "name": "Charge Payment",
       "topic": "payment-service",
       "preconditionStepId": "validate",
-      "timeout": 30000,
+      "timeout": "PT30S",
       "retries": 2
     },
     {
@@ -173,7 +173,7 @@ steps:
     name: Charge Payment
     topic: payment-service
     preconditionStepId: validate
-    timeout: 30000
+    timeout: PT30S
     retries: 2
 
   - id: ship

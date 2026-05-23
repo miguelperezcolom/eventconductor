@@ -27,7 +27,14 @@ When a step fails:
 
 ## Timeouts
 
-Set the `timeout` field (in milliseconds) to limit how long a step can run.
+Set the `timeout` field to limit how long a step can run. Accepts an **ISO 8601 duration string** or an integer in milliseconds (legacy):
+
+| Format | Example | Meaning |
+|---|---|---|
+| ISO 8601 string | `"PT30S"` | 30 seconds |
+| ISO 8601 string | `"PT5M"` | 5 minutes |
+| ISO 8601 string | `"PT1H30M"` | 1 hour 30 minutes |
+| Integer (ms) | `30000` | 30 seconds (legacy, still supported) |
 
 ```json
 {
@@ -35,7 +42,7 @@ Set the `timeout` field (in milliseconds) to limit how long a step can run.
   "type": "ACTION",
   "name": "Call External API",
   "topic": "api-service",
-  "timeout": 30000,
+  "timeout": "PT30S",
   "retries": 2
 }
 ```
@@ -45,7 +52,7 @@ When a step times out:
 2. If retries are configured, it is re-dispatched
 3. If no retries remain, it transitions to `ERROR`
 
-`timeout: 0` means no timeout (the default).
+`timeout: 0` (or omitting it) means no timeout.
 
 ## Compensation (Saga pattern)
 
