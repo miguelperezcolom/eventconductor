@@ -1,13 +1,17 @@
 ---
 title: Workflow Definitions
-description: The EventConductor JSON workflow DSL — steps, branching, retries, and more.
+description: The EventConductor workflow DSL — steps, branching, retries, and more. Supports JSON and YAML.
 ---
 
-Workflow definitions are JSON files that describe the steps of a business process. They are version-controlled, human-readable, and reviewable in a pull request.
+Workflow definitions describe the steps of a business process. They can be written in **JSON** or **YAML** (`.json`, `.yaml`, `.yml`), are version-controlled, and are reviewable in a pull request.
 
-In `embedded` + `memory` mode, definitions are loaded from `classpath:/workflows/*.json` at startup. In `jpa` persistence mode, they can also be imported from Git via the MCP tool `importWorkflowDefinitionsFromGit`.
+In `embedded` + `memory` mode, definitions are loaded from `classpath:/workflows/` at startup. In `jpa` persistence mode, they can also be imported from Git via the MCP tool `importWorkflowDefinitionsFromGit`.
 
 ## File format
+
+Both formats are fully equivalent — use whichever fits your team's conventions.
+
+**JSON:**
 
 ```json
 {
@@ -21,6 +25,20 @@ In `embedded` + `memory` mode, definitions are loaded from `classpath:/workflows
   "enqueueOnLimit": false,
   "steps": [...]
 }
+```
+
+**YAML:**
+
+```yaml
+id: my-workflow
+name: My Workflow
+version: 1
+description: Optional description
+status: ACTIVE
+limitConcurrentExecutions: false
+maxConcurrentExecutions: 0
+enqueueOnLimit: false
+steps: [...]
 ```
 
 ### Top-level fields
@@ -96,6 +114,8 @@ Production definition updated (version + 1), working copy deleted
 
 ### Linear workflow
 
+**JSON:**
+
 ```json
 {
   "id": "order-processing",
@@ -133,6 +153,39 @@ Production definition updated (version + 1), working copy deleted
     }
   ]
 }
+```
+
+**YAML:**
+
+```yaml
+id: order-processing
+name: Order Processing
+version: 1
+status: ACTIVE
+steps:
+  - id: validate
+    type: ACTION
+    name: Validate Order
+    topic: order-validator
+
+  - id: charge
+    type: ACTION
+    name: Charge Payment
+    topic: payment-service
+    preconditionStepId: validate
+    timeout: 30000
+    retries: 2
+
+  - id: ship
+    type: ACTION
+    name: Ship Order
+    topic: fulfillment-service
+    preconditionStepId: charge
+
+  - id: end
+    type: END
+    name: Done
+    preconditionStepId: ship
 ```
 
 ### Workflow with human approval
