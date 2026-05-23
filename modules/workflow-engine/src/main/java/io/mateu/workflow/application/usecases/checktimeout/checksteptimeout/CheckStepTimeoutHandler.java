@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.UUID;
@@ -63,7 +64,7 @@ public class CheckStepTimeoutHandler {
                     stepExecution.getProcessId(),
                     stepExecution.id(),
                     MessageType.Error.name(),
-                    "Step timed out after " + step.timeout() + "ms",
+                    "Step timed out after " + Duration.ofMillis(step.timeout()),
                     "system"
             ));
             // Compensation (and retry) is handled centrally by StepExecutionStatusUpdatedEventHandler

@@ -1,5 +1,6 @@
 package io.mateu.workflow.domain.aggregates;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import io.mateu.uidl.annotations.*;
 import io.mateu.uidl.data.FieldStereotype;
 import io.mateu.uidl.interfaces.Identifiable;
@@ -45,6 +46,7 @@ public record Step(
         @Lookup(search = WorkflowDefinitionIdOptionsSupplier.class, label = WorkflowDefinitionIdLabelSupplier.class)
         String childWorkflowDefinitionId,
         @Section(value = "Reliability", style = "width: 25%;")
+        @JsonDeserialize(using = TimeoutDeserializer.class)
         long timeout,
         @HiddenInList
         int retries,
