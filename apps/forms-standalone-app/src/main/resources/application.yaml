@@ -1,5 +1,5 @@
 server:
-  port: 8106
+  port: ${SERVER_PORT:8106}
 
 app:
   features:
@@ -16,47 +16,42 @@ spring:
     async:
       request-timeout: -1   # SSE connections must not expire
 
-  # --- Configuración de Spring Cloud Stream ---
   cloud:
     function:
       definition: consumeWorkerEventForFormsEngine
     stream:
       kafka:
         binder:
-          # Centralizamos la conexión aquí para el Binder
-          brokers: localhost:9192
+          brokers: ${KAFKA_BROKERS:localhost:9192}
           auto-create-topics: true
       bindings:
-        # INPUTS
         consumeOutbox-in-0:
           destination: outbox
           group: forms-engine-group
         consumeWorkerEventForFormsEngine-in-0:
           destination: downstream
-          group: forms-engine-group # Añade un grupo para persistir el offset
-        # OUTPUTS (Para StreamBridge)
-        upstream: # Nombre usado en streamBridge.send("upstream", ...)
+          group: forms-engine-group
+        upstream:
           destination: upstream
-        downstream: # Nombre usado en streamBridge.send("downstream", ...)
+        downstream:
           destination: downstream
         outbox:
           destination: outbox
 
-  # --- Configuración de Base de Datos (PostgreSQL) ---
   datasource:
-    url: jdbc:postgresql://127.0.0.1:5432/workflow
-    username: user_app
-    password: user_password
-    driver-class-name: org.postgresql.Driver
+    url: ${DB_URL:jdbc:postgresql://127.0.0.1:5432/workflow}
+    username: ${DB_USERNAME:user_app}
+    password: ${DB_PASSWORD:user_password}
+    driver-class-name: ${DB_DRIVER:org.postgresql.Driver}
 
   hikari:
-    connection-timeout: 20000
-    maximum-pool-size: 10
+    connection-timeout: ${DB_CONNECTION_TIMEOUT:20000}
+    maximum-pool-size: ${DB_POOL_SIZE:10}
 
   jpa:
-    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    database-platform: ${JPA_DIALECT:org.hibernate.dialect.PostgreSQLDialect}
     hibernate:
-      ddl-auto: update
+      ddl-auto: ${DDL_AUTO:update}
     show-sql: false
     properties:
       hibernate:
@@ -78,8 +73,3 @@ logging:
     org.hibernate.orm.jdbc.bind: error
     org.springframework.kafka: error
     org.springframework.cloud.stream: error
-    #    org.hibernate.SQL: DEBUG
-    #    org.hibernate.orm.jdbc.bind: TRACE
-    #    org.springframework.kafka: INFO
-    # He añadido este para que veas errores detallados del binder si algo falla
-#    org.springframework.cloud.stream: INFO
