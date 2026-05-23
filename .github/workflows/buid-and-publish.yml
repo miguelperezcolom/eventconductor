@@ -34,7 +34,7 @@ jobs:
           node-version: 24
 
       - name: fix version
-        run: grep -rl '<version>0.0.1-SNAPSHOT</version>' --exclude-dir=.git backend | grep pom.xml | xargs sed -i 's/0\.0\.1\-SNAPSHOT/${{ env.RELEASE_VERSION }}/g'
+        run: grep -rl '<version>0.0.1-SNAPSHOT</version>' --exclude-dir=.git . | grep pom.xml | xargs sed -i 's/0\.0\.1\-SNAPSHOT/${{ env.RELEASE_VERSION }}/g'
 
       - name: Build
         run: mvn -Dmaven.test.skip -B install --file pom.xml
