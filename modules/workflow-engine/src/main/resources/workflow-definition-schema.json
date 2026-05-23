@@ -118,9 +118,8 @@
           "description": "ID of the child workflow definition to start as a sub-process. Required for PROCESS steps."
         },
         "timeout": {
-          "type": ["integer", "null"],
-          "description": "Maximum execution time in milliseconds. 0 or negative means no timeout.",
-          "minimum": 0,
+          "type": ["integer", "string", "null"],
+          "description": "Maximum execution time. Use an ISO 8601 duration string (e.g. PT30S, PT5M, PT1H30M) or an integer in milliseconds. 0 or null means no timeout.",
           "default": 0
         },
         "retries": {
