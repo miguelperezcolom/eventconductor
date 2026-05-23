@@ -3,6 +3,7 @@ package io.mateu.workflow.infra.out.async;
 import io.mateu.workflow.infra.in.async.processdomainevent.ProcessDomainEventCommand;
 import io.mateu.workflow.infra.in.async.processdomainevent.ProcessDomainEventUseCase;
 import io.mateu.workflow.ddd.DomainEvent;
+import io.mateu.workflow.infra.out.persistence.DbLockDialect;
 import io.mateu.workflow.infra.out.persistence.OutboxMessageEntityRepository;
 import io.mateu.workflow.infra.out.persistence.OutboxMessageStatus;
 import jakarta.annotation.PostConstruct;
@@ -27,6 +28,7 @@ public class EmbeddedOutboxRelay {
     final OutboxMessageEntityRepository outboxMessageEntityRepository;
     final ProcessDomainEventUseCase processDomainEventUseCase;
     final JdbcTemplate jdbcTemplate;
+    final DbLockDialect dbLockDialect;
 
     @PostConstruct
     public void iterate() {
@@ -35,13 +37,7 @@ public class EmbeddedOutboxRelay {
                 while (true) {
                     try {
                         jdbcTemplate.execute((org.springframework.jdbc.core.ConnectionCallback<Void>) con -> {
-                            try (var ps = con.prepareStatement("SELECT pg_try_advisory_lock(?)")) {
-                                ps.setLong(1, LOCK_ID);
-                                try (var rs = ps.executeQuery()) {
-                                    rs.next();
-                                    if (!rs.getBoolean(1)) return null;
-                                }
-                            }
+                            if (!dbLockDialect.tryLock(con, LOCK_ID)) return null;
                             try {
                                 outboxMessageEntityRepository.findByStatus(OutboxMessageStatus.Pending.name()).forEach(m -> {
                                     log.info("Processing embedded outbox message {}", m.getId());
@@ -59,10 +55,7 @@ public class EmbeddedOutboxRelay {
                                     }
                                 });
                             } finally {
-                                try (var ps = con.prepareStatement("SELECT pg_advisory_unlock(?)")) {
-                                    ps.setLong(1, LOCK_ID);
-                                    ps.execute();
-                                }
+                                dbLockDialect.unlock(con, LOCK_ID);
                             }
                             return null;
                         });

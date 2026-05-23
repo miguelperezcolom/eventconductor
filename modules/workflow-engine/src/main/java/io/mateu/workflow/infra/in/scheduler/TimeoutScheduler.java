@@ -5,6 +5,7 @@ import io.mateu.workflow.application.out.UpstreamEventPublisher;
 import io.mateu.workflow.domain.aggregates.Step;
 import io.mateu.workflow.domain.aggregates.StepExecutionStatus;
 import io.mateu.workflow.dtos.events.integration.TimeoutCheckRequested;
+import io.mateu.workflow.infra.out.persistence.DbLockDialect;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -32,6 +33,7 @@ public class TimeoutScheduler {
     final StepExecutionRepository stepExecutionRepository;
     final UpstreamEventPublisher upstreamEventPublisher;
     final JdbcTemplate jdbcTemplate;
+    final DbLockDialect dbLockDialect;
 
     @PostConstruct
     public void start() {
@@ -40,13 +42,7 @@ public class TimeoutScheduler {
                 while (true) {
                     try {
                         jdbcTemplate.execute((org.springframework.jdbc.core.ConnectionCallback<Void>) con -> {
-                            try (var ps = con.prepareStatement("SELECT pg_try_advisory_lock(?)")) {
-                                ps.setLong(1, LOCK_ID);
-                                try (var rs = ps.executeQuery()) {
-                                    rs.next();
-                                    if (!rs.getBoolean(1)) return null;
-                                }
-                            }
+                            if (!dbLockDialect.tryLock(con, LOCK_ID)) return null;
                             try {
                                 stepExecutionRepository.findPendingOrRunning().forEach(se -> {
                                     var step = pojoFromJson(se.getStepJson(), Step.class);
@@ -55,10 +51,7 @@ public class TimeoutScheduler {
                                     }
                                 });
                             } finally {
-                                try (var ps = con.prepareStatement("SELECT pg_advisory_unlock(?)")) {
-                                    ps.setLong(1, LOCK_ID);
-                                    ps.execute();
-                                }
+                                dbLockDialect.unlock(con, LOCK_ID);
                             }
                             return null;
                         });

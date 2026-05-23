@@ -11,20 +11,21 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * PostgreSQL advisory-lock implementation of ProcessLockService.
- * Converts the UUID processId to a stable long key via XOR of its two 64-bit halves.
+ * Database-agnostic advisory-lock implementation of ProcessLockService.
+ * The actual locking SQL is delegated to DbLockDialect, which is auto-detected
+ * from the JDBC connection metadata (PostgreSQL, MariaDB/MySQL, Oracle).
  *
  * The connection that acquires the lock is held in a map until unlock() is called,
  * guaranteeing that both operations run on the same session (advisory locks are
- * session-scoped in PostgreSQL and would leak if acquired and released on different
- * pool connections).
+ * session-scoped in all supported databases).
  */
 @Service
 @ConditionalOnProperty(name = "workflow.persistence", havingValue = "jpa", matchIfMissing = true)
 @RequiredArgsConstructor
-public class PostgresProcessLockService implements ProcessLockService {
+public class JdbcProcessLockService implements ProcessLockService {
 
     private final DataSource dataSource;
+    private final DbLockDialect dialect;
     private final ConcurrentHashMap<Long, Connection> heldConnections = new ConcurrentHashMap<>();
 
     @Override
@@ -32,20 +33,14 @@ public class PostgresProcessLockService implements ProcessLockService {
         long key = toLockKey(processId);
         try {
             Connection con = dataSource.getConnection();
-            try (var ps = con.prepareStatement("SELECT pg_try_advisory_lock(?)")) {
-                ps.setLong(1, key);
-                try (var rs = ps.executeQuery()) {
-                    rs.next();
-                    if (rs.getBoolean(1)) {
-                        heldConnections.put(key, con);
-                        return true;
-                    }
-                }
+            if (dialect.tryLock(con, key)) {
+                heldConnections.put(key, con);
+                return true;
             }
             con.close();
             return false;
         } catch (Exception e) {
-            throw new RuntimeException("Error acquiring advisory lock for process " + processId, e);
+            throw new RuntimeException("Error acquiring lock for process " + processId, e);
         }
     }
 
@@ -55,12 +50,9 @@ public class PostgresProcessLockService implements ProcessLockService {
         Connection con = heldConnections.remove(key);
         if (con == null) return;
         try {
-            try (var ps = con.prepareStatement("SELECT pg_advisory_unlock(?)")) {
-                ps.setLong(1, key);
-                ps.execute();
-            }
+            dialect.unlock(con, key);
         } catch (Exception e) {
-            throw new RuntimeException("Error releasing advisory lock for process " + processId, e);
+            throw new RuntimeException("Error releasing lock for process " + processId, e);
         } finally {
             try { con.close(); } catch (Exception ignored) {}
         }
