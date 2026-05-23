@@ -6,10 +6,30 @@ RUN mvn dependency:go-offline
 COPY src /app/src
 RUN mvn clean package -DskipTests
 
-FROM eclipse-temurin:21-jre-alpine AS runner
-ARG JAR_FILE=/app/target/*.jar
+FROM eclipse-temurin:21-jre-alpine
 WORKDIR /opt/app
-COPY --from=builder /app/target/app-*.jar app.jar
+COPY --from=builder /app/target/orchestrator-standalone-app-*.jar app.jar
+
+# ── Server ────────────────────────────────────────────────────────────────────
+ENV SERVER_PORT=8080
+
+# ── Workflow engine ───────────────────────────────────────────────────────────
+ENV WORKFLOW_MODE=kafka \
+    WORKFLOW_PERSISTENCE=jpa
+
+# ── Database ──────────────────────────────────────────────────────────────────
+ENV DB_URL=jdbc:postgresql://localhost:5432/workflow \
+    DB_USERNAME=workflow \
+    DB_PASSWORD=secret \
+    DB_DRIVER=org.postgresql.Driver \
+    JPA_DIALECT=org.hibernate.dialect.PostgreSQLDialect \
+    DDL_AUTO=update \
+    DB_POOL_SIZE=10 \
+    DB_CONNECTION_TIMEOUT=20000
+
+# ── Kafka ─────────────────────────────────────────────────────────────────────
+ENV KAFKA_BROKERS=localhost:9092
 
 EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "app.jar", "--spring.profiles.active=prod"]
+
+ENTRYPOINT ["java", "-jar", "app.jar"]
