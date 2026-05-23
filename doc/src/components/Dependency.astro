@@ -3,14 +3,15 @@ import { Code } from 'astro:components';
 
 const { artifactId = 'workflow-engine' } = Astro.props;
 const groupId = 'io.mateu.workflow';
+const repoPath = groupId.replace(/\./g, '/');
 
-let version = 'latest';
+let version = 'LATEST';
 try {
   const res = await fetch(
-    `https://search.maven.org/solrsearch/select?q=g:%22${groupId}%22+AND+a:%22${artifactId}%22&rows=1&wt=json`
+    `https://repo1.maven.org/maven2/${repoPath}/${artifactId}/maven-metadata.xml`
   );
-  const data = await res.json();
-  version = data.response?.docs?.[0]?.latestVersion ?? version;
+  const xml = await res.text();
+  version = xml.match(/<release>(.*?)<\/release>/)?.[1] ?? version;
 } catch {
   // use fallback
 }
