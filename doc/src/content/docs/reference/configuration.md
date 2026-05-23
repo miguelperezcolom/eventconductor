@@ -64,6 +64,18 @@ When `workflow.persistence=jpa`, the engine uses database-level advisory locks t
 | MariaDB / MySQL | `GET_LOCK(name, 0)` / `RELEASE_LOCK(name)` |
 | Oracle | `DBMS_LOCK.REQUEST` / `DBMS_LOCK.RELEASE` (via PL/SQL) |
 
+#### Stale lock watchdog
+
+A background daemon thread (`process-lock-watchdog`) runs every **60 seconds** and force-releases any per-process lock that has been held longer than **60 seconds**. Lock-protected operations are expected to complete in milliseconds; the watchdog is a safety net for cases where `unlock()` is never reached (e.g. an unhandled exception or a bug in calling code).
+
+When a stale lock is released the following warning is logged:
+
+```
+WARN  JdbcProcessLockService - Releasing stale lock <key> held since <instant> (exceeded 60s threshold)
+```
+
+If you see this warning in production, investigate the process that held the lock — it likely indicates an unexpected error in the orchestration flow.
+
 ## Kafka (when `workflow.mode=kafka`)
 
 ```properties
