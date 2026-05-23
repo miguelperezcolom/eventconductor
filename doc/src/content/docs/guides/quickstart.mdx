@@ -3,6 +3,8 @@ title: Quick Start
 description: Get EventConductor running in minutes — no external dependencies required.
 ---
 
+import Dependency from '../../../components/Dependency.astro';
+
 This guide gets you from zero to a running workflow in under 10 minutes using the **fully embedded** mode (no Kafka, no database needed).
 
 ## Prerequisites
@@ -12,13 +14,7 @@ This guide gets you from zero to a running workflow in under 10 minutes using th
 
 ## 1. Add the dependency
 
-```xml
-<dependency>
-    <groupId>io.mateu.workflow</groupId>
-    <artifactId>workflow-engine</artifactId>
-    <version>1.0-SNAPSHOT</version>
-</dependency>
-```
+<Dependency />
 
 ## 2. Configure embedded mode
 

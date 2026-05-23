@@ -1,0 +1,25 @@
+---
+import { Code } from 'astro:components';
+
+const { artifactId = 'workflow-engine' } = Astro.props;
+const groupId = 'io.mateu.workflow';
+
+let version = 'latest';
+try {
+  const res = await fetch(
+    `https://search.maven.org/solrsearch/select?q=g:%22${groupId}%22+AND+a:%22${artifactId}%22&rows=1&wt=json`
+  );
+  const data = await res.json();
+  version = data.response?.docs?.[0]?.latestVersion ?? version;
+} catch {
+  // use fallback
+}
+
+const code = `<dependency>
+    <groupId>${groupId}</groupId>
+    <artifactId>${artifactId}</artifactId>
+    <version>${version}</version>
+</dependency>`;
+---
+
+<Code code={code} lang="xml" />
