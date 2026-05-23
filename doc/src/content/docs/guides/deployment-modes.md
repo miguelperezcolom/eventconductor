@@ -106,7 +106,39 @@ spring.datasource.password=secret
 spring.jpa.database-platform=org.hibernate.dialect.OracleDialect
 ```
 
+## Docker images
+
+Both standalone applications ship with a `Dockerfile` and are fully configured via environment variables. See the [environment variable reference](/reference/configuration/#docker--environment-variables) for the complete list.
+
+**Build:**
+
+```shell
+# from each app directory
+docker build -t orchestrator-standalone-app .
+docker build -t forms-standalone-app .
+```
+
+**Run (minimal PostgreSQL example):**
+
+```shell
+docker run -p 8080:8080 \
+  -e DB_URL=jdbc:postgresql://db:5432/workflow \
+  -e DB_USERNAME=workflow \
+  -e DB_PASSWORD=secret \
+  -e KAFKA_BROKERS=kafka:9092 \
+  orchestrator-standalone-app
+
+docker run -p 8081:8080 \
+  -e DB_URL=jdbc:postgresql://db:5432/workflow \
+  -e DB_USERNAME=workflow \
+  -e DB_PASSWORD=secret \
+  -e KAFKA_BROKERS=kafka:9092 \
+  forms-standalone-app
+```
+
 ## Local development with Docker Compose
+
+Infrastructure only (run the apps locally with `mvn spring-boot:run`):
 
 ```yaml
 # docker-compose.yml
@@ -136,6 +168,55 @@ services:
 ```shell
 docker-compose up -d
 mvn spring-boot:run
+```
+
+Full stack (infrastructure + app containers):
+
+```yaml
+# docker-compose.full.yml
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: workflow
+      POSTGRES_USER: workflow
+      POSTGRES_PASSWORD: secret
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.0
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+
+  orchestrator:
+    build: apps/orchestrator-standalone-app
+    ports: ["8105:8080"]
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/workflow
+      DB_USERNAME: workflow
+      DB_PASSWORD: secret
+      KAFKA_BROKERS: kafka:9092
+    depends_on: [postgres, kafka]
+
+  forms:
+    build: apps/forms-standalone-app
+    ports: ["8106:8080"]
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/workflow
+      DB_USERNAME: workflow
+      DB_PASSWORD: secret
+      KAFKA_BROKERS: kafka:9092
+    depends_on: [postgres, kafka]
+```
+
+```shell
+docker-compose -f docker-compose.full.yml up -d
 ```
 
 ## Choosing a mode
