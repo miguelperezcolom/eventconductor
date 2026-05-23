@@ -108,12 +108,19 @@ spring.jpa.database-platform=org.hibernate.dialect.OracleDialect
 
 ## Docker images
 
-Both standalone applications ship with a `Dockerfile` and are fully configured via environment variables. See the [environment variable reference](/reference/configuration/#docker--environment-variables) for the complete list.
+Each standalone application ships with two Dockerfiles:
 
-**Build:**
+| File | Purpose |
+|---|---|
+| `Dockerfile` | **Local / standalone use.** Multi-stage build: compiles the project with Maven inside the container. Self-contained — no pre-built artifacts needed. |
+| `Dockerfile.ci` | **CI/CD use.** Single-stage runner image that copies the jar already built by the pipeline. Avoids re-running Maven (which would fail for local SNAPSHOT dependencies not published to Maven Central). |
+
+Both images are fully configured via environment variables. See the [environment variable reference](/reference/configuration/#docker--environment-variables) for the complete list.
+
+**Build locally (standalone):**
 
 ```shell
-# from each app directory
+# from each app directory — builds the project inside Docker
 docker build -t orchestrator-standalone-app .
 docker build -t forms-standalone-app .
 ```
@@ -135,6 +142,45 @@ docker run -p 8081:8080 \
   -e KAFKA_BROKERS=kafka:9092 \
   forms-standalone-app
 ```
+
+## CI/CD — publishing to Docker Hub
+
+The **Build and publish** GitHub Actions workflow (`.github/workflows/buid-and-publish.yml`) triggers on every GitHub release and runs these stages in order:
+
+1. Set release version from the Git tag
+2. Build all Maven modules (`mvn install`)
+3. Publish libraries to Maven Central (`mvn deploy`)
+4. Build and push `orchestrator-standalone-app` to Docker Hub
+5. Build and push `forms-standalone-app` to Docker Hub
+
+Steps 4 and 5 use `Dockerfile.ci`, which copies the jar produced in step 2 — no Maven re-run inside Docker.
+
+Images are pushed with two tags: the release version and `latest`.
+
+```
+<DOCKERHUB_USERNAME>/orchestrator-standalone-app:1.2.3
+<DOCKERHUB_USERNAME>/orchestrator-standalone-app:latest
+
+<DOCKERHUB_USERNAME>/forms-standalone-app:1.2.3
+<DOCKERHUB_USERNAME>/forms-standalone-app:latest
+```
+
+### Required GitHub secrets
+
+Configure these in **Settings → Secrets and variables → Actions**:
+
+| Secret | Description |
+|---|---|
+| `CENTRAL_TOKEN_USERNAME` | Maven Central token username |
+| `CENTRAL_TOKEN_PASSWORD` | Maven Central token password |
+| `GPG_PRIVATE_KEY` | GPG private key for artifact signing |
+| `GPG_PASSPHRASE` | Passphrase for the GPG key |
+| `DOCKERHUB_USERNAME` | Docker Hub username |
+| `DOCKERHUB_TOKEN` | Docker Hub access token (create at hub.docker.com → Account Settings → Security) |
+
+:::tip
+Use a Docker Hub **access token** rather than your account password. Tokens can be scoped to read/write and revoked independently.
+:::
 
 ## Local development with Docker Compose
 
