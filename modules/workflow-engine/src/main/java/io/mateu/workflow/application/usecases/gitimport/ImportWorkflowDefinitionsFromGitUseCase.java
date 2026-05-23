@@ -1,6 +1,7 @@
 package io.mateu.workflow.application.usecases.gitimport;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
 import io.mateu.workflow.application.services.WorkflowDefinitionValidator;
 import io.mateu.workflow.domain.aggregates.WorkflowDefinition;
@@ -29,6 +30,7 @@ public class ImportWorkflowDefinitionsFromGitUseCase {
     final WorkflowDefinitionRepository workflowDefinitionRepository;
     final WorkflowDefinitionValidator workflowDefinitionValidator;
     final ObjectMapper objectMapper;
+    private static final YAMLMapper YAML_MAPPER = new YAMLMapper();
 
     public ImportWorkflowDefinitionsResult handle() {
         var imported = new ArrayList<String>();
@@ -75,22 +77,30 @@ public class ImportWorkflowDefinitionsFromGitUseCase {
         log.info("Repository cloned successfully");
     }
 
+    private static boolean isDefinitionFile(Path path) {
+        String name = path.toString();
+        return name.endsWith(".json") || name.endsWith(".yaml") || name.endsWith(".yml");
+    }
+
     private void scanAndImport(Path repoRoot, List<String> imported, List<String> errors) throws IOException {
         try (var stream = Files.walk(repoRoot)) {
-            stream.filter(path -> path.toString().endsWith(".json"))
-                    .forEach(jsonFile -> {
+            stream.filter(ImportWorkflowDefinitionsFromGitUseCase::isDefinitionFile)
+                    .forEach(file -> {
                         try {
-                            importJsonFile(jsonFile, repoRoot, imported);
+                            importDefinitionFile(file, repoRoot, imported);
                         } catch (Exception e) {
-                            log.warn("Skipping {}: {}", jsonFile, e.getMessage());
-                            errors.add("File " + repoRoot.relativize(jsonFile) + ": " + e.getMessage());
+                            log.warn("Skipping {}: {}", file, e.getMessage());
+                            errors.add("File " + repoRoot.relativize(file) + ": " + e.getMessage());
                         }
                     });
         }
     }
 
-    private void importJsonFile(Path jsonFile, Path repoRoot, List<String> imported) throws IOException {
-        var node = objectMapper.readTree(jsonFile.toFile());
+    private void importDefinitionFile(Path file, Path repoRoot, List<String> imported) throws IOException {
+        String fileName = file.toString();
+        var node = (fileName.endsWith(".yaml") || fileName.endsWith(".yml"))
+                ? YAML_MAPPER.readTree(file.toFile())
+                : objectMapper.readTree(file.toFile());
 
         // Quick pre-check: must have both "name" and "steps" to be a workflow definition at all.
         if (!node.has("name") || !node.has("steps")) {
@@ -119,7 +129,7 @@ public class ImportWorkflowDefinitionsFromGitUseCase {
         // Any violation will throw WorkflowDefinitionValidationException, caught by the caller.
         workflowDefinitionRepository.save(definition);
         log.info("Imported workflow definition '{}' (id={}) from {}",
-                definition.name(), definition.id(), repoRoot.relativize(jsonFile));
+                definition.name(), definition.id(), repoRoot.relativize(file));
         imported.add(definition.name() + " [" + definition.id() + "]");
     }
 
