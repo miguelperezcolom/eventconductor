@@ -76,6 +76,12 @@ WARN  JdbcProcessLockService - Releasing stale lock <key> held since <instant> (
 
 If you see this warning in production, investigate the process that held the lock — it likely indicates an unexpected error in the orchestration flow.
 
+#### Multi-pod safety
+
+The watchdog is safe in multi-pod (Kubernetes) deployments. `heldLocks` is an in-memory map local to each JVM, so each pod's watchdog only sees and releases locks that **the same pod** acquired. It has no visibility into locks held by other pods and cannot interfere with them.
+
+If a pod crashes, no watchdog intervention is needed: advisory locks are session-scoped in all supported databases, so the database releases them automatically as soon as the JDBC connection closes.
+
 ## Kafka (when `workflow.mode=kafka`)
 
 ```properties
