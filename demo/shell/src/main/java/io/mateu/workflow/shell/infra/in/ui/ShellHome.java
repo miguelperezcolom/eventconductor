@@ -19,11 +19,11 @@ import java.util.Map;
 import static io.mateu.core.infra.JsonSerializer.fromJson;
 
 @UI("")
-@Title("Console")
+@Title("Demo Console")
 @KeycloakSecured(url = "https://lemur-11.cloud-iam.com/auth", realm = "mateu", clientId = "demo")
 @FavIcon("/images/riu.svg")
 @PageTitle("Home")
-@Logo("/images/riu.svg")
+//@Logo("/images/riu.svg")
 @Style(StyleConstants.CONTAINER)
 @AI(sse = "/ai/api/agent/stream")
 public class ShellHome implements WidgetSupplier
