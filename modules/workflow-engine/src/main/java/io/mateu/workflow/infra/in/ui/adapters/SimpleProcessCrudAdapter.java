@@ -1,10 +1,12 @@
 package io.mateu.workflow.infra.in.ui.adapters;
 
+import io.mateu.uidl.data.Data;
 import io.mateu.uidl.data.ListingData;
 import io.mateu.uidl.data.NoCreationForm;
 import io.mateu.uidl.data.NoEditor;
 import io.mateu.uidl.data.NoFilters;
 import io.mateu.uidl.data.Pageable;
+import io.mateu.uidl.data.State;
 import io.mateu.uidl.data.Status;
 import io.mateu.uidl.data.StatusType;
 import io.mateu.uidl.interfaces.CrudAdapter;
@@ -24,6 +26,7 @@ import org.springframework.stereotype.Service;
 import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 
 import static io.mateu.uidl.Humanizer.toUpperCaseFirst;
 
@@ -69,6 +72,9 @@ public class SimpleProcessCrudAdapter implements CrudAdapter<Object, NoEditor<St
     @Override
     public Object getView(String id, HttpRequest httpRequest) {
         Process process = repository.findById(id).orElse(repository.findByBusinessKey(id).orElse(null));
+        if (process == null) {
+            return new Data(Map.of("error", "Process not found"));
+        }
         httpRequest.setAttribute("_process", process);
         httpRequest.setAttribute("_status", process.getStatus().name());
         httpRequest.setAttribute("_returnTo", httpRequest.getParameterValue("returnTo"));
