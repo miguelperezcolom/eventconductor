@@ -1,6 +1,7 @@
 package io.mateu.workflow.infra.in.ui.pages;
 
 import io.mateu.core.infra.JwtExtractor;
+import io.mateu.core.infra.declarative.Listing;
 import io.mateu.uidl.annotations.Action;
 import io.mateu.uidl.annotations.Toolbar;
 import io.mateu.uidl.annotations.Trigger;
@@ -25,8 +26,7 @@ record TaskRow(String id, String name, String form, String assignedTo, Status st
 @Trigger(type = TriggerType.OnLoad, actionId = "search")
 @Trigger(type = TriggerType.OnSuccess, actionId = "search", calledActionId = "claim")
 @RequiredArgsConstructor
-@Action(id = "run")
-public class Tasks implements ListingBackend<NoFilters, TaskRow> {
+public class Tasks extends Listing<NoFilters, TaskRow> {
 
     final FormExecutionEntityRepository repository;
 
