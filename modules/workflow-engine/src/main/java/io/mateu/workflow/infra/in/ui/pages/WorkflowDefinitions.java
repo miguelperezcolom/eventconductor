@@ -16,8 +16,12 @@ import io.mateu.workflow.infra.in.ui.WorkflowHome;
 import io.mateu.workflow.infra.in.ui.adapters.WorkflowDefinitionCrudAdapter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Scope;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.stereotype.Service;
 
+@ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
+@ConditionalOnProperty(name = "workflow.persistence", havingValue = "jpa", matchIfMissing = true)
 @Service
 @Scope("prototype")
 @RequiredArgsConstructor

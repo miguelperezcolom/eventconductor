@@ -9,6 +9,8 @@ import io.mateu.workflow.domain.aggregates.ProcessStatus;
 import io.mateu.workflow.infra.in.ui.pages.process.ProcessRow;
 import io.mateu.workflow.infra.in.ui.pages.process.ProcessViewModel;
 import lombok.RequiredArgsConstructor;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.stereotype.Service;
 
 import java.time.format.DateTimeFormatter;
@@ -16,6 +18,8 @@ import java.util.List;
 
 import static io.mateu.uidl.Humanizer.toUpperCaseFirst;
 
+@ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
+@ConditionalOnProperty(name = "workflow.persistence", havingValue = "jpa", matchIfMissing = true)
 @Service
 @RequiredArgsConstructor
 public class ProcessCrudAdapter implements CrudAdapter<ProcessViewModel, NoEditor<String>, NoCreationForm<String>, NoFilters, ProcessRow, String> {
