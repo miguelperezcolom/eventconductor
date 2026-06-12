@@ -7,8 +7,7 @@
     {
       "id": "greet",
       "type": "ACTION",
-      "name": "Greet the user",
-      "topic": "greet-topic"
+      "name": "Greet the user"
     },
     {
       "id": "end",

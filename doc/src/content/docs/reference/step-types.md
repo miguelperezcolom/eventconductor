@@ -20,11 +20,9 @@ Dispatches a task to a worker microservice (or embedded bean). The workflow paus
 }
 ```
 
-**Required fields:** `topic`
+**Required fields (Kafka mode):** `topic`
 
-The `topic` value:
-- In **Kafka mode**: the Kafka topic name to which `TaskExecutionRequested` is published
-- In **embedded mode**: the Spring bean name of the `EmbeddedTaskExecutor`
+The `topic` field specifies the Kafka topic to which `TaskExecutionRequested` is published in **Kafka mode**. In **embedded mode** the field is ignored — all ACTION steps are routed to the single registered `EmbeddedTaskExecutor` bean regardless of its value. It may be omitted when targeting embedded-only workflows.
 
 ---
 
