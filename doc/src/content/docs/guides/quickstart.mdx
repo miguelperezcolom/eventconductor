@@ -23,39 +23,26 @@ In `src/main/resources/application.properties`:
 ```properties
 workflow.mode=embedded
 workflow.persistence=memory
-
-spring.autoconfigure.exclude=\
-  org.springframework.cloud.stream.binder.kafka.config.KafkaBinderConfiguration,\
-  org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration,\
-  org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration,\
-  org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration
 ```
 
 ## 3. Define a workflow
 
-Create `src/main/resources/workflows/hello-world.json`:
+Create `src/main/resources/workflows/hello-world.yaml`:
 
-```json
-{
-  "id": "hello-world",
-  "name": "Hello World",
-  "version": 1,
-  "status": "ACTIVE",
-  "steps": [
-    {
-      "id": "greet",
-      "type": "ACTION",
-      "name": "Greet the user",
-      "topic": "greet-topic"
-    },
-    {
-      "id": "end",
-      "type": "END",
-      "name": "Done",
-      "preconditionStepId": "greet"
-    }
-  ]
-}
+```yaml
+# yaml-language-server: $schema=https://raw.githubusercontent.com/miguelperezcolom/eventconductor/main/modules/workflow-engine/src/main/resources/workflow-definition-schema.json
+id: hello-world
+name: Hello World
+version: 1
+status: ACTIVE
+steps:
+  - id: greet
+    type: ACTION
+    name: Greet the user
+  - id: end
+    type: END
+    name: Done
+    preconditionStepId: greet
 ```
 
 ## 4. Implement a worker

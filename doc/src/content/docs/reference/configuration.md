@@ -120,29 +120,23 @@ spring.cloud.stream.kafka.binder.auto-create-topics=true
 ```properties
 workflow.mode=embedded
 workflow.persistence=memory
-
-spring.autoconfigure.exclude=\
-  org.springframework.cloud.stream.binder.kafka.config.KafkaBinderConfiguration,\
-  org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration,\
-  org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration,\
-  org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration
 ```
 
-### Mode: embedded + jpa (PostgreSQL, MariaDB, or Oracle)
+Kafka and JPA autoconfiguration are excluded automatically — no `spring.autoconfigure.exclude` needed.
+
+### Mode: embedded + jpa (PostgreSQL, MariaDB, Oracle, or H2)
 
 ```properties
 workflow.mode=embedded
 workflow.persistence=jpa
-
-spring.autoconfigure.exclude=\
-  org.springframework.cloud.stream.binder.kafka.config.KafkaBinderConfiguration,\
-  org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
 
 spring.datasource.url=jdbc:postgresql://localhost:5432/workflow
 spring.datasource.username=workflow
 spring.datasource.password=secret
 spring.jpa.hibernate.ddl-auto=update
 ```
+
+Kafka autoconfiguration is excluded automatically. Workflow definitions placed in `classpath:/workflows/` are imported into the database at startup.
 
 ### Mode: kafka + jpa (full distributed, PostgreSQL, MariaDB, or Oracle)
 
