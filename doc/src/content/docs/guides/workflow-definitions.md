@@ -19,7 +19,7 @@ Add a `$schema` reference to your JSON files to enable autocomplete and inline v
 }
 ```
 
-YAML files do not support `$schema` natively; configure the schema association manually in your editor settings if needed.
+YAML files do not support `$schema` natively; configure the schema association manually in your editor settings if needed (IntelliJ: *Preferences → Languages & Frameworks → Schemas and DTDs → JSON Schema Mappings*).
 
 ## File format
 
