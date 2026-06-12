@@ -7,6 +7,7 @@ import io.mateu.workflow.application.usecases.process.stepover.StepOverProcessUs
 import io.mateu.workflow.application.usecases.process.update.ProcessStepExecutionUpdateCommand;
 import io.mateu.workflow.application.usecases.process.update.ProcessUpdateStepExecutionUpdateUseCase;
 import io.mateu.workflow.ddd.DomainEvent;
+import io.mateu.workflow.application.out.DownstreamEventPublisher;
 import io.mateu.workflow.ddd.DomainEventHandler;
 import io.mateu.workflow.domain.aggregates.Step;
 import io.mateu.workflow.domain.aggregates.StepExecution;
@@ -15,7 +16,6 @@ import io.mateu.workflow.dtos.events.domain.StepExecutionStatusChanged;
 import io.mateu.workflow.dtos.events.integration.TaskCancellationRequested;
 import io.mateu.workflow.dtos.events.integration.TaskStatus;
 import lombok.RequiredArgsConstructor;
-import org.springframework.cloud.stream.function.StreamBridge;
 import org.springframework.stereotype.Service;
 
 import static io.mateu.core.infra.JsonSerializer.pojoFromJson;
@@ -28,7 +28,7 @@ public class StepExecutionStatusUpdatedEventHandler implements DomainEventHandle
     final StepOverProcessUseCase stepOverProcessUseCase;
     final StepExecutionRepository stepExecutionRepository;
     final ProcessRepository processRepository;
-    final StreamBridge streamBridge;
+    final DownstreamEventPublisher downstreamEventPublisher;
 
     @Override
     public Class<? extends DomainEvent> eventClass() {
@@ -42,7 +42,7 @@ public class StepExecutionStatusUpdatedEventHandler implements DomainEventHandle
         if (TaskStatus.ERROR.equals(e.status()) || TaskStatus.TIMEOUT.equals(e.status())) {
             // Cancel the worker for timed-out tasks regardless of whether we retry.
             if (TaskStatus.TIMEOUT.equals(e.status())) {
-                streamBridge.send("downstream", new TaskCancellationRequested(e.stepExecutionId()));
+                downstreamEventPublisher.publish(new TaskCancellationRequested(e.stepExecutionId()));
             }
 
             var step = pojoFromJson(stepExecution.getStepJson(), Step.class);

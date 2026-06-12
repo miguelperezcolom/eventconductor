@@ -1,0 +1,20 @@
+{
+  "id": "hello-world",
+  "name": "Hello World",
+  "version": 1,
+  "status": "ACTIVE",
+  "steps": [
+    {
+      "id": "greet",
+      "type": "ACTION",
+      "name": "Greet the user",
+      "topic": "greet-topic"
+    },
+    {
+      "id": "end",
+      "type": "END",
+      "name": "Done",
+      "preconditionStepId": "greet"
+    }
+  ]
+}
