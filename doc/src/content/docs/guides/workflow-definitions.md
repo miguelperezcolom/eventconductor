@@ -19,7 +19,15 @@ Add a `$schema` reference to your JSON files to enable autocomplete and inline v
 }
 ```
 
-YAML files do not support `$schema` natively; configure the schema association manually in your editor settings if needed (IntelliJ: *Preferences → Languages & Frameworks → Schemas and DTDs → JSON Schema Mappings*).
+For YAML files, add the `yaml-language-server` comment at the top of the file (supported by VS Code's YAML extension and IntelliJ 2023.1+):
+
+```yaml
+# yaml-language-server: $schema=https://raw.githubusercontent.com/miguelperezcolom/eventconductor/main/modules/workflow-engine/src/main/resources/workflow-definition-schema.json
+id: my-workflow
+...
+```
+
+As a fallback, configure the schema association manually in your editor (IntelliJ: *Preferences → Languages & Frameworks → Schemas and DTDs → JSON Schema Mappings*).
 
 ## File format
 
