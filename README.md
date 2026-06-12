@@ -303,7 +303,7 @@ spring.autoconfigure.exclude=\
 
 - Domain events dispatched synchronously on each repository `save()`.
 - State held in `ConcurrentHashMap` (lost on restart).
-- Workflow definitions loaded from `classpath:/workflows/*.json` at startup.
+- Workflow definitions loaded from `classpath:/workflows/` at startup (`.json`, `.yaml`, `.yml`).
 - Ideal for tests, local development, and embedding in other applications.
 
 ---
@@ -333,12 +333,45 @@ spring.kafka.bootstrap-servers=localhost:9092
 
 ## Workflow definitions
 
-### File format (`classpath:/workflows/*.json`)
+### File format (`classpath:/workflows/`)
 
-Used in `memory` persistence mode. Each file defines one workflow.
+Used in `memory` persistence mode. Each file defines one workflow. Both JSON and YAML are supported (`.json`, `.yaml`, `.yml`).
+
+**YAML** (recommended for readability):
+
+```yaml
+id: my-workflow
+name: My Workflow
+version: 1
+description: Optional description
+status: ACTIVE
+steps:
+  - id: step-1
+    type: ACTION
+    name: Do something
+    topic: my-worker-topic
+    timeout: PT30S
+    retries: 2
+    rollbackable: true
+    compensationStepId: step-compensate
+
+  - id: step-2
+    type: USER_TASK
+    name: Human approval
+    formId: approval-form
+    preconditionStepId: step-1
+
+  - id: step-compensate
+    type: ACTION
+    name: Undo step 1
+    topic: my-worker-topic
+```
+
+**JSON** (with IDE schema support via `$schema`):
 
 ```json
 {
+  "$schema": "https://raw.githubusercontent.com/miguelperezcolom/eventconductor/main/modules/workflow-engine/src/main/resources/workflow-definition-schema.json",
   "id": "my-workflow",
   "name": "My Workflow",
   "version": 1,
@@ -577,7 +610,7 @@ spring.autoconfigure.exclude=\
   org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration
 ```
 
-Place workflow definitions as JSON files under `src/main/resources/workflows/`.
+Place workflow definitions under `src/main/resources/workflows/` as JSON or YAML files.
 
 ---
 
@@ -654,6 +687,24 @@ spring.autoconfigure.exclude=\
   org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration,\
   org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration,\
   org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration
+```
+
+Add a workflow definition at `src/main/resources/workflows/hello-world.yaml`:
+
+```yaml
+id: hello-world
+name: Hello World
+version: 1
+status: ACTIVE
+steps:
+  - id: greet
+    type: ACTION
+    name: Greet the user
+
+  - id: end
+    type: END
+    name: Done
+    preconditionStepId: greet
 ```
 
 ```shell
