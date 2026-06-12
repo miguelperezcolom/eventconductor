@@ -70,35 +70,54 @@ public class MyWorker {
 
 ## Embedded worker (mode: embedded)
 
-When running in embedded mode, register a single Spring bean of type `EmbeddedTaskExecutor`. All ACTION steps are routed to that bean regardless of the `topic` field in the workflow definition. The bean receives the full `TaskExecutionRequested` — use `request.stepId()` or `request.taskId()` to branch between step types if needed.
+When running in embedded mode, register a single Spring bean of type `EmbeddedTaskExecutor`. All ACTION steps are routed to that bean regardless of the `topic` field in the workflow definition. The bean receives the full `TaskExecutionRequested` — use `request.stepId()` to branch between steps. Each branch calls `updateStepExecution` independently with its own output variables.
+
+Output variables produced by a step are automatically included in `request.variables()` for all subsequent steps, so later steps can read values written by earlier ones.
 
 ```java
 @Bean
 public EmbeddedTaskExecutor taskExecutor(UpdateStepExecutionUseCase updateStepExecution) {
     return request -> {
-        try {
-            String result = switch (request.stepId()) {
-                case "step-a" -> doStepA(request.variables());
-                case "step-b" -> doStepB(request.variables());
-                default -> throw new IllegalArgumentException("Unknown step: " + request.stepId());
-            };
-            updateStepExecution.handle(new UpdateStepExecutionCommand(
-                request.taskExecutionId(),
-                List.of(new Variable("result", result)),
-                "",
-                StepExecutionStatus.COMPLETED
-            ));
-        } catch (Exception e) {
-            updateStepExecution.handle(new UpdateStepExecutionCommand(
+        switch (request.stepId()) {
+            case "greet" -> {
+                String name = request.variables().stream()
+                    .filter(v -> "name".equals(v.name()))
+                    .map(v -> v.value())
+                    .findFirst().orElse("World");
+                System.out.println("Hello, " + name + "!");
+                updateStepExecution.handle(new UpdateStepExecutionCommand(
+                    request.taskExecutionId(),
+                    List.of(new Variable("greeting", "Hello, " + name + "!")),
+                    "",
+                    StepExecutionStatus.COMPLETED
+                ));
+            }
+            case "farewell" -> {
+                // variables() includes outputs from previous steps (e.g. greeting)
+                String name = request.variables().stream()
+                    .filter(v -> "name".equals(v.name()))
+                    .map(v -> v.value())
+                    .findFirst().orElse("World");
+                System.out.println("Goodbye, " + name + "!");
+                updateStepExecution.handle(new UpdateStepExecutionCommand(
+                    request.taskExecutionId(),
+                    List.of(new Variable("farewell", "Goodbye, " + name + "!")),
+                    "",
+                    StepExecutionStatus.COMPLETED
+                ));
+            }
+            default -> updateStepExecution.handle(new UpdateStepExecutionCommand(
                 request.taskExecutionId(),
                 List.of(),
-                e.getMessage(),
+                "Unknown step: " + request.stepId(),
                 StepExecutionStatus.ERROR
             ));
         }
     };
 }
 ```
+
+A working example with two sequential steps is available in `demo/embedded-headless`.
 
 ## Reporting intermediate progress
 
