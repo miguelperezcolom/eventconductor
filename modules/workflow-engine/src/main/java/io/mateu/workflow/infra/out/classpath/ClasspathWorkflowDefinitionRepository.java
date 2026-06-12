@@ -1,15 +1,18 @@
 package io.mateu.workflow.infra.out.classpath;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
 import io.mateu.workflow.domain.aggregates.Step;
 import io.mateu.workflow.domain.aggregates.WorkflowDefinition;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -33,14 +36,23 @@ public class ClasspathWorkflowDefinitionRepository implements WorkflowDefinition
         loadFromClasspath();
     }
 
+    private static final ObjectMapper YAML_MAPPER = new YAMLMapper();
+
     private void loadFromClasspath() {
         var resolver = new PathMatchingResourcePatternResolver();
         try {
-            var resources = resolver.getResources("classpath:/workflows/*.json");
+            var jsonResources = resolver.getResources("classpath:/workflows/*.json");
+            var yamlResources = resolver.getResources("classpath:/workflows/*.{yaml,yml}");
+            var resources = new java.util.ArrayList<Resource>();
+            resources.addAll(Arrays.asList(jsonResources));
+            resources.addAll(Arrays.asList(yamlResources));
             for (var resource : resources) {
                 try {
-                    String json = new String(resource.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-                    WorkflowDefinition def = pojoFromJson(json, WorkflowDefinition.class);
+                    String filename = resource.getFilename();
+                    boolean isYaml = filename != null && (filename.endsWith(".yaml") || filename.endsWith(".yml"));
+                    WorkflowDefinition def = isYaml
+                            ? YAML_MAPPER.readValue(resource.getInputStream(), WorkflowDefinition.class)
+                            : pojoFromJson(new String(resource.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8), WorkflowDefinition.class);
                     if (def.steps() != null) {
                         final String defId = def.id();
                         List<Step> stepsWithId = def.steps().stream()
