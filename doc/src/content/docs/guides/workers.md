@@ -70,14 +70,18 @@ public class MyWorker {
 
 ## Embedded worker (mode: embedded)
 
-When running in embedded mode, provide a Spring bean implementing `EmbeddedTaskExecutor`. The topic name in the step definition maps to the bean name.
+When running in embedded mode, register a single Spring bean of type `EmbeddedTaskExecutor`. All ACTION steps are routed to that bean regardless of the `topic` field in the workflow definition. The bean receives the full `TaskExecutionRequested` — use `request.stepId()` or `request.taskId()` to branch between step types if needed.
 
 ```java
-@Bean("my-worker-topic")
-public EmbeddedTaskExecutor myWorker(UpdateStepExecutionUseCase updateStepExecution) {
+@Bean
+public EmbeddedTaskExecutor taskExecutor(UpdateStepExecutionUseCase updateStepExecution) {
     return request -> {
         try {
-            String result = doBusinessLogic(request.variables());
+            String result = switch (request.stepId()) {
+                case "step-a" -> doStepA(request.variables());
+                case "step-b" -> doStepB(request.variables());
+                default -> throw new IllegalArgumentException("Unknown step: " + request.stepId());
+            };
             updateStepExecution.handle(new UpdateStepExecutionCommand(
                 request.taskExecutionId(),
                 List.of(new Variable("result", result)),

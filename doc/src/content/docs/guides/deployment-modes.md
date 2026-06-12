@@ -14,11 +14,18 @@ EventConductor supports three deployment modes controlled by two independent pro
 
 No Kafka, no database. Everything runs in-process. Ideal for **unit tests**, **local development**, and **embedding in other applications**.
 
+A working example is available in `demo/embedded`.
+
 ```properties
 workflow.mode=embedded
 workflow.persistence=memory
 
 spring.autoconfigure.exclude=\
+  org.springframework.cloud.stream.config.BindingServiceConfiguration,\
+  org.springframework.cloud.stream.config.BindersHealthIndicatorAutoConfiguration,\
+  org.springframework.cloud.stream.config.ChannelsEndpointAutoConfiguration,\
+  org.springframework.cloud.stream.config.BindingsEndpointAutoConfiguration,\
+  org.springframework.cloud.stream.function.FunctionConfiguration,\
   org.springframework.cloud.stream.binder.kafka.streams.KafkaStreamsBinderSupportAutoConfiguration,\
   org.springframework.cloud.stream.binder.kafka.streams.function.KafkaStreamsFunctionAutoConfiguration,\
   org.springframework.cloud.stream.binder.kafka.streams.ExtendedBindingHandlerMappingsProviderAutoConfiguration,\
@@ -27,6 +34,33 @@ spring.autoconfigure.exclude=\
   org.springframework.cloud.stream.binder.kafka.config.MessageConverterHelperConfiguration,\
   org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration,\
   org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration
+```
+
+The application class must scan the engine packages while excluding the JPA-only UI adapters:
+
+```java
+@SpringBootApplication
+@ComponentScan(
+    basePackages = "io.mateu.workflow",
+    excludeFilters = @ComponentScan.Filter(
+        type = FilterType.REGEX,
+        pattern = "io\\.mateu\\.workflow\\.infra\\.in\\.ui\\..*"
+    )
+)
+public class MyApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(MyApplication.class, args);
+    }
+}
+```
+
+**Spring Boot 4.x:** the engine uses Jackson 2.x (`com.fasterxml.jackson`) for workflow definition validation, but Spring Boot 4.x only auto-configures a Jackson 3.x (`tools.jackson`) bean. Register a compatible bean explicitly:
+
+```java
+@Bean
+public com.fasterxml.jackson.databind.ObjectMapper objectMapper() {
+    return new com.fasterxml.jackson.databind.ObjectMapper();
+}
 ```
 
 **Characteristics:**
@@ -44,6 +78,11 @@ workflow.mode=embedded
 workflow.persistence=jpa
 
 spring.autoconfigure.exclude=\
+  org.springframework.cloud.stream.config.BindingServiceConfiguration,\
+  org.springframework.cloud.stream.config.BindersHealthIndicatorAutoConfiguration,\
+  org.springframework.cloud.stream.config.ChannelsEndpointAutoConfiguration,\
+  org.springframework.cloud.stream.config.BindingsEndpointAutoConfiguration,\
+  org.springframework.cloud.stream.function.FunctionConfiguration,\
   org.springframework.cloud.stream.binder.kafka.streams.KafkaStreamsBinderSupportAutoConfiguration,\
   org.springframework.cloud.stream.binder.kafka.streams.function.KafkaStreamsFunctionAutoConfiguration,\
   org.springframework.cloud.stream.binder.kafka.streams.ExtendedBindingHandlerMappingsProviderAutoConfiguration,\
