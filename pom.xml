@@ -64,6 +64,16 @@
             <type>pom</type>
             <scope>import</scope>
         </dependency>
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-starter-mcp-server-webmvc</artifactId>
+            <version>1.0.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-model</artifactId>
+            <version>1.0.0</version>
+        </dependency>
     </dependencies>
   </dependencyManagement>
 
@@ -72,12 +82,6 @@
       <dependency>
           <groupId>org.springframework</groupId>
           <artifactId>spring-aspects</artifactId>
-      </dependency>
-
-      <dependency>
-          <groupId>org.springframework.ai</groupId>
-          <artifactId>spring-ai-starter-mcp-server-webmvc</artifactId>
-          <version>1.0.0</version>
       </dependency>
 
   </dependencies>

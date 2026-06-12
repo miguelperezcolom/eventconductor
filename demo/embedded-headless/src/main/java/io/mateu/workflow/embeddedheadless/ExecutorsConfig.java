@@ -1,4 +1,4 @@
-package io.mateu.workflow.embedded;
+package io.mateu.workflow.embeddedheadless;
 
 import io.mateu.workflow.application.out.EmbeddedTaskExecutor;
 import io.mateu.workflow.application.usecases.stepexecution.update.UpdateStepExecutionCommand;
