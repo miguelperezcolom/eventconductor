@@ -230,6 +230,9 @@ eventconductor/
     ├── booking-service/       Sample business service (orchestrated)
     ├── content-service/       Sample content service
     ├── control-plane-service/ Orchestrator host application
+    ├── embedded/              Embedded + memory mode with HTTP + MCP server
+    ├── embedded-headless/     Embedded + memory mode, no HTTP server
+    ├── embedded-db-headless/  Embedded + JPA (H2) mode, no HTTP server
     ├── ia-agent-service/      AI agent (Claude) with MCP tool integration
     ├── users-service/         User management
     └── static-content-server/ Static asset server
@@ -277,6 +280,18 @@ workflow.mode=embedded
 workflow.persistence=jpa
 ```
 
+Application class:
+
+```java
+@WorkflowEmbeddedApplication
+@EnableJpaRepositories(basePackages = "io.mateu.workflow")
+public class MyApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(MyApplication.class, args);
+    }
+}
+```
+
 - Events dispatched in-process via `EmbeddedOutboxRelay` (polls the outbox table every 5 s).
 - All state persisted via JPA/Hibernate — survives restarts.
 - Useful for single-node deployments or local development with a database.
@@ -289,6 +304,17 @@ No Kafka, no database. Everything runs in-process.
 ```properties
 workflow.mode=embedded
 workflow.persistence=memory
+```
+
+Application class:
+
+```java
+@WorkflowEmbeddedApplication
+public class MyApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(MyApplication.class, args);
+    }
+}
 ```
 
 - Domain events dispatched synchronously on each repository `save()`.
@@ -667,6 +693,17 @@ mvn spring-boot:run
 # src/main/resources/application.properties
 workflow.mode=embedded
 workflow.persistence=memory
+```
+
+Application class (use `@WorkflowEmbeddedApplication` instead of `@SpringBootApplication`):
+
+```java
+@WorkflowEmbeddedApplication
+public class MyApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(MyApplication.class, args);
+    }
+}
 ```
 
 Add a workflow definition at `src/main/resources/workflows/hello-world.yaml`:
