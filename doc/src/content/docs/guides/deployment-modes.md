@@ -21,22 +21,9 @@ Two working examples are available:
 ```properties
 workflow.mode=embedded
 workflow.persistence=memory
-
-spring.autoconfigure.exclude=\
-  org.springframework.cloud.stream.config.BindingServiceConfiguration,\
-  org.springframework.cloud.stream.config.BindersHealthIndicatorAutoConfiguration,\
-  org.springframework.cloud.stream.config.ChannelsEndpointAutoConfiguration,\
-  org.springframework.cloud.stream.config.BindingsEndpointAutoConfiguration,\
-  org.springframework.cloud.stream.function.FunctionConfiguration,\
-  org.springframework.cloud.stream.binder.kafka.streams.KafkaStreamsBinderSupportAutoConfiguration,\
-  org.springframework.cloud.stream.binder.kafka.streams.function.KafkaStreamsFunctionAutoConfiguration,\
-  org.springframework.cloud.stream.binder.kafka.streams.ExtendedBindingHandlerMappingsProviderAutoConfiguration,\
-  org.springframework.cloud.stream.binder.kafka.streams.endpoint.KafkaStreamsTopologyEndpointAutoConfiguration,\
-  org.springframework.cloud.stream.binder.kafka.config.ExtendedBindingHandlerMappingsProviderConfiguration,\
-  org.springframework.cloud.stream.binder.kafka.config.MessageConverterHelperConfiguration,\
-  org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration,\
-  org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration
 ```
+
+> Kafka and JPA autoconfiguration classes are excluded **automatically** by `workflow-engine` when `workflow.mode=embedded`. No manual `spring.autoconfigure.exclude` configuration is needed.
 
 The application class must scan the engine packages while excluding the JPA-only UI adapters:
 
@@ -73,24 +60,13 @@ A working example is available:
 workflow.mode=embedded
 workflow.persistence=jpa
 
-spring.autoconfigure.exclude=\
-  org.springframework.cloud.stream.config.BindingServiceConfiguration,\
-  org.springframework.cloud.stream.config.BindersHealthIndicatorAutoConfiguration,\
-  org.springframework.cloud.stream.config.ChannelsEndpointAutoConfiguration,\
-  org.springframework.cloud.stream.config.BindingsEndpointAutoConfiguration,\
-  org.springframework.cloud.stream.function.FunctionConfiguration,\
-  org.springframework.cloud.stream.binder.kafka.streams.KafkaStreamsBinderSupportAutoConfiguration,\
-  org.springframework.cloud.stream.binder.kafka.streams.function.KafkaStreamsFunctionAutoConfiguration,\
-  org.springframework.cloud.stream.binder.kafka.streams.ExtendedBindingHandlerMappingsProviderAutoConfiguration,\
-  org.springframework.cloud.stream.binder.kafka.streams.endpoint.KafkaStreamsTopologyEndpointAutoConfiguration,\
-  org.springframework.cloud.stream.binder.kafka.config.ExtendedBindingHandlerMappingsProviderConfiguration,\
-  org.springframework.cloud.stream.binder.kafka.config.MessageConverterHelperConfiguration
-
 spring.datasource.url=jdbc:postgresql://localhost:5432/workflow
 spring.datasource.username=workflow
 spring.datasource.password=secret
 spring.jpa.hibernate.ddl-auto=update
 ```
+
+> Kafka autoconfiguration classes are excluded **automatically** by `workflow-engine` when `workflow.mode=embedded`.
 
 The application class must be in the `io.mateu.workflow` package (or a parent of it), or explicitly configure JPA repository scanning:
 
