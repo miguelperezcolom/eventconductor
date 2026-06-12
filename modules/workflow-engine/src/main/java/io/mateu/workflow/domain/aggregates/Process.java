@@ -97,6 +97,8 @@ public class Process extends AggregateRoot implements Identifiable {
         }
         if (this.variables == null) {
             this.variables = new java.util.ArrayList<>();
+        } else if (!(this.variables instanceof java.util.ArrayList)) {
+            this.variables = new java.util.ArrayList<>(this.variables);
         }
         variables.forEach(v -> {
             this.variables.removeIf(x -> x.name().equals(v.name()));
