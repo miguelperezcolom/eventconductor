@@ -6,11 +6,15 @@ import io.mateu.uidl.interfaces.CrudRepository;
 import io.mateu.workflow.infra.in.ui.pages.process.childcruds.Resource;
 import io.mateu.workflow.infra.out.persistence.ResourceEntityRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Optional;
 
+@ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
+@ConditionalOnProperty(name = "workflow.persistence", havingValue = "jpa", matchIfMissing = true)
 @Service
 @RequiredArgsConstructor
 public class ResourceCrudAdapter extends AutoCrudAdapter<Resource> {

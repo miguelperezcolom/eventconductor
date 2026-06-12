@@ -35,6 +35,8 @@ import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import lombok.With;
 import org.springframework.context.annotation.Scope;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.stereotype.Service;
 
 import java.net.URI;
@@ -49,6 +51,8 @@ import static io.mateu.workflow.infra.in.ui.adapters.SimpleProcessCrudAdapter.ma
 @RequiredArgsConstructor
 @Getter
 @ReadOnly
+@ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
+@ConditionalOnProperty(name = "workflow.persistence", havingValue = "jpa", matchIfMissing = true)
 @Service
 @Scope("prototype")
 public class SimpleProcessViewModel implements TriggersSupplier {

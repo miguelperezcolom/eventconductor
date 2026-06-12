@@ -10,6 +10,8 @@ import io.mateu.workflow.infra.in.ui.pages.process.childcruds.Step;
 import io.mateu.workflow.infra.out.persistence.StepExecutionEntityRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Scope;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -18,6 +20,8 @@ import java.util.Optional;
 import static io.mateu.uidl.Humanizer.toUpperCaseFirst;
 
 
+@ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
+@ConditionalOnProperty(name = "workflow.persistence", havingValue = "jpa", matchIfMissing = true)
 @Service
 @Scope("prototype")
 @RequiredArgsConstructor
