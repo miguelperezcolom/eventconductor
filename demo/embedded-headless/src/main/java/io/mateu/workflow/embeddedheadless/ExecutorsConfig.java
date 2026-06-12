@@ -14,21 +14,39 @@ import java.util.List;
 public class ExecutorsConfig {
 
     @Bean
-    public EmbeddedTaskExecutor greetWorker(UpdateStepExecutionUseCase updateStepExecution) {
+    public EmbeddedTaskExecutor taskExecutor(UpdateStepExecutionUseCase updateStepExecution) {
         return request -> {
             String name = request.variables().stream()
                     .filter(v -> "name".equals(v.name()))
                     .map(v -> v.value())
                     .findFirst().orElse("World");
 
-            System.out.println("Hello, " + name + "!");
-
-            updateStepExecution.handle(new UpdateStepExecutionCommand(
-                    request.taskExecutionId(),
-                    List.of(new Variable("greeting", "Hello, " + name + "!")),
-                    "",
-                    StepExecutionStatus.COMPLETED
-            ));
+            switch (request.stepId()) {
+                case "greet" -> {
+                    System.out.println("Hello, " + name + "!");
+                    updateStepExecution.handle(new UpdateStepExecutionCommand(
+                            request.taskExecutionId(),
+                            List.of(new Variable("greeting", "Hello, " + name + "!")),
+                            "",
+                            StepExecutionStatus.COMPLETED
+                    ));
+                }
+                case "farewell" -> {
+                    System.out.println("Goodbye, " + name + "!");
+                    updateStepExecution.handle(new UpdateStepExecutionCommand(
+                            request.taskExecutionId(),
+                            List.of(new Variable("farewell", "Goodbye, " + name + "!")),
+                            "",
+                            StepExecutionStatus.COMPLETED
+                    ));
+                }
+                default -> updateStepExecution.handle(new UpdateStepExecutionCommand(
+                        request.taskExecutionId(),
+                        List.of(),
+                        "Unknown step: " + request.stepId(),
+                        StepExecutionStatus.ERROR
+                ));
+            }
         };
     }
 }
