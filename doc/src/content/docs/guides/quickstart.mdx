@@ -45,7 +45,18 @@ steps:
     preconditionStepId: greet
 ```
 
-## 4. Implement a worker
+## 4. Create the application class
+
+```java
+@WorkflowEmbeddedApplication
+public class MyApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(MyApplication.class, args);
+    }
+}
+```
+
+## 5. Implement a worker
 
 ```java
 @Bean
@@ -68,7 +79,7 @@ public EmbeddedTaskExecutor greetWorker(UpdateStepExecutionUseCase updateStepExe
 }
 ```
 
-## 5. Start a process
+## 6. Start a process
 
 ```java
 @Autowired
@@ -85,7 +96,7 @@ public void runWorkflow() {
 }
 ```
 
-## 6. Build and run
+## 7. Build and run
 
 ```shell
 mvn clean install

@@ -25,17 +25,10 @@ workflow.persistence=memory
 
 > Kafka and JPA autoconfiguration classes are excluded **automatically** by `workflow-engine` when `workflow.mode=embedded`. No manual `spring.autoconfigure.exclude` configuration is needed.
 
-The application class must scan the engine packages while excluding the JPA-only UI adapters:
+Use `@WorkflowEmbeddedApplication` instead of `@SpringBootApplication`. It automatically excludes the UI adapter layer (which requires a web context and JPA) from component scanning:
 
 ```java
-@SpringBootApplication
-@ComponentScan(
-    basePackages = "io.mateu.workflow",
-    excludeFilters = @ComponentScan.Filter(
-        type = FilterType.REGEX,
-        pattern = "io\\.mateu\\.workflow\\.infra\\.in\\.ui\\..*"
-    )
-)
+@WorkflowEmbeddedApplication
 public class MyApplication {
     public static void main(String[] args) {
         SpringApplication.run(MyApplication.class, args);
@@ -68,17 +61,10 @@ spring.jpa.hibernate.ddl-auto=update
 
 > Kafka autoconfiguration classes are excluded **automatically** by `workflow-engine` when `workflow.mode=embedded`.
 
-The application class must be in the `io.mateu.workflow` package (or a parent of it), or explicitly configure JPA repository scanning:
+Use `@WorkflowEmbeddedApplication` (which handles component scanning) plus `@EnableJpaRepositories` to ensure JPA repositories are picked up regardless of where your main class lives:
 
 ```java
-@SpringBootApplication
-@ComponentScan(
-    basePackages = "io.mateu.workflow",
-    excludeFilters = @ComponentScan.Filter(
-        type = FilterType.REGEX,
-        pattern = "io\\.mateu\\.workflow\\.infra\\.in\\.ui\\..*"
-    )
-)
+@WorkflowEmbeddedApplication
 @EnableJpaRepositories(basePackages = "io.mateu.workflow")
 public class MyApplication {
     public static void main(String[] args) {
