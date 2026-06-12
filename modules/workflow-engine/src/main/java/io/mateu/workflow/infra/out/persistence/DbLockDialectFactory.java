@@ -26,6 +26,9 @@ public class DbLockDialectFactory {
             } else if (dbProduct.contains("mariadb") || dbProduct.contains("mysql")) {
                 log.info("Distributed lock dialect: MariaDB/MySQL GET_LOCK");
                 return new MariaDbLockDialect();
+            } else if (dbProduct.contains("h2")) {
+                log.info("Distributed lock dialect: H2 in-process locks");
+                return new H2DbLockDialect();
             } else {
                 log.info("Distributed lock dialect: PostgreSQL advisory locks");
                 return new PostgresDbLockDialect();
