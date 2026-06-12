@@ -1,6 +1,7 @@
 package io.mateu.workflow.infra.in.ui.pages.process.childcruds.adapters;
 
 import io.mateu.core.infra.declarative.AutoListAdapter;
+import io.mateu.core.infra.declarative.orchestrators.crud.AutoCrudAdapter;
 import io.mateu.uidl.interfaces.CrudRepository;
 import io.mateu.workflow.application.out.LogMessageRepository;
 import io.mateu.workflow.infra.in.ui.pages.process.childcruds.Errors;
@@ -16,7 +17,7 @@ import java.util.Optional;
 @Service
 @Scope("prototype")
 @RequiredArgsConstructor
-public class ErrorCrudAdapter extends AutoListAdapter<Error> {
+public class ErrorCrudAdapter extends AutoCrudAdapter<Error> {
 
     final LogMessageEntityRepository repository;
     private String processId;
