@@ -1,4 +1,5 @@
 {
+  "$schema": "https://raw.githubusercontent.com/miguelperezcolom/eventconductor/main/modules/workflow-engine/src/main/resources/workflow-definition-schema.json",
   "id": "hello-world",
   "name": "Hello World",
   "version": 1,
