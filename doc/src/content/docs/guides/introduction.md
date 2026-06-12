@@ -18,7 +18,7 @@ EventConductor sits in the middle: a **library** you embed in your Spring Boot a
 
 ### Workflow Definition
 
-A JSON file that describes the steps of a business process — their types, ordering, timeouts, retries, and branching conditions. Definitions are versioned and stored in version control.
+A JSON or YAML file that describes the steps of a business process — their types, ordering, timeouts, retries, and branching conditions. Definitions are versioned and stored in version control.
 
 ### Process Instance
 
