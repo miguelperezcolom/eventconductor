@@ -10,6 +10,37 @@ description: Complete reference for all EventConductor configuration properties.
 | `workflow.mode` | `kafka` \| `embedded` | `kafka` | Event dispatch mode |
 | `workflow.persistence` | `jpa` \| `memory` | `jpa` | State persistence mode |
 
+## Application class (embedded modes)
+
+When using `workflow.mode=embedded`, use `@WorkflowEmbeddedApplication` instead of `@SpringBootApplication`. It sets up the correct component scan — including the UI exclusion filter — automatically.
+
+**`embedded` + `memory`:**
+
+```java
+@WorkflowEmbeddedApplication
+public class MyApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(MyApplication.class, args);
+    }
+}
+```
+
+**`embedded` + `jpa`:**
+
+```java
+@WorkflowEmbeddedApplication
+@EnableJpaRepositories(basePackages = "io.mateu.workflow")
+public class MyApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(MyApplication.class, args);
+    }
+}
+```
+
+`@WorkflowEmbeddedApplication` is provided by the `workflow-engine` module. It combines `@SpringBootConfiguration`, `@EnableAutoConfiguration`, and a `@ComponentScan` scoped to `io.mateu.workflow` with the UI adapter layer excluded.
+
+For `workflow.mode=kafka` (the default), use `@SpringBootApplication` as normal — the engine integrates as a regular Spring Boot auto-configuration.
+
 ## Database (when `workflow.persistence=jpa`)
 
 EventConductor supports **PostgreSQL**, **MariaDB/MySQL**, and **Oracle**. The distributed locking dialect is auto-detected from the JDBC connection at startup — no extra property is needed.
