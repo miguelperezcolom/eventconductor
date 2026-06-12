@@ -1,6 +1,7 @@
 package io.mateu.workflow.infra.in.ui.pages.process.childcruds.adapters;
 
 import io.mateu.core.infra.declarative.AutoListAdapter;
+import io.mateu.core.infra.declarative.orchestrators.crud.AutoCrudAdapter;
 import io.mateu.uidl.data.Status;
 import io.mateu.uidl.data.StatusType;
 import io.mateu.uidl.interfaces.CrudRepository;
@@ -20,7 +21,7 @@ import static io.mateu.uidl.Humanizer.toUpperCaseFirst;
 @Service
 @Scope("prototype")
 @RequiredArgsConstructor
-public class StepCrudAdapter extends AutoListAdapter<Step> {
+public class StepCrudAdapter extends AutoCrudAdapter<Step> {
 
     final StepExecutionEntityRepository repository;
     private String processId;
