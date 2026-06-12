@@ -14,7 +14,9 @@ EventConductor supports three deployment modes controlled by two independent pro
 
 No Kafka, no database. Everything runs in-process. Ideal for **unit tests**, **local development**, and **embedding in other applications**.
 
-A working example is available in `demo/embedded`.
+Two working examples are available:
+- `demo/embedded` — embedded mode with an HTTP server and MCP endpoint
+- `demo/embedded-headless` — embedded mode with **no HTTP server** (pure background process)
 
 ```properties
 workflow.mode=embedded
@@ -51,15 +53,6 @@ public class MyApplication {
     public static void main(String[] args) {
         SpringApplication.run(MyApplication.class, args);
     }
-}
-```
-
-**Spring Boot 4.x:** the engine uses Jackson 2.x (`com.fasterxml.jackson`) for workflow definition validation, but Spring Boot 4.x only auto-configures a Jackson 3.x (`tools.jackson`) bean. Register a compatible bean explicitly:
-
-```java
-@Bean
-public com.fasterxml.jackson.databind.ObjectMapper objectMapper() {
-    return new com.fasterxml.jackson.databind.ObjectMapper();
 }
 ```
 
@@ -274,3 +267,9 @@ docker-compose -f docker-compose.full.yml up -d
 | Local development (with DB) | `embedded` + `jpa` |
 | Single-node production | `embedded` + `jpa` |
 | Multi-node / Kubernetes | `kafka` + `jpa` |
+
+### Headless vs. HTTP embedded
+
+Both `embedded` variants support running without an HTTP server. Simply use `spring-boot-starter` instead of `spring-boot-starter-web` as your application's base dependency and omit `spring-ai-starter-mcp-server-webmvc`. Spring Boot will detect no servlet container on the classpath and start as a non-web application — the workflow engine runs fully in-process with no open port.
+
+See `demo/embedded-headless` for a minimal working example.
