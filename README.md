@@ -275,11 +275,6 @@ No Kafka required. Works with PostgreSQL, MariaDB/MySQL, Oracle, or H2 (for test
 ```properties
 workflow.mode=embedded
 workflow.persistence=jpa
-
-# Exclude Kafka auto-configuration
-spring.autoconfigure.exclude=\
-  org.springframework.cloud.stream.binder.kafka.config.KafkaBinderConfiguration,\
-  org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
 ```
 
 - Events dispatched in-process via `EmbeddedOutboxRelay` (polls the outbox table every 5 s).
@@ -294,13 +289,6 @@ No Kafka, no database. Everything runs in-process.
 ```properties
 workflow.mode=embedded
 workflow.persistence=memory
-
-# Exclude Kafka and JPA auto-configuration
-spring.autoconfigure.exclude=\
-  org.springframework.cloud.stream.binder.kafka.config.KafkaBinderConfiguration,\
-  org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration,\
-  org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration,\
-  org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration
 ```
 
 - Domain events dispatched synchronously on each repository `save()`.
@@ -605,12 +593,6 @@ spring.cloud.stream.kafka.binder.auto-create-topics=true
 ```properties
 workflow.mode=embedded
 workflow.persistence=memory
-
-spring.autoconfigure.exclude=\
-  org.springframework.cloud.stream.binder.kafka.config.KafkaBinderConfiguration,\
-  org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration,\
-  org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration,\
-  org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration
 ```
 
 Place workflow definitions under `src/main/resources/workflows/` as JSON or YAML files.
@@ -685,11 +667,6 @@ mvn spring-boot:run
 # src/main/resources/application.properties
 workflow.mode=embedded
 workflow.persistence=memory
-spring.autoconfigure.exclude=\
-  org.springframework.cloud.stream.binder.kafka.config.KafkaBinderConfiguration,\
-  org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration,\
-  org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration,\
-  org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration
 ```
 
 Add a workflow definition at `src/main/resources/workflows/hello-world.yaml`:
