@@ -59,7 +59,8 @@ Three deployment modes with no code changes:
 | Scenario | `workflow.mode` | `workflow.persistence` | External dependencies |
 |---|---|---|---|
 | Unit tests / embedded library | `embedded` | `memory` | None |
-| Single-node with persistence | `embedded` | `jpa` | PostgreSQL only |
+| Demo / dev with H2 | `embedded` | `jpa` | None (H2 in-memory) |
+| Single-node with persistence | `embedded` | `jpa` | PostgreSQL / MariaDB / Oracle |
 | Full distributed / multi-pod | `kafka` | `jpa` | PostgreSQL + Kafka |
 
 ### Native AI integration via MCP — the key differentiator
@@ -269,7 +270,7 @@ workflow.persistence=jpa
 
 ### Mode 2 — Semi-embedded (`embedded` + `jpa`)
 
-No Kafka required. Requires PostgreSQL only.
+No Kafka required. Works with PostgreSQL, MariaDB/MySQL, Oracle, or H2 (for testing/demos).
 
 ```properties
 workflow.mode=embedded
@@ -282,8 +283,9 @@ spring.autoconfigure.exclude=\
 ```
 
 - Events dispatched in-process via `EmbeddedOutboxRelay` (polls the outbox table every 5 s).
-- All state persisted in PostgreSQL.
+- All state persisted via JPA/Hibernate — survives restarts.
 - Useful for single-node deployments or local development with a database.
+- Workflow definitions in `classpath:/workflows/` are automatically imported into the database at startup (`ClasspathWorkflowDefinitionImporter`).
 
 ### Mode 3 — Fully embedded (`embedded` + `memory`)
 

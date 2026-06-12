@@ -59,12 +59,15 @@ public class MyApplication {
 **Characteristics:**
 - Domain events dispatched synchronously on each repository `save()`
 - State held in `ConcurrentHashMap` — lost on restart
-- Workflow definitions loaded from `classpath:/workflows/*.json` at startup
+- Workflow definitions loaded from `classpath:/workflows/` at startup (`.json`, `.yaml`, `.yml`)
 - No external dependencies
 
 ## Mode 2 — Semi-embedded (`embedded` + `jpa`)
 
-No Kafka required. Requires a **supported database** (PostgreSQL, MariaDB/MySQL, or Oracle). Good for **single-node deployments** or development with a real database.
+No Kafka required. Requires a **supported database**. Good for **single-node deployments**, development with a real database, or demos with an in-memory H2 DB.
+
+A working example is available:
+- `demo/embedded-db-headless` — embedded + JPA + H2, no HTTP server (pure background process)
 
 ```properties
 workflow.mode=embedded
@@ -89,10 +92,29 @@ spring.datasource.password=secret
 spring.jpa.hibernate.ddl-auto=update
 ```
 
+The application class must be in the `io.mateu.workflow` package (or a parent of it), or explicitly configure JPA repository scanning:
+
+```java
+@SpringBootApplication
+@ComponentScan(
+    basePackages = "io.mateu.workflow",
+    excludeFilters = @ComponentScan.Filter(
+        type = FilterType.REGEX,
+        pattern = "io\\.mateu\\.workflow\\.infra\\.in\\.ui\\..*"
+    )
+)
+@EnableJpaRepositories(basePackages = "io.mateu.workflow")
+public class MyApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(MyApplication.class, args);
+    }
+}
+```
+
 **Characteristics:**
 - Events dispatched in-process via `EmbeddedOutboxRelay` (polls the outbox table every 5 s)
-- All state persisted via JPA/Hibernate
-- Survives restarts
+- All state persisted via JPA/Hibernate — survives restarts
+- Workflow definitions placed in `classpath:/workflows/` are automatically imported into the database at startup by `ClasspathWorkflowDefinitionImporter` (idempotent — skips definitions already present)
 
 ## Mode 3 — Full distributed (`kafka` + `jpa`)
 
@@ -126,6 +148,7 @@ The locking mechanism is automatically selected based on the JDBC driver in use.
 | PostgreSQL | `pg_try_advisory_lock` / `pg_advisory_unlock` | No prerequisites |
 | MariaDB / MySQL | `GET_LOCK` / `RELEASE_LOCK` | No prerequisites |
 | Oracle | `DBMS_LOCK.REQUEST` / `DBMS_LOCK.RELEASE` | Requires `GRANT EXECUTE ON DBMS_LOCK TO <user>` — see below |
+| H2 | In-process `AtomicBoolean` per lock ID | For testing and demos only — single JVM, not distributed |
 
 A background **watchdog thread** runs every 60 s and force-releases any per-process lock held longer than 60 s, preventing connection leaks if a lock is never explicitly released. A `WARN` log entry is emitted when this happens. Each pod's watchdog only operates on locks that pod itself acquired — it cannot affect locks held by other pods. If a pod crashes, the database releases its locks automatically when the JDBC connection closes.
 
@@ -264,7 +287,8 @@ docker-compose -f docker-compose.full.yml up -d
 |---|---|
 | Unit / integration tests | `embedded` + `memory` |
 | Local development (no infra) | `embedded` + `memory` |
-| Local development (with DB) | `embedded` + `jpa` |
+| Local development (H2, no infra) | `embedded` + `jpa` (H2) |
+| Local development (with real DB) | `embedded` + `jpa` |
 | Single-node production | `embedded` + `jpa` |
 | Multi-node / Kubernetes | `kafka` + `jpa` |
 
@@ -272,4 +296,6 @@ docker-compose -f docker-compose.full.yml up -d
 
 Both `embedded` variants support running without an HTTP server. Simply use `spring-boot-starter` instead of `spring-boot-starter-web` as your application's base dependency and omit `spring-ai-starter-mcp-server-webmvc`. Spring Boot will detect no servlet container on the classpath and start as a non-web application — the workflow engine runs fully in-process with no open port.
 
-See `demo/embedded-headless` for a minimal working example.
+Working headless examples:
+- `demo/embedded-headless` — `embedded` + `memory`, no HTTP server
+- `demo/embedded-db-headless` — `embedded` + `jpa` (H2), no HTTP server; state survives restarts
