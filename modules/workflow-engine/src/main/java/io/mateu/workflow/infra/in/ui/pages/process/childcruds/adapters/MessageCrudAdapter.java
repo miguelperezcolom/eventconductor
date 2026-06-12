@@ -8,11 +8,15 @@ import io.mateu.workflow.infra.in.ui.pages.process.childcruds.Error;
 import io.mateu.workflow.infra.in.ui.pages.process.childcruds.Message;
 import io.mateu.workflow.infra.out.persistence.LogMessageEntityRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Optional;
 
+@ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
+@ConditionalOnProperty(name = "workflow.persistence", havingValue = "jpa", matchIfMissing = true)
 @Service
 @RequiredArgsConstructor
 public class MessageCrudAdapter extends AutoCrudAdapter<Message> {
