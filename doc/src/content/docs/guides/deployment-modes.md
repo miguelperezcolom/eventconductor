@@ -19,8 +19,12 @@ workflow.mode=embedded
 workflow.persistence=memory
 
 spring.autoconfigure.exclude=\
-  org.springframework.cloud.stream.binder.kafka.config.KafkaBinderConfiguration,\
-  org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration,\
+  org.springframework.cloud.stream.binder.kafka.streams.KafkaStreamsBinderSupportAutoConfiguration,\
+  org.springframework.cloud.stream.binder.kafka.streams.function.KafkaStreamsFunctionAutoConfiguration,\
+  org.springframework.cloud.stream.binder.kafka.streams.ExtendedBindingHandlerMappingsProviderAutoConfiguration,\
+  org.springframework.cloud.stream.binder.kafka.streams.endpoint.KafkaStreamsTopologyEndpointAutoConfiguration,\
+  org.springframework.cloud.stream.binder.kafka.config.ExtendedBindingHandlerMappingsProviderConfiguration,\
+  org.springframework.cloud.stream.binder.kafka.config.MessageConverterHelperConfiguration,\
   org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration,\
   org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration
 ```
@@ -40,8 +44,12 @@ workflow.mode=embedded
 workflow.persistence=jpa
 
 spring.autoconfigure.exclude=\
-  org.springframework.cloud.stream.binder.kafka.config.KafkaBinderConfiguration,\
-  org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
+  org.springframework.cloud.stream.binder.kafka.streams.KafkaStreamsBinderSupportAutoConfiguration,\
+  org.springframework.cloud.stream.binder.kafka.streams.function.KafkaStreamsFunctionAutoConfiguration,\
+  org.springframework.cloud.stream.binder.kafka.streams.ExtendedBindingHandlerMappingsProviderAutoConfiguration,\
+  org.springframework.cloud.stream.binder.kafka.streams.endpoint.KafkaStreamsTopologyEndpointAutoConfiguration,\
+  org.springframework.cloud.stream.binder.kafka.config.ExtendedBindingHandlerMappingsProviderConfiguration,\
+  org.springframework.cloud.stream.binder.kafka.config.MessageConverterHelperConfiguration
 
 spring.datasource.url=jdbc:postgresql://localhost:5432/workflow
 spring.datasource.username=workflow

@@ -5,7 +5,6 @@ import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
 import io.mateu.workflow.domain.aggregates.Process;
 import io.mateu.workflow.domain.aggregates.StepExecution;
-import io.mateu.workflow.infra.out.persistence.OutboxMessageEntityRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -18,7 +17,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Slf4j
 public class CreateProcessUseCase {
 
-    final OutboxMessageEntityRepository outboxMessageEntityRepository;
     final ProcessRepository processRepository;
     final WorkflowDefinitionRepository workflowDefinitionRepository;
     final StepExecutionRepository stepExecutionRepository;
