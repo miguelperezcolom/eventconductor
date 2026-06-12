@@ -340,6 +340,7 @@ Used in `memory` persistence mode. Each file defines one workflow. Both JSON and
 **YAML** (recommended for readability):
 
 ```yaml
+# yaml-language-server: $schema=https://raw.githubusercontent.com/miguelperezcolom/eventconductor/main/modules/workflow-engine/src/main/resources/workflow-definition-schema.json
 id: my-workflow
 name: My Workflow
 version: 1
@@ -692,6 +693,7 @@ spring.autoconfigure.exclude=\
 Add a workflow definition at `src/main/resources/workflows/hello-world.yaml`:
 
 ```yaml
+# yaml-language-server: $schema=https://raw.githubusercontent.com/miguelperezcolom/eventconductor/main/modules/workflow-engine/src/main/resources/workflow-definition-schema.json
 id: hello-world
 name: Hello World
 version: 1
