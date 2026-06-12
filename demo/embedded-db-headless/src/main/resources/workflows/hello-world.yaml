@@ -1,0 +1,17 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/miguelperezcolom/eventconductor/main/modules/workflow-engine/src/main/resources/workflow-definition-schema.json
+id: hello-world
+name: Hello World
+version: 1
+status: ACTIVE
+steps:
+  - id: greet
+    type: ACTION
+    name: Greet the user
+  - id: farewell
+    type: ACTION
+    name: Say goodbye
+    preconditionStepId: greet
+  - id: end
+    type: END
+    name: Done
+    preconditionStepId: farewell
