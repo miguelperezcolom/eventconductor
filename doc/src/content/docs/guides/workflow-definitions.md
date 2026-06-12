@@ -7,6 +7,20 @@ Workflow definitions describe the steps of a business process. They can be writt
 
 In `embedded` + `memory` mode, definitions are loaded from `classpath:/workflows/` at startup. In `jpa` persistence mode, they can also be imported from Git via the MCP tool `importWorkflowDefinitionsFromGit`.
 
+## IDE support
+
+Add a `$schema` reference to your JSON files to enable autocomplete and inline validation in IntelliJ, VS Code, and any other JSON Schema-aware editor:
+
+```json
+{
+  "$schema": "https://raw.githubusercontent.com/miguelperezcolom/eventconductor/main/modules/workflow-engine/src/main/resources/workflow-definition-schema.json",
+  "id": "my-workflow",
+  ...
+}
+```
+
+YAML files do not support `$schema` natively; configure the schema association manually in your editor settings if needed.
+
 ## File format
 
 Both formats are fully equivalent — use whichever fits your team's conventions.
