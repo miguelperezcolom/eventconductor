@@ -1,7 +1,6 @@
 package io.mateu.workflow.infra.in.ui.pages.process.childcruds.adapters;
 
-import io.mateu.core.infra.declarative.AutoListAdapter;
-import io.mateu.core.infra.declarative.orchestrators.crud.AutoCrudAdapter;
+import io.mateu.core.infra.declarative.orchestrators.crud.AutoListAdapter;
 import io.mateu.uidl.interfaces.CrudRepository;
 import io.mateu.workflow.infra.in.ui.pages.process.childcruds.Resource;
 import io.mateu.workflow.infra.out.persistence.ResourceEntityRepository;
@@ -17,7 +16,7 @@ import java.util.Optional;
 @ConditionalOnProperty(name = "workflow.persistence", havingValue = "jpa", matchIfMissing = true)
 @Service
 @RequiredArgsConstructor
-public class ResourceCrudAdapter extends AutoCrudAdapter<Resource> {
+public class ResourceCrudAdapter extends AutoListAdapter<Resource> {
 
     final ResourceEntityRepository repository;
     private String processId;

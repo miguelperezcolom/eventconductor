@@ -2,6 +2,8 @@ package io.mateu.workflow.infra.in.ui.pages.process.childcruds;
 
 import io.mateu.core.infra.declarative.orchestrators.crud.AutoCrudAdapter;
 import io.mateu.core.infra.declarative.orchestrators.crud.AutoCrudOrchestrator;
+import io.mateu.core.infra.declarative.orchestrators.crud.AutoListAdapter;
+import io.mateu.core.infra.declarative.orchestrators.crud.AutoListOrchestrator;
 import io.mateu.uidl.annotations.ReadOnly;
 import io.mateu.uidl.annotations.Style;
 import io.mateu.workflow.infra.in.ui.pages.process.childcruds.adapters.MessageCrudAdapter;
@@ -16,7 +18,7 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 @Style("width: 100%;")
 @ReadOnly
-public class Messages extends AutoCrudOrchestrator<Message> {
+public class Messages extends AutoListOrchestrator<Message> {
 
     String processId;
 
@@ -28,7 +30,7 @@ public class Messages extends AutoCrudOrchestrator<Message> {
     final MessageCrudAdapter adapter;
 
     @Override
-    public AutoCrudAdapter<Message> simpleAdapter() {
+    public AutoListAdapter<Message> simpleAdapter() {
         return adapter.withProcessId(processId);
     }
 }
