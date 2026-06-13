@@ -1,5 +1,7 @@
 package io.mateu.workflow.infra.in.ui.pages.process;
 
+import io.mateu.core.infra.declarative.orchestrators.crud.AutoListAdapter;
+import io.mateu.core.infra.declarative.orchestrators.crud.AutoListOrchestrator;
 import io.mateu.core.infra.declarative.orchestrators.crud.CrudOrchestrator;
 import io.mateu.uidl.annotations.ListToolbarButton;
 import io.mateu.uidl.annotations.ViewToolbarButton;
@@ -26,52 +28,21 @@ import java.util.List;
 @Service
 @Scope("prototype")
 @RequiredArgsConstructor
-public class Processes extends CrudOrchestrator<Object, NoEditor<String>, NoCreationForm<String>, NoFilters, ProcessRow, String> {
+public class Processes extends AutoListOrchestrator<ProcessRow> {
 
     final SimpleProcessCrudAdapter processCrudAdapter;
     final CreateProcessForm createProcessForm;
     final ProcessRepository processRepository;
     final RetryProcessUseCase retryProcessUseCase;
 
-
-    @Override
-    public CrudAdapter<Object, NoEditor<String>, NoCreationForm<String>, NoFilters, ProcessRow, String> adapter() {
-        return processCrudAdapter;
-    }
-
-    @Override
-    public Class<NoEditor<String>> editorClass() {
-        return null;
-    }
-
-    @Override
-    public Class<NoCreationForm<String>> creationFormClass() {
-        return null;
-    }
-
-    @Override
-    public Object save(HttpRequest httpRequest) {
-        return null;
-    }
-
-    @Override
-    public Object saveNew(HttpRequest httpRequest) {
-        return null;
-    }
-
-    @Override
-    public String getIdFieldForRow() {
-        return "";
-    }
-
-    @Override
-    public Object search(String searchText, Object filters, Pageable pageable, HttpRequest httpRequest) {
-        return null;
-    }
-
     @Override
     public String toId(String s) {
         return s;
+    }
+
+    @Override
+    public AutoListAdapter<ProcessRow> simpleAdapter() {
+        return processCrudAdapter;
     }
 
     @ListToolbarButton(rowsSelectedRequired = false)

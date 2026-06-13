@@ -1,5 +1,6 @@
 package io.mateu.workflow.infra.in.ui.adapters;
 
+import io.mateu.core.infra.declarative.orchestrators.crud.AutoListAdapter;
 import io.mateu.uidl.data.Data;
 import io.mateu.uidl.data.ListingData;
 import io.mateu.uidl.data.NoCreationForm;
@@ -10,6 +11,7 @@ import io.mateu.uidl.data.State;
 import io.mateu.uidl.data.Status;
 import io.mateu.uidl.data.StatusType;
 import io.mateu.uidl.interfaces.CrudAdapter;
+import io.mateu.uidl.interfaces.CrudRepository;
 import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.domain.aggregates.Process;
@@ -21,6 +23,7 @@ import io.mateu.workflow.infra.out.persistence.LogMessageEntityRepository;
 import io.mateu.workflow.infra.out.persistence.ResourceEntityRepository;
 import io.mateu.workflow.infra.out.persistence.StepExecutionEntityRepository;
 import lombok.RequiredArgsConstructor;
+import org.checkerframework.checker.nullness.qual.NonNull;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.stereotype.Service;
@@ -29,6 +32,8 @@ import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.function.Function;
 
 import static io.mateu.uidl.Humanizer.toUpperCaseFirst;
 
@@ -36,25 +41,29 @@ import static io.mateu.uidl.Humanizer.toUpperCaseFirst;
 @ConditionalOnProperty(name = "workflow.persistence", havingValue = "jpa", matchIfMissing = true)
 @Service
 @RequiredArgsConstructor
-public class SimpleProcessCrudAdapter implements CrudAdapter<Object, NoEditor<String>, NoCreationForm<String>, NoFilters, ProcessRow, String> {
+public class SimpleProcessCrudAdapter extends AutoListAdapter<ProcessRow> {
 
     final SimpleProcessViewModel model;
     final ProcessRepository repository;
+    final DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     @Override
-    public ListingData<ProcessRow> search(String searchText, NoFilters noFilters, Pageable pageable, HttpRequest httpRequest) {
-        var dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    public ListingData<ProcessRow> search(String searchText, ProcessRow filters, Pageable pageable, HttpRequest httpRequest) {
         return ListingData.of(repository.findAll().stream()
                         .filter(process -> searchText == null || searchText.isEmpty() ||
                                 process.searchableText().toLowerCase().contains(searchText.toLowerCase()))
-                .map(process -> new ProcessRow(process.id(),
-                        process.getName(),
-                        mapProcessStatus(process.getStatus(), process.getCompletionPercentage()),
-                        process.getCreated() != null? process.getCreated().format(dtf):null,
-                        process.getStarted() != null? process.getStarted().format(dtf):null,
-                        process.getFinished() != null? process.getFinished().format(dtf):null))
+                .map(mapProcessToRow(dtf))
                         .sorted(Comparator.comparing(ProcessRow::created).reversed())
                 .toList());
+    }
+
+    private static @NonNull Function<Process, ProcessRow> mapProcessToRow(DateTimeFormatter dtf) {
+        return process -> new ProcessRow(process.id(),
+                process.getName(),
+                mapProcessStatus(process.getStatus(), process.getCompletionPercentage()),
+                process.getCreated() != null ? process.getCreated().format(dtf) : null,
+                process.getStarted() != null ? process.getStarted().format(dtf) : null,
+                process.getFinished() != null ? process.getFinished().format(dtf) : null);
     }
 
     public static Status mapProcessStatus(ProcessStatus status, int completionPercentage) {
@@ -85,14 +94,28 @@ public class SimpleProcessCrudAdapter implements CrudAdapter<Object, NoEditor<St
         return model.load(process.id(), httpRequest);
     }
 
-
     @Override
-    public NoEditor<String> getEditor(String id, HttpRequest httpRequest) {
-        throw new UnsupportedOperationException();
-    }
+    public CrudRepository<ProcessRow> repository() {
+        return new CrudRepository<ProcessRow>() {
+            @Override
+            public Optional<ProcessRow> findById(String id) {
+                return repository.findById(id).map(p -> mapProcessToRow(dtf).apply(p));
+            }
 
-    @Override
-    public NoCreationForm<String> getCreationForm(HttpRequest httpRequest) {
-        throw new UnsupportedOperationException();
+            @Override
+            public String save(ProcessRow entity) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public List<ProcessRow> findAll() {
+                return repository.findAll().stream().map(p -> mapProcessToRow(dtf).apply(p)).toList();
+            }
+
+            @Override
+            public void deleteAllById(List<String> selectedIds) {
+                repository.deleteAllById(selectedIds);
+            }
+        };
     }
 }
