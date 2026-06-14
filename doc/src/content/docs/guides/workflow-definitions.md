@@ -5,7 +5,7 @@ description: The EventConductor workflow DSL — steps, branching, retries, and 
 
 Workflow definitions describe the steps of a business process. They can be written in **JSON** or **YAML** (`.json`, `.yaml`, `.yml`), are version-controlled, and are reviewable in a pull request.
 
-In `embedded` + `memory` mode, definitions are loaded from `classpath:/workflows/` at startup. In `jpa` persistence mode, they can also be imported from Git via the MCP tool `importWorkflowDefinitionsFromGit`.
+In `embedded` + `memory` mode, definitions are loaded from `classpath:/workflows/` at startup. In `jpa` persistence mode, they can also be imported from Git — either at startup, on demand via the MCP tool `importWorkflowDefinitionsFromGit`, or automatically via a **GitHub webhook**.
 
 ## IDE support
 
@@ -85,6 +85,61 @@ steps: [...]
 | `ACTIVE` | Ready to accept new process instances |
 | `DISABLED` | No new instances allowed; running ones continue |
 | `ARCHIVED` | Retired definition |
+
+## Importing from Git
+
+When `workflow.persistence=jpa`, EventConductor can clone one or more Git repositories at startup and import every `.json` / `.yaml` / `.yml` file that contains a valid workflow definition (i.e. has both `name` and `steps` fields).
+
+### Configuration
+
+```yaml
+workflow:
+  git-import:
+    repositories:
+      - url: https://github.com/your-org/workflow-defs.git
+        branch: main          # optional, defaults to "main"
+        username: my-user     # optional — for HTTPS with token auth
+        password: ghp_xxx     # optional — personal access token
+```
+
+Multiple repositories are supported. Each repository is cloned into a temporary directory, scanned recursively, and deleted immediately after import.
+
+### Startup import
+
+Repositories are imported automatically on application startup by `WorkflowDefinitionGitImportRunner`. If a definition with the same ID already exists in the database it is overwritten (upsert). If a definition has no `id`, one is generated automatically.
+
+### GitHub webhook
+
+To re-import definitions automatically after a push or merge to a branch, configure EventConductor as a GitHub webhook receiver.
+
+**`application.yml`:**
+
+```yaml
+workflow:
+  git-import:
+    webhook-secret: mysecret   # optional — same value you set in GitHub repo settings
+    repositories:
+      - url: https://github.com/your-org/workflow-defs.git
+        branch: main
+        username: my-user
+        password: ghp_xxx
+```
+
+**GitHub setup:** in your definitions repository go to *Settings → Webhooks → Add webhook* and fill in:
+
+| Field | Value |
+|---|---|
+| Payload URL | `https://your-server/workflow/webhooks/github` |
+| Content type | `application/json` |
+| Secret | same value as `workflow.git-import.webhook-secret` |
+| Events | *Just the push event* (or *Pull requests* filtered to `closed` + `merged`) |
+
+**Behaviour:**
+
+- The endpoint responds **202 Accepted** immediately so GitHub's 10-second delivery timeout is never hit.
+- The import runs in the background; progress is logged at `INFO` level.
+- If `webhook-secret` is set, the `X-Hub-Signature-256` header is verified using HMAC-SHA256. Requests with a missing or invalid signature are rejected with `401 Unauthorized`.
+- If `webhook-secret` is blank, any caller can trigger an import (suitable for internal networks only).
 
 ## Working copies
 
