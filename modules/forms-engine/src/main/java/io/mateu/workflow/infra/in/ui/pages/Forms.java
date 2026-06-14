@@ -1,7 +1,7 @@
 package io.mateu.workflow.infra.in.ui.pages;
 
-import io.mateu.core.infra.declarative.AutoCrudAdapter;
-import io.mateu.core.infra.declarative.AutoCrudOrchestrator;
+import io.mateu.core.infra.declarative.orchestrators.crud.AutoCrudAdapter;
+import io.mateu.core.infra.declarative.orchestrators.crud.AutoCrudOrchestrator;
 import io.mateu.uidl.annotations.Action;
 import io.mateu.uidl.annotations.Style;
 import io.mateu.uidl.annotations.ViewToolbarButton;
