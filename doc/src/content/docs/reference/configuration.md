@@ -10,6 +10,20 @@ description: Complete reference for all EventConductor configuration properties.
 | `workflow.mode` | `kafka` \| `embedded` | `kafka` | Event dispatch mode |
 | `workflow.persistence` | `jpa` \| `memory` | `jpa` | State persistence mode |
 
+## Git import (`workflow.git-import.*`)
+
+Clones Git repositories at startup and imports workflow definition files (`.json`, `.yaml`, `.yml`). Only available when `workflow.persistence=jpa`.
+
+| Property | Default | Description |
+|---|---|---|
+| `workflow.git-import.repositories[].url` | — | Git clone URL (HTTPS or SSH) |
+| `workflow.git-import.repositories[].branch` | `main` | Branch to check out |
+| `workflow.git-import.repositories[].username` | — | Username for HTTPS authentication |
+| `workflow.git-import.repositories[].password` | — | Password or personal access token |
+| `workflow.git-import.webhook-secret` | — | HMAC-SHA256 secret for verifying GitHub webhook payloads (`X-Hub-Signature-256`). Leave blank to disable signature verification. |
+
+The webhook endpoint is `POST /workflow/webhooks/github`. See [Workflow Definitions — Importing from Git](/guides/workflow-definitions/#importing-from-git) for setup instructions.
+
 ## Application class (embedded modes)
 
 When using `workflow.mode=embedded`, use `@WorkflowEmbeddedApplication` instead of `@SpringBootApplication`. It sets up the correct component scan — including the UI exclusion filter — automatically.
