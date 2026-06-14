@@ -4,6 +4,8 @@ server:
 spring:
   application:
     name: embedded-git
+  main:
+    allow-bean-definition-overriding: true
   datasource:
     url: jdbc:h2:mem:workflow;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=false
     driver-class-name: org.h2.Driver
