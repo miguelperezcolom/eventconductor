@@ -18,6 +18,7 @@ export default defineConfig({
 						{ label: 'Introduction', slug: 'guides/introduction' },
 						{ label: 'Quick Start', slug: 'guides/quickstart' },
 						{ label: 'Deployment Modes', slug: 'guides/deployment-modes' },
+						{ label: 'Demo Applications', slug: 'guides/demos' },
 						{ label: 'UI Manual', slug: 'guides/ui-manual' },
 					],
 				},
