@@ -1,11 +1,11 @@
 package io.mateu.workflow.embeddedgit;
 
-import io.mateu.workflow.autoconfigure.WorkflowEmbeddedApplication;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.AutoConfigurationPackage;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
-@WorkflowEmbeddedApplication
+@SpringBootApplication(scanBasePackages = "io.mateu.workflow")
 @EnableJpaRepositories(basePackages = "io.mateu.workflow")
 @AutoConfigurationPackage(basePackages = "io.mateu.workflow")
 public class EmbeddedGitApplication {
