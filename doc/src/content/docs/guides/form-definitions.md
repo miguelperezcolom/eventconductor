@@ -3,7 +3,7 @@ title: Form Definitions
 description: Defining forms for user tasks in the EventConductor forms engine. Supports JSON and YAML.
 ---
 
-The forms engine manages form definitions and form executions. Forms can be written in **JSON** or **YAML** (`.json`, `.yaml`, `.yml`), stored in version control, and referenced by `USER_TASK` steps in workflow definitions.
+The forms engine manages form definitions and form executions. Forms can be written in **JSON** or **YAML** (`.json`, `.yaml`, `.yml`), stored in version control, and referenced by `USER_TASK` steps in workflow definitions. They can be imported from Git at startup, on demand via the MCP tool `importFormsFromGit`, or automatically via a **GitHub webhook**.
 
 ## Form definition format
 
@@ -103,6 +103,59 @@ Import from Git using the MCP tool `importFormsFromGit`:
 ```
 
 Or trigger it programmatically via the forms engine API.
+
+## Importing from Git
+
+The forms engine can clone one or more Git repositories at startup and import every `.json` / `.yaml` / `.yml` file that contains a valid form definition (i.e. has both `name` and `fields` fields).
+
+### Configuration
+
+```yaml
+forms:
+  git-import:
+    repositories:
+      - url: https://github.com/your-org/form-defs.git
+        branch: main          # optional, defaults to "main"
+        username: my-user     # optional — for HTTPS with token auth
+        password: ghp_xxx     # optional — personal access token
+```
+
+Multiple repositories are supported. Each is cloned into a temporary directory, scanned recursively, and deleted immediately after import.
+
+### Startup import
+
+Repositories are imported automatically on startup by `FormGitImportRunner`. If a definition with the same ID already exists it is overwritten (upsert). Definitions without an `id` get one assigned automatically.
+
+### GitHub webhook
+
+To re-import form definitions automatically after a push or merge, configure the forms engine as a GitHub webhook receiver.
+
+**`application.yml`:**
+
+```yaml
+forms:
+  git-import:
+    webhook-secret: mysecret   # optional — same value you set in GitHub repo settings
+    repositories:
+      - url: https://github.com/your-org/form-defs.git
+        branch: main
+```
+
+**GitHub setup:** in your definitions repository go to *Settings → Webhooks → Add webhook* and fill in:
+
+| Field | Value |
+|---|---|
+| Payload URL | `https://your-server/forms/webhooks/github` |
+| Content type | `application/json` |
+| Secret | same value as `forms.git-import.webhook-secret` |
+| Events | *Just the push event* |
+
+**Behaviour:**
+
+- The endpoint responds **202 Accepted** immediately so GitHub's 10-second delivery timeout is never hit.
+- The import runs in the background; progress is logged at `INFO` level.
+- If `webhook-secret` is set, the `X-Hub-Signature-256` header is verified using HMAC-SHA256. Requests with a missing or invalid signature are rejected with `401 Unauthorized`.
+- If `webhook-secret` is blank, any caller can trigger an import (suitable for internal networks only).
 
 ## Visual form editor
 

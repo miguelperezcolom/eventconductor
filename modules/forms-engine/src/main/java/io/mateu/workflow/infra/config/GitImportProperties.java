@@ -15,6 +15,12 @@ public class GitImportProperties {
     /** List of Git repositories to scan for form definition JSON files. */
     private List<GitRepository> repositories = new ArrayList<>();
 
+    /**
+     * Optional HMAC-SHA256 secret used to verify GitHub webhook payloads
+     * (X-Hub-Signature-256 header). Leave blank to skip signature verification.
+     */
+    private String webhookSecret;
+
     @Getter
     @Setter
     public static class GitRepository {

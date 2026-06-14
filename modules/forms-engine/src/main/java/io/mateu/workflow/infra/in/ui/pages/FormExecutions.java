@@ -1,7 +1,8 @@
 package io.mateu.workflow.infra.in.ui.pages;
 
-import io.mateu.core.infra.declarative.AutoCrudAdapter;
-import io.mateu.core.infra.declarative.AutoCrudOrchestrator;
+import io.mateu.core.infra.declarative.orchestrators.crud.AutoListAdapter;
+import io.mateu.core.infra.declarative.orchestrators.crud.AutoListOrchestrator;
+import io.mateu.workflow.infra.in.ui.adapters.FormExecutionCrudAdapter;
 import io.mateu.uidl.annotations.ListToolbarButton;
 import io.mateu.uidl.annotations.Style;
 import io.mateu.workflow.domain.FormExecution;
@@ -17,12 +18,12 @@ import java.util.List;
 @RequiredArgsConstructor
 @Style("width: 100%;")
 @Slf4j
-public class FormExecutions extends AutoCrudOrchestrator<FormExecution> {
+public class FormExecutions extends AutoListOrchestrator<FormExecution> {
 
-    final AutoCrudAdapter<FormExecution> executionAutoCrudAdapter;
+    final FormExecutionCrudAdapter executionAutoCrudAdapter;
 
     @Override
-    public AutoCrudAdapter<FormExecution> simpleAdapter() {
+    public AutoListAdapter<FormExecution> simpleAdapter() {
         return executionAutoCrudAdapter;
     }
 
