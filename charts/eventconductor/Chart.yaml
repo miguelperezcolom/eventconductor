@@ -1,0 +1,6 @@
+apiVersion: v2
+name: eventconductor
+description: EventConductor workflow orchestration — Redpanda, PostgreSQL, orchestrator and forms.
+type: application
+version: 0.1.0
+appVersion: "latest"

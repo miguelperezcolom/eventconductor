@@ -1,0 +1,119 @@
+## ── Redpanda PVC ─────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "eventconductor.fullname" . }}-redpanda
+  labels:
+    {{- include "eventconductor.labels" . | nindent 4 }}
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: {{ .Values.redpanda.storage }}
+  {{- if .Values.redpanda.storageClass }}
+  storageClassName: {{ .Values.redpanda.storageClass }}
+  {{- end }}
+---
+## ── Redpanda Deployment ──────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "eventconductor.fullname" . }}-redpanda
+  labels:
+    {{- include "eventconductor.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redpanda
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: redpanda
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: redpanda
+    spec:
+      containers:
+        - name: redpanda
+          image: {{ .Values.redpanda.image }}
+          command:
+            - /bin/bash
+            - -c
+            - |
+              rpk redpanda start \
+                --kafka-addr internal://0.0.0.0:19092,external://0.0.0.0:9092 \
+                --advertise-kafka-addr internal://redpanda:19092,external://$(POD_IP):9092 \
+                --pandaproxy-addr 0.0.0.0:8082 \
+                --advertise-pandaproxy-addr $(POD_IP):8082 \
+                --rpc-addr 0.0.0.0:33145 \
+                --advertise-rpc-addr redpanda:33145 \
+                --mode dev-container
+          env:
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+          ports:
+            - name: kafka-internal
+              containerPort: 19092
+            - name: kafka-external
+              containerPort: 9092
+            - name: pandaproxy
+              containerPort: 8082
+          readinessProbe:
+            exec:
+              command: ["rpk", "cluster", "health"]
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/redpanda/data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "eventconductor.fullname" . }}-redpanda
+---
+## ── Redpanda Service (internal) ──────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: redpanda
+  labels:
+    {{- include "eventconductor.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redpanda
+spec:
+  selector:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: redpanda
+  ports:
+    - name: kafka-internal
+      port: 19092
+      targetPort: 19092
+    - name: kafka-external
+      port: 9092
+      targetPort: 9092
+    - name: pandaproxy
+      port: 8082
+      targetPort: 8082
+{{- if .Values.redpanda.externalNodePort }}
+---
+## ── Redpanda NodePort (external access) ─────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: redpanda-external
+  labels:
+    {{- include "eventconductor.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redpanda
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: redpanda
+  ports:
+    - name: kafka-external
+      port: 9092
+      targetPort: 9092
+      nodePort: {{ .Values.redpanda.externalNodePort }}
+{{- end }}

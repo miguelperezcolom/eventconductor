@@ -1,0 +1,49 @@
+## ── PostgreSQL ───────────────────────────────────────────────────────────────
+postgres:
+  image: postgres:16
+  database: workflow
+  username: workflow
+  password: secret
+  port: 5432
+  storage: 8Gi
+  storageClass: ""   # leave empty to use cluster default
+
+## ── Redpanda ─────────────────────────────────────────────────────────────────
+redpanda:
+  image: docker.redpanda.com/redpandadata/redpanda:latest
+  # Internal broker address used by other pods
+  brokerInternal: redpanda:19092
+  # External NodePort for local access (0 = disabled)
+  externalNodePort: 30092
+  storage: 8Gi
+  storageClass: ""
+
+## ── Orchestrator ─────────────────────────────────────────────────────────────
+orchestrator:
+  image: miguelperezcolom/orchestrator-standalone-app:latest
+  replicas: 1
+  port: 8080
+  servicePort: 8105
+  ddlAuto: update
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "1"
+
+## ── Forms ────────────────────────────────────────────────────────────────────
+forms:
+  image: miguelperezcolom/forms-standalone-app:latest
+  replicas: 1
+  port: 8080
+  servicePort: 8106
+  ddlAuto: update
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "1"
