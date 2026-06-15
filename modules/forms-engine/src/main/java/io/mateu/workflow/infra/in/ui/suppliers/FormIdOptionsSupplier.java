@@ -6,25 +6,30 @@ import io.mateu.uidl.data.Page;
 import io.mateu.uidl.data.Pageable;
 import io.mateu.uidl.interfaces.LookupOptionsSupplier;
 import io.mateu.uidl.interfaces.HttpRequest;
-import io.mateu.workflow.infra.out.persistence.FormEntityRepository;
+import io.mateu.workflow.application.out.FormRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+
+@ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 @Service
 @RequiredArgsConstructor
 public class FormIdOptionsSupplier implements LookupOptionsSupplier {
 
-    final FormEntityRepository repository;
+    final FormRepository repository;
 
     @Override
     public ListingData<Option> search(String fieldId, String searchText, Pageable pageable, HttpRequest httpRequest) {
-        var found = repository.findAll(org.springframework.data.domain.Pageable.ofSize(pageable.size()).withPage(pageable.page()));
-        return new ListingData<>(new Page<>(
-                searchText,
-                found.getSize(),
-                found.getNumber(),
-                found.getTotalElements(),
-                found.get().map(workflowDefinition ->
-                        new Option(workflowDefinition.getId(), workflowDefinition.getName())).toList()));
+        List<Option> all = repository.findAll().stream()
+                .filter(f -> searchText == null || searchText.isEmpty()
+                        || f.name().toLowerCase().contains(searchText.toLowerCase()))
+                .map(f -> new Option(f.id(), f.name()))
+                .toList();
+        int from = pageable.page() * pageable.size();
+        int to = Math.min(from + pageable.size(), all.size());
+        List<Option> slice = from < all.size() ? all.subList(from, to) : List.of();
+        return new ListingData<>(new Page<>(searchText, slice.size(), pageable.page(), all.size(), slice));
     }
 }

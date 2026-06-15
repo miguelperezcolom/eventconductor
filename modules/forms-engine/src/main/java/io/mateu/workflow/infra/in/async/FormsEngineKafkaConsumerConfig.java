@@ -10,12 +10,14 @@ import io.mateu.workflow.dtos.events.integration.TaskCancellationRequested;
 import io.mateu.workflow.dtos.events.integration.TaskExecutionRequested;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import java.util.function.Consumer;
 
 @Configuration
+@ConditionalOnProperty(name = "workflow.mode", havingValue = "kafka")
 @RequiredArgsConstructor
 @Slf4j
 public class FormsEngineKafkaConsumerConfig {
