@@ -1,0 +1,25 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>io.mateu.workflow</groupId>
+  <artifactId>testbench</artifactId>
+  <version>1.0-SNAPSHOT</version>
+  <packaging>pom</packaging>
+
+  <name>testbench</name>
+
+  <modules>
+    <module>workflow-embedded</module>
+    <module>workflow-embedded-headless</module>
+    <module>workflow-embedded-db-headless</module>
+    <module>workflow-embedded-mvc</module>
+    <module>workflow-embedded-git</module>
+    <module>forms-embedded</module>
+    <module>forms-embedded-headless</module>
+    <module>forms-embedded-db-headless</module>
+    <module>forms-embedded-mvc</module>
+    <module>forms-embedded-git</module>
+  </modules>
+
+</project>
