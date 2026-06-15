@@ -1,0 +1,129 @@
+services:
+
+  # ── PostgreSQL ────────────────────────────────────────────────────────────────
+  postgres-db:
+    image: postgres:latest
+    container_name: postgres-db
+    restart: always
+    environment:
+      POSTGRES_DB: workflow
+      POSTGRES_USER: workflow
+      POSTGRES_PASSWORD: secret
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U workflow -d workflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Redpanda (Kafka-compatible broker) ────────────────────────────────────────
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:latest
+    container_name: redpanda-broker
+    command:
+      - redpanda start
+      - --kafka-addr internal://0.0.0.0:19092,external://0.0.0.0:9092
+      - --advertise-kafka-addr internal://redpanda:19092,external://127.0.0.1:9092
+      - --pandaproxy-addr 0.0.0.0:8082
+      - --advertise-pandaproxy-addr 127.0.0.1:8082
+      - --rpc-addr 0.0.0.0:33145
+      - --advertise-rpc-addr redpanda:33145
+      - --mode dev-container
+    ports:
+      - "9092:9092"
+      - "19092:19092"
+      - "8082:8082"
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health | grep -q 'Healthy: true'"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+  # ── Redpanda Console ──────────────────────────────────────────────────────────
+  redpanda-console:
+    image: docker.redpanda.com/redpandadata/console:latest
+    container_name: redpanda-console
+    environment:
+      KAFKA_BROKERS: redpanda:19092
+    ports:
+      - "8888:8080"
+    depends_on:
+      - redpanda
+    networks:
+      - backend
+
+  # ── Orchestrator ──────────────────────────────────────────────────────────────
+  orchestrator:
+    image: miguelperezcolom/orchestrator-standalone-app:latest
+    container_name: orchestrator
+    restart: on-failure
+    environment:
+      SERVER_PORT: 8080
+      WORKFLOW_MODE: kafka
+      WORKFLOW_PERSISTENCE: jpa
+      DB_URL: jdbc:postgresql://postgres-db:5432/workflow
+      DB_USERNAME: workflow
+      DB_PASSWORD: secret
+      KAFKA_BROKERS: redpanda:19092
+      DDL_AUTO: update
+    ports:
+      - "8105:8080"
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+    networks:
+      - backend
+
+  # ── Forms ─────────────────────────────────────────────────────────────────────
+  forms:
+    image: miguelperezcolom/forms-standalone-app:latest
+    container_name: forms
+    restart: on-failure
+    environment:
+      SERVER_PORT: 8080
+      DB_URL: jdbc:postgresql://postgres-db:5432/workflow
+      DB_USERNAME: workflow
+      DB_PASSWORD: secret
+      KAFKA_BROKERS: redpanda:19092
+      DDL_AUTO: update
+    ports:
+      - "8106:8080"
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+    networks:
+      - backend
+
+  # ── Worker ────────────────────────────────────────────────────────────────────
+  worker:
+    image: miguelperezcolom/worker-standalone-app:latest
+    container_name: worker
+    restart: on-failure
+    environment:
+      SERVER_PORT: 8080
+      KAFKA_BROKERS: redpanda:19092
+    ports:
+      - "8107:8080"
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    networks:
+      - backend
+
+networks:
+  backend:
+    driver: bridge
+
+volumes:
+  pg_data:
