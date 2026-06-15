@@ -19,12 +19,8 @@ import io.mateu.workflow.domain.aggregates.ProcessStatus;
 import io.mateu.workflow.domain.aggregates.StepExecutionStatus;
 import io.mateu.workflow.infra.in.ui.pages.process.ProcessRow;
 import io.mateu.workflow.infra.in.ui.pages.process.SimpleProcessViewModel;
-import io.mateu.workflow.infra.out.persistence.LogMessageEntityRepository;
-import io.mateu.workflow.infra.out.persistence.ResourceEntityRepository;
-import io.mateu.workflow.infra.out.persistence.StepExecutionEntityRepository;
 import lombok.RequiredArgsConstructor;
 import org.checkerframework.checker.nullness.qual.NonNull;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.stereotype.Service;
 
@@ -38,7 +34,6 @@ import java.util.function.Function;
 import static io.mateu.uidl.Humanizer.toUpperCaseFirst;
 
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
-@ConditionalOnProperty(name = "workflow.persistence", havingValue = "jpa", matchIfMissing = true)
 @Service
 @RequiredArgsConstructor
 public class SimpleProcessCrudAdapter extends AutoListAdapter<ProcessRow> {

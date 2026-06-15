@@ -21,7 +21,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplicat
 import org.springframework.stereotype.Service;
 
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
-@ConditionalOnProperty(name = "workflow.persistence", havingValue = "jpa", matchIfMissing = true)
 @Service
 @Scope("prototype")
 @RequiredArgsConstructor

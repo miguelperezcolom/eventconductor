@@ -26,7 +26,7 @@ import static io.mateu.core.infra.JsonSerializer.pojoFromJson;
  * Active when workflow.persistence=memory.
  */
 @Service
-@ConditionalOnProperty(name = "workflow.persistence", havingValue = "memory")
+@ConditionalOnProperty(name = "workflow.persistence", havingValue = "memory", matchIfMissing = true)
 @Slf4j
 public class ClasspathWorkflowDefinitionRepository implements WorkflowDefinitionRepository {
 

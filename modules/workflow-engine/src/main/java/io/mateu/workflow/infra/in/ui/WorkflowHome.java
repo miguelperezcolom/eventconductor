@@ -26,7 +26,7 @@ import java.util.List;
 @Style(StyleConstants.CONTAINER)
 @RequiredArgsConstructor
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
-@ConditionalOnProperty(name = "workflow.persistence", havingValue = "jpa", matchIfMissing = true)
+@ConditionalOnProperty(name = "workflow.persistence", havingValue = "jpa")
 @Service
 public class WorkflowHome implements PostHydrationHandler {
 

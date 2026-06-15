@@ -27,7 +27,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * complete in well under a second, so a 60 s threshold is a safe safety net.
  */
 @Service
-@ConditionalOnProperty(name = "workflow.persistence", havingValue = "jpa", matchIfMissing = true)
+@ConditionalOnProperty(name = "workflow.persistence", havingValue = "jpa")
 @RequiredArgsConstructor
 @Slf4j
 public class JdbcProcessLockService implements ProcessLockService {

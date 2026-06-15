@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.Optional;
 
 @Service
-@ConditionalOnProperty(name = "workflow.persistence", havingValue = "jpa", matchIfMissing = true)
+@ConditionalOnProperty(name = "workflow.persistence", havingValue = "jpa")
 @RequiredArgsConstructor
 public class ResourceDBRepository implements ResourceRepository {
 
@@ -56,5 +56,10 @@ public class ResourceDBRepository implements ResourceRepository {
     @Override
     public void deleteAllById(List<String> selectedIds) {
         resourceEntityRepository.deleteAllById(selectedIds);
+    }
+
+    @Override
+    public List<Resource> findByProcessId(String processId) {
+        return resourceEntityRepository.findAllByProcessId(processId).stream().map(this::map).toList();
     }
 }

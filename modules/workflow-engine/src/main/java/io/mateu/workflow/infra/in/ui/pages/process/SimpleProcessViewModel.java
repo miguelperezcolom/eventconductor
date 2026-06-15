@@ -11,9 +11,13 @@ import io.mateu.uidl.fluent.OnSuccessTrigger;
 import io.mateu.uidl.fluent.Trigger;
 import io.mateu.uidl.fluent.TriggersSupplier;
 import io.mateu.uidl.interfaces.HttpRequest;
+import io.mateu.workflow.application.out.LogMessageRepository;
 import io.mateu.workflow.application.out.ProcessRepository;
+import io.mateu.workflow.application.out.ResourceRepository;
+import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.usecases.process.cancel.CancelProcessCommand;
 import io.mateu.workflow.application.usecases.process.cancel.CancelProcessUseCase;
+import io.mateu.workflow.domain.aggregates.LogMessage;
 import io.mateu.workflow.domain.aggregates.Process;
 import io.mateu.workflow.domain.aggregates.ProcessStatus;
 import io.mateu.workflow.domain.aggregates.StepExecutionStatus;
@@ -26,16 +30,11 @@ import io.mateu.workflow.infra.in.ui.pages.process.childcruds.Resources;
 import io.mateu.workflow.infra.in.ui.pages.process.childcruds.Step;
 import io.mateu.workflow.infra.in.ui.pages.process.childcruds.Steps;
 import io.mateu.workflow.infra.in.ui.pages.process.childcruds.Error;
-import io.mateu.workflow.infra.out.persistence.LogMessageEntity;
-import io.mateu.workflow.infra.out.persistence.LogMessageEntityRepository;
-import io.mateu.workflow.infra.out.persistence.ResourceEntityRepository;
-import io.mateu.workflow.infra.out.persistence.StepExecutionEntityRepository;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import lombok.With;
 import org.springframework.context.annotation.Scope;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.stereotype.Service;
 
@@ -52,15 +51,14 @@ import static io.mateu.workflow.infra.in.ui.adapters.SimpleProcessCrudAdapter.ma
 @Getter
 @ReadOnly
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
-@ConditionalOnProperty(name = "workflow.persistence", havingValue = "jpa", matchIfMissing = true)
 @Service
 @Scope("prototype")
 public class SimpleProcessViewModel implements TriggersSupplier {
 
     final ProcessRepository processRepository;
-    final StepExecutionEntityRepository stepExecutionEntityRepository;
-    final LogMessageEntityRepository logMessageEntityRepository;
-    final ResourceEntityRepository resourceEntityRepository;
+    final StepExecutionRepository stepExecutionRepository;
+    final LogMessageRepository logMessageRepository;
+    final ResourceRepository resourceRepository;
     final CancelProcessUseCase cancelProcessUseCase;
 
     String id;
@@ -97,23 +95,23 @@ public class SimpleProcessViewModel implements TriggersSupplier {
         Process process = processRepository.findById(id).orElse(processRepository.findByBusinessKey(id).orElse(null));
         this.name = process.getName();
         this.status = mapProcessStatus(process.getStatus(), process.getCompletionPercentage());
-        this.steps = stepExecutionEntityRepository.findAllByProcessIdOrderByOrder(id).stream()
-                .map(entity -> new Step(id, entity.getId(), entity.getStepId(), mapStepStatus(entity.getStatus())))
+        this.steps = stepExecutionRepository.findByProcess(process).stream()
+                .map(se -> new Step(id, se.id(), se.getStepId(), mapStepStatus(se.getStatus().name())))
                 .toList();
-        this.messages = logMessageEntityRepository.findAllByProcessId(id).stream()
-                .filter(entity -> !"error".equals(entity.getMessageType()))
-                .sorted(Comparator.comparing(LogMessageEntity::getTimestamp).reversed())
+        this.messages = logMessageRepository.findByProcessId(id).stream()
+                .filter(msg -> !"error".equals(msg.getMessageType()))
+                .sorted(Comparator.comparing(LogMessage::getTimestamp).reversed())
                 .limit(10)
-                .map(entity -> new Message(id, entity.getId(), entity.getTimestamp(), entity.getMessage()))
+                .map(msg -> new Message(id, msg.id(), msg.getTimestamp(), msg.getMessage()))
                 .toList();
-        this.errors = logMessageEntityRepository.findAllByProcessId(id).stream()
-                .filter(entity -> "error".equals(entity.getMessageType()))
-                .sorted(Comparator.comparing(LogMessageEntity::getTimestamp).reversed())
+        this.errors = logMessageRepository.findByProcessId(id).stream()
+                .filter(msg -> "error".equals(msg.getMessageType()))
+                .sorted(Comparator.comparing(LogMessage::getTimestamp).reversed())
                 .limit(10)
-                .map(entity -> new Error(id, entity.getId(), entity.getTimestamp(), entity.getMessage()))
+                .map(msg -> new Error(id, msg.id(), msg.getTimestamp(), msg.getMessage()))
                 .toList();
-        this.resources = resourceEntityRepository.findAllByProcessId(id).stream()
-                .map(entity -> new Resource(id, entity.getId(), entity.getName(), entity.getUrl()))
+        this.resources = resourceRepository.findByProcessId(id).stream()
+                .map(r -> new Resource(id, r.id(), r.getName(), r.getUrl()))
                 .toList();
         this.variables = process.getVariables().stream().map(variable -> new Variable(variable.name(), variable.value())).toList();
         this.returnTo = httpRequest.getParameterValue("returnTo");

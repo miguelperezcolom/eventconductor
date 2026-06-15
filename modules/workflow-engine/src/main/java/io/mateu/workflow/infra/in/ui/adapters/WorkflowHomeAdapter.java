@@ -18,7 +18,7 @@ import java.util.List;
 import java.util.Map;
 
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
-@ConditionalOnProperty(name = "workflow.persistence", havingValue = "jpa", matchIfMissing = true)
+@ConditionalOnProperty(name = "workflow.persistence", havingValue = "jpa")
 @Service
 @RequiredArgsConstructor
 public class WorkflowHomeAdapter {
