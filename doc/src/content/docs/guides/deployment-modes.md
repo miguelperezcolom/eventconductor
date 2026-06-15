@@ -8,7 +8,7 @@ EventConductor supports three deployment modes controlled by two independent pro
 | Property | Values | Default |
 |---|---|---|
 | `workflow.mode` | `kafka` \| `embedded` | `kafka` |
-| `workflow.persistence` | `jpa` \| `memory` | `jpa` |
+| `workflow.persistence` | `jpa` \| `memory` | `memory` |
 
 ## Mode 1 — Fully embedded (`embedded` + `memory`)
 
@@ -61,11 +61,12 @@ spring.jpa.hibernate.ddl-auto=update
 
 > Kafka autoconfiguration classes are excluded **automatically** by `workflow-engine` when `workflow.mode=embedded`.
 
-Use `@WorkflowEmbeddedApplication` (which handles component scanning) plus `@EnableJpaRepositories` to ensure JPA repositories are picked up regardless of where your main class lives:
+Use `@WorkflowEmbeddedApplication` (which handles component scanning) plus `@EnableJpaRepositories` and `@AutoConfigurationPackage` pointing at the engine's persistence package, so Spring Data JPA and Hibernate find the repositories and entities regardless of where your main class lives:
 
 ```java
 @WorkflowEmbeddedApplication
-@EnableJpaRepositories(basePackages = "io.mateu.workflow")
+@EnableJpaRepositories(basePackages = "io.mateu.workflow.infra.out.persistence")
+@AutoConfigurationPackage(basePackages = "io.mateu.workflow.infra.out.persistence")
 public class MyApplication {
     public static void main(String[] args) {
         SpringApplication.run(MyApplication.class, args);

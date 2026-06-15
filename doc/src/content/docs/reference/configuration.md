@@ -8,7 +8,7 @@ description: Complete reference for all EventConductor configuration properties.
 | Property | Values | Default | Description |
 |---|---|---|---|
 | `workflow.mode` | `kafka` \| `embedded` | `kafka` | Event dispatch mode |
-| `workflow.persistence` | `jpa` \| `memory` | `jpa` | State persistence mode |
+| `workflow.persistence` | `jpa` \| `memory` | `memory` | State persistence mode |
 
 ## Git import (`workflow.git-import.*`)
 
@@ -57,7 +57,8 @@ public class MyApplication {
 
 ```java
 @WorkflowEmbeddedApplication
-@EnableJpaRepositories(basePackages = "io.mateu.workflow")
+@EnableJpaRepositories(basePackages = "io.mateu.workflow.infra.out.persistence")
+@AutoConfigurationPackage(basePackages = "io.mateu.workflow.infra.out.persistence")
 public class MyApplication {
     public static void main(String[] args) {
         SpringApplication.run(MyApplication.class, args);
