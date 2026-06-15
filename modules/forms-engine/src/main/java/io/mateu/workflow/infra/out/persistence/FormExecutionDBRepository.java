@@ -1,13 +1,12 @@
 package io.mateu.workflow.infra.out.persistence;
 
-import io.mateu.uidl.annotations.FormLayout;
 import io.mateu.uidl.data.FieldDataType;
 import io.mateu.uidl.data.FieldStereotype;
 import io.mateu.workflow.application.out.FormExecutionRepository;
 import io.mateu.workflow.application.out.FormRepository;
 import io.mateu.workflow.domain.*;
 import lombok.RequiredArgsConstructor;
-import org.springframework.cloud.stream.function.StreamBridge;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -17,11 +16,11 @@ import static io.mateu.core.infra.JsonSerializer.listFromJson;
 import static io.mateu.core.infra.JsonSerializer.toJson;
 
 @Service
+@ConditionalOnProperty(name = "forms.persistence", havingValue = "jpa")
 @RequiredArgsConstructor
 public class FormExecutionDBRepository implements FormExecutionRepository {
 
     final FormExecutionEntityRepository formExecutionEntityRepository;
-    final StreamBridge streamBridge;
 
     @Override
     public Optional<FormExecution> findById(String id) {

@@ -7,19 +7,19 @@ import io.mateu.workflow.application.services.FormValidator;
 import io.mateu.workflow.domain.Field;
 import io.mateu.workflow.domain.Form;
 import lombok.RequiredArgsConstructor;
-import org.springframework.cloud.stream.function.StreamBridge;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Optional;
 
 @Service
+@ConditionalOnProperty(name = "forms.persistence", havingValue = "jpa")
 @RequiredArgsConstructor
 public class FormDBRepository implements FormRepository {
 
     final FormEntityRepository formEntityRepository;
     final FieldEntityRepository fieldEntityRepository;
-    final StreamBridge streamBridge;
     final FormValidator formValidator;
 
     @Override
