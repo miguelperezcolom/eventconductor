@@ -9,7 +9,7 @@
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
     <groupId>io.mateu.workflow</groupId>
-    <artifactId>embedded</artifactId>
+    <artifactId>workflow-embedded</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>embedded</name>
     <description>embedded</description>
@@ -48,6 +48,23 @@
             <version>1.0.0</version>
         </dependency>
 
+        <dependency>
+            <groupId>io.mateu</groupId>
+            <artifactId>mvc-core</artifactId>
+            <version>0.0.1-MATEU</version>
+        </dependency>
+        <dependency>
+            <groupId>io.mateu</groupId>
+            <artifactId>annotation-processor-mvc</artifactId>
+            <version>0.0.1-MATEU</version>
+        </dependency>
+        <!-- serves the built-in frontend (web components); choose one: vaadin-lit, redhat-lit, sapui5-lit -->
+        <dependency>
+            <groupId>io.mateu</groupId>
+            <artifactId>vaadin-lit</artifactId>
+            <version>0.0.1-MATEU</version>
+        </dependency>
+
     </dependencies>
 
     <build>
@@ -80,6 +97,11 @@
                                     <groupId>org.projectlombok</groupId>
                                     <artifactId>lombok</artifactId>
                                 </path>
+                                <path>
+                                    <groupId>io.mateu</groupId>
+                                    <artifactId>annotation-processor-mvc</artifactId>
+                                    <version>3.0-alpha.190</version>
+                                </path>
                             </annotationProcessorPaths>
                         </configuration>
                     </execution>
@@ -94,6 +116,11 @@
                                 <path>
                                     <groupId>org.projectlombok</groupId>
                                     <artifactId>lombok</artifactId>
+                                </path>
+                                <path>
+                                    <groupId>io.mateu</groupId>
+                                    <artifactId>annotation-processor-mvc</artifactId>
+                                    <version>3.0-alpha.190</version>
                                 </path>
                             </annotationProcessorPaths>
                         </configuration>

@@ -11,7 +11,7 @@ project that can be started with `mvn spring-boot:run` from its own directory.
 
 These demos run the workflow engine in-process — no Kafka broker required.
 
-### `embedded`
+### `workflow-embedded`
 
 **Mode:** `embedded` + `memory` | **Port:** 8080
 
@@ -19,14 +19,14 @@ The simplest possible demo. The engine runs fully in-process with no external de
 Includes the web UI, the MCP endpoint, and a single "hello-world" workflow executed at startup.
 
 ```bash
-cd demo/embedded && mvn spring-boot:run
+cd demo/workflow-embedded && mvn spring-boot:run
 ```
 
 Workflow definitions are loaded from `src/main/resources/workflows/`.
 
 ---
 
-### `embedded-headless`
+### `workflow-embedded-headless`
 
 **Mode:** `embedded` + `memory` | **No HTTP server**
 
@@ -35,12 +35,12 @@ showing how to embed the engine as a library inside an existing application with
 any port.
 
 ```bash
-cd demo/embedded-headless && mvn spring-boot:run
+cd demo/workflow-embedded-headless && mvn spring-boot:run
 ```
 
 ---
 
-### `embedded-db-headless`
+### `workflow-embedded-db-headless`
 
 **Mode:** `embedded` + `jpa` (H2 in-memory) | **No HTTP server**
 
@@ -48,12 +48,12 @@ Embedded engine with JPA persistence via H2. State survives restarts within the 
 session. Shows how to add a real database without switching to Kafka.
 
 ```bash
-cd demo/embedded-db-headless && mvn spring-boot:run
+cd demo/workflow-embedded-db-headless && mvn spring-boot:run
 ```
 
 ---
 
-### `embedded-mvc`
+### `workflow-embedded-mvc`
 
 **Mode:** `embedded` + `memory` | **Port:** 8080
 
@@ -66,12 +66,12 @@ Endpoints:
 - `GET /processes/{id}` — get process state
 
 ```bash
-cd demo/embedded-mvc && mvn spring-boot:run
+cd demo/workflow-embedded-mvc && mvn spring-boot:run
 ```
 
 ---
 
-### `embedded-git`
+### `workflow-embedded-git`
 
 **Mode:** `embedded` + `jpa` (H2 in-memory) | **Port:** 8090
 
@@ -83,7 +83,7 @@ At startup it clones [`miguelperezcolom/sample-workflows`](https://github.com/mi
 and imports all 23 workflow definitions it finds.
 
 ```bash
-cd demo/embedded-git && mvn spring-boot:run
+cd demo/workflow-embedded-git && mvn spring-boot:run
 # → imports 23 workflow definitions from GitHub
 # → UI available at http://localhost:8090
 # → webhook at POST http://localhost:8090/workflow/webhooks/github
@@ -160,11 +160,11 @@ See [ia-agent-service](/guides/ia-agent-service/) for the full setup guide.
 
 | Demo | Mode | Persistence | HTTP | External deps |
 |---|---|---|---|---|
-| `embedded` | embedded | memory | ✓ (8080) | none |
-| `embedded-headless` | embedded | memory | — | none |
-| `embedded-db-headless` | embedded | jpa | — | none (H2) |
-| `embedded-mvc` | embedded | memory | ✓ (8080) | none |
-| `embedded-git` | embedded | jpa | ✓ (8090) | none (H2) + GitHub |
+| `workflow-embedded` | embedded | memory | ✓ (8080) | none |
+| `workflow-embedded-headless` | embedded | memory | — | none |
+| `workflow-embedded-db-headless` | embedded | jpa | — | none (H2) |
+| `workflow-embedded-mvc` | embedded | memory | ✓ (8080) | none |
+| `workflow-embedded-git` | embedded | jpa | ✓ (8090) | none (H2) + GitHub |
 | `booking-service` | kafka | jpa | ✓ | Kafka + PostgreSQL |
 | `content-service` | kafka | jpa | ✓ | Kafka + PostgreSQL |
 | `users-service` | kafka | jpa | ✓ | Kafka + PostgreSQL |
