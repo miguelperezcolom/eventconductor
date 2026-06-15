@@ -140,108 +140,73 @@ Pre-built images are published to Docker Hub on every release and are ready to u
 |---|---|
 | `orchestrator-standalone-app` | `miguelperezcolom/orchestrator-standalone-app` |
 | `forms-standalone-app` | `miguelperezcolom/forms-standalone-app` |
+| `worker-standalone-app` | `miguelperezcolom/worker-standalone-app` |
 
-Both images are fully configured via environment variables. See the [environment variable reference](/reference/configuration/#docker--environment-variables) for the complete list.
+All images are fully configured via environment variables. See the [environment variable reference](/reference/configuration/#docker--environment-variables) for the complete list.
 
-**Pull and run (minimal PostgreSQL example):**
+## Docker Compose
 
-```shell
-docker run -p 8080:8080 \
-  -e DB_URL=jdbc:postgresql://db:5432/workflow \
-  -e DB_USERNAME=workflow \
-  -e DB_PASSWORD=secret \
-  -e KAFKA_BROKERS=kafka:9092 \
-  miguelperezcolom/orchestrator-standalone-app:latest
-
-docker run -p 8081:8080 \
-  -e DB_URL=jdbc:postgresql://db:5432/workflow \
-  -e DB_USERNAME=workflow \
-  -e DB_PASSWORD=secret \
-  -e KAFKA_BROKERS=kafka:9092 \
-  miguelperezcolom/forms-standalone-app:latest
-```
-
-## Local development with Docker Compose
-
-Infrastructure only (run the apps locally with `mvn spring-boot:run`):
-
-```yaml
-# docker-compose.yml
-services:
-  postgres:
-    image: postgres:16
-    environment:
-      POSTGRES_DB: workflow
-      POSTGRES_USER: workflow
-      POSTGRES_PASSWORD: secret
-    ports: ["5432:5432"]
-
-  kafka:
-    image: confluentinc/cp-kafka:7.6.0
-    environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
-    ports: ["9092:9092"]
-
-  zookeeper:
-    image: confluentinc/cp-zookeeper:7.6.0
-    environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-```
+A ready-to-use `docker-compose.yml` is included in the `apps/` directory. It starts the full stack — Redpanda, PostgreSQL, orchestrator, forms, and worker — with healthcheck-gated startup ordering:
 
 ```shell
-docker-compose up -d
-mvn spring-boot:run
+cd apps
+docker compose up -d
 ```
 
-Full stack (infrastructure + app containers):
+| Service | Port | Description |
+|---|---|---|
+| `postgres-db` | 5432 | PostgreSQL (`workflow` database) |
+| `redpanda` | 9092 | Kafka-compatible broker (external) |
+| `redpanda-console` | 8888 | Redpanda web console |
+| `orchestrator` | 8105 | `orchestrator-standalone-app` |
+| `forms` | 8106 | `forms-standalone-app` |
+| `worker` | 8107 | `worker-standalone-app` |
 
-```yaml
-# docker-compose.full.yml
-services:
-  postgres:
-    image: postgres:16
-    environment:
-      POSTGRES_DB: workflow
-      POSTGRES_USER: workflow
-      POSTGRES_PASSWORD: secret
-
-  kafka:
-    image: confluentinc/cp-kafka:7.6.0
-    environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
-
-  zookeeper:
-    image: confluentinc/cp-zookeeper:7.6.0
-    environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-
-  orchestrator:
-    image: miguelperezcolom/orchestrator-standalone-app:latest
-    ports: ["8105:8080"]
-    environment:
-      DB_URL: jdbc:postgresql://postgres:5432/workflow
-      DB_USERNAME: workflow
-      DB_PASSWORD: secret
-      KAFKA_BROKERS: kafka:9092
-    depends_on: [postgres, kafka]
-
-  forms:
-    image: miguelperezcolom/forms-standalone-app:latest
-    ports: ["8106:8080"]
-    environment:
-      DB_URL: jdbc:postgresql://postgres:5432/workflow
-      DB_USERNAME: workflow
-      DB_PASSWORD: secret
-      KAFKA_BROKERS: kafka:9092
-    depends_on: [postgres, kafka]
-```
+To override values (e.g. a different image tag):
 
 ```shell
-docker-compose -f docker-compose.full.yml up -d
+DB_PASSWORD=mypwd docker compose up -d
+# or
+docker compose up -d --env-file .env.prod
+```
+
+## Kubernetes (Helm)
+
+A Helm chart is included in the `charts/eventconductor/` directory. It deploys the same stack — Redpanda, PostgreSQL, orchestrator, and forms — with PersistentVolumeClaims, Secrets, and readiness-gated initContainers.
+
+**Install:**
+
+```shell
+helm install ec charts/eventconductor
+```
+
+**Install with overrides:**
+
+```shell
+helm install ec charts/eventconductor \
+  --set postgres.password=mypwd \
+  --set orchestrator.replicas=2 \
+  --set orchestrator.image=miguelperezcolom/orchestrator-standalone-app:1.2.0
+```
+
+**Key values (`charts/eventconductor/values.yaml`):**
+
+| Value | Default | Description |
+|---|---|---|
+| `postgres.password` | `secret` | PostgreSQL password |
+| `postgres.storage` | `8Gi` | PVC size for PostgreSQL |
+| `redpanda.storage` | `8Gi` | PVC size for Redpanda |
+| `redpanda.externalNodePort` | `30092` | NodePort for external Kafka access (0 = disabled) |
+| `orchestrator.replicas` | `1` | Orchestrator pod count |
+| `orchestrator.image` | `miguelperezcolom/orchestrator-standalone-app:latest` | Image |
+| `forms.replicas` | `1` | Forms pod count |
+| `forms.image` | `miguelperezcolom/forms-standalone-app:latest` | Image |
+
+**Upgrade / uninstall:**
+
+```shell
+helm upgrade ec charts/eventconductor --set orchestrator.replicas=3
+helm uninstall ec
 ```
 
 ## Choosing a mode
