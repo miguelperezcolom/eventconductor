@@ -20,7 +20,7 @@ import static io.mateu.uidl.Humanizer.toUpperCaseFirst;
 
 
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
-@ConditionalOnProperty(name = "workflow.persistence", havingValue = "jpa", matchIfMissing = true)
+@ConditionalOnProperty(name = "workflow.persistence", havingValue = "jpa")
 @Service
 @Scope("prototype")
 @RequiredArgsConstructor

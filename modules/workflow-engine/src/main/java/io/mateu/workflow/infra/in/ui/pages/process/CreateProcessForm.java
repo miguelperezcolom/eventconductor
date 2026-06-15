@@ -12,8 +12,8 @@ import io.mateu.workflow.infra.in.ui.suppliers.WorkflowDefinitionIdLabelSupplier
 import io.mateu.workflow.infra.in.ui.suppliers.WorkflowDefinitionIdOptionsSupplier;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
+import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Service;
 
 import java.net.URI;
@@ -21,8 +21,8 @@ import java.util.List;
 import java.util.UUID;
 
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
-@ConditionalOnProperty(name = "workflow.persistence", havingValue = "jpa", matchIfMissing = true)
 @Service
+@Scope("prototype")
 @RequiredArgsConstructor
 @FormLayout(columns = 1)
 public class CreateProcessForm implements ActionSupplier {
@@ -40,7 +40,7 @@ public class CreateProcessForm implements ActionSupplier {
     List<Variable> variables;
 
     @Button
-    URI create() {
+    URI create(HttpRequest httpRequest) {
         var processId = UUID.randomUUID().toString();
         createProcessUseCase.handle(new CreateProcessCommand(
                 processId,
@@ -48,7 +48,7 @@ public class CreateProcessForm implements ActionSupplier {
                 businessKey,
                 variables
         ));
-        return URI.create("/processes/" + processId);
+        return URI.create(httpRequest.runActionRq().route() + "/" + processId);
     }
 
     @Override

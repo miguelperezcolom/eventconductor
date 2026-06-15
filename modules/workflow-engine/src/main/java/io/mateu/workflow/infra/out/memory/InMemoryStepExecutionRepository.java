@@ -17,7 +17,7 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Service
-@ConditionalOnProperty(name = "workflow.persistence", havingValue = "memory")
+@ConditionalOnProperty(name = "workflow.persistence", havingValue = "memory", matchIfMissing = true)
 public class InMemoryStepExecutionRepository implements StepExecutionRepository {
 
     @Lazy

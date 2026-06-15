@@ -11,7 +11,7 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Service
-@ConditionalOnProperty(name = "workflow.persistence", havingValue = "memory")
+@ConditionalOnProperty(name = "workflow.persistence", havingValue = "memory", matchIfMissing = true)
 public class InMemoryResourceRepository implements ResourceRepository {
 
     private final Map<String, Resource> store = new ConcurrentHashMap<>();
@@ -35,5 +35,12 @@ public class InMemoryResourceRepository implements ResourceRepository {
     @Override
     public void deleteAllById(List<String> ids) {
         ids.forEach(store::remove);
+    }
+
+    @Override
+    public List<Resource> findByProcessId(String processId) {
+        return store.values().stream()
+                .filter(r -> processId.equals(r.getProcessId()))
+                .toList();
     }
 }

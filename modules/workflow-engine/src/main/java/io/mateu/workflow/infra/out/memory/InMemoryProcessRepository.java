@@ -15,7 +15,7 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Service
-@ConditionalOnProperty(name = "workflow.persistence", havingValue = "memory")
+@ConditionalOnProperty(name = "workflow.persistence", havingValue = "memory", matchIfMissing = true)
 public class InMemoryProcessRepository implements ProcessRepository {
 
     // @Lazy breaks the circular dependency:

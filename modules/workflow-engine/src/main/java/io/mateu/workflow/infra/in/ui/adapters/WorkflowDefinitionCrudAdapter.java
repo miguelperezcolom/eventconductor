@@ -10,7 +10,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplicat
 import org.springframework.stereotype.Service;
 
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
-@ConditionalOnProperty(name = "workflow.persistence", havingValue = "jpa", matchIfMissing = true)
+//@ConditionalOnProperty(name = "workflow.persistence", havingValue = "jpa")
 @Service
 @AllArgsConstructor
 public class WorkflowDefinitionCrudAdapter  extends AutoCrudAdapter<WorkflowDefinition> {

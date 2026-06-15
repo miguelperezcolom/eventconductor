@@ -11,7 +11,6 @@ import org.springframework.stereotype.Service;
 import static io.mateu.core.infra.JsonSerializer.toJson;
 
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
-@ConditionalOnProperty(name = "workflow.persistence", havingValue = "jpa", matchIfMissing = true)
 @Service
 @RequiredArgsConstructor
 public class WorkflowDefinitionEditor {

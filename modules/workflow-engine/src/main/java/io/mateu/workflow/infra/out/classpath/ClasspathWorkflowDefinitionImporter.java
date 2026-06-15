@@ -27,7 +27,7 @@ import static io.mateu.core.infra.JsonSerializer.pojoFromJson;
  * Definitions already present in the DB are skipped (idempotent).
  */
 @Service
-@ConditionalOnProperty(name = "workflow.persistence", havingValue = "jpa", matchIfMissing = true)
+@ConditionalOnProperty(name = "workflow.persistence", havingValue = "jpa")
 @RequiredArgsConstructor
 @Order(0)
 @Slf4j

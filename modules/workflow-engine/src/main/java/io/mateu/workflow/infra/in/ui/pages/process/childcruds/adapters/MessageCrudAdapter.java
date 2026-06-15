@@ -15,7 +15,7 @@ import java.util.List;
 import java.util.Optional;
 
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
-@ConditionalOnProperty(name = "workflow.persistence", havingValue = "jpa", matchIfMissing = true)
+@ConditionalOnProperty(name = "workflow.persistence", havingValue = "jpa")
 @Service
 @RequiredArgsConstructor
 public class MessageCrudAdapter extends AutoListAdapter<Message> {

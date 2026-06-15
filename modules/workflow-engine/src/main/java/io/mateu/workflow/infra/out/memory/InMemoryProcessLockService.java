@@ -13,7 +13,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * multiple threads (e.g. TimeoutScheduler vs the event-processing thread).
  */
 @Service
-@ConditionalOnProperty(name = "workflow.persistence", havingValue = "memory")
+@ConditionalOnProperty(name = "workflow.persistence", havingValue = "memory", matchIfMissing = true)
 public class InMemoryProcessLockService implements ProcessLockService {
 
     private final ConcurrentHashMap<String, ReentrantLock> locks = new ConcurrentHashMap<>();

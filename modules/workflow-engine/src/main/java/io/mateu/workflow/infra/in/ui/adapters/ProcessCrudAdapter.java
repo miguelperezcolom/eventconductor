@@ -19,10 +19,10 @@ import java.util.List;
 import static io.mateu.uidl.Humanizer.toUpperCaseFirst;
 
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
-@ConditionalOnProperty(name = "workflow.persistence", havingValue = "jpa", matchIfMissing = true)
+@ConditionalOnProperty(name = "workflow.persistence", havingValue = "jpa")
 @Service
 @RequiredArgsConstructor
-public class ProcessCrudAdapter implements CrudAdapter<ProcessViewModel, NoEditor<String>, NoCreationForm<String>, NoFilters, ProcessRow, String> {
+public class ProcessCrudAdapter implements CrudAdapter<NoEditor<String>, NoCreationForm<String>, NoFilters, ProcessRow, String> {
 
     final ProcessRepository repository;
 

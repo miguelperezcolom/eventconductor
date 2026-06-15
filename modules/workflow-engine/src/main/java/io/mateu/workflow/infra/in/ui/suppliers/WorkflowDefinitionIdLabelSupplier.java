@@ -2,6 +2,8 @@ package io.mateu.workflow.infra.in.ui.suppliers;
 
 import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.uidl.interfaces.LabelSupplier;
+import io.mateu.uidl.interfaces.LookupLabelSupplier;
+import io.mateu.uidl.interfaces.LookupOptionsSupplier;
 import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
 import io.mateu.workflow.domain.aggregates.WorkflowDefinition;
 import lombok.RequiredArgsConstructor;
@@ -10,10 +12,9 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplicat
 import org.springframework.stereotype.Service;
 
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
-@ConditionalOnProperty(name = "workflow.persistence", havingValue = "jpa", matchIfMissing = true)
 @Service
 @RequiredArgsConstructor
-public class WorkflowDefinitionIdLabelSupplier implements LabelSupplier {
+public class WorkflowDefinitionIdLabelSupplier implements LookupLabelSupplier {
 
     final WorkflowDefinitionRepository workflowDefinitionRepository;
 
