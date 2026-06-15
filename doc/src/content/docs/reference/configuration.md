@@ -8,7 +8,8 @@ description: Complete reference for all EventConductor configuration properties.
 | Property | Values | Default | Description |
 |---|---|---|---|
 | `workflow.mode` | `kafka` \| `embedded` | `kafka` | Event dispatch mode |
-| `workflow.persistence` | `jpa` \| `memory` | `memory` | State persistence mode |
+| `workflow.persistence` | `jpa` \| `memory` | `memory` | Workflow state persistence mode |
+| `forms.persistence` | `jpa` \| `memory` | `memory` | Forms state persistence mode |
 
 ## Git import (`workflow.git-import.*`)
 
@@ -40,9 +41,11 @@ The webhook endpoint is `POST /forms/webhooks/github`. See [Form Definitions —
 
 ## Application class (embedded modes)
 
-When using `workflow.mode=embedded`, use `@WorkflowEmbeddedApplication` instead of `@SpringBootApplication`. It sets up the correct component scan — including the UI exclusion filter — automatically.
+### Workflow engine
 
-**`embedded` + `memory`:**
+When embedding the workflow engine, use `@WorkflowEmbeddedApplication` instead of `@SpringBootApplication`. It sets up the correct component scan — including the UI exclusion filter — automatically.
+
+**`workflow.persistence=memory` (default):**
 
 ```java
 @WorkflowEmbeddedApplication
@@ -53,7 +56,7 @@ public class MyApplication {
 }
 ```
 
-**`embedded` + `jpa`:**
+**`workflow.persistence=jpa`:**
 
 ```java
 @WorkflowEmbeddedApplication
@@ -68,7 +71,37 @@ public class MyApplication {
 
 `@WorkflowEmbeddedApplication` is provided by the `workflow-engine` module. It combines `@SpringBootConfiguration`, `@EnableAutoConfiguration`, and a `@ComponentScan` scoped to `io.mateu.workflow` with the UI adapter layer excluded.
 
-For `workflow.mode=kafka` (the default), use `@SpringBootApplication` as normal — the engine integrates as a regular Spring Boot auto-configuration.
+### Forms engine
+
+When embedding the forms engine, use `@FormsEmbeddedApplication` instead of `@SpringBootApplication`.
+
+**`forms.persistence=memory` (default):**
+
+```java
+@FormsEmbeddedApplication
+public class MyApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(MyApplication.class, args);
+    }
+}
+```
+
+**`forms.persistence=jpa`:**
+
+```java
+@FormsEmbeddedApplication
+@EnableJpaRepositories(basePackages = "io.mateu.workflow.infra.out.persistence")
+@AutoConfigurationPackage(basePackages = "io.mateu.workflow.infra.out.persistence")
+public class MyApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(MyApplication.class, args);
+    }
+}
+```
+
+`@FormsEmbeddedApplication` is provided by the `forms-engine` module and follows the same pattern as `@WorkflowEmbeddedApplication`.
+
+For `workflow.mode=kafka` (the default), use `@SpringBootApplication` as normal — both engines integrate as regular Spring Boot auto-configurations.
 
 ## Database (when `workflow.persistence=jpa`)
 

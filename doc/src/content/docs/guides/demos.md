@@ -3,13 +3,14 @@ title: Demo Applications
 description: Overview of all runnable demo applications included in the EventConductor repository.
 ---
 
-The `demo/` directory contains a suite of runnable applications that illustrate different
-deployment patterns and integration scenarios. Each demo is a self-contained Spring Boot
-project that can be started with `mvn spring-boot:run` from its own directory.
+The `demo/` directory contains runnable applications illustrating distributed deployment patterns.
+The `testbench/` directory contains self-contained smoke-test apps for both engines in embedded mode — no Kafka or external database required unless noted.
 
-## Embedded demos
+Each app can be started with `mvn spring-boot:run` from its own directory.
 
-These demos run the workflow engine in-process — no Kafka broker required.
+## Testbench — workflow engine
+
+These apps run the **workflow engine** in-process — no Kafka broker required.
 
 ### `workflow-embedded`
 
@@ -93,6 +94,79 @@ See [Importing from Git](/guides/workflow-definitions/#importing-from-git) for c
 
 ---
 
+## Testbench — forms engine
+
+These apps run the **forms engine** in-process — no Kafka broker required.
+
+### `forms-embedded`
+
+**Mode:** `embedded` + `memory` | **Port:** 8091
+
+Forms engine in memory mode with the web UI and a sample form created at startup.
+
+```bash
+cd testbench/forms-embedded && mvn spring-boot:run
+```
+
+---
+
+### `forms-embedded-headless`
+
+**Mode:** `embedded` + `memory` | **No HTTP server**
+
+Forms engine in memory mode with no web server. Creates a form and a task execution at startup.
+
+```bash
+cd testbench/forms-embedded-headless && mvn spring-boot:run
+```
+
+---
+
+### `forms-embedded-db-headless`
+
+**Mode:** `embedded` + `jpa` (H2 in-memory) | **No HTTP server**
+
+Forms engine with JPA persistence via H2. State survives restarts within the same JVM session.
+
+```bash
+cd testbench/forms-embedded-db-headless && mvn spring-boot:run
+```
+
+---
+
+### `forms-embedded-mvc`
+
+**Mode:** `embedded` + `memory` | **Port:** 8091
+
+Forms engine exposed as a plain REST API. Endpoints:
+- `POST /forms` — create a form definition
+- `GET /forms/{id}` — get a form definition
+- `POST /tasks` — create a task (FormExecution)
+- `GET /tasks/{id}` — get a task
+
+```bash
+cd testbench/forms-embedded-mvc && mvn spring-boot:run
+```
+
+---
+
+### `forms-embedded-git`
+
+**Mode:** `embedded` + `jpa` (H2 in-memory) | **Port:** 8092
+
+Forms engine with JPA persistence and form definitions imported from Git at startup.
+Demonstrates the Git import feature and the GitHub webhook endpoint.
+
+```bash
+cd testbench/forms-embedded-git && mvn spring-boot:run
+# → UI available at http://localhost:8092
+# → webhook at POST http://localhost:8092/forms/webhooks/github
+```
+
+See [Importing from Git](/guides/form-definitions/#importing-from-git) for configuration details.
+
+---
+
 ## Multi-service system
 
 These demos form a realistic distributed system that showcases the full `kafka` + `jpa` mode.
@@ -158,13 +232,30 @@ See [ia-agent-service](/guides/ia-agent-service/) for the full setup guide.
 
 ## Quick-start matrix
 
-| Demo | Mode | Persistence | HTTP | External deps |
+### Workflow engine testbench
+
+| Module | Mode | Persistence | HTTP | External deps |
 |---|---|---|---|---|
 | `workflow-embedded` | embedded | memory | ✓ (8080) | none |
 | `workflow-embedded-headless` | embedded | memory | — | none |
 | `workflow-embedded-db-headless` | embedded | jpa | — | none (H2) |
 | `workflow-embedded-mvc` | embedded | memory | ✓ (8080) | none |
 | `workflow-embedded-git` | embedded | jpa | ✓ (8090) | none (H2) + GitHub |
+
+### Forms engine testbench
+
+| Module | Mode | Persistence | HTTP | External deps |
+|---|---|---|---|---|
+| `forms-embedded` | embedded | memory | ✓ (8091) | none |
+| `forms-embedded-headless` | embedded | memory | — | none |
+| `forms-embedded-db-headless` | embedded | jpa | — | none (H2) |
+| `forms-embedded-mvc` | embedded | memory | ✓ (8091) | none |
+| `forms-embedded-git` | embedded | jpa | ✓ (8092) | none (H2) + GitHub |
+
+### Demo applications
+
+| Demo | Mode | Persistence | HTTP | External deps |
+|---|---|---|---|---|
 | `booking-service` | kafka | jpa | ✓ | Kafka + PostgreSQL |
 | `content-service` | kafka | jpa | ✓ | Kafka + PostgreSQL |
 | `users-service` | kafka | jpa | ✓ | Kafka + PostgreSQL |
