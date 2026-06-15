@@ -15,8 +15,8 @@ EventConductor supports three deployment modes controlled by two independent pro
 No Kafka, no database. Everything runs in-process. Ideal for **unit tests**, **local development**, and **embedding in other applications**.
 
 Two working examples are available:
-- `demo/embedded` — embedded mode with an HTTP server and MCP endpoint
-- `demo/embedded-headless` — embedded mode with **no HTTP server** (pure background process)
+- `demo/workflow-embedded` — embedded mode with an HTTP server and MCP endpoint
+- `demo/workflow-embedded-headless` — embedded mode with **no HTTP server** (pure background process)
 
 ```properties
 workflow.mode=embedded
@@ -47,7 +47,7 @@ public class MyApplication {
 No Kafka required. Requires a **supported database**. Good for **single-node deployments**, development with a real database, or demos with an in-memory H2 DB.
 
 A working example is available:
-- `demo/embedded-db-headless` — embedded + JPA + H2, no HTTP server (pure background process)
+- `demo/workflow-embedded-db-headless` — embedded + JPA + H2, no HTTP server (pure background process)
 
 ```properties
 workflow.mode=embedded
@@ -248,11 +248,11 @@ docker-compose -f docker-compose.full.yml up -d
 
 | Scenario | Recommended mode |
 |---|---|
-| Unit / integration tests | `embedded` + `memory` |
-| Local development (no infra) | `embedded` + `memory` |
-| Local development (H2, no infra) | `embedded` + `jpa` (H2) |
-| Local development (with real DB) | `embedded` + `jpa` |
-| Single-node production | `embedded` + `jpa` |
+| Unit / integration tests | `workflow-embedded` + `memory` |
+| Local development (no infra) | `workflow-embedded` + `memory` |
+| Local development (H2, no infra) | `workflow-embedded` + `jpa` (H2) |
+| Local development (with real DB) | `workflow-embedded` + `jpa` |
+| Single-node production | `workflow-embedded` + `jpa` |
 | Multi-node / Kubernetes | `kafka` + `jpa` |
 
 ### Headless vs. HTTP embedded
@@ -260,5 +260,5 @@ docker-compose -f docker-compose.full.yml up -d
 Both `embedded` variants support running without an HTTP server. Simply use `spring-boot-starter` instead of `spring-boot-starter-web` as your application's base dependency and omit `spring-ai-starter-mcp-server-webmvc`. Spring Boot will detect no servlet container on the classpath and start as a non-web application — the workflow engine runs fully in-process with no open port.
 
 Working headless examples:
-- `demo/embedded-headless` — `embedded` + `memory`, no HTTP server
-- `demo/embedded-db-headless` — `embedded` + `jpa` (H2), no HTTP server; state survives restarts
+- `demo/workflow-embedded-headless` — `embedded` + `memory`, no HTTP server
+- `demo/workflow-embedded-db-headless` — `embedded` + `jpa` (H2), no HTTP server; state survives restarts
