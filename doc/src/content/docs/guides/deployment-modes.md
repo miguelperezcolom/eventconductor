@@ -15,8 +15,8 @@ EventConductor supports three deployment modes controlled by two independent pro
 No Kafka, no database. Everything runs in-process. Ideal for **unit tests**, **local development**, and **embedding in other applications**.
 
 Two working examples are available:
-- `demo/workflow-embedded` — embedded mode with an HTTP server and MCP endpoint
-- `demo/workflow-embedded-headless` — embedded mode with **no HTTP server** (pure background process)
+- `testbench/workflow-embedded` — embedded mode with an HTTP server and MCP endpoint
+- `testbench/workflow-embedded-headless` — embedded mode with **no HTTP server** (pure background process)
 
 ```properties
 workflow.mode=embedded
@@ -47,7 +47,7 @@ public class MyApplication {
 No Kafka required. Requires a **supported database**. Good for **single-node deployments**, development with a real database, or demos with an in-memory H2 DB.
 
 A working example is available:
-- `demo/workflow-embedded-db-headless` — embedded + JPA + H2, no HTTP server (pure background process)
+- `testbench/workflow-embedded-db-headless` — embedded + JPA + H2, no HTTP server (pure background process)
 
 ```properties
 workflow.mode=embedded
@@ -260,5 +260,5 @@ docker-compose -f docker-compose.full.yml up -d
 Both `embedded` variants support running without an HTTP server. Simply use `spring-boot-starter` instead of `spring-boot-starter-web` as your application's base dependency and omit `spring-ai-starter-mcp-server-webmvc`. Spring Boot will detect no servlet container on the classpath and start as a non-web application — the workflow engine runs fully in-process with no open port.
 
 Working headless examples:
-- `demo/workflow-embedded-headless` — `embedded` + `memory`, no HTTP server
-- `demo/workflow-embedded-db-headless` — `embedded` + `jpa` (H2), no HTTP server; state survives restarts
+- `testbench/workflow-embedded-headless` — `embedded` + `memory`, no HTTP server
+- `testbench/workflow-embedded-db-headless` — `embedded` + `jpa` (H2), no HTTP server; state survives restarts

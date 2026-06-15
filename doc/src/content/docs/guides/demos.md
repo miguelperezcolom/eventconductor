@@ -19,7 +19,7 @@ The simplest possible demo. The engine runs fully in-process with no external de
 Includes the web UI, the MCP endpoint, and a single "hello-world" workflow executed at startup.
 
 ```bash
-cd demo/workflow-embedded && mvn spring-boot:run
+cd testbench/workflow-embedded && mvn spring-boot:run
 ```
 
 Workflow definitions are loaded from `src/main/resources/workflows/`.
@@ -35,7 +35,7 @@ showing how to embed the engine as a library inside an existing application with
 any port.
 
 ```bash
-cd demo/workflow-embedded-headless && mvn spring-boot:run
+cd testbench/workflow-embedded-headless && mvn spring-boot:run
 ```
 
 ---
@@ -48,7 +48,7 @@ Embedded engine with JPA persistence via H2. State survives restarts within the 
 session. Shows how to add a real database without switching to Kafka.
 
 ```bash
-cd demo/workflow-embedded-db-headless && mvn spring-boot:run
+cd testbench/workflow-embedded-db-headless && mvn spring-boot:run
 ```
 
 ---
@@ -66,7 +66,7 @@ Endpoints:
 - `GET /processes/{id}` — get process state
 
 ```bash
-cd demo/workflow-embedded-mvc && mvn spring-boot:run
+cd testbench/workflow-embedded-mvc && mvn spring-boot:run
 ```
 
 ---
@@ -83,7 +83,7 @@ At startup it clones [`miguelperezcolom/sample-workflows`](https://github.com/mi
 and imports all 23 workflow definitions it finds.
 
 ```bash
-cd demo/workflow-embedded-git && mvn spring-boot:run
+cd testbench/workflow-embedded-git && mvn spring-boot:run
 # → imports 23 workflow definitions from GitHub
 # → UI available at http://localhost:8090
 # → webhook at POST http://localhost:8090/workflow/webhooks/github
