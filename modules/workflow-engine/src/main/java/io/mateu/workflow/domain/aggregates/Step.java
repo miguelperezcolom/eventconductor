@@ -10,8 +10,8 @@ import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import lombok.With;
 
-@FormLayout(columns = 4)
 @With
+@FoldedLayout
 public record Step(
         @Section(value = "Main", style = "width: 25%;")
         @NotEmpty

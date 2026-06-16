@@ -154,7 +154,7 @@ public class Task implements ComponentTreeSupplier, ValidationSupplier, ActionHa
                             NavigationRequestedPayload.builder()
                                     .route("/forms/tasks")
                                     .consumedRoute("")
-                                    .baseUrl("/_forms")
+                                    .baseUrl(httpRequest.getBaseUrl())
                                     .uriPrefix("")
                                     .serverSideType("io.mateu.workflow.infra.in.ui.FormsHome")
                                     .build()

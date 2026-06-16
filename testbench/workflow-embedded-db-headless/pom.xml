@@ -9,9 +9,9 @@
         <relativePath/>
     </parent>
     <groupId>io.mateu.workflow</groupId>
-    <artifactId>embedded-db-headless</artifactId>
+    <artifactId>workflow-embedded-db-headless</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>embedded-db-headless</name>
+    <name>workflow-embedded-db-headless</name>
     <description>EventConductor demo — embedded mode with JPA persistence (H2), no web server</description>
     <properties>
         <java.version>21</java.version>

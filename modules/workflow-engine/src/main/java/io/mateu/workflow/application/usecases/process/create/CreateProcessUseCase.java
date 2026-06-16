@@ -24,10 +24,10 @@ public class CreateProcessUseCase {
     public void handle(CreateProcessCommand command) {
         // Idempotency: if a non-empty businessKey is provided and a process already
         // exists for it, this is a duplicate event — skip silently.
-        if (command.businessKey() != null && !command.businessKey().isBlank()) {
-            if (processRepository.findByBusinessKey(command.businessKey()).isPresent()) {
-                log.warn("Process with businessKey '{}' already exists, ignoring duplicate creation request",
-                        command.businessKey());
+        if (command.processId() != null && !command.processId().isBlank()) {
+            if (processRepository.findById(command.processId()).isPresent()) {
+                log.warn("Process with process Id '{}' already exists, ignoring duplicate creation request",
+                        command.processId());
                 return;
             }
         }

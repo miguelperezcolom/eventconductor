@@ -82,7 +82,7 @@ public class Tasks extends Listing<NoFilters, TaskRow> {
         });
     }
 
-    public UICommand run(TaskRow selectedRow) {
+    public UICommand run(TaskRow selectedRow, HttpRequest httpRequest) {
         log.info("running " + selectedRow);
         return UICommand.builder()
                 .type(UICommandType.DispatchEvent)
@@ -91,7 +91,7 @@ public class Tasks extends Listing<NoFilters, TaskRow> {
                         NavigationRequestedPayload.builder()
                                 .route("/forms/task/" + selectedRow.id())
                                 .consumedRoute("")
-                                .baseUrl("/_forms")
+                                .baseUrl(httpRequest.getBaseUrl())
                                 .uriPrefix("")
                                 .serverSideType("io.mateu.workflow.infra.in.ui.FormsHome")
                                 .build()
