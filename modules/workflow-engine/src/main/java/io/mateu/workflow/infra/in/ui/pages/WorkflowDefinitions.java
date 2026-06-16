@@ -9,6 +9,7 @@ import io.mateu.uidl.data.DispatchEventData;
 import io.mateu.uidl.data.NavigationRequestedPayload;
 import io.mateu.uidl.data.UICommand;
 import io.mateu.uidl.data.UICommandType;
+import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.workflow.application.usecases.workingcopy.CreateWorkingCopyUseCase;
 import io.mateu.workflow.application.usecases.workingcopy.PromoteWorkingCopyUseCase;
 import io.mateu.workflow.domain.aggregates.WorkflowDefinition;
@@ -52,7 +53,7 @@ public class WorkflowDefinitions extends AutoCrudOrchestrator<WorkflowDefinition
     }
 
     @ViewToolbarButton
-    public UICommand createWorkingCopy(WorkflowDefinition definition) {
+    public UICommand createWorkingCopy(WorkflowDefinition definition, HttpRequest httpRequest) {
         return UICommand.builder()
                 .type(UICommandType.DispatchEvent)
                 .data(new DispatchEventData(
@@ -60,7 +61,7 @@ public class WorkflowDefinitions extends AutoCrudOrchestrator<WorkflowDefinition
                         NavigationRequestedPayload.builder()
                                 .route("/workflow/definitions/" + createWorkingCopyUseCase.handle(definition.id()))
                                 .consumedRoute("")
-                                .baseUrl("/_workflow")
+                                .baseUrl(httpRequest.getBaseUrl())
                                 .uriPrefix("")
                                 .serverSideType(WorkflowHome.class.getName())
                                 .build()
@@ -70,7 +71,7 @@ public class WorkflowDefinitions extends AutoCrudOrchestrator<WorkflowDefinition
     }
 
     @ViewToolbarButton
-    public UICommand promoteToProduction(WorkflowDefinition definition) {
+    public UICommand promoteToProduction(WorkflowDefinition definition, HttpRequest httpRequest) {
         return UICommand.builder()
                 .type(UICommandType.DispatchEvent)
                 .data(new DispatchEventData(
@@ -78,7 +79,7 @@ public class WorkflowDefinitions extends AutoCrudOrchestrator<WorkflowDefinition
                         NavigationRequestedPayload.builder()
                                 .route("/workflow/definitions/" + promoteWorkingCopyUseCase.handle(definition.id()))
                                 .consumedRoute("")
-                                .baseUrl("/_workflow")
+                                .baseUrl(httpRequest.getBaseUrl())
                                 .uriPrefix("")
                                 .serverSideType(WorkflowHome.class.getName())
                                 .build()

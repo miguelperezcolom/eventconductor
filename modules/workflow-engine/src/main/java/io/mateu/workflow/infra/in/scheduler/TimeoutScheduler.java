@@ -21,7 +21,7 @@ import static io.mateu.core.infra.JsonSerializer.pojoFromJson;
  * The advisory lock (777888999L) ensures only one pod runs the scan at a time.
  */
 @Service
-@ConditionalOnProperty(name = "workflow.persistence", havingValue = "jpa", matchIfMissing = true)
+@ConditionalOnProperty(name = "workflow.persistence", havingValue = "jpa")
 @RequiredArgsConstructor
 @Slf4j
 public class TimeoutScheduler {

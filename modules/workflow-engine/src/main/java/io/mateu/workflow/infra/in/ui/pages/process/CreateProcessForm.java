@@ -2,12 +2,17 @@ package io.mateu.workflow.infra.in.ui.pages.process;
 
 import io.mateu.core.infra.declarative.FormViewModel;
 import io.mateu.uidl.annotations.*;
+import io.mateu.uidl.data.DispatchEventData;
+import io.mateu.uidl.data.NavigationRequestedPayload;
+import io.mateu.uidl.data.UICommand;
+import io.mateu.uidl.data.UICommandType;
 import io.mateu.uidl.fluent.Action;
 import io.mateu.uidl.fluent.ActionSupplier;
 import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.workflow.application.usecases.process.create.CreateProcessCommand;
 import io.mateu.workflow.application.usecases.process.create.CreateProcessUseCase;
 import io.mateu.workflow.domain.aggregates.Variable;
+import io.mateu.workflow.infra.in.ui.WorkflowHome;
 import io.mateu.workflow.infra.in.ui.suppliers.WorkflowDefinitionIdLabelSupplier;
 import io.mateu.workflow.infra.in.ui.suppliers.WorkflowDefinitionIdOptionsSupplier;
 import jakarta.validation.constraints.NotNull;
@@ -40,7 +45,7 @@ public class CreateProcessForm implements ActionSupplier {
     List<Variable> variables;
 
     @Button
-    URI create(HttpRequest httpRequest) {
+    Object create(HttpRequest httpRequest) {
         var processId = UUID.randomUUID().toString();
         createProcessUseCase.handle(new CreateProcessCommand(
                 processId,
@@ -48,7 +53,19 @@ public class CreateProcessForm implements ActionSupplier {
                 businessKey,
                 variables
         ));
-        return URI.create(httpRequest.runActionRq().route() + "/" + processId);
+        return UICommand.builder()
+                .type(UICommandType.DispatchEvent)
+                .data(new DispatchEventData(
+                        "navigation-requested",
+                        NavigationRequestedPayload.builder()
+                                .route(httpRequest.runActionRq().route() + "/" + processId)
+                                .consumedRoute("")
+                                .baseUrl(httpRequest.getBaseUrl())
+                                .uriPrefix(httpRequest.getUriPrefix())
+                                .serverSideType(WorkflowHome.class.getName())
+                                .build()
+                ))
+                .build();
     }
 
     @Override

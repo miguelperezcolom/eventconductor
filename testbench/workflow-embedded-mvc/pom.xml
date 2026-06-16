@@ -9,9 +9,9 @@
         <relativePath/>
     </parent>
     <groupId>io.mateu.workflow</groupId>
-    <artifactId>embedded-mvc</artifactId>
+    <artifactId>workflow-embedded-mvc</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>embedded-mvc</name>
+    <name>workflow-embedded-mvc</name>
     <description>Embedded mode + Spring MVC REST API demo</description>
     <properties>
         <java.version>21</java.version>

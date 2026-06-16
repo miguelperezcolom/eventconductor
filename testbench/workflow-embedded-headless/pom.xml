@@ -9,10 +9,10 @@
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
     <groupId>io.mateu.workflow</groupId>
-    <artifactId>embedded-headless</artifactId>
+    <artifactId>workflow-embedded-headless</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>embedded-headless</name>
-    <description>embedded-headless</description>
+    <name>workflow-embedded-headless</name>
+    <description>workflow-embedded-headless</description>
     <url/>
     <licenses>
         <license/>
