@@ -11,7 +11,6 @@ import io.mateu.workflow.infra.in.ui.adapters.WorkflowHomeAdapter;
 import io.mateu.workflow.infra.in.ui.pages.process.Processes;
 import io.mateu.workflow.infra.in.ui.pages.WorkflowDefinitions;
 import lombok.RequiredArgsConstructor;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.stereotype.Service;
 
@@ -26,7 +25,6 @@ import java.util.List;
 @Style(StyleConstants.CONTAINER)
 @RequiredArgsConstructor
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
-@ConditionalOnProperty(name = "workflow.persistence", havingValue = "jpa")
 @Service
 public class WorkflowHome implements PostHydrationHandler {
 
