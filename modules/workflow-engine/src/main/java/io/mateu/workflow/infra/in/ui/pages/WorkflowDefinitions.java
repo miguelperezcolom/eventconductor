@@ -5,10 +5,8 @@ import io.mateu.core.infra.declarative.orchestrators.crud.AutoCrudOrchestrator;
 import io.mateu.uidl.StyleConstants;
 import io.mateu.uidl.annotations.ListToolbarButton;
 import io.mateu.uidl.annotations.ViewToolbarButton;
-import io.mateu.uidl.data.DispatchEventData;
-import io.mateu.uidl.data.NavigationRequestedPayload;
-import io.mateu.uidl.data.UICommand;
-import io.mateu.uidl.data.UICommandType;
+import io.mateu.uidl.data.*;
+import static io.mateu.uidl.fluent.Component.createComponent;
 import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.workflow.application.usecases.workingcopy.CreateWorkingCopyUseCase;
 import io.mateu.workflow.application.usecases.workingcopy.PromoteWorkingCopyUseCase;
@@ -48,8 +46,10 @@ public class WorkflowDefinitions extends AutoCrudOrchestrator<WorkflowDefinition
     }
 
     @ViewToolbarButton
-    public WorkflowDefinitionEditor graphEditor(WorkflowDefinition definition) {
-        return graphEditor.load(definition.id());
+    public Object graphEditor(WorkflowDefinition definition, HttpRequest httpRequest) {
+        return Dialog.builder()
+                .content(createComponent(graphEditor.load(definition.id())))
+                .build();
     }
 
     @ViewToolbarButton
