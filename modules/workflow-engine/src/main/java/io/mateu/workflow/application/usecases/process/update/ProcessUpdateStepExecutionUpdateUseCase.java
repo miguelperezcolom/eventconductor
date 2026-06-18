@@ -43,13 +43,22 @@ public class ProcessUpdateStepExecutionUpdateUseCase {
         if (percent == 100) {
             status = ProcessStatus.COMPLETED;
         }
+        if (process.getStatus() != status) {
+            if (process.getStatus() == ProcessStatus.CANCELLED
+                    || process.getStatus() == ProcessStatus.ERROR) {
+                status = process.getStatus();
+                percent = process.getCompletionPercentage();
+            }
+        }
         process = process.withStatus(status).withCompletionPercentage((int) percent);
         if (process.getStarted() == null && (status.equals(ProcessStatus.RUNNING)
                 || status.equals(ProcessStatus.COMPLETED)
+                || status.equals(ProcessStatus.CANCELLED)
                 || status.equals(ProcessStatus.ERROR))) {
             process = process.withStarted(LocalDateTime.now());
         }
         if (process.getFinished() == null && (status.equals(ProcessStatus.COMPLETED)
+                || status.equals(ProcessStatus.CANCELLED)
                 || status.equals(ProcessStatus.ERROR))) {
             process = process.withFinished(LocalDateTime.now());
         }

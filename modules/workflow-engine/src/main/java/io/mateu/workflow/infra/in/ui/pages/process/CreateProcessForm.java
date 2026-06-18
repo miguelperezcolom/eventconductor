@@ -1,13 +1,8 @@
 package io.mateu.workflow.infra.in.ui.pages.process;
 
-import io.mateu.core.infra.declarative.FormViewModel;
 import io.mateu.uidl.annotations.*;
-import io.mateu.uidl.data.DispatchEventData;
-import io.mateu.uidl.data.NavigationRequestedPayload;
-import io.mateu.uidl.data.UICommand;
-import io.mateu.uidl.data.UICommandType;
-import io.mateu.uidl.fluent.Action;
-import io.mateu.uidl.fluent.ActionSupplier;
+import io.mateu.uidl.annotations.FormLayout;
+import io.mateu.uidl.data.*;
 import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.workflow.application.usecases.process.create.CreateProcessCommand;
 import io.mateu.workflow.application.usecases.process.create.CreateProcessUseCase;
@@ -21,7 +16,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplicat
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Service;
 
-import java.net.URI;
 import java.util.List;
 import java.util.UUID;
 
@@ -30,7 +24,7 @@ import java.util.UUID;
 @Scope("prototype")
 @RequiredArgsConstructor
 @FormLayout(columns = 1)
-public class CreateProcessForm implements ActionSupplier {
+public class CreateProcessForm {
 
     final CreateProcessUseCase createProcessUseCase;
 
@@ -44,7 +38,7 @@ public class CreateProcessForm implements ActionSupplier {
     @MasterDetail(minHeightWhenDetailVisible = "16rem;")
     List<Variable> variables;
 
-    @Button
+    @Toolbar(buttonStyle = ButtonStyle.primary)
     Object create(HttpRequest httpRequest) {
         var processId = UUID.randomUUID().toString();
         createProcessUseCase.handle(new CreateProcessCommand(
@@ -58,18 +52,14 @@ public class CreateProcessForm implements ActionSupplier {
                 .data(new DispatchEventData(
                         "navigation-requested",
                         NavigationRequestedPayload.builder()
-                                .route(httpRequest.runActionRq().route() + "/" + processId)
+                                .route("/workflow/processes/" + processId)
                                 .consumedRoute("")
                                 .baseUrl(httpRequest.getBaseUrl())
-                                .uriPrefix(httpRequest.getUriPrefix())
+                                .uriPrefix("")
                                 .serverSideType(WorkflowHome.class.getName())
                                 .build()
                 ))
                 .build();
     }
 
-    @Override
-    public List<Action> actions(HttpRequest httpRequest) {
-        return List.of(Action.builder().id("create").validationRequired(true).build());
-    }
 }

@@ -2,21 +2,24 @@ package io.mateu.workflow.infra.in.ui.pages.process;
 
 
 import io.mateu.uidl.annotations.*;
+import io.mateu.uidl.annotations.Tab;
+import io.mateu.uidl.data.*;
 import io.mateu.uidl.data.State;
 import io.mateu.uidl.data.Status;
-import io.mateu.uidl.data.StatusType;
 import io.mateu.uidl.di.MateuBeanProvider;
 import io.mateu.uidl.fluent.OnLoadTrigger;
 import io.mateu.uidl.fluent.OnSuccessTrigger;
 import io.mateu.uidl.fluent.Trigger;
 import io.mateu.uidl.fluent.TriggersSupplier;
 import io.mateu.uidl.interfaces.HttpRequest;
+import io.mateu.uidl.interfaces.VisibilitySupplier;
 import io.mateu.workflow.application.out.LogMessageRepository;
 import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.ResourceRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.usecases.process.cancel.CancelProcessCommand;
 import io.mateu.workflow.application.usecases.process.cancel.CancelProcessUseCase;
+import io.mateu.workflow.application.usecases.process.retry.RetryProcessUseCase;
 import io.mateu.workflow.domain.aggregates.LogMessage;
 import io.mateu.workflow.domain.aggregates.Process;
 import io.mateu.workflow.domain.aggregates.ProcessStatus;
@@ -53,13 +56,15 @@ import static io.mateu.workflow.infra.in.ui.adapters.SimpleProcessCrudAdapter.ma
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 @Service
 @Scope("prototype")
-public class SimpleProcessViewModel implements TriggersSupplier {
+public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySupplier {
 
     final ProcessRepository processRepository;
     final StepExecutionRepository stepExecutionRepository;
     final LogMessageRepository logMessageRepository;
     final ResourceRepository resourceRepository;
     final CancelProcessUseCase cancelProcessUseCase;
+    final RetryProcessUseCase retryProcessUseCase;
+
 
     String id;
 
@@ -132,7 +137,7 @@ public class SimpleProcessViewModel implements TriggersSupplier {
 
     @Override
     public String toString() {
-        return "Process " + id;
+        return "Process " + (id != null && id.length() > 5?"..." + id.substring(id.length() - 5):id);
     }
 
     @Override
@@ -143,9 +148,11 @@ public class SimpleProcessViewModel implements TriggersSupplier {
         return triggers;
     }
 
-    @Toolbar
-    public void cancelProcess(SimpleProcessViewModel state) {
-        cancelProcessUseCase.handle(new CancelProcessCommand(state.getId()));
+    @Toolbar(buttonStyle = ButtonStyle.secondary, buttonColor = ButtonColor.error)
+    @Action(confirmationRequired = true)
+    //@Hidden("state.status.type == 'SUCCESS' || state.status.type == 'DANGER'")
+    public void cancelProcess() {
+        cancelProcessUseCase.handle(new CancelProcessCommand(id));
     }
 
 
@@ -166,13 +173,20 @@ public class SimpleProcessViewModel implements TriggersSupplier {
     Status mapStepStatus(String rawStatus) {
         StepExecutionStatus status = StepExecutionStatus.valueOf(rawStatus);
         StatusType statusType = switch (status) {
-            case CREATED, CANCELLED -> StatusType.NONE;
+            case CREATED -> StatusType.NONE;
             case PENDING -> StatusType.INFO;
             case RUNNING -> StatusType.WARNING;
             case COMPLETED -> StatusType.SUCCESS;
-            case ERROR, TIMEOUT -> StatusType.DANGER;
+            case ERROR, TIMEOUT, CANCELLED -> StatusType.DANGER;
         };
         return new Status(statusType, toUpperCaseFirst(status.name()));
     }
 
+    @Override
+    public boolean isHidden(String memberName, HttpRequest httpRequest) {
+        if ("cancelProcess".equals(memberName)) {
+            return StatusType.SUCCESS.equals(status.type()) || StatusType.DANGER.equals(status.type());
+        }
+        return false;
+    }
 }

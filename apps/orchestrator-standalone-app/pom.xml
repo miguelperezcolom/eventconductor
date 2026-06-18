@@ -97,6 +97,11 @@
                             <groupId>org.projectlombok</groupId>
                             <artifactId>lombok</artifactId>
                         </path>
+                        <path>
+                            <groupId>io.mateu</groupId>
+                            <artifactId>annotation-processor-mvc</artifactId>
+                            <version>0.0.1-MATEU</version>
+                        </path>
                     </annotationProcessorPaths>
                 </configuration>
             </plugin>

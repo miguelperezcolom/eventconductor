@@ -1,9 +1,9 @@
 package io.mateu.workflow.infra.in.ui.pages.process.childcruds;
 
-import io.mateu.core.infra.declarative.orchestrators.crud.AutoListAdapter;
-import io.mateu.core.infra.declarative.orchestrators.crud.AutoListOrchestrator;
+import io.mateu.core.infra.declarative.orchestrators.crud.AutoCrud;
 import io.mateu.uidl.annotations.ReadOnly;
 import io.mateu.uidl.annotations.Style;
+import io.mateu.uidl.interfaces.CrudRepository;
 import io.mateu.workflow.infra.in.ui.pages.process.childcruds.adapters.ErrorCrudAdapter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Scope;
@@ -18,7 +18,7 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 @Style("width: 100%;")
 @ReadOnly
-public class Errors extends AutoListOrchestrator<Error> {
+public class Errors extends AutoCrud<Error> {
 
     String processId;
 
@@ -30,7 +30,7 @@ public class Errors extends AutoListOrchestrator<Error> {
     final ErrorCrudAdapter adapter;
 
     @Override
-    public AutoListAdapter<Error> simpleAdapter() {
-        return adapter.withProcessId(processId);
+    public CrudRepository<Error> repository() {
+        return adapter.withProcessId(processId).repository();
     }
 }

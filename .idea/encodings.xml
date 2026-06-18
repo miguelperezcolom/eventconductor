@@ -9,6 +9,10 @@
     <file url="file://$PROJECT_DIR$/demo/booking-service/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/demo/content-service/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/demo/control-plane-service/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/demo/embedded-db-headless/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/demo/embedded-git/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/demo/embedded-headless/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/demo/embedded/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/demo/ia-agent-service/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/demo/sdks/grpc-bridge/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/demo/sdks/grpc-client/src/main/java" charset="UTF-8" />
@@ -31,6 +35,16 @@
     <file url="file://$PROJECT_DIR$/shell/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/testbench/forms-embedded-db-headless/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/testbench/forms-embedded-git/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/testbench/forms-embedded-headless/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/testbench/forms-embedded-mvc/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/testbench/forms-embedded/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/testbench/workflow-embedded-db-headless/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/testbench/workflow-embedded-git/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/testbench/workflow-embedded-headless/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/testbench/workflow-embedded-mvc/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/testbench/workflow-embedded/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/ui/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/ui/src/main/resources" charset="UTF-8" />
   </component>
