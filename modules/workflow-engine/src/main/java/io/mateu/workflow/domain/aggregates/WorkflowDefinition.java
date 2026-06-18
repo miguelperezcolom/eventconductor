@@ -20,7 +20,7 @@ import java.util.List;
 @FormLayout(columns = 4)
 @Style(StyleConstants.FULL_WIDTH_WITH_PADDING)
 public record WorkflowDefinition(
-        //@GeneratedValue(UUIDValueGenerator.class)
+        @GeneratedValue(UUIDValueGenerator.class)
         @HiddenInEditor
         String id,
         @NotEmpty

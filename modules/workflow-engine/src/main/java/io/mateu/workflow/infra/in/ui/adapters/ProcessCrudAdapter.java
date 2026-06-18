@@ -4,10 +4,9 @@ import io.mateu.uidl.data.*;
 import io.mateu.uidl.interfaces.CrudAdapter;
 import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.workflow.application.out.ProcessRepository;
-import io.mateu.workflow.domain.aggregates.Process;
 import io.mateu.workflow.domain.aggregates.ProcessStatus;
 import io.mateu.workflow.infra.in.ui.pages.process.ProcessRow;
-import io.mateu.workflow.infra.in.ui.pages.process.ProcessViewModel;
+import io.mateu.workflow.infra.in.ui.pages.process.SimpleProcessViewModel;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
@@ -25,6 +24,7 @@ import static io.mateu.uidl.Humanizer.toUpperCaseFirst;
 public class ProcessCrudAdapter implements CrudAdapter<NoEditor<String>, NoCreationForm<String>, NoFilters, ProcessRow, String> {
 
     final ProcessRepository repository;
+    final SimpleProcessViewModel viewModel;
 
     @Override
     public ListingData<ProcessRow> search(String searchText, NoFilters noFilters, Pageable pageable, HttpRequest httpRequest) {
@@ -38,6 +38,8 @@ public class ProcessCrudAdapter implements CrudAdapter<NoEditor<String>, NoCreat
                         process.getCreated() != null?process.getCreated().format(dtf):null,
                         process.getStarted() != null?process.getStarted().format(dtf):null,
                         process.getFinished() != null?process.getFinished().format(dtf):null))
+                        .skip((long) pageable.page() * pageable.size())
+                        .limit(pageable.size())
                 .toList());
     }
 
@@ -58,9 +60,10 @@ public class ProcessCrudAdapter implements CrudAdapter<NoEditor<String>, NoCreat
     }
 
     @Override
-    public ProcessViewModel getView(String id, HttpRequest httpRequest) {
-        Process process = repository.findById(id).orElse(null);
-        return new ProcessViewModel(process.id(), process.getName(), map(process.getStatus(), process.getCompletionPercentage()));
+    public Object getView(String id, HttpRequest httpRequest) {
+        //Process process = repository.findById(id).orElse(null);
+        //return new ProcessViewModel(process.id(), process.getName(), map(process.getStatus(), process.getCompletionPercentage()));
+        return viewModel.load(id, httpRequest);
     }
 
     @Override

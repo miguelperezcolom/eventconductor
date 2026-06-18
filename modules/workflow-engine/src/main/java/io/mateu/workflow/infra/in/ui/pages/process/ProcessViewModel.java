@@ -57,7 +57,7 @@ public class ProcessViewModel implements TriggersSupplier {
 
     @Override
     public String toString() {
-        return "Process " + id;
+        return "Process " + (id != null && id.length() > 5?"..." + id.substring(id.length() - 5):id) + " (old)";
     }
 
     @Toolbar

@@ -1,11 +1,9 @@
 package io.mateu.workflow.infra.in.ui.pages.process.childcruds;
 
-import io.mateu.core.infra.declarative.orchestrators.crud.AutoCrudAdapter;
-import io.mateu.core.infra.declarative.orchestrators.crud.AutoCrudOrchestrator;
-import io.mateu.core.infra.declarative.orchestrators.crud.AutoListAdapter;
-import io.mateu.core.infra.declarative.orchestrators.crud.AutoListOrchestrator;
+import io.mateu.core.infra.declarative.orchestrators.crud.AutoCrud;
 import io.mateu.uidl.annotations.ReadOnly;
 import io.mateu.uidl.annotations.Style;
+import io.mateu.uidl.interfaces.CrudRepository;
 import io.mateu.workflow.infra.in.ui.pages.process.childcruds.adapters.ResourceCrudAdapter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -18,7 +16,7 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 @Style("width: 100%;")
 @ReadOnly
-public class Resources extends AutoListOrchestrator<Resource> {
+public class Resources extends AutoCrud<Resource> {
 
     String processId;
 
@@ -29,9 +27,8 @@ public class Resources extends AutoListOrchestrator<Resource> {
 
     final ResourceCrudAdapter adapter;
 
-
     @Override
-    public AutoListAdapter<Resource> simpleAdapter() {
-        return adapter;
+    public CrudRepository<Resource> repository() {
+        return adapter.repository();
     }
 }

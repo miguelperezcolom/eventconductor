@@ -2,7 +2,6 @@ package io.mateu.workflow.infra.in.ui.pages.process.childcruds.adapters;
 
 
 import io.mateu.core.infra.declarative.orchestrators.crud.AutoCrudAdapter;
-import io.mateu.core.infra.declarative.orchestrators.crud.AutoListAdapter;
 import io.mateu.uidl.interfaces.CrudRepository;
 import io.mateu.workflow.infra.in.ui.pages.process.childcruds.Message;
 import io.mateu.workflow.infra.out.persistence.LogMessageEntityRepository;
@@ -18,7 +17,7 @@ import java.util.Optional;
 @ConditionalOnProperty(name = "workflow.persistence", havingValue = "jpa")
 @Service
 @RequiredArgsConstructor
-public class MessageCrudAdapter extends AutoListAdapter<Message> {
+public class MessageCrudAdapter extends AutoCrudAdapter<Message> {
 
     final LogMessageEntityRepository repository;
     private String processId;

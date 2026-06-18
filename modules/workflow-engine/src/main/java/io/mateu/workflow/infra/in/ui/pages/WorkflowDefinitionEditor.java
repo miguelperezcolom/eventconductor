@@ -25,7 +25,7 @@ public class WorkflowDefinitionEditor {
     public WorkflowDefinitionEditor load(String workflowId) {
         this.workflowId = workflowId;
         var def = repository.findById(workflowId).orElseThrow();
-        workflow = new WorkflowElk(toJson(def), "", "");
+        workflow = new WorkflowElk(toJson(def), true, "", "");
         return this;
     }
 

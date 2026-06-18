@@ -86,7 +86,9 @@ public class StepOverProcessUseCase {
                 stepExecutions.stream().filter(execution -> StepExecutionStatus.CREATED.equals(execution.getStatus()))
                         .map(execution -> execution.withStatus(StepExecutionStatus.CANCELLED))
                         .forEach(stepExecutionRepository::save);
-                processRepository.save(process.withCompletionPercentage(100).withStatus(ProcessStatus.COMPLETED));
+                if (process.getStatus() != ProcessStatus.CANCELLED && process.getStatus() != ProcessStatus.ERROR && process.getStatus() != ProcessStatus.COMPLETED) {
+                    processRepository.save(process.withCompletionPercentage(100).withStatus(ProcessStatus.COMPLETED));
+                }
             }
         }
     }

@@ -20,6 +20,9 @@ public class WorkflowDefinitionIdLabelSupplier implements LookupLabelSupplier {
 
     @Override
     public String label(String fieldId, Object id, HttpRequest httpRequest) {
+        if (id == null) {
+            return null;
+        }
         return workflowDefinitionRepository.findById((String) id)
                 .map(WorkflowDefinition::name)
                 .orElse(null);

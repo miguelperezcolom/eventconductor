@@ -1,10 +1,10 @@
 package io.mateu.workflow.infra.in.ui.pages;
 
-import io.mateu.core.infra.declarative.orchestrators.crud.AutoListAdapter;
-import io.mateu.core.infra.declarative.orchestrators.crud.AutoListOrchestrator;
+import io.mateu.core.infra.declarative.orchestrators.crud.AutoCrud;
 import io.mateu.workflow.infra.in.ui.adapters.FormExecutionCrudAdapter;
 import io.mateu.uidl.annotations.ListToolbarButton;
 import io.mateu.uidl.annotations.Style;
+import io.mateu.uidl.interfaces.CrudRepository;
 import io.mateu.workflow.domain.FormExecution;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,13 +18,13 @@ import java.util.List;
 @RequiredArgsConstructor
 @Style("width: 100%;")
 @Slf4j
-public class FormExecutions extends AutoListOrchestrator<FormExecution> {
+public class FormExecutions extends AutoCrud<FormExecution> {
 
     final FormExecutionCrudAdapter executionAutoCrudAdapter;
 
     @Override
-    public AutoListAdapter<FormExecution> simpleAdapter() {
-        return executionAutoCrudAdapter;
+    public CrudRepository<FormExecution> repository() {
+        return executionAutoCrudAdapter.repository();
     }
 
     @ListToolbarButton(rowsSelectedRequired = true)

@@ -1,15 +1,7 @@
 package io.mateu.workflow.infra.in.ui.adapters;
 
-import io.mateu.core.infra.declarative.orchestrators.crud.AutoListAdapter;
-import io.mateu.uidl.data.Data;
-import io.mateu.uidl.data.ListingData;
-import io.mateu.uidl.data.NoCreationForm;
-import io.mateu.uidl.data.NoEditor;
-import io.mateu.uidl.data.NoFilters;
-import io.mateu.uidl.data.Pageable;
-import io.mateu.uidl.data.State;
-import io.mateu.uidl.data.Status;
-import io.mateu.uidl.data.StatusType;
+import io.mateu.core.infra.declarative.orchestrators.crud.AutoCrudAdapter;
+import io.mateu.uidl.data.*;
 import io.mateu.uidl.interfaces.CrudAdapter;
 import io.mateu.uidl.interfaces.CrudRepository;
 import io.mateu.uidl.interfaces.HttpRequest;
@@ -17,9 +9,11 @@ import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.domain.aggregates.Process;
 import io.mateu.workflow.domain.aggregates.ProcessStatus;
 import io.mateu.workflow.domain.aggregates.StepExecutionStatus;
+import io.mateu.workflow.infra.in.ui.pages.process.CreateProcessForm;
 import io.mateu.workflow.infra.in.ui.pages.process.ProcessRow;
 import io.mateu.workflow.infra.in.ui.pages.process.SimpleProcessViewModel;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.ObjectProvider;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.stereotype.Service;
@@ -36,20 +30,26 @@ import static io.mateu.uidl.Humanizer.toUpperCaseFirst;
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 @Service
 @RequiredArgsConstructor
-public class SimpleProcessCrudAdapter extends AutoListAdapter<ProcessRow> {
+public class SimpleProcessCrudAdapter extends AutoCrudAdapter<ProcessRow> {
 
     final SimpleProcessViewModel model;
     final ProcessRepository repository;
+    final ObjectProvider<CreateProcessForm> createProcessFormProvider;
     final DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     @Override
     public ListingData<ProcessRow> search(String searchText, ProcessRow filters, Pageable pageable, HttpRequest httpRequest) {
-        return ListingData.of(repository.findAll().stream()
-                        .filter(process -> searchText == null || searchText.isEmpty() ||
-                                process.searchableText().toLowerCase().contains(searchText.toLowerCase()))
+        List<ProcessRow> all = repository.findAll().stream()
+                .filter(process -> searchText == null || searchText.isEmpty() ||
+                        process.searchableText().toLowerCase().contains(searchText.toLowerCase()))
                 .map(mapProcessToRow(dtf))
-                        .sorted(Comparator.comparing(ProcessRow::created).reversed())
-                .toList());
+                .sorted(Comparator.comparing(ProcessRow::created).reversed())
+                .toList();
+        List<ProcessRow> page = all.stream()
+                .skip((long) pageable.page() * pageable.size())
+                .limit(pageable.size())
+                .toList();
+        return new ListingData<>(new Page<>(searchText, page.size(), pageable.page(), all.size(), page));
     }
 
     private static @NonNull Function<Process, ProcessRow> mapProcessToRow(DateTimeFormatter dtf) {
@@ -66,10 +66,14 @@ public class SimpleProcessCrudAdapter extends AutoListAdapter<ProcessRow> {
             case PENDING -> StatusType.INFO;
             case RUNNING -> StatusType.WARNING;
             case COMPLETED -> StatusType.SUCCESS;
-            case CANCELLED -> StatusType.NONE;
-            case ERROR -> StatusType.DANGER;
+            case CANCELLED, ERROR -> StatusType.DANGER;
         };
         return new Status(statusType, toUpperCaseFirst(status.name()) + " (" + completionPercentage + "%)");
+    }
+
+    @Override
+    public Object getCreationForm(HttpRequest httpRequest) {
+        return createProcessFormProvider.getObject();
     }
 
     @Override

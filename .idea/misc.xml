@@ -15,6 +15,11 @@
         <option value="$PROJECT_DIR$/demo/static-content-server/pom.xml" />
         <option value="$PROJECT_DIR$/demo/booking/pom.xml" />
         <option value="$PROJECT_DIR$/demo/ia-agent-service/pom.xml" />
+        <option value="$PROJECT_DIR$/demo/embedded/pom.xml" />
+        <option value="$PROJECT_DIR$/demo/embedded-headless/pom.xml" />
+        <option value="$PROJECT_DIR$/demo/embedded-db-headless/pom.xml" />
+        <option value="$PROJECT_DIR$/demo/embedded-git/pom.xml" />
+        <option value="$PROJECT_DIR$/testbench/pom.xml" />
       </list>
     </option>
     <option name="ignoredFiles">
