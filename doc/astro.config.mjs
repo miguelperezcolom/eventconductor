@@ -1,9 +1,13 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
+import rehypeMermaid from 'rehype-mermaid';
 
 // https://astro.build/config
 export default defineConfig({
+	markdown: {
+		rehypePlugins: [rehypeMermaid],
+	},
 	integrations: [
 		starlight({
 			title: 'EventConductor',
@@ -29,6 +33,7 @@ export default defineConfig({
 						{ label: 'Starting a Process', slug: 'guides/starting-a-process' },
 						{ label: 'Implementing Workers', slug: 'guides/workers' },
 						{ label: 'Retries, Timeouts & Compensation', slug: 'guides/retries-timeouts-compensation' },
+						{ label: 'Event Storming', slug: 'guides/event-storming' },
 					],
 				},
 				{
