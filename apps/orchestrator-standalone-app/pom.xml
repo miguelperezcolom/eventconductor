@@ -100,7 +100,7 @@
                         <path>
                             <groupId>io.mateu</groupId>
                             <artifactId>annotation-processor-mvc</artifactId>
-                            <version>3.0-alpha.200</version>
+                            <version>3.0-alpha.203</version>
                         </path>
                     </annotationProcessorPaths>
                 </configuration>
