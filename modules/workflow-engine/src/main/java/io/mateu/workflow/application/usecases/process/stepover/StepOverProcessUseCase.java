@@ -67,7 +67,9 @@ public class StepOverProcessUseCase {
         if (endStep.isPresent()) {
             executableSteps.stream().map(stepExecution -> stepExecution.withStatus(StepExecutionStatus.COMPLETED))
                     .forEach(stepExecutionRepository::save);
-            stepExecutions.stream().filter(execution -> List.of(StepExecutionStatus.PENDING,
+            stepExecutions.stream()
+                    .filter(execution -> !executableSteps.contains(execution))
+                    .filter(execution -> List.of(StepExecutionStatus.PENDING,
                                     StepExecutionStatus.CREATED,
                                     StepExecutionStatus.RUNNING)
                     .contains(execution.getStatus()))
