@@ -2,7 +2,6 @@ package io.mateu.workflow.infra.in.ui.adapters;
 
 
 import io.mateu.uidl.data.*;
-import io.mateu.uidl.interfaces.CrudAdapter;
 import io.mateu.uidl.interfaces.CrudRepository;
 import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.workflow.application.out.ProcessRepository;
@@ -37,7 +36,6 @@ public class SimpleProcessCrudAdapter  {
     final ObjectProvider<CreateProcessForm> createProcessFormProvider;
     final DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
-    @Override
     public ListingData<ProcessRow> search(String searchText, ProcessRow filters, Pageable pageable, HttpRequest httpRequest) {
         List<ProcessRow> all = repository.findAll().stream()
                 .filter(process -> searchText == null || searchText.isEmpty() ||
@@ -71,17 +69,14 @@ public class SimpleProcessCrudAdapter  {
         return new Status(statusType, toUpperCaseFirst(status.name()) + " (" + completionPercentage + "%)");
     }
 
-    @Override
     public Object getCreationForm(HttpRequest httpRequest) {
         return createProcessFormProvider.getObject();
     }
 
-    @Override
     public void deleteAllById(List<String> selectedIds, HttpRequest httpRequest) {
         throw new UnsupportedOperationException();
     }
 
-    @Override
     public Object getView(String id, HttpRequest httpRequest) {
         Process process = repository.findById(id).orElse(repository.findByBusinessKey(id).orElse(null));
         if (process == null) {
@@ -93,7 +88,6 @@ public class SimpleProcessCrudAdapter  {
         return model.load(process.id(), httpRequest);
     }
 
-    @Override
     public CrudRepository<ProcessRow> repository() {
         return new CrudRepository<ProcessRow>() {
             @Override
