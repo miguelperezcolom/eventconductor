@@ -1,10 +1,10 @@
 package io.mateu.workflow.infra.in.ui.pages;
 
 import io.mateu.core.infra.declarative.orchestrators.crud.AutoCrud;
-import io.mateu.workflow.infra.in.ui.adapters.FormExecutionCrudAdapter;
 import io.mateu.uidl.annotations.ListToolbarButton;
 import io.mateu.uidl.annotations.Style;
 import io.mateu.uidl.interfaces.CrudRepository;
+import io.mateu.workflow.application.out.FormExecutionRepository;
 import io.mateu.workflow.domain.FormExecution;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,11 +20,11 @@ import java.util.List;
 @Slf4j
 public class FormExecutions extends AutoCrud<FormExecution> {
 
-    final FormExecutionCrudAdapter executionAutoCrudAdapter;
+    final FormExecutionRepository repository;
 
     @Override
     public CrudRepository<FormExecution> repository() {
-        return executionAutoCrudAdapter.repository();
+        return repository;
     }
 
     @ListToolbarButton(rowsSelectedRequired = true)
