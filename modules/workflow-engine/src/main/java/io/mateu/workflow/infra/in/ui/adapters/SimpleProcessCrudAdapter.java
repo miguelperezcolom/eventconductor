@@ -1,6 +1,6 @@
 package io.mateu.workflow.infra.in.ui.adapters;
 
-import io.mateu.core.infra.declarative.orchestrators.crud.AutoCrudAdapter;
+
 import io.mateu.uidl.data.*;
 import io.mateu.uidl.interfaces.CrudAdapter;
 import io.mateu.uidl.interfaces.CrudRepository;
@@ -30,7 +30,7 @@ import static io.mateu.uidl.Humanizer.toUpperCaseFirst;
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 @Service
 @RequiredArgsConstructor
-public class SimpleProcessCrudAdapter extends AutoCrudAdapter<ProcessRow> {
+public class SimpleProcessCrudAdapter  {
 
     final SimpleProcessViewModel model;
     final ProcessRepository repository;

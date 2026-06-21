@@ -1,12 +1,12 @@
 package io.mateu.workflow.infra.in.ui.pages;
 
 import io.mateu.core.infra.declarative.orchestrators.crud.AutoCrud;
-import io.mateu.core.infra.declarative.orchestrators.crud.AutoCrudAdapter;
 import io.mateu.uidl.annotations.Action;
 import io.mateu.uidl.annotations.Style;
 import io.mateu.uidl.annotations.ViewToolbarButton;
 import io.mateu.uidl.interfaces.CrudRepository;
 import io.mateu.uidl.interfaces.HttpRequest;
+import io.mateu.workflow.application.out.FormRepository;
 import io.mateu.workflow.domain.Form;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Scope;
@@ -20,11 +20,11 @@ import org.springframework.stereotype.Service;
 public class Forms extends AutoCrud<Form> {
 
     final FormEditor formEditor;
-    final AutoCrudAdapter<Form> formCrudAdapter;
+    final FormRepository formRepository;
 
     @Override
     public CrudRepository<Form> repository() {
-        return formCrudAdapter.repository();
+        return formRepository;
     }
 
     @ViewToolbarButton
