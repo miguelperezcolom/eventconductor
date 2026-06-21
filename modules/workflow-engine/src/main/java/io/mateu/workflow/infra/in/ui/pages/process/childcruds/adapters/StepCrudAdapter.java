@@ -34,7 +34,6 @@ public class StepCrudAdapter  {
         return this;
     }
 
-    @Override
     public CrudRepository<Step> repository() {
         return new CrudRepository<Step>() {
             @Override

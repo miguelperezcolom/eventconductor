@@ -30,7 +30,6 @@ public class ErrorCrudAdapter  {
         return this;
     }
 
-    @Override
     public CrudRepository<Error> repository() {
         return new CrudRepository<Error>() {
             @Override

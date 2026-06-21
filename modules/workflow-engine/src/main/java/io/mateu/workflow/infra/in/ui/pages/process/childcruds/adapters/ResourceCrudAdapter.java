@@ -26,7 +26,6 @@ public class ResourceCrudAdapter  {
         return this;
     }
 
-    @Override
     public CrudRepository<Resource> repository() {
         return new CrudRepository<Resource>() {
             @Override

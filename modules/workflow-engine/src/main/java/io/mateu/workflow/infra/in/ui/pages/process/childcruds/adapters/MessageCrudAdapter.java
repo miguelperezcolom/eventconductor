@@ -27,7 +27,6 @@ public class MessageCrudAdapter  {
         return this;
     }
 
-    @Override
     public CrudRepository<Message> repository() {
         return new CrudRepository<Message>() {
             @Override
