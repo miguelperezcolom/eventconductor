@@ -192,7 +192,38 @@
         <plugin>
             <groupId>org.jacoco</groupId>
             <artifactId>jacoco-maven-plugin</artifactId>
-            <version>0.8.12</version> <executions>
+            <version>0.8.12</version>
+            <configuration>
+                <excludes>
+                    <!-- UI layer - requires browser/Vaadin runtime -->
+                    <exclude>io/mateu/workflow/infra/in/ui/**</exclude>
+                    <!-- JPA persistence - requires database -->
+                    <exclude>io/mateu/workflow/infra/out/persistence/**</exclude>
+                    <!-- Kafka / async infrastructure -->
+                    <exclude>io/mateu/workflow/infra/out/async/Kafka*</exclude>
+                    <exclude>io/mateu/workflow/infra/out/async/*Outbox*</exclude>
+                    <exclude>io/mateu/workflow/infra/in/async/*KafkaConsumerConfig*</exclude>
+                    <!-- MCP tools - requires AI framework at runtime -->
+                    <exclude>io/mateu/workflow/infra/in/mcp/**</exclude>
+                    <!-- Spring scheduler / startup runners / REST webhooks -->
+                    <exclude>io/mateu/workflow/infra/in/scheduler/**</exclude>
+                    <exclude>io/mateu/workflow/infra/in/startup/**</exclude>
+                    <exclude>io/mateu/workflow/infra/in/rest/**</exclude>
+                    <!-- Spring Boot auto-configuration boilerplate -->
+                    <exclude>io/mateu/workflow/autoconfigure/**</exclude>
+                    <!-- Infrastructure configuration -->
+                    <exclude>io/mateu/workflow/infra/config/**</exclude>
+                    <!-- Engine starter -->
+                    <exclude>io/mateu/workflow/infra/EngineStarter*</exclude>
+                    <!-- Git-based import use case - requires network/git repo -->
+                    <exclude>io/mateu/workflow/application/usecases/gitimport/**</exclude>
+                    <!-- Classpath-based workflow definition loader -->
+                    <exclude>io/mateu/workflow/infra/out/classpath/**</exclude>
+                    <!-- Shared outbox events (forms-engine) -->
+                    <exclude>io/mateu/workflow/infra/out/shared/**</exclude>
+                </excludes>
+            </configuration>
+            <executions>
             <execution>
                 <id>prepare-agent</id>
                 <goals>
@@ -219,9 +250,9 @@
                             <element>BUNDLE</element>
                             <limits>
                                 <limit>
-                                    <counter>INSTRUCTION</counter>
+                                    <counter>LINE</counter>
                                     <value>COVEREDRATIO</value>
-                                    <minimum>0.00</minimum>
+                                    <minimum>0.85</minimum>
                                 </limit>
                             </limits>
                         </rule>
