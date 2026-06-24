@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+    <include resource="org/springframework/boot/logging/logback/console-appender.xml"/>
+
+    <!--
+        Default profile (dev / local): human-readable colorized lines via the
+        Spring Boot console appender.
+    -->
+    <springProfile name="!prod">
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+    </springProfile>
+
+    <!--
+        Prod profile: structured JSON to stdout so log aggregators
+        (ELK, Loki, Datadog, CloudWatch) can ingest it directly.
+        Activate with SPRING_PROFILES_ACTIVE=prod.
+    -->
+    <springProfile name="prod">
+        <appender name="JSON" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+                <customFields>{"application":"orchestrator"}</customFields>
+                <includeMdc>true</includeMdc>
+                <includeContext>false</includeContext>
+            </encoder>
+        </appender>
+        <root level="INFO">
+            <appender-ref ref="JSON"/>
+        </root>
+    </springProfile>
+</configuration>
