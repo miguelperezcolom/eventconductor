@@ -6,7 +6,7 @@ RUN mvn dependency:go-offline
 COPY src /app/src
 RUN mvn clean package -DskipTests
 
-FROM eclipse-temurin:21-jre-alpine AS runner
+FROM eclipse-temurin:25-jre-alpine AS runner
 RUN addgroup -S app && adduser -S -G app -u 10001 app
 WORKDIR /opt/app
 COPY --from=builder --chown=app:app /app/target/app-*.jar app.jar
