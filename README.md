@@ -1,5 +1,11 @@
 # EventConductor — Workflow Engine
 
+[![Build and publish](https://github.com/miguelperezcolom/eventconductor/actions/workflows/build-and-publish.yml/badge.svg)](https://github.com/miguelperezcolom/eventconductor/actions/workflows/build-and-publish.yml)
+[![CI](https://github.com/miguelperezcolom/eventconductor/actions/workflows/ci.yml/badge.svg)](https://github.com/miguelperezcolom/eventconductor/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/miguelperezcolom/eventconductor/actions/workflows/codeql.yml/badge.svg)](https://github.com/miguelperezcolom/eventconductor/actions/workflows/codeql.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+[![Maven Central](https://img.shields.io/maven-central/v/io.mateu.workflow/workflow-engine.svg?label=Maven%20Central)](https://central.sonatype.com/artifact/io.mateu.workflow/workflow-engine)
+
 EventConductor is a production-grade, event-driven workflow orchestration platform for the
 Java/Spring ecosystem. It covers the full lifecycle of a business process — from definition
 to execution to monitoring — without forcing you into BPMN's complexity or an external
