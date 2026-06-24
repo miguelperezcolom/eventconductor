@@ -49,12 +49,15 @@ jobs:
     name: Trivy IaC + secret scan
     runs-on: ubuntu-latest
     # SCA for Java/npm dependencies is intentionally out of scope here —
-    # Dependabot (see .github/dependabot.yml) handles those, and running
-    # Trivy's vuln scanner against pom.xml files makes it resolve transitive
-    # poms from Maven Central, which rate-limits (HTTP 429) and produces
-    # flaky CI. Trivy here is restricted to what it does without external
-    # lookups: misconfigured IaC (Dockerfiles, Helm, Kubernetes manifests,
-    # GitHub Actions) and accidentally-committed secrets.
+    # Dependabot (see .github/dependabot.yml) handles those. We restrict
+    # Trivy to scanning IaC misconfigurations (Dockerfiles, Kubernetes
+    # manifests) and committed secrets.
+    #
+    # pom.xml files are excluded via skip-files even with the vuln scanner
+    # off: Trivy's misconfig scanner also opens pom.xml to look for Maven
+    # plugin misconfigurations and ends up resolving parent/BOM poms from
+    # Maven Central, which rate-limits the runner IP (HTTP 429) and
+    # produces flaky builds.
     steps:
       - uses: actions/checkout@v4
       - name: Run Trivy on the repository
@@ -62,10 +65,10 @@ jobs:
         with:
           scan-type: fs
           scanners: misconfig,secret
+          skip-files: '**/pom.xml'
           ignore-unfixed: true
           severity: CRITICAL,HIGH
           # Fail the job (and the PR) when a CRITICAL/HIGH config or secret
-          # finding shows up. The vuln scanner is off so no Maven Central
-          # round-trip can flake the build.
+          # finding shows up.
           exit-code: '1'
           format: table
