@@ -48,6 +48,9 @@ jobs:
   trivy-fs:
     name: Trivy filesystem scan
     runs-on: ubuntu-latest
+    # Informational only; transient failures (e.g. Maven Central rate limits
+    # when resolving dependency metadata) should not block PRs.
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - name: Run Trivy on the repository
@@ -58,3 +61,5 @@ jobs:
           severity: CRITICAL,HIGH
           exit-code: '0'
           format: table
+          # Skip Java pom scanning to avoid hammering Maven Central.
+          skip-dirs: 'apps,modules,demo,testbench'
