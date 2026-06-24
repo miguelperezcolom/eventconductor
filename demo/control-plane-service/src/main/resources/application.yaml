@@ -1,8 +1,10 @@
 server:
   port: 8103
 github:
-  token: ***REMOVED-LEAKED-GITHUB-PAT***
-  repo: miguelperezcolom/riu-com-copy
+  # Provide via env var GITHUB_TOKEN. Never commit a token here — the
+  # previous literal token was leaked in git history and has been revoked.
+  token: ${GITHUB_TOKEN:}
+  repo: ${GITHUB_REPO:miguelperezcolom/riu-com-copy}
 spring:
   application:
     name: control-plane-service
@@ -80,7 +82,9 @@ logging:
 
 
 cloudflare:
-  api-token: ***REMOVED-LEAKED-CLOUDFLARE-TOKEN***
-  account-id: 763e3d775eccbcbc506637be3d39ccc5
-  namespace-id: da72f6197dbd4df1ad550f7c87612b3c
+  # Provide via env vars. The previous literal api-token was leaked in git
+  # history and has been revoked.
+  api-token: ${CLOUDFLARE_API_TOKEN:}
+  account-id: ${CLOUDFLARE_ACCOUNT_ID:}
+  namespace-id: ${CLOUDFLARE_NAMESPACE_ID:}
   base-url: https://api.cloudflare.com/client/v4
