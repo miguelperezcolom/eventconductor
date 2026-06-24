@@ -66,11 +66,22 @@ spring:
   jpa:
     database-platform: ${JPA_DIALECT:org.hibernate.dialect.PostgreSQLDialect}
     hibernate:
+      # In production set DDL_AUTO=validate so Hibernate validates against the
+      # Flyway-managed schema without altering it. The default remains "update"
+      # for backwards compatibility with existing deployments.
       ddl-auto: ${DDL_AUTO:update}
     show-sql: false
     properties:
       hibernate:
         format_sql: true
+
+  flyway:
+    enabled: ${FLYWAY_ENABLED:false}
+    locations: classpath:db/migration/forms
+    baseline-on-migrate: true
+    baseline-version: 1
+    out-of-order: false
+    validate-on-migrate: true
 
 
 forms:
