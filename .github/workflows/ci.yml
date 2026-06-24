@@ -45,21 +45,27 @@ jobs:
       - name: Lint chart
         run: helm lint charts/eventconductor
 
-  trivy-fs:
-    name: Trivy filesystem scan
+  trivy-config:
+    name: Trivy IaC + secret scan
     runs-on: ubuntu-latest
-    # Informational only; transient failures (e.g. Maven Central rate limits
-    # when resolving dependency metadata) should not block PRs.
-    continue-on-error: true
+    # SCA for Java/npm dependencies is intentionally out of scope here —
+    # Dependabot (see .github/dependabot.yml) handles those, and running
+    # Trivy's vuln scanner against pom.xml files makes it resolve transitive
+    # poms from Maven Central, which rate-limits (HTTP 429) and produces
+    # flaky CI. Trivy here is restricted to what it does without external
+    # lookups: misconfigured IaC (Dockerfiles, Helm, Kubernetes manifests,
+    # GitHub Actions) and accidentally-committed secrets.
     steps:
       - uses: actions/checkout@v4
       - name: Run Trivy on the repository
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: fs
+          scanners: misconfig,secret
           ignore-unfixed: true
           severity: CRITICAL,HIGH
-          exit-code: '0'
+          # Fail the job (and the PR) when a CRITICAL/HIGH config or secret
+          # finding shows up. The vuln scanner is off so no Maven Central
+          # round-trip can flake the build.
+          exit-code: '1'
           format: table
-          # Skip Java pom scanning to avoid hammering Maven Central.
-          skip-dirs: 'apps,modules,demo,testbench'
