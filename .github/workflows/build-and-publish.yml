@@ -52,7 +52,7 @@ jobs:
         run: mvn -B -ntp verify --file pom.xml
 
       - name: Publish to Maven Central
-        run: mvn -B -ntp deploy -DskipTests -f pom.xml
+        run: mvn -B -ntp deploy -P release -DskipTests -f pom.xml
         env:
           MAVEN_USERNAME: ${{ secrets.CENTRAL_TOKEN_USERNAME }}
           MAVEN_PASSWORD: ${{ secrets.CENTRAL_TOKEN_PASSWORD }}
@@ -87,7 +87,7 @@ jobs:
             ${{ secrets.DOCKERHUB_USERNAME }}/forms-standalone-app:latest
 
       - name: Scan orchestrator image with Trivy
-        uses: aquasecurity/trivy-action@0.24.0
+        uses: aquasecurity/trivy-action@master
         with:
           image-ref: ${{ secrets.DOCKERHUB_USERNAME }}/orchestrator-standalone-app:${{ env.RELEASE_VERSION }}
           severity: CRITICAL,HIGH
@@ -95,7 +95,7 @@ jobs:
           ignore-unfixed: true
 
       - name: Scan forms image with Trivy
-        uses: aquasecurity/trivy-action@0.24.0
+        uses: aquasecurity/trivy-action@master
         with:
           image-ref: ${{ secrets.DOCKERHUB_USERNAME }}/forms-standalone-app:${{ env.RELEASE_VERSION }}
           severity: CRITICAL,HIGH
