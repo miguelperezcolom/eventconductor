@@ -6,7 +6,7 @@ RUN mvn dependency:go-offline
 COPY src /app/src
 RUN mvn clean package -DskipTests
 
-FROM eclipse-temurin:21-jre-alpine
+FROM eclipse-temurin:25-jre-alpine
 RUN addgroup -S app && adduser -S -G app -u 10001 app
 WORKDIR /opt/app
 COPY --from=builder --chown=app:app /app/target/orchestrator-standalone-app-*.jar app.jar
