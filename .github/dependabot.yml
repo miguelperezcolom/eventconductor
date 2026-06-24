@@ -1,0 +1,54 @@
+version: 2
+updates:
+  - package-ecosystem: maven
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    groups:
+      spring-boot:
+        patterns:
+          - "org.springframework.boot:*"
+          - "org.springframework:*"
+      spring-cloud:
+        patterns:
+          - "org.springframework.cloud:*"
+      spring-ai:
+        patterns:
+          - "org.springframework.ai:*"
+      testing:
+        patterns:
+          - "org.junit*:*"
+          - "org.mockito:*"
+          - "org.assertj:*"
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker
+    directory: "/apps/orchestrator-standalone-app"
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker
+    directory: "/apps/forms-standalone-app"
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker
+    directory: "/apps/worker-standalone-app"
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker
+    directory: "/apps/dev-app"
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: npm
+    directory: "/doc"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
