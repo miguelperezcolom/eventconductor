@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -40,7 +40,7 @@ jobs:
     name: Helm chart lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: azure/setup-helm@v4
       - name: Lint chart
         run: helm lint charts/eventconductor
@@ -59,7 +59,7 @@ jobs:
     # Maven Central, which rate-limits the runner IP (HTTP 429) and
     # produces flaky builds.
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Run Trivy on the repository
         uses: aquasecurity/trivy-action@master
         with:
