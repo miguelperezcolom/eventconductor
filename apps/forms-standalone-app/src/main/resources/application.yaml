@@ -16,6 +16,12 @@ management:
     tags:
       application: ${spring.application.name:forms-engine}
 
+eventconductor:
+  security:
+    enabled: ${SECURITY_ENABLED:true}
+    user: ${SECURITY_USER:admin}
+    password: ${SECURITY_PASSWORD:}
+
 app:
   features:
     data-source: mem

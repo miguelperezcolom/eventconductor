@@ -16,6 +16,14 @@ management:
     tags:
       application: ${spring.application.name:orchestrator}
 
+eventconductor:
+  security:
+    enabled: ${SECURITY_ENABLED:true}
+    user: ${SECURITY_USER:admin}
+    # If left blank, Spring Boot generates a one-shot password at startup
+    # and logs it. Set EC_SECURITY_PASSWORD explicitly in production.
+    password: ${SECURITY_PASSWORD:}
+
 app:
   features:
     data-source: mem
