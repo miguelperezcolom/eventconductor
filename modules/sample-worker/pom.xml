@@ -56,7 +56,7 @@
         <dependency>
             <groupId>io.mateu</groupId>
             <artifactId>annotation-processor-mvc</artifactId>
-            <version>3.0-alpha.203</version>
+            <version>3.0-alpha.221</version>
         </dependency>
         <dependency>
             <groupId>io.mateu</groupId>
@@ -101,7 +101,7 @@
                         <path>
                             <groupId>io.mateu</groupId>
                             <artifactId>annotation-processor-mvc</artifactId>
-                            <version>3.0-alpha.203</version>
+                            <version>3.0-alpha.221</version>
                         </path>
                         <!-- other annotation processors -->
                     </annotationProcessorPaths>
