@@ -2,6 +2,7 @@ package io.mateu.workflow.infra.out.persistence;
 
 import io.mateu.workflow.domain.Value;
 import io.mateu.workflow.domain.Variable;
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import lombok.AllArgsConstructor;
@@ -22,6 +23,8 @@ public class FormExecutionEntity {
     String stepId;
     String stepExecutionId;
     String variables;
+    // "values" is a reserved SQL word; backticks make Hibernate emit dialect-correct quoting.
+    @Column(name = "`values`")
     String values;
     String status;
     String userId;
