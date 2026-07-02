@@ -7,8 +7,9 @@ COPY src /app/src
 RUN mvn clean package -DskipTests
 
 FROM eclipse-temurin:21-jre-alpine
+RUN addgroup -S app && adduser -S -G app -u 10001 app
 WORKDIR /opt/app
-COPY --from=builder /app/target/orchestrator-standalone-app-*.jar app.jar
+COPY --from=builder --chown=app:app /app/target/orchestrator-standalone-app-*.jar app.jar
 
 # ── Server ────────────────────────────────────────────────────────────────────
 ENV SERVER_PORT=8080
@@ -18,18 +19,22 @@ ENV WORKFLOW_MODE=kafka \
     WORKFLOW_PERSISTENCE=jpa
 
 # ── Database ──────────────────────────────────────────────────────────────────
+# DB_PASSWORD must be provided at runtime (no default).
 ENV DB_URL=jdbc:postgresql://localhost:5432/workflow \
     DB_USERNAME=workflow \
-    DB_PASSWORD=secret \
     DB_DRIVER=org.postgresql.Driver \
     JPA_DIALECT=org.hibernate.dialect.PostgreSQLDialect \
-    DDL_AUTO=update \
+    DDL_AUTO=validate \
     DB_POOL_SIZE=10 \
     DB_CONNECTION_TIMEOUT=20000
 
 # ── Kafka ─────────────────────────────────────────────────────────────────────
 ENV KAFKA_BROKERS=localhost:9092
 
+USER app
 EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+  CMD wget -qO- http://127.0.0.1:${SERVER_PORT}/actuator/health || exit 1
 
 ENTRYPOINT ["java", "-jar", "app.jar"]

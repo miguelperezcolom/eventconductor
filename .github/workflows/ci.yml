@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build & test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: 21
+          distribution: zulu
+          cache: maven
+
+      - name: Build, test & verify (JaCoCo enforces 85% line coverage)
+        run: mvn -B -ntp verify
+
+      - name: Upload JaCoCo coverage reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-reports
+          path: '**/target/site/jacoco/'
+          retention-days: 7
+          if-no-files-found: ignore
+
+  helm-lint:
+    name: Helm chart lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+      - name: Lint chart
+        run: helm lint charts/eventconductor
+
+  trivy-config:
+    name: Trivy IaC + secret scan
+    runs-on: ubuntu-latest
+    # SCA for Java/npm dependencies is intentionally out of scope here —
+    # Dependabot (see .github/dependabot.yml) handles those. We restrict
+    # Trivy to scanning IaC misconfigurations (Dockerfiles, Kubernetes
+    # manifests) and committed secrets.
+    #
+    # pom.xml files are excluded via skip-files even with the vuln scanner
+    # off: Trivy's misconfig scanner also opens pom.xml to look for Maven
+    # plugin misconfigurations and ends up resolving parent/BOM poms from
+    # Maven Central, which rate-limits the runner IP (HTTP 429) and
+    # produces flaky builds.
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Trivy on the repository
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          scanners: misconfig,secret
+          skip-files: '**/pom.xml'
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH
+          # Fail the job (and the PR) when a CRITICAL/HIGH config or secret
+          # finding shows up.
+          exit-code: '1'
+          format: table

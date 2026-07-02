@@ -72,7 +72,7 @@
         <dependency>
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-model</artifactId>
-            <version>1.0.0</version>
+            <version>1.0.7</version>
         </dependency>
     </dependencies>
   </dependencyManagement>
@@ -158,27 +158,6 @@
       </plugin>
 
       <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-gpg-plugin</artifactId>
-        <version>1.6</version>
-        <executions>
-          <execution>
-            <id>sign-artifacts</id>
-            <phase>verify</phase>
-            <goals>
-              <goal>sign</goal>
-            </goals>
-            <configuration>
-              <gpgArguments>
-                <arg>--pinentry-mode</arg>
-                <arg>loopback</arg>
-              </gpgArguments>
-            </configuration>
-          </execution>
-        </executions>
-      </plugin>
-
-      <plugin>
         <groupId>org.sonatype.central</groupId>
         <artifactId>central-publishing-maven-plugin</artifactId>
         <version>0.8.0</version>
@@ -192,7 +171,38 @@
         <plugin>
             <groupId>org.jacoco</groupId>
             <artifactId>jacoco-maven-plugin</artifactId>
-            <version>0.8.12</version> <executions>
+            <version>0.8.12</version>
+            <configuration>
+                <excludes>
+                    <!-- UI layer - requires browser/Vaadin runtime -->
+                    <exclude>io/mateu/workflow/infra/in/ui/**</exclude>
+                    <!-- JPA persistence - requires database -->
+                    <exclude>io/mateu/workflow/infra/out/persistence/**</exclude>
+                    <!-- Kafka / async infrastructure -->
+                    <exclude>io/mateu/workflow/infra/out/async/Kafka*</exclude>
+                    <exclude>io/mateu/workflow/infra/out/async/*Outbox*</exclude>
+                    <exclude>io/mateu/workflow/infra/in/async/*KafkaConsumerConfig*</exclude>
+                    <!-- MCP tools - requires AI framework at runtime -->
+                    <exclude>io/mateu/workflow/infra/in/mcp/**</exclude>
+                    <!-- Spring scheduler / startup runners / REST webhooks -->
+                    <exclude>io/mateu/workflow/infra/in/scheduler/**</exclude>
+                    <exclude>io/mateu/workflow/infra/in/startup/**</exclude>
+                    <exclude>io/mateu/workflow/infra/in/rest/**</exclude>
+                    <!-- Spring Boot auto-configuration boilerplate -->
+                    <exclude>io/mateu/workflow/autoconfigure/**</exclude>
+                    <!-- Infrastructure configuration -->
+                    <exclude>io/mateu/workflow/infra/config/**</exclude>
+                    <!-- Engine starter -->
+                    <exclude>io/mateu/workflow/infra/EngineStarter*</exclude>
+                    <!-- Git-based import use case - requires network/git repo -->
+                    <exclude>io/mateu/workflow/application/usecases/gitimport/**</exclude>
+                    <!-- Classpath-based workflow definition loader -->
+                    <exclude>io/mateu/workflow/infra/out/classpath/**</exclude>
+                    <!-- Shared outbox events (forms-engine) -->
+                    <exclude>io/mateu/workflow/infra/out/shared/**</exclude>
+                </excludes>
+            </configuration>
+            <executions>
             <execution>
                 <id>prepare-agent</id>
                 <goals>
@@ -219,9 +229,9 @@
                             <element>BUNDLE</element>
                             <limits>
                                 <limit>
-                                    <counter>INSTRUCTION</counter>
+                                    <counter>LINE</counter>
                                     <value>COVEREDRATIO</value>
-                                    <minimum>0.00</minimum>
+                                    <minimum>0.85</minimum>
                                 </limit>
                             </limits>
                         </rule>
@@ -233,4 +243,38 @@
     </plugins>
   </build>
 
+  <profiles>
+    <!--
+      GPG signing only kicks in when the "release" profile is active, which is
+      what the build-and-publish workflow does. CI builds (mvn verify) don't
+      have a GPG key and would otherwise fail on the sign goal.
+    -->
+    <profile>
+      <id>release</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-gpg-plugin</artifactId>
+            <version>1.6</version>
+            <executions>
+              <execution>
+                <id>sign-artifacts</id>
+                <phase>verify</phase>
+                <goals>
+                  <goal>sign</goal>
+                </goals>
+                <configuration>
+                  <gpgArguments>
+                    <arg>--pinentry-mode</arg>
+                    <arg>loopback</arg>
+                  </gpgArguments>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
 </project>

@@ -1,0 +1,11 @@
+# Helm chart packaging ignore list
+.DS_Store
+.git/
+.gitignore
+.idea/
+*.tgz
+*.tmproj
+*.bak
+*.swp
+*~
+.vscode/
