@@ -9,6 +9,7 @@ target/
 .idea/jarRepositories.xml
 .idea/compiler.xml
 .idea/libraries/
+.idea/data_source_mapping.xml
 *.iws
 *.iml
 *.ipr
@@ -37,3 +38,6 @@ build/
 
 ### Mac OS ###
 .DS_Store
+
+### Test output ###
+test-results/
