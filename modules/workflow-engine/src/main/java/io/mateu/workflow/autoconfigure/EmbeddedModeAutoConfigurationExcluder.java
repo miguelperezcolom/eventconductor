@@ -37,9 +37,9 @@ public class EmbeddedModeAutoConfigurationExcluder implements EnvironmentPostPro
 
     @Override
     public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {
-        if (!"embedded".equals(environment.getProperty("workflow.mode"))) return;
+        if (!"embedded".equals(environment.getProperty("workflow.mode", "embedded"))) return;
 
-        String persistence = environment.getProperty("workflow.persistence", "jpa");
+        String persistence = environment.getProperty("workflow.persistence", "memory");
 
         List<String> toExclude = new ArrayList<>();
         KAFKA_CLASSES.stream()

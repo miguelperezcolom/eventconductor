@@ -7,12 +7,12 @@ EventConductor supports three deployment modes controlled by two independent pro
 
 | Property | Values | Default |
 |---|---|---|
-| `workflow.mode` | `kafka` \| `embedded` | `kafka` |
+| `workflow.mode` | `kafka` \| `embedded` | `embedded` |
 | `workflow.persistence` | `jpa` \| `memory` | `memory` |
 
 ## Mode 1 — Fully embedded (`embedded` + `memory`)
 
-No Kafka, no database. Everything runs in-process. Ideal for **unit tests**, **local development**, and **embedding in other applications**.
+Default mode. No Kafka, no database. Everything runs in-process. Ideal for **unit tests**, **local development**, and **embedding in other applications**.
 
 Two working examples are available:
 - `testbench/workflow-embedded` — embedded mode with an HTTP server and MCP endpoint
@@ -81,10 +81,9 @@ public class MyApplication {
 
 ## Mode 3 — Full distributed (`kafka` + `jpa`)
 
-Default mode. Requires a running **Kafka broker** and a **supported database** (PostgreSQL, MariaDB/MySQL, or Oracle). Designed for **production multi-pod** deployments.
+Requires a running **Kafka broker** and a **supported database** (PostgreSQL, MariaDB/MySQL, or Oracle). Designed for **production multi-pod** deployments.
 
 ```properties
-# No extra configuration needed — these are the defaults
 workflow.mode=kafka
 workflow.persistence=jpa
 

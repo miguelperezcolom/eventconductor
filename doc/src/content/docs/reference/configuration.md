@@ -7,7 +7,7 @@ description: Complete reference for all EventConductor configuration properties.
 
 | Property | Values | Default | Description |
 |---|---|---|---|
-| `workflow.mode` | `kafka` \| `embedded` | `kafka` | Event dispatch mode |
+| `workflow.mode` | `kafka` \| `embedded` | `embedded` | Event dispatch mode |
 | `workflow.persistence` | `jpa` \| `memory` | `memory` | Workflow state persistence mode |
 | `forms.persistence` | `jpa` \| `memory` | `memory` | Forms state persistence mode |
 
@@ -101,7 +101,7 @@ public class MyApplication {
 
 `@FormsEmbeddedApplication` is provided by the `forms-engine` module and follows the same pattern as `@WorkflowEmbeddedApplication`.
 
-For `workflow.mode=kafka` (the default), use `@SpringBootApplication` as normal — both engines integrate as regular Spring Boot auto-configurations.
+For `workflow.mode=kafka`, use `@SpringBootApplication` as normal — both engines integrate as regular Spring Boot auto-configurations.
 
 ## Database (when `workflow.persistence=jpa`)
 

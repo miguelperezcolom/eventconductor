@@ -260,15 +260,18 @@ The engine supports three modes controlled by two independent properties:
 
 | Property | Values | Default |
 |---|---|---|
-| `workflow.mode` | `kafka` \| `embedded` | `kafka` |
-| `workflow.persistence` | `jpa` \| `memory` | `jpa` |
+| `workflow.mode` | `kafka` \| `embedded` | `embedded` |
+| `workflow.persistence` | `jpa` \| `memory` | `memory` |
+
+The defaults (`embedded` + `memory`) run entirely in-process with no external
+dependencies, so you can start small and grow into JPA and then Kafka as your
+needs scale.
 
 ### Mode 1 — Full distributed (`kafka` + `jpa`)
 
-Default mode. Requires a running Kafka broker and PostgreSQL database.
+Requires a running Kafka broker and PostgreSQL database.
 
 ```properties
-# No extra configuration needed — these are the defaults
 workflow.mode=kafka
 workflow.persistence=jpa
 ```
@@ -305,7 +308,7 @@ public class MyApplication {
 
 ### Mode 3 — Fully embedded (`embedded` + `memory`)
 
-No Kafka, no database. Everything runs in-process.
+Default mode. No Kafka, no database. Everything runs in-process.
 
 ```properties
 workflow.mode=embedded
@@ -595,8 +598,8 @@ to report task progress from asynchronous code.
 
 ```properties
 # --- Deployment mode ---
-workflow.mode=kafka          # kafka | embedded (default: kafka)
-workflow.persistence=jpa     # jpa | memory   (default: jpa)
+workflow.mode=kafka          # kafka | embedded (default: embedded)
+workflow.persistence=jpa     # jpa | memory   (default: memory)
 
 # --- Database (workflow.persistence=jpa) ---
 spring.datasource.url=jdbc:postgresql://localhost:5432/workflow

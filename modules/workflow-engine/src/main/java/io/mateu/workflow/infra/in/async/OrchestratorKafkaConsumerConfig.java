@@ -15,7 +15,7 @@ import org.springframework.messaging.Message;
 import java.util.function.Consumer;
 
 @Configuration
-@ConditionalOnProperty(name = "workflow.mode", havingValue = "kafka", matchIfMissing = true)
+@ConditionalOnProperty(name = "workflow.mode", havingValue = "kafka")
 @RequiredArgsConstructor
 @Slf4j
 public class OrchestratorKafkaConsumerConfig {

@@ -14,7 +14,7 @@ import org.springframework.stereotype.Service;
 import static io.mateu.core.infra.JsonSerializer.pojoFromJson;
 
 @Service
-@ConditionalOnProperty(name = "workflow.mode", havingValue = "kafka", matchIfMissing = true)
+@ConditionalOnProperty(name = "workflow.mode", havingValue = "kafka")
 @RequiredArgsConstructor
 @Slf4j
 public class OutboxRelay {
