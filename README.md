@@ -222,6 +222,26 @@ into its system prompt automatically.
 
 ---
 
+## AI-assisted development
+
+EventConductor ships curated context files so AI coding tools generate correct
+workflow definitions and workers:
+
+- **[`llms.txt`](doc/public/llms.txt)** — an [llms.txt](https://llmstxt.org)-standard
+  index of the project (served at the docs-site root as `/llms.txt`).
+- **[AI reference — compact](doc/public/eventconductor-ai-compact.md)** — key concepts,
+  the workflow DSL, step types, worker API and statuses. Best for day-to-day code
+  generation. Paste it into Claude Projects, Cursor Rules, Gemini Gems, etc.
+- **[AI reference — full](doc/public/eventconductor-ai-full.md)** — the complete DSL,
+  deployment modes, Kafka topics, full Java API, sagas, git-import, forms and MCP.
+- **Claude Code / Claude Agent SDK** — bundled skills under
+  [`.claude/skills/`](.claude/skills/) (`eventconductor`, `eventconductor-scaffold`,
+  `eventconductor-run`) auto-activate for EventConductor tasks.
+- **[Workflow definition JSON Schema](modules/workflow-engine/src/main/resources/workflow-definition-schema.json)**
+  — add it via `$schema` for editor autocomplete and validation of your definitions.
+
+---
+
 ## Repository structure
 
 ```

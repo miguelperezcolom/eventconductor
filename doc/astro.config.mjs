@@ -95,6 +95,14 @@ export default defineConfig({
 						{ label: 'Java API', slug: 'reference/java-api' },
 					],
 				},
+				{
+					label: 'For AI assistants',
+					items: [
+						{ label: 'llms.txt', link: '/llms.txt', attrs: { target: '_blank' } },
+						{ label: 'AI reference (compact)', link: '/eventconductor-ai-compact.md', attrs: { target: '_blank' } },
+						{ label: 'AI reference (full)', link: '/eventconductor-ai-full.md', attrs: { target: '_blank' } },
+					],
+				},
 			],
 		}),
 	],
