@@ -14,6 +14,7 @@ import io.mateu.workflow.infra.out.persistence.FormExecutionEntityRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -32,18 +33,19 @@ public class Tasks extends Listing<NoFilters, TaskRow> {
 
     @Override
     public ListingData<TaskRow> search(String searchText, NoFilters noFilters, Pageable pageable, HttpRequest httpRequest) {
-        var page = repository.findByStatusAndUser(List.of(
+        var page = repository.findTaskSummariesByStatusAndUser(List.of(
                         FormExecutionStatus.PENDING.name()
                 ),
                 JwtExtractor.getUsername(httpRequest).orElse(null),
-                org.springframework.data.domain.Pageable.ofSize(pageable.size()).withPage(pageable.page()));
+                org.springframework.data.domain.PageRequest.of(pageable.page(), pageable.size(),
+                        org.springframework.data.domain.Sort.by("id")));
         var content = page.getContent().stream()
-                .map(entity -> new TaskRow(
-                        entity.getId(),
-                        entity.getProcessId(),
-                        entity.getFormId(),
-                        entity.getUserId(),
-                        mapStatus(entity.getStatus()),
+                .map(task -> new TaskRow(
+                        task.getId(),
+                        task.getProcessId(),
+                        task.getFormId(),
+                        task.getUserId(),
+                        mapStatus(task.getStatus()),
                         ColumnAction.builder()
                                 .methodNameInCrud("run")
                                 .label("Run")
@@ -72,14 +74,15 @@ public class Tasks extends Listing<NoFilters, TaskRow> {
     }
 
     @Toolbar
+    @Transactional
     public void claim(List<TaskRow> selectedRows, HttpRequest httpRequest) {
-      log.info("claiming " + selectedRows);
-      var userId = JwtExtractor.getUsername(httpRequest).orElseThrow();
-        selectedRows.forEach(row -> {
-            var entity = repository.findById(row.id()).orElseThrow();
-            entity.setUserId(userId);
-            repository.save(entity);
-        });
+        if (selectedRows.isEmpty()) {
+            return;
+        }
+        var userId = JwtExtractor.getUsername(httpRequest).orElseThrow();
+        var ids = selectedRows.stream().map(TaskRow::id).toList();
+        var claimed = repository.claim(ids, userId);
+        log.info("claimed {} of {} selected tasks for user {}", claimed, ids.size(), userId);
     }
 
     public UICommand run(TaskRow selectedRow, HttpRequest httpRequest) {
