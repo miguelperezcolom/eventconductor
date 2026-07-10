@@ -9,6 +9,8 @@ import io.mateu.uidl.fluent.Form;
 import io.mateu.uidl.interfaces.*;
 import io.mateu.workflow.application.out.FormExecutionRepository;
 import io.mateu.workflow.application.out.FormRepository;
+import io.mateu.workflow.application.usecases.completetask.CompleteTaskCommand;
+import io.mateu.workflow.application.usecases.completetask.CompleteTaskUseCase;
 import io.mateu.workflow.domain.Field;
 import io.mateu.workflow.domain.FormExecutionStatus;
 import io.mateu.workflow.domain.Value;
@@ -38,6 +40,7 @@ public class Task implements ComponentTreeSupplier, ValidationSupplier, ActionHa
     final FormExecutionRepository formExecutionRepository;
     final FormRepository formRepository;
     final StreamBridge streamBridge;
+    final CompleteTaskUseCase completeTaskUseCase;
 
     String _taskId;
 
@@ -100,27 +103,11 @@ public class Task implements ComponentTreeSupplier, ValidationSupplier, ActionHa
     @Override
     public Object handleAction(String actionId, HttpRequest httpRequest) {
         if ("complete".equals(actionId)) {
-            var execution = formExecutionRepository.findById(_taskId).orElseThrow();
             Map<String, Object> state = httpRequest.getComponentState(Map.class);
-            execution = execution
-                    .withValues(state.keySet().stream()
+            completeTaskUseCase.handle(new CompleteTaskCommand(_taskId,
+                    state.keySet().stream()
                             .filter(key -> !"_taskId".equals(key))
-                            .map(key -> new Value(key, state.get(key).toString())).toList())
-                    .withStatus(FormExecutionStatus.COMPLETED);
-            formExecutionRepository.save(execution);
-
-            streamBridge.send("upstream", new TaskLogEmitted(
-                    execution.stepExecutionId(),
-                    MessageType.Info,
-                    "form " + execution.formId() + " completed by " + execution.userId()));
-
-            var variables = new ArrayList<Variable>();
-            variables.addAll(execution.values().stream().map(v -> new Variable(v.name(), v.value())).toList());
-
-            streamBridge.send("upstream", new TaskStatusChanged(
-                    execution.stepExecutionId(),
-                    TaskStatus.COMPLETED,
-                    variables));
+                            .map(key -> new Value(key, state.get(key).toString())).toList()));
 
             return UICommand.builder()
                     .type(UICommandType.DispatchEvent)
