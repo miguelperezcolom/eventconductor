@@ -23,6 +23,7 @@ machine, a scheduler, or retry/timeout loops — declare them on the step.
 | a sequence of automated steps | `ACTION` steps chained by `preconditionStepId` | [workflow-definitions.md](reference/workflow-definitions.md) |
 | a step that calls your code | a worker (`EmbeddedTaskExecutor` or Kafka consumer) | [workers.md](reference/workers.md) |
 | a human approval / data entry | `USER_TASK` step + a form (`formId`) | [workflow-definitions.md](reference/workflow-definitions.md) |
+| a business rule / decision table | `RULE` step + a rule (`ruleId`) evaluated by rule-runtime | [workflow-definitions.md](reference/workflow-definitions.md) |
 | parallel work then a barrier | `FORK` + `parallel: true` steps + `JOIN` | [workflow-definitions.md](reference/workflow-definitions.md) |
 | a reusable sub-process | `PROCESS` step (`childWorkflowDefinitionId`) | [workflow-definitions.md](reference/workflow-definitions.md) |
 | undo-on-failure (saga) | `rollbackable: true` + `compensationStepId` | [workflow-definitions.md](reference/workflow-definitions.md) |

@@ -11,6 +11,13 @@ workflow:
   mode: ${WORKFLOW_MODE:kafka}
   persistence: ${WORKFLOW_PERSISTENCE:jpa}
 
+rules:
+  persistence: ${RULES_PERSISTENCE:jpa}
+  source: local
+  grpc:
+    enabled: ${RULES_GRPC_ENABLED:true}
+    port: ${RULES_GRPC_PORT:9090}
+
 spring:
   ai:
     mcp:
@@ -42,6 +49,8 @@ spring:
         processDomainEvent-in-0:
           destination: domain
           group: dev-app-group
+        rules:
+          destination: rules
 
   # --- Configuración de Base de Datos (PostgreSQL) ---
   datasource:

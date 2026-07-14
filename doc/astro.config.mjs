@@ -77,6 +77,13 @@ export default defineConfig({
 					],
 				},
 				{
+					label: 'Rule Engine',
+					items: [
+						{ label: 'Rule Definitions', slug: 'guides/rule-definitions' },
+						{ label: 'Rule Evaluation', slug: 'guides/rule-evaluation' },
+					],
+				},
+				{
 					label: 'AI Integration (MCP)',
 					items: [
 						{ label: 'Overview', slug: 'guides/mcp-overview' },

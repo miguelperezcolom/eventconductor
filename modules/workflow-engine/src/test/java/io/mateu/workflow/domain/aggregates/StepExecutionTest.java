@@ -9,7 +9,7 @@ class StepExecutionTest {
     @Test
     void shouldCreateStepExecution() {
         // given
-        Step step = new Step("step-1", "wd-1", StepType.ACTION, "Step 1", "Desc", null, null, false, "topic", null, null, 0, 0, false, null);
+        Step step = new Step("step-1", "wd-1", StepType.ACTION, "Step 1", "Desc", null, null, false, "topic", null, null, null, 0, 0, false, null);
         String processId = "process-1";
         int position = 1;
 

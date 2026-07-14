@@ -29,7 +29,7 @@ class CheckStepTimeoutHandlerTest {
     @InjectMocks CheckStepTimeoutHandler handler;
 
     private StepExecution pendingSeWithTimeout(long timeoutMillis, LocalDateTime startedAt) {
-        Step step = new Step("s1", "wd-1", StepType.ACTION, "Step", null, null, null, false, "t", null, null, timeoutMillis, 0, false, null);
+        Step step = new Step("s1", "wd-1", StepType.ACTION, "Step", null, null, null, false, "t", null, null, null, timeoutMillis, 0, false, null);
         return StepExecution.builder()
                 .id("se-1").processId("p-1")
                 .stepJson(JsonSerializer.toJson(step))

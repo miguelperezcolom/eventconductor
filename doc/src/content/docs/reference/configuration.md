@@ -10,6 +10,14 @@ description: Complete reference for all EventConductor configuration properties.
 | `workflow.mode` | `kafka` \| `embedded` | `embedded` | Event dispatch mode |
 | `workflow.persistence` | `jpa` \| `memory` | `memory` | Workflow state persistence mode |
 | `forms.persistence` | `jpa` \| `memory` | `memory` | Forms state persistence mode |
+| `rules.persistence` | `jpa` \| `memory` | `memory` | Rule catalog persistence mode |
+| `rules.source` | `local` \| `classpath` \| `rest` \| `grpc` | `local` | Where the rule runtime reads rules from |
+| `rules.catalog.url` | URL | — | Catalog base URL for `rules.source=rest` |
+| `rules.catalog.grpc-target` | `host:port` | — | Catalog gRPC target for `rules.source=grpc` |
+| `rules.cache.ttl` | ISO-8601 duration | `PT5M` | Remote rule cache TTL (`PT0S` = never expires) |
+| `rules.kafka-refresh` | `true` \| `false` | `false` | Refresh the rule cache from `RulePublished`/`RuleDeleted` events |
+| `rules.grpc.enabled` | `true` \| `false` | `false` | Start the catalog's gRPC read API |
+| `rules.grpc.port` | port | `9090` | Catalog gRPC port |
 
 ## Git import (`workflow.git-import.*`)
 
@@ -38,6 +46,20 @@ Clones Git repositories at startup and imports form definition files (`.json`, `
 | `forms.git-import.webhook-secret` | — | HMAC-SHA256 secret for verifying GitHub webhook payloads (`X-Hub-Signature-256`). Leave blank to disable signature verification. |
 
 The webhook endpoint is `POST /forms/webhooks/github`. See [Form Definitions — Importing from Git](/guides/form-definitions/#importing-from-git) for setup instructions.
+
+## Git import — Rule engine (`rules.git-import.*`)
+
+Clones Git repositories at startup and imports rule definition files (`.json`, `.yaml`, `.yml`). Provided by the `rule-engine` module.
+
+| Property | Default | Description |
+|---|---|---|
+| `rules.git-import.repositories[].url` | — | Git clone URL (HTTPS or SSH) |
+| `rules.git-import.repositories[].branch` | `main` | Branch to check out |
+| `rules.git-import.repositories[].username` | — | Username for HTTPS authentication |
+| `rules.git-import.repositories[].password` | — | Password or personal access token |
+| `rules.git-import.webhook-secret` | — | HMAC-SHA256 secret for verifying GitHub webhook payloads (`X-Hub-Signature-256`). Leave blank to disable signature verification. |
+
+The webhook endpoint is `POST /rules/webhooks/github`. See [Rule Definitions — Git import](/guides/rule-definitions/#git-import) for setup instructions.
 
 ## Application class (embedded modes)
 

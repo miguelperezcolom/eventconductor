@@ -20,6 +20,9 @@
     <module>forms-embedded-db-headless</module>
     <module>forms-embedded-mvc</module>
     <module>forms-embedded-git</module>
+    <module>rules-embedded-headless</module>
+    <module>rules-embedded-mvc</module>
+    <module>rules-remote-client</module>
   </modules>
 
 </project>

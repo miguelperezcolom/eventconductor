@@ -42,6 +42,9 @@ public record Step(
         @Hidden("state['type'] != 'USER_TASK'")
         String formId,
         @HiddenInList
+        @Hidden("state['type'] != 'RULE'")
+        String ruleId,
+        @HiddenInList
         @Hidden("state['type'] != 'PROCESS'")
         @Lookup(search = WorkflowDefinitionIdOptionsSupplier.class, label = WorkflowDefinitionIdLabelSupplier.class)
         String childWorkflowDefinitionId,

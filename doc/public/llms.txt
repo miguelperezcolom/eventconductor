@@ -2,7 +2,7 @@
 
 > Event-driven workflow / saga orchestration engine for Java/Spring. Describe a business process as a workflow definition (JSON or YAML) made of steps; the engine drives the state machine and delegates business logic to stateless workers. Scales from a single in-process JVM (no Kafka, no DB) to a multi-pod Kubernetes cluster (Kafka + PostgreSQL) with no change to business code.
 
-EventConductor covers the full lifecycle of a business process — definition, execution, and monitoring — without BPMN's complexity or a SaaS dependency. Two independent properties select the deployment topology: `workflow.mode` (`embedded` | `kafka`, default `embedded`) and `workflow.persistence` (`memory` | `jpa`, default `memory`). Start fully embedded and grow into JPA and then Kafka as scale demands. Artifacts are published to Maven Central under `io.mateu.workflow` (`workflow-engine`, `forms-engine`).
+EventConductor covers the full lifecycle of a business process — definition, execution, and monitoring — without BPMN's complexity or a SaaS dependency. Two independent properties select the deployment topology: `workflow.mode` (`embedded` | `kafka`, default `embedded`) and `workflow.persistence` (`memory` | `jpa`, default `memory`). Start fully embedded and grow into JPA and then Kafka as scale demands. Artifacts are published to Maven Central under `io.mateu.workflow` (`workflow-engine`, `forms-engine`, `rule-engine`, `rule-runtime`).
 
 ## AI reference files
 
@@ -23,6 +23,7 @@ For AI-assisted development, use these context documents with your AI tool (Clau
 - [Implementing Workers](https://github.com/miguelperezcolom/eventconductor/blob/main/doc/src/content/docs/guides/workers.md): embedded and Kafka workers, progress, async
 - [Retries, Timeouts & Compensation](https://github.com/miguelperezcolom/eventconductor/blob/main/doc/src/content/docs/guides/retries-timeouts-compensation.md): sagas
 - [Form Definitions](https://github.com/miguelperezcolom/eventconductor/blob/main/doc/src/content/docs/guides/form-definitions.md) & [User Tasks](https://github.com/miguelperezcolom/eventconductor/blob/main/doc/src/content/docs/guides/user-tasks.md): human steps
+- [Rule Definitions](https://github.com/miguelperezcolom/eventconductor/blob/main/doc/src/content/docs/guides/rule-definitions.md) & [Rule Evaluation](https://github.com/miguelperezcolom/eventconductor/blob/main/doc/src/content/docs/guides/rule-evaluation.md): business rules (expression + decision tables), embeddable runtime, RULE steps
 - [MCP Overview](https://github.com/miguelperezcolom/eventconductor/blob/main/doc/src/content/docs/guides/mcp-overview.md): operate the engine via AI agents
 
 ## Reference
@@ -37,10 +38,11 @@ For AI-assisted development, use these context documents with your AI tool (Clau
 
 - A **workflow definition** (`id`, `name`, `version`, `status`, `steps`) is JSON or YAML; in embedded/memory mode it is loaded from `classpath:/workflows/`.
 - Steps run **by data flow**: a step starts when its `preconditionStepId` step completes — not by array order. A step with no precondition starts immediately.
-- **Step types**: `ACTION` (dispatch to a worker via `topic`), `USER_TASK` (human form via `formId`), `PROCESS` (child workflow via `childWorkflowDefinitionId`), `FORK`/`JOIN` (parallel branches with `parallel: true`), `END` (exactly one per workflow; JOIN before it if branches exist).
+- **Step types**: `ACTION` (dispatch to a worker via `topic`), `USER_TASK` (human form via `formId`), `RULE` (evaluate a business rule via `ruleId`; outputs become process variables), `PROCESS` (child workflow via `childWorkflowDefinitionId`), `FORK`/`JOIN` (parallel branches with `parallel: true`), `END` (exactly one per workflow; JOIN before it if branches exist).
 - **Variables** are `(name, value)` string pairs; worker outputs are merged into process variables and available to later steps and to JEXL `preconditionExpression`s.
 - **Workers** are stateless: they receive a `TaskExecutionRequested` and report `RUNNING` | `COMPLETED` | `ERROR` with output variables. Report using `taskExecutionId`, not the workflow `stepId`.
 - **Embedded mode**: register one `EmbeddedTaskExecutor` bean (or per-`topic` beans) and inject `UpdateStepExecutionUseCase`. **Kafka mode**: consume `downstream`, publish `TaskStatusChanged` to `upstream`.
 - Start a process with `ProcessUpstreamEventUseCase.handle(new ProcessUpstreamEventCommand(new ProcessCreationRequested(workflowId, businessKey, variables)))`, or send `ProcessCreationRequested` to the `upstream` Kafka topic.
 - **Retries & timeouts**: `retries: N` and `timeout` (ISO-8601 `PT30S` or ms) on a step. **Saga**: `rollbackable: true` + `compensationStepId` run a compensation step on failure.
 - **Deployment** is two properties (`workflow.mode`, `workflow.persistence`); the same business code runs from a single JVM to a Kafka+PostgreSQL cluster.
+- **Business rules**: `rule-engine` is the catalog (JSON/YAML definitions, `expression` rules and `decision-table`s validated against a schema, git-import, UI, MCP tools, REST + gRPC read APIs); `rule-runtime` is the lightweight embeddable evaluator (JEXL). `rules.source` selects where the runtime reads rules from: `local` (same JVM), `classpath`, `rest` or `grpc`, with a TTL cache and optional Kafka refresh (`RulePublished`/`RuleDeleted` on the `rules` topic).

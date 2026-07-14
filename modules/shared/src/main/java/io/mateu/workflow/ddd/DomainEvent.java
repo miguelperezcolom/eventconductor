@@ -20,6 +20,8 @@ import io.mateu.workflow.dtos.events.integration.*;
         @JsonSubTypes.Type(value = TaskResourceCreated.class, name = "task-resource-created"),
         @JsonSubTypes.Type(value = TaskStatusChanged.class, name = "task-status-changed"),
         @JsonSubTypes.Type(value = TimeoutCheckRequested.class, name = "timeout-check-requested"),
+        @JsonSubTypes.Type(value = RulePublished.class, name = "rule-published"),
+        @JsonSubTypes.Type(value = RuleDeleted.class, name = "rule-deleted"),
 })
 public interface DomainEvent {
 }

@@ -62,6 +62,7 @@ In `embedded`+`memory` mode, definitions are loaded from `classpath:/workflows/`
 |---|---|---|
 | `ACTION` | Dispatch a task to a worker | `topic` (Kafka mode) |
 | `USER_TASK` | Pause for a human to submit a form | `formId` |
+| `RULE` | Evaluate a business rule; outputs become process variables | `ruleId` |
 | `PROCESS` | Run a child workflow as a sub-process | `childWorkflowDefinitionId` |
 | `FORK` | Start parallel branches | — (branch steps set `parallel: true`) |
 | `JOIN` | Wait for all parallel branches | — |
@@ -69,7 +70,7 @@ In `embedded`+`memory` mode, definitions are loaded from `classpath:/workflows/`
 
 ### Step fields
 
-`id`, `type`, `name`, `description`, `preconditionStepId`, `preconditionExpression` (JEXL), `parallel` (bool), `topic` (ACTION), `formId` (USER_TASK), `childWorkflowDefinitionId` (PROCESS), `timeout` (ISO-8601 `PT30S`/`PT1H30M` or ms int; `0`=none), `retries` (int), `rollbackable` (bool), `compensationStepId`.
+`id`, `type`, `name`, `description`, `preconditionStepId`, `preconditionExpression` (JEXL), `parallel` (bool), `topic` (ACTION), `formId` (USER_TASK), `ruleId` (RULE), `childWorkflowDefinitionId` (PROCESS), `timeout` (ISO-8601 `PT30S`/`PT1H30M` or ms int; `0`=none), `retries` (int), `rollbackable` (bool), `compensationStepId`.
 
 ---
 

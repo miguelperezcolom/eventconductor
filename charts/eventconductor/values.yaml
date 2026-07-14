@@ -73,6 +73,33 @@ forms:
     enabled: true
     minAvailable: 1
 
+## ── Rules ────────────────────────────────────────────────────────────────────
+rules:
+  image: miguelperezcolom/rule-standalone-app
+  imageTag: ""
+  imagePullPolicy: IfNotPresent
+  replicas: 2
+  port: 8080
+  servicePort: 8107
+  grpcEnabled: true
+  grpcPort: 9090
+  ddlAuto: validate
+  flywayEnabled: true
+  security:
+    enabled: true
+    user: admin
+    passwordSecret: ""
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "1"
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+
 ## ── Ingress ──────────────────────────────────────────────────────────────────
 ingress:
   enabled: false
@@ -81,11 +108,12 @@ ingress:
   host: eventconductor.local
   orchestratorPath: /orchestrator
   formsPath: /forms
+  rulesPath: /rules
   tls: []                     # [{ secretName: ec-tls, hosts: [eventconductor.local] }]
 
 ## ── NetworkPolicy ────────────────────────────────────────────────────────────
 networkPolicy:
   enabled: false
-  # Pod selector for clients allowed to talk to orchestrator/forms.
+  # Pod selector for clients allowed to talk to orchestrator/forms/rules.
   # Empty means "only same-namespace pods".
   ingressFromPodSelector: {}

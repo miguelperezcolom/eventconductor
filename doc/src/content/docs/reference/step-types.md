@@ -47,6 +47,26 @@ The `formId` references a form definition stored in the forms engine.
 
 ---
 
+## RULE
+
+Evaluates a business rule from the rule engine against the process variables. The rule's outputs are merged back into the process variables.
+
+```json
+{
+  "id": "apply-discount",
+  "type": "RULE",
+  "name": "Apply the discount rule",
+  "ruleId": "high-value-order",
+  "preconditionStepId": "register-order"
+}
+```
+
+**Required fields:** `ruleId`
+
+The `ruleId` references a rule definition (expression rule or decision table) stored in the rule engine. The engine dispatches the step with `taskId=evaluate-rule`; any app embedding `rule-runtime` (or `rule-standalone-app`) evaluates it. See [Rule Evaluation](/guides/rule-evaluation/).
+
+---
+
 ## PROCESS
 
 Starts a child workflow as a sub-process. The parent step completes when the child process completes.

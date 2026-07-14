@@ -28,7 +28,11 @@ class StartStepExecutionUseCaseTest {
     @InjectMocks StartStepExecutionUseCase useCase;
 
     private StepExecution seWith(StepExecutionStatus status, StepType type, String formId) {
-        Step step = new Step("s1", "wd-1", type, "Step", null, null, null, false, "topic", formId, null, 0, 0, false, null);
+        return seWith(status, type, formId, null);
+    }
+
+    private StepExecution seWith(StepExecutionStatus status, StepType type, String formId, String ruleId) {
+        Step step = new Step("s1", "wd-1", type, "Step", null, null, null, false, "topic", formId, ruleId, null, 0, 0, false, null);
         return StepExecution.builder()
                 .id("se-1").processId("p-1").workflowDefinitionId("wd-1").stepId("s1")
                 .stepJson(JsonSerializer.toJson(step))
@@ -57,6 +61,18 @@ class StartStepExecutionUseCaseTest {
         ArgumentCaptor<TaskExecutionRequested> captor = ArgumentCaptor.forClass(TaskExecutionRequested.class);
         verify(downstreamEventPublisher).publish(captor.capture());
         assertThat(captor.getValue().taskId()).isEqualTo("complete-form");
+    }
+
+    @Test
+    void setsEvaluateRuleTaskIdForRuleStep() {
+        var se = seWith(StepExecutionStatus.PENDING, StepType.RULE, null, "rule-1");
+        when(stepExecutionRepository.findById("se-1")).thenReturn(Optional.of(se));
+
+        useCase.handle(new StartStepExecutionCommand("se-1"));
+
+        ArgumentCaptor<TaskExecutionRequested> captor = ArgumentCaptor.forClass(TaskExecutionRequested.class);
+        verify(downstreamEventPublisher).publish(captor.capture());
+        assertThat(captor.getValue().taskId()).isEqualTo("evaluate-rule");
     }
 
     @Test

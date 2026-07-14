@@ -81,7 +81,7 @@
         "type": {
           "type": "string",
           "description": "Execution type of the step.",
-          "enum": ["ACTION", "JOIN", "FORK", "END", "USER_TASK", "PROCESS"]
+          "enum": ["ACTION", "JOIN", "FORK", "END", "USER_TASK", "PROCESS", "RULE"]
         },
         "name": {
           "type": "string",
@@ -112,6 +112,10 @@
         "formId": {
           "type": ["string", "null"],
           "description": "ID of the form to display. Required for USER_TASK steps."
+        },
+        "ruleId": {
+          "type": ["string", "null"],
+          "description": "ID of the rule to evaluate. Required for RULE steps."
         },
         "childWorkflowDefinitionId": {
           "type": ["string", "null"],
@@ -162,6 +166,15 @@
           },
           "then": {
             "required": ["childWorkflowDefinitionId"]
+          }
+        },
+        {
+          "if": {
+            "properties": { "type": { "const": "RULE" } },
+            "required": ["type"]
+          },
+          "then": {
+            "required": ["ruleId"]
           }
         },
         {

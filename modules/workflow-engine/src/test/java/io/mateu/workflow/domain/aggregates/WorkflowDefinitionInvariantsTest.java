@@ -19,7 +19,7 @@ class WorkflowDefinitionInvariantsTest {
 
     private Step step(String id, String preconditionStepId, String compensationStepId) {
         return new Step(id, "wd-1", StepType.ACTION, "Step " + id, null,
-                preconditionStepId, null, false, "topic", null, null,
+                preconditionStepId, null, false, "topic", null, null, null,
                 0, 0, compensationStepId != null, compensationStepId);
     }
 

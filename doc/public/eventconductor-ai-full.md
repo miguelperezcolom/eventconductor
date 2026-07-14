@@ -147,6 +147,13 @@ YAML (first line):
 ```
 Creates a `FormExecution` in the forms engine. Requires `formId` and the `forms-engine` dependency.
 
+### RULE — evaluate a business rule
+```json
+{ "id": "apply-discount", "type": "RULE", "name": "Apply the discount rule",
+  "ruleId": "high-value-order", "preconditionStepId": "register-order" }
+```
+Dispatches `taskId=evaluate-rule` with a `ruleId` variable; any app embedding `rule-runtime` evaluates the rule (expression or decision table, JEXL) against the process variables and its outputs are merged back as process variables. Requires `ruleId` and a rule with that id in the rule catalog (`rule-engine`). The runtime fetches rules per `rules.source`: `local`, `classpath`, `rest` or `grpc` (+ optional Kafka cache refresh).
+
 ### PROCESS — run a child workflow
 ```json
 { "id": "run-kyc", "type": "PROCESS", "name": "Run KYC", "childWorkflowDefinitionId": "kyc-workflow" }
@@ -173,7 +180,7 @@ Exactly one per workflow. Transitions the process to `COMPLETED`. With parallel 
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `id` | string | — | Unique within the workflow |
-| `type` | enum | — | `ACTION`/`USER_TASK`/`PROCESS`/`FORK`/`JOIN`/`END` |
+| `type` | enum | — | `ACTION`/`USER_TASK`/`RULE`/`PROCESS`/`FORK`/`JOIN`/`END` |
 | `name` | string | — | Human-readable |
 | `description` | string | — | Optional |
 | `preconditionStepId` | string | — | Step that must complete first |
@@ -181,6 +188,7 @@ Exactly one per workflow. Transitions the process to `COMPLETED`. With parallel 
 | `parallel` | boolean | `false` | Concurrent execution within a FORK branch |
 | `topic` | string | — | Worker destination (ACTION, Kafka mode) |
 | `formId` | string | — | Form to render (USER_TASK) |
+| `ruleId` | string | — | Rule to evaluate (RULE) |
 | `childWorkflowDefinitionId` | string | — | Child workflow (PROCESS) |
 | `timeout` | duration | `0` | ISO-8601 (`PT30S`, `PT5M`, `PT1H30M`) or ms integer; `0` = none |
 | `retries` | integer | `0` | Auto-retry attempts on ERROR/TIMEOUT |

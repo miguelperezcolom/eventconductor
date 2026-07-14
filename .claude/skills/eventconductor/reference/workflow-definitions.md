@@ -15,12 +15,13 @@ Add `"$schema"` (JSON) or a `# yaml-language-server: $schema=...` comment (YAML)
 
 | Field | Applies to | Notes |
 |---|---|---|
-| `id`, `type`, `name`, `description` | all | `type` ∈ ACTION/USER_TASK/PROCESS/FORK/JOIN/END |
+| `id`, `type`, `name`, `description` | all | `type` ∈ ACTION/USER_TASK/RULE/PROCESS/FORK/JOIN/END |
 | `preconditionStepId` | all | step that must complete first (defines ordering) |
 | `preconditionExpression` | all | JEXL over variables; `false` ⇒ step `SKIPPED` |
 | `parallel` | all | `true` inside a FORK branch |
 | `topic` | ACTION | worker destination (Kafka mode; ignored embedded) |
 | `formId` | USER_TASK | form to render |
+| `ruleId` | RULE | rule to evaluate (rule-engine catalog) |
 | `childWorkflowDefinitionId` | PROCESS | child workflow id |
 | `timeout` | all | ISO-8601 (`PT30S`,`PT1H30M`) or ms int; `0`=none |
 | `retries` | all | auto-retry count on ERROR/TIMEOUT |
@@ -31,6 +32,7 @@ Add `"$schema"` (JSON) or a `# yaml-language-server: $schema=...` comment (YAML)
 - **ACTION** — dispatch to a worker. Kafka: publishes `TaskExecutionRequested` to `topic`.
   Embedded: routed to the single `EmbeddedTaskExecutor` (topic ignored).
 - **USER_TASK** — pause for a human; creates a `FormExecution` for `formId` (needs `forms-engine`).
+- **RULE** — evaluate a business rule (`ruleId`) from the rule catalog; outputs merge into process variables (needs `rule-runtime` on the evaluating side; taskId is `evaluate-rule`).
 - **PROCESS** — run `childWorkflowDefinitionId` as a sub-process; variables pass down and merge back up.
 - **FORK / JOIN** — FORK starts branches whose steps set `parallel: true`; JOIN waits for all.
 - **END** — exactly one; process → `COMPLETED`. Put a JOIN before it if there are branches.
