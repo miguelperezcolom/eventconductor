@@ -44,6 +44,14 @@ The `forms-engine` module handles form definitions, validation, and rendering. U
 reference a form by ID; the engine takes care of the rest. Forms are defined in JSON, stored
 in version control, and served dynamically to any front-end.
 
+### Built-in rule engine
+The `rule-engine` module is a catalog of business rules — expression rules and decision
+tables, written in JSON or YAML, schema-validated and version-controlled. Rules are
+evaluated by the lightweight embeddable `rule-runtime` (JEXL) wherever your data lives:
+same JVM, or remotely fetching definitions over **REST or gRPC** with a local cache kept
+fresh by Kafka events. `RULE` workflow steps evaluate a rule and merge its outputs into
+the process variables.
+
 ### Visual editors included
 - **Drag-and-drop workflow editor** — design and modify workflows visually; changes are
   persisted back as JSON definitions.
@@ -133,6 +141,17 @@ and the final answer is returned as plain text or streamed via SSE.
 | `listFormExecutions` | All pending/completed user tasks |
 | `getFormExecution` | Full detail of a form execution including submitted values |
 | `importFormsFromGit` | Pull and upsert form JSON files from Git |
+
+**Rule engine** (`rule-engine`, bundled in dev-app / `rule-standalone-app`, port 8107)
+
+| Tool | Description |
+|---|---|
+| `listRules` | All rule definitions with type, version and tags |
+| `getRule` | Full definition of a rule as canonical JSON |
+| `saveRule` / `deleteRule` | Create, update or remove a rule (validated on save) |
+| `validateRule` | Validate a JSON/YAML rule definition without saving it |
+| `evaluateRule` | Evaluate a rule against a JSON object of facts |
+| `importRulesFromGit` | Pull and upsert rule JSON/YAML files from Git |
 
 **Custom domain tools** (example: `booking-service`, port 8108)
 
@@ -250,6 +269,8 @@ eventconductor/
 │   ├── shared/                DTOs, domain events, DDD base classes
 │   ├── workflow-engine/       Core orchestration engine (embeddable Spring Boot library)
 │   ├── forms-engine/          Form definition and rendering engine
+│   ├── rule-engine/           Business rule catalog (REST + gRPC read APIs, UI, MCP)
+│   ├── rule-runtime/          Lightweight embeddable rule evaluator (JEXL)
 │   └── sample-worker/         Hello-world worker example
 └── demo/                      Example microservices that use the modules
     ├── api-gw/                API gateway
@@ -460,6 +481,7 @@ steps:
 |---|---|---|
 | `ACTION` | Dispatches a task to a worker | `topic` |
 | `USER_TASK` | Pauses the workflow for a human form submission | `formId` |
+| `RULE` | Evaluates a business rule; outputs merge into process variables | `ruleId` |
 | `PROCESS` | Starts a child workflow as a sub-process | `childWorkflowDefinitionId` |
 | `JOIN` | Waits for all parallel branches to complete | — |
 | `FORK` | Starts parallel branches | — |
@@ -478,6 +500,7 @@ steps:
 | `parallel` | boolean | `false` | Allows concurrent execution with other parallel steps |
 | `topic` | string | — | Worker topic/destination (ACTION only) |
 | `formId` | string | — | Form identifier (USER_TASK only) |
+| `ruleId` | string | — | Rule identifier (RULE only) |
 | `childWorkflowDefinitionId` | string | — | Child workflow ID (PROCESS only) |
 | `timeout` | integer (ms) | `0` | Max execution time; `0` = no timeout |
 | `retries` | integer | `0` | Auto-retry attempts on ERROR or TIMEOUT |
