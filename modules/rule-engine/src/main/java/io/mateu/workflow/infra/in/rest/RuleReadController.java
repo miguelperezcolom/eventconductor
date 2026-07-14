@@ -26,7 +26,7 @@ public class RuleReadController {
     private final RuleRepository ruleRepository;
 
     @GetMapping
-    public List<Rule> list(@RequestParam(required = false) String tag) {
+    public List<Rule> list(@RequestParam(name = "tag", required = false) String tag) {
         var rules = ruleRepository.findAll();
         if (tag == null || tag.isBlank()) {
             return rules;
@@ -35,7 +35,7 @@ public class RuleReadController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Rule> get(@PathVariable String id) {
+    public ResponseEntity<Rule> get(@PathVariable("id") String id) {
         return ruleRepository.findById(id)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
