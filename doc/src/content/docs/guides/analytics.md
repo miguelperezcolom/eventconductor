@@ -19,7 +19,13 @@ This is a pragmatic, built-in analytics layer — per-definition operational met
 
 ## The Analytics page
 
-The workflow UI (`/_workflow`) has an **Analytics** entry in the menu. It shows, for the last 30 days: KPI cards (processes, completed, errors, cancelled), a processes-per-day chart, a per-definition table (counts, rates, average/p95 duration, bottleneck step) and a per-step table with the bottleneck flagged.
+The workflow UI (`/_workflow`) has an **Analytics** entry in the menu. It shows, for the last 30 days: KPI cards (processes, completed, errors, cancelled), a processes-per-day chart and a per-definition table (counts, rates, average/p95 duration, bottleneck step):
+
+![Analytics page — KPIs, throughput chart and per-definition table](/screenshots/11-analytics.png)
+
+Below it, a per-step table breaks durations down per step, with the slowest step of each definition flagged (⚠):
+
+![Analytics page — per-step durations with the bottleneck flagged](/screenshots/12-analytics-steps.png)
 
 ## Asking the AI agent
 

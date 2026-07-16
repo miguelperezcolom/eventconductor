@@ -107,6 +107,14 @@ The processes list shows all process instances with their ID, workflow name, sta
 
 Clicking **View** on a row opens the process detail, showing all step executions, their individual statuses, variables, and the full audit log.
 
+### Analytics
+
+Navigate via **Workflow → Analytics**.
+
+Built-in process analytics over the last 30 days (see the [Process Analytics guide](/guides/analytics/)): KPI cards, a processes-per-day chart, a per-definition table with instance counts, completion/error rates and average/p95 durations, and a per-step table with the slowest step of each definition flagged as the bottleneck (⚠).
+
+![Analytics page](/screenshots/11-analytics.png)
+
 ---
 
 ## Forms Engine
@@ -178,6 +186,7 @@ http://localhost:8191/_workflow          Workflow Engine
   └─ Workflow → Definitions             Workflow definitions list
   └─ Workflow → Processes               Process instances list
        └─ View                          Process detail + step executions
+  └─ Workflow → Analytics               Per-definition analytics & bottlenecks
 
 http://localhost:8191/_forms             Forms Engine
   └─ Forms → Forms                      Form definitions list
