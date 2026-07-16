@@ -7,10 +7,18 @@ import io.mateu.workflow.e2e.support.AbstractE2eTest;
 import io.mateu.workflow.e2e.support.TestWorker;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.annotation.DirtiesContext;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** E2E-ANA-01: built-in analytics reflect executed processes. */
+/**
+ * E2E-ANA-01: built-in analytics reflect executed processes.
+ *
+ * <p>Runs in a fresh context: analytics count every process of a definition in the shared
+ * repositories, and other memory-mode tests also create `sequential-3` processes, so this
+ * test must start from empty repositories to assert exact instance counts (order-independent).
+ */
+@DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_CLASS)
 class AnalyticsE2eTest extends AbstractE2eTest {
 
     @Autowired ProcessAnalyticsService analyticsService;
