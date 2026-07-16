@@ -35,7 +35,9 @@ class ProcessAnalyticsServiceTest {
     @InjectMocks ProcessAnalyticsService service;
 
     private final AtomicInteger sequence = new AtomicInteger();
-    private final LocalDateTime base = LocalDateTime.now().minusDays(1);
+    // Fixed early-morning hour so base + a few hours never crosses midnight
+    // (createdPerDay groups by calendar day).
+    private final LocalDateTime base = LocalDateTime.now().minusDays(1).toLocalDate().atTime(4, 0);
 
     private WorkflowDefinition definition(String id, String name) {
         return new WorkflowDefinition(id, name, 1, null, null, null, false, 0, false, null, List.of());

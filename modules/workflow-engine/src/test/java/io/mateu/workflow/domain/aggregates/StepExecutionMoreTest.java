@@ -11,11 +11,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 class StepExecutionMoreTest {
 
     private Step actionStep() {
-        return new Step("step-1", "wd-1", StepType.ACTION, "Step 1", null, null, null, false, "topic", null, null, 0, null, null, null, 0, 0, false, null);
+        return new Step("step-1", "wd-1", StepType.ACTION, "Step 1", null, null, null, false, "topic", null, null, null, 0, null, null, null, 0, 0, false, null);
     }
 
     private Step userTaskStepWithForm(String formId) {
-        return new Step("step-1", "wd-1", StepType.USER_TASK, "User Step", null, null, null, false, null, formId, null, 0, null, null, null, 0, 0, false, null);
+        return new Step("step-1", "wd-1", StepType.USER_TASK, "User Step", null, null, null, false, null, formId, null, null, 0, null, null, null, 0, 0, false, null);
+    }
+
+    private Step ruleStepWithRule(String ruleId) {
+        return new Step("step-1", "wd-1", StepType.RULE, "Rule Step", null, null, null, false, null, null, ruleId, null, 0, null, null, null, 0, 0, false, null);
     }
 
     @Test
@@ -107,6 +111,42 @@ class StepExecutionMoreTest {
         assertThat(events.get(0)).isInstanceOf(TaskExecutionRequested.class);
         var event = (TaskExecutionRequested) events.get(0);
         assertThat(event.taskId()).isEqualTo("complete-form");
+    }
+
+    @Test
+    void startWithRuleStepAddsRuleIdVariableAndEvaluateRuleTaskId() {
+        var step = ruleStepWithRule("high-value-order");
+        var se = StepExecution.builder()
+                .id("se-1").processId("p-1").workflowDefinitionId("wd-1")
+                .stepId("step-1").stepJson(io.mateu.core.infra.JsonSerializer.toJson(step))
+                .status(StepExecutionStatus.CREATED).build();
+
+        se.start(List.of(new Variable("order.total", "200")));
+
+        assertThat(se.getVariables()).anyMatch(v -> "ruleId".equals(v.name()) && "high-value-order".equals(v.value()));
+        assertThat(se.getStatus()).isEqualTo(StepExecutionStatus.PENDING);
+        var events = se.popEvents();
+        assertThat(events).hasSize(1);
+        var event = (TaskExecutionRequested) events.get(0);
+        assertThat(event.taskId()).isEqualTo("evaluate-rule");
+    }
+
+    @Test
+    void startWithRuleStepAndNoRuleIdSetsErrorStatus() {
+        var step = ruleStepWithRule(null);
+        var se = StepExecution.builder()
+                .id("se-1").processId("p-1").workflowDefinitionId("wd-1")
+                .stepId("step-1").stepJson(io.mateu.core.infra.JsonSerializer.toJson(step))
+                .status(StepExecutionStatus.CREATED).build();
+
+        se.start(List.of());
+
+        assertThat(se.getStatus()).isEqualTo(StepExecutionStatus.ERROR);
+        // The log entry plus StepExecutionStatusChanged(ERROR), so the normal failure
+        // pipeline (retry/compensation/process status) engages — same as USER_TASK.
+        var events = se.popEvents();
+        assertThat(events).hasSize(2);
+        assertThat(events).anyMatch(e -> e instanceof io.mateu.workflow.dtos.events.domain.StepExecutionStatusChanged);
     }
 
     @Test

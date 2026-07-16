@@ -1,0 +1,109 @@
+server:
+  port: ${SERVER_PORT:8107}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: when-authorized
+      probes:
+        enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name:rule-engine}
+
+eventconductor:
+  security:
+    enabled: ${SECURITY_ENABLED:true}
+    user: ${SECURITY_USER:admin}
+    password: ${SECURITY_PASSWORD:}
+
+# This standalone app runs distributed (Kafka + JPA). The framework default is
+# embedded + memory, so opt into kafka/jpa explicitly here.
+workflow:
+  mode: ${WORKFLOW_MODE:kafka}
+
+rules:
+  persistence: ${RULES_PERSISTENCE:jpa}
+  source: local
+  grpc:
+    enabled: ${RULES_GRPC_ENABLED:true}
+    port: ${RULES_GRPC_PORT:9090}
+  git-import:
+    repositories:
+      # Example: uncomment and fill in to import rule definitions from a Git repo at startup
+      # - url: https://github.com/your-org/your-rules-repo.git
+      #   branch: main
+      #   username: your-username        # optional, for private repos
+      #   password: your-token-or-pass  # optional, for private repos
+
+spring:
+  ai:
+    mcp:
+      server:
+        name: rule-engine
+        version: 1.0.0
+
+  mvc:
+    async:
+      request-timeout: -1   # SSE connections must not expire
+
+  cloud:
+    function:
+      definition: consumeWorkerEventForRuleRuntime
+    stream:
+      kafka:
+        binder:
+          brokers: ${KAFKA_BROKERS:localhost:9192}
+          auto-create-topics: true
+      bindings:
+        consumeWorkerEventForRuleRuntime-in-0:
+          destination: downstream
+          group: rule-engine-group
+        upstream:
+          destination: upstream
+        downstream:
+          destination: downstream
+        rules:
+          destination: rules
+
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://127.0.0.1:5432/workflow}
+    username: ${DB_USERNAME:user_app}
+    password: ${DB_PASSWORD:user_password}
+    driver-class-name: ${DB_DRIVER:org.postgresql.Driver}
+
+  hikari:
+    connection-timeout: ${DB_CONNECTION_TIMEOUT:20000}
+    maximum-pool-size: ${DB_POOL_SIZE:10}
+
+  jpa:
+    database-platform: ${JPA_DIALECT:org.hibernate.dialect.PostgreSQLDialect}
+    hibernate:
+      # In production set DDL_AUTO=validate so Hibernate validates against the
+      # Flyway-managed schema without altering it. The default remains "update"
+      # for backwards compatibility with existing deployments.
+      ddl-auto: ${DDL_AUTO:update}
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+
+  flyway:
+    enabled: ${FLYWAY_ENABLED:false}
+    locations: classpath:db/migration/rules
+    baseline-on-migrate: true
+    baseline-version: 1
+    out-of-order: false
+    validate-on-migrate: true
+
+logging:
+  level:
+    org.hibernate.SQL: error
+    org.hibernate.orm.jdbc.bind: error
+    org.springframework.kafka: error
+    org.springframework.cloud.stream: error

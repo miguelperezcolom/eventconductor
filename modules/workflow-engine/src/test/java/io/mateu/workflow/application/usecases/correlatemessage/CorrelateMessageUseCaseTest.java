@@ -30,7 +30,7 @@ class CorrelateMessageUseCaseTest {
     @InjectMocks CorrelateMessageUseCase useCase;
 
     private Step messageStep(String messageName, String correlationExpression) {
-        return new Step("s1", "wd-1", StepType.MESSAGE, "Wait for message", null, null, null, false, null, null, null, 0, null, messageName, correlationExpression, 0, 0, false, null);
+        return new Step("s1", "wd-1", StepType.MESSAGE, "Wait for message", null, null, null, false, null, null, null, null, 0, null, messageName, correlationExpression, 0, 0, false, null);
     }
 
     private StepExecution pendingSe(Step step) {
@@ -94,7 +94,7 @@ class CorrelateMessageUseCaseTest {
 
     @Test
     void ignoresNonMessageSteps() {
-        var action = new Step("s1", "wd-1", StepType.ACTION, "Step", null, null, null, false, "t", null, null, 0, null, null, null, 0, 0, false, null);
+        var action = new Step("s1", "wd-1", StepType.ACTION, "Step", null, null, null, false, "t", null, null, null, 0, null, null, null, 0, 0, false, null);
         when(stepExecutionRepository.findPendingOrRunning()).thenReturn(List.of(pendingSe(action)));
 
         useCase.handle(new CorrelateMessageCommand("payment-received", "bk-1", List.of()));

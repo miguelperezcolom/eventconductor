@@ -31,6 +31,9 @@ ia-agent-service  (port 8095)
 | `findProcessByBusinessKey` | Look up a process by its business key |
 | `getProcessLogs` | Audit trail and log messages for a process |
 | `retryProcess` | Re-trigger all failed (ERROR) steps in a process |
+| `sendMessage` | Send an external message to resume processes waiting on a `MESSAGE` step |
+| `getWorkflowAnalytics` | Per-definition analytics: counts by status, rates, throughput per day, avg/p95 durations, bottleneck step ([guide](/guides/analytics/)) |
+| `findBottleneck` | Where processes get stuck: slowest step, steps with waiting instances, steps with failures |
 | `importWorkflowDefinitionsFromGit` | Pull and upsert workflow JSON files from Git |
 
 ### Forms engine (`forms-engine`, port 8106)
@@ -41,6 +44,18 @@ ia-agent-service  (port 8095)
 | `listFormExecutions` | All pending/completed user tasks |
 | `getFormExecution` | Full detail of a form execution including submitted values |
 | `importFormsFromGit` | Pull and upsert form JSON files from Git |
+
+### Rule engine (`rules`, port 8107)
+
+| Tool | Description |
+|---|---|
+| `listRules` | All rule definitions in the catalog |
+| `getRule` | Full definition of a rule as canonical JSON |
+| `saveRule` | Create or update a rule definition (JSON or YAML, schema-validated) |
+| `validateRule` | Validate a rule definition without saving it |
+| `deleteRule` | Delete a rule definition by id |
+| `evaluateRule` | Evaluate a rule against a JSON object of facts |
+| `importRulesFromGit` | Pull and upsert rule JSON/YAML files from Git |
 
 ### Custom domain tools (example: `booking-service`, port 8108)
 

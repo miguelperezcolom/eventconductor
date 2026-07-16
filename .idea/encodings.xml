@@ -4,6 +4,7 @@
     <file url="file://$PROJECT_DIR$/apps/dev-app/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/apps/forms-standalone-app/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/apps/orchestrator-standalone-app/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/apps/rule-standalone-app/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/apps/worker-standalone-app/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/demo/api-gw/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/demo/booking-service/src/main/java" charset="UTF-8" />
@@ -26,6 +27,10 @@
     <file url="file://$PROJECT_DIR$/demo/users-service/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/modules/forms-engine/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/modules/forms-engine/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/modules/rule-engine/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/modules/rule-engine/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/modules/rule-runtime/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/modules/rule-runtime/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/modules/sample-worker/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/modules/sample-worker/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/modules/shared/src/main/java" charset="UTF-8" />
@@ -42,6 +47,9 @@
     <file url="file://$PROJECT_DIR$/testbench/forms-embedded-headless/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/testbench/forms-embedded-mvc/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/testbench/forms-embedded/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/testbench/rules-embedded-headless/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/testbench/rules-embedded-mvc/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/testbench/rules-remote-client/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/testbench/workflow-embedded-db-headless/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/testbench/workflow-embedded-git/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/testbench/workflow-embedded-headless/src/main/java" charset="UTF-8" />

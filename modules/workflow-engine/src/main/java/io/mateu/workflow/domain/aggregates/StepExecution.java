@@ -117,6 +117,20 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
                 updateStatus(StepExecutionStatus.ERROR);
                 return this;
             }
+        } else if (StepType.RULE.equals(step.type())) {
+            if (step.ruleId() == null || step.ruleId().isEmpty()) {
+                send(new TaskLogEmitted(id, MessageType.Error, "Step " + step.name() + " has no rule id defined."));
+                // updateStatus (not a bare assignment) so the normal failure pipeline
+                // engages instead of freezing the process — same as USER_TASK above.
+                updateStatus(StepExecutionStatus.ERROR);
+                return this;
+            }
+            var taskVariables = new ArrayList<>(variables);
+            taskVariables.add(new Variable("ruleId", step.ruleId()));
+            this.variables = taskVariables;
+            send(new TaskExecutionRequested(id, processId, workflowDefinitionId, stepId, "evaluate-rule", taskVariables.stream()
+                    .map(variable -> new io.mateu.workflow.dtos.Variable(variable.name(), variable.value()))
+                    .toList()));
         } else {
             send(new TaskExecutionRequested(id, processId, workflowDefinitionId, stepId, "", variables.stream()
                     .map(variable -> new io.mateu.workflow.dtos.Variable(variable.name(), variable.value()))

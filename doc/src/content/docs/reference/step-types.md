@@ -120,6 +120,23 @@ Delivery semantics:
 - **Broadcast.** If several processes are waiting on the same `messageName` and correlation key, all of them are resumed.
 
 `timeout` and `retries` keep their usual meaning: a waiting MESSAGE step that receives no message within `timeout` transitions to `TIMEOUT` and the normal retry/failure pipeline engages (a retry re-arms the wait).
+## RULE
+
+Evaluates a business rule from the rule engine against the process variables. The rule's outputs are merged back into the process variables.
+
+```json
+{
+  "id": "apply-discount",
+  "type": "RULE",
+  "name": "Apply the discount rule",
+  "ruleId": "high-value-order",
+  "preconditionStepId": "register-order"
+}
+```
+
+**Required fields:** `ruleId`
+
+The `ruleId` references a rule definition (expression rule or decision table) stored in the rule engine. The engine dispatches the step with `taskId=evaluate-rule`; any app embedding `rule-runtime` (or `rule-standalone-app`) evaluates it. See [Rule Evaluation](/guides/rule-evaluation/).
 
 ---
 

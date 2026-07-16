@@ -8,7 +8,7 @@ import org.springframework.cloud.stream.function.StreamBridge;
 import org.springframework.stereotype.Service;
 
 @Service
-@ConditionalOnProperty(name = "workflow.mode", havingValue = "kafka", matchIfMissing = true)
+@ConditionalOnProperty(name = "workflow.mode", havingValue = "kafka")
 @RequiredArgsConstructor
 public class KafkaDownstreamEventPublisher implements DownstreamEventPublisher {
 

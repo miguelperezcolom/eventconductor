@@ -38,7 +38,7 @@ class StepExecutionStatusUpdatedEventHandlerTest {
 
     private Step step(int retries, boolean rollbackable, String compensationStepId) {
         return new Step("s1", "wd-1", StepType.ACTION, "Step", null, null, null, false, "topic",
-                null, null, 0, null, null, null, 0, retries, rollbackable, compensationStepId);
+                null, null, null, 0, null, null, null, 0, retries, rollbackable, compensationStepId);
     }
 
     private StepExecution se(int attemptCount, int retries, boolean rollbackable, String compensationStepId) {

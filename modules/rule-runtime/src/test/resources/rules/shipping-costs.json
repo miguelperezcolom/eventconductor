@@ -1,0 +1,13 @@
+{
+  "id": "shipping-costs",
+  "name": "Shipping costs",
+  "type": "decision-table",
+  "hitPolicy": "FIRST",
+  "inputs": ["customer.category", "order.total"],
+  "outputs": ["shippingCost", "courier"],
+  "rows": [
+    { "when": ["VIP", "*"],     "then": ["0",  "'express'"]  },
+    { "when": ["*",   "> 100"], "then": ["5",  "'standard'"] },
+    { "when": ["*",   "*"],     "then": ["10", "'standard'"] }
+  ]
+}

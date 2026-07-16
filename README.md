@@ -44,6 +44,14 @@ The `forms-engine` module handles form definitions, validation, and rendering. U
 reference a form by ID; the engine takes care of the rest. Forms are defined in JSON, stored
 in version control, and served dynamically to any front-end.
 
+### Built-in rule engine
+The `rule-engine` module is a catalog of business rules — expression rules and decision
+tables, written in JSON or YAML, schema-validated and version-controlled. Rules are
+evaluated by the lightweight embeddable `rule-runtime` (JEXL) wherever your data lives:
+same JVM, or remotely fetching definitions over **REST or gRPC** with a local cache kept
+fresh by Kafka events. `RULE` workflow steps evaluate a rule and merge its outputs into
+the process variables.
+
 ### Visual editors included
 - **Drag-and-drop workflow editor** — design and modify workflows visually; changes are
   persisted back as JSON definitions.
@@ -134,6 +142,17 @@ and the final answer is returned as plain text or streamed via SSE.
 | `getFormExecution` | Full detail of a form execution including submitted values |
 | `importFormsFromGit` | Pull and upsert form JSON files from Git |
 
+**Rule engine** (`rule-engine`, bundled in dev-app / `rule-standalone-app`, port 8107)
+
+| Tool | Description |
+|---|---|
+| `listRules` | All rule definitions with type, version and tags |
+| `getRule` | Full definition of a rule as canonical JSON |
+| `saveRule` / `deleteRule` | Create, update or remove a rule (validated on save) |
+| `validateRule` | Validate a JSON/YAML rule definition without saving it |
+| `evaluateRule` | Evaluate a rule against a JSON object of facts |
+| `importRulesFromGit` | Pull and upsert rule JSON/YAML files from Git |
+
 **Custom domain tools** (example: `booking-service`, port 8108)
 
 | Tool | Description |
@@ -222,6 +241,26 @@ into its system prompt automatically.
 
 ---
 
+## AI-assisted development
+
+EventConductor ships curated context files so AI coding tools generate correct
+workflow definitions and workers:
+
+- **[`llms.txt`](doc/public/llms.txt)** — an [llms.txt](https://llmstxt.org)-standard
+  index of the project (served at the docs-site root as `/llms.txt`).
+- **[AI reference — compact](doc/public/eventconductor-ai-compact.md)** — key concepts,
+  the workflow DSL, step types, worker API and statuses. Best for day-to-day code
+  generation. Paste it into Claude Projects, Cursor Rules, Gemini Gems, etc.
+- **[AI reference — full](doc/public/eventconductor-ai-full.md)** — the complete DSL,
+  deployment modes, Kafka topics, full Java API, sagas, git-import, forms and MCP.
+- **Claude Code / Claude Agent SDK** — bundled skills under
+  [`.claude/skills/`](.claude/skills/) (`eventconductor`, `eventconductor-scaffold`,
+  `eventconductor-run`) auto-activate for EventConductor tasks.
+- **[Workflow definition JSON Schema](modules/workflow-engine/src/main/resources/workflow-definition-schema.json)**
+  — add it via `$schema` for editor autocomplete and validation of your definitions.
+
+---
+
 ## Repository structure
 
 ```
@@ -230,6 +269,8 @@ eventconductor/
 │   ├── shared/                DTOs, domain events, DDD base classes
 │   ├── workflow-engine/       Core orchestration engine (embeddable Spring Boot library)
 │   ├── forms-engine/          Form definition and rendering engine
+│   ├── rule-engine/           Business rule catalog (REST + gRPC read APIs, UI, MCP)
+│   ├── rule-runtime/          Lightweight embeddable rule evaluator (JEXL)
 │   └── sample-worker/         Hello-world worker example
 └── demo/                      Example microservices that use the modules
     ├── api-gw/                API gateway
@@ -260,15 +301,18 @@ The engine supports three modes controlled by two independent properties:
 
 | Property | Values | Default |
 |---|---|---|
-| `workflow.mode` | `kafka` \| `embedded` | `kafka` |
-| `workflow.persistence` | `jpa` \| `memory` | `jpa` |
+| `workflow.mode` | `kafka` \| `embedded` | `embedded` |
+| `workflow.persistence` | `jpa` \| `memory` | `memory` |
+
+The defaults (`embedded` + `memory`) run entirely in-process with no external
+dependencies, so you can start small and grow into JPA and then Kafka as your
+needs scale.
 
 ### Mode 1 — Full distributed (`kafka` + `jpa`)
 
-Default mode. Requires a running Kafka broker and PostgreSQL database.
+Requires a running Kafka broker and PostgreSQL database.
 
 ```properties
-# No extra configuration needed — these are the defaults
 workflow.mode=kafka
 workflow.persistence=jpa
 ```
@@ -305,7 +349,7 @@ public class MyApplication {
 
 ### Mode 3 — Fully embedded (`embedded` + `memory`)
 
-No Kafka, no database. Everything runs in-process.
+Default mode. No Kafka, no database. Everything runs in-process.
 
 ```properties
 workflow.mode=embedded
@@ -437,6 +481,7 @@ steps:
 |---|---|---|
 | `ACTION` | Dispatches a task to a worker | `topic` |
 | `USER_TASK` | Pauses the workflow for a human form submission | `formId` |
+| `RULE` | Evaluates a business rule; outputs merge into process variables | `ruleId` |
 | `PROCESS` | Starts a child workflow as a sub-process | `childWorkflowDefinitionId` |
 | `JOIN` | Waits for all parallel branches to complete | — |
 | `FORK` | Starts parallel branches | — |
@@ -455,6 +500,7 @@ steps:
 | `parallel` | boolean | `false` | Allows concurrent execution with other parallel steps |
 | `topic` | string | — | Worker topic/destination (ACTION only) |
 | `formId` | string | — | Form identifier (USER_TASK only) |
+| `ruleId` | string | — | Rule identifier (RULE only) |
 | `childWorkflowDefinitionId` | string | — | Child workflow ID (PROCESS only) |
 | `timeout` | integer (ms) | `0` | Max execution time; `0` = no timeout |
 | `retries` | integer | `0` | Auto-retry attempts on ERROR or TIMEOUT |
@@ -595,8 +641,8 @@ to report task progress from asynchronous code.
 
 ```properties
 # --- Deployment mode ---
-workflow.mode=kafka          # kafka | embedded (default: kafka)
-workflow.persistence=jpa     # jpa | memory   (default: jpa)
+workflow.mode=kafka          # kafka | embedded (default: embedded)
+workflow.persistence=jpa     # jpa | memory   (default: memory)
 
 # --- Database (workflow.persistence=jpa) ---
 spring.datasource.url=jdbc:postgresql://localhost:5432/workflow

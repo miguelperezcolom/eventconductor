@@ -166,7 +166,7 @@ A detailed capability-by-capability view. ✅ built-in · 🟡 possible with ext
 | Cron / scheduled process starts | ✅ `cronExpression` on the definition | ✅ timer start events | ✅ Schedules |
 | Message correlation into running processes | ✅ `MESSAGE` step (businessKey or JEXL correlation) | ✅ message events | ✅ signals & updates |
 | Query running workflow state | ✅ repositories / API / UI | ✅ Operate API | ✅ queries + visibility API |
-| Business decision tables | ❌ | ✅ DMN engine | 🟡 code |
+| Business decision tables | ✅ rule engine (`RULE` step; expression rules & decision tables in JSON/YAML) | ✅ DMN engine | 🟡 code |
 | Definition versioning | ✅ versions + draft working copies | ✅ versioned deployments | 🟡 code patching APIs |
 | Per-definition concurrency limits & queueing | ✅ `maxConcurrentExecutions` + enqueue | 🟡 not built-in | 🟡 workflow-id uniqueness, worker limits |
 | Multi-tenancy | ❌ | ✅ | ✅ namespaces |

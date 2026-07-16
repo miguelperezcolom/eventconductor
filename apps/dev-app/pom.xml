@@ -83,6 +83,22 @@
             <artifactId>sample-worker</artifactId>
             <version>1.0-SNAPSHOT</version>
         </dependency>
+        <dependency>
+            <groupId>io.mateu.workflow</groupId>
+            <artifactId>rule-engine</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+        <!-- gRPC server bits for the rule catalog (rule-engine declares them optional) -->
+        <dependency>
+            <groupId>io.grpc</groupId>
+            <artifactId>grpc-netty-shaded</artifactId>
+            <version>1.70.0</version>
+        </dependency>
+        <dependency>
+            <groupId>io.grpc</groupId>
+            <artifactId>grpc-services</artifactId>
+            <version>1.70.0</version>
+        </dependency>
     </dependencies>
 
     <build>

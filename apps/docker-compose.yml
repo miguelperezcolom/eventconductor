@@ -90,6 +90,8 @@ services:
     restart: on-failure
     environment:
       SERVER_PORT: 8080
+      WORKFLOW_MODE: kafka
+      WORKFLOW_PERSISTENCE: jpa
       DB_URL: jdbc:postgresql://postgres-db:5432/workflow
       DB_USERNAME: workflow
       DB_PASSWORD: secret

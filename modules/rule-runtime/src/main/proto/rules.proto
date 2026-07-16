@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package eventconductor.rules.v1;
+
+option java_package = "io.mateu.workflow.rules.grpc";
+option java_multiple_files = true;
+option java_outer_classname = "RulesProto";
+
+// Synchronous read API of the rule catalog. The rule body travels as the
+// canonical JSON of the rule definition so the runtime deserializes it with
+// the exact same Jackson path used for REST, classpath and Kafka sources.
+service RuleService {
+  rpc GetRule(GetRuleRequest) returns (RuleDefinition);
+  rpc ListRules(ListRulesRequest) returns (ListRulesResponse);
+}
+
+message GetRuleRequest {
+  string id = 1;
+}
+
+message ListRulesRequest {
+  // Optional: only return rules carrying this tag.
+  string tag = 1;
+}
+
+message ListRulesResponse {
+  repeated RuleDefinition rules = 1;
+}
+
+message RuleDefinition {
+  string id = 1;
+  string name = 2;
+  string type = 3;
+  int32 version = 4;
+  string rule_json = 5;
+}

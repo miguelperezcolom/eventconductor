@@ -10,7 +10,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 @Service
-@ConditionalOnProperty(name = "workflow.mode", havingValue = "embedded")
+@ConditionalOnProperty(name = "workflow.mode", havingValue = "embedded", matchIfMissing = true)
 @RequiredArgsConstructor
 @Slf4j
 public class EmbeddedDownstreamEventPublisher implements DownstreamEventPublisher {

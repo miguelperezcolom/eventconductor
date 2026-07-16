@@ -43,7 +43,7 @@ class StepOverProcessUseCaseTest {
     }
 
     private StepExecution se(String id, String stepId, StepType type, StepExecutionStatus status, int order) {
-        Step step = new Step(stepId, "wd-1", type, stepId, null, null, null, false, "topic", "form-1", null, 0, null, null, null, 0, 0, false, null);
+        Step step = new Step(stepId, "wd-1", type, stepId, null, null, null, false, "topic", "form-1", null, null, 0, null, null, null, 0, 0, false, null);
         return StepExecution.builder()
                 .id(id).processId("p-1").workflowDefinitionId("wd-1")
                 .stepId(stepId).stepJson(JsonSerializer.toJson(step))
@@ -150,8 +150,8 @@ class StepOverProcessUseCaseTest {
     @Test
     void parallelStepsAreAllStarted() {
         var process = process("p-1");
-        Step step1 = new Step("s1", "wd-1", StepType.ACTION, "s1", null, null, null, true, "topic", null, null, 0, null, null, null, 0, 0, false, null);
-        Step step2 = new Step("s2", "wd-1", StepType.ACTION, "s2", null, null, null, true, "topic", null, null, 0, null, null, null, 0, 0, false, null);
+        Step step1 = new Step("s1", "wd-1", StepType.ACTION, "s1", null, null, null, true, "topic", null, null, null, 0, null, null, null, 0, 0, false, null);
+        Step step2 = new Step("s2", "wd-1", StepType.ACTION, "s2", null, null, null, true, "topic", null, null, null, 0, null, null, null, 0, 0, false, null);
         var se1 = StepExecution.builder().id("se-1").processId("p-1").workflowDefinitionId("wd-1")
                 .stepId("s1").stepJson(JsonSerializer.toJson(step1))
                 .status(StepExecutionStatus.CREATED).order(0).variables(List.of()).build();
@@ -170,8 +170,8 @@ class StepOverProcessUseCaseTest {
     @Test
     void stepWithUnmetPreconditionStepIdIsNotStarted() {
         var process = process("p-1");
-        Step prerequisite = new Step("prereq", "wd-1", StepType.ACTION, "prereq", null, null, null, false, "topic", null, null, 0, null, null, null, 0, 0, false, null);
-        Step dependent = new Step("dep", "wd-1", StepType.ACTION, "dep", null, "prereq", null, false, "topic", null, null, 0, null, null, null, 0, 0, false, null);
+        Step prerequisite = new Step("prereq", "wd-1", StepType.ACTION, "prereq", null, null, null, false, "topic", null, null, null, 0, null, null, null, 0, 0, false, null);
+        Step dependent = new Step("dep", "wd-1", StepType.ACTION, "dep", null, "prereq", null, false, "topic", null, null, null, 0, null, null, null, 0, 0, false, null);
         var sePrereq = StepExecution.builder().id("se-prereq").processId("p-1").workflowDefinitionId("wd-1")
                 .stepId("prereq").stepJson(JsonSerializer.toJson(prerequisite))
                 .status(StepExecutionStatus.CREATED).order(0).variables(List.of()).build();

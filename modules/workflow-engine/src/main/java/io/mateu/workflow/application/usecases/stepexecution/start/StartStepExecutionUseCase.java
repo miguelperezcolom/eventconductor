@@ -36,6 +36,9 @@ public class StartStepExecutionUseCase {
         if (StepType.USER_TASK.equals(step.type())) {
             taskId = "complete-form";
         }
+        if (StepType.RULE.equals(step.type())) {
+            taskId = "evaluate-rule";
+        }
         downstreamEventPublisher.publish(new TaskExecutionRequested(
                 stepExecution.id(),
                 stepExecution.getProcessId(),

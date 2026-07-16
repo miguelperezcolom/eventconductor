@@ -31,6 +31,13 @@ spec:
                 name: forms
                 port:
                   number: {{ .Values.forms.servicePort }}
+          - path: {{ .Values.ingress.rulesPath }}
+            pathType: Prefix
+            backend:
+              service:
+                name: rules
+                port:
+                  number: {{ .Values.rules.servicePort }}
   {{- with .Values.ingress.tls }}
   tls:
     {{- toYaml . | nindent 4 }}

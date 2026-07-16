@@ -24,7 +24,7 @@ class WorkflowDefinitionValidatorTest {
     }
 
     private Step actionStep(String id) {
-        return new Step(id, null, StepType.ACTION, "Step " + id, null, null, null, false, "my-topic", null, null, 0, null, null, null, 0, 0, false, null);
+        return new Step(id, null, StepType.ACTION, "Step " + id, null, null, null, false, "my-topic", null, null, null, 0, null, null, null, 0, 0, false, null);
     }
 
     @Test
@@ -55,7 +55,7 @@ class WorkflowDefinitionValidatorTest {
 
     @Test
     void definitionWithSelfPreconditionFailsInvariantCheck() {
-        Step selfPrecondition = new Step("s1", null, StepType.ACTION, "Step", null, "s1", null, false, "topic", null, null, 0, null, null, null, 0, 0, false, null);
+        Step selfPrecondition = new Step("s1", null, StepType.ACTION, "Step", null, "s1", null, false, "topic", null, null, null, 0, null, null, null, 0, 0, false, null);
         var wd = new WorkflowDefinition("wd-1", "Test", 1, "desc",
                 WorkflowDefinitionStatus.ACTIVE, null, false, 0, false, null, List.of(selfPrecondition));
 

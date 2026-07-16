@@ -26,6 +26,12 @@ app:
   features:
     data-source: mem
 
+# This standalone app runs distributed (Kafka + JPA). The framework default is
+# embedded + memory, so opt into kafka/jpa explicitly here.
+workflow:
+  mode: ${WORKFLOW_MODE:kafka}
+  persistence: ${WORKFLOW_PERSISTENCE:jpa}
+
 spring:
   ai:
     mcp:

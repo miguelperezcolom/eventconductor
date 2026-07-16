@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS form_execution_entity (
     step_id            VARCHAR(255),
     step_execution_id  VARCHAR(255),
     variables          TEXT,
-    values             TEXT,
+    "values"           TEXT,
     status             VARCHAR(64),
     user_id            VARCHAR(255),
     user_group         VARCHAR(255)

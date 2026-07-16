@@ -79,6 +79,13 @@ export default defineConfig({
 					],
 				},
 				{
+					label: 'Rule Engine',
+					items: [
+						{ label: 'Rule Definitions', slug: 'guides/rule-definitions' },
+						{ label: 'Rule Evaluation', slug: 'guides/rule-evaluation' },
+					],
+				},
+				{
 					label: 'AI Integration (MCP)',
 					items: [
 						{ label: 'Overview', slug: 'guides/mcp-overview' },
@@ -95,6 +102,14 @@ export default defineConfig({
 						{ label: 'Configuration', slug: 'reference/configuration' },
 						{ label: 'Kafka Topics', slug: 'reference/kafka-topics' },
 						{ label: 'Java API', slug: 'reference/java-api' },
+					],
+				},
+				{
+					label: 'For AI assistants',
+					items: [
+						{ label: 'llms.txt', link: '/llms.txt', attrs: { target: '_blank' } },
+						{ label: 'AI reference (compact)', link: '/eventconductor-ai-compact.md', attrs: { target: '_blank' } },
+						{ label: 'AI reference (full)', link: '/eventconductor-ai-full.md', attrs: { target: '_blank' } },
 					],
 				},
 			],

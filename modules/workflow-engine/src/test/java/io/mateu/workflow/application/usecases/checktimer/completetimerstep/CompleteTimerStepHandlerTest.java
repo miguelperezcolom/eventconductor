@@ -33,7 +33,7 @@ class CompleteTimerStepHandlerTest {
     @InjectMocks CompleteTimerStepHandler handler;
 
     private StepExecution pendingTimerSe(long durationMillis, String untilVariable, LocalDateTime startedAt, Variable... variables) {
-        Step step = new Step("s1", "wd-1", StepType.TIMER, "Wait", null, null, null, false, null, null, null, durationMillis, untilVariable, null, null, 0, 0, false, null);
+        Step step = new Step("s1", "wd-1", StepType.TIMER, "Wait", null, null, null, false, null, null, null, null, durationMillis, untilVariable, null, null, 0, 0, false, null);
         return StepExecution.builder()
                 .id("se-1").processId("p-1").workflowDefinitionId("wd-1")
                 .stepJson(JsonSerializer.toJson(step))
@@ -111,7 +111,7 @@ class CompleteTimerStepHandlerTest {
 
     @Test
     void skipsWhenStepIsNotATimer() {
-        Step action = new Step("s1", "wd-1", StepType.ACTION, "Step", null, null, null, false, "t", null, null, 0, null, null, null, 0, 0, false, null);
+        Step action = new Step("s1", "wd-1", StepType.ACTION, "Step", null, null, null, false, "t", null, null, null, 0, null, null, null, 0, 0, false, null);
         var se = StepExecution.builder()
                 .id("se-1").processId("p-1")
                 .stepJson(JsonSerializer.toJson(action))

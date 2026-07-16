@@ -48,4 +48,31 @@ spec:
           protocol: TCP
   egress:
     - {}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "eventconductor.fullname" . }}-rules
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: rules
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            {{- if .Values.networkPolicy.ingressFromPodSelector }}
+            {{- toYaml .Values.networkPolicy.ingressFromPodSelector | nindent 12 }}
+            {{- else }}
+            matchLabels:
+              app.kubernetes.io/instance: {{ .Release.Name }}
+            {{- end }}
+      ports:
+        - port: {{ .Values.rules.port }}
+          protocol: TCP
+        - port: {{ .Values.rules.grpcPort }}
+          protocol: TCP
+  egress:
+    - {}
 {{- end }}

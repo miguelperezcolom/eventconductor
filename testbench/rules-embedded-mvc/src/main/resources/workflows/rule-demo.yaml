@@ -1,0 +1,14 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/miguelperezcolom/eventconductor/main/modules/workflow-engine/src/main/resources/workflow-definition-schema.json
+id: rule-demo
+name: Rule demo
+version: 1
+status: ACTIVE
+steps:
+  - id: apply-discount
+    type: RULE
+    name: Apply the discount rule
+    ruleId: high-value-order
+  - id: end
+    type: END
+    name: Done
+    preconditionStepId: apply-discount

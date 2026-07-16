@@ -16,7 +16,7 @@ import org.springframework.stereotype.Service;
 import static io.mateu.core.infra.JsonSerializer.pojoFromJson;
 
 @Service
-@ConditionalOnProperty(name = "workflow.mode", havingValue = "embedded")
+@ConditionalOnProperty(name = "workflow.mode", havingValue = "embedded", matchIfMissing = true)
 @ConditionalOnProperty(name = "workflow.persistence", havingValue = "jpa")
 @ConditionalOnProperty(name = "workflow.outbox.relay-enabled", havingValue = "true", matchIfMissing = true)
 @RequiredArgsConstructor
