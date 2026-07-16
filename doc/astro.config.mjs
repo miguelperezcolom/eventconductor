@@ -56,6 +56,7 @@ export default defineConfig({
 						{ label: 'Comparison: Camunda & Temporal', slug: 'guides/comparison' },
 						{ label: 'Quick Start', slug: 'guides/quickstart' },
 						{ label: 'Deployment Modes', slug: 'guides/deployment-modes' },
+						{ label: 'Architecture', slug: 'guides/architecture' },
 						{ label: 'Demo Applications', slug: 'guides/demos' },
 						{ label: 'UI Manual', slug: 'guides/ui-manual' },
 					],
