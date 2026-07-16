@@ -9,4 +9,6 @@ public interface ProcessEntityRepository extends JpaRepository<ProcessEntity, St
 
     Optional<ProcessEntity> findByBusinessKey(String businessKey);
 
+    long countByStatus(String status);
+
 }

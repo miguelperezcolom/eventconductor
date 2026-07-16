@@ -1,0 +1,10 @@
+{
+  "id": "timer-until",
+  "name": "Timer until date variable",
+  "version": 1,
+  "status": "ACTIVE",
+  "steps": [
+    { "id": "wait", "type": "TIMER", "name": "Wait until date", "untilVariable": "resumeAt" },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "wait" }
+  ]
+}

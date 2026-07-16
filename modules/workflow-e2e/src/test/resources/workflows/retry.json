@@ -1,0 +1,10 @@
+{
+  "id": "retry",
+  "name": "Retry then succeed",
+  "version": 1,
+  "status": "ACTIVE",
+  "steps": [
+    { "id": "flaky", "type": "ACTION", "name": "Flaky", "topic": "work", "retries": 2 },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "flaky" }
+  ]
+}

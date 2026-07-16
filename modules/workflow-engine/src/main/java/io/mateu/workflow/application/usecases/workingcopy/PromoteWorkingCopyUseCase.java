@@ -38,6 +38,7 @@ public class PromoteWorkingCopyUseCase {
                 draft.limitConcurrentExecutions(),
                 draft.maxConcurrentExecutions(),
                 draft.enqueueOnLimit(),
+                draft.cronExpression(),
                 draft.steps()
         );
 

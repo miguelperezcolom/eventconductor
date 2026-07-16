@@ -3,6 +3,7 @@ package io.mateu.workflow.application.usecases.process.create;
 import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
+import io.mateu.workflow.application.out.WorkflowMetrics;
 import io.mateu.workflow.domain.aggregates.Process;
 import io.mateu.workflow.domain.aggregates.StepExecution;
 import lombok.RequiredArgsConstructor;
@@ -20,14 +21,22 @@ public class CreateProcessUseCase {
     final ProcessRepository processRepository;
     final WorkflowDefinitionRepository workflowDefinitionRepository;
     final StepExecutionRepository stepExecutionRepository;
+    final WorkflowMetrics workflowMetrics;
 
     public void handle(CreateProcessCommand command) {
-        // Idempotency: if a non-empty businessKey is provided and a process already
-        // exists for it, this is a duplicate event — skip silently.
+        // Idempotency: a redelivered creation event carries the same processId and/or
+        // businessKey — skip silently instead of creating a duplicate process.
         if (command.processId() != null && !command.processId().isBlank()) {
             if (processRepository.findById(command.processId()).isPresent()) {
                 log.warn("Process with process Id '{}' already exists, ignoring duplicate creation request",
                         command.processId());
+                return;
+            }
+        }
+        if (command.businessKey() != null && !command.businessKey().isBlank()) {
+            if (processRepository.findByBusinessKey(command.businessKey()).isPresent()) {
+                log.warn("Process with business key '{}' already exists, ignoring duplicate creation request",
+                        command.businessKey());
                 return;
             }
         }
@@ -47,6 +56,8 @@ public class CreateProcessUseCase {
                         command.variables() != null?command.variables(): List.of()
                 );
         processRepository.save(process);
+
+        workflowMetrics.processStarted(command.workflowDefinitionId());
 
         // enviar evento proceso creado (para step over)
 

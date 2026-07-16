@@ -9,6 +9,7 @@ import io.mateu.workflow.domain.aggregates.Process;
 import io.mateu.workflow.domain.aggregates.ProcessStatus;
 import io.mateu.workflow.domain.aggregates.StepExecutionStatus;
 import io.mateu.workflow.infra.in.ui.pages.process.CreateProcessForm;
+import io.mateu.workflow.infra.in.ui.pages.process.ProcessFilters;
 import io.mateu.workflow.infra.in.ui.pages.process.ProcessRow;
 import io.mateu.workflow.infra.in.ui.pages.process.SimpleProcessViewModel;
 import lombok.RequiredArgsConstructor;
@@ -36,8 +37,12 @@ public class SimpleProcessCrudAdapter  {
     final ObjectProvider<CreateProcessForm> createProcessFormProvider;
     final DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
-    public ListingData<ProcessRow> search(String searchText, ProcessRow filters, Pageable pageable, HttpRequest httpRequest) {
+    public ListingData<ProcessRow> search(String searchText, ProcessFilters filters, Pageable pageable, HttpRequest httpRequest) {
+        // SearchActionHandler passes filters = null; the filter values only travel in the component state
+        boolean onlyErrors = filters != null && Boolean.TRUE.equals(filters.onlyErrors())
+                || filters == null && stateFlag(httpRequest, "onlyErrors");
         List<ProcessRow> all = repository.findAll().stream()
+                .filter(process -> !onlyErrors || ProcessStatus.ERROR.equals(process.getStatus()))
                 .filter(process -> searchText == null || searchText.isEmpty() ||
                         process.searchableText().toLowerCase().contains(searchText.toLowerCase()))
                 .map(mapProcessToRow(dtf))
@@ -48,6 +53,14 @@ public class SimpleProcessCrudAdapter  {
                 .limit(pageable.size())
                 .toList();
         return new ListingData<>(new Page<>(searchText, page.size(), pageable.page(), all.size(), page));
+    }
+
+    static boolean stateFlag(HttpRequest httpRequest, String name) {
+        if (httpRequest == null || httpRequest.runActionRq() == null
+                || httpRequest.runActionRq().componentState() == null) {
+            return false;
+        }
+        return Boolean.TRUE.equals(httpRequest.runActionRq().componentState().get(name));
     }
 
     private static @NonNull Function<Process, ProcessRow> mapProcessToRow(DateTimeFormatter dtf) {

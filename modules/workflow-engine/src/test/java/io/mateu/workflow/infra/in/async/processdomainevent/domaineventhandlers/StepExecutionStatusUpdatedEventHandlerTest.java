@@ -4,6 +4,7 @@ import io.mateu.core.infra.JsonSerializer;
 import io.mateu.workflow.application.out.DownstreamEventPublisher;
 import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
+import io.mateu.workflow.application.out.WorkflowMetrics;
 import io.mateu.workflow.application.usecases.process.stepover.StepOverProcessUseCase;
 import io.mateu.workflow.application.usecases.process.update.ProcessUpdateStepExecutionUpdateUseCase;
 import io.mateu.workflow.domain.aggregates.*;
@@ -31,12 +32,13 @@ class StepExecutionStatusUpdatedEventHandlerTest {
     @Mock StepExecutionRepository stepExecutionRepository;
     @Mock ProcessRepository processRepository;
     @Mock DownstreamEventPublisher downstreamEventPublisher;
+    @Mock WorkflowMetrics workflowMetrics;
 
     @InjectMocks StepExecutionStatusUpdatedEventHandler handler;
 
     private Step step(int retries, boolean rollbackable, String compensationStepId) {
         return new Step("s1", "wd-1", StepType.ACTION, "Step", null, null, null, false, "topic",
-                null, null, 0, retries, rollbackable, compensationStepId);
+                null, null, 0, null, null, null, 0, retries, rollbackable, compensationStepId);
     }
 
     private StepExecution se(int attemptCount, int retries, boolean rollbackable, String compensationStepId) {
@@ -64,6 +66,7 @@ class StepExecutionStatusUpdatedEventHandlerTest {
         verify(stepExecutionRepository).save(se);
         verify(stepOverProcessUseCase).handle(any());
         verify(processUpdateUseCase, never()).handle(any());
+        verify(workflowMetrics).retryPerformed("wd-1", WorkflowMetrics.RetryTrigger.AUTO);
     }
 
     @Test
@@ -105,6 +108,7 @@ class StepExecutionStatusUpdatedEventHandlerTest {
         handler.handle(new StepExecutionStatusChanged("se-1", TaskStatus.ERROR, List.of()));
 
         verify(stepExecutionRepository).save(compensationSe);
+        verify(workflowMetrics).compensationTriggered("wd-1");
     }
 
     @Test

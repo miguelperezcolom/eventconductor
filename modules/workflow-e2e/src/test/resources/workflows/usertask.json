@@ -1,0 +1,10 @@
+{
+  "id": "usertask",
+  "name": "User task",
+  "version": 1,
+  "status": "ACTIVE",
+  "steps": [
+    { "id": "approve", "type": "USER_TASK", "name": "Approve", "formId": "approval-form" },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "approve" }
+  ]
+}

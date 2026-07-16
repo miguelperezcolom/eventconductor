@@ -27,6 +27,7 @@
         <url/>
     </scm>
     <properties>
+        <mateu.version>3.0-alpha.243</mateu.version>
         <java.version>21</java.version>
     </properties>
     <dependencies>
@@ -51,18 +52,18 @@
         <dependency>
             <groupId>io.mateu</groupId>
             <artifactId>mvc-core</artifactId>
-            <version>3.0-alpha.203</version>
+            <version>${mateu.version}</version>
         </dependency>
         <dependency>
             <groupId>io.mateu</groupId>
             <artifactId>annotation-processor-mvc</artifactId>
-            <version>3.0-alpha.203</version>
+            <version>${mateu.version}</version>
         </dependency>
         <!-- serves the built-in frontend (web components); choose one: vaadin-lit, redhat-lit, sapui5-lit -->
         <dependency>
             <groupId>io.mateu</groupId>
             <artifactId>vaadin-lit</artifactId>
-            <version>3.0-alpha.203</version>
+            <version>${mateu.version}</version>
         </dependency>
 
     </dependencies>
@@ -100,7 +101,7 @@
                                 <path>
                                     <groupId>io.mateu</groupId>
                                     <artifactId>annotation-processor-mvc</artifactId>
-                                    <version>3.0-alpha.203</version>
+                                    <version>${mateu.version}</version>
                                 </path>
                             </annotationProcessorPaths>
                         </configuration>
@@ -120,7 +121,7 @@
                                 <path>
                                     <groupId>io.mateu</groupId>
                                     <artifactId>annotation-processor-mvc</artifactId>
-                                    <version>3.0-alpha.203</version>
+                                    <version>${mateu.version}</version>
                                 </path>
                             </annotationProcessorPaths>
                         </configuration>

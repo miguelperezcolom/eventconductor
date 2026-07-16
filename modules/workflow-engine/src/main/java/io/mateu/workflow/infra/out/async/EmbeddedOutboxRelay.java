@@ -18,6 +18,7 @@ import static io.mateu.core.infra.JsonSerializer.pojoFromJson;
 @Service
 @ConditionalOnProperty(name = "workflow.mode", havingValue = "embedded")
 @ConditionalOnProperty(name = "workflow.persistence", havingValue = "jpa")
+@ConditionalOnProperty(name = "workflow.outbox.relay-enabled", havingValue = "true", matchIfMissing = true)
 @RequiredArgsConstructor
 @Slf4j
 public class EmbeddedOutboxRelay {
@@ -30,9 +31,12 @@ public class EmbeddedOutboxRelay {
     final JdbcTemplate jdbcTemplate;
     final DbLockDialect dbLockDialect;
 
+    @org.springframework.beans.factory.annotation.Value("${workflow.outbox-poll-interval-ms:5000}")
+    long pollIntervalMs;
+
     @PostConstruct
     public void iterate() {
-        new Thread(() -> {
+        var thread = new Thread(() -> {
             try {
                 while (true) {
                     try {
@@ -41,17 +45,25 @@ public class EmbeddedOutboxRelay {
                             try {
                                 outboxMessageEntityRepository.findByStatus(OutboxMessageStatus.Pending.name()).forEach(m -> {
                                     log.info("Processing embedded outbox message {}", m.getId());
-                                    // Mark as Sent BEFORE processing so a crash after dispatch doesn't cause a duplicate.
-                                    // If processing fails we revert to Pending so the message is retried next cycle.
-                                    m.setStatus(OutboxMessageStatus.Sent.name());
-                                    outboxMessageEntityRepository.save(m);
+                                    DomainEvent event;
                                     try {
-                                        DomainEvent event = (DomainEvent) pojoFromJson(m.getPayload(), Class.forName(m.getMessageType()));
-                                        processDomainEventUseCase.handle(new ProcessDomainEventCommand(event));
+                                        event = (DomainEvent) pojoFromJson(m.getPayload(), OutboxMessages.messageClass(m.getMessageType()));
                                     } catch (Exception e) {
-                                        log.error("Failed to process embedded outbox message {}, reverting to Pending", m.getId(), e);
-                                        m.setStatus(OutboxMessageStatus.Pending.name());
+                                        // Poison message: retrying can never succeed, park it as Error.
+                                        log.error("Outbox message {} cannot be deserialized, marking as Error", m.getId(), e);
+                                        m.setStatus(OutboxMessageStatus.Error.name());
                                         outboxMessageEntityRepository.save(m);
+                                        return;
+                                    }
+                                    try {
+                                        // Dispatch BEFORE marking as Sent: a crash in between redelivers the
+                                        // message (at-least-once) and handlers deduplicate; marking first
+                                        // would lose the message forever on a crash after the save.
+                                        processDomainEventUseCase.handle(new ProcessDomainEventCommand(event));
+                                        m.setStatus(OutboxMessageStatus.Sent.name());
+                                        outboxMessageEntityRepository.save(m);
+                                    } catch (Exception e) {
+                                        log.error("Failed to process embedded outbox message {}, will retry next cycle", m.getId(), e);
                                     }
                                 });
                             } finally {
@@ -62,11 +74,13 @@ public class EmbeddedOutboxRelay {
                     } catch (Throwable e) {
                         log.error("Error processing embedded outbox messages", e);
                     }
-                    Thread.sleep(5000);
+                    Thread.sleep(pollIntervalMs);
                 }
             } catch (InterruptedException e) {
-                throw new RuntimeException(e);
+                Thread.currentThread().interrupt();
             }
-        }).start();
+        }, "embedded-outbox-relay");
+        thread.setDaemon(true);
+        thread.start();
     }
 }

@@ -11,11 +11,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 class StepExecutionMoreTest {
 
     private Step actionStep() {
-        return new Step("step-1", "wd-1", StepType.ACTION, "Step 1", null, null, null, false, "topic", null, null, 0, 0, false, null);
+        return new Step("step-1", "wd-1", StepType.ACTION, "Step 1", null, null, null, false, "topic", null, null, 0, null, null, null, 0, 0, false, null);
     }
 
     private Step userTaskStepWithForm(String formId) {
-        return new Step("step-1", "wd-1", StepType.USER_TASK, "User Step", null, null, null, false, null, formId, null, 0, 0, false, null);
+        return new Step("step-1", "wd-1", StepType.USER_TASK, "User Step", null, null, null, false, null, formId, null, 0, null, null, null, 0, 0, false, null);
     }
 
     @Test
@@ -68,7 +68,11 @@ class StepExecutionMoreTest {
         se.start(List.of());
 
         assertThat(se.getStatus()).isEqualTo(StepExecutionStatus.ERROR);
-        assertThat(se.popEvents()).hasSize(1);
+        // The log entry plus StepExecutionStatusChanged(ERROR), so the normal failure
+        // pipeline (retry/compensation/process status) engages.
+        var events = se.popEvents();
+        assertThat(events).hasSize(2);
+        assertThat(events).anyMatch(e -> e instanceof io.mateu.workflow.dtos.events.domain.StepExecutionStatusChanged);
     }
 
     @Test

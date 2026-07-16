@@ -1,7 +1,7 @@
 package io.mateu.workflow.infra.in.ui.pages.process;
 
 import io.mateu.core.infra.declarative.AutoNamedView;
-import io.mateu.core.infra.declarative.orchestrators.crud.AutoCrud;
+import io.mateu.core.infra.declarative.orchestrators.crud.FilteredAutoCrud;
 import io.mateu.uidl.annotations.ListToolbarButton;
 import io.mateu.uidl.data.ListingData;
 import io.mateu.uidl.data.Pageable;
@@ -22,10 +22,15 @@ import java.util.List;
 @Service
 @Scope("prototype")
 @RequiredArgsConstructor
-public class Processes extends AutoCrud<ProcessRow> {
+public class Processes extends FilteredAutoCrud<ProcessFilters, ProcessRow> {
 
     final SimpleProcessCrudAdapter processCrudAdapter;
     final RetryProcessUseCase retryProcessUseCase;
+
+    @Override
+    public Class filtersClass() {
+        return ProcessFilters.class;
+    }
 
     @Override
     public CrudRepository<ProcessRow> repository() {
@@ -33,12 +38,12 @@ public class Processes extends AutoCrud<ProcessRow> {
     }
 
     @Override
-    public CrudAdapter<AutoNamedView<ProcessRow>, AutoNamedView<ProcessRow>, ProcessRow, ProcessRow, String> adapter() {
+    public CrudAdapter<AutoNamedView<ProcessRow>, AutoNamedView<ProcessRow>, ProcessFilters, ProcessRow, String> adapter() {
         var parent = super.adapter();
         return new CrudAdapter<>() {
             @Override
-            public ListingData<ProcessRow> search(String searchText, ProcessRow filters, Pageable pageable, HttpRequest httpRequest) {
-                return parent.search(searchText, filters, pageable, httpRequest);
+            public ListingData<ProcessRow> search(String searchText, ProcessFilters filters, Pageable pageable, HttpRequest httpRequest) {
+                return processCrudAdapter.search(searchText, filters, pageable, httpRequest);
             }
             @Override
             public void deleteAllById(List<String> selectedIds, HttpRequest httpRequest) {

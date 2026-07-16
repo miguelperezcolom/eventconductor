@@ -6,6 +6,7 @@ import io.mateu.workflow.application.usecases.process.stepover.StepOverProcessUs
 import io.mateu.workflow.domain.aggregates.ProcessStatus;
 import io.mateu.workflow.domain.aggregates.StepExecutionStatus;
 import io.mateu.workflow.application.out.DownstreamEventPublisher;
+import io.mateu.workflow.application.out.WorkflowMetrics;
 import io.mateu.workflow.dtos.events.integration.TaskCancellationRequested;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -17,26 +18,31 @@ public class CancelProcessUseCase {
     final ProcessRepository processRepository;
     final StepExecutionRepository stepExecutionRepository;
     final DownstreamEventPublisher downstreamEventPublisher;
+    final WorkflowMetrics workflowMetrics;
 
     public void handle(CancelProcessCommand command) {
         var process = processRepository.findById(command.processId()).orElseThrow();
+        if (ProcessStatus.COMPLETED.equals(process.getStatus())
+                || ProcessStatus.CANCELLED.equals(process.getStatus())) {
+            return;
+        }
+
+        // Mark the process CANCELLED first: the step-status events emitted below re-enter
+        // the orchestration loop, which must see the process as cancelled and not
+        // dispatch any still-CREATED step in the middle of the cancellation.
+        processRepository.save(process.withStatus(ProcessStatus.CANCELLED));
+        workflowMetrics.processCancelled(process.getWorkflowDefinitionId(), WorkflowMetrics.durationOf(process));
 
         var stepExecutions = stepExecutionRepository.findByProcess(process);
-        boolean changed = false;
         for (var stepExecution : stepExecutions) {
-            if (!StepExecutionStatus.ERROR.equals(stepExecution.getStatus()) && !StepExecutionStatus.COMPLETED.equals(stepExecution.getStatus())) {
+            if (!StepExecutionStatus.ERROR.equals(stepExecution.getStatus()) && !StepExecutionStatus.COMPLETED.equals(stepExecution.getStatus())
+                    && !StepExecutionStatus.CANCELLED.equals(stepExecution.getStatus())) {
                 if (StepExecutionStatus.PENDING.equals(stepExecution.getStatus()) || StepExecutionStatus.RUNNING.equals(stepExecution.getStatus())) {
                     downstreamEventPublisher.publish(new TaskCancellationRequested(stepExecution.getId()));
                 }
                 stepExecution.updateStatus(StepExecutionStatus.CANCELLED);
                 stepExecutionRepository.save(stepExecution);
-                changed = true;
             }
-        }
-
-        if (changed) {
-            process = process.withStatus(ProcessStatus.CANCELLED);
-            processRepository.save(process);
         }
     }
 }

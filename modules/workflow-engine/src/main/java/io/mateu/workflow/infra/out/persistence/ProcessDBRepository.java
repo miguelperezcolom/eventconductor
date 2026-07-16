@@ -88,4 +88,9 @@ public class ProcessDBRepository implements ProcessRepository {
         return processEntityRepository.findByBusinessKey(businessKey)
                 .map(this::map);
     }
+
+    @Override
+    public long countByStatus(ProcessStatus status) {
+        return processEntityRepository.countByStatus(status.name());
+    }
 }

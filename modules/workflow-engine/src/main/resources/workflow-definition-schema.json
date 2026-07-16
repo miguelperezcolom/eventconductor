@@ -53,6 +53,10 @@
       "type": ["string", "null"],
       "description": "ID of the workflow definition this is a working copy of. Null for production definitions."
     },
+    "cronExpression": {
+      "type": ["string", "null"],
+      "description": "Spring cron expression (six fields, seconds first, e.g. \"0 0 9 * * MON-FRI\"). While the definition is ACTIVE, the engine automatically creates a process instance at each occurrence. Null means no scheduled starts."
+    },
     "steps": {
       "type": "array",
       "description": "Ordered list of steps that make up the workflow.",
@@ -81,7 +85,7 @@
         "type": {
           "type": "string",
           "description": "Execution type of the step.",
-          "enum": ["ACTION", "JOIN", "FORK", "END", "USER_TASK", "PROCESS"]
+          "enum": ["ACTION", "JOIN", "FORK", "END", "USER_TASK", "PROCESS", "TIMER", "MESSAGE"]
         },
         "name": {
           "type": "string",
@@ -116,6 +120,23 @@
         "childWorkflowDefinitionId": {
           "type": ["string", "null"],
           "description": "ID of the child workflow definition to start as a sub-process. Required for PROCESS steps."
+        },
+        "duration": {
+          "type": ["integer", "string", "null"],
+          "description": "TIMER only: how long to wait, counted from the moment the step starts. Use an ISO 8601 duration string (e.g. PT72H, P3D) or an integer in milliseconds.",
+          "default": 0
+        },
+        "untilVariable": {
+          "type": ["string", "null"],
+          "description": "TIMER only: name of a process variable holding an ISO 8601 date (2026-08-01) or date-time (2026-08-01T15:00); the timer fires when that moment passes. Takes precedence over duration."
+        },
+        "messageName": {
+          "type": ["string", "null"],
+          "description": "MESSAGE only: name of the external message this step waits for (MessageReceived events). Required for MESSAGE steps."
+        },
+        "correlationExpression": {
+          "type": ["string", "null"],
+          "description": "MESSAGE only: JEXL expression evaluated against process variables that yields the correlation key this step expects. When omitted, the message's correlationKey is matched against the process businessKey."
         },
         "timeout": {
           "type": ["integer", "string", "null"],
@@ -162,6 +183,27 @@
           },
           "then": {
             "required": ["childWorkflowDefinitionId"]
+          }
+        },
+        {
+          "if": {
+            "properties": { "type": { "const": "TIMER" } },
+            "required": ["type"]
+          },
+          "then": {
+            "anyOf": [
+              { "required": ["duration"] },
+              { "required": ["untilVariable"] }
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": { "type": { "const": "MESSAGE" } },
+            "required": ["type"]
+          },
+          "then": {
+            "required": ["messageName"]
           }
         },
         {

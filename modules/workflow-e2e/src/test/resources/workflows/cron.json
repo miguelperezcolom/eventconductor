@@ -1,0 +1,11 @@
+{
+  "id": "cron",
+  "name": "Cron started process",
+  "version": 1,
+  "status": "ACTIVE",
+  "cronExpression": "* * * * * *",
+  "steps": [
+    { "id": "tick", "type": "ACTION", "name": "Tick", "topic": "work" },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "tick" }
+  ]
+}

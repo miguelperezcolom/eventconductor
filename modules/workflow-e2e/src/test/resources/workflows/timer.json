@@ -1,0 +1,11 @@
+{
+  "id": "timer",
+  "name": "Timer wait",
+  "version": 1,
+  "status": "ACTIVE",
+  "steps": [
+    { "id": "wait", "type": "TIMER", "name": "Wait a moment", "duration": "PT0.5S" },
+    { "id": "after", "type": "ACTION", "name": "After the wait", "topic": "work", "preconditionStepId": "wait" },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "after" }
+  ]
+}

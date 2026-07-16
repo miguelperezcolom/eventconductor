@@ -36,6 +36,32 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
+  dist-e2e:
+    name: Distributed suite (Testcontainers)
+    runs-on: ubuntu-latest
+    # DIST-01…DIST-05 (TESTING.md §5): orchestrator + worker over real
+    # PostgreSQL and Kafka via Testcontainers. Kept out of the default
+    # `mvn verify` reactor because it needs Docker and takes minutes.
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: 21
+          distribution: zulu
+          cache: maven
+
+      - name: Build engine (unit tests already run in the build job)
+        run: mvn -B -ntp -pl modules/workflow-engine -am -DskipTests -Djacoco.skip=true install
+
+      - name: Run distributed tests (DIST-01…DIST-05)
+        run: mvn -B -ntp -Pdist-e2e -pl modules/workflow-dist-e2e -Djacoco.skip=true verify
+
+      - name: Surface DIST-05 throughput
+        if: always()
+        run: grep -rh "DIST-05 RESULT" modules/workflow-dist-e2e/target/surefire-reports/ | tee -a "$GITHUB_STEP_SUMMARY" || true
+
   helm-lint:
     name: Helm chart lint
     runs-on: ubuntu-latest

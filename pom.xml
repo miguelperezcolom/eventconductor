@@ -33,6 +33,7 @@
 
   <modules>
     <module>modules/workflow-engine</module>
+      <module>modules/workflow-e2e</module>
       <module>modules/forms-engine</module>
       <module>modules/sample-worker</module>
       <module>apps/orchestrator-standalone-app</module>
@@ -43,6 +44,7 @@
   </modules>
 
   <properties>
+    <mateu.version>3.0-alpha.243</mateu.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <java.version>21</java.version>
     <maven.compiler.release>21</maven.compiler.release>
@@ -244,6 +246,18 @@
   </build>
 
   <profiles>
+    <!--
+      Distributed test suite (TESTING.md §5, DIST-01…DIST-05). Excluded from the
+      default build because it needs Docker (Testcontainers: PostgreSQL + Kafka)
+      and takes minutes. Run with: mvn -Pdist-e2e -pl modules/workflow-dist-e2e -am verify
+    -->
+    <profile>
+      <id>dist-e2e</id>
+      <modules>
+        <module>modules/workflow-dist-e2e</module>
+      </modules>
+    </profile>
+
     <!--
       GPG signing only kicks in when the "release" profile is active, which is
       what the build-and-publish workflow does. CI builds (mvn verify) don't

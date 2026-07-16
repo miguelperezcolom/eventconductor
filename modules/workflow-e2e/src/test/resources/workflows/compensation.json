@@ -1,0 +1,11 @@
+{
+  "id": "compensation",
+  "name": "Saga compensation",
+  "version": 1,
+  "status": "ACTIVE",
+  "steps": [
+    { "id": "charge", "type": "ACTION", "name": "Charge card", "topic": "work", "retries": 0, "rollbackable": true, "compensationStepId": "refund" },
+    { "id": "refund", "type": "ACTION", "name": "Refund", "topic": "work", "preconditionExpression": "false" },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "charge" }
+  ]
+}

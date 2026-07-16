@@ -2,6 +2,7 @@ package io.mateu.workflow.application.usecases.process.retry;
 
 import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
+import io.mateu.workflow.application.out.WorkflowMetrics;
 import io.mateu.workflow.application.usecases.process.stepover.StepOverProcessCommand;
 import io.mateu.workflow.application.usecases.process.stepover.StepOverProcessUseCase;
 import io.mateu.workflow.domain.aggregates.Process;
@@ -29,6 +30,8 @@ class RetryProcessUseCaseTest {
     StepExecutionRepository stepExecutionRepository;
     @Mock
     StepOverProcessUseCase stepOverProcessUseCase;
+    @Mock
+    WorkflowMetrics workflowMetrics;
 
     @InjectMocks
     RetryProcessUseCase retryProcessUseCase;
@@ -57,5 +60,6 @@ class RetryProcessUseCaseTest {
         verify(stepExecutionRepository).save(any(StepExecution.class));
         verify(processRepository).save(any(Process.class));
         verify(stepOverProcessUseCase).handle(any(StepOverProcessCommand.class));
+        verify(workflowMetrics).retryPerformed(any(), eq(WorkflowMetrics.RetryTrigger.MANUAL));
     }
 }

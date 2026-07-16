@@ -6,4 +6,6 @@ import java.util.List;
 
 public interface OutboxMessageEntityRepository extends JpaRepository<OutboxMessageEntity, String> {
     List<OutboxMessageEntity> findByStatus(String status);
+
+    long countByStatus(String status);
 }

@@ -47,6 +47,82 @@ The `formId` references a form definition stored in the forms engine.
 
 ---
 
+## TIMER
+
+Durably pauses the workflow until a moment in time. No worker is involved: the step stays `PENDING` and the timer scheduler completes it once the due moment passes. The wait survives restarts — the due moment is recomputed from persisted state (the step definition, its start time and the variable snapshot), so a process can safely wait for days.
+
+Wait for a duration, counted from the moment the step starts:
+
+```json
+{
+  "id": "wait-72h",
+  "type": "TIMER",
+  "name": "Wait 72 hours",
+  "duration": "PT72H",
+  "preconditionStepId": "send-payment-link"
+}
+```
+
+Wait until an absolute date carried by a process variable (e.g. a check-in date):
+
+```json
+{
+  "id": "wait-until-checkin",
+  "type": "TIMER",
+  "name": "Wait until check-in date",
+  "untilVariable": "checkinDate"
+}
+```
+
+**Required fields:** `duration` or `untilVariable`
+
+`duration` accepts an ISO 8601 duration string (`PT30M`, `PT72H`, `P3D`) or an integer in milliseconds. `untilVariable` names a process variable holding an ISO 8601 date (`2026-08-01`), date-time (`2026-08-01T15:00`) or offset date-time; it takes precedence over `duration`. If the referenced variable is missing or unparseable when the step starts, the step ends `ERROR` through the normal failure pipeline — the process never freezes silently. The `timeout` field is ignored for TIMER steps.
+
+---
+
+## MESSAGE
+
+Durably pauses the workflow until a matching external message arrives — the equivalent of a BPMN message catch event or a Temporal signal. No worker is involved: the step stays `PENDING` and the engine completes it when a `MessageReceived` event with the same `messageName` and a matching correlation key is published on the upstream surface (Kafka topic, embedded publisher, or the `sendMessage` MCP tool).
+
+Correlate by business key (the default):
+
+```json
+{
+  "id": "wait-for-payment",
+  "type": "MESSAGE",
+  "name": "Wait for payment confirmation",
+  "messageName": "payment-received",
+  "preconditionStepId": "send-invoice",
+  "timeout": 259200000
+}
+```
+
+Correlate by a process variable via a JEXL expression:
+
+```json
+{
+  "id": "wait-for-payment",
+  "type": "MESSAGE",
+  "name": "Wait for payment confirmation",
+  "messageName": "payment-received",
+  "correlationExpression": "orderId"
+}
+```
+
+**Required fields:** `messageName`
+
+A message matches a waiting step when the message name is equal and the message's `correlationKey` equals the key the step expects: the process `businessKey` by default, or — when `correlationExpression` is set — the value of that JEXL expression evaluated against the process variables (same context and same fail-closed semantics as `preconditionExpression`; an expression that cannot be evaluated matches nothing). On match, the message's variables are merged into the process variables (visible to all successor steps) and the step completes.
+
+Delivery semantics:
+
+- **Not buffered.** A message that matches no waiting step is ignored (and logged). Upstream delivery is at-least-once, so the sender retries — or sends again once the process reaches the waiting step.
+- **Idempotent.** A duplicate delivery of an already-correlated message is ignored: the step only completes once.
+- **Broadcast.** If several processes are waiting on the same `messageName` and correlation key, all of them are resumed.
+
+`timeout` and `retries` keep their usual meaning: a waiting MESSAGE step that receives no message within `timeout` transitions to `TIMEOUT` and the normal retry/failure pipeline engages (a retry re-arms the wait).
+
+---
+
 ## PROCESS
 
 Starts a child workflow as a sub-process. The parent step completes when the child process completes.

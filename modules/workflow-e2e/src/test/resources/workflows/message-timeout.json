@@ -1,0 +1,10 @@
+{
+  "id": "message-timeout",
+  "name": "Message wait with timeout",
+  "version": 1,
+  "status": "ACTIVE",
+  "steps": [
+    { "id": "wait", "type": "MESSAGE", "name": "Wait for payment", "messageName": "payment-received", "timeout": 500, "retries": 0 },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "wait" }
+  ]
+}

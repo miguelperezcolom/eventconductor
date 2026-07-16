@@ -44,14 +44,17 @@ A companion module that manages form definitions and form executions. When a USE
 
 ## How it compares
 
-| Feature | EventConductor | Camunda | Temporal |
+| Feature | EventConductor | Camunda 8 | Temporal |
 |---|---|---|---|
-| Definition format | JSON (code-friendly) | BPMN XML (diagram-first) | Code (Go/Java SDK) |
-| Deployment | Embedded library | Separate server | Separate server / SaaS |
-| External dependencies | None / PostgreSQL / Kafka | Database + engine | Temporal server |
-| Human tasks (forms) | Built-in | Built-in | Manual |
-| AI / MCP integration | Native | None | None |
-| Learning curve | Low | High | Medium |
+| Definition format | JSON/YAML DSL (code-friendly) | BPMN 2.0 XML (diagram-first) | Code (Go/Java/TS/Python/.NET SDKs) |
+| Deployment | Embedded library | Dedicated cluster / SaaS | Dedicated cluster / SaaS |
+| External dependencies | None / PostgreSQL / Kafka | Component stack + Elasticsearch | Temporal cluster + database |
+| License (production) | MIT | Paid (source-available) | MIT |
+| Human tasks (forms) | Built-in, with form editor | Built-in (Tasklist + Forms) | Manual (signals + your own UI) |
+| AI / MCP integration | Native, engine + your services | MCP client connector (8.8+) | MCP server + agent SDK integrations |
+| Learning curve | Low | High | Medium-high |
+
+See the full [comparison with Camunda and Temporal](/guides/comparison/) for an in-depth, honest analysis — including when the alternatives are the better choice.
 
 ## Key differentiator: native AI via MCP
 
@@ -66,4 +69,4 @@ Every module exposes its domain as MCP tools. Any MCP-compatible AI client — C
 | "Show me the pending user tasks for the onboarding workflow" | Lists form executions filtered by workflow |
 | "Import the new workflow definitions from Git" | Triggers `importWorkflowDefinitionsFromGit` |
 
-No other workflow engine — Camunda, Temporal, Netflix Conductor — offers this out of the box.
+EventConductor was, to our knowledge, the first workflow engine to ship native MCP support — and it remains the only one where MCP exposure of the engine *and your own business services* is a built-in, embeddable feature rather than a separate connector or add-on.

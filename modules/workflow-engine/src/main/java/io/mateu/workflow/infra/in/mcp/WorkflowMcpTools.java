@@ -3,6 +3,10 @@ package io.mateu.workflow.infra.in.mcp;
 import io.mateu.workflow.application.out.LogMessageRepository;
 import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
+import io.mateu.workflow.application.out.UpstreamEventPublisher;
+import io.mateu.workflow.dtos.Variable;
+import io.mateu.workflow.dtos.events.integration.MessageReceived;
+import io.mateu.workflow.application.services.ProcessAnalyticsService;
 import io.mateu.workflow.application.usecases.gitimport.ImportWorkflowDefinitionsFromGitUseCase;
 import io.mateu.workflow.application.usecases.process.retry.RetryProcessCommand;
 import io.mateu.workflow.application.usecases.process.retry.RetryProcessUseCase;
@@ -15,6 +19,7 @@ import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Map;
 
 @Component
 @RequiredArgsConstructor
@@ -28,7 +33,10 @@ public class WorkflowMcpTools implements McpTools, McpSystemContext {
                 - Puedes listar, consultar y diagnosticar procesos de negocio.
                 - Puedes consultar variables de proceso, pasos de ejecución y logs.
                 - Puedes reintentar los pasos fallidos de un proceso en estado ERROR.
-                Estados posibles de un proceso: RUNNING, COMPLETED, ERROR, COMPENSATING, COMPENSATED.
+                - Puedes enviar mensajes externos (sendMessage) para reanudar procesos que esperan en un paso MESSAGE, correlacionando por businessKey o por la correlationExpression del paso.
+                - Puedes consultar analíticas de procesos por definición (getWorkflowAnalytics): recuentos por estado, tasas de finalización/error, throughput diario y duraciones media/p95 por proceso y por paso.
+                - Puedes localizar dónde se atascan los procesos (findBottleneck): paso más lento, pasos con instancias esperando y pasos con fallos.
+                Estados posibles de un proceso: PENDING, RUNNING, COMPLETED, CANCELLED, ERROR.
                 Cada proceso tiene un ID único, un businessKey (clave de negocio) y un porcentaje de completado.
                 Los pasos (StepExecution) contienen el workerId que los ejecutó y su estado individual.
                 """;
@@ -40,6 +48,8 @@ public class WorkflowMcpTools implements McpTools, McpSystemContext {
     private final LogMessageRepository logMessageRepository;
     private final RetryProcessUseCase retryProcessUseCase;
     private final ImportWorkflowDefinitionsFromGitUseCase importWorkflowDefinitionsFromGitUseCase;
+    private final UpstreamEventPublisher upstreamEventPublisher;
+    private final ProcessAnalyticsService processAnalyticsService;
 
     public record ProcessSummary(
             String id, String name, String businessKey,
@@ -111,6 +121,111 @@ public class WorkflowMcpTools implements McpTools, McpSystemContext {
         log.info("Retrying process " + processId);
         retryProcessUseCase.handle(new RetryProcessCommand(processId));
         return "Retry triggered for process " + processId;
+    }
+
+    @Tool(description = "Send an external message to running workflow processes. Processes waiting on a MESSAGE step with this message name resume when the correlation key matches (the process business key by default, or the value of the step's correlationExpression). The variables map is merged into the process variables. Messages that match no waiting step are ignored, not buffered.")
+    public String sendMessage(String messageName, String correlationKey, java.util.Map<String, String> variables) {
+        log.info("Sending message " + messageName + " with correlation key " + correlationKey);
+        var messageVariables = variables == null ? List.<Variable>of() : variables.entrySet().stream()
+                .map(entry -> new Variable(entry.getKey(), entry.getValue()))
+                .toList();
+        upstreamEventPublisher.publish(new MessageReceived(messageName, correlationKey, messageVariables));
+        return "Message '" + messageName + "' sent with correlation key '" + correlationKey + "'";
+    }
+
+    public record StepStats(
+            String stepId, long executions, long completed, long failed, long stuckPendingOrRunning,
+            Double avgDurationSeconds, Double p95DurationSeconds, boolean bottleneck) {}
+
+    public record WorkflowAnalytics(
+            String workflowDefinitionId, String workflowDefinitionName, int windowDays,
+            long totalInstances, Map<String, Long> instancesByStatus,
+            double completionRatePct, double errorRatePct, double cancellationRatePct,
+            Map<String, Long> processesCreatedPerDay,
+            Double avgProcessDurationSeconds, Double p95ProcessDurationSeconds,
+            String bottleneckStepId, List<StepStats> steps) {}
+
+    public record BottleneckReport(
+            String workflowDefinitionId, String workflowDefinitionName, int windowDays,
+            String summary, List<StepStats> steps) {}
+
+    @Tool(description = "Get process analytics for a workflow definition (by id or name): instance counts by status, completion/error/cancellation rates, processes created per day, average and p95 process duration, and per-step durations with the slowest step flagged as bottleneck. lastDays defaults to 30; pass 0 for all time. Leave workflowDefinitionIdOrName empty to get analytics for every definition.")
+    public List<WorkflowAnalytics> getWorkflowAnalytics(String workflowDefinitionIdOrName, Integer lastDays) {
+        log.info("Getting analytics for " + workflowDefinitionIdOrName + " over last " + lastDays + " days");
+        var window = window(lastDays);
+        if (workflowDefinitionIdOrName == null || workflowDefinitionIdOrName.isBlank()) {
+            return processAnalyticsService.analyzeAll(window).stream()
+                    .map(analytics -> toWorkflowAnalytics(analytics, windowDays(lastDays)))
+                    .toList();
+        }
+        return processAnalyticsService.analyze(workflowDefinitionIdOrName, window)
+                .map(analytics -> List.of(toWorkflowAnalytics(analytics, windowDays(lastDays))))
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "No workflow definition found for: " + workflowDefinitionIdOrName));
+    }
+
+    @Tool(description = "Find where processes of a workflow definition (by id or name) get stuck: the slowest step (bottleneck by average duration), steps with instances currently waiting or running, and steps with failures. lastDays defaults to 30; pass 0 for all time.")
+    public BottleneckReport findBottleneck(String workflowDefinitionIdOrName, Integer lastDays) {
+        log.info("Finding bottleneck for " + workflowDefinitionIdOrName + " over last " + lastDays + " days");
+        var analytics = processAnalyticsService.analyze(workflowDefinitionIdOrName, window(lastDays))
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "No workflow definition found for: " + workflowDefinitionIdOrName));
+        var steps = analytics.steps().stream().map(WorkflowMcpTools::toStepStats).toList();
+        var summary = new StringBuilder();
+        if (analytics.totalInstances() == 0) {
+            summary.append("No process instances in the window.");
+        } else if (analytics.bottleneckStepId() == null) {
+            summary.append("No step has finished executions with measured durations yet.");
+        } else {
+            var bottleneck = steps.stream().filter(StepStats::bottleneck).findFirst().orElseThrow();
+            summary.append("Slowest step (bottleneck): '").append(bottleneck.stepId())
+                    .append("' with average ").append(bottleneck.avgDurationSeconds())
+                    .append(" s and p95 ").append(bottleneck.p95DurationSeconds()).append(" s.");
+        }
+        steps.stream().filter(step -> step.stuckPendingOrRunning() > 0).forEach(step ->
+                summary.append(" Step '").append(step.stepId()).append("' has ")
+                        .append(step.stuckPendingOrRunning()).append(" instance(s) currently waiting or running."));
+        steps.stream().filter(step -> step.failed() > 0).forEach(step ->
+                summary.append(" Step '").append(step.stepId()).append("' has ")
+                        .append(step.failed()).append(" failed execution(s)."));
+        return new BottleneckReport(
+                analytics.workflowDefinitionId(), analytics.workflowDefinitionName(),
+                windowDays(lastDays), summary.toString(), steps);
+    }
+
+    private static ProcessAnalyticsService.TimeWindow window(Integer lastDays) {
+        var days = windowDays(lastDays);
+        return days == 0 ? ProcessAnalyticsService.TimeWindow.all()
+                : ProcessAnalyticsService.TimeWindow.lastDays(days);
+    }
+
+    private static int windowDays(Integer lastDays) {
+        return lastDays == null || lastDays < 0 ? 30 : lastDays;
+    }
+
+    private static WorkflowAnalytics toWorkflowAnalytics(ProcessAnalyticsService.DefinitionAnalytics analytics, int windowDays) {
+        var byStatus = new java.util.LinkedHashMap<String, Long>();
+        analytics.instancesByStatus().forEach((status, count) -> byStatus.put(status.name(), count));
+        var perDay = new java.util.LinkedHashMap<String, Long>();
+        analytics.createdPerDay().forEach((day, count) -> perDay.put(day.toString(), count));
+        return new WorkflowAnalytics(
+                analytics.workflowDefinitionId(), analytics.workflowDefinitionName(), windowDays,
+                analytics.totalInstances(), byStatus,
+                analytics.completionRatePct(), analytics.errorRatePct(), analytics.cancellationRatePct(),
+                perDay,
+                seconds(analytics.processDuration().average()), seconds(analytics.processDuration().p95()),
+                analytics.bottleneckStepId(),
+                analytics.steps().stream().map(WorkflowMcpTools::toStepStats).toList());
+    }
+
+    private static StepStats toStepStats(ProcessAnalyticsService.StepAnalytics step) {
+        return new StepStats(
+                step.stepId(), step.executions(), step.completed(), step.failed(), step.active(),
+                seconds(step.duration().average()), seconds(step.duration().p95()), step.bottleneck());
+    }
+
+    private static Double seconds(java.time.Duration duration) {
+        return duration == null ? null : Math.round(duration.toMillis() / 100d) / 10d;
     }
 
     @Tool(description = "Import workflow definitions from configured Git repositories. Scans each repository for JSON files that represent workflow definitions and upserts them into the system.")

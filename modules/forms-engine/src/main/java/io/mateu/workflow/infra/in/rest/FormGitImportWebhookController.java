@@ -90,7 +90,13 @@ public class FormGitImportWebhookController {
         }
         String received = signatureHeader.substring(7);
         String expected = hmacSha256Hex(secret, body);
-        if (!MessageDigest.isEqual(HexFormat.of().parseHex(received), HexFormat.of().parseHex(expected))) {
+        byte[] receivedBytes;
+        try {
+            receivedBytes = HexFormat.of().parseHex(received);
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid webhook signature");
+        }
+        if (!MessageDigest.isEqual(receivedBytes, HexFormat.of().parseHex(expected))) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid webhook signature");
         }
     }

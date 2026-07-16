@@ -28,7 +28,7 @@ class StartStepExecutionUseCaseTest {
     @InjectMocks StartStepExecutionUseCase useCase;
 
     private StepExecution seWith(StepExecutionStatus status, StepType type, String formId) {
-        Step step = new Step("s1", "wd-1", type, "Step", null, null, null, false, "topic", formId, null, 0, 0, false, null);
+        Step step = new Step("s1", "wd-1", type, "Step", null, null, null, false, "topic", formId, null, 0, null, null, null, 0, 0, false, null);
         return StepExecution.builder()
                 .id("se-1").processId("p-1").workflowDefinitionId("wd-1").stepId("s1")
                 .stepJson(JsonSerializer.toJson(step))

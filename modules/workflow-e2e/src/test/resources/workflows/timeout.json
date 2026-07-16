@@ -1,0 +1,10 @@
+{
+  "id": "timeout",
+  "name": "Step timeout",
+  "version": 1,
+  "status": "ACTIVE",
+  "steps": [
+    { "id": "hang", "type": "ACTION", "name": "Hangs", "topic": "work", "timeout": 500, "retries": 0 },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "hang" }
+  ]
+}

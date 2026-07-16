@@ -10,6 +10,9 @@ description: Complete reference for all EventConductor configuration properties.
 | `workflow.mode` | `kafka` \| `embedded` | `kafka` | Event dispatch mode |
 | `workflow.persistence` | `jpa` \| `memory` | `memory` | Workflow state persistence mode |
 | `forms.persistence` | `jpa` \| `memory` | `memory` | Forms state persistence mode |
+| `workflow.timeout-scan-interval-ms` | ms | `10000` | How often the scheduler scans for expired step timeouts and due `TIMER` steps |
+| `workflow.cron-scan-interval-ms` | ms | `10000` | How often the scheduler checks `cronExpression` schedules on ACTIVE definitions |
+| `workflow.cron-enabled` | `true` \| `false` | `true` | Master switch for cron-scheduled process starts |
 
 ## Git import (`workflow.git-import.*`)
 
@@ -256,6 +259,52 @@ spring.cloud.stream.bindings.downstream-out-0.destination=downstream
 spring.cloud.stream.function.definition=consumeOutbox;consumeUpstream;consumeWorkerEvent
 spring.cloud.stream.kafka.binder.auto-create-topics=true
 ```
+
+## Metrics
+
+The workflow engine publishes engine-level metrics through [Micrometer](https://micrometer.io/). They activate automatically when a `MeterRegistry` bean is present in the host application — no property is needed. The easiest way to get one (plus a Prometheus scrape endpoint) is:
+
+```xml
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-actuator</artifactId>
+</dependency>
+<dependency>
+    <groupId>io.micrometer</groupId>
+    <artifactId>micrometer-registry-prometheus</artifactId>
+</dependency>
+```
+
+```properties
+management.endpoints.web.exposure.include=health,prometheus
+```
+
+Metrics are then available at `GET /actuator/prometheus`. Without a `MeterRegistry` the engine falls back to a no-op implementation with zero overhead — Micrometer is an optional dependency of the `workflow-engine` module.
+
+Instrumentation happens at the use-case layer, so the same metrics are emitted in **all three deployment modes** (embedded + memory, embedded + jpa, kafka + jpa).
+
+### Available metrics
+
+| Metric | Type | Tags | Description |
+|---|---|---|---|
+| `eventconductor.process.started` | Counter | `workflowDefinitionId` | Processes started |
+| `eventconductor.process.completed` | Counter | `workflowDefinitionId` | Processes completed successfully |
+| `eventconductor.process.errored` | Counter | `workflowDefinitionId` | Processes finished in error (retries exhausted) |
+| `eventconductor.process.cancelled` | Counter | `workflowDefinitionId` | Processes cancelled |
+| `eventconductor.process.duration` | Timer | `workflowDefinitionId`, `outcome` | Process duration from start to final status (`COMPLETED` \| `ERROR` \| `CANCELLED`) |
+| `eventconductor.step.executions` | Counter | `workflowDefinitionId`, `outcome` | Step executions finished, by outcome (`COMPLETED` \| `ERROR` \| `TIMEOUT`) |
+| `eventconductor.step.duration` | Timer | `workflowDefinitionId`, `outcome` | Step execution duration, from dispatch to final status |
+| `eventconductor.step.retries` | Counter | `workflowDefinitionId`, `trigger` | Retries performed (`auto` = retry policy, `manual` = user-initiated) |
+| `eventconductor.step.compensations` | Counter | `workflowDefinitionId` | Compensation steps triggered after retries were exhausted |
+| `eventconductor.process.running` | Gauge | — | Processes currently in `RUNNING` status |
+| `eventconductor.outbox.pending` | Gauge | — | Outbox messages waiting to be relayed (only with `workflow.persistence=jpa`; the in-memory mode has no outbox) |
+
+Notes:
+
+- With the Prometheus registry, names are exported in Prometheus form: `eventconductor.process.started` becomes `eventconductor_process_started_total`, timers become `_seconds_count` / `_seconds_sum` / `_seconds_max` families.
+- Each step retry that fails again increments `eventconductor.step.executions{outcome="ERROR"}`, so the counter reflects attempts, not distinct steps.
+- Counters are per-node and reset on restart, as usual with Prometheus counters — use `rate()`/`increase()` over them.
+- To customize (percentile histograms, common tags, renaming), use standard Micrometer `MeterFilter` beans, or replace the implementation entirely by defining your own `WorkflowMetrics` bean.
 
 ## Docker / environment variables
 

@@ -1,0 +1,11 @@
+{
+  "id": "conditional",
+  "name": "Conditional branch",
+  "version": 1,
+  "status": "ACTIVE",
+  "steps": [
+    { "id": "gate", "type": "ACTION", "name": "Gate", "topic": "work" },
+    { "id": "premium", "type": "ACTION", "name": "Premium only", "topic": "work", "preconditionStepId": "gate", "preconditionExpression": "tier == 'premium'" },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "gate" }
+  ]
+}

@@ -3,6 +3,7 @@ package io.mateu.workflow.application.usecases.process.create;
 import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
+import io.mateu.workflow.application.out.WorkflowMetrics;
 import io.mateu.workflow.domain.aggregates.*;
 import io.mateu.workflow.infra.out.persistence.OutboxMessageEntityRepository;
 import org.junit.jupiter.api.Test;
@@ -28,6 +29,8 @@ class CreateProcessUseCaseTest {
     WorkflowDefinitionRepository workflowDefinitionRepository;
     @Mock
     StepExecutionRepository stepExecutionRepository;
+    @Mock
+    WorkflowMetrics workflowMetrics;
 
     @InjectMocks
     CreateProcessUseCase createProcessUseCase;
@@ -36,10 +39,10 @@ class CreateProcessUseCaseTest {
     void shouldCreateProcess() {
         // given
         String workflowDefinitionId = "wd-1";
-        Step step = new Step("step-1", workflowDefinitionId, StepType.ACTION, "Step 1", "Desc", null, null, false, "topic", null, null, 0, 0, false, null);
+        Step step = new Step("step-1", workflowDefinitionId, StepType.ACTION, "Step 1", "Desc", null, null, false, "topic", null, null, 0, null, null, null, 0, 0, false, null);
         WorkflowDefinition workflowDefinition = new WorkflowDefinition(
                 workflowDefinitionId, "Test Workflow", 1, "Description", WorkflowDefinitionStatus.ACTIVE,
-                null, false, 0, false, List.of(step)
+                null, false, 0, false, null, List.of(step)
         );
 
         CreateProcessCommand command = new CreateProcessCommand(
@@ -58,5 +61,6 @@ class CreateProcessUseCaseTest {
         verify(workflowDefinitionRepository).findById(workflowDefinitionId);
         verify(stepExecutionRepository, times(1)).save(any(StepExecution.class));
         verify(processRepository).save(any(io.mateu.workflow.domain.aggregates.Process.class));
+        verify(workflowMetrics).processStarted(workflowDefinitionId);
     }
 }

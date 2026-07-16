@@ -1,0 +1,10 @@
+{
+  "id": "message-expr",
+  "name": "Message wait correlated by expression",
+  "version": 1,
+  "status": "ACTIVE",
+  "steps": [
+    { "id": "wait", "type": "MESSAGE", "name": "Wait for payment", "messageName": "payment-received", "correlationExpression": "orderId" },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "wait" }
+  ]
+}

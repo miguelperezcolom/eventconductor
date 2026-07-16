@@ -37,6 +37,7 @@ public class WorkflowDefinitionDBRepository implements WorkflowDefinitionReposit
                 entity.isLimitConcurrentExecutions(),
                 entity.getMaxConcurrentExecutions(),
                 entity.isEnqueueOnLimit(),
+                entity.getCronExpression(),
                 listFromJson(entity.getStepsJson(), Step.class)
         );
     }
@@ -54,7 +55,8 @@ public class WorkflowDefinitionDBRepository implements WorkflowDefinitionReposit
                 toJson(workflowDefinition.steps().stream().map(step -> step.withWorkflowDefinitionId(workflowDefinition.id())).toList()),
                 workflowDefinition.limitConcurrentExecutions(),
                 workflowDefinition.maxConcurrentExecutions(),
-                workflowDefinition.enqueueOnLimit()
+                workflowDefinition.enqueueOnLimit(),
+                workflowDefinition.cronExpression()
         ));
         return workflowDefinition.id();
     }

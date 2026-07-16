@@ -46,6 +46,7 @@ public record WorkflowDefinition(
         int maxConcurrentExecutions,
         @Hidden("!state.limitConcurrentExecutions")
         boolean enqueueOnLimit,
+        String cronExpression,
         @Colspan(4)
         @DetailFormCustomisation(position = FormPosition.modalRight, style = "display: block; min-width: 70rem;")
         List<Step> steps
@@ -68,8 +69,13 @@ public record WorkflowDefinition(
      */
     public void checkInvariants() {
         if (steps == null) return;
+        var stepIds = new java.util.HashSet<String>();
         for (var step : steps) {
             if (step.id() == null) continue;
+            if (!stepIds.add(step.id())) {
+                throw new IllegalStateException(
+                        "Duplicate step id '" + step.id() + "'.");
+            }
             if (step.id().equals(step.preconditionStepId())) {
                 throw new IllegalStateException(
                         "Step '" + step.id() + "' cannot have itself as a precondition.");
@@ -77,6 +83,31 @@ public record WorkflowDefinition(
             if (step.id().equals(step.compensationStepId())) {
                 throw new IllegalStateException(
                         "Step '" + step.id() + "' cannot have itself as a compensation step.");
+            }
+            if (StepType.TIMER.equals(step.type()) && step.duration() <= 0
+                    && (step.untilVariable() == null || step.untilVariable().isBlank())) {
+                throw new IllegalStateException(
+                        "Timer step '" + step.id() + "' must define a duration or an untilVariable.");
+            }
+            if (StepType.MESSAGE.equals(step.type())
+                    && (step.messageName() == null || step.messageName().isBlank())) {
+                throw new IllegalStateException(
+                        "Message step '" + step.id() + "' must define a messageName.");
+            }
+        }
+        for (var step : steps) {
+            if (step.id() == null) continue;
+            if (step.preconditionStepId() != null && !step.preconditionStepId().isBlank()
+                    && !stepIds.contains(step.preconditionStepId())) {
+                throw new IllegalStateException(
+                        "Step '" + step.id() + "' references unknown precondition step '"
+                                + step.preconditionStepId() + "'.");
+            }
+            if (step.compensationStepId() != null && !step.compensationStepId().isBlank()
+                    && !stepIds.contains(step.compensationStepId())) {
+                throw new IllegalStateException(
+                        "Step '" + step.id() + "' references unknown compensation step '"
+                                + step.compensationStepId() + "'.");
             }
         }
     }

@@ -4,6 +4,7 @@ import io.mateu.core.infra.JsonSerializer;
 import io.mateu.workflow.application.out.LogMessageRepository;
 import io.mateu.workflow.application.out.ProcessLockService;
 import io.mateu.workflow.application.out.StepExecutionRepository;
+import io.mateu.workflow.application.out.WorkflowMetrics;
 import io.mateu.workflow.domain.aggregates.*;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -25,11 +26,12 @@ class CheckStepTimeoutHandlerTest {
     @Mock StepExecutionRepository stepExecutionRepository;
     @Mock LogMessageRepository logMessageRepository;
     @Mock ProcessLockService processLockService;
+    @Mock WorkflowMetrics workflowMetrics;
 
     @InjectMocks CheckStepTimeoutHandler handler;
 
     private StepExecution pendingSeWithTimeout(long timeoutMillis, LocalDateTime startedAt) {
-        Step step = new Step("s1", "wd-1", StepType.ACTION, "Step", null, null, null, false, "t", null, null, timeoutMillis, 0, false, null);
+        Step step = new Step("s1", "wd-1", StepType.ACTION, "Step", null, null, null, false, "t", null, null, 0, null, null, null, timeoutMillis, 0, false, null);
         return StepExecution.builder()
                 .id("se-1").processId("p-1")
                 .stepJson(JsonSerializer.toJson(step))
@@ -50,6 +52,7 @@ class CheckStepTimeoutHandlerTest {
         verify(stepExecutionRepository).save(captor.capture());
         assertThat(captor.getValue().getStatus()).isEqualTo(StepExecutionStatus.TIMEOUT);
         verify(logMessageRepository).save(any());
+        verify(workflowMetrics).stepExecutionFinished(any(), eq(StepExecutionStatus.TIMEOUT), any());
         verify(processLockService).unlock("p-1");
     }
 

@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>io.mateu.workflow</groupId>
+        <artifactId>eventconductor</artifactId>
+        <version>1.0-SNAPSHOT</version>
+        <relativePath>../../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>workflow-e2e</artifactId>
+    <packaging>jar</packaging>
+    <name>workflow-e2e</name>
+    <description>End-to-end tests driving the engine through its public surface in embedded mode.</description>
+
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <dependency>
+            <groupId>io.mateu.workflow</groupId>
+            <artifactId>workflow-engine</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+
+        <!-- The engine jar references mateu UI/uidl types at class level (excluded from
+             component scan, but must resolve on the classpath). -->
+        <dependency>
+            <groupId>io.mateu</groupId>
+            <artifactId>mvc-core</artifactId>
+            <version>${mateu.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.awaitility</groupId>
+            <artifactId>awaitility</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- JPA durability / crash-recovery suite: real outbox relay + JDBC locks on H2. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- The distributed suite (real Kafka + PostgreSQL via Testcontainers) lives in the
+             separate, Docker-gated modules/workflow-dist-e2e module. -->
+    </dependencies>
+</project>

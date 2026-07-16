@@ -45,6 +45,24 @@ public void startOrder(String orderId, String amount) {
 }
 ```
 
+## On a schedule (cron)
+
+Declare a `cronExpression` on the workflow definition and the engine creates a process instance at each occurrence, with no external trigger:
+
+```json
+{
+  "id": "daily-checkin-reminders",
+  "name": "Daily check-in reminders",
+  "status": "ACTIVE",
+  "cronExpression": "0 0 9 * * *",
+  "steps": [ ... ]
+}
+```
+
+The expression uses Spring cron syntax (six fields, seconds first — `0 0 9 * * MON-FRI` is 09:00 on weekdays). Only `ACTIVE`, non-draft definitions are scheduled. Each occurrence gets a deterministic business key derived from the definition id and the occurrence time, so redeliveries and multiple orchestrator pods never create duplicate instances. Occurrences that pass while no node is running are skipped, not replayed.
+
+Cron scanning can be tuned or disabled with `workflow.cron-scan-interval-ms` and `workflow.cron-enabled` (see the [configuration reference](/reference/configuration/)).
+
 ## Process variables
 
 Variables are key-value pairs attached to the process. They are:

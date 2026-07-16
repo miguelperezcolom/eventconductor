@@ -2,6 +2,7 @@ package io.mateu.workflow.application.usecases.process.update;
 
 import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
+import io.mateu.workflow.application.out.WorkflowMetrics;
 import io.mateu.workflow.domain.aggregates.*;
 import io.mateu.workflow.domain.aggregates.Process;
 import org.junit.jupiter.api.Test;
@@ -15,6 +16,8 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -23,6 +26,7 @@ class ProcessUpdateStepExecutionUpdateUseCaseTest {
 
     @Mock ProcessRepository repository;
     @Mock StepExecutionRepository stepExecutionRepository;
+    @Mock WorkflowMetrics workflowMetrics;
 
     @InjectMocks ProcessUpdateStepExecutionUpdateUseCase useCase;
 
@@ -72,6 +76,7 @@ class ProcessUpdateStepExecutionUpdateUseCaseTest {
         verify(repository).save(captor.capture());
         assertThat(captor.getValue().getStatus()).isEqualTo(ProcessStatus.COMPLETED);
         assertThat(captor.getValue().getCompletionPercentage()).isEqualTo(100);
+        verify(workflowMetrics).processCompleted(any(), any());
     }
 
     @Test
@@ -98,6 +103,8 @@ class ProcessUpdateStepExecutionUpdateUseCaseTest {
         ArgumentCaptor<Process> captor = ArgumentCaptor.forClass(Process.class);
         verify(repository).save(captor.capture());
         assertThat(captor.getValue().getStatus()).isEqualTo(ProcessStatus.ERROR);
+        // The process was already in ERROR — a sticky status is not a new transition.
+        verify(workflowMetrics, never()).processErrored(any(), any());
     }
 
     @Test

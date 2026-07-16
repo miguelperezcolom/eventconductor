@@ -36,4 +36,6 @@ public class WorkflowDefinitionEntity {
 
     boolean enqueueOnLimit;
 
+    String cronExpression;
+
 }

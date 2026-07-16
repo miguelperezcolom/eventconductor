@@ -11,12 +11,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 class WorkflowDefinitionTest {
 
     private Step step(String id) {
-        return new Step(id, "wd-1", StepType.ACTION, "Step " + id, null, null, null, false, "topic", null, null, 0, 0, false, null);
+        return new Step(id, "wd-1", StepType.ACTION, "Step " + id, null, null, null, false, "topic", null, null, 0, null, null, null, 0, 0, false, null);
     }
 
     private WorkflowDefinition definition(List<Step> steps) {
         return new WorkflowDefinition("wd-1", "Test", 1, "desc",
-                WorkflowDefinitionStatus.ACTIVE, null, false, 0, false, steps);
+                WorkflowDefinitionStatus.ACTIVE, null, false, 0, false, null, steps);
     }
 
     @Test
@@ -28,7 +28,7 @@ class WorkflowDefinitionTest {
     @Test
     void toStringReturnsNewLabelWhenIdNull() {
         var wd = new WorkflowDefinition(null, "Test", 1, "desc",
-                WorkflowDefinitionStatus.DRAFT, null, false, 0, false, List.of());
+                WorkflowDefinitionStatus.DRAFT, null, false, 0, false, null, List.of());
         assertThat(wd.toString()).isEqualTo("New workflow definition");
     }
 
@@ -41,14 +41,14 @@ class WorkflowDefinitionTest {
     @Test
     void stepsReturnsEmptyListWhenNull() {
         var wd = new WorkflowDefinition("wd-1", "Test", 1, "desc",
-                WorkflowDefinitionStatus.ACTIVE, null, false, 0, false, null);
+                WorkflowDefinitionStatus.ACTIVE, null, false, 0, false, null, null);
         assertThat(wd.steps()).isEmpty();
     }
 
     @Test
     void maxConcurrentExecutionsReturnsConfiguredValueWhenLimitEnabled() {
         var wd = new WorkflowDefinition("wd-1", "Test", 1, "desc",
-                WorkflowDefinitionStatus.ACTIVE, null, true, 5, false, List.of());
+                WorkflowDefinitionStatus.ACTIVE, null, true, 5, false, null, List.of());
         assertThat(wd.maxConcurrentExecutions()).isEqualTo(5);
     }
 
@@ -61,7 +61,7 @@ class WorkflowDefinitionTest {
     @Test
     void checkInvariantsPassesWhenNullSteps() {
         var wd = new WorkflowDefinition("wd-1", "Test", 1, "desc",
-                WorkflowDefinitionStatus.ACTIVE, null, false, 0, false, null);
+                WorkflowDefinitionStatus.ACTIVE, null, false, 0, false, null, null);
         wd.checkInvariants();
     }
 

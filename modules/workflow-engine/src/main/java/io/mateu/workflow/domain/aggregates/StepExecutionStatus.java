@@ -7,5 +7,9 @@ public enum StepExecutionStatus {
     COMPLETED,
     CANCELLED,
     ERROR,
-    TIMEOUT
+    TIMEOUT;
+
+    public boolean isTerminal() {
+        return this == COMPLETED || this == CANCELLED || this == ERROR || this == TIMEOUT;
+    }
 }

@@ -1,0 +1,10 @@
+{
+  "id": "dist-worker-crash",
+  "name": "Distributed worker crash / timeout / retry",
+  "version": 1,
+  "status": "ACTIVE",
+  "steps": [
+    { "id": "work", "type": "ACTION", "name": "Work", "topic": "work", "timeout": 3000, "retries": 1 },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "work" }
+  ]
+}

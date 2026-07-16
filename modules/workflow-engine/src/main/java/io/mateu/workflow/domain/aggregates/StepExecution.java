@@ -43,6 +43,8 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
     private String workerId;
     private long order;
     private LocalDateTime startedAt;
+    /** Set when the step reaches a terminal status (COMPLETED, CANCELLED, ERROR, TIMEOUT). */
+    private LocalDateTime finishedAt;
     /** Number of execution attempts already made (0 = first attempt, 1 = first retry, …). */
     private int attemptCount;
 
@@ -72,8 +74,11 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
         var step = pojoFromJson(stepJson, Step.class);
         if (StepType.USER_TASK.equals(step.type())) {
             if (step.formId() == null || step.formId().isEmpty()) {
-                status = StepExecutionStatus.ERROR;
                 send(new TaskLogEmitted(id, MessageType.Error, "Step " + step.name() + " has no form id defined."));
+                // updateStatus (not a bare assignment) so StepExecutionStatusChanged is
+                // emitted and the normal failure pipeline (retry/compensation/process
+                // status) engages instead of freezing the process.
+                updateStatus(StepExecutionStatus.ERROR);
                 return this;
             }
             var taskVariables = new ArrayList<>(variables);
@@ -82,6 +87,36 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
             send(new TaskExecutionRequested(id, processId, workflowDefinitionId, stepId, "complete-form", taskVariables.stream()
                     .map(variable -> new io.mateu.workflow.dtos.Variable(variable.name(), variable.value()))
                     .toList()));
+        } else if (StepType.MESSAGE.equals(step.type())) {
+            // A message catch involves no worker: the step just stays PENDING and
+            // CorrelateMessageUseCase completes it when a matching MessageReceived
+            // arrives. The wait is durable — only persisted state is involved.
+            if (step.messageName() == null || step.messageName().isBlank()) {
+                send(new TaskLogEmitted(id, MessageType.Error,
+                        "Step " + step.name() + " has no message name defined."));
+                // updateStatus (not a bare assignment) so the normal failure pipeline
+                // engages instead of freezing the process — same as USER_TASK above.
+                updateStatus(StepExecutionStatus.ERROR);
+                return this;
+            }
+            send(new TaskLogEmitted(id, MessageType.Info,
+                    "Waiting for message '" + step.messageName() + "' on step " + step.name() + "."));
+        } else if (StepType.TIMER.equals(step.type())) {
+            // A timer involves no worker: the step just stays PENDING and the timer
+            // scheduler completes it once the due moment passes. The due moment is
+            // recomputed from persisted state, so the wait survives restarts.
+            try {
+                var dueAt = step.timerDueAt(startedAt, variables);
+                send(new TaskLogEmitted(id, MessageType.Info,
+                        "Timer armed for step " + step.name() + ", due at " + dueAt + "."));
+            } catch (IllegalArgumentException e) {
+                send(new TaskLogEmitted(id, MessageType.Error,
+                        "Step " + step.name() + ": " + e.getMessage()));
+                // updateStatus (not a bare assignment) so the normal failure pipeline
+                // engages instead of freezing the process — same as USER_TASK above.
+                updateStatus(StepExecutionStatus.ERROR);
+                return this;
+            }
         } else {
             send(new TaskExecutionRequested(id, processId, workflowDefinitionId, stepId, "", variables.stream()
                     .map(variable -> new io.mateu.workflow.dtos.Variable(variable.name(), variable.value()))
@@ -93,6 +128,11 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
 
     public void updateStatus(StepExecutionStatus status) {
         this.status = status;
+        if (status.isTerminal()) {
+            this.finishedAt = LocalDateTime.now();
+        } else {
+            this.finishedAt = null;
+        }
         send(new StepExecutionStatusChanged(id, TaskStatus.valueOf(status.name()), List.of()));
     }
 
@@ -104,6 +144,7 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
     public void scheduleRetry() {
         this.attemptCount++;
         this.status = StepExecutionStatus.CREATED;
+        this.finishedAt = null;
         send(new TaskLogEmitted(id, MessageType.Info,
                 "Auto-retry attempt " + attemptCount + " scheduled for step " + stepId));
     }

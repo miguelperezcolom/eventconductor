@@ -2,6 +2,7 @@ package io.mateu.workflow.infra.in.async.processdomainevent.domaineventhandlers;
 
 import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
+import io.mateu.workflow.application.out.WorkflowMetrics;
 import io.mateu.workflow.application.usecases.process.stepover.StepOverProcessCommand;
 import io.mateu.workflow.application.usecases.process.stepover.StepOverProcessUseCase;
 import io.mateu.workflow.application.usecases.process.update.ProcessStepExecutionUpdateCommand;
@@ -29,6 +30,7 @@ public class StepExecutionStatusUpdatedEventHandler implements DomainEventHandle
     final StepExecutionRepository stepExecutionRepository;
     final ProcessRepository processRepository;
     final DownstreamEventPublisher downstreamEventPublisher;
+    final WorkflowMetrics workflowMetrics;
 
     @Override
     public Class<? extends DomainEvent> eventClass() {
@@ -51,6 +53,8 @@ public class StepExecutionStatusUpdatedEventHandler implements DomainEventHandle
             if (stepExecution.getAttemptCount() < step.retries()) {
                 stepExecution.scheduleRetry();
                 stepExecutionRepository.save(stepExecution);
+                workflowMetrics.retryPerformed(stepExecution.getWorkflowDefinitionId(),
+                        WorkflowMetrics.RetryTrigger.AUTO);
                 stepOverProcessUseCase.handle(new StepOverProcessCommand(stepExecution.getProcessId()));
                 return;
             }
@@ -82,6 +86,7 @@ public class StepExecutionStatusUpdatedEventHandler implements DomainEventHandle
                 .ifPresent(compensation -> {
                     compensation.start(process.getVariables());
                     stepExecutionRepository.save(compensation);
+                    workflowMetrics.compensationTriggered(stepExecution.getWorkflowDefinitionId());
                 });
     }
 }

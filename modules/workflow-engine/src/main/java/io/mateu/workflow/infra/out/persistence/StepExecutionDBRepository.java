@@ -41,6 +41,7 @@ public class StepExecutionDBRepository implements StepExecutionRepository {
                 entity.getWorkerId(),
                 entity.getOrder(),
                 entity.getStartedAt(),
+                entity.getFinishedAt(),
                 entity.getAttemptCount()
         );
     }
@@ -58,6 +59,7 @@ public class StepExecutionDBRepository implements StepExecutionRepository {
                 stepExecution.getWorkerId(),
                 stepExecution.getOrder(),
                 stepExecution.getStartedAt(),
+                stepExecution.getFinishedAt(),
                 stepExecution.getAttemptCount()
         ));
 

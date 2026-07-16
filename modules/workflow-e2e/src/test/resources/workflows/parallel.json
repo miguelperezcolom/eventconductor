@@ -1,0 +1,11 @@
+{
+  "id": "parallel",
+  "name": "Parallel fan-out",
+  "version": 1,
+  "status": "ACTIVE",
+  "steps": [
+    { "id": "a", "type": "ACTION", "name": "A", "topic": "work", "parallel": true },
+    { "id": "b", "type": "ACTION", "name": "B", "topic": "work", "parallel": true },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "a" }
+  ]
+}

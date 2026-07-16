@@ -3,6 +3,7 @@ package io.mateu.workflow.application.usecases.checktimeout.checksteptimeout;
 import io.mateu.workflow.application.out.LogMessageRepository;
 import io.mateu.workflow.application.out.ProcessLockService;
 import io.mateu.workflow.application.out.StepExecutionRepository;
+import io.mateu.workflow.application.out.WorkflowMetrics;
 import io.mateu.workflow.domain.aggregates.LogMessage;
 import io.mateu.workflow.domain.aggregates.Step;
 import io.mateu.workflow.domain.aggregates.StepExecutionStatus;
@@ -26,6 +27,7 @@ public class CheckStepTimeoutHandler {
     final StepExecutionRepository stepExecutionRepository;
     final LogMessageRepository logMessageRepository;
     final ProcessLockService processLockService;
+    final WorkflowMetrics workflowMetrics;
 
     public void handle(CheckStepTimeoutCommand command) {
         var stepExecution = stepExecutionRepository.findById(command.stepExecutionId()).orElseThrow();
@@ -57,6 +59,10 @@ public class CheckStepTimeoutHandler {
 
             stepExecution.updateStatus(StepExecutionStatus.TIMEOUT);
             stepExecutionRepository.save(stepExecution);
+
+            workflowMetrics.stepExecutionFinished(stepExecution.getWorkflowDefinitionId(),
+                    StepExecutionStatus.TIMEOUT,
+                    Duration.between(stepExecution.getStartedAt(), LocalDateTime.now()));
 
             logMessageRepository.save(new LogMessage(
                     UUID.randomUUID().toString(),

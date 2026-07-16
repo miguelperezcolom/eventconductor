@@ -121,6 +121,7 @@ public class ImportWorkflowDefinitionsFromGitUseCase {
                     definition.limitConcurrentExecutions(),
                     definition.maxConcurrentExecutions(),
                     definition.enqueueOnLimit(),
+                    definition.cronExpression(),
                     definition.steps()
             );
         }

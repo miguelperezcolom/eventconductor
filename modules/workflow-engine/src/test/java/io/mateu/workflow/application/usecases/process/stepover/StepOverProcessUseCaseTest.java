@@ -1,10 +1,13 @@
 package io.mateu.workflow.application.usecases.process.stepover;
 
 import io.mateu.core.infra.JsonSerializer;
+import io.mateu.workflow.application.out.ProcessLockService;
 import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
+import io.mateu.workflow.application.out.WorkflowMetrics;
 import io.mateu.workflow.domain.aggregates.*;
 import io.mateu.workflow.domain.aggregates.Process;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -24,8 +27,15 @@ class StepOverProcessUseCaseTest {
 
     @Mock ProcessRepository processRepository;
     @Mock StepExecutionRepository stepExecutionRepository;
+    @Mock ProcessLockService lockService;
+    @Mock WorkflowMetrics workflowMetrics;
 
     @InjectMocks StepOverProcessUseCase useCase;
+
+    @BeforeEach
+    void allowLock() {
+        when(lockService.tryLock(any())).thenReturn(true);
+    }
 
     private Process process(String id) {
         return Process.builder().id(id).status(ProcessStatus.RUNNING)
@@ -33,7 +43,7 @@ class StepOverProcessUseCaseTest {
     }
 
     private StepExecution se(String id, String stepId, StepType type, StepExecutionStatus status, int order) {
-        Step step = new Step(stepId, "wd-1", type, stepId, null, null, null, false, "topic", "form-1", null, 0, 0, false, null);
+        Step step = new Step(stepId, "wd-1", type, stepId, null, null, null, false, "topic", "form-1", null, 0, null, null, null, 0, 0, false, null);
         return StepExecution.builder()
                 .id(id).processId("p-1").workflowDefinitionId("wd-1")
                 .stepId(stepId).stepJson(JsonSerializer.toJson(step))
@@ -70,6 +80,7 @@ class StepOverProcessUseCaseTest {
         verify(processRepository).save(captor.capture());
         assertThat(captor.getValue().getStatus()).isEqualTo(ProcessStatus.COMPLETED);
         assertThat(captor.getValue().getCompletionPercentage()).isEqualTo(100);
+        verify(workflowMetrics).processCompleted(any(), any());
     }
 
     @Test
@@ -105,21 +116,42 @@ class StepOverProcessUseCaseTest {
     void alreadyCancelledProcessIsNotOverwritten() {
         var process = Process.builder().id("p-1").status(ProcessStatus.CANCELLED)
                 .variables(List.of()).build();
-        var completed = se("se-1", "step-1", StepType.ACTION, StepExecutionStatus.COMPLETED, 0);
 
         when(processRepository.findById("p-1")).thenReturn(Optional.of(process));
-        when(stepExecutionRepository.findByProcess(process)).thenReturn(List.of(completed));
 
         useCase.handle(new StepOverProcessCommand("p-1"));
 
         verify(processRepository, never()).save(any());
+        verify(stepExecutionRepository, never()).save(any());
     }
+
+    @Test
+    void errorStepBlocksFlowAndMarksProcessAsError() {
+        var process = process("p-1");
+        var failed = se("se-1", "step-1", StepType.ACTION, StepExecutionStatus.ERROR, 0);
+        var next = se("se-2", "step-2", StepType.ACTION, StepExecutionStatus.CREATED, 1);
+
+        when(processRepository.findById("p-1")).thenReturn(Optional.of(process));
+        when(stepExecutionRepository.findByProcess(process)).thenReturn(List.of(failed, next));
+
+        useCase.handle(new StepOverProcessCommand("p-1"));
+
+        // Successors of a failed step must not run, and the process must be flagged
+        // as failed — never falsely completed.
+        verify(stepExecutionRepository, never()).save(any());
+        ArgumentCaptor<Process> captor = ArgumentCaptor.forClass(Process.class);
+        verify(processRepository).save(captor.capture());
+        assertThat(captor.getValue().getStatus()).isEqualTo(ProcessStatus.ERROR);
+        verify(workflowMetrics).processErrored(any(), any());
+        verify(workflowMetrics, never()).processCompleted(any(), any());
+    }
+
 
     @Test
     void parallelStepsAreAllStarted() {
         var process = process("p-1");
-        Step step1 = new Step("s1", "wd-1", StepType.ACTION, "s1", null, null, null, true, "topic", null, null, 0, 0, false, null);
-        Step step2 = new Step("s2", "wd-1", StepType.ACTION, "s2", null, null, null, true, "topic", null, null, 0, 0, false, null);
+        Step step1 = new Step("s1", "wd-1", StepType.ACTION, "s1", null, null, null, true, "topic", null, null, 0, null, null, null, 0, 0, false, null);
+        Step step2 = new Step("s2", "wd-1", StepType.ACTION, "s2", null, null, null, true, "topic", null, null, 0, null, null, null, 0, 0, false, null);
         var se1 = StepExecution.builder().id("se-1").processId("p-1").workflowDefinitionId("wd-1")
                 .stepId("s1").stepJson(JsonSerializer.toJson(step1))
                 .status(StepExecutionStatus.CREATED).order(0).variables(List.of()).build();
@@ -138,8 +170,8 @@ class StepOverProcessUseCaseTest {
     @Test
     void stepWithUnmetPreconditionStepIdIsNotStarted() {
         var process = process("p-1");
-        Step prerequisite = new Step("prereq", "wd-1", StepType.ACTION, "prereq", null, null, null, false, "topic", null, null, 0, 0, false, null);
-        Step dependent = new Step("dep", "wd-1", StepType.ACTION, "dep", null, "prereq", null, false, "topic", null, null, 0, 0, false, null);
+        Step prerequisite = new Step("prereq", "wd-1", StepType.ACTION, "prereq", null, null, null, false, "topic", null, null, 0, null, null, null, 0, 0, false, null);
+        Step dependent = new Step("dep", "wd-1", StepType.ACTION, "dep", null, "prereq", null, false, "topic", null, null, 0, null, null, null, 0, 0, false, null);
         var sePrereq = StepExecution.builder().id("se-prereq").processId("p-1").workflowDefinitionId("wd-1")
                 .stepId("prereq").stepJson(JsonSerializer.toJson(prerequisite))
                 .status(StepExecutionStatus.CREATED).order(0).variables(List.of()).build();

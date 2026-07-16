@@ -30,6 +30,8 @@
     <file url="file://$PROJECT_DIR$/modules/sample-worker/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/modules/shared/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/modules/shared/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/modules/workflow-e2e/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/modules/workflow-e2e/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/modules/workflow-engine/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/modules/workflow-engine/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/shell/src/main/java" charset="UTF-8" />

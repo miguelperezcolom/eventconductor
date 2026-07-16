@@ -1,0 +1,10 @@
+{
+  "id": "usertask-noform",
+  "name": "User task without form",
+  "version": 1,
+  "status": "ACTIVE",
+  "steps": [
+    { "id": "broken", "type": "USER_TASK", "name": "Broken", "retries": 0 },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "broken" }
+  ]
+}

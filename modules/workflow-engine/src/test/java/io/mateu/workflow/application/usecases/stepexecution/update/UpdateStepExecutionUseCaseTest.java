@@ -4,6 +4,7 @@ import io.mateu.workflow.application.out.LogMessageRepository;
 import io.mateu.workflow.application.out.ProcessLockService;
 import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
+import io.mateu.workflow.application.out.WorkflowMetrics;
 import io.mateu.workflow.domain.aggregates.*;
 import io.mateu.workflow.domain.aggregates.Process;
 import org.junit.jupiter.api.Test;
@@ -25,6 +26,7 @@ class UpdateStepExecutionUseCaseTest {
     @Mock LogMessageRepository logMessageRepository;
     @Mock ProcessRepository processRepository;
     @Mock ProcessLockService processLockService;
+    @Mock WorkflowMetrics workflowMetrics;
 
     @InjectMocks UpdateStepExecutionUseCase useCase;
 
@@ -52,6 +54,7 @@ class UpdateStepExecutionUseCaseTest {
         verify(repository).save(any(StepExecution.class));
         verify(processRepository).save(any(Process.class));
         verify(logMessageRepository).save(any());
+        verify(workflowMetrics).stepExecutionFinished(any(), eq(StepExecutionStatus.COMPLETED), any());
         verify(processLockService).unlock("p-1");
     }
 
@@ -79,5 +82,7 @@ class UpdateStepExecutionUseCaseTest {
         useCase.handle(new UpdateStepExecutionCommand("se-1", newVars, "", StepExecutionStatus.RUNNING));
 
         verify(processRepository).save(any(Process.class));
+        // RUNNING is not a final outcome — no step-execution metric yet.
+        verify(workflowMetrics, never()).stepExecutionFinished(any(), any(), any());
     }
 }

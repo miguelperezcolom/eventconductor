@@ -2,6 +2,7 @@ package io.mateu.workflow.application.usecases.process.retry;
 
 import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
+import io.mateu.workflow.application.out.WorkflowMetrics;
 import io.mateu.workflow.application.usecases.process.stepover.StepOverProcessCommand;
 import io.mateu.workflow.application.usecases.process.stepover.StepOverProcessUseCase;
 import io.mateu.workflow.domain.aggregates.ProcessStatus;
@@ -16,6 +17,7 @@ public class RetryProcessUseCase {
     final ProcessRepository processRepository;
     final StepExecutionRepository stepExecutionRepository;
     final StepOverProcessUseCase stepOverProcessUseCase;
+    final WorkflowMetrics workflowMetrics;
 
     public void handle(RetryProcessCommand command) {
         var process = processRepository.findById(command.processId()).orElseThrow();
@@ -23,9 +25,12 @@ public class RetryProcessUseCase {
         var stepExecutions = stepExecutionRepository.findByProcess(process);
         boolean changed = false;
         for (var stepExecution : stepExecutions) {
-            if (StepExecutionStatus.ERROR.equals(stepExecution.getStatus())) {
+            if (StepExecutionStatus.ERROR.equals(stepExecution.getStatus())
+                    || StepExecutionStatus.TIMEOUT.equals(stepExecution.getStatus())) {
                 stepExecution.updateStatus(StepExecutionStatus.CREATED);
                 stepExecutionRepository.save(stepExecution);
+                workflowMetrics.retryPerformed(stepExecution.getWorkflowDefinitionId(),
+                        WorkflowMetrics.RetryTrigger.MANUAL);
                 changed = true;
             }
         }

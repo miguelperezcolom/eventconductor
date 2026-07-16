@@ -41,6 +41,12 @@ public class WorkflowDefinitionValidator {
 
     public void validate(WorkflowDefinition definition) {
         definition.checkInvariants();
+        if (definition.cronExpression() != null && !definition.cronExpression().isBlank()
+                && !org.springframework.scheduling.support.CronExpression.isValidExpression(definition.cronExpression().trim())) {
+            throw new WorkflowDefinitionValidationException(
+                    "Workflow definition '" + definition.name() + "' is invalid:\n'"
+                            + definition.cronExpression() + "' is not a valid cron expression");
+        }
         try {
             var node = objectMapper.valueToTree(definition);
             Set<ValidationMessage> violations = schema.validate(node);

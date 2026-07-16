@@ -24,22 +24,40 @@ class WorkflowDefinitionValidatorTest {
     }
 
     private Step actionStep(String id) {
-        return new Step(id, null, StepType.ACTION, "Step " + id, null, null, null, false, "my-topic", null, null, 0, 0, false, null);
+        return new Step(id, null, StepType.ACTION, "Step " + id, null, null, null, false, "my-topic", null, null, 0, null, null, null, 0, 0, false, null);
     }
 
     @Test
     void validDefinitionPassesValidation() {
         var wd = new WorkflowDefinition("wd-1", "Test Workflow", 1, "desc",
-                WorkflowDefinitionStatus.ACTIVE, null, false, 0, false, List.of(actionStep("s1")));
+                WorkflowDefinitionStatus.ACTIVE, null, false, 0, false, null, List.of(actionStep("s1")));
 
         assertThatNoException().isThrownBy(() -> validator.validate(wd));
     }
 
     @Test
+    void validCronExpressionPassesValidation() {
+        var wd = new WorkflowDefinition("wd-1", "Test Workflow", 1, "desc",
+                WorkflowDefinitionStatus.ACTIVE, null, false, 0, false, "0 0 9 * * MON-FRI", List.of(actionStep("s1")));
+
+        assertThatNoException().isThrownBy(() -> validator.validate(wd));
+    }
+
+    @Test
+    void invalidCronExpressionIsRejected() {
+        var wd = new WorkflowDefinition("wd-1", "Test Workflow", 1, "desc",
+                WorkflowDefinitionStatus.ACTIVE, null, false, 0, false, "not a cron", List.of(actionStep("s1")));
+
+        assertThatThrownBy(() -> validator.validate(wd))
+                .isInstanceOf(WorkflowDefinitionValidator.WorkflowDefinitionValidationException.class)
+                .hasMessageContaining("not a cron");
+    }
+
+    @Test
     void definitionWithSelfPreconditionFailsInvariantCheck() {
-        Step selfPrecondition = new Step("s1", null, StepType.ACTION, "Step", null, "s1", null, false, "topic", null, null, 0, 0, false, null);
+        Step selfPrecondition = new Step("s1", null, StepType.ACTION, "Step", null, "s1", null, false, "topic", null, null, 0, null, null, null, 0, 0, false, null);
         var wd = new WorkflowDefinition("wd-1", "Test", 1, "desc",
-                WorkflowDefinitionStatus.ACTIVE, null, false, 0, false, List.of(selfPrecondition));
+                WorkflowDefinitionStatus.ACTIVE, null, false, 0, false, null, List.of(selfPrecondition));
 
         assertThatThrownBy(() -> validator.validate(wd))
                 .isInstanceOf(IllegalStateException.class);
@@ -48,7 +66,7 @@ class WorkflowDefinitionValidatorTest {
     @Test
     void definitionWithMissingNameFailsSchemaValidation() {
         var wd = new WorkflowDefinition("wd-1", null, 1, "desc",
-                WorkflowDefinitionStatus.ACTIVE, null, false, 0, false, List.of(actionStep("s1")));
+                WorkflowDefinitionStatus.ACTIVE, null, false, 0, false, null, List.of(actionStep("s1")));
 
         assertThatThrownBy(() -> validator.validate(wd))
                 .isInstanceOf(WorkflowDefinitionValidator.WorkflowDefinitionValidationException.class);

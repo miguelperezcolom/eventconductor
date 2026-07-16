@@ -53,6 +53,7 @@ export default defineConfig({
 					label: 'Getting Started',
 					items: [
 						{ label: 'Introduction', slug: 'guides/introduction' },
+						{ label: 'Comparison: Camunda & Temporal', slug: 'guides/comparison' },
 						{ label: 'Quick Start', slug: 'guides/quickstart' },
 						{ label: 'Deployment Modes', slug: 'guides/deployment-modes' },
 						{ label: 'Demo Applications', slug: 'guides/demos' },
@@ -66,6 +67,7 @@ export default defineConfig({
 						{ label: 'Starting a Process', slug: 'guides/starting-a-process' },
 						{ label: 'Implementing Workers', slug: 'guides/workers' },
 						{ label: 'Retries, Timeouts & Compensation', slug: 'guides/retries-timeouts-compensation' },
+						{ label: 'Process Analytics', slug: 'guides/analytics' },
 						{ label: 'Event Storming', slug: 'guides/event-storming' },
 					],
 				},

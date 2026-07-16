@@ -89,7 +89,7 @@ The agent is resilient: if one MCP server is down the others continue working no
 Each server self-describes its domain via a `system-context` MCP Prompt, so the LLM always
 has up-to-date context without any code changes.
 
-No other workflow engine — Camunda, Temporal, Netflix Conductor — offers this out of the box.
+EventConductor was, to our knowledge, the first workflow engine to ship native MCP support — and it remains the only one where MCP exposure of the engine *and your own business services* is a built-in, embeddable feature rather than a separate connector or add-on.
 
 ---
 

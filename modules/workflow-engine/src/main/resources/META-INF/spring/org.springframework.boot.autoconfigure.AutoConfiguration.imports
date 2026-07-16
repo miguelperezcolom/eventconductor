@@ -1,1 +1,2 @@
 io.mateu.workflow.autoconfigure.WorkflowEngineAutoConfiguration
+io.mateu.workflow.autoconfigure.WorkflowMetricsAutoConfiguration
