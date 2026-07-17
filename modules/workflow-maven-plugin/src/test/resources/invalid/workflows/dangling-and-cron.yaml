@@ -1,0 +1,15 @@
+id: bad
+name: Bad refs
+version: 1
+status: ACTIVE
+cronExpression: "not a cron"
+steps:
+  - id: s1
+    type: ACTION
+    name: A
+    topic: work
+    preconditionStepId: nope
+  - id: end
+    type: END
+    name: End
+    preconditionStepId: s1

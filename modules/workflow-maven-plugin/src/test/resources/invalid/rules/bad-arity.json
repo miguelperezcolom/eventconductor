@@ -1,0 +1,4 @@
+{ "id": "t", "name": "Bad table", "type": "decision-table",
+  "inputs": [ { "name": "a" }, { "name": "b" } ],
+  "outputs": [ { "name": "x" } ],
+  "rows": [ { "when": ["1"], "then": ["1", "2"] } ] }

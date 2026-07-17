@@ -1,0 +1,5 @@
+{ "id": "bad2", "name": "Bad", "version": 1, "status": "NOPE",
+  "steps": [
+    { "id": "s1", "type": "ACTION", "name": "A", "topic": "work", "preconditionExpression": "amount >" },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "s1" }
+  ] }

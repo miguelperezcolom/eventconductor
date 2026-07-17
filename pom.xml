@@ -37,6 +37,7 @@
       <module>modules/forms-engine</module>
       <module>modules/rule-runtime</module>
       <module>modules/rule-engine</module>
+      <module>modules/workflow-maven-plugin</module>
       <module>modules/sample-worker</module>
       <module>apps/orchestrator-standalone-app</module>
       <module>apps/forms-standalone-app</module>

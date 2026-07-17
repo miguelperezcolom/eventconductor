@@ -1,0 +1,6 @@
+{ "id": "seq", "name": "Sequential", "version": 1, "status": "ACTIVE",
+  "steps": [
+    { "id": "s1", "type": "ACTION", "name": "Step 1", "topic": "work" },
+    { "id": "s2", "type": "ACTION", "name": "Step 2", "topic": "work", "preconditionStepId": "s1", "preconditionExpression": "amount > 100" },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "s2" }
+  ] }

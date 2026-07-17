@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0-beta.008] - 2026-07-17
+
+### Added
+- `workflow-maven-plugin`: a Maven plugin (goal `eventconductor:validate`, bound
+  to `process-resources`) that validates workflow, form and rule definitions
+  (JSON/YAML) against the engine's published specifications at build time and
+  fails the build on any violation. It bundles the canonical schemas straight
+  from the sibling engine modules so it can never drift, and adds the semantic
+  checks a schema cannot express: workflow duplicate/dangling/self-referencing
+  step references, cron-expression validity and JEXL parseability of
+  preconditions; decision-table row arity and JEXL parseability of rule
+  expressions. Configurable directories, per-type toggles, `failOnError`,
+  `failOnMissing` and `skip`.
+
 ## [1.0-beta.007] - 2026-07-16
 
 ### Added

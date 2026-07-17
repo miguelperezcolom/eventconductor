@@ -101,6 +101,7 @@ export default defineConfig({
 						{ label: 'Step Types', slug: 'reference/step-types' },
 						{ label: 'Process & Step Statuses', slug: 'reference/statuses' },
 						{ label: 'Configuration', slug: 'reference/configuration' },
+						{ label: 'Maven Plugin (validate definitions)', slug: 'reference/maven-plugin' },
 						{ label: 'Kafka Topics', slug: 'reference/kafka-topics' },
 						{ label: 'Java API', slug: 'reference/java-api' },
 					],

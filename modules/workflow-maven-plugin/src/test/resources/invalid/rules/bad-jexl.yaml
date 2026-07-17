@@ -1,0 +1,7 @@
+id: r
+name: Bad expression rule
+type: expression
+when: "order.total >"
+then:
+  - name: y
+    expression: "1 +"

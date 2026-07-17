@@ -1,0 +1,13 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/miguelperezcolom/eventconductor/main/modules/rule-engine/src/main/resources/rule-schema.json
+id: high-value-order
+name: High value order approval
+description: VIP orders over 100 get a discount and need approval
+type: expression
+salience: 10
+tags: [orders]
+when: "order.total > 100 && customer.category == 'VIP'"
+then:
+  - name: discount
+    expression: "order.total * 0.1"
+  - name: approvalRequired
+    expression: "true"

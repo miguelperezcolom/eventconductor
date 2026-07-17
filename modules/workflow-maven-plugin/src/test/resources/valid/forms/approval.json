@@ -1,0 +1,5 @@
+{ "name": "Approval form",
+  "fields": [
+    { "id": "approved", "label": "Approved", "dataType": "bool", "required": true },
+    { "id": "comment", "label": "Comment", "dataType": "string", "stereotype": "textarea" }
+  ] }

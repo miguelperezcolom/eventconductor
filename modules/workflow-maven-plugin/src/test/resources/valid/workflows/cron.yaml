@@ -1,0 +1,14 @@
+id: nightly
+name: Nightly job
+version: 1
+status: ACTIVE
+cronExpression: "0 0 3 * * *"
+steps:
+  - id: run
+    type: ACTION
+    name: Run
+    topic: work
+  - id: end
+    type: END
+    name: End
+    preconditionStepId: run
