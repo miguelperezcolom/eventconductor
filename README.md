@@ -39,6 +39,13 @@ expressive enough to model retries, timeouts, compensation (saga), parallel exec
 sub-processes, conditional branching (JEXL expressions), and human tasks — all in a single
 flat file.
 
+### Validated at build time, not at runtime
+Because definitions are data owned by developers, the `workflow-maven-plugin` validates your
+workflow, form and rule files (JSON/YAML) against the engine's own specifications **during
+the build** — duplicate/dangling step references, cron validity, JEXL parseability,
+decision-table arity and full JSON-schema conformance — so a bad definition fails the PR
+instead of the running engine. See [Build-time validation](#build-time-validation-maven-plugin).
+
 ### Built-in forms engine
 The `forms-engine` module handles form definitions, validation, and rendering. User-task steps
 reference a form by ID; the engine takes care of the rest. Forms are defined in JSON, stored
@@ -271,6 +278,7 @@ eventconductor/
 │   ├── forms-engine/          Form definition and rendering engine
 │   ├── rule-engine/           Business rule catalog (REST + gRPC read APIs, UI, MCP)
 │   ├── rule-runtime/          Lightweight embeddable rule evaluator (JEXL)
+│   ├── workflow-maven-plugin/ Build-time validator for workflow/form/rule definitions
 │   └── sample-worker/         Hello-world worker example
 └── demo/                      Example microservices that use the modules
     ├── api-gw/                API gateway
@@ -515,6 +523,40 @@ steps:
 | `ACTIVE` | Ready to accept new process instances |
 | `DISABLED` | No new instances allowed; running ones continue |
 | `ARCHIVED` | Retired definition |
+
+---
+
+## Build-time validation (Maven plugin)
+
+The `workflow-maven-plugin` validates your workflow, form and rule definitions against the
+engine's published specifications at build time, failing the build on any violation — so
+mistakes are caught in the PR instead of at runtime when the engine loads them. It bundles
+the *same* JSON schemas the engine ships (so it can never drift) and adds the semantic checks
+a schema cannot express: duplicate/dangling/self-referencing step ids, cron validity and
+JEXL parseability of preconditions for workflows; decision-table row arity and JEXL
+parseability for rules.
+
+```xml
+<plugin>
+  <groupId>io.mateu.workflow</groupId>
+  <artifactId>workflow-maven-plugin</artifactId>
+  <version>1.0-beta.008</version>
+  <executions>
+    <execution>
+      <goals>
+        <goal>validate</goal>
+      </goals>
+    </execution>
+  </executions>
+</plugin>
+```
+
+The `validate` goal binds to `process-resources` and scans `src/main/resources/{workflows,forms,rules}`
+for `*.json`, `*.yaml` and `*.yml` — the same layout the engine loads from the classpath. Run
+it in the build (`mvn verify`) or on demand with `mvn eventconductor:validate`; on a violation
+it fails with a per-file report. Directories, per-type toggles, `failOnError`, `failOnMissing`
+and `skip` are configurable — see the
+[Maven plugin reference](https://miguelperezcolom.github.io/eventconductor/reference/maven-plugin/).
 
 ---
 
