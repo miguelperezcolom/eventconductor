@@ -60,7 +60,7 @@
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-jexl3</artifactId>
-            <version>3.3</version>
+            <version>3.7.0</version>
         </dependency>
         <!-- CronExpression only (spring-context is small and has no transitive UI/boot weight). -->
         <dependency>
