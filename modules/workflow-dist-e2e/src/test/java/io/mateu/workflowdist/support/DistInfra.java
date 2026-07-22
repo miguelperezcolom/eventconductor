@@ -139,6 +139,12 @@ public final class DistInfra {
         props.put("spring.application.name", "dist-worker");
         props.put("spring.main.web-application-type", "none");
         props.put("spring.main.banner-mode", "off");
+        // The worker talks to Kafka via Spring Cloud Stream. Without this, workflow.mode
+        // defaults to "embedded" and EmbeddedModeAutoConfigurationExcluder strips the
+        // stream autoconfiguration (BindingServiceConfiguration/FunctionConfiguration),
+        // so StreamBridge is never created and consumeWorkerEvent fails to wire.
+        // The worker has no @ComponentScan, so this pulls in no orchestrator/outbox beans.
+        props.put("workflow.mode", "kafka");
         props.put("spring.cloud.function.definition", "consumeWorkerEvent");
         props.put("spring.cloud.stream.kafka.binder.brokers", kafka.getBootstrapServers());
         props.put("spring.cloud.stream.bindings.consumeWorkerEvent-in-0.destination", "downstream");

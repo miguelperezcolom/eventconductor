@@ -1,0 +1,12 @@
+# Netlify configuration for the EventConductor documentation site (Astro + Starlight).
+#
+# This file lives in the site's base directory (doc/) and intentionally pins ONLY the
+# Node.js version. The base directory, build command and publish directory continue to
+# come from the Netlify UI settings — this file does not override them.
+#
+# Why pin Node: Astro 7.1.x requires Node ^20.19.0 || >=22.12.0. Without a pin the build
+# uses Netlify's default Node version, which can change and silently break the docs build.
+# Node 22 is the current LTS and satisfies the >=22.12.0 requirement.
+
+[build.environment]
+  NODE_VERSION = "22"
