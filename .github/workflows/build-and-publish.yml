@@ -67,7 +67,7 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build and push orchestrator image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: apps/orchestrator-standalone-app
           file: apps/orchestrator-standalone-app/Dockerfile.ci
@@ -77,7 +77,7 @@ jobs:
             ${{ secrets.DOCKERHUB_USERNAME }}/orchestrator-standalone-app:latest
 
       - name: Build and push forms image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: apps/forms-standalone-app
           file: apps/forms-standalone-app/Dockerfile.ci
