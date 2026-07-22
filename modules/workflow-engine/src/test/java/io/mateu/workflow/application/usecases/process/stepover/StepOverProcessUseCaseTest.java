@@ -7,12 +7,14 @@ import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.out.WorkflowMetrics;
 import io.mateu.workflow.domain.aggregates.*;
 import io.mateu.workflow.domain.aggregates.Process;
+import io.mateu.workflow.domain.services.WorkflowOrchestrationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
@@ -25,10 +27,11 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class StepOverProcessUseCaseTest {
 
-    @Mock ProcessRepository processRepository;
-    @Mock StepExecutionRepository stepExecutionRepository;
-    @Mock ProcessLockService lockService;
-    @Mock WorkflowMetrics workflowMetrics;
+    @Mock ProcessRepository            processRepository;
+    @Mock StepExecutionRepository      stepExecutionRepository;
+    @Mock ProcessLockService           lockService;
+    @Mock WorkflowMetrics              workflowMetrics;
+    @Spy  WorkflowOrchestrationService workflowOrchestrationService = new WorkflowOrchestrationService();
 
     @InjectMocks StepOverProcessUseCase useCase;
 
