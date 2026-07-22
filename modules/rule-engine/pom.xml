@@ -45,7 +45,7 @@
 
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
+            <artifactId>spring-boot-starter-webmvc</artifactId>
             <!-- en librería suele ser mejor optional que provided -->
             <optional>true</optional>
         </dependency>
@@ -118,7 +118,7 @@
         <dependency>
             <groupId>com.networknt</groupId>
             <artifactId>json-schema-validator</artifactId>
-            <version>1.5.6</version>
+            <version>3.0.6</version>
         </dependency>
 
         <dependency>

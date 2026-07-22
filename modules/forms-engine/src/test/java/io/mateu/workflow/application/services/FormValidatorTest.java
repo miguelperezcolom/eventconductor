@@ -19,7 +19,7 @@ class FormValidatorTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        validator = new FormValidator(new ObjectMapper());
+        validator = new FormValidator();
         validator.init();
     }
 

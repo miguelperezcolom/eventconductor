@@ -53,9 +53,6 @@ spring:
       # IMPORTANTE: Cambiado a ByteArraySerializer para evitar el ClassCastException [B cannot be cast to String
       value-serializer: org.apache.kafka.common.serialization.ByteArraySerializer
 
-  jackson:
-    serialization:
-      write-dates-as-timestamps: false
 
 logging:
   level:

@@ -1,9 +1,10 @@
 package io.mateu.workflow.maven;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.networknt.schema.JsonSchema;
-import com.networknt.schema.JsonSchemaFactory;
-import com.networknt.schema.SpecVersion;
+import com.networknt.schema.InputFormat;
+import com.networknt.schema.Schema;
+import com.networknt.schema.SchemaRegistry;
+import com.networknt.schema.SpecificationVersion;
 import org.apache.commons.jexl3.JexlBuilder;
 import org.apache.commons.jexl3.JexlEngine;
 import org.springframework.scheduling.support.CronExpression;
@@ -42,9 +43,9 @@ public class SpecValidator {
         }
     }
 
-    private final JsonSchema workflowSchema;
-    private final JsonSchema formSchema;
-    private final JsonSchema ruleSchema;
+    private final Schema workflowSchema;
+    private final Schema formSchema;
+    private final Schema ruleSchema;
     // parse-only engine; expressions are never evaluated during validation.
     private final JexlEngine jexl = new JexlBuilder().create();
 
@@ -54,12 +55,12 @@ public class SpecValidator {
         this.ruleSchema = loadSchema(Kind.RULE.schemaResource);
     }
 
-    private static JsonSchema loadSchema(String resource) {
+    private static Schema loadSchema(String resource) {
         try (InputStream stream = SpecValidator.class.getClassLoader().getResourceAsStream(resource)) {
             if (stream == null) {
                 throw new IllegalStateException("Bundled schema not found on classpath: " + resource);
             }
-            return JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V7).getSchema(stream);
+            return SchemaRegistry.withDefaultDialect(SpecificationVersion.DRAFT_7).getSchema(stream);
         } catch (IOException e) {
             throw new UncheckedIOException("Could not load schema " + resource, e);
         }
@@ -82,8 +83,8 @@ public class SpecValidator {
         return violations;
     }
 
-    private void addSchemaViolations(JsonSchema schema, JsonNode document, List<String> violations) {
-        schema.validate(document).forEach(v -> violations.add(v.getMessage()));
+    private void addSchemaViolations(Schema schema, JsonNode document, List<String> violations) {
+        schema.validate(document.toString(), InputFormat.JSON).forEach(v -> violations.add(v.getInstanceLocation() + ": " + v.getMessage()));
     }
 
     // --- Workflow semantics: mirror WorkflowDefinition.checkInvariants() + cron validation. ---

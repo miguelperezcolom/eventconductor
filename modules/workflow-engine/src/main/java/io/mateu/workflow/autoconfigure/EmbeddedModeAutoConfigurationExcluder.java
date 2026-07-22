@@ -31,8 +31,11 @@ public class EmbeddedModeAutoConfigurationExcluder implements EnvironmentPostPro
     );
 
     private static final List<String> JPA_CLASSES = List.of(
-            "org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration",
-            "org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration"
+            // Spring Boot 4 relocated (and renamed) these auto-configuration classes into
+            // per-technology modules. They are referenced by name, so a stale string would
+            // silently stop excluding JPA in workflow.persistence=memory mode.
+            "org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfiguration",
+            "org.springframework.boot.data.jpa.autoconfigure.DataJpaRepositoriesAutoConfiguration"
     );
 
     @Override

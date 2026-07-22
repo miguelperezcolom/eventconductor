@@ -2,7 +2,7 @@ package io.mateu.e2ejpa;
 
 import io.mateu.workflow.autoconfigure.WorkflowEmbeddedApplication;
 import io.mateu.workflow.e2e.support.E2eConfig;
-import org.springframework.boot.autoconfigure.domain.EntityScan;
+import org.springframework.boot.persistence.autoconfigure.EntityScan;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 

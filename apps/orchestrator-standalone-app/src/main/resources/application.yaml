@@ -94,9 +94,6 @@ spring:
     out-of-order: false
     validate-on-migrate: true
 
-  jackson:
-    serialization:
-      write-dates-as-timestamps: false
 
 workflow:
   mode: ${WORKFLOW_MODE:kafka}
