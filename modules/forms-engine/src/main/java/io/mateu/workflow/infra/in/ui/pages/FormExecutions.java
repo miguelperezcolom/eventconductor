@@ -23,7 +23,7 @@ public class FormExecutions extends AutoCrud<FormExecution> {
     final FormExecutionRepository repository;
 
     @Override
-    public CrudRepository<FormExecution> repository() {
+    public CrudRepository<FormExecution> store() {
         return repository;
     }
 

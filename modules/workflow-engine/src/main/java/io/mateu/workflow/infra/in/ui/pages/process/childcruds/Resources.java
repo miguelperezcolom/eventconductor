@@ -28,7 +28,7 @@ public class Resources extends AutoCrud<Resource> {
     final ResourceCrudAdapter adapter;
 
     @Override
-    public CrudRepository<Resource> repository() {
+    public CrudRepository<Resource> store() {
         return adapter.repository();
     }
 }

@@ -30,7 +30,7 @@ public class Errors extends AutoCrud<Error> {
     final ErrorCrudAdapter adapter;
 
     @Override
-    public CrudRepository<Error> repository() {
+    public CrudRepository<Error> store() {
         return adapter.withProcessId(processId).repository();
     }
 }

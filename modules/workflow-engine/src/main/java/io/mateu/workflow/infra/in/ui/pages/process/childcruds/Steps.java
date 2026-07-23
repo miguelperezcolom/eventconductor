@@ -30,7 +30,7 @@ public class Steps extends AutoCrud<Step> {
     final StepCrudAdapter adapter;
 
     @Override
-    public CrudRepository<Step> repository() {
+    public CrudRepository<Step> store() {
         return adapter.withProcessId(processId).repository();
     }
 }
