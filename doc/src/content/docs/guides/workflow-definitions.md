@@ -86,6 +86,64 @@ steps: [...]
 | `DISABLED` | No new instances allowed; running ones continue |
 | `ARCHIVED` | Retired definition |
 
+## Lifecycle
+
+A definition moves through those four statuses over its life. The management UI offers exactly the transitions that are valid for the current status (see the [UI Manual](/guides/ui-manual/)) — every arrow below is one toolbar action.
+
+<svg viewBox="0 0 880 600" width="880" height="600" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Workflow definition lifecycle. A new definition starts as DRAFT. From ACTIVE you can create a working copy — a DRAFT linked to the live definition — and promote it back to ACTIVE, or disable it to DISABLED and enable it back. DRAFT and DISABLED definitions can be archived to ARCHIVED; an ACTIVE definition must be disabled before archiving. An ARCHIVED definition can be reactivated back to DRAFT. Edit is available in every status except ACTIVE." style="max-width:100%;height:auto;font-family:inherit">
+  <defs>
+    <marker id="lc-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 1 L 9 5 L 0 9 z" fill="currentColor" opacity="0.65"/>
+    </marker>
+  </defs>
+  <g stroke="currentColor" fill="none" stroke-opacity="0.55" marker-end="url(#lc-arr)">
+    <path d="M 12 316 L 52 316"/>
+    <path d="M 412 286 L 412 172"/>
+    <path d="M 468 172 L 468 283"/>
+    <path d="M 517 308 L 672 308"/>
+    <path d="M 672 328 L 517 328"/>
+    <path d="M 748 348 Q 645 470 518 494"/>
+    <path d="M 168 348 Q 268 432 362 486"/>
+    <path d="M 372 514 Q 214 502 116 350"/>
+  </g>
+  <g stroke="none" fill="currentColor" font-size="11" opacity="0.85">
+    <text x="32" y="308" text-anchor="middle">New</text>
+    <text x="402" y="228" text-anchor="end">Create working copy</text>
+    <text x="480" y="228" text-anchor="start">Promote to production</text>
+    <text x="594" y="301" text-anchor="middle">Disable</text>
+    <text x="594" y="343" text-anchor="middle">Enable</text>
+    <text x="676" y="436" text-anchor="middle">Archive</text>
+    <text x="250" y="408" text-anchor="middle">Archive</text>
+    <text x="236" y="508" text-anchor="middle">Reactivate</text>
+  </g>
+  <g font-size="14" font-weight="600" text-anchor="middle">
+    <rect x="55" y="286" width="150" height="60" rx="10" stroke="currentColor" stroke-opacity="0.6" fill="currentColor" fill-opacity="0.03"/>
+    <text x="130" y="312" fill="currentColor">DRAFT</text>
+    <text x="130" y="330" fill="currentColor" font-size="10.5" font-weight="400" opacity="0.6">new · editable</text>
+    <rect x="365" y="286" width="150" height="60" rx="10" stroke="#C27D2C" stroke-width="2" fill="#C27D2C" fill-opacity="0.12"/>
+    <text x="440" y="312" fill="currentColor">ACTIVE</text>
+    <text x="440" y="330" fill="currentColor" font-size="10.5" font-weight="400" opacity="0.65">live</text>
+    <rect x="675" y="286" width="155" height="60" rx="10" stroke="currentColor" stroke-opacity="0.6" fill="currentColor" fill-opacity="0.03"/>
+    <text x="752" y="312" fill="currentColor">DISABLED</text>
+    <text x="752" y="330" fill="currentColor" font-size="10.5" font-weight="400" opacity="0.6">paused</text>
+    <rect x="335" y="110" width="210" height="60" rx="10" stroke="#C27D2C" stroke-opacity="0.6" stroke-dasharray="5 4" fill="#C27D2C" fill-opacity="0.05"/>
+    <text x="440" y="136" fill="currentColor">Working copy</text>
+    <text x="440" y="154" fill="currentColor" font-size="10.5" font-weight="400" opacity="0.65">DRAFT linked to a live def</text>
+    <rect x="365" y="478" width="150" height="60" rx="10" stroke="currentColor" stroke-opacity="0.6" fill="currentColor" fill-opacity="0.03"/>
+    <text x="440" y="504" fill="currentColor">ARCHIVED</text>
+    <text x="440" y="522" fill="currentColor" font-size="10.5" font-weight="400" opacity="0.6">retired</text>
+  </g>
+</svg>
+
+- **New → `DRAFT`** — a definition you create in the UI starts as a `DRAFT`. Definitions loaded from the classpath (`classpath:/workflows/`) or imported from Git come in as `ACTIVE`.
+- **Create working copy** (`ACTIVE` → *working copy*) — clones a live definition into a `DRAFT` linked back to it via `draftOfId`. Only one working copy may exist per definition.
+- **Promote to production** (*working copy* → `ACTIVE`) — copies the working copy's content onto the original definition, bumps its version, and deletes the copy. Offered **only** on working copies (those with `draftOfId` set).
+- **Disable / Enable** (`ACTIVE` ⇄ `DISABLED`) — stop or resume accepting new process instances; already-running instances are unaffected.
+- **Archive** (`DRAFT` or `DISABLED` → `ARCHIVED`) — retire a definition. An `ACTIVE` definition must be **disabled first**; archive is not offered while it is live.
+- **Reactivate** (`ARCHIVED` → `DRAFT`) — bring a retired definition back as a `DRAFT`, so it re-enters the lifecycle from the start.
+
+The **Edit** action is available in every status **except `ACTIVE`**: a live definition is read-only and is changed through a working copy, never in place.
+
 ## Importing from Git
 
 When `workflow.persistence=jpa`, EventConductor can clone one or more Git repositories at startup and import every `.json` / `.yaml` / `.yml` file that contains a valid workflow definition (i.e. has both `name` and `steps` fields).
