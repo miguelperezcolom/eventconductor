@@ -84,7 +84,8 @@ public record WorkflowDefinition(
     public boolean isHidden(String memberName, HttpRequest httpRequest) {
         return switch (memberName) {
             case "edit" -> status == WorkflowDefinitionStatus.ACTIVE;
-            case "promoteToProduction" -> status != WorkflowDefinitionStatus.DRAFT;
+            // Only a working copy (a DRAFT created from a production definition) can be promoted.
+            case "promoteToProduction" -> status != WorkflowDefinitionStatus.DRAFT || draftOfId == null;
             case "createWorkingCopy" -> status != WorkflowDefinitionStatus.ACTIVE;
             case "disable" -> status != WorkflowDefinitionStatus.ACTIVE;
             case "enable" -> status != WorkflowDefinitionStatus.DISABLED;
