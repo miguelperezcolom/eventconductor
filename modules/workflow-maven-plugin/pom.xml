@@ -17,7 +17,7 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <maven.api.version>3.9.9</maven.api.version>
+        <maven.api.version>3.9.16</maven.api.version>
         <!-- Do not run the plugin on itself. -->
         <eventconductor.validate.skip>true</eventconductor.validate.skip>
     </properties>
