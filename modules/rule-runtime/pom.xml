@@ -16,10 +16,10 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <grpc.version>1.70.0</grpc.version>
-        <!-- Aligned with grpc-java's own protobuf dependency: gencode from
-             3.25.x runs on both 3.25.x and 4.x protobuf-java runtimes -->
-        <protobuf.version>3.25.5</protobuf.version>
+        <grpc.version>1.83.0</grpc.version>
+        <!-- protoc gencode and protobuf-java runtime aligned on the same major (4.x),
+             matching grpc-java 1.83.x own protobuf dependency -->
+        <protobuf.version>4.35.1</protobuf.version>
     </properties>
 
     <dependencyManagement>

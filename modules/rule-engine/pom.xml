@@ -16,7 +16,7 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <grpc.version>1.70.0</grpc.version>
+        <grpc.version>1.83.0</grpc.version>
     </properties>
 
     <dependencyManagement>
@@ -140,7 +140,7 @@
         <dependency>
             <groupId>com.google.protobuf</groupId>
             <artifactId>protobuf-java</artifactId>
-            <version>3.25.5</version>
+            <version>4.35.1</version>
             <optional>true</optional>
         </dependency>
         <dependency>
