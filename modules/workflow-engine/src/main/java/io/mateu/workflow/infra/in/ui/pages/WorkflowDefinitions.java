@@ -9,7 +9,6 @@ import io.mateu.uidl.interfaces.CrudRepository;
 import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
 import io.mateu.workflow.application.usecases.workingcopy.CreateWorkingCopyUseCase;
-import io.mateu.workflow.application.usecases.workingcopy.PromoteWorkingCopyUseCase;
 import io.mateu.workflow.domain.aggregates.WorkflowDefinition;
 import io.mateu.workflow.infra.in.ui.WorkflowHome;
 import lombok.RequiredArgsConstructor;
@@ -28,7 +27,6 @@ public class WorkflowDefinitions extends AutoCrud<WorkflowDefinition> {
     final WorkflowDefinitionEditor graphEditor;
     final WorkflowDefinitionRepository repository;
     final CreateWorkingCopyUseCase createWorkingCopyUseCase;
-    final PromoteWorkingCopyUseCase promoteWorkingCopyUseCase;
 
     @Override
     public CrudRepository<WorkflowDefinition> repository() {
@@ -68,23 +66,6 @@ public class WorkflowDefinitions extends AutoCrud<WorkflowDefinition> {
                 ))
                 .build();
 
-    }
-
-    @ViewToolbarButton
-    public UICommand promoteToProduction(WorkflowDefinition definition, HttpRequest httpRequest) {
-        return UICommand.builder()
-                .type(UICommandType.DispatchEvent)
-                .data(new DispatchEventData(
-                        "navigation-requested",
-                        NavigationRequestedPayload.builder()
-                                .route("/workflow/definitions/" + promoteWorkingCopyUseCase.handle(definition.id()))
-                                .consumedRoute("")
-                                .baseUrl(httpRequest.getBaseUrl())
-                                .uriPrefix("")
-                                .serverSideType(WorkflowHome.class.getName())
-                                .build()
-                ))
-                .build();
     }
 
 }
