@@ -26,7 +26,7 @@ public class WorkflowDefinitions extends AutoCrud<WorkflowDefinition> {
     final WorkflowDefinitionRepository repository;
 
     @Override
-    public CrudRepository<WorkflowDefinition> repository() {
+    public CrudRepository<WorkflowDefinition> store() {
         return repository;
     }
 

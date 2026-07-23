@@ -28,7 +28,7 @@ public class Messages extends AutoCrud<Message> {
     final MessageCrudAdapter adapter;
 
     @Override
-    public CrudRepository<Message> repository() {
+    public CrudRepository<Message> store() {
         return adapter.withProcessId(processId).repository();
     }
 }

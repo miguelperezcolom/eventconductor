@@ -33,7 +33,7 @@ public class Processes extends FilteredAutoCrud<ProcessFilters, ProcessRow> {
     }
 
     @Override
-    public CrudRepository<ProcessRow> repository() {
+    public CrudRepository<ProcessRow> store() {
         return processCrudAdapter.repository();
     }
 

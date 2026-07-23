@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0-beta.009] - 2026-07-23
+
+### Added
+- **Workflow definition lifecycle management** in the admin UI. Definitions move
+  through `DRAFT` → `ACTIVE` → `DISABLED` → `ARCHIVED` with per-status toolbar
+  actions: *Promote to production* (working copies only), *Create working copy*,
+  *Disable*/*Enable*, *Archive* and *Reactivate*. An `ACTIVE` definition is
+  read-only (edited through a working copy) and must be disabled before it can be
+  archived; *Reactivate* returns an archived definition to `DRAFT`. New
+  definitions are created as `DRAFT` and the status is never editable. Documented
+  with a state diagram in `/guides/workflow-definitions`.
+- EventConductor now **owns the workflow graph component** (moved out of mateu),
+  served as a self-contained web component from the engine jar.
+
+### Changed
+- **Migrated to Spring Boot 4** (from 3.5): starter/autoconfig relocations,
+  Jackson 3, Spring Cloud 2025.1, Spring AI 2.0 and networknt
+  json-schema-validator 3.0.
+- Adopted **mateu 3.0-alpha.263** (new `CrudStore` API). This brings the UI
+  behaviour the lifecycle work relies on: the top navigation renders as a Vaadin
+  menu-bar, an intermediate menu route (e.g. `/workflow`) shows a section index
+  instead of "Not found", and the built-in *Edit* action is hidden on `ACTIVE`
+  definitions.
+- Coordinated **gRPC 1.83.0 + protobuf 4.35.1** bump; commons-jexl3 3.7.0; and
+  Spring Cloud dependency updates.
+
 ## [1.0-beta.008] - 2026-07-17
 
 ### Added

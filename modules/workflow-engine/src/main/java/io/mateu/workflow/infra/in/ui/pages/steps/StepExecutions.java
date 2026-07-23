@@ -33,7 +33,7 @@ public class StepExecutions extends FilteredAutoCrud<StepExecutionFilters, StepE
     }
 
     @Override
-    public CrudRepository<StepExecutionRow> repository() {
+    public CrudRepository<StepExecutionRow> store() {
         return stepExecutionsCrudAdapter.repository();
     }
 

@@ -23,7 +23,7 @@ public class Forms extends AutoCrud<Form> {
     final FormRepository formRepository;
 
     @Override
-    public CrudRepository<Form> repository() {
+    public CrudRepository<Form> store() {
         return formRepository;
     }
 
