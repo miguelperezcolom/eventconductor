@@ -28,12 +28,12 @@ class ReactivateWorkflowDefinitionUseCaseTest {
     }
 
     @Test
-    void reactivatesAnArchivedDefinition() {
+    void reactivatesAnArchivedDefinitionBackToDraft() {
         when(repository.findById("wd-1")).thenReturn(Optional.of(def(WorkflowDefinitionStatus.ARCHIVED)));
         useCase.handle("wd-1");
         var captor = ArgumentCaptor.forClass(WorkflowDefinition.class);
         verify(repository).save(captor.capture());
-        assertThat(captor.getValue().status()).isEqualTo(WorkflowDefinitionStatus.ACTIVE);
+        assertThat(captor.getValue().status()).isEqualTo(WorkflowDefinitionStatus.DRAFT);
     }
 
     @Test
