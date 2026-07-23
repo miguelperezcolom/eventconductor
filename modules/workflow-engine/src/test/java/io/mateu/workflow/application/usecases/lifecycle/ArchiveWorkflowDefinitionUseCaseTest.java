@@ -28,13 +28,29 @@ class ArchiveWorkflowDefinitionUseCaseTest {
     }
 
     @Test
-    void archivesTheDefinition() {
-        when(repository.findById("wd-1")).thenReturn(Optional.of(def(WorkflowDefinitionStatus.ACTIVE)));
+    void archivesADisabledDefinition() {
+        when(repository.findById("wd-1")).thenReturn(Optional.of(def(WorkflowDefinitionStatus.DISABLED)));
         useCase.handle("wd-1");
         var captor = ArgumentCaptor.forClass(WorkflowDefinition.class);
         verify(repository).save(captor.capture());
         assertThat(captor.getValue().status()).isEqualTo(WorkflowDefinitionStatus.ARCHIVED);
         assertThat(captor.getValue().id()).isEqualTo("wd-1");
+    }
+
+    @Test
+    void archivesADraftDefinition() {
+        when(repository.findById("wd-1")).thenReturn(Optional.of(def(WorkflowDefinitionStatus.DRAFT)));
+        useCase.handle("wd-1");
+        var captor = ArgumentCaptor.forClass(WorkflowDefinition.class);
+        verify(repository).save(captor.capture());
+        assertThat(captor.getValue().status()).isEqualTo(WorkflowDefinitionStatus.ARCHIVED);
+    }
+
+    @Test
+    void rejectsActive() {
+        when(repository.findById("wd-1")).thenReturn(Optional.of(def(WorkflowDefinitionStatus.ACTIVE)));
+        assertThatThrownBy(() -> useCase.handle("wd-1")).isInstanceOf(IllegalStateException.class);
+        verify(repository, never()).save(any());
     }
 
     @Test

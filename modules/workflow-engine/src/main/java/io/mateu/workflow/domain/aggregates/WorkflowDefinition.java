@@ -89,7 +89,9 @@ public record WorkflowDefinition(
             case "disable" -> status != WorkflowDefinitionStatus.ACTIVE;
             case "enable" -> status != WorkflowDefinitionStatus.DISABLED;
             case "reactivate" -> status != WorkflowDefinitionStatus.ARCHIVED;
-            case "archive" -> status == WorkflowDefinitionStatus.ARCHIVED;
+            // An ACTIVE workflow must be disabled before it can be archived.
+            case "archive" -> status == WorkflowDefinitionStatus.ACTIVE
+                    || status == WorkflowDefinitionStatus.ARCHIVED;
             default -> false;
         };
     }

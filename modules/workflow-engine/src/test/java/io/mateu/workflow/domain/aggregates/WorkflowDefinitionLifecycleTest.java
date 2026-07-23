@@ -82,11 +82,12 @@ class WorkflowDefinitionLifecycleTest {
     }
 
     @Test
-    void archiveButtonHiddenOnlyWhenArchived() {
-        assertThat(def(ARCHIVED).isHidden("archive", null)).isTrue();
+    void archiveButtonVisibleOnlyForDraftAndDisabled() {
         assertThat(def(DRAFT).isHidden("archive", null)).isFalse();
-        assertThat(def(ACTIVE).isHidden("archive", null)).isFalse();
         assertThat(def(DISABLED).isHidden("archive", null)).isFalse();
+        // an ACTIVE workflow must be disabled before archiving, and ARCHIVED is terminal
+        assertThat(def(ACTIVE).isHidden("archive", null)).isTrue();
+        assertThat(def(ARCHIVED).isHidden("archive", null)).isTrue();
     }
 
     @Test
