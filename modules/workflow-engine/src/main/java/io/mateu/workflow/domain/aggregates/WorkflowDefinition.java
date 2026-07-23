@@ -6,14 +6,22 @@ import io.mateu.uidl.annotations.*;
 import io.mateu.uidl.annotations.FormLayout;
 import io.mateu.uidl.annotations.Status;
 import io.mateu.uidl.data.*;
+import io.mateu.uidl.di.MateuBeanProvider;
 import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.uidl.interfaces.Identifiable;
 import io.mateu.uidl.interfaces.LookupOptionsSupplier;
 import io.mateu.uidl.interfaces.Searchable;
+import io.mateu.uidl.interfaces.VisibilitySupplier;
+import io.mateu.workflow.application.usecases.lifecycle.ArchiveWorkflowDefinitionUseCase;
+import io.mateu.workflow.application.usecases.lifecycle.DisableWorkflowDefinitionUseCase;
+import io.mateu.workflow.application.usecases.lifecycle.EnableWorkflowDefinitionUseCase;
+import io.mateu.workflow.application.usecases.lifecycle.ReactivateWorkflowDefinitionUseCase;
+import io.mateu.workflow.application.usecases.workingcopy.CreateWorkingCopyUseCase;
+import io.mateu.workflow.application.usecases.workingcopy.PromoteWorkingCopyUseCase;
+import io.mateu.workflow.infra.in.ui.WorkflowHome;
 import io.mateu.workflow.infra.in.ui.pages.WorkflowDefinitionEditor;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotEmpty;
-import jakarta.validation.constraints.NotNull;
 
 import java.util.List;
 
@@ -29,7 +37,11 @@ public record WorkflowDefinition(
         int version,
         @Stereotype(FieldStereotype.textarea)
         String description,
-        @NotNull
+        // Read-only lifecycle status: shown in list/detail, never in the create or edit
+        // forms. New definitions are created as DRAFT (see the canonical constructor below),
+        // so it is never null despite not being editable.
+        @HiddenInCreate
+        @HiddenInEditor
         @Status(defaultStatus = StatusType.NONE, mappings = {
                 @StatusMapping(from = "", to = StatusType.NONE),
                 @StatusMapping(from = "DISABLED", to = StatusType.DANGER),
@@ -50,7 +62,90 @@ public record WorkflowDefinition(
         @Colspan(4)
         @DetailFormCustomisation(position = FormPosition.modalRight, style = "display: block; min-width: 70rem;")
         List<Step> steps
-) implements Identifiable, Searchable, LookupOptionsSupplier {
+) implements Identifiable, Searchable, LookupOptionsSupplier, VisibilitySupplier {
+
+    /** New definitions (status not set in the editor) start their lifecycle as DRAFT. */
+    public WorkflowDefinition {
+        if (status == null) {
+            status = WorkflowDefinitionStatus.DRAFT;
+        }
+    }
+
+    /** Returns a copy of this definition with a different lifecycle status. */
+    public WorkflowDefinition withStatus(WorkflowDefinitionStatus newStatus) {
+        return new WorkflowDefinition(id, name, version, description, newStatus, draftOfId,
+                limitConcurrentExecutions, maxConcurrentExecutions, enqueueOnLimit, cronExpression, steps);
+    }
+
+    // ── Detail-view lifecycle buttons (conditional on state via VisibilitySupplier) ──
+
+    /** Hides the built-in {@code edit} action and the lifecycle buttons per current status. */
+    @Override
+    public boolean isHidden(String memberName, HttpRequest httpRequest) {
+        return switch (memberName) {
+            case "edit" -> status == WorkflowDefinitionStatus.ACTIVE;
+            case "promoteToProduction" -> status != WorkflowDefinitionStatus.DRAFT;
+            case "createWorkingCopy" -> status != WorkflowDefinitionStatus.ACTIVE;
+            case "disable" -> status != WorkflowDefinitionStatus.ACTIVE;
+            case "enable" -> status != WorkflowDefinitionStatus.DISABLED;
+            case "reactivate" -> status != WorkflowDefinitionStatus.ARCHIVED;
+            // An ACTIVE workflow must be disabled before it can be archived.
+            case "archive" -> status == WorkflowDefinitionStatus.ACTIVE
+                    || status == WorkflowDefinitionStatus.ARCHIVED;
+            default -> false;
+        };
+    }
+
+    @Toolbar
+    public UICommand promoteToProduction(HttpRequest httpRequest) {
+        var promotedId = MateuBeanProvider.getBean(PromoteWorkingCopyUseCase.class).handle(id);
+        return navigateToDefinition(promotedId, httpRequest);
+    }
+
+    @Toolbar
+    public UICommand createWorkingCopy(HttpRequest httpRequest) {
+        var copyId = MateuBeanProvider.getBean(CreateWorkingCopyUseCase.class).handle(id);
+        return navigateToDefinition(copyId, httpRequest);
+    }
+
+    @Toolbar
+    public UICommand disable(HttpRequest httpRequest) {
+        MateuBeanProvider.getBean(DisableWorkflowDefinitionUseCase.class).handle(id);
+        return navigateToDefinition(id, httpRequest);
+    }
+
+    @Toolbar
+    public UICommand enable(HttpRequest httpRequest) {
+        MateuBeanProvider.getBean(EnableWorkflowDefinitionUseCase.class).handle(id);
+        return navigateToDefinition(id, httpRequest);
+    }
+
+    @Toolbar
+    public UICommand reactivate(HttpRequest httpRequest) {
+        MateuBeanProvider.getBean(ReactivateWorkflowDefinitionUseCase.class).handle(id);
+        return navigateToDefinition(id, httpRequest);
+    }
+
+    @Toolbar
+    public UICommand archive(HttpRequest httpRequest) {
+        MateuBeanProvider.getBean(ArchiveWorkflowDefinitionUseCase.class).handle(id);
+        return navigateToDefinition(id, httpRequest);
+    }
+
+    private static UICommand navigateToDefinition(String definitionId, HttpRequest httpRequest) {
+        return UICommand.builder()
+                .type(UICommandType.DispatchEvent)
+                .data(new DispatchEventData(
+                        "navigation-requested",
+                        NavigationRequestedPayload.builder()
+                                .route("/workflow/definitions/" + definitionId)
+                                .consumedRoute("")
+                                .baseUrl(httpRequest.getBaseUrl())
+                                .uriPrefix("")
+                                .serverSideType(WorkflowHome.class.getName())
+                                .build()))
+                .build();
+    }
 
     @Override
     public String toString() {
