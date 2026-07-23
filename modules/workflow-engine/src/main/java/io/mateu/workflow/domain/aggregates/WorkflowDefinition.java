@@ -19,7 +19,6 @@ import io.mateu.workflow.infra.in.ui.WorkflowHome;
 import io.mateu.workflow.infra.in.ui.pages.WorkflowDefinitionEditor;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotEmpty;
-import jakarta.validation.constraints.NotNull;
 
 import java.util.List;
 
@@ -35,9 +34,10 @@ public record WorkflowDefinition(
         int version,
         @Stereotype(FieldStereotype.textarea)
         String description,
-        @NotNull
-        // Read-only lifecycle status: shown in list/detail, never in the editor. New
-        // definitions are created as DRAFT (see the canonical constructor below).
+        // Read-only lifecycle status: shown in list/detail, never in the create or edit
+        // forms. New definitions are created as DRAFT (see the canonical constructor below),
+        // so it is never null despite not being editable.
+        @HiddenInCreate
         @HiddenInEditor
         @Status(defaultStatus = StatusType.NONE, mappings = {
                 @StatusMapping(from = "", to = StatusType.NONE),
