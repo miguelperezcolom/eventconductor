@@ -29,7 +29,7 @@ public class ImportWorkflowDefinitionsFromGitUseCase {
     final GitImportProperties gitImportProperties;
     final WorkflowDefinitionRepository workflowDefinitionRepository;
     final WorkflowDefinitionValidator workflowDefinitionValidator;
-    final ObjectMapper objectMapper;
+    final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
     private static final YAMLMapper YAML_MAPPER = new YAMLMapper();
 
     public ImportWorkflowDefinitionsResult handle() {

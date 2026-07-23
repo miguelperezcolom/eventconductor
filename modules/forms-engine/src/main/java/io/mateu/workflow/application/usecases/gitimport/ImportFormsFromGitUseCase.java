@@ -27,7 +27,7 @@ public class ImportFormsFromGitUseCase {
 
     final GitImportProperties gitImportProperties;
     final FormRepository formRepository;
-    final ObjectMapper objectMapper;
+    final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
     private static final YAMLMapper YAML_MAPPER = new YAMLMapper();
 
     public ImportFormsResult handle() {

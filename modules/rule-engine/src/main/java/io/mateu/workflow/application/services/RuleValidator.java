@@ -2,10 +2,10 @@ package io.mateu.workflow.application.services;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.networknt.schema.JsonSchema;
-import com.networknt.schema.JsonSchemaFactory;
-import com.networknt.schema.SpecVersion;
-import com.networknt.schema.ValidationMessage;
+import com.networknt.schema.InputFormat;
+import com.networknt.schema.Schema;
+import com.networknt.schema.SchemaRegistry;
+import com.networknt.schema.SpecificationVersion;
 import io.mateu.workflow.domain.Rule;
 import io.mateu.workflow.domain.RuleType;
 import jakarta.annotation.PostConstruct;
@@ -16,7 +16,6 @@ import org.springframework.stereotype.Service;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -36,22 +35,21 @@ public class RuleValidator {
             .setSerializationInclusion(JsonInclude.Include.NON_NULL);
     private final RuleExpressionEvaluator expressionEvaluator = new RuleExpressionEvaluator();
     private final CellConditionCompiler cellConditionCompiler = new CellConditionCompiler();
-    private JsonSchema schema;
+    private Schema schema;
 
     @PostConstruct
     public void init() throws IOException {
         try (var stream = new ClassPathResource(SCHEMA_RESOURCE).getInputStream()) {
-            schema = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V7).getSchema(stream);
+            schema = SchemaRegistry.withDefaultDialect(SpecificationVersion.DRAFT_7).getSchema(stream);
             log.debug("Loaded rule JSON schema from classpath:{}", SCHEMA_RESOURCE);
         }
     }
 
     public void validate(Rule rule) {
         try {
-            var node = objectMapper.valueToTree(rule);
-            Set<ValidationMessage> violations = schema.validate(node);
+            var violations = schema.validate(objectMapper.writeValueAsString(rule), InputFormat.JSON);
             var details = new ArrayList<>(violations.stream()
-                    .map(ValidationMessage::getMessage)
+                    .map(v -> v.getInstanceLocation() + ": " + v.getMessage())
                     .collect(Collectors.toList()));
             details.addAll(semanticViolations(rule));
             if (!details.isEmpty()) {

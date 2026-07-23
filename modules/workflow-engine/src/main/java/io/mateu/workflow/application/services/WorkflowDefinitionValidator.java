@@ -1,9 +1,10 @@
 package io.mateu.workflow.application.services;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.networknt.schema.JsonSchemaFactory;
-import com.networknt.schema.SpecVersion;
-import com.networknt.schema.ValidationMessage;
+import com.networknt.schema.InputFormat;
+import com.networknt.schema.Schema;
+import com.networknt.schema.SchemaRegistry;
+import com.networknt.schema.SpecificationVersion;
 import io.mateu.workflow.domain.aggregates.WorkflowDefinition;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
@@ -12,7 +13,6 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -28,13 +28,13 @@ public class WorkflowDefinitionValidator {
 
     private static final String SCHEMA_RESOURCE = "workflow-definition-schema.json";
 
-    private final ObjectMapper objectMapper;
-    private com.networknt.schema.JsonSchema schema;
+    private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+    private Schema schema;
 
     @PostConstruct
     void init() throws IOException {
         try (var stream = new ClassPathResource(SCHEMA_RESOURCE).getInputStream()) {
-            schema = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V7).getSchema(stream);
+            schema = SchemaRegistry.withDefaultDialect(SpecificationVersion.DRAFT_7).getSchema(stream);
             log.debug("Loaded workflow definition JSON schema from classpath:{}", SCHEMA_RESOURCE);
         }
     }
@@ -48,11 +48,10 @@ public class WorkflowDefinitionValidator {
                             + definition.cronExpression() + "' is not a valid cron expression");
         }
         try {
-            var node = objectMapper.valueToTree(definition);
-            Set<ValidationMessage> violations = schema.validate(node);
+            var violations = schema.validate(objectMapper.writeValueAsString(definition), InputFormat.JSON);
             if (!violations.isEmpty()) {
                 String details = violations.stream()
-                        .map(ValidationMessage::getMessage)
+                        .map(v -> v.getInstanceLocation() + ": " + v.getMessage())
                         .collect(Collectors.joining("\n"));
                 throw new WorkflowDefinitionValidationException(
                         "Workflow definition '" + definition.name() + "' is invalid:\n" + details);

@@ -19,7 +19,7 @@ class WorkflowDefinitionValidatorTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        validator = new WorkflowDefinitionValidator(new ObjectMapper());
+        validator = new WorkflowDefinitionValidator();
         validator.init();
     }
 

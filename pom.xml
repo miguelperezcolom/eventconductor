@@ -43,7 +43,7 @@
       <module>apps/forms-standalone-app</module>
       <module>apps/rule-standalone-app</module>
       <module>apps/worker-standalone-app</module>
-    <module>apps/dev-app</module>
+      <module>apps/dev-app</module>
       <module>modules/shared</module>
   </modules>
 
@@ -59,26 +59,34 @@
       <dependency>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-dependencies</artifactId>
-        <version>3.5.7</version>
+        <version>4.0.4</version>
         <type>pom</type>
         <scope>import</scope>
       </dependency>
         <dependency>
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-dependencies</artifactId>
-            <version>2025.0.0</version>
+            <version>2025.1.0</version>
             <type>pom</type>
             <scope>import</scope>
         </dependency>
         <dependency>
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-starter-mcp-server-webmvc</artifactId>
-            <version>1.0.0</version>
+            <version>2.0.0</version>
         </dependency>
         <dependency>
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-model</artifactId>
-            <version>1.0.7</version>
+            <version>2.0.0</version>
+        </dependency>
+        <!-- Spring AI 2.0's MCP server pulls json-schema-validator 3.x; align the engine's
+             own definition validators to the same major (the 1.5→3.0 API was rewritten).
+             Overrides the 1.5.x pinned by the Spring Boot 4 BOM. -->
+        <dependency>
+            <groupId>com.networknt</groupId>
+            <artifactId>json-schema-validator</artifactId>
+            <version>3.0.6</version>
         </dependency>
     </dependencies>
   </dependencyManagement>
@@ -177,7 +185,7 @@
         <plugin>
             <groupId>org.jacoco</groupId>
             <artifactId>jacoco-maven-plugin</artifactId>
-            <version>0.8.12</version>
+            <version>0.8.13</version>
             <configuration>
                 <excludes>
                     <!-- UI layer - requires browser/Vaadin runtime -->
