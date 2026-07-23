@@ -18,10 +18,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-class CancelWorkflowDefinitionUseCaseTest {
+class ArchiveWorkflowDefinitionUseCaseTest {
 
     @Mock WorkflowDefinitionRepository repository;
-    @InjectMocks CancelWorkflowDefinitionUseCase useCase;
+    @InjectMocks ArchiveWorkflowDefinitionUseCase useCase;
 
     private WorkflowDefinition def(WorkflowDefinitionStatus status) {
         return new WorkflowDefinition("wd-1", "Test", 1, "desc", status, null, false, 0, false, null, List.of());

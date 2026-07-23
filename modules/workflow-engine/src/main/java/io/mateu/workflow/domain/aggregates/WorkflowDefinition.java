@@ -12,8 +12,11 @@ import io.mateu.uidl.interfaces.Identifiable;
 import io.mateu.uidl.interfaces.LookupOptionsSupplier;
 import io.mateu.uidl.interfaces.Searchable;
 import io.mateu.uidl.interfaces.VisibilitySupplier;
-import io.mateu.workflow.application.usecases.lifecycle.CancelWorkflowDefinitionUseCase;
+import io.mateu.workflow.application.usecases.lifecycle.ArchiveWorkflowDefinitionUseCase;
+import io.mateu.workflow.application.usecases.lifecycle.DisableWorkflowDefinitionUseCase;
+import io.mateu.workflow.application.usecases.lifecycle.EnableWorkflowDefinitionUseCase;
 import io.mateu.workflow.application.usecases.lifecycle.ReactivateWorkflowDefinitionUseCase;
+import io.mateu.workflow.application.usecases.workingcopy.CreateWorkingCopyUseCase;
 import io.mateu.workflow.application.usecases.workingcopy.PromoteWorkingCopyUseCase;
 import io.mateu.workflow.infra.in.ui.WorkflowHome;
 import io.mateu.workflow.infra.in.ui.pages.WorkflowDefinitionEditor;
@@ -82,8 +85,11 @@ public record WorkflowDefinition(
         return switch (memberName) {
             case "edit" -> status == WorkflowDefinitionStatus.ACTIVE;
             case "promoteToProduction" -> status != WorkflowDefinitionStatus.DRAFT;
-            case "reactivate" -> status != WorkflowDefinitionStatus.DISABLED;
-            case "cancel" -> status == WorkflowDefinitionStatus.ARCHIVED;
+            case "createWorkingCopy" -> status != WorkflowDefinitionStatus.ACTIVE;
+            case "disable" -> status != WorkflowDefinitionStatus.ACTIVE;
+            case "enable" -> status != WorkflowDefinitionStatus.DISABLED;
+            case "reactivate" -> status != WorkflowDefinitionStatus.ARCHIVED;
+            case "archive" -> status == WorkflowDefinitionStatus.ARCHIVED;
             default -> false;
         };
     }
@@ -95,14 +101,32 @@ public record WorkflowDefinition(
     }
 
     @Toolbar
-    public UICommand cancel(HttpRequest httpRequest) {
-        MateuBeanProvider.getBean(CancelWorkflowDefinitionUseCase.class).handle(id);
+    public UICommand createWorkingCopy(HttpRequest httpRequest) {
+        var copyId = MateuBeanProvider.getBean(CreateWorkingCopyUseCase.class).handle(id);
+        return navigateToDefinition(copyId, httpRequest);
+    }
+
+    @Toolbar
+    public UICommand disable(HttpRequest httpRequest) {
+        MateuBeanProvider.getBean(DisableWorkflowDefinitionUseCase.class).handle(id);
+        return navigateToDefinition(id, httpRequest);
+    }
+
+    @Toolbar
+    public UICommand enable(HttpRequest httpRequest) {
+        MateuBeanProvider.getBean(EnableWorkflowDefinitionUseCase.class).handle(id);
         return navigateToDefinition(id, httpRequest);
     }
 
     @Toolbar
     public UICommand reactivate(HttpRequest httpRequest) {
         MateuBeanProvider.getBean(ReactivateWorkflowDefinitionUseCase.class).handle(id);
+        return navigateToDefinition(id, httpRequest);
+    }
+
+    @Toolbar
+    public UICommand archive(HttpRequest httpRequest) {
+        MateuBeanProvider.getBean(ArchiveWorkflowDefinitionUseCase.class).handle(id);
         return navigateToDefinition(id, httpRequest);
     }
 

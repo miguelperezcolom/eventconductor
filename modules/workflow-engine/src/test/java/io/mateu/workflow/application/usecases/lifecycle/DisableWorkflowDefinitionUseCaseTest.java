@@ -18,27 +18,27 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-class ReactivateWorkflowDefinitionUseCaseTest {
+class DisableWorkflowDefinitionUseCaseTest {
 
     @Mock WorkflowDefinitionRepository repository;
-    @InjectMocks ReactivateWorkflowDefinitionUseCase useCase;
+    @InjectMocks DisableWorkflowDefinitionUseCase useCase;
 
     private WorkflowDefinition def(WorkflowDefinitionStatus status) {
         return new WorkflowDefinition("wd-1", "Test", 1, "desc", status, null, false, 0, false, null, List.of());
     }
 
     @Test
-    void reactivatesAnArchivedDefinition() {
-        when(repository.findById("wd-1")).thenReturn(Optional.of(def(WorkflowDefinitionStatus.ARCHIVED)));
+    void disablesAnActiveDefinition() {
+        when(repository.findById("wd-1")).thenReturn(Optional.of(def(WorkflowDefinitionStatus.ACTIVE)));
         useCase.handle("wd-1");
         var captor = ArgumentCaptor.forClass(WorkflowDefinition.class);
         verify(repository).save(captor.capture());
-        assertThat(captor.getValue().status()).isEqualTo(WorkflowDefinitionStatus.ACTIVE);
+        assertThat(captor.getValue().status()).isEqualTo(WorkflowDefinitionStatus.DISABLED);
     }
 
     @Test
-    void rejectsNonArchived() {
-        when(repository.findById("wd-1")).thenReturn(Optional.of(def(WorkflowDefinitionStatus.ACTIVE)));
+    void rejectsNonActive() {
+        when(repository.findById("wd-1")).thenReturn(Optional.of(def(WorkflowDefinitionStatus.DRAFT)));
         assertThatThrownBy(() -> useCase.handle("wd-1")).isInstanceOf(IllegalStateException.class);
         verify(repository, never()).save(any());
     }

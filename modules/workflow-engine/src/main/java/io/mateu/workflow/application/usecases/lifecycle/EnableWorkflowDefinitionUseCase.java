@@ -6,11 +6,11 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** Reactivates an archived workflow definition, moving it from {@code ARCHIVED} back to {@code ACTIVE}. */
+/** Enables a disabled workflow definition, moving it from {@code DISABLED} back to {@code ACTIVE}. */
 @Service
 @RequiredArgsConstructor
 @Transactional
-public class ReactivateWorkflowDefinitionUseCase {
+public class EnableWorkflowDefinitionUseCase {
 
     final WorkflowDefinitionRepository repository;
 
@@ -18,9 +18,9 @@ public class ReactivateWorkflowDefinitionUseCase {
         var definition = repository.findById(workflowDefinitionId)
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Workflow definition not found: " + workflowDefinitionId));
-        if (definition.status() != WorkflowDefinitionStatus.ARCHIVED) {
+        if (definition.status() != WorkflowDefinitionStatus.DISABLED) {
             throw new IllegalStateException(
-                    "Only an ARCHIVED workflow can be reactivated (was " + definition.status() + ")");
+                    "Only a DISABLED workflow can be enabled (was " + definition.status() + ")");
         }
         repository.save(definition.withStatus(WorkflowDefinitionStatus.ACTIVE));
     }

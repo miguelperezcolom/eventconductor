@@ -50,19 +50,43 @@ class WorkflowDefinitionLifecycleTest {
     }
 
     @Test
-    void reactivateButtonVisibleOnlyForDisabled() {
-        assertThat(def(DISABLED).isHidden("reactivate", null)).isFalse();
-        assertThat(def(ACTIVE).isHidden("reactivate", null)).isTrue();
-        assertThat(def(DRAFT).isHidden("reactivate", null)).isTrue();
-        assertThat(def(ARCHIVED).isHidden("reactivate", null)).isTrue();
+    void createWorkingCopyButtonVisibleOnlyForActive() {
+        assertThat(def(ACTIVE).isHidden("createWorkingCopy", null)).isFalse();
+        assertThat(def(DRAFT).isHidden("createWorkingCopy", null)).isTrue();
+        assertThat(def(DISABLED).isHidden("createWorkingCopy", null)).isTrue();
+        assertThat(def(ARCHIVED).isHidden("createWorkingCopy", null)).isTrue();
     }
 
     @Test
-    void cancelButtonHiddenOnlyWhenArchived() {
-        assertThat(def(ARCHIVED).isHidden("cancel", null)).isTrue();
-        assertThat(def(DRAFT).isHidden("cancel", null)).isFalse();
-        assertThat(def(ACTIVE).isHidden("cancel", null)).isFalse();
-        assertThat(def(DISABLED).isHidden("cancel", null)).isFalse();
+    void disableButtonVisibleOnlyForActive() {
+        assertThat(def(ACTIVE).isHidden("disable", null)).isFalse();
+        assertThat(def(DRAFT).isHidden("disable", null)).isTrue();
+        assertThat(def(DISABLED).isHidden("disable", null)).isTrue();
+        assertThat(def(ARCHIVED).isHidden("disable", null)).isTrue();
+    }
+
+    @Test
+    void enableButtonVisibleOnlyForDisabled() {
+        assertThat(def(DISABLED).isHidden("enable", null)).isFalse();
+        assertThat(def(ACTIVE).isHidden("enable", null)).isTrue();
+        assertThat(def(DRAFT).isHidden("enable", null)).isTrue();
+        assertThat(def(ARCHIVED).isHidden("enable", null)).isTrue();
+    }
+
+    @Test
+    void reactivateButtonVisibleOnlyForArchived() {
+        assertThat(def(ARCHIVED).isHidden("reactivate", null)).isFalse();
+        assertThat(def(ACTIVE).isHidden("reactivate", null)).isTrue();
+        assertThat(def(DRAFT).isHidden("reactivate", null)).isTrue();
+        assertThat(def(DISABLED).isHidden("reactivate", null)).isTrue();
+    }
+
+    @Test
+    void archiveButtonHiddenOnlyWhenArchived() {
+        assertThat(def(ARCHIVED).isHidden("archive", null)).isTrue();
+        assertThat(def(DRAFT).isHidden("archive", null)).isFalse();
+        assertThat(def(ACTIVE).isHidden("archive", null)).isFalse();
+        assertThat(def(DISABLED).isHidden("archive", null)).isFalse();
     }
 
     @Test

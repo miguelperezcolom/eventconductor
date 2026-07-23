@@ -6,11 +6,11 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** Cancels a workflow definition by moving it to the terminal {@code ARCHIVED} status. */
+/** Archives a workflow definition by moving it to the terminal {@code ARCHIVED} status. */
 @Service
 @RequiredArgsConstructor
 @Transactional
-public class CancelWorkflowDefinitionUseCase {
+public class ArchiveWorkflowDefinitionUseCase {
 
     final WorkflowDefinitionRepository repository;
 
