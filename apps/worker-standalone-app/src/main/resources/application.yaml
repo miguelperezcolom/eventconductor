@@ -12,7 +12,7 @@ spring:
       kafka:
         binder:
           # Centralizamos la conexión aquí para el Binder
-          brokers: localhost:9192
+          brokers: localhost:9092
           auto-create-topics: true
       bindings:
         # Asegúrate de que este nombre coincide con el que usas en streamBridge.send("entityOutput-out-0", ...)
@@ -42,7 +42,7 @@ spring:
 
   # --- Configuración de Kafka Nativo ---
   kafka:
-    bootstrap-servers: localhost:9192
+    bootstrap-servers: localhost:9092
     consumer:
       group-id: my-group
       auto-offset-reset: earliest
