@@ -43,10 +43,20 @@ spring:
     function:
       definition: consumeOutbox;consumeUpstream;consumeWorkerEvent
     stream:
+      # Retry failed bindings every 10s so consumers bind as soon as a broker that was down at
+      # startup becomes available (instead of never rebinding).
+      bindingRetryInterval: 10
       kafka:
         binder:
           brokers: ${KAFKA_BROKERS:localhost:9092}
           auto-create-topics: true
+          # Bound the broker-provisioning admin timeout (default 120s) so a broker that is not
+          # yet reachable at startup fails fast instead of blocking the context ~2 minutes and
+          # losing its AdminClient; bindings then retry (see bindingRetryInterval) and bind once
+          # the broker is up. Kafka requires default.api.timeout.ms >= request.timeout.ms.
+          configuration:
+            default.api.timeout.ms: 15000
+            request.timeout.ms: 10000
       bindings:
         consumeOutbox-in-0:
           destination: outbox

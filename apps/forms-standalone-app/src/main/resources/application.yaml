@@ -47,10 +47,16 @@ spring:
     function:
       definition: consumeWorkerEventForFormsEngine
     stream:
+      bindingRetryInterval: 10
       kafka:
         binder:
           brokers: ${KAFKA_BROKERS:localhost:9092}
           auto-create-topics: true
+          # Fail fast if the broker is not reachable at startup (default admin timeout is 120s)
+          # so the context does not block ~2 minutes; bindings then retry (bindingRetryInterval).
+          configuration:
+            default.api.timeout.ms: 15000
+            request.timeout.ms: 10000
       bindings:
         consumeOutbox-in-0:
           destination: outbox
