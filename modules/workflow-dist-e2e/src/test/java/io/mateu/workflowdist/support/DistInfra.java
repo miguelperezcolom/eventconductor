@@ -13,6 +13,7 @@ import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
+import org.testcontainers.DockerClientFactory;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.kafka.KafkaContainer;
 import org.testcontainers.utility.DockerImageName;
@@ -212,5 +213,52 @@ public final class DistInfra {
         } catch (Exception e) {
             throw new IllegalStateException("Could not release outbox relay lock", e);
         }
+    }
+
+    // ── Kafka chaos: make the broker unresponsive and responsive again at the SAME address ──
+    // We PAUSE/UNPAUSE the container rather than stop/start: a KRaft broker restarted with
+    // docker stop/start does not re-advertise its listeners (the mapped port is only wired at
+    // first boot), so it never becomes reachable again. Pausing (SIGSTOP) freezes the broker —
+    // clients' requests time out exactly like a network partition — and unpausing (SIGCONT)
+    // brings it back instantly with the same listeners, port and KRaft state, so bound consumers
+    // and producers simply resume. Not synchronized on purpose (see startOrchestrator).
+
+    /** Freezes the Kafka broker: in-flight and new requests hang/time out, as in an outage. */
+    public static void pauseKafka() {
+        DockerClientFactory.instance().client().pauseContainerCmd(kafka.getContainerId()).exec();
+    }
+
+    /** Resumes the Kafka broker (same address) and blocks until it accepts admin requests again. */
+    public static void resumeKafka() {
+        var docker = DockerClientFactory.instance().client();
+        var paused = Boolean.TRUE.equals(
+                docker.inspectContainerCmd(kafka.getContainerId()).exec().getState().getPaused());
+        if (paused) { // idempotent: an @AfterEach safety net after a passing test is a no-op
+            docker.unpauseContainerCmd(kafka.getContainerId()).exec();
+        }
+        awaitKafkaReady();
+    }
+
+    private static void awaitKafkaReady() {
+        var deadline = System.currentTimeMillis() + 60_000;
+        RuntimeException last = null;
+        while (System.currentTimeMillis() < deadline) {
+            try (var admin = AdminClient.create(Map.of(
+                    "bootstrap.servers", kafka.getBootstrapServers(),
+                    "default.api.timeout.ms", "3000",
+                    "request.timeout.ms", "2000"))) {
+                admin.listTopics().names().get();
+                return;
+            } catch (Exception e) {
+                last = new IllegalStateException("Kafka not ready yet", e);
+                try {
+                    Thread.sleep(500);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException("Interrupted waiting for Kafka", ie);
+                }
+            }
+        }
+        throw new IllegalStateException("Kafka did not become ready after restart", last);
     }
 }
