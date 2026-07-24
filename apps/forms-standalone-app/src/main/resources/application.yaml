@@ -49,7 +49,7 @@ spring:
     stream:
       kafka:
         binder:
-          brokers: ${KAFKA_BROKERS:localhost:9192}
+          brokers: ${KAFKA_BROKERS:localhost:9092}
           auto-create-topics: true
       bindings:
         consumeOutbox-in-0:
