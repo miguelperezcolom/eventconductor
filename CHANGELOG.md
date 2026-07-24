@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0-beta.010] - 2026-07-24
+
+### Fixed
+- **Kafka broker resilience.**
+  - Corrected the default Kafka broker address to `localhost:9092` (was a `9192` typo), so
+    a standalone app started from the IDE without `KAFKA_BROKERS` set connects to the local
+    dev broker instead of rebootstrapping in an endless loop.
+  - Standalone apps now **boot gracefully when the broker is unavailable at startup**. The
+    Spring Cloud Stream binder's provisioning/admin timeouts are bounded and binding retry
+    is enabled, so the context no longer blocks ~2 minutes (and loses its AdminClient) — it
+    starts promptly and binds its consumers as soon as the broker is up.
+
+### Added
+- **Distributed chaos tests for Kafka broker outages** (`workflow-dist-e2e`): a process
+  recovers when the broker disappears mid-flight and returns — driven by the transactional
+  outbox (DIST-06) — and the orchestrator boots and processes normally when the broker is
+  unavailable at startup and later returns (DIST-07).
+
 ## [1.0-beta.009] - 2026-07-23
 
 ### Added
