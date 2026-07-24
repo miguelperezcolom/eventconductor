@@ -30,11 +30,17 @@ spring:
     function:
       definition: processDomainEvent
     stream:
+      bindingRetryInterval: 10
       kafka:
         binder:
           # Centralizamos la conexión aquí para el Binder
           brokers: localhost:9092
           auto-create-topics: true
+          # Fail fast if the broker is not reachable at startup (default admin timeout is 120s)
+          # so the context does not block ~2 minutes; bindings then retry (bindingRetryInterval).
+          configuration:
+            default.api.timeout.ms: 15000
+            request.timeout.ms: 10000
       bindings:
         # Asegúrate de que este nombre coincide con el que usas en streamBridge.send("entityOutput-out-0", ...)
         entityOutput-out-0:
