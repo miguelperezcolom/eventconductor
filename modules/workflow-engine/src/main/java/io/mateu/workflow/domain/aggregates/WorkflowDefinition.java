@@ -59,6 +59,8 @@ public record WorkflowDefinition(
         @Hidden("!state.limitConcurrentExecutions")
         boolean enqueueOnLimit,
         String cronExpression,
+        @Min(0)
+        int defaultMaxStepExecutions,
         @Colspan(4)
         @DetailFormCustomisation(position = FormPosition.modalRight, style = "display: block; min-width: 70rem;")
         List<Step> steps
@@ -74,7 +76,8 @@ public record WorkflowDefinition(
     /** Returns a copy of this definition with a different lifecycle status. */
     public WorkflowDefinition withStatus(WorkflowDefinitionStatus newStatus) {
         return new WorkflowDefinition(id, name, version, description, newStatus, draftOfId,
-                limitConcurrentExecutions, maxConcurrentExecutions, enqueueOnLimit, cronExpression, steps);
+                limitConcurrentExecutions, maxConcurrentExecutions, enqueueOnLimit, cronExpression,
+                defaultMaxStepExecutions, steps);
     }
 
     // ── Detail-view lifecycle buttons (conditional on state via VisibilitySupplier) ──
@@ -148,6 +151,15 @@ public record WorkflowDefinition(
                 .build();
     }
 
+    /** Backward-compatible constructor (pre-defaultMaxStepExecutions callers and stores). */
+    public WorkflowDefinition(String id, String name, int version, String description,
+                              WorkflowDefinitionStatus status, String draftOfId,
+                              boolean limitConcurrentExecutions, int maxConcurrentExecutions,
+                              boolean enqueueOnLimit, String cronExpression, List<Step> steps) {
+        this(id, name, version, description, status, draftOfId, limitConcurrentExecutions,
+                maxConcurrentExecutions, enqueueOnLimit, cronExpression, 0, steps);
+    }
+
     @Override
     public String toString() {
         return id != null?name:"New workflow definition";
@@ -205,6 +217,33 @@ public record WorkflowDefinition(
                         "Step '" + step.id() + "' references unknown compensation step '"
                                 + step.compensationStepId() + "'.");
             }
+        }
+        // Reject precondition cycles. A step waits for its preconditionStepId to COMPLETE, so a
+        // cycle (A waits for B waits for … waits for A) would deadlock: none of those steps could
+        // ever start. Each step has at most one precondition, so following the pointers and
+        // revisiting a node on the current walk means a cycle.
+        var precondition = new java.util.HashMap<String, String>();
+        for (var step : steps) {
+            if (step.id() != null && step.preconditionStepId() != null
+                    && !step.preconditionStepId().isBlank()) {
+                precondition.put(step.id(), step.preconditionStepId());
+            }
+        }
+        var acyclic = new java.util.HashSet<String>();
+        for (var start : precondition.keySet()) {
+            if (acyclic.contains(start)) continue;
+            var path = new java.util.LinkedHashSet<String>();
+            var current = start;
+            while (current != null) {
+                if (acyclic.contains(current)) break;
+                if (!path.add(current)) {
+                    throw new IllegalStateException(
+                            "Steps form a precondition cycle (" + String.join(" → ", path)
+                                    + " → " + current + "), so none of them could ever run.");
+                }
+                current = precondition.get(current);
+            }
+            acyclic.addAll(path);
         }
     }
 

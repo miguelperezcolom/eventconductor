@@ -38,4 +38,6 @@ public class WorkflowDefinitionEntity {
 
     String cronExpression;
 
+    int defaultMaxStepExecutions;
+
 }

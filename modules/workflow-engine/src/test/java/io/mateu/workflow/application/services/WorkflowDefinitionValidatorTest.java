@@ -64,6 +64,28 @@ class WorkflowDefinitionValidatorTest {
     }
 
     @Test
+    void definitionWithExecutionCapsPassesSchemaValidation() {
+        Step capped = new Step("s1", null, StepType.ACTION, "Step s1", null, null, null, false, "my-topic",
+                null, null, null, 0, null, null, null, 0, 0, false, null, 3);
+        var wd = new WorkflowDefinition("wd-1", "Capped", 1, "desc",
+                WorkflowDefinitionStatus.ACTIVE, null, false, 0, false, null, 100, List.of(capped));
+
+        assertThatNoException().isThrownBy(() -> validator.validate(wd));
+    }
+
+    @Test
+    void definitionWithPreconditionCycleIsRejected() {
+        Step s1 = new Step("s1", null, StepType.ACTION, "S1", null, "s2", null, false, "topic", null, null, null, 0, null, null, null, 0, 0, false, null);
+        Step s2 = new Step("s2", null, StepType.ACTION, "S2", null, "s1", null, false, "topic", null, null, null, 0, null, null, null, 0, 0, false, null);
+        var wd = new WorkflowDefinition("wd-1", "Cyclic", 1, "desc",
+                WorkflowDefinitionStatus.ACTIVE, null, false, 0, false, null, List.of(s1, s2));
+
+        assertThatThrownBy(() -> validator.validate(wd))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("cycle");
+    }
+
+    @Test
     void definitionWithMissingNameFailsSchemaValidation() {
         var wd = new WorkflowDefinition("wd-1", null, 1, "desc",
                 WorkflowDefinitionStatus.ACTIVE, null, false, 0, false, null, List.of(actionStep("s1")));

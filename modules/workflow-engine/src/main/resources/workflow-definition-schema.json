@@ -57,6 +57,12 @@
       "type": ["string", "null"],
       "description": "Spring cron expression (six fields, seconds first, e.g. \"0 0 9 * * MON-FRI\"). While the definition is ACTIVE, the engine automatically creates a process instance at each occurrence. Null means no scheduled starts."
     },
+    "defaultMaxStepExecutions": {
+      "type": ["integer", "null"],
+      "description": "Default cap on how many times each step may successfully run within one process instance. A step's own maxSuccessfulExecutions overrides it. 0 or null means unbounded.",
+      "minimum": 0,
+      "default": 0
+    },
     "steps": {
       "type": "array",
       "description": "Ordered list of steps that make up the workflow.",
@@ -161,6 +167,12 @@
         "compensationStepId": {
           "type": ["string", "null"],
           "description": "ID of the step to execute as compensation when this step fails. Only relevant when rollbackable is true."
+        },
+        "maxSuccessfulExecutions": {
+          "type": ["integer", "null"],
+          "description": "Cap on how many times this step may successfully run within one process instance (runtime backstop against runaway loops). 0 or null inherits the workflow's defaultMaxStepExecutions.",
+          "minimum": 0,
+          "default": 0
         }
       },
       "if": {

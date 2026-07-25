@@ -37,6 +37,7 @@ public class CreateWorkingCopyUseCase {
                 original.maxConcurrentExecutions(),
                 original.enqueueOnLimit(),
                 original.cronExpression(),
+                original.defaultMaxStepExecutions(),
                 original.steps()
         );
         return repository.save(copy);

@@ -79,8 +79,27 @@ public record Step(
         boolean rollbackable,
         @Hidden("!state['rollbackable']")
         @Lookup(bubble = true)
-        String compensationStepId
+        String compensationStepId,
+        /**
+         * Cap on how many times this step may SUCCESSFULLY run within one process instance — a
+         * runtime backstop against runaway loops. 0 inherits the workflow's
+         * {@code defaultMaxStepExecutions}; both 0 = unbounded. (Design metadata today: the engine
+         * runs each step once; enforced when step re-execution lands.)
+         */
+        @HiddenInList
+        int maxSuccessfulExecutions
 ) implements Identifiable {
+
+    /** Backward-compatible constructor (pre-maxSuccessfulExecutions callers and stores). */
+    public Step(String id, String workflowDefinitionId, StepType type, String name, String description,
+                String preconditionStepId, String preconditionExpression, boolean parallel, String topic,
+                String formId, String ruleId, String childWorkflowDefinitionId, long duration,
+                String untilVariable, String messageName, String correlationExpression, long timeout,
+                int retries, boolean rollbackable, String compensationStepId) {
+        this(id, workflowDefinitionId, type, name, description, preconditionStepId, preconditionExpression,
+                parallel, topic, formId, ruleId, childWorkflowDefinitionId, duration, untilVariable,
+                messageName, correlationExpression, timeout, retries, rollbackable, compensationStepId, 0);
+    }
 
     /**
      * Moment a TIMER step is due, derived only from persisted state (the step definition,
