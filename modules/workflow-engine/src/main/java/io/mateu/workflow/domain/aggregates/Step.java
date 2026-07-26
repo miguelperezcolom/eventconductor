@@ -90,17 +90,6 @@ public record Step(
         int maxSuccessfulExecutions
 ) implements Identifiable {
 
-    /** Backward-compatible constructor (pre-maxSuccessfulExecutions callers and stores). */
-    public Step(String id, String workflowDefinitionId, StepType type, String name, String description,
-                String preconditionStepId, String preconditionExpression, boolean parallel, String topic,
-                String formId, String ruleId, String childWorkflowDefinitionId, long duration,
-                String untilVariable, String messageName, String correlationExpression, long timeout,
-                int retries, boolean rollbackable, String compensationStepId) {
-        this(id, workflowDefinitionId, type, name, description, preconditionStepId, preconditionExpression,
-                parallel, topic, formId, ruleId, childWorkflowDefinitionId, duration, untilVariable,
-                messageName, correlationExpression, timeout, retries, rollbackable, compensationStepId, 0);
-    }
-
     /**
      * Moment a TIMER step is due, derived only from persisted state (the step definition,
      * the start time and the variable snapshot) so it survives restarts. {@code untilVariable}

@@ -11,12 +11,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 class WorkflowDefinitionLifecycleTest {
 
     private WorkflowDefinition def(WorkflowDefinitionStatus status) {
-        return new WorkflowDefinition("wd-1", "Test", 1, "desc", status, null, false, 0, false, null, List.of());
+        return new WorkflowDefinition("wd-1", "Test", 1, "desc", status, null, false, 0, false, null, 0, List.of());
     }
 
     @Test
     void newDefinitionDefaultsToDraft() {
-        var wd = new WorkflowDefinition(null, "Test", 0, null, null, null, false, 0, false, null, List.of());
+        var wd = new WorkflowDefinition(null, "Test", 0, null, null, null, false, 0, false, null, 0, List.of());
         assertThat(wd.status()).isEqualTo(DRAFT);
     }
 
@@ -44,7 +44,7 @@ class WorkflowDefinitionLifecycleTest {
     @Test
     void promoteButtonVisibleOnlyForDraftWorkingCopy() {
         // a working copy is a DRAFT that carries the id of the production definition it copies
-        var workingCopy = new WorkflowDefinition("wd-1", "Test", 1, "desc", DRAFT, "orig-1", false, 0, false, null, List.of());
+        var workingCopy = new WorkflowDefinition("wd-1", "Test", 1, "desc", DRAFT, "orig-1", false, 0, false, null, 0, List.of());
         assertThat(workingCopy.isHidden("promoteToProduction", null)).isFalse();
         // a plain DRAFT (not a working copy, draftOfId == null) cannot be promoted
         assertThat(def(DRAFT).isHidden("promoteToProduction", null)).isTrue();

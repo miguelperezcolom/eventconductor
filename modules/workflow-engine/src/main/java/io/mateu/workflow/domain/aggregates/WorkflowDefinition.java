@@ -151,15 +151,6 @@ public record WorkflowDefinition(
                 .build();
     }
 
-    /** Backward-compatible constructor (pre-defaultMaxStepExecutions callers and stores). */
-    public WorkflowDefinition(String id, String name, int version, String description,
-                              WorkflowDefinitionStatus status, String draftOfId,
-                              boolean limitConcurrentExecutions, int maxConcurrentExecutions,
-                              boolean enqueueOnLimit, String cronExpression, List<Step> steps) {
-        this(id, name, version, description, status, draftOfId, limitConcurrentExecutions,
-                maxConcurrentExecutions, enqueueOnLimit, cronExpression, 0, steps);
-    }
-
     @Override
     public String toString() {
         return id != null?name:"New workflow definition";
@@ -259,7 +250,13 @@ public record WorkflowDefinition(
 
     @Override
     public ListingData<io.mateu.uidl.data.Option> search(String fieldName, String searchText, Pageable pageable, HttpRequest httpRequest) {
+        // A step cannot be its own precondition (nor its own compensation), so exclude the step
+        // currently being edited from the options. Its state bubbles up with the lookup action
+        // (see @Lookup(bubble = true) on preconditionStepId/compensationStepId).
+        var currentStep = httpRequest == null ? null : httpRequest.getInitiatorState(Step.class);
+        var currentStepId = currentStep == null ? null : currentStep.id();
         return ListingData.of(steps.stream()
+                .filter(step -> currentStepId == null || !currentStepId.equals(step.id()))
                 .map(step -> new io.mateu.uidl.data.Option(
                         step.id(),
                         step.name()

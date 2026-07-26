@@ -12,7 +12,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class StepExecutionTimerStartTest {
 
     private Step timerStep(long durationMillis, String untilVariable) {
-        return new Step("wait", "wd-1", StepType.TIMER, "Wait", null, null, null, false, null, null, null, null, durationMillis, untilVariable, null, null, 0, 0, false, null);
+        return new Step("wait", "wd-1", StepType.TIMER, "Wait", null, null, null, false, null, null, null, null, durationMillis, untilVariable, null, null, 0, 0, false, null, 0);
     }
 
     @Test

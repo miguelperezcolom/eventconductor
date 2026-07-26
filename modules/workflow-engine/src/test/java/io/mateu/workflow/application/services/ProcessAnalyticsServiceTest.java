@@ -40,7 +40,7 @@ class ProcessAnalyticsServiceTest {
     private final LocalDateTime base = LocalDateTime.now().minusDays(1).toLocalDate().atTime(4, 0);
 
     private WorkflowDefinition definition(String id, String name) {
-        return new WorkflowDefinition(id, name, 1, null, null, null, false, 0, false, null, List.of());
+        return new WorkflowDefinition(id, name, 1, null, null, null, false, 0, false, null, 0, List.of());
     }
 
     private Process process(String definitionId, ProcessStatus status, LocalDateTime created, Duration duration) {

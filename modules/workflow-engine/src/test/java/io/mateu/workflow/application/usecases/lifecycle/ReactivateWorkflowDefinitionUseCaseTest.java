@@ -24,7 +24,7 @@ class ReactivateWorkflowDefinitionUseCaseTest {
     @InjectMocks ReactivateWorkflowDefinitionUseCase useCase;
 
     private WorkflowDefinition def(WorkflowDefinitionStatus status) {
-        return new WorkflowDefinition("wd-1", "Test", 1, "desc", status, null, false, 0, false, null, List.of());
+        return new WorkflowDefinition("wd-1", "Test", 1, "desc", status, null, false, 0, false, null, 0, List.of());
     }
 
     @Test

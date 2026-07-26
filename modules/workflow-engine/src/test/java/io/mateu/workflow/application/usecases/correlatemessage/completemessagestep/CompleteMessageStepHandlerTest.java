@@ -36,7 +36,7 @@ class CompleteMessageStepHandlerTest {
     @InjectMocks CompleteMessageStepHandler handler;
 
     private StepExecution pendingMessageSe(String messageName) {
-        Step step = new Step("s1", "wd-1", StepType.MESSAGE, "Wait for message", null, null, null, false, null, null, null, null, 0, null, messageName, null, 0, 0, false, null);
+        Step step = new Step("s1", "wd-1", StepType.MESSAGE, "Wait for message", null, null, null, false, null, null, null, null, 0, null, messageName, null, 0, 0, false, null, 0);
         return StepExecution.builder()
                 .id("se-1").processId("p-1").workflowDefinitionId("wd-1")
                 .stepJson(JsonSerializer.toJson(step))
@@ -100,7 +100,7 @@ class CompleteMessageStepHandlerTest {
 
     @Test
     void skipsWhenStepIsNotAMessageCatch() {
-        Step action = new Step("s1", "wd-1", StepType.ACTION, "Step", null, null, null, false, "t", null, null, null, 0, null, null, null, 0, 0, false, null);
+        Step action = new Step("s1", "wd-1", StepType.ACTION, "Step", null, null, null, false, "t", null, null, null, 0, null, null, null, 0, 0, false, null, 0);
         var se = StepExecution.builder()
                 .id("se-1").processId("p-1")
                 .stepJson(JsonSerializer.toJson(action))

@@ -27,7 +27,7 @@ class CreateWorkingCopyUseCaseTest {
 
     private WorkflowDefinition activeWorkflow() {
         return new WorkflowDefinition("wd-1", "My Workflow", 1, "desc",
-                WorkflowDefinitionStatus.ACTIVE, null, false, 0, false, null, List.of());
+                WorkflowDefinitionStatus.ACTIVE, null, false, 0, false, null, 0, List.of());
     }
 
     @Test
@@ -58,7 +58,7 @@ class CreateWorkingCopyUseCaseTest {
     void throwsWhenWorkingCopyAlreadyExists() {
         var original = activeWorkflow();
         var existingDraft = new WorkflowDefinition("draft-1", "My Workflow [draft]", 1, "desc",
-                WorkflowDefinitionStatus.DRAFT, "wd-1", false, 0, false, null, List.of());
+                WorkflowDefinitionStatus.DRAFT, "wd-1", false, 0, false, null, 0, List.of());
 
         when(repository.findById("wd-1")).thenReturn(Optional.of(original));
         when(repository.findAll()).thenReturn(List.of(original, existingDraft));

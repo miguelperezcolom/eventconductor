@@ -27,12 +27,12 @@ class PromoteWorkingCopyUseCaseTest {
 
     private WorkflowDefinition original() {
         return new WorkflowDefinition("wd-1", "My Workflow", 2, "desc",
-                WorkflowDefinitionStatus.ACTIVE, null, false, 0, false, null, List.of());
+                WorkflowDefinitionStatus.ACTIVE, null, false, 0, false, null, 0, List.of());
     }
 
     private WorkflowDefinition draft(String name) {
         return new WorkflowDefinition("draft-1", name, 2, "new desc",
-                WorkflowDefinitionStatus.DRAFT, "wd-1", false, 0, false, null, List.of());
+                WorkflowDefinitionStatus.DRAFT, "wd-1", false, 0, false, null, 0, List.of());
     }
 
     @Test
@@ -93,7 +93,7 @@ class PromoteWorkingCopyUseCaseTest {
     @Test
     void nameWithoutDraftSuffixIsKeptAsIs() {
         var draftWithoutSuffix = new WorkflowDefinition("draft-1", "Custom Name", 2, "desc",
-                WorkflowDefinitionStatus.DRAFT, "wd-1", false, 0, false, null, List.of());
+                WorkflowDefinitionStatus.DRAFT, "wd-1", false, 0, false, null, 0, List.of());
         when(repository.findById("draft-1")).thenReturn(Optional.of(draftWithoutSuffix));
         when(repository.findById("wd-1")).thenReturn(Optional.of(original()));
         when(repository.save(any())).thenReturn("wd-1");
