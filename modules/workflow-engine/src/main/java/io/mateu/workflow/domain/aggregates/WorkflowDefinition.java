@@ -19,13 +19,12 @@ import io.mateu.workflow.application.usecases.lifecycle.ReactivateWorkflowDefini
 import io.mateu.workflow.application.usecases.workingcopy.CreateWorkingCopyUseCase;
 import io.mateu.workflow.application.usecases.workingcopy.PromoteWorkingCopyUseCase;
 import io.mateu.workflow.infra.in.ui.WorkflowHome;
-import io.mateu.workflow.infra.in.ui.pages.WorkflowDefinitionEditor;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotEmpty;
 
 import java.util.List;
 
-@FormLayout(columns = 4)
+@FormLayout(columns = 5)
 @Style(StyleConstants.FULL_WIDTH_WITH_PADDING)
 public record WorkflowDefinition(
         @GeneratedValue(UUIDValueGenerator.class)
@@ -35,6 +34,7 @@ public record WorkflowDefinition(
         String name,
         @Hidden
         int version,
+        @Colspan(2)
         @Stereotype(FieldStereotype.textarea)
         String description,
         // Read-only lifecycle status: shown in list/detail, never in the create or edit
@@ -61,7 +61,7 @@ public record WorkflowDefinition(
         String cronExpression,
         @Min(0)
         int defaultMaxStepExecutions,
-        @Colspan(4)
+        @Colspan(5)
         @DetailFormCustomisation(position = FormPosition.modalRight, style = "display: block; min-width: 70rem;")
         List<Step> steps
 ) implements Identifiable, Searchable, LookupOptionsSupplier, VisibilitySupplier {

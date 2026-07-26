@@ -95,6 +95,8 @@ export class MateuWorkflowElk extends LitElement {
     @state() private selectedId: string | null = null;
     @state() private showMeta = false;
     @state() private layoutError: string | null = null;
+    /** When true, the graph overlays the whole viewport (expand button). */
+    @state() private fullscreen = false;
 
     private draggingId: string | null = null;
     private dragOffset = {x: 0, y: 0};
@@ -313,8 +315,12 @@ export class MateuWorkflowElk extends LitElement {
         const steps = this.wf.steps ?? [];
 
         return html`
-            <div class="root">
-                ${this.renderToolbar()}
+            <div class="root ${this.fullscreen ? "fullscreen" : ""}">
+                <button class="expand-btn" title="${this.fullscreen ? "Collapse" : "Expand"}"
+                        @click="${() => { this.fullscreen = !this.fullscreen; }}">
+                    ${this.fullscreen ? "✕" : "⤢"}
+                </button>
+                ${this.readOnly ? nothing : this.renderToolbar()}
                 ${this.showMeta ? this.renderMeta() : ""}
                 ${this.layoutError ? html`<div class="error">⚠ ${this.layoutError}</div>` : ""}
                 <div class="workspace">
@@ -335,7 +341,7 @@ export class MateuWorkflowElk extends LitElement {
                             ${steps.map(s => this.renderNode(s))}
                         </svg>
                     </div>
-                    ${this.selectedId ? this.renderPanel() : ""}
+                    ${this.selectedId && !this.readOnly ? this.renderPanel() : ""}
                 </div>
             </div>
         `;
@@ -564,9 +570,23 @@ export class MateuWorkflowElk extends LitElement {
     // ── Styles ────────────────────────────────────────────────────────────────
 
     static styles = [neutralButtonStyles, css`
-        :host {display: block; height: 100%; font-family: var(--lumo-font-family, sans-serif);}
+        :host {display: block; height: 230px; font-family: var(--lumo-font-family, sans-serif);}
 
-        .root {display: flex; flex-direction: column; height: 100%; background: var(--lumo-base-color, #fff);}
+        .root {display: flex; flex-direction: column; height: 100%; position: relative; background: var(--lumo-base-color, #fff);}
+
+        .root.fullscreen {
+            position: fixed; inset: 0; height: 100vh; width: 100vw; z-index: 9999;
+            box-shadow: 0 0 0 100vmax rgba(0, 0, 0, .15);
+        }
+
+        .expand-btn {
+            position: absolute; top: 8px; right: 8px; z-index: 6;
+            width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
+            border: 1px solid var(--lumo-contrast-20pct, #e2e8f0); border-radius: 6px;
+            background: var(--lumo-base-color, #fff); color: #334155; cursor: pointer;
+            font-size: 15px; line-height: 1; box-shadow: 0 1px 2px #0000000f;
+        }
+        .expand-btn:hover {background: var(--lumo-contrast-5pct, #f1f5f9);}
 
         .loading {
             display: flex; align-items: center; justify-content: center;

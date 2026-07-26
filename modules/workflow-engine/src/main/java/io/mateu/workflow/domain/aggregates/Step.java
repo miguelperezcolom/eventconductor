@@ -21,8 +21,14 @@ import java.util.Objects;
 
 @With
 @FoldedLayout
+@Zones({
+        @Zone(name = "main", width = "25%"),
+        @Zone(name = "precondition", width = "25%"),
+        @Zone(name = "execution", width = "25%"),
+        @Zone(name = "reliability", width = "25%")
+})
 public record Step(
-        @Section(value = "Main", style = "width: 25%;")
+        @Section(value = "Main", zone = "main")
         @NotEmpty
         String id,
         @Hidden
@@ -34,7 +40,7 @@ public record Step(
         @HiddenInList
         @Stereotype(FieldStereotype.textarea)
         String description,
-        @Section(value = "Precondition", style = "width: 25%;")
+        @Section(value = "Precondition", zone = "precondition")
 
         //@HiddenInList
         //StepPrecondition precondition,
@@ -42,7 +48,7 @@ public record Step(
         String preconditionStepId,
         String preconditionExpression,
 
-        @Section(value = "Execution", style = "width: 25%;")
+        @Section(value = "Execution", zone = "execution")
         boolean parallel,
         @HiddenInList
         @Hidden("state['type'] != 'ACTION'")
@@ -70,7 +76,7 @@ public record Step(
         @HiddenInList
         @Hidden("state['type'] != 'MESSAGE'")
         String correlationExpression,
-        @Section(value = "Reliability", style = "width: 25%;")
+        @Section(value = "Reliability", zone = "reliability")
         @JsonDeserialize(using = TimeoutDeserializer.class)
         long timeout,
         @HiddenInList
