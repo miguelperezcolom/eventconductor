@@ -14,7 +14,6 @@ import io.mateu.workflow.infra.in.ui.pages.process.ProcessRow;
 import io.mateu.workflow.infra.in.ui.pages.process.SimpleProcessViewModel;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.ObjectProvider;
-import org.checkerframework.checker.nullness.qual.NonNull;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.stereotype.Service;
 
@@ -63,7 +62,7 @@ public class SimpleProcessCrudAdapter  {
         return Boolean.TRUE.equals(httpRequest.runActionRq().componentState().get(name));
     }
 
-    private static @NonNull Function<Process, ProcessRow> mapProcessToRow(DateTimeFormatter dtf) {
+    private static Function<Process, ProcessRow> mapProcessToRow(DateTimeFormatter dtf) {
         return process -> new ProcessRow(process.id(),
                 process.getName(),
                 mapProcessStatus(process.getStatus(), process.getCompletionPercentage()),
