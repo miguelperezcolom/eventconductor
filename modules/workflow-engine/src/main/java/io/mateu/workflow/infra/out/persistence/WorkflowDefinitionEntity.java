@@ -9,6 +9,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.ColumnDefault;
 
 @Entity
 @Getter@Setter
@@ -38,6 +39,7 @@ public class WorkflowDefinitionEntity {
 
     String cronExpression;
 
+    @ColumnDefault("0")
     int defaultMaxStepExecutions;
 
 }
