@@ -75,19 +75,22 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
     @ReadOnly
     String returnTo;
 
-    @Tab
+    // Explicit tab names: since mateu 379440d83 consecutive @Tab annotations with the SAME
+    // value (and bare @Tab means value "") are merged into one tab, which stacked these four
+    // lists vertically. Distinct values keep one tab per list.
+    @Tab("Steps")
     @Label("")
     List<Step> steps;
 
-    @Tab
+    @Tab("Messages")
     @Label("")
     List<Message> messages;
 
-    @Tab
+    @Tab("Errors")
     @Label("")
     List<Error> errors;
 
-    @Tab
+    @Tab("Resources")
     @Label("")
     List<Resource> resources;
 

@@ -47,19 +47,23 @@ public class CreateProcessForm {
                 businessKey,
                 variables
         ));
-        return UICommand.builder()
-                .type(UICommandType.DispatchEvent)
-                .data(new DispatchEventData(
-                        "navigation-requested",
-                        NavigationRequestedPayload.builder()
-                                .route("/workflow/processes/" + processId)
-                                .consumedRoute("")
-                                .baseUrl(httpRequest.getBaseUrl())
-                                .uriPrefix("")
-                                .serverSideType(WorkflowHome.class.getName())
-                                .build()
-                ))
-                .build();
+        // Creating IS this form's save: clear the dirty flag before navigating away, or the
+        // frontend asks whether to save the changes that have just been persisted.
+        return List.of(
+                UICommand.markAsClean(),
+                UICommand.builder()
+                        .type(UICommandType.DispatchEvent)
+                        .data(new DispatchEventData(
+                                "navigation-requested",
+                                NavigationRequestedPayload.builder()
+                                        .route("/workflow/processes/" + processId)
+                                        .consumedRoute("")
+                                        .baseUrl(httpRequest.getBaseUrl())
+                                        .uriPrefix("")
+                                        .serverSideType(WorkflowHome.class.getName())
+                                        .build()
+                        ))
+                        .build());
     }
 
 }
