@@ -42,12 +42,12 @@ class WorkflowDefinitionLifecycleTest {
     }
 
     @Test
-    void promoteButtonVisibleOnlyForDraftWorkingCopy() {
+    void promoteButtonVisibleForAnyDraft() {
         // a working copy is a DRAFT that carries the id of the production definition it copies
         var workingCopy = new WorkflowDefinition("wd-1", "Test", 1, "desc", DRAFT, "orig-1", false, 0, false, null, 0, List.of());
         assertThat(workingCopy.isHidden("promoteToProduction", null)).isFalse();
-        // a plain DRAFT (not a working copy, draftOfId == null) cannot be promoted
-        assertThat(def(DRAFT).isHidden("promoteToProduction", null)).isTrue();
+        // a standalone DRAFT (draftOfId == null) is promoted by activating it in place
+        assertThat(def(DRAFT).isHidden("promoteToProduction", null)).isFalse();
         assertThat(def(ACTIVE).isHidden("promoteToProduction", null)).isTrue();
         assertThat(def(DISABLED).isHidden("promoteToProduction", null)).isTrue();
         assertThat(def(ARCHIVED).isHidden("promoteToProduction", null)).isTrue();

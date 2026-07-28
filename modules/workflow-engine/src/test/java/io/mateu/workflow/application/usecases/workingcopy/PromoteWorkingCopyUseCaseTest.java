@@ -64,12 +64,29 @@ class PromoteWorkingCopyUseCaseTest {
     }
 
     @Test
-    void throwsWhenNotAWorkingCopy() {
+    void throwsWhenNotADraft() {
         when(repository.findById("wd-1")).thenReturn(Optional.of(original()));
 
         assertThatThrownBy(() -> useCase.handle("wd-1"))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("not a working copy");
+                .hasMessageContaining("Only a DRAFT");
+    }
+
+    @Test
+    void standaloneDraftIsActivatedInPlace() {
+        var standalone = new WorkflowDefinition("wd-2", "Brand new", 1, "desc",
+                WorkflowDefinitionStatus.DRAFT, null, false, 0, false, null, 0, List.of());
+        when(repository.findById("wd-2")).thenReturn(Optional.of(standalone));
+        when(repository.save(any())).thenReturn("wd-2");
+
+        var promotedId = useCase.handle("wd-2");
+
+        assertThat(promotedId).isEqualTo("wd-2");
+        ArgumentCaptor<WorkflowDefinition> captor = ArgumentCaptor.forClass(WorkflowDefinition.class);
+        verify(repository).save(captor.capture());
+        assertThat(captor.getValue().status()).isEqualTo(WorkflowDefinitionStatus.ACTIVE);
+        assertThat(captor.getValue().version()).isEqualTo(1);
+        verify(repository, never()).deleteAllById(any());
     }
 
     @Test

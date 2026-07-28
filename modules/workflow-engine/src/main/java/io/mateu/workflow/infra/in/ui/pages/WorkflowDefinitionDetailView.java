@@ -7,10 +7,26 @@ import io.mateu.uidl.annotations.Section;
 import io.mateu.uidl.annotations.Style;
 import io.mateu.uidl.annotations.Zone;
 import io.mateu.uidl.annotations.Zones;
+import io.mateu.uidl.annotations.Toolbar;
 import io.mateu.uidl.data.Element;
+import io.mateu.uidl.data.FileDownload;
 import io.mateu.uidl.data.Status;
 import io.mateu.uidl.data.StatusType;
+import io.mateu.uidl.data.DispatchEventData;
+import io.mateu.uidl.data.NavigationRequestedPayload;
+import io.mateu.uidl.data.UICommand;
+import io.mateu.uidl.data.UICommandType;
+import io.mateu.uidl.interfaces.HttpRequest;
+import io.mateu.uidl.interfaces.VisibilitySupplier;
 import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
+import io.mateu.workflow.application.usecases.export.ExportWorkflowDefinitionToYamlUseCase;
+import io.mateu.workflow.application.usecases.lifecycle.ArchiveWorkflowDefinitionUseCase;
+import io.mateu.workflow.application.usecases.lifecycle.DisableWorkflowDefinitionUseCase;
+import io.mateu.workflow.application.usecases.lifecycle.EnableWorkflowDefinitionUseCase;
+import io.mateu.workflow.application.usecases.lifecycle.ReactivateWorkflowDefinitionUseCase;
+import io.mateu.workflow.application.usecases.workingcopy.CreateWorkingCopyUseCase;
+import io.mateu.workflow.application.usecases.workingcopy.PromoteWorkingCopyUseCase;
+import io.mateu.workflow.infra.in.ui.WorkflowHome;
 import io.mateu.workflow.domain.aggregates.Step;
 import io.mateu.workflow.domain.aggregates.WorkflowDefinition;
 import io.mateu.workflow.domain.aggregates.WorkflowDefinitionStatus;
@@ -19,6 +35,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplicat
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Service;
 
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 
@@ -39,7 +57,7 @@ import static io.mateu.core.infra.JsonSerializer.toJson;
         @Zone(name = "info", width = "50%"),
         @Zone(name = "graph", width = "50%")
 })
-public class WorkflowDefinitionDetailView {
+public class WorkflowDefinitionDetailView implements VisibilitySupplier {
 
     /** Custom element that renders the workflow as an ELK graph. Shipped by this module. */
     private static final String GRAPH_TAG = "eventconductor-workflow-graph";
@@ -47,9 +65,23 @@ public class WorkflowDefinitionDetailView {
     private static final String GRAPH_MODULE = "/eventconductor/workflow-graph.js";
 
     final WorkflowDefinitionRepository repository;
+    final ExportWorkflowDefinitionToYamlUseCase exportWorkflowDefinitionToYamlUseCase;
+    final PromoteWorkingCopyUseCase promoteWorkingCopyUseCase;
+    final CreateWorkingCopyUseCase createWorkingCopyUseCase;
+    final DisableWorkflowDefinitionUseCase disableWorkflowDefinitionUseCase;
+    final EnableWorkflowDefinitionUseCase enableWorkflowDefinitionUseCase;
+    final ReactivateWorkflowDefinitionUseCase reactivateWorkflowDefinitionUseCase;
+    final ArchiveWorkflowDefinitionUseCase archiveWorkflowDefinitionUseCase;
 
     @Hidden
     String id;
+
+    /** Domain lifecycle status, kept for the toolbar visibility rules (the badge shows {@link #status}). */
+    @Hidden
+    WorkflowDefinitionStatus definitionStatus;
+
+    @Hidden
+    String draftOfId;
 
     /** Drives the view title via {@link #toString()}; not rendered as a field. */
     @Hidden
@@ -88,6 +120,8 @@ public class WorkflowDefinitionDetailView {
         var def = repository.findById(workflowId).orElseThrow();
         this.id = def.id();
         this.name = def.name();
+        this.definitionStatus = def.status();
+        this.draftOfId = def.draftOfId();
         this.status = new Status(statusType(def.status()), String.valueOf(def.status()));
         this.version = "v" + def.version();
         this.description = def.description() == null || def.description().isBlank() ? "—" : def.description();
@@ -110,6 +144,92 @@ public class WorkflowDefinitionDetailView {
                         "readonly", "true"),
                 "");
         return this;
+    }
+
+    // ── Lifecycle toolbar: same actions and visibility rules as the WorkflowDefinition record
+    // form. They must live here too because the CRUD's "view" action renders this read-only
+    // view, not the record form — without them an ACTIVE definition could not be disabled or
+    // copied from the UI at all. ──
+
+    @Toolbar
+    public UICommand promoteToProduction(HttpRequest httpRequest) {
+        var promotedId = promoteWorkingCopyUseCase.handle(id);
+        return navigateToDefinition(promotedId, httpRequest);
+    }
+
+    @Toolbar
+    public UICommand createWorkingCopy(HttpRequest httpRequest) {
+        var copyId = createWorkingCopyUseCase.handle(id);
+        return navigateToDefinition(copyId, httpRequest);
+    }
+
+    @Toolbar
+    public UICommand disable(HttpRequest httpRequest) {
+        disableWorkflowDefinitionUseCase.handle(id);
+        return navigateToDefinition(id, httpRequest);
+    }
+
+    @Toolbar
+    public UICommand enable(HttpRequest httpRequest) {
+        enableWorkflowDefinitionUseCase.handle(id);
+        return navigateToDefinition(id, httpRequest);
+    }
+
+    @Toolbar
+    public UICommand reactivate(HttpRequest httpRequest) {
+        reactivateWorkflowDefinitionUseCase.handle(id);
+        return navigateToDefinition(id, httpRequest);
+    }
+
+    @Toolbar
+    public UICommand archive(HttpRequest httpRequest) {
+        archiveWorkflowDefinitionUseCase.handle(id);
+        return navigateToDefinition(id, httpRequest);
+    }
+
+    /** Mirrors {@code WorkflowDefinition.isHidden} so both surfaces enforce the same lifecycle. */
+    @Override
+    public boolean isHidden(String memberName, HttpRequest httpRequest) {
+        return switch (memberName) {
+            case "edit" -> definitionStatus == WorkflowDefinitionStatus.ACTIVE;
+            case "promoteToProduction" -> definitionStatus != WorkflowDefinitionStatus.DRAFT;
+            case "createWorkingCopy" -> definitionStatus != WorkflowDefinitionStatus.ACTIVE;
+            case "disable" -> definitionStatus != WorkflowDefinitionStatus.ACTIVE;
+            case "enable" -> definitionStatus != WorkflowDefinitionStatus.DISABLED;
+            case "reactivate" -> definitionStatus != WorkflowDefinitionStatus.ARCHIVED;
+            case "archive" -> definitionStatus == WorkflowDefinitionStatus.ACTIVE
+                    || definitionStatus == WorkflowDefinitionStatus.ARCHIVED;
+            default -> false;
+        };
+    }
+
+    private static UICommand navigateToDefinition(String definitionId, HttpRequest httpRequest) {
+        return UICommand.builder()
+                .type(UICommandType.DispatchEvent)
+                .data(new DispatchEventData(
+                        "navigation-requested",
+                        NavigationRequestedPayload.builder()
+                                .route("/workflow/definitions/" + definitionId)
+                                .consumedRoute("")
+                                .baseUrl(httpRequest.getBaseUrl())
+                                .uriPrefix("")
+                                .serverSideType(WorkflowHome.class.getName())
+                                .build()))
+                .build();
+    }
+
+    @Toolbar
+    @Label("Export YAML")
+    public UICommand exportYaml() {
+        var export = exportWorkflowDefinitionToYamlUseCase.handle(id);
+        return UICommand.builder()
+                .type(UICommandType.DownloadFile)
+                .data(new FileDownload(
+                        export.fileName(),
+                        "application/yaml",
+                        Base64.getEncoder().encodeToString(
+                                export.content().getBytes(StandardCharsets.UTF_8))))
+                .build();
     }
 
     /** The view title (see {@code PageMetadataExtractor.getTitle}: falls back to toString()). */
