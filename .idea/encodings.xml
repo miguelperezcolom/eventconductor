@@ -39,6 +39,8 @@
     <file url="file://$PROJECT_DIR$/modules/workflow-e2e/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/modules/workflow-engine/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/modules/workflow-engine/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/modules/workflow-maven-plugin/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/modules/workflow-maven-plugin/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/shell/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/src/main/resources" charset="UTF-8" />
