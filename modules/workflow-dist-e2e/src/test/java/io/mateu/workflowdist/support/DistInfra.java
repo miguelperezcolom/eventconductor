@@ -239,6 +239,48 @@ public final class DistInfra {
         awaitKafkaReady();
     }
 
+    // ── PostgreSQL chaos: same pause/unpause technique as Kafka (a stopped container would
+    // come back on a different mapped port, but SIGSTOP/SIGCONT keeps address and state). ──
+
+    /** Freezes PostgreSQL: connection attempts and in-flight statements hang/time out. */
+    public static void pausePostgres() {
+        DockerClientFactory.instance().client().pauseContainerCmd(postgres.getContainerId()).exec();
+    }
+
+    /** Resumes PostgreSQL (same address) and blocks until it accepts connections again. */
+    public static void resumePostgres() {
+        var docker = DockerClientFactory.instance().client();
+        var paused = Boolean.TRUE.equals(
+                docker.inspectContainerCmd(postgres.getContainerId()).exec().getState().getPaused());
+        if (paused) { // idempotent: an @AfterEach safety net after a passing test is a no-op
+            docker.unpauseContainerCmd(postgres.getContainerId()).exec();
+        }
+        awaitPostgresReady();
+    }
+
+    private static void awaitPostgresReady() {
+        var deadline = System.currentTimeMillis() + 60_000;
+        Exception last = null;
+        DriverManager.setLoginTimeout(3);
+        while (System.currentTimeMillis() < deadline) {
+            try (var connection = DriverManager.getConnection(
+                    postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
+                 var statement = connection.createStatement()) {
+                statement.execute("SELECT 1");
+                return;
+            } catch (Exception e) {
+                last = e;
+                try {
+                    Thread.sleep(500);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException("Interrupted waiting for PostgreSQL", ie);
+                }
+            }
+        }
+        throw new IllegalStateException("PostgreSQL did not become ready after resume", last);
+    }
+
     private static void awaitKafkaReady() {
         var deadline = System.currentTimeMillis() + 60_000;
         RuntimeException last = null;
