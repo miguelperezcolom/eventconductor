@@ -167,7 +167,7 @@ Pauses the process without a worker: the step stays `PENDING` and the scheduler 
 { "id": "await-payment", "type": "MESSAGE", "name": "Await payment confirmation",
   "messageName": "payment-confirmed", "preconditionStepId": "charge", "timeout": "PT24H" }
 ```
-Waits until a `MessageReceived(messageName, correlationKey, variables)` arrives (REST/Kafka/MCP `sendMessage`). Correlation key matches the process `businessKey` by default, or the value of a JEXL `correlationExpression` evaluated against process variables (fail-closed). Message variables merge into the process. Unmatched messages are ignored, not buffered. `timeout`/`retries` keep their usual meaning.
+Waits until a `MessageReceived(messageName, correlationKey, variables)` arrives (REST/Kafka/MCP `sendMessage`). Correlation key matches the process `businessKey` by default, or the value of a JEXL `correlationExpression` evaluated against process variables (fail-closed). Message variables merge into the process. Unmatched messages are ignored, not buffered. `timeout`/`retries` keep their usual meaning. REST delivery: `POST /workflow/api/messages` with `{"messageName", "correlationKey", "variables": {..}}` responds 202; `X-Api-Key` header required when `workflow.message-api.api-key` is set.
 
 ### PROCESS — run a child workflow
 ```json

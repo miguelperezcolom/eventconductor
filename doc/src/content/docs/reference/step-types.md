@@ -82,7 +82,7 @@ Wait until an absolute date carried by a process variable (e.g. a check-in date)
 
 ## MESSAGE
 
-Durably pauses the workflow until a matching external message arrives — the equivalent of a BPMN message catch event or a Temporal signal. No worker is involved: the step stays `PENDING` and the engine completes it when a `MessageReceived` event with the same `messageName` and a matching correlation key is published on the upstream surface (Kafka topic, embedded publisher, or the `sendMessage` MCP tool).
+Durably pauses the workflow until a matching external message arrives — the equivalent of a BPMN message catch event or a Temporal signal. No worker is involved: the step stays `PENDING` and the engine completes it when a `MessageReceived` event with the same `messageName` and a matching correlation key is published on the upstream surface (Kafka topic, embedded publisher, the `sendMessage` MCP tool, or the REST endpoint below).
 
 Correlate by business key (the default):
 
@@ -120,6 +120,23 @@ Delivery semantics:
 - **Broadcast.** If several processes are waiting on the same `messageName` and correlation key, all of them are resumed.
 
 `timeout` and `retries` keep their usual meaning: a waiting MESSAGE step that receives no message within `timeout` transitions to `TIMEOUT` and the normal retry/failure pipeline engages (a retry re-arms the wait).
+
+Systems that cannot produce to Kafka (webhooks, SaaS callbacks) can deliver messages over REST — same correlation, any mode (embedded or kafka):
+
+```bash
+curl -X POST http://localhost:8080/workflow/api/messages \
+  -H "Content-Type: application/json" \
+  -H "X-Api-Key: mysecret" \
+  -d '{"messageName": "payment-received", "correlationKey": "res-123", "variables": {"paymentId": "P-9"}}'
+```
+
+The endpoint responds `202 Accepted` (fire-and-forget: an unmatched message is ignored, per the delivery semantics above). The `X-Api-Key` header is required only when `workflow.message-api.api-key` is configured:
+
+```yaml
+workflow:
+  message-api:
+    api-key: mysecret   # optional — leave unset to accept unauthenticated messages
+```
 ## RULE
 
 Evaluates a business rule from the rule engine against the process variables. The rule's outputs are merged back into the process variables.
