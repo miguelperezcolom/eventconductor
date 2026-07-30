@@ -61,6 +61,13 @@
             <artifactId>slf4j-api</artifactId>
         </dependency>
 
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-core</artifactId>
+            <!-- metrics only activate if the host app brings a MeterRegistry -->
+            <optional>true</optional>
+        </dependency>
+
         <!-- Spring is optional: the evaluator works as a plain library; the
              autoconfiguration only activates when the embedder runs Spring Boot -->
         <dependency>

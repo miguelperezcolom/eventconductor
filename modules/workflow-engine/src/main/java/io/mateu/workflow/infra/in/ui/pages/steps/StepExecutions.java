@@ -5,7 +5,7 @@ import io.mateu.uidl.annotations.ListToolbarButton;
 import io.mateu.uidl.annotations.ReadOnly;
 import io.mateu.uidl.data.ListingData;
 import io.mateu.uidl.data.Pageable;
-import io.mateu.uidl.interfaces.CrudRepository;
+import io.mateu.uidl.interfaces.CrudStore;
 import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.workflow.application.usecases.stepexecution.retry.RetryStepExecutionCommand;
 import io.mateu.workflow.application.usecases.stepexecution.retry.RetryStepExecutionUseCase;
@@ -33,7 +33,7 @@ public class StepExecutions extends FilteredAutoCrud<StepExecutionFilters, StepE
     }
 
     @Override
-    public CrudRepository<StepExecutionRow> store() {
+    public CrudStore<StepExecutionRow> store() {
         return stepExecutionsCrudAdapter.repository();
     }
 

@@ -3,6 +3,7 @@ package io.mateu.workflow.application.usecases.gitimport;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import io.mateu.workflow.application.out.FormRepository;
+import io.mateu.workflow.application.out.FormsMetrics;
 import io.mateu.workflow.domain.Form;
 import io.mateu.workflow.infra.config.GitImportProperties;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +28,7 @@ public class ImportFormsFromGitUseCase {
 
     final GitImportProperties gitImportProperties;
     final FormRepository formRepository;
+    final FormsMetrics formsMetrics;
     final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
     private static final YAMLMapper YAML_MAPPER = new YAMLMapper();
 
@@ -42,6 +44,8 @@ public class ImportFormsFromGitUseCase {
                 errors.add("Repository " + repo.getUrl() + ": " + e.getMessage());
             }
         }
+
+        formsMetrics.formsImported(imported.size());
 
         return new ImportFormsResult(imported, errors);
     }

@@ -1,5 +1,6 @@
 package io.mateu.workflow.infra.in.grpc;
 
+import io.mateu.workflow.application.out.RuleCatalogMetrics;
 import io.mateu.workflow.application.out.RuleRepository;
 import io.mateu.workflow.application.services.RuleJsonMapper;
 import io.mateu.workflow.infra.out.grpc.RuleProtoMapper;
@@ -15,8 +16,9 @@ import org.springframework.context.annotation.Configuration;
 public class RuleGrpcServerConfiguration {
 
     @Bean
-    public RuleGrpcService ruleGrpcService(RuleRepository ruleRepository, RuleJsonMapper ruleJsonMapper) {
-        return new RuleGrpcService(ruleRepository, new RuleProtoMapper(ruleJsonMapper));
+    public RuleGrpcService ruleGrpcService(RuleRepository ruleRepository, RuleJsonMapper ruleJsonMapper,
+                                           RuleCatalogMetrics ruleCatalogMetrics) {
+        return new RuleGrpcService(ruleRepository, new RuleProtoMapper(ruleJsonMapper), ruleCatalogMetrics);
     }
 
     @Bean

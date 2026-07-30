@@ -2,7 +2,7 @@ package io.mateu.workflow.infra.in.ui.pages.process.childcruds.adapters;
 
 
 
-import io.mateu.uidl.interfaces.CrudRepository;
+import io.mateu.uidl.interfaces.CrudStore;
 import io.mateu.workflow.infra.in.ui.pages.process.childcruds.Message;
 import io.mateu.workflow.infra.out.persistence.LogMessageEntityRepository;
 import lombok.RequiredArgsConstructor;
@@ -27,8 +27,8 @@ public class MessageCrudAdapter  {
         return this;
     }
 
-    public CrudRepository<Message> repository() {
-        return new CrudRepository<Message>() {
+    public CrudStore<Message> repository() {
+        return new CrudStore<Message>() {
             @Override
             public Optional<Message> findById(String id) {
                 throw new UnsupportedOperationException();

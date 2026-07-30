@@ -7,6 +7,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Engine observability — metrics parity across all engines.** The Micrometer metrics pattern
+  that already existed in the workflow engine (an `application/out` port with no-op defaults, a
+  Micrometer implementation in `autoconfigure`, and an autoconfiguration guarded on a
+  `MeterRegistry` bean) has been mirrored into the other engines. Metrics stay inert unless the
+  host application provides a `MeterRegistry` (e.g. via Spring Boot Actuator), so libraries still
+  run with zero observability dependencies.
+  - **forms-engine** (`FormsMetrics`): `eventconductor.forms.task.created`,
+    `eventconductor.forms.task.completed`, `eventconductor.forms.task.cancelled`,
+    `eventconductor.forms.task.duration`, `eventconductor.forms.imported`.
+  - **rule-engine** (`RuleCatalogMetrics`): `eventconductor.rule.catalog.saved`,
+    `eventconductor.rule.catalog.deleted`, `eventconductor.rule.catalog.imported`,
+    `eventconductor.rule.catalog.served`.
+  - **rule-runtime** (`RuleRuntimeMetrics`): `eventconductor.rule.evaluation.count`,
+    `eventconductor.rule.evaluation.duration`, `eventconductor.rule.evaluation.cache`. The
+    runtime keeps working as a plain (non-Spring) library — the metrics port defaults to a no-op
+    via overloaded constructors.
+- **Distributed tracing (OpenTelemetry over OTLP).** The `orchestrator`, `forms` and `rule`
+  standalone apps now ship `micrometer-tracing-bridge-otel` + `opentelemetry-exporter-otlp` and
+  expose `management.tracing` / `management.otlp.tracing` configuration. Tracing is **off by
+  default** (`TRACING_SAMPLING=0.0`); set `TRACING_SAMPLING` and `OTLP_TRACING_ENDPOINT` to emit
+  spans. Because it is enabled at the app layer, HTTP, Kafka (Spring Cloud Stream) and JDBC calls
+  are auto-instrumented and trace context propagates across the engines' async boundaries without
+  any engine-code changes — consistent with the metrics' "optional, host-activated" design.
+- **Observability reference** at `docs/observability.md` (meter catalogue + how to enable
+  Prometheus scraping and OTLP tracing).
+
+### Changed
+- **Upgraded Mateu to `3.0-alpha.271`.** `3.0-alpha.271` is a breaking release that removed the
+  UI CRUD API (`CrudRepository`, `CrudAdapter`, `CrudEditorForm`, `CrudCreationForm`,
+  `ListingBackend`, the `core.infra.declarative.Listing` base and `AutoNamedView`) and split
+  `Searchable` into a marker interface plus a new `SearchableText`. The admin-UI layer of all
+  engines was migrated:
+  - `CrudRepository` → `CrudStore` (the method set is unchanged) across ~24 ports/pages/adapters.
+  - Pages whose detail view differs from the row (`Processes` → `SimpleProcessViewModel`,
+    `WorkflowDefinitions` → `WorkflowDefinitionDetailView`) and the read-only `Tasks` listing now
+    extend `Crud<View, …>` directly instead of `AutoCrud`/`FilteredAutoCrud` (which pin
+    `View = Row`), because `Navigable.view()` is now generically typed.
+  - `rule-engine` was pinned to Mateu `3.0-alpha.222`; it now tracks `${mateu.version}` like the
+    rest of the reactor.
+- **The Workflow Definitions admin page is now read-only** (list + rich detail view). Definitions
+  are authored as YAML and loaded from the classpath, Git or the database, and were never created
+  or edited from this page; the write actions are disabled rather than reimplemented on the new
+  API.
+
+### Removed
+- Dead `ProcessCrudAdapter` (superseded by `SimpleProcessCrudAdapter`; only referenced by an
+  unused import) was deleted as part of the Mateu 271 migration.
+
 ## [1.0-beta.010] - 2026-07-24
 
 ### Fixed

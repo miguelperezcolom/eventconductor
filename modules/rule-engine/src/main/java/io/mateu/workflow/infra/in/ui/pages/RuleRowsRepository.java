@@ -1,6 +1,6 @@
 package io.mateu.workflow.infra.in.ui.pages;
 
-import io.mateu.uidl.interfaces.CrudRepository;
+import io.mateu.uidl.interfaces.CrudStore;
 import io.mateu.workflow.application.out.RuleRepository;
 import io.mateu.workflow.application.services.RuleJsonMapper;
 import io.mateu.workflow.application.usecases.deleterule.DeleteRuleCommand;
@@ -15,13 +15,13 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Adapts the framework-free RuleRepository port to the Mateu CrudRepository
+ * Adapts the framework-free RuleRepository port to the Mateu CrudStore
  * the UI expects, mapping rules to RuleRow views. Saving parses the definition
  * text and goes through the save use case (validation + publication included).
  */
 @Service
 @RequiredArgsConstructor
-public class RuleRowsRepository implements CrudRepository<RuleRow> {
+public class RuleRowsRepository implements CrudStore<RuleRow> {
 
     private final RuleRepository ruleRepository;
     private final RuleJsonMapper ruleJsonMapper;

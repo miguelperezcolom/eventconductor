@@ -2,7 +2,7 @@ package io.mateu.workflow.infra.in.ui.adapters;
 
 
 import io.mateu.uidl.data.*;
-import io.mateu.uidl.interfaces.CrudRepository;
+import io.mateu.uidl.interfaces.CrudStore;
 import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.domain.aggregates.Process;
@@ -100,8 +100,8 @@ public class SimpleProcessCrudAdapter  {
         return model.load(process.id(), httpRequest);
     }
 
-    public CrudRepository<ProcessRow> repository() {
-        return new CrudRepository<ProcessRow>() {
+    public CrudStore<ProcessRow> repository() {
+        return new CrudStore<ProcessRow>() {
             @Override
             public Optional<ProcessRow> findById(String id) {
                 return repository.findById(id).map(p -> mapProcessToRow(dtf).apply(p));

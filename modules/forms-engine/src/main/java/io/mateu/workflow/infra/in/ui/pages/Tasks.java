@@ -1,14 +1,12 @@
 package io.mateu.workflow.infra.in.ui.pages;
 
 import io.mateu.core.infra.JwtExtractor;
-import io.mateu.core.infra.declarative.Listing;
-import io.mateu.uidl.annotations.Action;
+import io.mateu.core.infra.declarative.orchestrators.crud.Crud;
 import io.mateu.uidl.annotations.Toolbar;
 import io.mateu.uidl.annotations.Trigger;
 import io.mateu.uidl.annotations.TriggerType;
 import io.mateu.uidl.data.*;
 import io.mateu.uidl.interfaces.HttpRequest;
-import io.mateu.uidl.interfaces.ListingBackend;
 import io.mateu.workflow.domain.FormExecutionStatus;
 import io.mateu.workflow.infra.out.persistence.FormExecutionEntityRepository;
 import lombok.RequiredArgsConstructor;
@@ -27,12 +25,16 @@ record TaskRow(String id, String name, String form, String assignedTo, Status st
 @Trigger(type = TriggerType.OnLoad, actionId = "search")
 @Trigger(type = TriggerType.OnSuccess, actionId = "search", calledActionId = "claim")
 @RequiredArgsConstructor
-public class Tasks extends Listing<NoFilters, TaskRow> {
+public class Tasks extends Crud<TaskRow, TaskRow, TaskRow, NoFilters, TaskRow, String> {
 
     final FormExecutionEntityRepository repository;
 
+    // Mateu 271 removed the io.mateu.core.infra.declarative.Listing base class (and the
+    // ListingBackend port). A read-only listing page is now a Crud whose CRUD capabilities
+    // are disabled; only search + the row/toolbar actions remain.
     @Override
-    public ListingData<TaskRow> search(String searchText, NoFilters noFilters, Pageable pageable, HttpRequest httpRequest) {
+    public ListingData<TaskRow> search(SearchRequest searchRequest, HttpRequest httpRequest) {
+        var pageable = searchRequest.pageable();
         var page = repository.findTaskSummariesByStatusAndUser(List.of(
                         FormExecutionStatus.PENDING.name()
                 ),
@@ -60,6 +62,56 @@ public class Tasks extends Listing<NoFilters, TaskRow> {
                         .content(content)
                         .build())
                 .build();
+    }
+
+    @Override
+    public boolean canView() {
+        return false;
+    }
+
+    @Override
+    public boolean canEdit() {
+        return false;
+    }
+
+    @Override
+    public boolean canCreate() {
+        return false;
+    }
+
+    @Override
+    public boolean canDelete() {
+        return false;
+    }
+
+    @Override
+    public TaskRow view(String id, HttpRequest httpRequest) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public TaskRow edit(String id, HttpRequest httpRequest) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public String save(HttpRequest httpRequest) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public TaskRow creationForm(HttpRequest httpRequest) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public String create(HttpRequest httpRequest) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void deleteAllById(List<String> ids, HttpRequest httpRequest) {
+        throw new UnsupportedOperationException();
     }
 
     private Status mapStatus(String status) {

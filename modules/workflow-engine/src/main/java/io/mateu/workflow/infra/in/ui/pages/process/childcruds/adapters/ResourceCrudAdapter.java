@@ -1,7 +1,7 @@
 package io.mateu.workflow.infra.in.ui.pages.process.childcruds.adapters;
 
 
-import io.mateu.uidl.interfaces.CrudRepository;
+import io.mateu.uidl.interfaces.CrudStore;
 import io.mateu.workflow.infra.in.ui.pages.process.childcruds.Resource;
 import io.mateu.workflow.infra.out.persistence.ResourceEntityRepository;
 import lombok.RequiredArgsConstructor;
@@ -26,8 +26,8 @@ public class ResourceCrudAdapter  {
         return this;
     }
 
-    public CrudRepository<Resource> repository() {
-        return new CrudRepository<Resource>() {
+    public CrudStore<Resource> repository() {
+        return new CrudStore<Resource>() {
             @Override
             public Optional<Resource> findById(String id) {
                 throw new UnsupportedOperationException();

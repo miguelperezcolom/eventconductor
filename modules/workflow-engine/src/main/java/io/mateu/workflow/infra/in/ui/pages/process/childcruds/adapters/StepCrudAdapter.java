@@ -3,7 +3,7 @@ package io.mateu.workflow.infra.in.ui.pages.process.childcruds.adapters;
 
 import io.mateu.uidl.data.Status;
 import io.mateu.uidl.data.StatusType;
-import io.mateu.uidl.interfaces.CrudRepository;
+import io.mateu.uidl.interfaces.CrudStore;
 import io.mateu.workflow.domain.aggregates.StepExecutionStatus;
 import io.mateu.workflow.infra.in.ui.pages.process.childcruds.Step;
 import io.mateu.workflow.infra.out.persistence.StepExecutionEntityRepository;
@@ -34,8 +34,8 @@ public class StepCrudAdapter  {
         return this;
     }
 
-    public CrudRepository<Step> repository() {
-        return new CrudRepository<Step>() {
+    public CrudStore<Step> repository() {
+        return new CrudStore<Step>() {
             @Override
             public Optional<Step> findById(String id) {
                 throw new UnsupportedOperationException();

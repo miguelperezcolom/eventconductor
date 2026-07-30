@@ -4,7 +4,7 @@ import io.mateu.core.infra.declarative.orchestrators.crud.AutoCrud;
 import io.mateu.uidl.annotations.Action;
 import io.mateu.uidl.annotations.Style;
 import io.mateu.uidl.annotations.ViewToolbarButton;
-import io.mateu.uidl.interfaces.CrudRepository;
+import io.mateu.uidl.interfaces.CrudStore;
 import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.workflow.application.out.FormRepository;
 import io.mateu.workflow.domain.Form;
@@ -23,7 +23,7 @@ public class Forms extends AutoCrud<Form> {
     final FormRepository formRepository;
 
     @Override
-    public CrudRepository<Form> store() {
+    public CrudStore<Form> store() {
         return formRepository;
     }
 

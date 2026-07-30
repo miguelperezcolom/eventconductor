@@ -1,5 +1,6 @@
 package io.mateu.workflow.infra.out.cache;
 
+import io.mateu.workflow.application.out.RuleRuntimeMetrics;
 import io.mateu.workflow.application.out.RuleSource;
 import io.mateu.workflow.domain.Rule;
 import org.slf4j.Logger;
@@ -25,6 +26,7 @@ public class CachingRuleSource implements RuleSource {
     private final RuleSource delegate;
     private final Duration ttl;
     private final Clock clock;
+    private final RuleRuntimeMetrics metrics;
     private final Map<String, Rule> cache = new ConcurrentHashMap<>();
     private volatile long loadedAt = Long.MIN_VALUE;
 
@@ -33,9 +35,19 @@ public class CachingRuleSource implements RuleSource {
     }
 
     public CachingRuleSource(RuleSource delegate, Duration ttl, Clock clock) {
+        this(delegate, ttl, clock, RuleRuntimeMetrics.NOOP);
+    }
+
+    // metrics defaults to NOOP so the cache still works as a plain library with no Spring
+    public CachingRuleSource(RuleSource delegate, Duration ttl, RuleRuntimeMetrics metrics) {
+        this(delegate, ttl, Clock.systemUTC(), metrics);
+    }
+
+    public CachingRuleSource(RuleSource delegate, Duration ttl, Clock clock, RuleRuntimeMetrics metrics) {
         this.delegate = delegate;
         this.ttl = ttl != null ? ttl : Duration.ZERO;
         this.clock = clock;
+        this.metrics = metrics != null ? metrics : RuleRuntimeMetrics.NOOP;
     }
 
     @Override
@@ -43,8 +55,10 @@ public class CachingRuleSource implements RuleSource {
         ensureFresh();
         var cached = cache.get(id);
         if (cached != null) {
+            metrics.cacheHit(id);
             return Optional.of(cached);
         }
+        metrics.cacheMiss(id);
         var fetched = delegate.findById(id);
         fetched.ifPresent(rule -> cache.put(rule.id(), rule));
         return fetched;

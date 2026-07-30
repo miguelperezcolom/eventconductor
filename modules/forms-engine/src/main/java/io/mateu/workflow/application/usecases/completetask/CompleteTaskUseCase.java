@@ -1,6 +1,7 @@
 package io.mateu.workflow.application.usecases.completetask;
 
 import io.mateu.workflow.application.out.FormExecutionRepository;
+import io.mateu.workflow.application.out.FormsMetrics;
 import io.mateu.workflow.domain.FormExecutionStatus;
 import io.mateu.workflow.dtos.MessageType;
 import io.mateu.workflow.dtos.Variable;
@@ -19,6 +20,7 @@ public class CompleteTaskUseCase {
 
     final FormExecutionRepository formExecutionRepository;
     final StreamBridge streamBridge;
+    final FormsMetrics formsMetrics;
 
     public void handle(CompleteTaskCommand command) {
         var execution = formExecutionRepository.findById(command.taskId()).orElseThrow();
@@ -36,6 +38,8 @@ public class CompleteTaskUseCase {
                 execution.stepExecutionId(),
                 TaskStatus.COMPLETED,
                 execution.values().stream().map(v -> new Variable(v.name(), v.value())).toList()));
+
+        formsMetrics.taskCompleted(execution.formId(), FormsMetrics.durationOf(execution));
     }
 
 }

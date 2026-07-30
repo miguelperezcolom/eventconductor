@@ -1,5 +1,6 @@
 package io.mateu.workflow.autoconfigure;
 
+import io.mateu.workflow.application.out.RuleRuntimeMetrics;
 import io.mateu.workflow.application.out.RuleSource;
 import io.mateu.workflow.application.services.FactCoercer;
 import io.mateu.workflow.application.services.RuleEvaluator;
@@ -21,6 +22,14 @@ import org.springframework.context.annotation.Bean;
 @AutoConfiguration
 @EnableConfigurationProperties(RulesRuntimeProperties.class)
 public class RuleRuntimeAutoConfiguration {
+
+    // Fallback when Micrometer is absent or no MeterRegistry bean exists —
+    // RuleRuntimeMetricsAutoConfiguration runs before this and wins when active.
+    @Bean
+    @ConditionalOnMissingBean(RuleRuntimeMetrics.class)
+    public RuleRuntimeMetrics ruleRuntimeMetrics() {
+        return RuleRuntimeMetrics.NOOP;
+    }
 
     @Bean
     @ConditionalOnMissingBean
@@ -44,26 +53,28 @@ public class RuleRuntimeAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean(RuleSource.class)
     @ConditionalOnProperty(name = "rules.source", havingValue = "rest")
-    public RuleSource restRuleSource(RulesRuntimeProperties properties, RuleJsonMapper ruleJsonMapper) {
+    public RuleSource restRuleSource(RulesRuntimeProperties properties, RuleJsonMapper ruleJsonMapper,
+                                     RuleRuntimeMetrics metrics) {
         return new CachingRuleSource(
                 new RestRuleSource(properties.getCatalog().getUrl(), ruleJsonMapper),
-                properties.getCache().getTtl());
+                properties.getCache().getTtl(), metrics);
     }
 
     @Bean
     @ConditionalOnMissingBean(RuleSource.class)
     @ConditionalOnProperty(name = "rules.source", havingValue = "grpc")
     @ConditionalOnClass(io.grpc.ManagedChannelBuilder.class)
-    public RuleSource grpcRuleSource(RulesRuntimeProperties properties, RuleJsonMapper ruleJsonMapper) {
+    public RuleSource grpcRuleSource(RulesRuntimeProperties properties, RuleJsonMapper ruleJsonMapper,
+                                     RuleRuntimeMetrics metrics) {
         return new CachingRuleSource(
                 new GrpcRuleSource(properties.getCatalog().getGrpcTarget(), new RuleProtoMapper(ruleJsonMapper)),
-                properties.getCache().getTtl());
+                properties.getCache().getTtl(), metrics);
     }
 
     @Bean
     @ConditionalOnMissingBean
-    public RuleEvaluator ruleEvaluator(ObjectProvider<RuleSource> ruleSource) {
-        return new RuleEvaluator(ruleSource.getIfAvailable());
+    public RuleEvaluator ruleEvaluator(ObjectProvider<RuleSource> ruleSource, RuleRuntimeMetrics metrics) {
+        return new RuleEvaluator(ruleSource.getIfAvailable(), metrics);
     }
 
     @Bean

@@ -1,6 +1,7 @@
 package io.mateu.workflow.application.usecases.createtask;
 
 import io.mateu.workflow.application.out.FormExecutionRepository;
+import io.mateu.workflow.application.out.FormsMetrics;
 import io.mateu.workflow.domain.FormExecution;
 import io.mateu.workflow.domain.FormExecutionStatus;
 import io.mateu.workflow.domain.Variable;
@@ -20,6 +21,7 @@ import static org.mockito.Mockito.verify;
 class CreateTaskUseCaseTest {
 
     @Mock FormExecutionRepository formExecutionRepository;
+    @Mock FormsMetrics formsMetrics;
 
     @InjectMocks CreateTaskUseCase useCase;
 

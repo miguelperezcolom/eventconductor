@@ -1,6 +1,7 @@
 package io.mateu.workflow.application.usecases;
 
 import io.mateu.workflow.application.out.RuleCatalogEventPublisher;
+import io.mateu.workflow.application.out.RuleCatalogMetrics;
 import io.mateu.workflow.application.services.RuleValidator;
 import io.mateu.workflow.application.usecases.deleterule.DeleteRuleCommand;
 import io.mateu.workflow.application.usecases.deleterule.DeleteRuleUseCase;
@@ -49,7 +50,7 @@ class SaveAndDeleteRuleUseCaseTest {
             @Override
             public void deleted(String ruleId) {
             }
-        });
+        }, RuleCatalogMetrics.NOOP);
 
         var id = useCase.handle(new SaveRuleCommand(rule(null)));
 
@@ -61,7 +62,7 @@ class SaveAndDeleteRuleUseCaseTest {
     @Test
     void saveKeepsProvidedId() {
         var repository = new InMemoryRuleRepository();
-        var useCase = new SaveRuleUseCase(repository, validator, new NoopRuleCatalogEventPublisher());
+        var useCase = new SaveRuleUseCase(repository, validator, new NoopRuleCatalogEventPublisher(), RuleCatalogMetrics.NOOP);
 
         var id = useCase.handle(new SaveRuleCommand(rule("my-rule")));
 
@@ -71,7 +72,7 @@ class SaveAndDeleteRuleUseCaseTest {
     @Test
     void invalidRuleIsRejectedAndNotStored() {
         var repository = new InMemoryRuleRepository();
-        var useCase = new SaveRuleUseCase(repository, validator, new NoopRuleCatalogEventPublisher());
+        var useCase = new SaveRuleUseCase(repository, validator, new NoopRuleCatalogEventPublisher(), RuleCatalogMetrics.NOOP);
         var invalid = new Rule("bad", "Bad", null, RuleType.EXPRESSION, 1, 0, null,
                 null, null, null, null, null, null);
 
@@ -94,7 +95,7 @@ class SaveAndDeleteRuleUseCaseTest {
             public void deleted(String ruleId) {
                 deleted.add(ruleId);
             }
-        });
+        }, RuleCatalogMetrics.NOOP);
 
         useCase.handle(new DeleteRuleCommand("to-delete"));
 
