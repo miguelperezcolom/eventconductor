@@ -1,1 +1,2 @@
 io.mateu.workflow.autoconfigure.RuleRuntimeAutoConfiguration
+io.mateu.workflow.autoconfigure.RuleRuntimeMetricsAutoConfiguration

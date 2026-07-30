@@ -1,7 +1,7 @@
 package io.mateu.workflow.infra.in.ui.adapters;
 
 import io.mateu.uidl.data.*;
-import io.mateu.uidl.interfaces.CrudRepository;
+import io.mateu.uidl.interfaces.CrudStore;
 import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.domain.aggregates.StepExecution;
@@ -74,8 +74,8 @@ public class StepExecutionsCrudAdapter {
         return new Status(statusType, toUpperCaseFirst(status.name()));
     }
 
-    public CrudRepository<StepExecutionRow> repository() {
-        return new CrudRepository<StepExecutionRow>() {
+    public CrudStore<StepExecutionRow> repository() {
+        return new CrudStore<StepExecutionRow>() {
             @Override
             public Optional<StepExecutionRow> findById(String id) {
                 return repository.findById(id).map(StepExecutionsCrudAdapter.this::map);

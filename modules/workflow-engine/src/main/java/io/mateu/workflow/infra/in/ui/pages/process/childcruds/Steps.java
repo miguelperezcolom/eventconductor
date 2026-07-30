@@ -3,7 +3,7 @@ package io.mateu.workflow.infra.in.ui.pages.process.childcruds;
 import io.mateu.core.infra.declarative.orchestrators.crud.AutoCrud;
 import io.mateu.uidl.annotations.ReadOnly;
 import io.mateu.uidl.annotations.Style;
-import io.mateu.uidl.interfaces.CrudRepository;
+import io.mateu.uidl.interfaces.CrudStore;
 import io.mateu.workflow.infra.in.ui.pages.process.childcruds.adapters.StepCrudAdapter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Scope;
@@ -30,7 +30,7 @@ public class Steps extends AutoCrud<Step> {
     final StepCrudAdapter adapter;
 
     @Override
-    public CrudRepository<Step> store() {
+    public CrudStore<Step> store() {
         return adapter.withProcessId(processId).repository();
     }
 }

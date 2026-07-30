@@ -1,6 +1,7 @@
 package io.mateu.workflow.application.usecases.createtask;
 
 import io.mateu.workflow.application.out.FormExecutionRepository;
+import io.mateu.workflow.application.out.FormsMetrics;
 import io.mateu.workflow.domain.FormExecution;
 import io.mateu.workflow.domain.FormExecutionStatus;
 import lombok.RequiredArgsConstructor;
@@ -14,6 +15,7 @@ import java.util.UUID;
 public class CreateTaskUseCase {
 
     final FormExecutionRepository formExecutionRepository;
+    final FormsMetrics formsMetrics;
 
     public void handle(CreateTaskCommand command) {
         formExecutionRepository.save(new FormExecution(
@@ -28,6 +30,7 @@ public class CreateTaskUseCase {
                 command.variables(),
                 List.of()
         ));
+        formsMetrics.taskCreated(command.formId());
     }
 
 }

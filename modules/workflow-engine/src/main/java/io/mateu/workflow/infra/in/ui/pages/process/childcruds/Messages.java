@@ -3,7 +3,7 @@ package io.mateu.workflow.infra.in.ui.pages.process.childcruds;
 import io.mateu.core.infra.declarative.orchestrators.crud.AutoCrud;
 import io.mateu.uidl.annotations.ReadOnly;
 import io.mateu.uidl.annotations.Style;
-import io.mateu.uidl.interfaces.CrudRepository;
+import io.mateu.uidl.interfaces.CrudStore;
 import io.mateu.workflow.infra.in.ui.pages.process.childcruds.adapters.MessageCrudAdapter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -28,7 +28,7 @@ public class Messages extends AutoCrud<Message> {
     final MessageCrudAdapter adapter;
 
     @Override
-    public CrudRepository<Message> store() {
+    public CrudStore<Message> store() {
         return adapter.withProcessId(processId).repository();
     }
 }

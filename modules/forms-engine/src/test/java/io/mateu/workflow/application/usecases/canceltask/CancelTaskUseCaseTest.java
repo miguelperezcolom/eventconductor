@@ -1,6 +1,7 @@
 package io.mateu.workflow.application.usecases.canceltask;
 
 import io.mateu.workflow.application.out.FormExecutionRepository;
+import io.mateu.workflow.application.out.FormsMetrics;
 import io.mateu.workflow.domain.FormExecution;
 import io.mateu.workflow.domain.FormExecutionStatus;
 import io.mateu.workflow.infra.out.persistence.FormExecutionEntity;
@@ -24,6 +25,7 @@ class CancelTaskUseCaseTest {
 
     @Mock FormExecutionRepository formExecutionRepository;
     @Mock FormExecutionEntityRepository formExecutionEntityRepository;
+    @Mock FormsMetrics formsMetrics;
 
     @InjectMocks CancelTaskUseCase useCase;
 

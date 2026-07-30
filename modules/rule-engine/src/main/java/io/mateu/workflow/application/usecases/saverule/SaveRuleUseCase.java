@@ -1,6 +1,7 @@
 package io.mateu.workflow.application.usecases.saverule;
 
 import io.mateu.workflow.application.out.RuleCatalogEventPublisher;
+import io.mateu.workflow.application.out.RuleCatalogMetrics;
 import io.mateu.workflow.application.out.RuleRepository;
 import io.mateu.workflow.application.services.RuleValidator;
 import io.mateu.workflow.domain.Rule;
@@ -18,6 +19,7 @@ public class SaveRuleUseCase {
     private final RuleRepository ruleRepository;
     private final RuleValidator ruleValidator;
     private final RuleCatalogEventPublisher ruleCatalogEventPublisher;
+    private final RuleCatalogMetrics ruleCatalogMetrics;
 
     public String handle(SaveRuleCommand command) {
         var rule = command.rule();
@@ -27,6 +29,7 @@ public class SaveRuleUseCase {
         ruleValidator.validate(rule);
         var id = ruleRepository.save(rule);
         ruleCatalogEventPublisher.published(rule);
+        ruleCatalogMetrics.ruleSaved(id);
         log.info("Rule '{}' saved and published", id);
         return id;
     }

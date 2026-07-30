@@ -1,5 +1,6 @@
 package io.mateu.workflow.autoconfigure;
 
+import io.mateu.workflow.application.out.RuleCatalogMetrics;
 import io.mateu.workflow.application.out.RuleRepository;
 import io.mateu.workflow.application.out.RuleSource;
 import io.mateu.workflow.infra.out.local.LocalRuleSource;
@@ -22,5 +23,13 @@ public class RulesEngineAutoConfiguration {
     @ConditionalOnBean(RuleRepository.class)
     public RuleSource localRuleSource(RuleRepository ruleRepository) {
         return new LocalRuleSource(ruleRepository);
+    }
+
+    // Fallback when Micrometer is absent or no MeterRegistry bean exists —
+    // RuleCatalogMetricsAutoConfiguration runs before this and wins when active.
+    @Bean
+    @ConditionalOnMissingBean(RuleCatalogMetrics.class)
+    RuleCatalogMetrics ruleCatalogMetrics() {
+        return RuleCatalogMetrics.NOOP;
     }
 }

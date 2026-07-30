@@ -3,7 +3,7 @@ package io.mateu.workflow.infra.in.ui.pages.process.childcruds;
 import io.mateu.core.infra.declarative.orchestrators.crud.AutoCrud;
 import io.mateu.uidl.annotations.ReadOnly;
 import io.mateu.uidl.annotations.Style;
-import io.mateu.uidl.interfaces.CrudRepository;
+import io.mateu.uidl.interfaces.CrudStore;
 import io.mateu.workflow.infra.in.ui.pages.process.childcruds.adapters.ErrorCrudAdapter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Scope;
@@ -30,7 +30,7 @@ public class Errors extends AutoCrud<Error> {
     final ErrorCrudAdapter adapter;
 
     @Override
-    public CrudRepository<Error> store() {
+    public CrudStore<Error> store() {
         return adapter.withProcessId(processId).repository();
     }
 }

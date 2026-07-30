@@ -15,6 +15,15 @@ management:
   metrics:
     tags:
       application: ${spring.application.name:orchestrator}
+  # Distributed tracing (OpenTelemetry over OTLP). Disabled by default (sampling 0.0) so there is
+  # no overhead until you opt in: set TRACING_SAMPLING=1.0 (or any value in (0,1]) and point
+  # OTLP_TRACING_ENDPOINT at your collector (Tempo/Jaeger/OTel Collector, default the OTLP HTTP port).
+  tracing:
+    sampling:
+      probability: ${TRACING_SAMPLING:0.0}
+  otlp:
+    tracing:
+      endpoint: ${OTLP_TRACING_ENDPOINT:http://localhost:4318/v1/traces}
 
 eventconductor:
   security:

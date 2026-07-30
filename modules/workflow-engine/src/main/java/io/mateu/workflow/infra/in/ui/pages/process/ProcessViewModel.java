@@ -8,7 +8,6 @@ import io.mateu.uidl.fluent.OnLoadTrigger;
 import io.mateu.uidl.fluent.OnSuccessTrigger;
 import io.mateu.uidl.fluent.Trigger;
 import io.mateu.uidl.fluent.TriggersSupplier;
-import io.mateu.uidl.interfaces.CrudEditorForm;
 import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.uidl.interfaces.Named;
 import io.mateu.workflow.infra.in.ui.pages.process.childcruds.Errors;

@@ -1,6 +1,7 @@
 package io.mateu.workflow.application.usecases.completetask;
 
 import io.mateu.workflow.application.out.FormExecutionRepository;
+import io.mateu.workflow.application.out.FormsMetrics;
 import io.mateu.workflow.domain.FormExecution;
 import io.mateu.workflow.domain.FormExecutionStatus;
 import io.mateu.workflow.domain.Value;
@@ -26,6 +27,7 @@ class CompleteTaskUseCaseTest {
 
     @Mock FormExecutionRepository formExecutionRepository;
     @Mock StreamBridge streamBridge;
+    @Mock FormsMetrics formsMetrics;
 
     @InjectMocks CompleteTaskUseCase useCase;
 

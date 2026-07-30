@@ -2,6 +2,7 @@ package io.mateu.workflow.application.usecases.gitimport;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
+import io.mateu.workflow.application.out.RuleCatalogMetrics;
 import io.mateu.workflow.application.usecases.saverule.SaveRuleCommand;
 import io.mateu.workflow.application.usecases.saverule.SaveRuleUseCase;
 import io.mateu.workflow.domain.Rule;
@@ -30,6 +31,7 @@ public class ImportRulesFromGitUseCase {
 
     final RuleGitImportProperties gitImportProperties;
     final SaveRuleUseCase saveRuleUseCase;
+    final RuleCatalogMetrics ruleCatalogMetrics;
     // Own mapper: headless embedders may not expose an ObjectMapper bean.
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final YAMLMapper YAML_MAPPER = new YAMLMapper();
@@ -47,6 +49,7 @@ public class ImportRulesFromGitUseCase {
             }
         }
 
+        ruleCatalogMetrics.rulesImported(imported.size());
         return new ImportRulesResult(imported, errors);
     }
 

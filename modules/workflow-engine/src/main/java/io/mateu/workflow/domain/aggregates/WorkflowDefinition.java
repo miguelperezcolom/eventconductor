@@ -10,7 +10,7 @@ import io.mateu.uidl.di.MateuBeanProvider;
 import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.uidl.interfaces.Identifiable;
 import io.mateu.uidl.interfaces.LookupOptionsSupplier;
-import io.mateu.uidl.interfaces.Searchable;
+import io.mateu.uidl.interfaces.SearchableText;
 import io.mateu.uidl.interfaces.VisibilitySupplier;
 import io.mateu.workflow.application.usecases.lifecycle.ArchiveWorkflowDefinitionUseCase;
 import io.mateu.workflow.application.usecases.lifecycle.DisableWorkflowDefinitionUseCase;
@@ -64,7 +64,7 @@ public record WorkflowDefinition(
         @Colspan(5)
         @DetailFormCustomisation(position = FormPosition.modalRight, style = "display: block; min-width: 70rem;")
         List<Step> steps
-) implements Identifiable, Searchable, LookupOptionsSupplier, VisibilitySupplier {
+) implements Identifiable, SearchableText, LookupOptionsSupplier, VisibilitySupplier {
 
     /** New definitions (status not set in the editor) start their lifecycle as DRAFT. */
     public WorkflowDefinition {

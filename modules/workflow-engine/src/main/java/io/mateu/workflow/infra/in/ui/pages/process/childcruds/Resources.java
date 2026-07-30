@@ -3,7 +3,7 @@ package io.mateu.workflow.infra.in.ui.pages.process.childcruds;
 import io.mateu.core.infra.declarative.orchestrators.crud.AutoCrud;
 import io.mateu.uidl.annotations.ReadOnly;
 import io.mateu.uidl.annotations.Style;
-import io.mateu.uidl.interfaces.CrudRepository;
+import io.mateu.uidl.interfaces.CrudStore;
 import io.mateu.workflow.infra.in.ui.pages.process.childcruds.adapters.ResourceCrudAdapter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -28,7 +28,7 @@ public class Resources extends AutoCrud<Resource> {
     final ResourceCrudAdapter adapter;
 
     @Override
-    public CrudRepository<Resource> store() {
+    public CrudStore<Resource> store() {
         return adapter.repository();
     }
 }
