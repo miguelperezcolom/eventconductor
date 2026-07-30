@@ -1,11 +1,48 @@
 {
   "id": "parallel",
-  "name": "Parallel fan-out",
+  "name": "Parallel fan-out (fork/join)",
   "version": 1,
   "status": "ACTIVE",
   "steps": [
-    { "id": "a", "type": "ACTION", "name": "A", "topic": "work", "parallel": true },
-    { "id": "b", "type": "ACTION", "name": "B", "topic": "work", "parallel": true },
-    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "a" }
+    {
+      "id": "start",
+      "type": "START",
+      "name": "Start"
+    },
+    {
+      "id": "fork",
+      "type": "FORK",
+      "name": "Fork",
+      "preconditionStepId": "start"
+    },
+    {
+      "id": "a",
+      "type": "ACTION",
+      "name": "A",
+      "topic": "work",
+      "preconditionStepId": "fork"
+    },
+    {
+      "id": "b",
+      "type": "ACTION",
+      "name": "B",
+      "topic": "work",
+      "preconditionStepId": "fork"
+    },
+    {
+      "id": "join",
+      "type": "JOIN",
+      "name": "Join",
+      "preconditionStepIds": [
+        "a",
+        "b"
+      ]
+    },
+    {
+      "id": "end",
+      "type": "END",
+      "name": "End",
+      "preconditionStepId": "join"
+    }
   ]
 }

@@ -54,12 +54,28 @@ public class Process extends AggregateRoot implements Identifiable {
     private LocalDateTime started;
     @ReadOnly
     private LocalDateTime finished;
+    /**
+     * Set when this process was started by a PROCESS step of a parent process: the id of that
+     * parent step execution, notified when this process reaches a terminal status. Null for
+     * top-level processes.
+     */
+    @Hidden
+    private String parentStepExecutionId;
 
     public static Process create(
             String processId,
             WorkflowDefinition workflowDefinition,
             String businessKey,
             List<Variable> variables) {
+        return create(processId, workflowDefinition, businessKey, variables, null);
+    }
+
+    public static Process create(
+            String processId,
+            WorkflowDefinition workflowDefinition,
+            String businessKey,
+            List<Variable> variables,
+            String parentStepExecutionId) {
         var process = Process.builder()
                 .id(processId)
                 .name(workflowDefinition.name())
@@ -70,6 +86,7 @@ public class Process extends AggregateRoot implements Identifiable {
                 .variables(variables)
                 .status(ProcessStatus.PENDING)
                 .created(LocalDateTime.now())
+                .parentStepExecutionId(parentStepExecutionId)
                 .build();
         process.send(new ProcessCreated(processId, variables.stream()
                 .map(variable -> new io.mateu.workflow.dtos.Variable(variable.name(), variable.value()))

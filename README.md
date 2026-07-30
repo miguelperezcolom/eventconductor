@@ -35,15 +35,17 @@ complete.
 ### A DSL designed for business workflows, not diagrams
 BPMN was designed to be drawn, not written. EventConductor's JSON workflow DSL was designed
 to be owned by developers: human-readable, version-controlled, reviewable in a PR, and
-expressive enough to model retries, timeouts, compensation (saga), parallel execution,
-sub-processes, conditional branching (JEXL expressions), and human tasks — all in a single
-flat file.
+expressive enough to model retries, timeouts, compensation (saga), parallel execution
+(steps run as a pure dataflow over the precondition graph, with `FORK`/`JOIN` fan-out and
+barriers), child workflows (`PROCESS` steps), conditional branching (JEXL expressions), and
+human tasks — all in a single flat file.
 
 ### Validated at build time, not at runtime
 Because definitions are data owned by developers, the `workflow-maven-plugin` validates your
 workflow, form and rule files (JSON/YAML) against the engine's own specifications **during
-the build** — duplicate/dangling step references, cron validity, JEXL parseability,
-decision-table arity and full JSON-schema conformance — so a bad definition fails the PR
+the build** — duplicate/dangling step references, the entry-point (roots) rule,
+precondition-cycle detection, cron validity, JEXL parseability, decision-table arity and full
+JSON-schema conformance — so a bad definition fails the PR
 instead of the running engine. See [Build-time validation](#build-time-validation-maven-plugin).
 
 ### Built-in forms engine
@@ -462,10 +464,15 @@ version: 1
 description: Optional description
 status: ACTIVE
 steps:
+  - id: start
+    type: START
+    name: Start
+
   - id: step-1
     type: ACTION
     name: Do something
     topic: my-worker-topic
+    preconditionStepId: start
     timeout: PT30S
     retries: 2
     rollbackable: true
@@ -481,7 +488,14 @@ steps:
     type: ACTION
     name: Undo step 1
     topic: my-worker-topic
+    preconditionStepId: step-1
+    preconditionExpression: 'false'
 ```
+
+Every flow enters through a `START` (or a `WAIT_FOR_MESSAGE`) step — a step with no
+preconditions of any other type is rejected at load. Compensation steps are anchored to the
+step they compensate and guarded with `preconditionExpression: 'false'`, so only the
+compensation pipeline (which ignores the guard) ever starts them.
 
 **JSON** (with IDE schema support via `$schema`):
 
@@ -498,10 +512,16 @@ steps:
   "enqueueOnLimit": false,
   "steps": [
     {
+      "id": "start",
+      "type": "START",
+      "name": "Start"
+    },
+    {
       "id": "step-1",
       "type": "ACTION",
       "name": "Do something",
       "topic": "my-worker-topic",
+      "preconditionStepId": "start",
       "timeout": 30000,
       "retries": 2,
       "rollbackable": true,
@@ -518,7 +538,9 @@ steps:
       "id": "step-compensate",
       "type": "ACTION",
       "name": "Undo step 1",
-      "topic": "my-worker-topic"
+      "topic": "my-worker-topic",
+      "preconditionStepId": "step-1",
+      "preconditionExpression": "false"
     }
   ]
 }
@@ -528,16 +550,22 @@ steps:
 
 | Type | Description | Required fields |
 |---|---|---|
+| `START` | Entry point; completes instantly at process creation (no worker). Must have no preconditions; several STARTs = concurrent entry branches | — |
 | `ACTION` | Dispatches a task to a worker | `topic` |
 | `USER_TASK` | Pauses the workflow for a human form submission | `formId` |
 | `RULE` | Evaluates a business rule; outputs merge into process variables | `ruleId` |
-| `PROCESS` | Starts a child workflow as a sub-process | `childWorkflowDefinitionId` |
+| `PROCESS` | Starts a child workflow as a sub-process; the parent step waits for the child and copies back the variables named in `outputVariables` | `childWorkflowDefinitionId` |
 | `TIMER` | Durably pauses the process for a duration or until a date-time | `duration` or `untilVariable` |
 | `WAIT_FOR_MESSAGE` | Waits for a message with a matching correlation key (previously named `MESSAGE`) | `messageName`, `correlationExpression` |
 | `SEND_MESSAGE` | Emits a message (fire-and-forget) and completes immediately — resumes processes waiting on it | `messageName`, `correlationExpression` |
-| `JOIN` | Waits for all parallel branches to complete | — |
-| `FORK` | Starts parallel branches | — |
+| `FORK` | Fans out: completes instantly, starting all its successors concurrently (explicit fan-out marker) | — |
+| `JOIN` | Barrier: waits until **all** the steps in its `preconditionStepIds` have completed, then completes instantly | `preconditionStepIds` |
 | `END` | Marks the workflow as complete | — |
+
+Steps run as a **pure dataflow**: a step starts as soon as all its preconditions have
+completed (and its JEXL guard holds), concurrently with every other eligible step — array
+order is irrelevant. Every step with no preconditions must be a `START` or a
+`WAIT_FOR_MESSAGE`; definitions violating this are rejected at load.
 
 ### Step fields
 
@@ -547,13 +575,15 @@ steps:
 | `type` | enum | — | See step types above |
 | `name` | string | — | Human-readable name |
 | `description` | string | — | Optional description |
-| `preconditionStepId` | string | — | Step that must complete before this one starts |
+| `preconditionStepId` | string | — | Single step that must complete before this one starts |
+| `preconditionStepIds` | string[] | — | Steps that must **all** complete before this one starts; takes precedence over the singular form when non-empty |
 | `preconditionExpression` | string | — | JEXL expression over process variables; step is skipped if `false` |
-| `parallel` | boolean | `false` | Allows concurrent execution with other parallel steps |
+| `parallel` | boolean | `false` | **Deprecated and ignored** — every eligible step runs concurrently; kept only for deserialization of old files |
 | `topic` | string | — | Worker topic/destination (ACTION only) |
 | `formId` | string | — | Form identifier (USER_TASK only) |
 | `ruleId` | string | — | Rule identifier (RULE only) |
-| `childWorkflowDefinitionId` | string | — | Child workflow ID (PROCESS only) |
+| `childWorkflowDefinitionId` | string | — | Child workflow ID (PROCESS only; must differ from the workflow's own id) |
+| `outputVariables` | string[] | — | Child variables copied back into the parent when the child completes; empty/absent = none (PROCESS only) |
 | `duration` | ISO 8601 duration or integer (ms) | — | How long to wait, counted from step start (TIMER only), e.g. `PT72H` |
 | `untilVariable` | string | — | Process variable holding an ISO 8601 date/date-time to wait until; takes precedence over `duration` (TIMER only) |
 | `messageName` | string | — | Name of the message this step waits for or emits (WAIT_FOR_MESSAGE / SEND_MESSAGE, required for both) |
@@ -592,7 +622,9 @@ The `workflow-maven-plugin` validates your workflow, form and rule definitions a
 engine's published specifications at build time, failing the build on any violation — so
 mistakes are caught in the PR instead of at runtime when the engine loads them. It bundles
 the *same* JSON schemas the engine ships (so it can never drift) and adds the semantic checks
-a schema cannot express: duplicate/dangling/self-referencing step ids, cron validity and
+a schema cannot express: duplicate/dangling/self-referencing step ids, the entry-point rule
+(every step without preconditions must be a `START` or `WAIT_FOR_MESSAGE`), precondition-cycle
+detection over the multi-edge graph, the `PROCESS` child-workflow id, cron validity and
 JEXL parseability of preconditions for workflows; decision-table row arity and JEXL
 parseability for rules.
 
@@ -862,9 +894,14 @@ name: Hello World
 version: 1
 status: ACTIVE
 steps:
+  - id: start
+    type: START
+    name: Start
+
   - id: greet
     type: ACTION
     name: Greet the user
+    preconditionStepId: start
 
   - id: end
     type: END

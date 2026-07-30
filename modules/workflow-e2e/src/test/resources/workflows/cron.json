@@ -5,7 +5,23 @@
   "status": "ACTIVE",
   "cronExpression": "* * * * * *",
   "steps": [
-    { "id": "tick", "type": "ACTION", "name": "Tick", "topic": "work" },
-    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "tick" }
+    {
+      "id": "start",
+      "type": "START",
+      "name": "Start"
+    },
+    {
+      "id": "tick",
+      "type": "ACTION",
+      "name": "Tick",
+      "topic": "work",
+      "preconditionStepId": "start"
+    },
+    {
+      "id": "end",
+      "type": "END",
+      "name": "End",
+      "preconditionStepId": "tick"
+    }
   ]
 }

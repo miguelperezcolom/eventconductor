@@ -7,6 +7,7 @@ import io.mateu.workflow.dtos.MessageType;
 import io.mateu.workflow.domain.services.MessageCorrelation;
 import io.mateu.workflow.dtos.events.domain.StepExecutionStatusChanged;
 import io.mateu.workflow.dtos.events.integration.MessageReceived;
+import io.mateu.workflow.dtos.events.integration.ProcessCreationRequested;
 import io.mateu.workflow.dtos.events.integration.TaskExecutionRequested;
 import io.mateu.workflow.dtos.events.integration.TaskLogEmitted;
 import io.mateu.workflow.dtos.events.integration.TaskStatus;
@@ -75,7 +76,16 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
         this.variables = variables;
         this.startedAt = LocalDateTime.now();
         var step = pojoFromJson(stepJson, Step.class);
-        if (StepType.USER_TASK.equals(step.type())) {
+        if (StepType.START.equals(step.type()) || StepType.FORK.equals(step.type())
+                || StepType.JOIN.equals(step.type())) {
+            // Pure control-flow nodes involve no worker: START marks the entry point, FORK's
+            // fan-out and JOIN's barrier are entirely the orchestrator's eligibility rules
+            // (preconditions), so the node itself just completes instantly when started.
+            send(new TaskLogEmitted(id, MessageType.Info,
+                    step.type() + " step " + step.name() + " passed through."));
+            updateStatus(StepExecutionStatus.COMPLETED);
+            return this;
+        } else if (StepType.USER_TASK.equals(step.type())) {
             if (step.formId() == null || step.formId().isEmpty()) {
                 send(new TaskLogEmitted(id, MessageType.Error, "Step " + step.name() + " has no form id defined."));
                 // updateStatus (not a bare assignment) so StepExecutionStatusChanged is
@@ -155,6 +165,27 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
                 updateStatus(StepExecutionStatus.ERROR);
                 return this;
             }
+        } else if (StepType.PROCESS.equals(step.type())) {
+            if (step.childWorkflowDefinitionId() == null || step.childWorkflowDefinitionId().isBlank()) {
+                send(new TaskLogEmitted(id, MessageType.Error,
+                        "Step " + step.name() + " has no child workflow definition id defined."));
+                // updateStatus (not a bare assignment) so the normal failure pipeline
+                // engages instead of freezing the process — same as USER_TASK above.
+                updateStatus(StepExecutionStatus.ERROR);
+                return this;
+            }
+            // A child workflow involves no worker: the step stays PENDING and
+            // NotifyParentStepService completes it when the child process reaches a terminal
+            // status. The deterministic businessKey "parent:<stepExecutionId>" makes
+            // redeliveries idempotent (CreateProcessUseCase dedupes by businessKey).
+            send(new ProcessCreationRequested(step.childWorkflowDefinitionId(), "parent:" + id,
+                    variables.stream()
+                            .map(variable -> new io.mateu.workflow.dtos.Variable(variable.name(), variable.value()))
+                            .toList(),
+                    id));
+            send(new TaskLogEmitted(id, MessageType.Info,
+                    "Started child process of workflow '" + step.childWorkflowDefinitionId()
+                            + "' for step " + step.name() + "."));
         } else if (StepType.RULE.equals(step.type())) {
             if (step.ruleId() == null || step.ruleId().isEmpty()) {
                 send(new TaskLogEmitted(id, MessageType.Error, "Step " + step.name() + " has no rule id defined."));

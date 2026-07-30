@@ -4,7 +4,23 @@
   "version": 1,
   "status": "ACTIVE",
   "steps": [
-    { "id": "broken", "type": "USER_TASK", "name": "Broken", "retries": 0 },
-    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "broken" }
+    {
+      "id": "start",
+      "type": "START",
+      "name": "Start"
+    },
+    {
+      "id": "broken",
+      "type": "USER_TASK",
+      "name": "Broken",
+      "retries": 0,
+      "preconditionStepId": "start"
+    },
+    {
+      "id": "end",
+      "type": "END",
+      "name": "End",
+      "preconditionStepId": "broken"
+    }
   ]
 }

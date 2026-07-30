@@ -5,6 +5,7 @@ import io.mateu.workflow.application.out.ProcessLockService;
 import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.out.WorkflowMetrics;
+import io.mateu.workflow.application.usecases.process.parentnotify.NotifyParentStepService;
 import io.mateu.workflow.domain.aggregates.*;
 import io.mateu.workflow.domain.aggregates.Process;
 import io.mateu.workflow.domain.services.WorkflowOrchestrationService;
@@ -31,6 +32,7 @@ class StepOverProcessUseCaseTest {
     @Mock StepExecutionRepository      stepExecutionRepository;
     @Mock ProcessLockService           lockService;
     @Mock WorkflowMetrics              workflowMetrics;
+    @Mock NotifyParentStepService      notifyParentStepService;
     @Spy  WorkflowOrchestrationService workflowOrchestrationService = new WorkflowOrchestrationService();
 
     @InjectMocks StepOverProcessUseCase useCase;
@@ -46,7 +48,7 @@ class StepOverProcessUseCaseTest {
     }
 
     private StepExecution se(String id, String stepId, StepType type, StepExecutionStatus status, int order) {
-        Step step = new Step(stepId, "wd-1", type, stepId, null, null, null, false, "topic", "form-1", null, null, 0, null, null, null, null, 0, 0, false, null, 0);
+        Step step = new Step(stepId, "wd-1", type, stepId, null, null, null, null, false, "topic", "form-1", null, null, null, 0, null, null, null, null, 0, 0, false, null, 0);
         return StepExecution.builder()
                 .id(id).processId("p-1").workflowDefinitionId("wd-1")
                 .stepId(stepId).stepJson(JsonSerializer.toJson(step))
@@ -87,13 +89,36 @@ class StepOverProcessUseCaseTest {
     }
 
     @Test
-    void pendingStepBlocksFurtherSteps() {
+    void pendingStepDoesNotBlockAnIndependentStep() {
+        // Pure dataflow: an in-flight step only gates its own successors. A CREATED step
+        // whose preconditions are met starts even while an unrelated step is PENDING.
         var process = process("p-1");
         var pending = se("se-1", "step-1", StepType.ACTION, StepExecutionStatus.PENDING, 0);
         var created = se("se-2", "step-2", StepType.ACTION, StepExecutionStatus.CREATED, 1);
 
         when(processRepository.findById("p-1")).thenReturn(Optional.of(process));
         when(stepExecutionRepository.findByProcess(process)).thenReturn(List.of(pending, created));
+
+        useCase.handle(new StepOverProcessCommand("p-1"));
+
+        ArgumentCaptor<StepExecution> captor = ArgumentCaptor.forClass(StepExecution.class);
+        verify(stepExecutionRepository).save(captor.capture());
+        assertThat(captor.getValue().getStepId()).isEqualTo("step-2");
+        assertThat(captor.getValue().getStatus()).isEqualTo(StepExecutionStatus.PENDING);
+    }
+
+    @Test
+    void pendingStepBlocksItsOwnSuccessor() {
+        var process = process("p-1");
+        var pending = se("se-1", "step-1", StepType.ACTION, StepExecutionStatus.PENDING, 0);
+        Step successorStep = new Step("step-2", "wd-1", StepType.ACTION, "step-2", null, "step-1", null, null, false, "topic", null, null, null, null, 0, null, null, null, null, 0, 0, false, null, 0);
+        var successor = StepExecution.builder()
+                .id("se-2").processId("p-1").workflowDefinitionId("wd-1")
+                .stepId("step-2").stepJson(JsonSerializer.toJson(successorStep))
+                .status(StepExecutionStatus.CREATED).order(1).variables(List.of()).build();
+
+        when(processRepository.findById("p-1")).thenReturn(Optional.of(process));
+        when(stepExecutionRepository.findByProcess(process)).thenReturn(List.of(pending, successor));
 
         useCase.handle(new StepOverProcessCommand("p-1"));
 
@@ -153,8 +178,8 @@ class StepOverProcessUseCaseTest {
     @Test
     void parallelStepsAreAllStarted() {
         var process = process("p-1");
-        Step step1 = new Step("s1", "wd-1", StepType.ACTION, "s1", null, null, null, true, "topic", null, null, null, 0, null, null, null, null, 0, 0, false, null, 0);
-        Step step2 = new Step("s2", "wd-1", StepType.ACTION, "s2", null, null, null, true, "topic", null, null, null, 0, null, null, null, null, 0, 0, false, null, 0);
+        Step step1 = new Step("s1", "wd-1", StepType.ACTION, "s1", null, null, null, null, true, "topic", null, null, null, null, 0, null, null, null, null, 0, 0, false, null, 0);
+        Step step2 = new Step("s2", "wd-1", StepType.ACTION, "s2", null, null, null, null, true, "topic", null, null, null, null, 0, null, null, null, null, 0, 0, false, null, 0);
         var se1 = StepExecution.builder().id("se-1").processId("p-1").workflowDefinitionId("wd-1")
                 .stepId("s1").stepJson(JsonSerializer.toJson(step1))
                 .status(StepExecutionStatus.CREATED).order(0).variables(List.of()).build();
@@ -173,8 +198,8 @@ class StepOverProcessUseCaseTest {
     @Test
     void stepWithUnmetPreconditionStepIdIsNotStarted() {
         var process = process("p-1");
-        Step prerequisite = new Step("prereq", "wd-1", StepType.ACTION, "prereq", null, null, null, false, "topic", null, null, null, 0, null, null, null, null, 0, 0, false, null, 0);
-        Step dependent = new Step("dep", "wd-1", StepType.ACTION, "dep", null, "prereq", null, false, "topic", null, null, null, 0, null, null, null, null, 0, 0, false, null, 0);
+        Step prerequisite = new Step("prereq", "wd-1", StepType.ACTION, "prereq", null, null, null, null, false, "topic", null, null, null, null, 0, null, null, null, null, 0, 0, false, null, 0);
+        Step dependent = new Step("dep", "wd-1", StepType.ACTION, "dep", null, "prereq", null, null, false, "topic", null, null, null, null, 0, null, null, null, null, 0, 0, false, null, 0);
         var sePrereq = StepExecution.builder().id("se-prereq").processId("p-1").workflowDefinitionId("wd-1")
                 .stepId("prereq").stepJson(JsonSerializer.toJson(prerequisite))
                 .status(StepExecutionStatus.CREATED).order(0).variables(List.of()).build();

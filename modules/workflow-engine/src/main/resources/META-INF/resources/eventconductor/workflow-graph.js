@@ -606,6 +606,7 @@ var qDe = Object.defineProperty, HDe = Object.getOwnPropertyDescriptor, q2 = (Tn
   return Mn && Pn && qDe(X, ln, Pn), Pn;
 };
 const GO = 160, rg = 56, _5 = 60, UDe = {
+  START: "#22C55E",
   ACTION: "#3B82F6",
   JOIN: "#8B5CF6",
   FORK: "#F59E0B",
@@ -613,17 +614,23 @@ const GO = 160, rg = 56, _5 = 60, UDe = {
   USER_TASK: "#10B981",
   PROCESS: "#6366F1"
 }, zDe = {
+  START: "●",
   ACTION: "▶",
   JOIN: "⟨",
   FORK: "⟩",
   END: "◼",
   USER_TASK: "👤",
   PROCESS: "⚙"
-}, KDe = ["ACTION", "JOIN", "FORK", "END", "USER_TASK", "PROCESS"];
+}, KDe = ["START", "ACTION", "JOIN", "FORK", "END", "USER_TASK", "PROCESS"];
 let L0n;
 const XDe = () => (L0n || (L0n = Promise.resolve().then(() => ZDe).then((Tn) => new Tn.default())), L0n);
 function WDe() {
   return "step-" + Math.random().toString(36).slice(2, 8);
+}
+// Effective precondition ids of a step: the plural preconditionStepIds when non-empty,
+// else the singular preconditionStepId, else none (mirrors Step.preconditions() in the engine).
+function ecPreconditions(Tn) {
+  return Array.isArray(Tn?.preconditionStepIds) && Tn.preconditionStepIds.length ? Tn.preconditionStepIds : Tn?.preconditionStepId ? [Tn.preconditionStepId] : [];
 }
 let ub = class extends HO {
   constructor() {
@@ -647,7 +654,7 @@ let ub = class extends HO {
       try {
         const X = JSON.parse(this.value), ln = new Set((this.wf.steps ?? []).map((we) => we.id)), Mn = new Set((X.steps ?? []).map((we) => we.id)), Pn = ln.size !== Mn.size || [...Mn].some((we) => !ln.has(we)) || [...Mn].some((we) => {
           const y = (this.wf.steps ?? []).find((gi) => gi.id === we), Mi = (X.steps ?? []).find((gi) => gi.id === we);
-          return y?.preconditionStepId !== Mi?.preconditionStepId;
+          return ecPreconditions(y).join("|") !== ecPreconditions(Mi).join("|");
         });
         this.wf = X, (Pn || !this.layoutReady) && this.runElkLayout();
       } catch {
@@ -675,11 +682,11 @@ let ub = class extends HO {
         width: GO,
         height: rg
       })),
-      edges: Tn.filter((ln) => ln.preconditionStepId).map((ln) => ({
-        id: `${ln.preconditionStepId}->${ln.id}`,
-        sources: [ln.preconditionStepId],
+      edges: Tn.flatMap((ln) => ecPreconditions(ln).map((pid) => ({
+        id: `${pid}->${ln.id}`,
+        sources: [pid],
         targets: [ln.id]
-      }))
+      })))
     };
     try {
       const Mn = await (await XDe()).layout(X), Pn = { ...this.positions };
@@ -702,7 +709,7 @@ let ub = class extends HO {
     this.wf = { ...this.wf, ...Tn }, this.emit();
   }
   updateStep(Tn, X) {
-    const ln = this.wf.steps.map((we) => we.id === Tn ? { ...we, ...X } : we), Mn = this.wf.steps.find((we) => we.id === Tn), Pn = X.preconditionStepId !== void 0 && X.preconditionStepId !== Mn?.preconditionStepId;
+    const ln = this.wf.steps.map((we) => we.id === Tn ? { ...we, ...X } : we), Mn = this.wf.steps.find((we) => we.id === Tn), Pn = (X.preconditionStepId !== void 0 && X.preconditionStepId !== Mn?.preconditionStepId) || (X.preconditionStepIds !== void 0 && ecPreconditions(X).join("|") !== ecPreconditions(Mn).join("|"));
     this.wf = { ...this.wf, steps: ln }, Pn && (this.elkPositioned.clear(), this.runElkLayout()), this.emit();
   }
   addStep() {
@@ -717,7 +724,15 @@ let ub = class extends HO {
   deleteStep(Tn) {
     this.wf = {
       ...this.wf,
-      steps: this.wf.steps.filter((Mn) => Mn.id !== Tn).map((Mn) => Mn.preconditionStepId === Tn ? { ...Mn, preconditionStepId: void 0 } : Mn)
+      steps: this.wf.steps.filter((Mn) => Mn.id !== Tn).map((Mn) => {
+        let Pn = Mn;
+        if (Pn.preconditionStepId === Tn) Pn = { ...Pn, preconditionStepId: void 0 };
+        if (Array.isArray(Pn.preconditionStepIds) && Pn.preconditionStepIds.includes(Tn)) {
+          const we = Pn.preconditionStepIds.filter((y) => y !== Tn);
+          Pn = { ...Pn, preconditionStepIds: we.length ? we : void 0 };
+        }
+        return Pn;
+      })
     };
     const { [Tn]: X, ...ln } = this.positions;
     this.positions = ln, this.elkPositioned.delete(Tn), this.selectedId === Tn && (this.selectedId = null), this.runElkLayout(), this.emit();
@@ -847,15 +862,16 @@ let ub = class extends HO {
         `;
   }
   renderArrow(Tn) {
-    if (!Tn.preconditionStepId) return cg``;
-    const X = this.positions[Tn.preconditionStepId], ln = this.positions[Tn.id];
-    if (!X || !ln) return cg``;
-    const Mn = X.x + GO, Pn = X.y + rg / 2, we = ln.x, y = ln.y + rg / 2, Mi = (Mn + we) / 2;
-    return cg`
+    return ecPreconditions(Tn).map((gi) => {
+      const X = this.positions[gi], ln = this.positions[Tn.id];
+      if (!X || !ln) return cg``;
+      const Mn = X.x + GO, Pn = X.y + rg / 2, we = ln.x, y = ln.y + rg / 2, Mi = (Mn + we) / 2;
+      return cg`
             <path d="M${Mn},${Pn} C${Mi},${Pn} ${Mi},${y} ${we},${y}"
                   fill="none" stroke="#94a3b8" stroke-width="2"
                   marker-end="url(#arrow)"/>
         `;
+    });
   }
   renderNode(Tn) {
     const X = this.positions[Tn.id] ?? { x: _5, y: _5 }, ln = UDe[Tn.type] ?? "#64748b", Mn = zDe[Tn.type] ?? "•", Pn = this.selectedId === Tn.id, we = Tn.name.length > 16 ? Tn.name.slice(0, 15) + "…" : Tn.name;

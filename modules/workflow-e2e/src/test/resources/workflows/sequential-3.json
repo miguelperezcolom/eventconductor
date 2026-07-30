@@ -4,9 +4,37 @@
   "version": 1,
   "status": "ACTIVE",
   "steps": [
-    { "id": "s1", "type": "ACTION", "name": "Step 1", "topic": "work" },
-    { "id": "s2", "type": "ACTION", "name": "Step 2", "topic": "work", "preconditionStepId": "s1" },
-    { "id": "s3", "type": "ACTION", "name": "Step 3", "topic": "work", "preconditionStepId": "s2" },
-    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "s3" }
+    {
+      "id": "start",
+      "type": "START",
+      "name": "Start"
+    },
+    {
+      "id": "s1",
+      "type": "ACTION",
+      "name": "Step 1",
+      "topic": "work",
+      "preconditionStepId": "start"
+    },
+    {
+      "id": "s2",
+      "type": "ACTION",
+      "name": "Step 2",
+      "topic": "work",
+      "preconditionStepId": "s1"
+    },
+    {
+      "id": "s3",
+      "type": "ACTION",
+      "name": "Step 3",
+      "topic": "work",
+      "preconditionStepId": "s2"
+    },
+    {
+      "id": "end",
+      "type": "END",
+      "name": "End",
+      "preconditionStepId": "s3"
+    }
   ]
 }

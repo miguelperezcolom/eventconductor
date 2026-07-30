@@ -59,10 +59,14 @@ Workflow definitions can evaluate a rule as a step, mirroring how `USER_TASK` us
 
 ```yaml
 steps:
+  - id: start
+    type: START
+    name: Start
   - id: apply-discount
     type: RULE
     name: Apply the discount rule
     ruleId: high-value-order
+    preconditionStepId: start
 ```
 
 The engine dispatches a `TaskExecutionRequested` with `taskId=evaluate-rule` and a `ruleId` variable. The rule's outputs come back as process variables via `TaskStatusChanged`.

@@ -5,13 +5,26 @@
   "status": "ACTIVE",
   "steps": [
     {
+      "id": "start",
+      "type": "START",
+      "name": "Start"
+    },
+    {
       "id": "send",
       "type": "SEND_MESSAGE",
       "name": "Send handoff",
       "messageName": "handoff",
       "correlationExpression": "targetKey",
-      "messageVariables": ["paymentId"]
+      "messageVariables": [
+        "paymentId"
+      ],
+      "preconditionStepId": "start"
     },
-    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "send" }
+    {
+      "id": "end",
+      "type": "END",
+      "name": "End",
+      "preconditionStepId": "send"
+    }
   ]
 }

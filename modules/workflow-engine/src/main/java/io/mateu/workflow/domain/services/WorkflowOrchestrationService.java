@@ -46,13 +46,7 @@ public class WorkflowOrchestrationService {
             return new TransitionResult(process, List.of(), false, false);
         }
 
-        List<StepExecution> executableSteps = new ArrayList<>();
-
         for (StepExecution stepExecution : stepExecutions) {
-            if (isCompletedOrCancelled(stepExecution)) {
-                continue;
-            }
-
             if (isBlockingError(stepExecution)) {
                 // A step that failed blocks the flow: don't schedule successors or complete the process.
                 Process updatedProcess = process;
@@ -63,21 +57,15 @@ public class WorkflowOrchestrationService {
                 }
                 return new TransitionResult(updatedProcess, List.of(), false, processErrored);
             }
-
-            if (isActive(stepExecution)) {
-                // Active tasks block further evaluation of subsequent sequential steps
-                break;
-            }
-
-            if (isCreated(stepExecution)) {
-                if (shouldRunStep(stepExecution, process, stepExecutions)) {
-                    executableSteps.add(stepExecution);
-                    if (!isParallel(stepExecution)) {
-                        break;
-                    }
-                }
-            }
         }
+
+        // Pure dataflow: every CREATED step whose preconditions are ALL satisfied (and whose
+        // guard expression is truthy) starts now, concurrently. There is no ordering between
+        // steps beyond the precondition graph — active steps never block unrelated branches.
+        List<StepExecution> executableSteps = stepExecutions.stream()
+                .filter(this::isCreated)
+                .filter(stepExecution -> shouldRunStep(stepExecution, process, stepExecutions))
+                .toList();
 
         boolean hasEndStep = executableSteps.stream()
                 .anyMatch(stepExecution -> StepType.END.equals(getStep(stepExecution).type()));
@@ -89,27 +77,13 @@ public class WorkflowOrchestrationService {
         return handleStandardOrImplicitCompletionTransition(process, stepExecutions, executableSteps);
     }
 
-    private boolean isCompletedOrCancelled(StepExecution stepExecution) {
-        return StepExecutionStatus.COMPLETED.equals(stepExecution.getStatus())
-                || StepExecutionStatus.CANCELLED.equals(stepExecution.getStatus());
-    }
-
     private boolean isBlockingError(StepExecution stepExecution) {
         return StepExecutionStatus.ERROR.equals(stepExecution.getStatus())
                 || StepExecutionStatus.TIMEOUT.equals(stepExecution.getStatus());
     }
 
-    private boolean isActive(StepExecution stepExecution) {
-        return StepExecutionStatus.RUNNING.equals(stepExecution.getStatus())
-                || StepExecutionStatus.PENDING.equals(stepExecution.getStatus());
-    }
-
     private boolean isCreated(StepExecution stepExecution) {
         return StepExecutionStatus.CREATED.equals(stepExecution.getStatus());
-    }
-
-    private boolean isParallel(StepExecution stepExecution) {
-        return getStep(stepExecution).parallel();
     }
 
     private Step getStep(StepExecution stepExecution) {
@@ -122,12 +96,13 @@ public class WorkflowOrchestrationService {
     }
 
     private boolean checkPreconditionStep(Step step, List<StepExecution> stepExecutions) {
-        if (step.preconditionStepId() == null || step.preconditionStepId().isEmpty()) {
-            return true;
-        }
-        return stepExecutions.stream()
-                .filter(se -> step.preconditionStepId().equals(se.getStepId()))
-                .anyMatch(se -> StepExecutionStatus.COMPLETED.equals(se.getStatus()));
+        // ALL declared preconditions must have a COMPLETED step execution. This is also
+        // JOIN's barrier: a JOIN with several preconditions only runs when every incoming
+        // branch has completed.
+        return step.preconditions().stream()
+                .allMatch(preconditionStepId -> stepExecutions.stream()
+                        .filter(se -> preconditionStepId.equals(se.getStepId()))
+                        .anyMatch(se -> StepExecutionStatus.COMPLETED.equals(se.getStatus())));
     }
 
     private boolean evaluatePreconditionExpression(Step step, Process process) {

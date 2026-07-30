@@ -30,7 +30,7 @@ A process in `ERROR` can be retried, which transitions it back to `RUNNING`.
 
 | Status | Description |
 |---|---|
-| `CREATED` | Scheduled by the orchestrator, waiting for the next orchestration loop tick — or waiting for its precondition to become true |
+| `CREATED` | Scheduled by the orchestrator, waiting for the next orchestration loop tick — or waiting for its preconditions to complete and its guard to become true |
 | `PENDING` | Task dispatched to worker, awaiting acknowledgement |
 | `RUNNING` | Worker reported it has started processing |
 | `COMPLETED` | Worker reported success |
@@ -55,9 +55,9 @@ A retry (automatic while attempts remain, or a manual process retry) resets the 
 
 ### Preconditions: there is no "skipped" status
 
-A step whose guard does not hold — its `preconditionStepId` has not `COMPLETED`, or its `preconditionExpression` evaluates to a falsy value (or fails to evaluate; guards fail closed) — is **not** skipped. It simply never starts: it stays in `CREATED` and the guard is re-evaluated on every orchestration tick, so it can still run later if the guard becomes true. When the process finishes — an `END` step fires, or the process completes implicitly because no runnable steps remain — every step still in `CREATED`, `PENDING`, or `RUNNING` is transitioned to `CANCELLED`.
+A step whose guard does not hold — one of its preconditions (`preconditionStepIds` / `preconditionStepId`) has not `COMPLETED`, or its `preconditionExpression` evaluates to a falsy value (or fails to evaluate; guards fail closed) — is **not** skipped. It simply never starts: it stays in `CREATED` and the guard is re-evaluated on every orchestration tick, so it can still run later if the guard becomes true. Steps are otherwise unordered: every `CREATED` step whose preconditions all hold and whose guard is truthy starts concurrently on the same tick (pure dataflow — array order and the deprecated `parallel` flag play no role). When the process finishes — an `END` step fires, or the process completes implicitly because no runnable steps remain — every step still in `CREATED`, `PENDING`, or `RUNNING` is transitioned to `CANCELLED`.
 
-Because a dependent step only starts once its `preconditionStepId` has `COMPLETED`, a step that is permanently blocked (its guard never becomes true) also permanently blocks all of its dependents.
+Because a dependent step only starts once **all** of its preconditions have `COMPLETED`, a step that is permanently blocked (its guard never becomes true) also permanently blocks all of its dependents.
 
 ---
 

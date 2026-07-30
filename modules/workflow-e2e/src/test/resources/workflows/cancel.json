@@ -4,8 +4,30 @@
   "version": 1,
   "status": "ACTIVE",
   "steps": [
-    { "id": "wait", "type": "ACTION", "name": "Waits", "topic": "work" },
-    { "id": "next", "type": "ACTION", "name": "Next", "topic": "work", "preconditionStepId": "wait" },
-    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "next" }
+    {
+      "id": "start",
+      "type": "START",
+      "name": "Start"
+    },
+    {
+      "id": "wait",
+      "type": "ACTION",
+      "name": "Waits",
+      "topic": "work",
+      "preconditionStepId": "start"
+    },
+    {
+      "id": "next",
+      "type": "ACTION",
+      "name": "Next",
+      "topic": "work",
+      "preconditionStepId": "wait"
+    },
+    {
+      "id": "end",
+      "type": "END",
+      "name": "End",
+      "preconditionStepId": "next"
+    }
   ]
 }

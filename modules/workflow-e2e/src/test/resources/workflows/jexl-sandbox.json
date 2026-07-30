@@ -4,8 +4,31 @@
   "version": 1,
   "status": "ACTIVE",
   "steps": [
-    { "id": "gate", "type": "ACTION", "name": "Gate", "topic": "work" },
-    { "id": "exploit", "type": "ACTION", "name": "Exploit", "topic": "work", "preconditionStepId": "gate", "preconditionExpression": "''.getClass().forName('java.lang.Runtime').getRuntime() != null" },
-    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "gate" }
+    {
+      "id": "start",
+      "type": "START",
+      "name": "Start"
+    },
+    {
+      "id": "gate",
+      "type": "ACTION",
+      "name": "Gate",
+      "topic": "work",
+      "preconditionStepId": "start"
+    },
+    {
+      "id": "exploit",
+      "type": "ACTION",
+      "name": "Exploit",
+      "topic": "work",
+      "preconditionStepId": "gate",
+      "preconditionExpression": "''.getClass().forName('java.lang.Runtime').getRuntime() != null"
+    },
+    {
+      "id": "end",
+      "type": "END",
+      "name": "End",
+      "preconditionStepId": "gate"
+    }
   ]
 }

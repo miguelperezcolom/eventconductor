@@ -134,9 +134,23 @@ YAML (first line):
 
 ## 4. Step types
 
+Steps run as a **pure dataflow**: a step starts when all its preconditions have `COMPLETED`
+and its JEXL guard holds, concurrently with every other eligible step — array order is
+irrelevant and the `parallel` flag is deprecated and ignored. **Roots rule:** every step with
+no preconditions must be a `START` or a `WAIT_FOR_MESSAGE` (rejected at load otherwise).
+
+### START — entry point
+```json
+{ "id": "start", "type": "START", "name": "Start" }
+```
+No worker: completes instantly at process creation, making its successors eligible. Must have
+**no** preconditions. Several `START` steps = concurrent entry branches. To migrate an old
+definition, add one `START` and point the old first steps at it.
+
 ### ACTION — dispatch a task to a worker
 ```json
 { "id": "charge", "type": "ACTION", "name": "Charge Payment", "topic": "payment-service",
+  "preconditionStepId": "start",
   "timeout": "PT30S", "retries": 3, "rollbackable": true, "compensationStepId": "refund" }
 ```
 - **Kafka mode:** `topic` is the destination; a `TaskExecutionRequested` is published there. Required.
@@ -183,18 +197,32 @@ The throw side: no worker involved. On start the engine evaluates `correlationEx
 
 ### PROCESS — run a child workflow
 ```json
-{ "id": "run-kyc", "type": "PROCESS", "name": "Run KYC", "childWorkflowDefinitionId": "kyc-workflow" }
+{ "id": "run-kyc", "type": "PROCESS", "name": "Run KYC",
+  "childWorkflowDefinitionId": "kyc-workflow", "outputVariables": ["kycResult"],
+  "preconditionStepId": "create-customer", "timeout": "PT1H" }
 ```
-Parent variables pass to the child; child output variables merge back into the parent. Completes when the child completes.
+No worker: when the step starts, the engine creates a child process of
+`childWorkflowDefinitionId` (which must differ from the workflow's own id — direct
+self-recursion is rejected) carrying **all** parent variables, with the deterministic business
+key `parent:<stepExecutionId>` (idempotent — redelivered creation events are deduped). The
+parent step waits `PENDING`. On child `COMPLETED`, the parent step completes and copies back
+**only** the child variables named in `outputVariables` (empty/absent = none). On child
+`ERROR` or `CANCELLED`, the parent step goes `ERROR` (normal retry/compensation pipeline).
+`timeout` bounds the wait. Known limitation: cancelling the parent does **not** yet cancel a
+running child.
 
 ### FORK / JOIN — parallel branches
 ```json
 { "id": "fork", "type": "FORK", "name": "Notify", "preconditionStepId": "process-order" },
-{ "id": "email", "type": "ACTION", "topic": "email-service", "preconditionStepId": "fork", "parallel": true },
-{ "id": "sms",   "type": "ACTION", "topic": "sms-service",   "preconditionStepId": "fork", "parallel": true },
-{ "id": "join",  "type": "JOIN",  "name": "Sent", "preconditionStepId": "email" }
+{ "id": "email", "type": "ACTION", "topic": "email-service", "preconditionStepId": "fork" },
+{ "id": "sms",   "type": "ACTION", "topic": "sms-service",   "preconditionStepId": "fork" },
+{ "id": "join",  "type": "JOIN",  "name": "Sent", "preconditionStepIds": ["email", "sms"] }
 ```
-FORK starts branches whose steps set `parallel: true`; JOIN waits for all branches to finish.
+Both are no-worker nodes that complete instantly. FORK is the explicit fan-out: every step
+preconditioned on it starts concurrently (any step type fans out the same way — FORK just
+makes it visible). JOIN is the barrier/converge point: its **multiple preconditions**
+(`preconditionStepIds`) must ALL complete before it runs. Do not use `parallel: true` — it is
+deprecated and ignored.
 
 ### END — complete the process
 ```json
@@ -207,16 +235,18 @@ Exactly one per workflow. Transitions the process to `COMPLETED`. With parallel 
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `id` | string | — | Unique within the workflow |
-| `type` | enum | — | `ACTION`/`USER_TASK`/`RULE`/`TIMER`/`WAIT_FOR_MESSAGE`/`SEND_MESSAGE`/`PROCESS`/`FORK`/`JOIN`/`END` |
+| `type` | enum | — | `START`/`ACTION`/`USER_TASK`/`RULE`/`TIMER`/`WAIT_FOR_MESSAGE`/`SEND_MESSAGE`/`PROCESS`/`FORK`/`JOIN`/`END` |
 | `name` | string | — | Human-readable |
 | `description` | string | — | Optional |
-| `preconditionStepId` | string | — | Step that must complete first |
+| `preconditionStepId` | string | — | Single step that must complete first |
+| `preconditionStepIds` | string[] | — | Steps that must ALL complete first; wins over the singular form when non-empty |
 | `preconditionExpression` | string | — | JEXL guard; while falsy the step is never run (stays `CREATED`, → `CANCELLED` when `END` fires) |
-| `parallel` | boolean | `false` | Concurrent execution within a FORK branch |
+| `parallel` | boolean | `false` | **Deprecated and ignored** (kept for deserialization of old files) |
 | `topic` | string | — | Worker destination (ACTION, Kafka mode) |
 | `formId` | string | — | Form to render (USER_TASK) |
 | `ruleId` | string | — | Rule to evaluate (RULE) |
-| `childWorkflowDefinitionId` | string | — | Child workflow (PROCESS) |
+| `childWorkflowDefinitionId` | string | — | Child workflow (PROCESS; must differ from the workflow's own id) |
+| `outputVariables` | string[] | — | Child variables copied back to the parent on completion (PROCESS); empty/absent = none |
 | `duration` | duration | `0` | Wait length (TIMER); ISO-8601 or ms |
 | `untilVariable` | string | — | Variable holding an ISO-8601 date/date-time (TIMER); wins over `duration` |
 | `messageName` | string | — | Message to wait for / emit (WAIT_FOR_MESSAGE / SEND_MESSAGE; **required** for both) |
@@ -373,19 +403,23 @@ Worker outputs are **merged into process variables** (overwriting same-named one
 
 - `retries: N` — retry a step up to N times on `ERROR` or `TIMEOUT`.
 - `timeout` — on expiry the step goes `TIMEOUT`, then retries if attempts remain, else `ERROR`. A process in `ERROR` (after retries exhausted) can be retried, transitioning back to `RUNNING`.
-- **Saga**: mark steps `rollbackable: true` with a `compensationStepId`. If the process fails, compensation steps run to undo completed work. Define compensation steps as ordinary `ACTION` steps (typically without a `preconditionStepId`).
+- **Saga**: mark steps `rollbackable: true` with a `compensationStepId`. If the process fails, compensation steps run to undo completed work. Define compensation steps as ordinary `ACTION` steps anchored to the step they compensate with `"preconditionExpression": "false"` — the dataflow never starts them (and the roots rule is satisfied); the compensation pipeline starts them directly, ignoring the guard.
 
 ```json
 {
   "id": "booking-saga", "name": "Booking Saga", "version": 1, "status": "ACTIVE",
   "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
     { "id": "reserve-hotel",  "type": "ACTION", "topic": "hotel-service",
+      "preconditionStepId": "start",
       "rollbackable": true, "compensationStepId": "cancel-hotel", "retries": 2 },
     { "id": "reserve-flight", "type": "ACTION", "topic": "flight-service",
       "preconditionStepId": "reserve-hotel",
       "rollbackable": true, "compensationStepId": "cancel-flight" },
-    { "id": "cancel-hotel",  "type": "ACTION", "topic": "hotel-service" },
-    { "id": "cancel-flight", "type": "ACTION", "topic": "flight-service" },
+    { "id": "cancel-hotel",  "type": "ACTION", "topic": "hotel-service",
+      "preconditionStepId": "reserve-hotel", "preconditionExpression": "false" },
+    { "id": "cancel-flight", "type": "ACTION", "topic": "flight-service",
+      "preconditionStepId": "reserve-flight", "preconditionExpression": "false" },
     { "id": "end", "type": "END", "preconditionStepId": "reserve-flight" }
   ]
 }
@@ -472,7 +506,7 @@ record Variable(String name, String value) {}
 ```
 
 ### Domain model (selected fields)
-- `Process`: `id`, `name`, `workflowDefinitionId`, `workflowDefinitionVersion`, `workflowDefinitionJson`, `businessKey`, `variables`, `status`, `completionPercentage`, `created`, `started`, `finished`.
+- `Process`: `id`, `name`, `workflowDefinitionId`, `workflowDefinitionVersion`, `workflowDefinitionJson`, `businessKey`, `variables`, `status`, `completionPercentage`, `created`, `started`, `finished`, `parentStepExecutionId` (set on child processes started by a parent `PROCESS` step; `null` otherwise).
 - `StepExecution`: `id`, `processId`, `workflowDefinitionId`, `stepId`, `stepJson`, `variables`, `status`, `workerId`, `startedAt`, `finishedAt`, `attemptCount`. The step-execution `id` **is** the `taskExecutionId` used in events; there is no separate field, no `retryCount`/`completedAt`/`log`.
 - `WorkflowDefinition`: `id`, `name`, `version`, `description`, `status`, `draftOfId`, `limitConcurrentExecutions`, `maxConcurrentExecutions`, `enqueueOnLimit`, `cronExpression`, `defaultMaxStepExecutions`, `steps`.
 
@@ -520,7 +554,8 @@ workflow.persistence=memory
 ```json
 { "id": "hello", "name": "Hello", "version": 1, "status": "ACTIVE",
   "steps": [
-    { "id": "greet", "type": "ACTION", "name": "Greet" },
+    { "id": "start", "type": "START",  "name": "Start" },
+    { "id": "greet", "type": "ACTION", "name": "Greet", "preconditionStepId": "start" },
     { "id": "end",   "type": "END",    "name": "Done", "preconditionStepId": "greet" } ] }
 ```
 Application:

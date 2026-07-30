@@ -39,7 +39,7 @@ class CreateProcessUseCaseTest {
     void shouldCreateProcess() {
         // given
         String workflowDefinitionId = "wd-1";
-        Step step = new Step("step-1", workflowDefinitionId, StepType.ACTION, "Step 1", "Desc", null, null, false, "topic", null, null, null, 0, null, null, null, null, 0, 0, false, null, 0);
+        Step step = new Step("step-1", workflowDefinitionId, StepType.ACTION, "Step 1", "Desc", null, null, null, false, "topic", null, null, null, null, 0, null, null, null, null, 0, 0, false, null, 0);
         WorkflowDefinition workflowDefinition = new WorkflowDefinition(
                 workflowDefinitionId, "Test Workflow", 1, "Description", WorkflowDefinitionStatus.ACTIVE,
                 null, false, 0, false, null, 0, List.of(step)
@@ -50,7 +50,7 @@ class CreateProcessUseCaseTest {
                 workflowDefinitionId,
                 "BK-1",
                 List.of(new Variable("v1", "val1"))
-        );
+        , null);
 
         when(workflowDefinitionRepository.findById(workflowDefinitionId)).thenReturn(Optional.of(workflowDefinition));
 

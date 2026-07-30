@@ -8,6 +8,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`START` step type — explicit workflow entry points.** A no-worker node that completes
+  instantly at process creation, fanning the flow out to its successors. A `START` must have
+  no preconditions, and declaring several gives the process concurrent entry branches. Every
+  flow must now enter through a `START` or a `WAIT_FOR_MESSAGE` (see the roots rule under
+  Changed).
+- **`FORK` and `JOIN` are now implemented, on multi-preconditions.** Steps gain
+  `preconditionStepIds` (array): ALL the listed steps must complete before the step starts;
+  the singular `preconditionStepId` remains valid (the plural wins when both are set). `FORK`
+  and `JOIN` are no-worker nodes that complete instantly — `FORK` is the explicit fan-out
+  (all its successors start concurrently when it completes), and `JOIN`'s barrier is exactly
+  its multiple preconditions (the converge point of parallel branches). Precondition-cycle
+  detection is now a DFS over the multi-edge graph.
+- **`PROCESS` step type — child workflows are now implemented.** A `PROCESS` step (required
+  `childWorkflowDefinitionId`, which must differ from the workflow's own id) starts a child
+  process carrying ALL parent variables under the deterministic businessKey
+  `parent:<stepExecutionId>` — idempotent, duplicate creation events are deduped. The parent
+  step waits `PENDING`; when the child completes, the parent step completes and copies back
+  only the child variables named in the new `outputVariables` step field (absent/empty =
+  none); a child ending `ERROR` or `CANCELLED` puts the parent step in `ERROR` (normal
+  retry/compensation pipeline), and `timeout` bounds the wait. `Process` gains
+  `parentStepExecutionId` (Flyway migration V5 in the orchestrator app). Known limitation:
+  cancellation does not yet propagate parent→child.
+- **Graph and build-time validation support for the new model.** The workflow graph renders
+  multi-precondition edges and `START`/`FORK`/`JOIN` nodes, and the Maven plugin's
+  `SpecValidator` mirrors all the new invariants (roots rule, START-without-preconditions,
+  plural precondition references, multi-edge DFS cycle detection, the PROCESS child id).
 - **`SEND_MESSAGE` step type — fire-and-forget in-engine messaging.** The throw side of
   `WAIT_FOR_MESSAGE`: on start the engine evaluates the step's `correlationExpression` (JEXL,
   same context as preconditions), emits a `MessageReceived(messageName, correlationKey,
@@ -86,6 +112,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   working copies, imports and persistence, to be enforced when step re-execution lands.
 
 ### Changed
+- **BREAKING: the execution model is now pure dataflow.** A step starts when it is `CREATED`,
+  ALL its preconditions have `COMPLETED` and its `preconditionExpression` is truthy — and
+  every eligible step starts **concurrently**. The old scheduling semantics are gone: array
+  order no longer matters, an active step no longer serializes independent chains, and
+  `parallel: true` no longer opts into concurrency — the flag is **deprecated and ignored**
+  (it still deserializes, so persisted stepJson and old files keep loading, but it has no
+  effect). Parallelism is expressed structurally: shared preconditions fan out (`FORK` makes
+  it explicit), multiple preconditions form a barrier (`JOIN`).
+- **BREAKING: roots rule — every flow must enter through a `START` or `WAIT_FOR_MESSAGE`.**
+  A step with no preconditions must be one of those two types; definitions violating this are
+  rejected at load (and by the Maven plugin at build time). Migration: add one `START` step
+  and point your old first steps at it; anchor compensation steps to the step they compensate
+  with `"preconditionExpression": "false"` (the compensation pipeline starts them directly,
+  ignoring the guard).
 - **BREAKING: `MESSAGE` step type renamed to `WAIT_FOR_MESSAGE`, and `correlationExpression`
   is now required on both message step types.** New or reimported definitions must use the
   new name and declare `correlationExpression` explicitly — the old defaults-to-`businessKey`

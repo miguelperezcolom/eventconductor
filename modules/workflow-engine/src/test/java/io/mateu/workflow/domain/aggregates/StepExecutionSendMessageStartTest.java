@@ -17,8 +17,8 @@ class StepExecutionSendMessageStartTest {
     }
 
     private Step sendStep(String messageName, String correlationExpression, List<String> messageVariables) {
-        return new Step("send", "wd-1", StepType.SEND_MESSAGE, "Send message", null, null, null, false,
-                null, null, null, null, 0, null, messageName, correlationExpression, messageVariables,
+        return new Step("send", "wd-1", StepType.SEND_MESSAGE, "Send message", null, null, null, null, false,
+                null, null, null, null, null, 0, null, messageName, correlationExpression, messageVariables,
                 0, 0, false, null, 0);
     }
 

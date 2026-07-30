@@ -37,8 +37,8 @@ class StepExecutionStatusUpdatedEventHandlerTest {
     @InjectMocks StepExecutionStatusUpdatedEventHandler handler;
 
     private Step step(int retries, boolean rollbackable, String compensationStepId) {
-        return new Step("s1", "wd-1", StepType.ACTION, "Step", null, null, null, false, "topic",
-                null, null, null, 0, null, null, null, null, 0, retries, rollbackable, compensationStepId, 0);
+        return new Step("s1", "wd-1", StepType.ACTION, "Step", null, null, null, null, false, "topic",
+                null, null, null, null, 0, null, null, null, null, 0, retries, rollbackable, compensationStepId, 0);
     }
 
     private StepExecution se(int attemptCount, int retries, boolean rollbackable, String compensationStepId) {

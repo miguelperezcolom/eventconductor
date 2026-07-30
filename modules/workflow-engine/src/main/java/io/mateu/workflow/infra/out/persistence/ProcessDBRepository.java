@@ -42,7 +42,8 @@ public class ProcessDBRepository implements ProcessRepository {
                 entity.getCompletionPercentage(),
                 entity.getCreated(),
                 entity.getStarted(),
-                entity.getFinished()
+                entity.getFinished(),
+                entity.getParentStepExecutionId()
         );
     }
 
@@ -65,7 +66,8 @@ public class ProcessDBRepository implements ProcessRepository {
                 process.getWorkflowDefinitionJson(),
                 process.getCreated(),
                 process.getStarted(),
-                process.getFinished()
+                process.getFinished(),
+                process.getParentStepExecutionId()
         ));
         process.popEvents().stream()
                 .map(OutboxMessageEntity::new)

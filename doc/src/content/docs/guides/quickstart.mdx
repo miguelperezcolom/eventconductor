@@ -36,9 +36,13 @@ name: Hello World
 version: 1
 status: ACTIVE
 steps:
+  - id: start
+    type: START
+    name: Start
   - id: greet
     type: ACTION
     name: Greet the user
+    preconditionStepId: start
   - id: end
     type: END
     name: Done

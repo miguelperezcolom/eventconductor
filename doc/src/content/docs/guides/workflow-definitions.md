@@ -233,15 +233,17 @@ Production definition updated (version + 1), working copy deleted
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `id` | string | — | Unique identifier within the workflow |
-| `type` | enum | — | `ACTION` \| `USER_TASK` \| `PROCESS` \| `FORK` \| `JOIN` \| `END` \| `TIMER` \| `WAIT_FOR_MESSAGE` \| `SEND_MESSAGE` \| `RULE` |
+| `type` | enum | — | `START` \| `ACTION` \| `USER_TASK` \| `PROCESS` \| `FORK` \| `JOIN` \| `END` \| `TIMER` \| `WAIT_FOR_MESSAGE` \| `SEND_MESSAGE` \| `RULE` |
 | `name` | string | — | Human-readable name |
 | `description` | string | — | Optional description |
-| `preconditionStepId` | string | — | Step that must complete before this one starts |
+| `preconditionStepId` | string | — | Single step that must complete before this one starts |
+| `preconditionStepIds` | string[] | — | Steps that must **all** complete before this one starts; takes precedence over the singular `preconditionStepId` when non-empty |
 | `preconditionExpression` | string | — | JEXL expression; the step does not run while it evaluates to `false` |
-| `parallel` | boolean | `false` | Allows concurrent execution with other parallel steps |
+| `parallel` | boolean | `false` | **Deprecated and ignored** — every eligible step runs concurrently; kept only so old definition files keep deserializing |
 | `topic` | string | — | Worker topic/destination (ACTION only) |
 | `formId` | string | — | Form identifier (USER_TASK only) |
-| `childWorkflowDefinitionId` | string | — | Child workflow ID (PROCESS only) |
+| `childWorkflowDefinitionId` | string | — | Child workflow ID (PROCESS only, required; must differ from the workflow's own id) |
+| `outputVariables` | string[] | — | PROCESS only: names of the child process variables copied back into the parent when the child completes; empty/absent = none |
 | `ruleId` | string | — | Rule to evaluate (RULE only) |
 | `duration` | duration | `0` | TIMER only: how long to wait from the moment the step starts. ISO 8601 string (`PT72H`, `P3D`) or integer milliseconds |
 | `untilVariable` | string | — | TIMER only: process variable holding an ISO 8601 date/date-time the timer waits for. Takes precedence over `duration` |
@@ -256,18 +258,43 @@ Production definition updated (version + 1), working copy deleted
 
 See [Step Types](/reference/step-types/) for the semantics of each type.
 
+## Execution model: pure dataflow
+
+Steps run **by data flow, not by array order**. A step starts when it has not run yet
+(`CREATED`), **all** of its preconditions have `COMPLETED`, and its `preconditionExpression`
+(if any) is truthy — and every eligible step starts **concurrently**. There is no ordering
+beyond the precondition graph: an active step never blocks unrelated branches. Parallelism is
+expressed structurally — several steps sharing a precondition fan out ([`FORK`](/reference/step-types/#fork)
+makes that explicit), and one step declaring several preconditions is a barrier
+([`JOIN`](/reference/step-types/#join)). The `parallel` flag is deprecated and ignored.
+
+Because only preconditions drive eligibility, every flow needs an explicit entry point: a step
+with no preconditions must be a `START` (completes instantly at process creation) or a
+`WAIT_FOR_MESSAGE` (armed at process creation, waiting for its message).
+
+:::note[Migrating pre-dataflow definitions]
+Older definitions relied on array order and `parallel: true`, and often had a first step with
+no preconditions. To migrate: **add one `START` step and point your old first steps at it**;
+express any intended barriers with `preconditionStepIds`; drop `parallel` (it is ignored). A
+compensation step also needs a precondition now — anchor it to the step it compensates and
+guard it with `"preconditionExpression": "false"` so the normal dataflow never starts it (the
+compensation pipeline starts it directly and does not evaluate the guard).
+:::
+
 ## Validation at load
 
 Beyond the JSON schema, the engine checks these invariants when a definition is loaded or saved (`WorkflowDefinition.checkInvariants()`) and rejects the definition if any is violated:
 
 - **Duplicate step ids** — every `id` must be unique within the workflow.
-- **Self-reference** — a step cannot be its own `preconditionStepId` or its own `compensationStepId`.
-- **Dangling references** — `preconditionStepId` and `compensationStepId` must point to an existing step.
-- **Precondition cycles** — chains of `preconditionStepId` must not form a cycle (A waits for B waits for … waits for A), which would deadlock all the steps involved.
+- **Self-reference** — a step cannot be one of its own preconditions or its own `compensationStepId`.
+- **Dangling references** — every id in `preconditionStepIds`/`preconditionStepId` and `compensationStepId` must point to an existing step.
+- **Entry points (roots rule)** — every step with no preconditions must be a `START` or a `WAIT_FOR_MESSAGE`: every flow must enter through one. Conversely, a `START` step must have **no** preconditions.
+- **Precondition cycles** — the precondition graph must be acyclic (A waits for B waits for … waits for A would deadlock). Steps may declare several preconditions, so the check is a DFS over the multi-edge graph.
 - **TIMER required fields** — a `TIMER` step must define a positive `duration` or a non-blank `untilVariable`.
 - **Message required fields** — a `WAIT_FOR_MESSAGE` or `SEND_MESSAGE` step must define a non-blank `messageName` **and** a non-blank `correlationExpression`.
+- **PROCESS required fields** — a `PROCESS` step must define a `childWorkflowDefinitionId`, and it must differ from the workflow's own id (direct self-recursion is rejected).
 
-The [Maven plugin](/reference/maven-plugin/) catches most of these at build time; precondition cycles and the TIMER/message value checks are only verified at engine load.
+The [Maven plugin](/reference/maven-plugin/) mirrors the structural checks (duplicate/dangling/self references, the roots rule, START-without-preconditions, multi-edge cycle detection, the PROCESS child id) at build time; the TIMER/message value checks are only verified at engine load.
 
 ## Examples
 
@@ -283,10 +310,16 @@ The [Maven plugin](/reference/maven-plugin/) catches most of these at build time
   "status": "ACTIVE",
   "steps": [
     {
+      "id": "start",
+      "type": "START",
+      "name": "Start"
+    },
+    {
       "id": "validate",
       "type": "ACTION",
       "name": "Validate Order",
-      "topic": "order-validator"
+      "topic": "order-validator",
+      "preconditionStepId": "start"
     },
     {
       "id": "charge",
@@ -322,10 +355,15 @@ name: Order Processing
 version: 1
 status: ACTIVE
 steps:
+  - id: start
+    type: START
+    name: Start
+
   - id: validate
     type: ACTION
     name: Validate Order
     topic: order-validator
+    preconditionStepId: start
 
   - id: charge
     type: ACTION
@@ -357,10 +395,16 @@ steps:
   "status": "ACTIVE",
   "steps": [
     {
+      "id": "start",
+      "type": "START",
+      "name": "Start"
+    },
+    {
       "id": "submit",
       "type": "ACTION",
       "name": "Register Expense",
-      "topic": "expense-service"
+      "topic": "expense-service",
+      "preconditionStepId": "start"
     },
     {
       "id": "approve",
@@ -396,10 +440,16 @@ steps:
   "status": "ACTIVE",
   "steps": [
     {
+      "id": "start",
+      "type": "START",
+      "name": "Start"
+    },
+    {
       "id": "check",
       "type": "ACTION",
       "name": "Check Order",
-      "topic": "order-checker"
+      "topic": "order-checker",
+      "preconditionStepId": "start"
     },
     {
       "id": "review",
@@ -436,10 +486,16 @@ steps:
   "status": "ACTIVE",
   "steps": [
     {
+      "id": "start",
+      "type": "START",
+      "name": "Start"
+    },
+    {
       "id": "reserve-hotel",
       "type": "ACTION",
       "name": "Reserve Hotel",
       "topic": "hotel-service",
+      "preconditionStepId": "start",
       "rollbackable": true,
       "compensationStepId": "cancel-hotel",
       "retries": 2
@@ -457,13 +513,17 @@ steps:
       "id": "cancel-hotel",
       "type": "ACTION",
       "name": "Cancel Hotel Reservation",
-      "topic": "hotel-service"
+      "topic": "hotel-service",
+      "preconditionStepId": "reserve-hotel",
+      "preconditionExpression": "false"
     },
     {
       "id": "cancel-flight",
       "type": "ACTION",
       "name": "Cancel Flight Reservation",
-      "topic": "flight-service"
+      "topic": "flight-service",
+      "preconditionStepId": "reserve-flight",
+      "preconditionExpression": "false"
     },
     {
       "id": "end",
@@ -474,3 +534,8 @@ steps:
   ]
 }
 ```
+
+Compensation steps are anchored to the step they compensate and guarded with
+`"preconditionExpression": "false"`: the normal dataflow never starts them (the guard is
+falsy), but the compensation pipeline starts them directly when the rollbackable step exhausts
+its retries — it does not evaluate the guard. The anchor satisfies the roots rule.

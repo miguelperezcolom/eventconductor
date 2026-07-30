@@ -3,6 +3,55 @@ title: Step Types
 description: Reference for all step types available in EventConductor workflow definitions.
 ---
 
+## Execution model: pure dataflow
+
+Steps run by **data flow**, not by their position in the `steps` array. On every orchestration
+tick, a step starts when all three conditions hold:
+
+1. its execution is in `CREATED` status (it has not run yet),
+2. **all** of its preconditions — the steps named in `preconditionStepIds`, or the singular
+   `preconditionStepId` — have `COMPLETED`,
+3. its `preconditionExpression` (if any) evaluates truthy.
+
+Every eligible step starts **concurrently**. There is no ordering between steps beyond the
+precondition graph: an active step never blocks unrelated branches, and array order is
+irrelevant. The `parallel` flag is **deprecated and ignored** (it still deserializes, so old
+definition files keep loading) — parallelism is simply several steps declaring the same
+precondition, and a barrier is one step declaring several preconditions.
+
+Because eligibility is driven only by preconditions, every flow must have an explicit entry
+point: **a step with no preconditions must be a [`START`](#start) or a
+[`WAIT_FOR_MESSAGE`](#wait_for_message)** — every flow must enter through one. A definition
+that violates this rule is rejected at load.
+
+**Migrating an existing definition**: add one `START` step and point your old first steps at
+it —
+
+```json
+{ "id": "start", "type": "START", "name": "Start" },
+{ "id": "validate", "type": "ACTION", "name": "Validate", "topic": "order-validator",
+  "preconditionStepId": "start" }
+```
+
+---
+
+## START
+
+Marks an entry point of the workflow. No worker is involved: the step completes instantly
+when the process is created, which makes all its successors eligible. A `START` step must
+**not** declare preconditions (rejected at load). Declaring **multiple START steps** gives the
+process several entry branches that run concurrently from creation.
+
+```json
+{
+  "id": "start",
+  "type": "START",
+  "name": "Start"
+}
+```
+
+---
+
 ## ACTION
 
 Dispatches a task to a worker microservice (or embedded bean). The workflow pauses until the worker reports completion.
@@ -13,6 +62,7 @@ Dispatches a task to a worker microservice (or embedded bean). The workflow paus
   "type": "ACTION",
   "name": "Process Payment",
   "topic": "payment-service",
+  "preconditionStepId": "start",
   "timeout": 30000,
   "retries": 3,
   "rollbackable": true,
@@ -70,7 +120,8 @@ Wait until an absolute date carried by a process variable (e.g. a check-in date)
   "id": "wait-until-checkin",
   "type": "TIMER",
   "name": "Wait until check-in date",
-  "untilVariable": "checkinDate"
+  "untilVariable": "checkinDate",
+  "preconditionStepId": "confirm-booking"
 }
 ```
 
@@ -194,11 +245,9 @@ The `ruleId` references a rule definition (expression rule or decision table) st
 
 ## PROCESS
 
-Starts a child workflow as a sub-process. The parent step completes when the child process completes.
-
-:::caution[Not yet implemented by the engine]
-`PROCESS` exists in the step-type enum and the JSON schema, but the engine has no dedicated handling for it: a `PROCESS` step is dispatched downstream as a plain `TaskExecutionRequested`, exactly like an `ACTION` step — no child process is started automatically. Until native support lands, start the child process from a worker (or an `EmbeddedTaskExecutor`) that consumes the step and sends a `ProcessCreationRequested`.
-:::
+Starts a **child workflow** as a sub-process. No worker is involved: when the step starts, the
+engine creates a process of `childWorkflowDefinitionId` carrying **all** the parent's process
+variables, and the parent step waits `PENDING` until the child reaches a terminal status.
 
 ```json
 {
@@ -206,23 +255,47 @@ Starts a child workflow as a sub-process. The parent step completes when the chi
   "type": "PROCESS",
   "name": "Run KYC Check",
   "childWorkflowDefinitionId": "kyc-workflow",
-  "preconditionStepId": "create-customer"
+  "outputVariables": ["kycResult", "kycScore"],
+  "preconditionStepId": "create-customer",
+  "timeout": "PT1H"
 }
 ```
 
-**Required fields:** `childWorkflowDefinitionId`
+**Required fields:** `childWorkflowDefinitionId` — must be different from the workflow's own
+id (direct self-recursion is rejected at load).
 
-Variables from the parent process are passed to the child process. Output variables from the child are merged back into the parent.
+**Optional fields:** `outputVariables` — an array of child-process variable names copied back
+into the parent when the child completes. Empty or absent means **none**: child state is never
+merged back implicitly.
+
+Semantics:
+
+- The child process is created with the deterministic business key
+  **`parent:<stepExecutionId>`**, which makes creation **idempotent** — a redelivered creation
+  event is deduplicated by business key, so at-least-once delivery never spawns a second child.
+- When the child process reaches `COMPLETED`, the parent step completes and only the child
+  variables named in `outputVariables` are copied into the parent process.
+- When the child ends `ERROR` or `CANCELLED`, the parent step transitions to `ERROR` and the
+  normal retry/compensation pipeline engages.
+- `timeout` bounds the wait: a parent step whose child has not finished within `timeout` goes
+  through the usual `TIMEOUT` → retry/`ERROR` pipeline.
+
+:::note[Known limitation]
+Cancellation does not yet propagate from parent to child: cancelling the parent process leaves
+an already-started child process running.
+:::
 
 ---
 
 ## FORK
 
-Starts multiple parallel branches simultaneously. All steps with `parallel: true` and the same `preconditionStepId` as the FORK (or following the FORK) will execute in parallel.
+Fans a flow out into parallel branches. No worker is involved: the step completes instantly
+when it starts, which makes **all** its successors eligible at once — every step whose
+precondition is the FORK starts concurrently.
 
-:::caution[Not yet implemented by the engine]
-`FORK` exists in the step-type enum and the JSON schema, but the engine has no dedicated handling for it: a `FORK` step is dispatched downstream as a plain `TaskExecutionRequested`, so it only completes if a worker acknowledges it. Parallelism does not come from `FORK` — it comes from marking the branch steps themselves `parallel: true` and pointing their `preconditionStepId` at the same predecessor, as in the example below (which works with or without the `FORK` marker step).
-:::
+`FORK` is readability sugar: the fan-out actually comes from several steps declaring the same
+precondition (which works with any step type as the predecessor). Use a `FORK` node when you
+want the branching point to be explicit in the definition and the graph.
 
 ```json
 {
@@ -236,16 +309,14 @@ Starts multiple parallel branches simultaneously. All steps with `parallel: true
   "type": "ACTION",
   "name": "Send Email",
   "topic": "email-service",
-  "preconditionStepId": "fork-notifications",
-  "parallel": true
+  "preconditionStepId": "fork-notifications"
 },
 {
   "id": "send-sms",
   "type": "ACTION",
   "name": "Send SMS",
   "topic": "sms-service",
-  "preconditionStepId": "fork-notifications",
-  "parallel": true
+  "preconditionStepId": "fork-notifications"
 }
 ```
 
@@ -253,22 +324,22 @@ Starts multiple parallel branches simultaneously. All steps with `parallel: true
 
 ## JOIN
 
-Waits for all parallel branches to complete before proceeding.
-
-:::caution[Not yet implemented by the engine]
-`JOIN` exists in the step-type enum and the JSON schema, but the engine has no dedicated handling for it: a `JOIN` step is dispatched downstream as a plain `TaskExecutionRequested`, so it only completes if a worker acknowledges it. The join behaviour you usually want comes from the orchestration loop itself: a non-`parallel` step placed after a group of parallel steps does not start until no parallel step is still active, so a plain `ACTION` (or the `END` step) after the branch acts as the join point.
-:::
+The converge point of parallel branches: a barrier that waits until **all** the steps listed in
+its `preconditionStepIds` have `COMPLETED`. No worker is involved — once its preconditions are
+all met, the step completes instantly and the flow continues after it.
 
 ```json
 {
   "id": "join-notifications",
   "type": "JOIN",
   "name": "All notifications sent",
-  "preconditionStepId": "send-email"
+  "preconditionStepIds": ["send-email", "send-sms"]
 }
 ```
 
-Typically placed after the last parallel step. The JOIN step completes when all steps in the parallel branch have completed.
+The barrier **is** the multiple preconditions: a JOIN with a single precondition waits for
+nothing extra. (Any step may declare several preconditions — a `JOIN` node just makes the
+convergence explicit, exactly as `FORK` makes the fan-out explicit.)
 
 ---
 
@@ -297,9 +368,11 @@ An `END` step is recommended, but not enforced: the engine also completes a proc
 | `type` | enum | — | Step type (see above) |
 | `name` | string | — | Human-readable name |
 | `description` | string | — | Optional description |
-| `preconditionStepId` | string | — | Step that must complete before this one starts |
+| `preconditionStepId` | string | — | Single step that must complete before this one starts |
+| `preconditionStepIds` | string[] | — | Steps that must **all** complete before this one starts; takes precedence over the singular `preconditionStepId` when non-empty |
 | `preconditionExpression` | string | — | JEXL expression; step skipped if evaluates to `false` |
-| `parallel` | boolean | `false` | Allow concurrent execution with other parallel steps |
+| `parallel` | boolean | `false` | **Deprecated and ignored** — every eligible step runs concurrently; kept only so old files keep deserializing |
+| `outputVariables` | string[] | — | PROCESS only: child variables copied back into the parent on completion; empty/absent = none |
 | `timeout` | integer (ms) | `0` | Max execution time; `0` = no timeout |
 | `retries` | integer | `0` | Auto-retry attempts on ERROR or TIMEOUT |
 | `rollbackable` | boolean | `false` | Trigger compensation step on failure |

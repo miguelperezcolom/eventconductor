@@ -2,6 +2,7 @@ package io.mateu.workflow.application.usecases.process.cancel;
 
 import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
+import io.mateu.workflow.application.usecases.process.parentnotify.NotifyParentStepService;
 import io.mateu.workflow.application.usecases.process.stepover.StepOverProcessUseCase;
 import io.mateu.workflow.domain.aggregates.ProcessStatus;
 import io.mateu.workflow.domain.aggregates.StepExecutionStatus;
@@ -19,6 +20,7 @@ public class CancelProcessUseCase {
     final StepExecutionRepository stepExecutionRepository;
     final DownstreamEventPublisher downstreamEventPublisher;
     final WorkflowMetrics workflowMetrics;
+    final NotifyParentStepService notifyParentStepService;
 
     public void handle(CancelProcessCommand command) {
         var process = processRepository.findById(command.processId()).orElseThrow();
@@ -30,7 +32,8 @@ public class CancelProcessUseCase {
         // Mark the process CANCELLED first: the step-status events emitted below re-enter
         // the orchestration loop, which must see the process as cancelled and not
         // dispatch any still-CREATED step in the middle of the cancellation.
-        processRepository.save(process.withStatus(ProcessStatus.CANCELLED));
+        var cancelledProcess = process.withStatus(ProcessStatus.CANCELLED);
+        processRepository.save(cancelledProcess);
         workflowMetrics.processCancelled(process.getWorkflowDefinitionId(), WorkflowMetrics.durationOf(process));
 
         var stepExecutions = stepExecutionRepository.findByProcess(process);
@@ -44,5 +47,9 @@ public class CancelProcessUseCase {
                 stepExecutionRepository.save(stepExecution);
             }
         }
+
+        // If this process is a child workflow, the PROCESS step of the parent that spawned
+        // it cannot succeed any more — error it.
+        notifyParentStepService.processReachedTerminalStatus(cancelledProcess);
     }
 }

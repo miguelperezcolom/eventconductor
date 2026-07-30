@@ -30,7 +30,8 @@ public class ProcessCreationRequestedEventHandler implements DomainEventHandler<
                 e.businessKey(),
                 e.variables().stream()
                         .map(variable -> new Variable(variable.name(), variable.value()))
-                        .toList()
+                        .toList(),
+                e.parentStepExecutionId()
         ));
     }
 }

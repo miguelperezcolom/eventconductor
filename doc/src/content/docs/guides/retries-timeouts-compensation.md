@@ -62,10 +62,16 @@ For distributed transactions, use `rollbackable` + `compensationStepId` to defin
 {
   "steps": [
     {
+      "id": "start",
+      "type": "START",
+      "name": "Start"
+    },
+    {
       "id": "reserve-hotel",
       "type": "ACTION",
       "name": "Reserve Hotel",
       "topic": "hotel-service",
+      "preconditionStepId": "start",
       "rollbackable": true,
       "compensationStepId": "cancel-hotel",
       "retries": 2
@@ -83,17 +89,26 @@ For distributed transactions, use `rollbackable` + `compensationStepId` to defin
       "id": "cancel-hotel",
       "type": "ACTION",
       "name": "Cancel Hotel",
-      "topic": "hotel-service"
+      "topic": "hotel-service",
+      "preconditionStepId": "reserve-hotel",
+      "preconditionExpression": "false"
     },
     {
       "id": "cancel-flight",
       "type": "ACTION",
       "name": "Cancel Flight",
-      "topic": "flight-service"
+      "topic": "flight-service",
+      "preconditionStepId": "reserve-flight",
+      "preconditionExpression": "false"
     }
   ]
 }
 ```
+
+Compensation steps need a precondition like every other step (the [roots rule](/guides/workflow-definitions/#validation-at-load)):
+anchor each one to the step it compensates and guard it with `"preconditionExpression": "false"`,
+so the normal dataflow never starts it. The compensation pipeline starts it directly — without
+evaluating the guard — when the rollbackable step exhausts its retries.
 
 **How it works:**
 1. If `reserve-flight` fails after exhausting retries, the engine triggers `cancel-hotel` (the compensation step of the previously completed `reserve-hotel`)

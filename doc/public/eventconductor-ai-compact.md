@@ -38,7 +38,9 @@ Kafka/JPA autoconfiguration is excluded automatically in embedded/memory mode �
   "version": 1,
   "status": "ACTIVE",
   "steps": [
-    { "id": "validate", "type": "ACTION", "name": "Validate", "topic": "order-validator" },
+    { "id": "start",    "type": "START",  "name": "Start" },
+    { "id": "validate", "type": "ACTION", "name": "Validate", "topic": "order-validator",
+      "preconditionStepId": "start" },
     { "id": "charge",   "type": "ACTION", "name": "Charge",   "topic": "payment-service",
       "preconditionStepId": "validate", "timeout": "PT30S", "retries": 2 },
     { "id": "end", "type": "END", "name": "Done", "preconditionStepId": "charge" }
@@ -50,8 +52,9 @@ In `embedded`+`memory` mode, definitions are loaded from `classpath:/workflows/`
 
 ### Core rules
 
-- Ordering is **by data flow**, not array order: a step runs when its `preconditionStepId` step has completed.
-- Every workflow has **exactly one `END`** step. With parallel branches, put a `JOIN` before the `END`.
+- Ordering is **pure data flow**, not array order: a step runs when **all** its preconditions (`preconditionStepIds` array, or the singular `preconditionStepId`) have completed and its guard holds. All eligible steps start **concurrently** — an active step never blocks unrelated branches. The `parallel` flag is deprecated and **ignored** (still deserializes).
+- **Roots rule:** every step with no preconditions must be a `START` or a `WAIT_FOR_MESSAGE` — every flow must enter through one; violating definitions are rejected at load. Migration for old definitions: add one `START` step and point the old first steps at it.
+- Every workflow has **exactly one `END`** step. With parallel branches, put a `JOIN` (with `preconditionStepIds` listing all branches) before the `END`.
 - `preconditionExpression` is a **JEXL** expression evaluated against process variables; while falsy the step is simply never run (stays `CREATED`) and is flipped to `CANCELLED` when the `END` step fires. **Trap:** dependents wait for `COMPLETED`, so a step whose guard never turns true permanently blocks every step whose `preconditionStepId` points at it — give such chains an alternative path to `END`.
 - Variables are `(name, value)` string pairs. Worker outputs are **merged** into process variables and visible to later steps and JEXL expressions.
 - Add `"$schema"` (JSON) or a `# yaml-language-server:` comment (YAML) pointing at `workflow-definition-schema.json` for editor autocomplete.
@@ -60,20 +63,21 @@ In `embedded`+`memory` mode, definitions are loaded from `classpath:/workflows/`
 
 | Type | Purpose | Key field |
 |---|---|---|
+| `START` | Entry point: no worker, completes instantly at process creation; must have **no** preconditions; several STARTs = concurrent entry branches | — |
 | `ACTION` | Dispatch a task to a worker | `topic` (Kafka mode) |
 | `USER_TASK` | Pause for a human to submit a form | `formId` |
 | `RULE` | Evaluate a business rule; outputs become process variables | `ruleId` |
 | `TIMER` | Durable wait for a duration or until a date from a variable | `duration` / `untilVariable` |
 | `WAIT_FOR_MESSAGE` | Durable wait for a message (correlated by required JEXL `correlationExpression`; use `businessKey` for the business key); deliver via `POST /workflow/api/messages`, Kafka `upstream` (`"type":"message-received"`), MCP `sendMessage`, or a `SEND_MESSAGE` step. Previously named `MESSAGE` (legacy alias still deserializes) | `messageName` + `correlationExpression` (both required) |
 | `SEND_MESSAGE` | Emit a `MessageReceived` (fire-and-forget, no worker) and complete immediately; carries only the variables listed in `messageVariables` (absent = none). Missing fields or an unevaluable correlation key → step `ERROR` (fails loud, unlike fail-closed precondition guards); a message matching no waiting process is discarded, not buffered | `messageName` + `correlationExpression` (both required) |
-| `PROCESS` | Run a child workflow as a sub-process | `childWorkflowDefinitionId` |
-| `FORK` | Start parallel branches | — (branch steps set `parallel: true`) |
-| `JOIN` | Wait for all parallel branches | — |
+| `PROCESS` | Run a child workflow: starts a child process (business key `parent:<stepExecutionId>`, idempotent) with ALL parent variables; parent step waits `PENDING`; on child `COMPLETED` copies back only the child variables named in `outputVariables` (absent = none); child `ERROR`/`CANCELLED` → parent step `ERROR`. `timeout` bounds the wait. Cancellation does not yet propagate parent→child | `childWorkflowDefinitionId` (≠ own workflow id) |
+| `FORK` | Explicit fan-out: no worker, completes instantly — all steps preconditioned on it start concurrently | — |
+| `JOIN` | Barrier: waits until ALL steps in its `preconditionStepIds` complete, then completes instantly | `preconditionStepIds` |
 | `END` | Complete the process | — |
 
 ### Step fields
 
-`id`, `type`, `name`, `description`, `preconditionStepId`, `preconditionExpression` (JEXL), `parallel` (bool), `topic` (ACTION), `formId` (USER_TASK), `ruleId` (RULE), `childWorkflowDefinitionId` (PROCESS), `duration` (TIMER: ISO-8601 or ms), `untilVariable` (TIMER: variable holding an ISO-8601 date/date-time; wins over `duration`), `messageName` + `correlationExpression` (WAIT_FOR_MESSAGE / SEND_MESSAGE, both **required**), `messageVariables` (SEND_MESSAGE: string array of process-variable names the outgoing message carries; empty/absent = none), `timeout` (ISO-8601 `PT30S`/`PT1H30M` or ms int; `0`=none), `retries` (int), `rollbackable` (bool), `compensationStepId`, `maxSuccessfulExecutions` (int).
+`id`, `type`, `name`, `description`, `preconditionStepId` (single), `preconditionStepIds` (string array — ALL must complete; wins over the singular when non-empty), `preconditionExpression` (JEXL), `parallel` (bool, **deprecated/ignored**), `topic` (ACTION), `formId` (USER_TASK), `ruleId` (RULE), `childWorkflowDefinitionId` (PROCESS), `outputVariables` (PROCESS: string array of child variables copied back to the parent; absent = none), `duration` (TIMER: ISO-8601 or ms), `untilVariable` (TIMER: variable holding an ISO-8601 date/date-time; wins over `duration`), `messageName` + `correlationExpression` (WAIT_FOR_MESSAGE / SEND_MESSAGE, both **required**), `messageVariables` (SEND_MESSAGE: string array of process-variable names the outgoing message carries; empty/absent = none), `timeout` (ISO-8601 `PT30S`/`PT1H30M` or ms int; `0`=none), `retries` (int), `rollbackable` (bool), `compensationStepId`, `maxSuccessfulExecutions` (int).
 
 A workflow definition can also declare a `cronExpression` (Spring syntax) to start a new process instance at each occurrence, with deterministic business keys so multiple pods never duplicate an occurrence, and a `defaultMaxStepExecutions` (int). Note: `defaultMaxStepExecutions` / `maxSuccessfulExecutions` are today validated metadata, not enforced at runtime.
 
@@ -132,7 +136,7 @@ Report `RUNNING` for progress (resets the timeout clock). Long tasks can return 
 
 - `retries: N` — auto-retry on `ERROR` or `TIMEOUT` up to N times.
 - `timeout` — after it elapses the step goes `TIMEOUT`, then retries if any remain, else `ERROR`.
-- **Saga/compensation**: set `rollbackable: true` + `compensationStepId: "..."` on a step; if the process fails, the compensation step runs to undo it. Define compensation steps as normal `ACTION` steps (usually with no precondition).
+- **Saga/compensation**: set `rollbackable: true` + `compensationStepId: "..."` on a step; if the process fails, the compensation step runs to undo it. Define compensation steps as normal `ACTION` steps anchored to the step they compensate with `"preconditionExpression": "false"` — the dataflow never starts them (and the roots rule is satisfied); the compensation pipeline starts them directly, ignoring the guard.
 
 ---
 
@@ -162,8 +166,9 @@ Report `RUNNING` for progress (resets the timeout clock). Long tasks can return 
 
 ## Gotchas
 
-- **Order by `preconditionStepId`, not array position.** A step with no precondition starts immediately.
-- **Exactly one `END`.** Parallel branches must funnel through a `JOIN` before `END`.
+- **Order by preconditions, not array position.** All eligible steps start concurrently; `parallel` is deprecated and ignored.
+- **Roots rule.** A step with no preconditions must be a `START` or a `WAIT_FOR_MESSAGE`, or the definition is rejected at load. Old definitions migrate by adding one `START` and pointing the old first steps at it.
+- **Exactly one `END`.** Parallel branches must funnel through a `JOIN` (its `preconditionStepIds` = the branch ends) before `END`.
 - **Report with `taskExecutionId`**, the value from `TaskExecutionRequested` — not the workflow `stepId`.
 - **Variables are strings.** JEXL numeric comparisons operate on the string value (`amount > 1000`).
 - In **embedded mode** the `topic` field is ignored (single executor); in **Kafka mode** `topic` is required for `ACTION`.

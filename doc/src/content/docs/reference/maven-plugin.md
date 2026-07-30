@@ -18,8 +18,12 @@ The plugin bundles the *same* JSON schemas the engine ships
 from the engine modules at build time, so it can never drift), plus the semantic checks a
 schema cannot express:
 
-- **Workflows** — schema, duplicate step ids, self-referencing / dangling
-  `preconditionStepId` and `compensationStepId`, cron-expression validity, and JEXL
+- **Workflows** — schema, duplicate step ids, self-referencing / dangling precondition
+  (`preconditionStepIds` / `preconditionStepId`) and `compensationStepId` references, the
+  entry-point rule (every step with no preconditions must be a `START` or a
+  `WAIT_FOR_MESSAGE`, and a `START` must have none), precondition-cycle detection (DFS over
+  the multi-edge precondition graph), the `PROCESS` child id (`childWorkflowDefinitionId`
+  present and different from the workflow's own id), cron-expression validity, and JEXL
   parseability of `preconditionExpression` and `correlationExpression`.
 - **Rules** — schema, decision-table row arity (one `when` cell per input, one `then` cell
   per output) and JEXL parseability of expressions.
@@ -29,7 +33,6 @@ schema cannot express:
 A few of the engine's invariants (`WorkflowDefinition.checkInvariants()`) are **not**
 replicated by the plugin and will only fail when the engine loads the definition:
 
-- **Precondition cycles** — steps whose `preconditionStepId` chains form a cycle.
 - **TIMER value checks** — the schema only requires that `duration` or `untilVariable` is
   *present*; a `duration` of `0` (with no `untilVariable`) passes the build but is rejected
   at load.

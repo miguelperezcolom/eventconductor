@@ -4,7 +4,24 @@
   "version": 1,
   "status": "ACTIVE",
   "steps": [
-    { "id": "flaky", "type": "ACTION", "name": "Flaky", "topic": "work", "retries": 2 },
-    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "flaky" }
+    {
+      "id": "start",
+      "type": "START",
+      "name": "Start"
+    },
+    {
+      "id": "flaky",
+      "type": "ACTION",
+      "name": "Flaky",
+      "topic": "work",
+      "retries": 2,
+      "preconditionStepId": "start"
+    },
+    {
+      "id": "end",
+      "type": "END",
+      "name": "End",
+      "preconditionStepId": "flaky"
+    }
   ]
 }

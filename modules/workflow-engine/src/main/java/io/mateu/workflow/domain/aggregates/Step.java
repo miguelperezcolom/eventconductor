@@ -46,8 +46,20 @@ public record Step(
         //StepPrecondition precondition,
         @Lookup(bubble = true)
         String preconditionStepId,
+        /**
+         * IDs of the steps that must ALL have completed before this one can start. Preferred
+         * over the singular {@code preconditionStepId}, which remains a valid way to declare a
+         * single precondition. See {@link #preconditions()}.
+         */
+        @HiddenInList
+        List<String> preconditionStepIds,
         String preconditionExpression,
 
+        /**
+         * Deprecated and ignored: parallelism is expressed with FORK/JOIN and preconditions —
+         * every step whose preconditions are met starts concurrently. Kept only so persisted
+         * stepJson and old definition files keep deserializing.
+         */
         @Section(value = "Execution", zone = "execution")
         boolean parallel,
         @HiddenInList
@@ -63,6 +75,13 @@ public record Step(
         @Hidden("state['type'] != 'PROCESS'")
         @Lookup(search = WorkflowDefinitionIdOptionsSupplier.class, label = WorkflowDefinitionIdLabelSupplier.class)
         String childWorkflowDefinitionId,
+        /**
+         * PROCESS only: names of the child process variables copied back into the parent when
+         * the child completes. Empty or absent means none.
+         */
+        @HiddenInList
+        @Hidden("state['type'] != 'PROCESS'")
+        List<String> outputVariables,
         @HiddenInList
         @Hidden("state['type'] != 'TIMER'")
         @JsonDeserialize(using = TimeoutDeserializer.class)
@@ -102,6 +121,21 @@ public record Step(
         @HiddenInList
         int maxSuccessfulExecutions
 ) implements Identifiable {
+
+    /**
+     * The step ids that must ALL have completed before this step can start: the plural
+     * {@code preconditionStepIds} when declared, else the singular {@code preconditionStepId},
+     * else none.
+     */
+    public List<String> preconditions() {
+        if (preconditionStepIds != null && !preconditionStepIds.isEmpty()) {
+            return preconditionStepIds;
+        }
+        if (preconditionStepId != null && !preconditionStepId.isBlank()) {
+            return List.of(preconditionStepId);
+        }
+        return List.of();
+    }
 
     /**
      * Moment a TIMER step is due, derived only from persisted state (the step definition,

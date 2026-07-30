@@ -155,7 +155,7 @@ A detailed capability-by-capability view. ✅ built-in · 🟡 possible with ext
 
 | Capability | EventConductor | Camunda 8 | Temporal |
 |---|---|---|---|
-| Sequential & parallel execution (fork/join) | ✅ `FORK`/`JOIN`/`parallel` | ✅ gateways | ✅ native code |
+| Sequential & parallel execution (fork/join) | ✅ `FORK`/`JOIN` + multi-preconditions | ✅ gateways | ✅ native code |
 | Sub-processes | ✅ `PROCESS` step | ✅ call activities | ✅ child workflows |
 | Conditional branching | ✅ JEXL expressions | ✅ gateways + FEEL | ✅ native code |
 | Dynamic / data-driven flow shape | 🟡 expressions over a static graph | 🟡 multi-instance, ad-hoc sub-processes | ✅ unrestricted (it's code) |

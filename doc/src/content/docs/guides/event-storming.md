@@ -105,7 +105,7 @@ flowchart TD
 
 ### Flow 1 — Process Creation
 
-An external system or API sends `ProcessCreationRequested`. The engine creates a `Process` aggregate, which emits `ProcessCreated`. The handler then initialises the first step.
+An external system or API sends `ProcessCreationRequested`. The engine creates a `Process` aggregate, which emits `ProcessCreated`. The handler then starts every eligible entry step — the `START` roots complete instantly (fanning the flow out to their successors) and `WAIT_FOR_MESSAGE` roots arm their wait.
 
 ```
 ProcessCreationRequested

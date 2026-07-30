@@ -108,22 +108,41 @@ public class SpecValidator {
                 violations.add("Duplicate step id '" + id + "'.");
             }
         }
+        String workflowId = text(wf, "id");
         for (JsonNode step : steps) {
             String id = text(step, "id");
             if (id == null) continue;
-            String precondition = text(step, "preconditionStepId");
+            String type = text(step, "type");
+            List<String> preconditions = preconditions(step);
             String compensation = text(step, "compensationStepId");
-            if (id.equals(precondition)) {
+            if (preconditions.contains(id)) {
                 violations.add("Step '" + id + "' cannot have itself as a precondition.");
             }
             if (id.equals(compensation)) {
                 violations.add("Step '" + id + "' cannot have itself as a compensation step.");
             }
-            if (isSet(precondition) && !ids.contains(precondition)) {
-                violations.add("Step '" + id + "' references unknown precondition step '" + precondition + "'.");
+            for (String precondition : preconditions) {
+                if (!ids.contains(precondition)) {
+                    violations.add("Step '" + id + "' references unknown precondition step '" + precondition + "'.");
+                }
             }
             if (isSet(compensation) && !ids.contains(compensation)) {
                 violations.add("Step '" + id + "' references unknown compensation step '" + compensation + "'.");
+            }
+            if ("START".equals(type) && !preconditions.isEmpty()) {
+                violations.add("START step '" + id + "' cannot have preconditions.");
+            }
+            if (!"START".equals(type) && !"WAIT_FOR_MESSAGE".equals(type) && preconditions.isEmpty()) {
+                violations.add("Step '" + id + "' has no preconditions but is not a START or"
+                        + " WAIT_FOR_MESSAGE — every flow must enter through one.");
+            }
+            if ("PROCESS".equals(type)) {
+                String childWorkflowDefinitionId = text(step, "childWorkflowDefinitionId");
+                if (!isSet(childWorkflowDefinitionId)) {
+                    violations.add("Process step '" + id + "' must define a childWorkflowDefinitionId.");
+                } else if (childWorkflowDefinitionId.equals(workflowId)) {
+                    violations.add("Process step '" + id + "' cannot start this workflow itself as its child.");
+                }
             }
             String precExpr = text(step, "preconditionExpression");
             if (isSet(precExpr)) {
@@ -134,6 +153,56 @@ public class SpecValidator {
                 checkJexl(corrExpr, "step '" + id + "' correlationExpression", violations);
             }
         }
+        // Cycle detection: DFS (white/grey/black) over the multi-edge precondition graph —
+        // revisiting a grey node means a cycle, and none of those steps could ever run.
+        java.util.Map<String, List<String>> preconditionGraph = new java.util.HashMap<>();
+        for (JsonNode step : steps) {
+            String id = text(step, "id");
+            if (id != null) {
+                preconditionGraph.put(id, preconditions(step));
+            }
+        }
+        Set<String> acyclic = new HashSet<>();
+        for (String start : preconditionGraph.keySet()) {
+            findPreconditionCycle(start, preconditionGraph, new java.util.LinkedHashSet<>(), acyclic, violations);
+        }
+    }
+
+    /**
+     * The effective precondition ids of a step: the plural {@code preconditionStepIds} when
+     * non-empty, else the singular {@code preconditionStepId}, else none — mirroring
+     * {@code Step.preconditions()} in the engine.
+     */
+    private static List<String> preconditions(JsonNode step) {
+        JsonNode plural = step.get("preconditionStepIds");
+        if (plural != null && plural.isArray() && !plural.isEmpty()) {
+            List<String> result = new ArrayList<>();
+            for (JsonNode id : plural) {
+                if (id.isTextual()) {
+                    result.add(id.asText());
+                }
+            }
+            return result;
+        }
+        String singular = text(step, "preconditionStepId");
+        return isSet(singular) ? List.of(singular) : List.of();
+    }
+
+    /** DFS step for cycle detection: {@code path} is the grey set (current walk), {@code acyclic} the black set. */
+    private static void findPreconditionCycle(String stepId, java.util.Map<String, List<String>> preconditions,
+                                              java.util.LinkedHashSet<String> path, Set<String> acyclic,
+                                              List<String> violations) {
+        if (acyclic.contains(stepId)) return;
+        if (!path.add(stepId)) {
+            violations.add("Steps form a precondition cycle (" + String.join(" → ", path)
+                    + " → " + stepId + "), so none of them could ever run.");
+            return;
+        }
+        for (String preconditionStepId : preconditions.getOrDefault(stepId, List.of())) {
+            findPreconditionCycle(preconditionStepId, preconditions, path, acyclic, violations);
+        }
+        path.remove(stepId);
+        acyclic.add(stepId);
     }
 
     // --- Rule semantics: mirror RuleValidator (row arity + JEXL parseability). ---

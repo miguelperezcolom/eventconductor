@@ -40,4 +40,7 @@ public class ProcessEntity {
     private LocalDateTime created;
     private LocalDateTime started;
     private LocalDateTime finished;
+
+    /** Parent PROCESS step execution that spawned this process; null for top-level processes. */
+    private String parentStepExecutionId;
 }

@@ -45,7 +45,8 @@ public class CreateProcessForm {
                 processId,
                 workflowDefinitionId,
                 businessKey,
-                variables
+                variables,
+                null
         ));
         // Creating IS this form's save: clear the dirty flag before navigating away, or the
         // frontend asks whether to save the changes that have just been persisted.

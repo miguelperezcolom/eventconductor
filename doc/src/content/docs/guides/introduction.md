@@ -28,9 +28,10 @@ A running execution of a workflow definition. Each instance has its own variable
 
 The execution of a single step within a process. Steps can be:
 
+- **START** — the entry point of a flow; completes instantly at process creation
 - **ACTION** — dispatches work to a worker microservice
 - **USER_TASK** — pauses the workflow until a human submits a form
-- **PROCESS** — starts a child sub-process
+- **PROCESS** — starts a child workflow as a sub-process
 - **FORK / JOIN** — parallel execution branches
 - **END** — marks the workflow as complete
 

@@ -53,7 +53,8 @@ public class CreateProcessUseCase {
                         command.processId(),
                         workflowDefinition,
                         command.businessKey(),
-                        command.variables() != null?command.variables(): List.of()
+                        command.variables() != null?command.variables(): List.of(),
+                        command.parentStepExecutionId()
                 );
         processRepository.save(process);
 

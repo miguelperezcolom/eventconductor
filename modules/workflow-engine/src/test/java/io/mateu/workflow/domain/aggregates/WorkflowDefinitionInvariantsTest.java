@@ -17,16 +17,36 @@ class WorkflowDefinitionInvariantsTest {
         );
     }
 
+    /** The entry point every flow must have since the roots rule. */
+    private Step startStep() {
+        return new Step("start", "wd-1", StepType.START, "Start", null,
+                null, null, null, false, null, null, null, null, null, 0, null, null, null, null,
+                0, 0, false, null, 0);
+    }
+
     private Step step(String id, String preconditionStepId, String compensationStepId) {
         return new Step(id, "wd-1", StepType.ACTION, "Step " + id, null,
-                preconditionStepId, null, false, "topic", null, null, null, 0, null, null, null, null,
+                preconditionStepId, null, null, false, "topic", null, null, null, null, 0, null, null, null, null,
                 0, 0, compensationStepId != null, compensationStepId, 0);
+    }
+
+    private Step step(String id, List<String> preconditionStepIds) {
+        return new Step(id, "wd-1", StepType.ACTION, "Step " + id, null,
+                null, preconditionStepIds, null, false, "topic", null, null, null, null, 0, null, null, null, null,
+                0, 0, false, null, 0);
+    }
+
+    private Step processStep(String id, String preconditionStepId, String childWorkflowDefinitionId) {
+        return new Step(id, "wd-1", StepType.PROCESS, "Step " + id, null,
+                preconditionStepId, null, null, false, null, null, null, childWorkflowDefinitionId, null,
+                0, null, null, null, null, 0, 0, false, null, 0);
     }
 
     @Test
     void shouldPassWhenNoSelfReference() {
         var steps = List.of(
-                step("step-1", null, null),
+                startStep(),
+                step("step-1", "start", null),
                 step("step-2", "step-1", null),
                 step("step-3", "step-2", "step-1")
         );
@@ -36,9 +56,9 @@ class WorkflowDefinitionInvariantsTest {
     @Test
     void shouldFailWhenTimerStepHasNoDurationNorUntilVariable() {
         var timer = new Step("wait", "wd-1", StepType.TIMER, "Wait", null,
-                null, null, false, null, null, null, null, 0, null, null, null, null,
+                "start", null, null, false, null, null, null, null, null, 0, null, null, null, null,
                 0, 0, false, null, 0);
-        assertThatThrownBy(() -> definition(List.of(timer)).checkInvariants())
+        assertThatThrownBy(() -> definition(List.of(startStep(), timer)).checkInvariants())
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("wait")
                 .hasMessageContaining("duration");
@@ -47,15 +67,15 @@ class WorkflowDefinitionInvariantsTest {
     @Test
     void shouldPassWhenTimerStepHasDuration() {
         var timer = new Step("wait", "wd-1", StepType.TIMER, "Wait", null,
-                null, null, false, null, null, null, null, 60000, null, null, null, null,
+                "start", null, null, false, null, null, null, null, null, 60000, null, null, null, null,
                 0, 0, false, null, 0);
-        assertThatNoException().isThrownBy(() -> definition(List.of(timer)).checkInvariants());
+        assertThatNoException().isThrownBy(() -> definition(List.of(startStep(), timer)).checkInvariants());
     }
 
     @Test
     void shouldFailWhenMessageStepHasNoMessageName() {
         var message = new Step("wait", "wd-1", StepType.WAIT_FOR_MESSAGE, "Wait", null,
-                null, null, false, null, null, null, null, 0, null, null, null, null,
+                null, null, null, false, null, null, null, null, null, 0, null, null, null, null,
                 0, 0, false, null, 0);
         assertThatThrownBy(() -> definition(List.of(message)).checkInvariants())
                 .isInstanceOf(IllegalStateException.class)
@@ -65,8 +85,9 @@ class WorkflowDefinitionInvariantsTest {
 
     @Test
     void shouldPassWhenMessageStepHasMessageNameAndCorrelationExpression() {
+        // A WAIT_FOR_MESSAGE step is a legal flow entry point: no START needed.
         var message = new Step("wait", "wd-1", StepType.WAIT_FOR_MESSAGE, "Wait", null,
-                null, null, false, null, null, null, null, 0, null, "payment-received", "businessKey", null,
+                null, null, null, false, null, null, null, null, null, 0, null, "payment-received", "businessKey", null,
                 0, 0, false, null, 0);
         assertThatNoException().isThrownBy(() -> definition(List.of(message)).checkInvariants());
     }
@@ -74,7 +95,7 @@ class WorkflowDefinitionInvariantsTest {
     @Test
     void shouldFailWhenWaitForMessageStepHasNoCorrelationExpression() {
         var message = new Step("wait", "wd-1", StepType.WAIT_FOR_MESSAGE, "Wait", null,
-                null, null, false, null, null, null, null, 0, null, "payment-received", null, null,
+                null, null, null, false, null, null, null, null, null, 0, null, "payment-received", null, null,
                 0, 0, false, null, 0);
         assertThatThrownBy(() -> definition(List.of(message)).checkInvariants())
                 .isInstanceOf(IllegalStateException.class)
@@ -85,9 +106,9 @@ class WorkflowDefinitionInvariantsTest {
     @Test
     void shouldFailWhenSendMessageStepHasNoCorrelationExpression() {
         var message = new Step("send", "wd-1", StepType.SEND_MESSAGE, "Send", null,
-                null, null, false, null, null, null, null, 0, null, "payment-received", null, null,
+                "start", null, null, false, null, null, null, null, null, 0, null, "payment-received", null, null,
                 0, 0, false, null, 0);
-        assertThatThrownBy(() -> definition(List.of(message)).checkInvariants())
+        assertThatThrownBy(() -> definition(List.of(startStep(), message)).checkInvariants())
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("send")
                 .hasMessageContaining("correlationExpression");
@@ -96,9 +117,9 @@ class WorkflowDefinitionInvariantsTest {
     @Test
     void shouldFailWhenSendMessageStepHasNoMessageName() {
         var message = new Step("send", "wd-1", StepType.SEND_MESSAGE, "Send", null,
-                null, null, false, null, null, null, null, 0, null, null, "businessKey", null,
+                "start", null, null, false, null, null, null, null, null, 0, null, null, "businessKey", null,
                 0, 0, false, null, 0);
-        assertThatThrownBy(() -> definition(List.of(message)).checkInvariants())
+        assertThatThrownBy(() -> definition(List.of(startStep(), message)).checkInvariants())
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("send")
                 .hasMessageContaining("messageName");
@@ -107,14 +128,14 @@ class WorkflowDefinitionInvariantsTest {
     @Test
     void shouldPassWhenSendMessageStepHasMessageNameAndCorrelationExpression() {
         var message = new Step("send", "wd-1", StepType.SEND_MESSAGE, "Send", null,
-                null, null, false, null, null, null, null, 0, null, "payment-received", "businessKey", null,
+                "start", null, null, false, null, null, null, null, null, 0, null, "payment-received", "businessKey", null,
                 0, 0, false, null, 0);
-        assertThatNoException().isThrownBy(() -> definition(List.of(message)).checkInvariants());
+        assertThatNoException().isThrownBy(() -> definition(List.of(startStep(), message)).checkInvariants());
     }
 
     @Test
     void shouldFailWhenStepHasItselfAsPrecondition() {
-        var steps = List.of(step("step-1", "step-1", null));
+        var steps = List.of(startStep(), step("step-1", "step-1", null));
         assertThatThrownBy(() -> definition(steps).checkInvariants())
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("step-1")
@@ -123,7 +144,7 @@ class WorkflowDefinitionInvariantsTest {
 
     @Test
     void shouldFailWhenStepHasItselfAsCompensation() {
-        var steps = List.of(step("step-1", null, "step-1"));
+        var steps = List.of(startStep(), step("step-1", "start", "step-1"));
         assertThatThrownBy(() -> definition(steps).checkInvariants())
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("step-1")
@@ -133,6 +154,7 @@ class WorkflowDefinitionInvariantsTest {
     @Test
     void shouldFailWhenStepsFormAPreconditionCycle() {
         var steps = List.of(
+                startStep(),
                 step("step-1", "step-2", null),
                 step("step-2", "step-1", null)
         );
@@ -144,6 +166,7 @@ class WorkflowDefinitionInvariantsTest {
     @Test
     void shouldFailWhenStepsFormALongerPreconditionCycle() {
         var steps = List.of(
+                startStep(),
                 step("step-1", "step-3", null),
                 step("step-2", "step-1", null),
                 step("step-3", "step-2", null)
@@ -154,12 +177,37 @@ class WorkflowDefinitionInvariantsTest {
     }
 
     @Test
+    void shouldFailWhenStepsFormACycleThroughPluralPreconditions() {
+        // The DFS must follow every edge of preconditionStepIds, not just the singular field.
+        var steps = List.of(
+                startStep(),
+                step("a", "start", null),
+                step("join-1", List.of("a", "join-2")),
+                step("join-2", List.of("join-1"))
+        );
+        assertThatThrownBy(() -> definition(steps).checkInvariants())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("cycle");
+    }
+
+    @Test
     void shouldPassWhenPreconditionsFormATreeWithoutCycles() {
         var steps = List.of(
-                step("root", null, null),
-                step("a", "root", null),
-                step("b", "root", null),
+                startStep(),
+                step("a", "start", null),
+                step("b", "start", null),
                 step("c", "a", null)
+        );
+        assertThatNoException().isThrownBy(() -> definition(steps).checkInvariants());
+    }
+
+    @Test
+    void shouldPassWhenJoinDeclaresSeveralPreconditions() {
+        var steps = List.of(
+                startStep(),
+                step("a", "start", null),
+                step("b", "start", null),
+                step("join", List.of("a", "b"))
         );
         assertThatNoException().isThrownBy(() -> definition(steps).checkInvariants());
     }
@@ -167,11 +215,68 @@ class WorkflowDefinitionInvariantsTest {
     @Test
     void shouldFailOnFirstViolatingStep() {
         var steps = List.of(
-                step("step-1", null, null),
+                startStep(),
+                step("step-1", "start", null),
                 step("step-2", "step-2", null)   // self-precondition
         );
         assertThatThrownBy(() -> definition(steps).checkInvariants())
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("step-2");
+    }
+
+    // ── Roots rule: every flow must enter through a START (or WAIT_FOR_MESSAGE) ──
+
+    @Test
+    void shouldFailWhenARootStepIsNotStartNorWaitForMessage() {
+        var steps = List.of(step("step-1", (String) null, null));
+        assertThatThrownBy(() -> definition(steps).checkInvariants())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("step-1")
+                .hasMessageContaining("every flow must enter through one");
+    }
+
+    @Test
+    void shouldFailWhenStartStepHasPreconditions() {
+        var badStart = new Step("start", "wd-1", StepType.START, "Start", null,
+                "step-1", null, null, false, null, null, null, null, null, 0, null, null, null, null,
+                0, 0, false, null, 0);
+        var steps = List.of(startStep().withId("real-start"), badStart, step("step-1", "real-start", null));
+        assertThatThrownBy(() -> definition(steps).checkInvariants())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("START step 'start' cannot have preconditions");
+    }
+
+    @Test
+    void shouldFailWhenPreconditionReferencesUnknownStep() {
+        var steps = List.of(startStep(), step("step-1", "nope", null));
+        assertThatThrownBy(() -> definition(steps).checkInvariants())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("unknown precondition step 'nope'");
+    }
+
+    // ── PROCESS steps ──
+
+    @Test
+    void shouldPassWhenProcessStepReferencesAnotherWorkflow() {
+        var steps = List.of(startStep(), processStep("spawn", "start", "child-wd"));
+        assertThatNoException().isThrownBy(() -> definition(steps).checkInvariants());
+    }
+
+    @Test
+    void shouldFailWhenProcessStepHasNoChildWorkflowDefinitionId() {
+        var steps = List.of(startStep(), processStep("spawn", "start", null));
+        assertThatThrownBy(() -> definition(steps).checkInvariants())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("spawn")
+                .hasMessageContaining("childWorkflowDefinitionId");
+    }
+
+    @Test
+    void shouldFailWhenProcessStepReferencesItsOwnWorkflow() {
+        var steps = List.of(startStep(), processStep("spawn", "start", "wd-1"));
+        assertThatThrownBy(() -> definition(steps).checkInvariants())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("spawn")
+                .hasMessageContaining("cannot start this workflow itself as its child");
     }
 }

@@ -176,13 +176,33 @@ public record WorkflowDefinition(
                 throw new IllegalStateException(
                         "Duplicate step id '" + step.id() + "'.");
             }
-            if (step.id().equals(step.preconditionStepId())) {
+            if (step.preconditions().contains(step.id())) {
                 throw new IllegalStateException(
                         "Step '" + step.id() + "' cannot have itself as a precondition.");
             }
             if (step.id().equals(step.compensationStepId())) {
                 throw new IllegalStateException(
                         "Step '" + step.id() + "' cannot have itself as a compensation step.");
+            }
+            if (StepType.START.equals(step.type()) && !step.preconditions().isEmpty()) {
+                throw new IllegalStateException(
+                        "START step '" + step.id() + "' cannot have preconditions.");
+            }
+            if (!StepType.START.equals(step.type()) && !StepType.WAIT_FOR_MESSAGE.equals(step.type())
+                    && step.preconditions().isEmpty()) {
+                throw new IllegalStateException(
+                        "Step '" + step.id() + "' has no preconditions but is not a START or"
+                                + " WAIT_FOR_MESSAGE — every flow must enter through one.");
+            }
+            if (StepType.PROCESS.equals(step.type())) {
+                if (step.childWorkflowDefinitionId() == null || step.childWorkflowDefinitionId().isBlank()) {
+                    throw new IllegalStateException(
+                            "Process step '" + step.id() + "' must define a childWorkflowDefinitionId.");
+                }
+                if (step.childWorkflowDefinitionId().equals(id)) {
+                    throw new IllegalStateException(
+                            "Process step '" + step.id() + "' cannot start this workflow itself as its child.");
+                }
             }
             if (StepType.TIMER.equals(step.type()) && step.duration() <= 0
                     && (step.untilVariable() == null || step.untilVariable().isBlank())) {
@@ -202,11 +222,12 @@ public record WorkflowDefinition(
         }
         for (var step : steps) {
             if (step.id() == null) continue;
-            if (step.preconditionStepId() != null && !step.preconditionStepId().isBlank()
-                    && !stepIds.contains(step.preconditionStepId())) {
-                throw new IllegalStateException(
-                        "Step '" + step.id() + "' references unknown precondition step '"
-                                + step.preconditionStepId() + "'.");
+            for (var preconditionStepId : step.preconditions()) {
+                if (!stepIds.contains(preconditionStepId)) {
+                    throw new IllegalStateException(
+                            "Step '" + step.id() + "' references unknown precondition step '"
+                                    + preconditionStepId + "'.");
+                }
             }
             if (step.compensationStepId() != null && !step.compensationStepId().isBlank()
                     && !stepIds.contains(step.compensationStepId())) {
@@ -215,33 +236,36 @@ public record WorkflowDefinition(
                                 + step.compensationStepId() + "'.");
             }
         }
-        // Reject precondition cycles. A step waits for its preconditionStepId to COMPLETE, so a
-        // cycle (A waits for B waits for … waits for A) would deadlock: none of those steps could
-        // ever start. Each step has at most one precondition, so following the pointers and
-        // revisiting a node on the current walk means a cycle.
-        var precondition = new java.util.HashMap<String, String>();
+        // Reject precondition cycles. A step waits for its preconditions to COMPLETE, so a
+        // cycle (A waits for B waits for … waits for A) would deadlock: none of those steps
+        // could ever start. Steps may have several preconditions, so run a DFS (white/grey/
+        // black) over the multi-edge graph — revisiting a grey node means a cycle.
+        var preconditions = new java.util.HashMap<String, List<String>>();
         for (var step : steps) {
-            if (step.id() != null && step.preconditionStepId() != null
-                    && !step.preconditionStepId().isBlank()) {
-                precondition.put(step.id(), step.preconditionStepId());
+            if (step.id() != null) {
+                preconditions.put(step.id(), step.preconditions());
             }
         }
         var acyclic = new java.util.HashSet<String>();
-        for (var start : precondition.keySet()) {
-            if (acyclic.contains(start)) continue;
-            var path = new java.util.LinkedHashSet<String>();
-            var current = start;
-            while (current != null) {
-                if (acyclic.contains(current)) break;
-                if (!path.add(current)) {
-                    throw new IllegalStateException(
-                            "Steps form a precondition cycle (" + String.join(" → ", path)
-                                    + " → " + current + "), so none of them could ever run.");
-                }
-                current = precondition.get(current);
-            }
-            acyclic.addAll(path);
+        for (var start : preconditions.keySet()) {
+            checkNoPreconditionCycle(start, preconditions, new java.util.LinkedHashSet<>(), acyclic);
         }
+    }
+
+    /** DFS step for cycle detection: {@code path} is the grey set (current walk), {@code acyclic} the black set. */
+    private void checkNoPreconditionCycle(String stepId, java.util.Map<String, List<String>> preconditions,
+                                          java.util.LinkedHashSet<String> path, java.util.Set<String> acyclic) {
+        if (acyclic.contains(stepId)) return;
+        if (!path.add(stepId)) {
+            throw new IllegalStateException(
+                    "Steps form a precondition cycle (" + String.join(" → ", path)
+                            + " → " + stepId + "), so none of them could ever run.");
+        }
+        for (var preconditionStepId : preconditions.getOrDefault(stepId, List.of())) {
+            checkNoPreconditionCycle(preconditionStepId, preconditions, path, acyclic);
+        }
+        path.remove(stepId);
+        acyclic.add(stepId);
     }
 
     @Override

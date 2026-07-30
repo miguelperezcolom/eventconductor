@@ -3,6 +3,7 @@ package io.mateu.workflow.application.usecases.process.update;
 import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.out.WorkflowMetrics;
+import io.mateu.workflow.application.usecases.process.parentnotify.NotifyParentStepService;
 import io.mateu.workflow.domain.aggregates.*;
 import io.mateu.workflow.domain.aggregates.Process;
 import org.junit.jupiter.api.Test;
@@ -27,6 +28,7 @@ class ProcessUpdateStepExecutionUpdateUseCaseTest {
     @Mock ProcessRepository repository;
     @Mock StepExecutionRepository stepExecutionRepository;
     @Mock WorkflowMetrics workflowMetrics;
+    @Mock NotifyParentStepService notifyParentStepService;
 
     @InjectMocks ProcessUpdateStepExecutionUpdateUseCase useCase;
 

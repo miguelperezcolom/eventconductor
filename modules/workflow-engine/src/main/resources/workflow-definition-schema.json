@@ -91,7 +91,7 @@
         "type": {
           "type": "string",
           "description": "Execution type of the step.",
-          "enum": ["ACTION", "JOIN", "FORK", "END", "USER_TASK", "PROCESS", "TIMER", "WAIT_FOR_MESSAGE", "SEND_MESSAGE", "RULE"]
+          "enum": ["START", "ACTION", "JOIN", "FORK", "END", "USER_TASK", "PROCESS", "TIMER", "WAIT_FOR_MESSAGE", "SEND_MESSAGE", "RULE"]
         },
         "name": {
           "type": "string",
@@ -104,7 +104,12 @@
         },
         "preconditionStepId": {
           "type": ["string", "null"],
-          "description": "ID of a previous step that must have completed before this one can start."
+          "description": "ID of a previous step that must have completed before this one can start. For several preconditions use the plural preconditionStepIds instead."
+        },
+        "preconditionStepIds": {
+          "type": ["array", "null"],
+          "items": { "type": "string" },
+          "description": "IDs of the steps that must ALL have completed before this one can start. Takes precedence over the singular preconditionStepId when non-empty."
         },
         "preconditionExpression": {
           "type": ["string", "null"],
@@ -112,7 +117,7 @@
         },
         "parallel": {
           "type": ["boolean", "null"],
-          "description": "Whether this step can execute in parallel with other parallel-flagged steps.",
+          "description": "Deprecated and ignored: parallelism is expressed with FORK/JOIN and preconditions.",
           "default": false
         },
         "topic": {
@@ -130,6 +135,11 @@
         "childWorkflowDefinitionId": {
           "type": ["string", "null"],
           "description": "ID of the child workflow definition to start as a sub-process. Required for PROCESS steps."
+        },
+        "outputVariables": {
+          "type": ["array", "null"],
+          "items": { "type": "string" },
+          "description": "PROCESS only: names of the child process variables copied back into the parent when the child completes. Empty or absent means none."
         },
         "duration": {
           "type": ["integer", "string", "null"],

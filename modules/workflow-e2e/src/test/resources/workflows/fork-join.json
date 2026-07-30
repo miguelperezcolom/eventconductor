@@ -1,0 +1,55 @@
+{
+  "id": "fork-join",
+  "name": "Fork and join with a step after the barrier",
+  "version": 1,
+  "status": "ACTIVE",
+  "steps": [
+    {
+      "id": "start",
+      "type": "START",
+      "name": "Start"
+    },
+    {
+      "id": "fork",
+      "type": "FORK",
+      "name": "Fork",
+      "preconditionStepId": "start"
+    },
+    {
+      "id": "branch-a",
+      "type": "ACTION",
+      "name": "Branch A",
+      "topic": "work",
+      "preconditionStepId": "fork"
+    },
+    {
+      "id": "branch-b",
+      "type": "ACTION",
+      "name": "Branch B",
+      "topic": "work",
+      "preconditionStepId": "fork"
+    },
+    {
+      "id": "join",
+      "type": "JOIN",
+      "name": "Join",
+      "preconditionStepIds": [
+        "branch-a",
+        "branch-b"
+      ]
+    },
+    {
+      "id": "after-join",
+      "type": "ACTION",
+      "name": "After the join",
+      "topic": "work",
+      "preconditionStepId": "join"
+    },
+    {
+      "id": "end",
+      "type": "END",
+      "name": "End",
+      "preconditionStepId": "after-join"
+    }
+  ]
+}

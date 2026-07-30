@@ -4,8 +4,30 @@
   "version": 1,
   "status": "ACTIVE",
   "steps": [
-    { "id": "wait", "type": "TIMER", "name": "Wait a moment", "duration": "PT0.5S" },
-    { "id": "after", "type": "ACTION", "name": "After the wait", "topic": "work", "preconditionStepId": "wait" },
-    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "after" }
+    {
+      "id": "start",
+      "type": "START",
+      "name": "Start"
+    },
+    {
+      "id": "wait",
+      "type": "TIMER",
+      "name": "Wait a moment",
+      "duration": "PT0.5S",
+      "preconditionStepId": "start"
+    },
+    {
+      "id": "after",
+      "type": "ACTION",
+      "name": "After the wait",
+      "topic": "work",
+      "preconditionStepId": "wait"
+    },
+    {
+      "id": "end",
+      "type": "END",
+      "name": "End",
+      "preconditionStepId": "after"
+    }
   ]
 }

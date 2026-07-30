@@ -4,10 +4,14 @@ name: Rule demo
 version: 1
 status: ACTIVE
 steps:
+  - id: start
+    type: START
+    name: Start
   - id: apply-discount
     type: RULE
     name: Apply the discount rule
     ruleId: high-value-order
+    preconditionStepId: start
   - id: end
     type: END
     name: Done

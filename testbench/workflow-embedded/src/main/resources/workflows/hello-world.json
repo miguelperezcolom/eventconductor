@@ -6,9 +6,15 @@
   "status": "ACTIVE",
   "steps": [
     {
+      "id": "start",
+      "type": "START",
+      "name": "Start"
+    },
+    {
       "id": "greet",
       "type": "ACTION",
-      "name": "Greet the user"
+      "name": "Greet the user",
+      "preconditionStepId": "start"
     },
     {
       "id": "end",

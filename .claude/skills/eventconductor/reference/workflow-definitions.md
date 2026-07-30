@@ -17,10 +17,11 @@ Add `"$schema"` (JSON) or a `# yaml-language-server: $schema=...` comment (YAML)
 
 | Field | Applies to | Notes |
 |---|---|---|
-| `id`, `type`, `name`, `description` | all | `type` ∈ ACTION/USER_TASK/RULE/TIMER/WAIT_FOR_MESSAGE/SEND_MESSAGE/PROCESS/FORK/JOIN/END |
-| `preconditionStepId` | all | step that must complete first (defines ordering) |
+| `id`, `type`, `name`, `description` | all | `type` ∈ START/ACTION/USER_TASK/RULE/TIMER/WAIT_FOR_MESSAGE/SEND_MESSAGE/PROCESS/FORK/JOIN/END |
+| `preconditionStepId` | all | single step that must complete first |
+| `preconditionStepIds` | all | steps that must ALL complete first; wins over the singular form when non-empty |
 | `preconditionExpression` | all | JEXL guard; while falsy the step never runs (stays `CREATED`, → `CANCELLED` at `END`) |
-| `parallel` | all | `true` inside a FORK branch |
+| `parallel` | all | **deprecated and ignored** — every eligible step runs concurrently |
 | `topic` | ACTION | worker destination (Kafka mode; ignored embedded) |
 | `formId` | USER_TASK | form to render |
 | `ruleId` | RULE | rule to evaluate (rule-engine catalog) |
@@ -29,7 +30,8 @@ Add `"$schema"` (JSON) or a `# yaml-language-server: $schema=...` comment (YAML)
 | `messageName` | WAIT_FOR_MESSAGE, SEND_MESSAGE | message to wait for / emit; **required** for both |
 | `correlationExpression` | WAIT_FOR_MESSAGE, SEND_MESSAGE | JEXL producing the correlation key; **required** for both (use `businessKey` for the business key) |
 | `messageVariables` | SEND_MESSAGE | array of process-variable names the message carries; empty/absent = none |
-| `childWorkflowDefinitionId` | PROCESS | child workflow id |
+| `childWorkflowDefinitionId` | PROCESS | child workflow id; **required**, must differ from the workflow's own id |
+| `outputVariables` | PROCESS | child variables copied back to the parent on completion; empty/absent = none |
 | `timeout` | all | ISO-8601 (`PT30S`,`PT1H30M`) or ms int; `0`=none |
 | `retries` | all | auto-retry count on ERROR/TIMEOUT |
 | `rollbackable` + `compensationStepId` | all | saga compensation on failure |
@@ -37,6 +39,8 @@ Add `"$schema"` (JSON) or a `# yaml-language-server: $schema=...` comment (YAML)
 
 ## Step types
 
+- **START** — entry point: no worker, completes instantly at process creation. Must have no
+  preconditions; several STARTs = concurrent entry branches.
 - **ACTION** — dispatch to a worker. Kafka: publishes `TaskExecutionRequested` to `topic`.
   Embedded: routed to the single `EmbeddedTaskExecutor` (topic ignored).
 - **USER_TASK** — pause for a human; creates a `FormExecution` for `formId` (needs `forms-engine`).
@@ -52,14 +56,25 @@ Add `"$schema"` (JSON) or a `# yaml-language-server: $schema=...` comment (YAML)
   `MessageReceived(messageName, correlationKey, messageVariables)` through the outbox and completes
   immediately. Fire-and-forget (delivery not acknowledged; unmatched messages discarded). Missing
   fields or an unevaluable correlation key → step `ERROR` (fails loud, unlike precondition guards).
-- **PROCESS** — run `childWorkflowDefinitionId` as a sub-process; variables pass down and merge back up.
-- **FORK / JOIN** — FORK starts branches whose steps set `parallel: true`; JOIN waits for all.
+- **PROCESS** — run `childWorkflowDefinitionId` as a child workflow, no worker: the child starts
+  with ALL parent variables and the deterministic businessKey `parent:<stepExecutionId>`
+  (idempotent); the parent step waits `PENDING`; on child `COMPLETED` only the child variables
+  named in `outputVariables` are copied back (absent = none); child `ERROR`/`CANCELLED` →
+  parent step `ERROR` (normal retry/compensation). `timeout` bounds the wait. Parent
+  cancellation does NOT yet propagate to the child.
+- **FORK / JOIN** — no-worker nodes that complete instantly. FORK is the explicit fan-out
+  (every step preconditioned on it starts concurrently); JOIN is the barrier — its
+  `preconditionStepIds` must ALL complete.
 - **END** — exactly one; process → `COMPLETED`. Put a JOIN before it if there are branches.
 
 ## Ordering
 
-Steps execute by **data flow**: a step becomes eligible when its `preconditionStepId` step
-completes. A step with no `preconditionStepId` starts immediately. Array order is irrelevant.
+Steps execute by **pure data flow**: a step becomes eligible when ALL its preconditions
+(`preconditionStepIds` / `preconditionStepId`) have completed and its guard holds; every
+eligible step starts concurrently. Array order is irrelevant; `parallel` is ignored.
+**Roots rule:** every step with no preconditions must be a `START` or a `WAIT_FOR_MESSAGE`,
+or the definition is rejected at load. Migrating an old definition = add one `START` step and
+point the old first steps at it.
 
 ## Patterns
 
@@ -75,22 +90,33 @@ Conditional (JEXL) — skip when false:
   "preconditionStepId": "check", "preconditionExpression": "amount > 1000" }
 ```
 
-Parallel:
+Parallel (fan-out + barrier):
 ```json
-{ "id": "fork",  "type": "FORK", "preconditionStepId": "process" },
-{ "id": "email", "type": "ACTION", "topic": "email-service", "preconditionStepId": "fork", "parallel": true },
-{ "id": "sms",   "type": "ACTION", "topic": "sms-service",   "preconditionStepId": "fork", "parallel": true },
-{ "id": "join",  "type": "JOIN", "preconditionStepId": "email" }
+{ "id": "fork",  "type": "FORK", "name": "Fork", "preconditionStepId": "process" },
+{ "id": "email", "type": "ACTION", "topic": "email-service", "preconditionStepId": "fork" },
+{ "id": "sms",   "type": "ACTION", "topic": "sms-service",   "preconditionStepId": "fork" },
+{ "id": "join",  "type": "JOIN", "name": "Join", "preconditionStepIds": ["email", "sms"] }
+```
+
+Child workflow:
+```json
+{ "id": "run-kyc", "type": "PROCESS", "name": "Run KYC",
+  "childWorkflowDefinitionId": "kyc-workflow", "outputVariables": ["kycResult"],
+  "preconditionStepId": "create-customer", "timeout": "PT1H" }
 ```
 
 Saga with compensation:
 ```json
 { "id": "reserve-hotel", "type": "ACTION", "topic": "hotel-service",
+  "preconditionStepId": "start",
   "rollbackable": true, "compensationStepId": "cancel-hotel", "retries": 2 },
-{ "id": "cancel-hotel",  "type": "ACTION", "topic": "hotel-service" }
+{ "id": "cancel-hotel",  "type": "ACTION", "topic": "hotel-service",
+  "preconditionStepId": "reserve-hotel", "preconditionExpression": "false" }
 ```
-Compensation steps are ordinary `ACTION` steps, usually with no `preconditionStepId`; they run
-to undo completed work when the process fails.
+Compensation steps are ordinary `ACTION` steps anchored to the step they compensate with
+`"preconditionExpression": "false"` (satisfies the roots rule; the dataflow never starts
+them). The compensation pipeline starts them directly — ignoring the guard — to undo
+completed work when the process fails.
 
 ## Working copies (jpa mode)
 

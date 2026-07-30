@@ -25,7 +25,7 @@ class CheckTimerUseCaseTest {
     @InjectMocks CheckTimerUseCase useCase;
 
     private Step timerStep(long durationMillis, String untilVariable) {
-        return new Step("s1", "wd-1", StepType.TIMER, "Wait", null, null, null, false, null, null, null, null, durationMillis, untilVariable, null, null, null, 0, 0, false, null, 0);
+        return new Step("s1", "wd-1", StepType.TIMER, "Wait", null, null, null, null, false, null, null, null, null, null, durationMillis, untilVariable, null, null, null, 0, 0, false, null, 0);
     }
 
     private StepExecution pendingSe(Step step, LocalDateTime startedAt, Variable... variables) {
@@ -71,7 +71,7 @@ class CheckTimerUseCaseTest {
 
     @Test
     void doesNotTriggerCompletionForNonTimerStep() {
-        var action = new Step("s1", "wd-1", StepType.ACTION, "Step", null, null, null, false, "t", null, null, null, 0, null, null, null, null, 0, 0, false, null, 0);
+        var action = new Step("s1", "wd-1", StepType.ACTION, "Step", null, null, null, null, false, "t", null, null, null, null, 0, null, null, null, null, 0, 0, false, null, 0);
         var se = pendingSe(action, LocalDateTime.now().minusSeconds(10));
         when(stepExecutionRepository.findPendingOrRunning()).thenReturn(List.of(se));
 

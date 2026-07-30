@@ -4,6 +4,7 @@ import io.mateu.workflow.application.out.LogMessageRepository;
 import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.out.WorkflowMetrics;
+import io.mateu.workflow.application.usecases.process.parentnotify.NotifyParentStepService;
 import io.mateu.workflow.domain.aggregates.LogMessage;
 import io.mateu.workflow.domain.aggregates.Process;
 import io.mateu.workflow.domain.aggregates.ProcessStatus;
@@ -23,6 +24,7 @@ public class ProcessUpdateStepExecutionUpdateUseCase {
     final ProcessRepository repository;
     final StepExecutionRepository stepExecutionRepository;
     final WorkflowMetrics workflowMetrics;
+    final NotifyParentStepService notifyParentStepService;
 
     public void handle(ProcessStepExecutionUpdateCommand command) {
         var process = repository.findById(command.processId()).orElseThrow();
@@ -83,6 +85,13 @@ public class ProcessUpdateStepExecutionUpdateUseCase {
                 workflowMetrics.processCompleted(process.getWorkflowDefinitionId(), WorkflowMetrics.durationOf(process));
             } else if (process.getStatus() == ProcessStatus.ERROR) {
                 workflowMetrics.processErrored(process.getWorkflowDefinitionId(), WorkflowMetrics.durationOf(process));
+            }
+            // If this process is a child workflow and just reached a terminal status,
+            // complete (or error) the PROCESS step of the parent that spawned it.
+            if (process.getStatus() == ProcessStatus.COMPLETED
+                    || process.getStatus() == ProcessStatus.ERROR
+                    || process.getStatus() == ProcessStatus.CANCELLED) {
+                notifyParentStepService.processReachedTerminalStatus(process);
             }
         }
     }

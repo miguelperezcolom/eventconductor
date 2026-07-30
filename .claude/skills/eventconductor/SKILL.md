@@ -1,6 +1,6 @@
 ---
 name: eventconductor
-description: Design and run business processes with EventConductor — the Java/Spring event-driven workflow & saga orchestration engine (io.mateu.workflow). Use when defining a workflow (JSON/YAML steps), implementing workers, starting/cancelling/querying processes, adding retries/timeouts/compensation (sagas), human USER_TASK forms, durable waits (TIMER), message waits and sends (WAIT_FOR_MESSAGE, SEND_MESSAGE), business rules (RULE), or child (PROCESS) workflows. Triggers on workflow-engine, WorkflowDefinition, ProcessUpstreamEventUseCase, UpdateStepExecutionUseCase, EmbeddedTaskExecutor, TaskExecutionRequested, ACTION/USER_TASK/RULE/TIMER/WAIT_FOR_MESSAGE/SEND_MESSAGE/FORK/JOIN steps, workflow.mode, workflow.persistence.
+description: Design and run business processes with EventConductor — the Java/Spring event-driven workflow & saga orchestration engine (io.mateu.workflow). Use when defining a workflow (JSON/YAML steps), implementing workers, starting/cancelling/querying processes, adding retries/timeouts/compensation (sagas), human USER_TASK forms, durable waits (TIMER), message waits and sends (WAIT_FOR_MESSAGE, SEND_MESSAGE), business rules (RULE), or child (PROCESS) workflows. Triggers on workflow-engine, WorkflowDefinition, ProcessUpstreamEventUseCase, UpdateStepExecutionUseCase, EmbeddedTaskExecutor, TaskExecutionRequested, START/ACTION/USER_TASK/RULE/TIMER/WAIT_FOR_MESSAGE/SEND_MESSAGE/FORK/JOIN/PROCESS steps, workflow.mode, workflow.persistence.
 ---
 
 # Orchestrating processes with EventConductor
@@ -27,8 +27,8 @@ machine, a scheduler, or retry/timeout loops — declare them on the step.
 | a durable wait (delay / until a date) | `TIMER` step (`duration` or `untilVariable`) | [workflow-definitions.md](reference/workflow-definitions.md) |
 | wait for an external event/callback | `WAIT_FOR_MESSAGE` step (`messageName` + `correlationExpression`, both required) | [workflow-definitions.md](reference/workflow-definitions.md) |
 | signal another process (no worker) | `SEND_MESSAGE` step (`messageName` + `correlationExpression`, optional `messageVariables`) | [workflow-definitions.md](reference/workflow-definitions.md) |
-| parallel work then a barrier | `FORK` + `parallel: true` steps + `JOIN` | [workflow-definitions.md](reference/workflow-definitions.md) |
-| a reusable sub-process | `PROCESS` step (`childWorkflowDefinitionId`) | [workflow-definitions.md](reference/workflow-definitions.md) |
+| parallel work then a barrier | `FORK` fan-out + `JOIN` with `preconditionStepIds` (all must complete) | [workflow-definitions.md](reference/workflow-definitions.md) |
+| a reusable child workflow (sub-process) | `PROCESS` step (`childWorkflowDefinitionId`, optional `outputVariables`) | [workflow-definitions.md](reference/workflow-definitions.md) |
 | undo-on-failure (saga) | `rollbackable: true` + `compensationStepId` | [workflow-definitions.md](reference/workflow-definitions.md) |
 | start / cancel / query a process | `ProcessUpstreamEventUseCase`, `ProcessRepository` | [api.md](reference/api.md) |
 | conditional / skipped steps | `preconditionExpression` (JEXL over variables) | [workflow-definitions.md](reference/workflow-definitions.md) |
@@ -43,7 +43,9 @@ use the `eventconductor-scaffold` skill. Running/verifying a change: `eventcondu
 {
   "id": "order-processing", "name": "Order Processing", "version": 1, "status": "ACTIVE",
   "steps": [
-    { "id": "validate", "type": "ACTION", "name": "Validate", "topic": "order-validator" },
+    { "id": "start",    "type": "START",  "name": "Start" },
+    { "id": "validate", "type": "ACTION", "name": "Validate", "topic": "order-validator",
+      "preconditionStepId": "start" },
     { "id": "charge",   "type": "ACTION", "name": "Charge",   "topic": "payment-service",
       "preconditionStepId": "validate", "timeout": "PT30S", "retries": 2 },
     { "id": "end", "type": "END", "name": "Done", "preconditionStepId": "charge" }
@@ -74,9 +76,14 @@ processUpstreamEventUseCase.handle(new ProcessUpstreamEventCommand(
 
 ## Conventions for generated code
 
-- **Steps run by data flow, not array order.** A step starts when its `preconditionStepId`
-  step completes; a step with no precondition starts immediately.
-- **Exactly one `END`.** With parallel branches, funnel them through a `JOIN` before `END`.
+- **Steps run by pure data flow, not array order.** A step starts when ALL its preconditions
+  (`preconditionStepIds`, or the singular `preconditionStepId`) have completed; every eligible
+  step starts concurrently. `parallel` is deprecated and ignored.
+- **Every flow enters through a `START` (or `WAIT_FOR_MESSAGE`).** A step with no
+  preconditions of any other type is rejected at load — add one `START` step and point the
+  first steps at it.
+- **Exactly one `END`.** With parallel branches, funnel them through a `JOIN` (its
+  `preconditionStepIds` listing all branch ends) before `END`.
 - **Variables are `(name, value)` strings.** Worker outputs are merged in and readable by
   later steps and by JEXL `preconditionExpression`s (`"amount > 1000"`).
 - **Report with `taskExecutionId`** (from `TaskExecutionRequested`), never the `stepId`.

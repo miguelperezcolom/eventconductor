@@ -4,6 +4,7 @@ import io.mateu.workflow.application.out.DownstreamEventPublisher;
 import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.out.WorkflowMetrics;
+import io.mateu.workflow.application.usecases.process.parentnotify.NotifyParentStepService;
 import io.mateu.workflow.domain.aggregates.*;
 import io.mateu.workflow.domain.aggregates.Process;
 import io.mateu.workflow.dtos.events.integration.TaskCancellationRequested;
@@ -28,6 +29,7 @@ class CancelProcessUseCaseTest {
     @Mock StepExecutionRepository stepExecutionRepository;
     @Mock DownstreamEventPublisher downstreamEventPublisher;
     @Mock WorkflowMetrics workflowMetrics;
+    @Mock NotifyParentStepService notifyParentStepService;
 
     @InjectMocks CancelProcessUseCase useCase;
 
