@@ -7,7 +7,7 @@ EventConductor is an event-driven **workflow / saga orchestration engine** for J
 <dependency>
   <groupId>io.mateu.workflow</groupId>
   <artifactId>workflow-engine</artifactId>
-  <version>LATEST</version> <!-- see Maven Central badge -->
+  <version>1.0-beta.010</version> <!-- check Maven Central / CHANGELOG.md for the newest release -->
 </dependency>
 <!-- add io.mateu.workflow:forms-engine only if you use USER_TASK / human forms -->
 ```
@@ -52,7 +52,7 @@ In `embedded`+`memory` mode, definitions are loaded from `classpath:/workflows/`
 
 - Ordering is **by data flow**, not array order: a step runs when its `preconditionStepId` step has completed.
 - Every workflow has **exactly one `END`** step. With parallel branches, put a `JOIN` before the `END`.
-- `preconditionExpression` is a **JEXL** expression evaluated against process variables; if `false`, the step is `SKIPPED`.
+- `preconditionExpression` is a **JEXL** expression evaluated against process variables; while falsy the step is simply never run (stays `CREATED`) and is flipped to `CANCELLED` when the `END` step fires. **Trap:** dependents wait for `COMPLETED`, so a step whose guard never turns true permanently blocks every step whose `preconditionStepId` points at it — give such chains an alternative path to `END`.
 - Variables are `(name, value)` string pairs. Worker outputs are **merged** into process variables and visible to later steps and JEXL expressions.
 - Add `"$schema"` (JSON) or a `# yaml-language-server:` comment (YAML) pointing at `workflow-definition-schema.json` for editor autocomplete.
 
@@ -64,7 +64,7 @@ In `embedded`+`memory` mode, definitions are loaded from `classpath:/workflows/`
 | `USER_TASK` | Pause for a human to submit a form | `formId` |
 | `RULE` | Evaluate a business rule; outputs become process variables | `ruleId` |
 | `TIMER` | Durable wait for a duration or until a date from a variable | `duration` / `untilVariable` |
-| `MESSAGE` | Durable wait for an external message (correlated by business key or JEXL expression) | `messageName` (+ optional `correlationExpression`) |
+| `MESSAGE` | Durable wait for an external message (correlated by business key or JEXL expression); deliver via `POST /workflow/api/messages`, Kafka or MCP `sendMessage` | `messageName` (+ optional `correlationExpression`) |
 | `PROCESS` | Run a child workflow as a sub-process | `childWorkflowDefinitionId` |
 | `FORK` | Start parallel branches | — (branch steps set `parallel: true`) |
 | `JOIN` | Wait for all parallel branches | — |
@@ -72,13 +72,15 @@ In `embedded`+`memory` mode, definitions are loaded from `classpath:/workflows/`
 
 ### Step fields
 
-`id`, `type`, `name`, `description`, `preconditionStepId`, `preconditionExpression` (JEXL), `parallel` (bool), `topic` (ACTION), `formId` (USER_TASK), `ruleId` (RULE), `childWorkflowDefinitionId` (PROCESS), `duration` (TIMER: ISO-8601 or ms), `untilVariable` (TIMER: variable holding an ISO-8601 date/date-time; wins over `duration`), `messageName` + `correlationExpression` (MESSAGE), `timeout` (ISO-8601 `PT30S`/`PT1H30M` or ms int; `0`=none), `retries` (int), `rollbackable` (bool), `compensationStepId`.
+`id`, `type`, `name`, `description`, `preconditionStepId`, `preconditionExpression` (JEXL), `parallel` (bool), `topic` (ACTION), `formId` (USER_TASK), `ruleId` (RULE), `childWorkflowDefinitionId` (PROCESS), `duration` (TIMER: ISO-8601 or ms), `untilVariable` (TIMER: variable holding an ISO-8601 date/date-time; wins over `duration`), `messageName` + `correlationExpression` (MESSAGE), `timeout` (ISO-8601 `PT30S`/`PT1H30M` or ms int; `0`=none), `retries` (int), `rollbackable` (bool), `compensationStepId`, `maxSuccessfulExecutions` (int).
 
-A workflow definition can also declare a `cronExpression` (Spring syntax) to start a new process instance at each occurrence, with deterministic business keys so multiple pods never duplicate an occurrence.
+A workflow definition can also declare a `cronExpression` (Spring syntax) to start a new process instance at each occurrence, with deterministic business keys so multiple pods never duplicate an occurrence, and a `defaultMaxStepExecutions` (int). Note: `defaultMaxStepExecutions` / `maxSuccessfulExecutions` are today validated metadata, not enforced at runtime.
 
 ### Built-in analytics
 
 `ProcessAnalyticsService` (Spring bean, any mode) computes per definition and time window: instance counts by status, completion/error/cancellation rates, throughput per day, avg/p95 process duration and avg/p95 per-step duration with the slowest step flagged as the bottleneck. Also exposed as an **Analytics** UI page and the `getWorkflowAnalytics` / `findBottleneck` MCP tools.
+
+**Observability:** Micrometer metrics for the workflow/forms/rule engines (`/actuator/prometheus` with a registry on the classpath) and OTLP tracing (`TRACING_SAMPLING`, `OTLP_TRACING_ENDPOINT`) — see `doc/src/content/docs/reference/observability.md`.
 
 ---
 
@@ -94,8 +96,9 @@ processUpstreamEventUseCase.handle(new ProcessUpstreamEventCommand(
         List.of(new Variable("orderId", "123"), new Variable("amount", "99.90")))));
 ```
 
-Cancel: `new ProcessCancellationRequested(processId)` through the same use case.
-Query: `ProcessRepository.findById(id)` / `.findByBusinessKey("order-123")`.
+Cancel: `cancelProcessUseCase.handle(new CancelProcessCommand(processId))` — running/pending steps go `CANCELLED`, process → `CANCELLED`.
+Retry a process in `ERROR`: `retryProcessUseCase.handle(new RetryProcessCommand(processId))`.
+Query: `ProcessRepository.findById(id)` / `.findByBusinessKey("order-123")` — both return `Optional<Process>`.
 
 ---
 
@@ -103,7 +106,7 @@ Query: `ProcessRepository.findById(id)` / `.findByBusinessKey("order-123")`.
 
 A worker receives a `TaskExecutionRequested`, does work, and reports a status back. It is **stateless**; the engine handles retries/timeouts/errors.
 
-**Embedded mode** — register one `EmbeddedTaskExecutor` bean; branch on `stepId`:
+**Embedded mode** — register one `EmbeddedTaskExecutor` bean; branch on `stepId`. Note there are two `Variable` records: `UpdateStepExecutionCommand` takes `io.mateu.workflow.domain.aggregates.Variable`; the events (`TaskExecutionRequested`, `TaskStatusChanged`, `ProcessCreationRequested`) use `io.mateu.workflow.dtos.Variable`.
 ```java
 @Bean
 EmbeddedTaskExecutor taskExecutor(UpdateStepExecutionUseCase update) {
@@ -135,7 +138,7 @@ Report `RUNNING` for progress (resets the timeout clock). Long tasks can return 
 ## Statuses
 
 - **Process**: `PENDING → RUNNING → COMPLETED | ERROR`, or `→ CANCELLED`. `ERROR` can be retried.
-- **StepExecution**: `CREATED → PENDING → RUNNING → COMPLETED | ERROR`; `TIMEOUT → PENDING (retry) | ERROR`; `SKIPPED` when precondition is false; `CANCELLED`.
+- **StepExecution**: `CREATED → PENDING → RUNNING → COMPLETED | ERROR`; `TIMEOUT → PENDING (retry) | ERROR`; `CANCELLED` on process cancellation or when `END` fires with the step never run (e.g. falsy `preconditionExpression`). There is no `SKIPPED` status.
 - Workers may only report `RUNNING`, `COMPLETED`, `ERROR`.
 
 ---
@@ -144,11 +147,12 @@ Report `RUNNING` for progress (resets the timeout clock). Long tasks can return 
 
 | Bean | Use |
 |---|---|
-| `ProcessUpstreamEventUseCase` | Start / cancel processes; entry point for integration events |
+| `ProcessUpstreamEventUseCase` | Start processes; entry point for integration events |
+| `CancelProcessUseCase` / `RetryProcessUseCase` | Cancel / retry a process (`CancelProcessCommand` / `RetryProcessCommand`) |
 | `UpdateStepExecutionUseCase` | Report task progress from workers |
-| `ProcessRepository` | Query process state (`findById`, `findByBusinessKey`, `findByStatus`) |
-| `StepExecutionRepository` | Query step executions |
-| `WorkflowDefinitionRepository` | Manage definitions (`findById`, `findByStatus`, `save`) |
+| `ProcessRepository` | Query process state (`findById`/`findByBusinessKey` → `Optional<Process>`, `findAll`, `countByStatus`) |
+| `StepExecutionRepository` | Query step executions (`findByProcess(Process)`, `findPendingOrRunning()`) |
+| `WorkflowDefinitionRepository` | Manage definitions (plain CrudStore: `findById` → `Optional`, `findAll`, `save`, `deleteAllById`) |
 | `EmbeddedTaskExecutor` | (You implement) worker bean in embedded mode |
 
 `record Variable(String name, String value)`. Use `request.taskExecutionId()` (not stepId) when reporting via `UpdateStepExecutionCommand`.

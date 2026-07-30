@@ -56,7 +56,7 @@ cd testbench/workflow-embedded-db-headless && mvn spring-boot:run
 
 ### `workflow-embedded-mvc`
 
-**Mode:** `embedded` + `memory` | **Port:** 8080
+**Mode:** `embedded` + `memory` | **Port:** 8090
 
 Embedded engine exposed as a plain Spring MVC REST API — no MCP, no UI. Illustrates how to
 wrap the engine with your own REST layer when you don't want to use the built-in UI or MCP
@@ -167,10 +167,73 @@ See [Importing from Git](/guides/form-definitions/#importing-from-git) for confi
 
 ---
 
+## Testbench — rule engine
+
+These apps exercise the **rule engine / rule runtime** in-process — no broker required.
+
+### `rules-embedded-headless`
+
+**Rules source:** classpath, in-memory catalog | **No HTTP server**
+
+Loads sample rule definitions from the classpath and evaluates them (expression rule and
+decision table) at startup with the embedded `rule-runtime`.
+
+```bash
+cd testbench/rules-embedded-headless && mvn spring-boot:run
+```
+
+### `rules-embedded-mvc`
+
+**Persistence:** `jpa` (H2 in-memory) | **Port:** 8093
+
+Rule catalog backed by H2, with the rules web UI mounted at the root path.
+
+```bash
+cd testbench/rules-embedded-mvc && mvn spring-boot:run
+```
+
+### `rules-remote-client`
+
+**Rules source:** remote catalog over gRPC (`localhost:9090`, switchable to REST) | **No HTTP server**
+
+Only `rule-runtime` on the classpath: fetches rule definitions from a running remote catalog
+(start `dev-app` or `rule-standalone-app` first), caches them locally (`rules.cache.ttl=PT5M`)
+and evaluates them in-process.
+
+```bash
+cd testbench/rules-remote-client && mvn spring-boot:run
+```
+
+---
+
 ## Multi-service system
 
 These demos form a realistic distributed system that showcases the full `kafka` + `jpa` mode.
-They are designed to run together with a shared Kafka broker and PostgreSQL database.
+They are designed to run together against the shared infrastructure defined in
+`.dev/docker-compose.yml` — PostgreSQL plus a Redpanda broker exposed on **localhost:9192**
+(the demo services' `application.yaml` files point there):
+
+```bash
+docker compose -f .dev/docker-compose.yml up -d
+```
+
+Note this is a different broker than the standalone distributed setup in
+`apps/docker-compose.yml`, whose Redpanda listens on the conventional **9092** — use that
+file instead if you want the published orchestrator/forms/worker containers rather than
+the demo services.
+
+Default ports:
+
+| Service | Port |
+|---|---|
+| `api-gw` | 8191 |
+| `ia-agent-service` | 8095 |
+| `shell` | 8101 |
+| `users-service` | 8102 |
+| `control-plane-service` | 8103 |
+| `content-service` | 8104 |
+| `static-content-server` | 8107 |
+| `booking-service` | 8108 |
 
 ### `api-gw`
 
@@ -209,8 +272,10 @@ components from the other services.
 
 ### `static` / `static-content-server`
 
-Static asset servers. `static` serves compiled front-end assets; `static-content-server`
-provides a configurable static resource endpoint used by the shell and other services.
+`static` is a plain directory of screenshot PNG assets — not a runnable application.
+`static-content-server` is a small Spring Boot static resource server (port 8107) used by
+the shell and other services; it has its own `pom.xml` outside the demo Maven reactor, so
+run it with `mvn spring-boot:run` from its own directory.
 
 ### `sdks`
 
@@ -239,7 +304,7 @@ See [ia-agent-service](/guides/ia-agent-service/) for the full setup guide.
 | `workflow-embedded` | embedded | memory | ✓ (8080) | none |
 | `workflow-embedded-headless` | embedded | memory | — | none |
 | `workflow-embedded-db-headless` | embedded | jpa | — | none (H2) |
-| `workflow-embedded-mvc` | embedded | memory | ✓ (8080) | none |
+| `workflow-embedded-mvc` | embedded | memory | ✓ (8090) | none |
 | `workflow-embedded-git` | embedded | jpa | ✓ (8090) | none (H2) + GitHub |
 
 ### Forms engine testbench
@@ -251,6 +316,14 @@ See [ia-agent-service](/guides/ia-agent-service/) for the full setup guide.
 | `forms-embedded-db-headless` | embedded | jpa | — | none (H2) |
 | `forms-embedded-mvc` | embedded | memory | ✓ (8091) | none |
 | `forms-embedded-git` | embedded | jpa | ✓ (8092) | none (H2) + GitHub |
+
+### Rule engine testbench
+
+| Module | Rules source | Persistence | HTTP | External deps |
+|---|---|---|---|---|
+| `rules-embedded-headless` | classpath | memory | — | none |
+| `rules-embedded-mvc` | local catalog | jpa | ✓ (8093) | none (H2) |
+| `rules-remote-client` | remote (gRPC/REST) | local cache | — | a running rule catalog |
 
 ### Demo applications
 

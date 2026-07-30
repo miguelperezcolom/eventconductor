@@ -1,5 +1,21 @@
 # Common mistakes
 
+- **Expecting a `SKIPPED` status.** There is none. A step whose `preconditionExpression` is
+  falsy is simply never run: it stays `CREATED` and is flipped to `CANCELLED` when the `END`
+  step fires. **Trap:** dependent steps require their `preconditionStepId` step to be
+  `COMPLETED`, so a never-run step permanently blocks every step chained after it — that whole
+  branch dies silently. Give conditional branches an alternative path to `END`.
+
+- **Importing the wrong `Variable`.** Two records share the name and shape:
+  `io.mateu.workflow.dtos.Variable` (events: `TaskExecutionRequested`, `TaskStatusChanged`,
+  `ProcessCreationRequested`) vs `io.mateu.workflow.domain.aggregates.Variable`
+  (`UpdateStepExecutionCommand`). Mixing them fails to compile; check the import.
+
+- **Precondition cycles are rejected at load.** `WorkflowDefinition.checkInvariants()` throws
+  on a `preconditionStepId` cycle (A waits for B waits for … A would deadlock), plus duplicate
+  step ids, self-preconditions/self-compensation, unknown referenced step ids, TIMER without
+  `duration`/`untilVariable`, and MESSAGE without `messageName`.
+
 - **Ordering by array position.** Steps run by `preconditionStepId`, not the order in the
   array. A step with no precondition starts immediately (possibly in parallel with others).
 

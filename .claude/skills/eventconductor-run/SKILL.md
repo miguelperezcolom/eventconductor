@@ -12,15 +12,19 @@ smallest topology that exercises your change.
 
 ```bash
 cd apps/orchestrator-standalone-app
-WORKFLOW_MODE=embedded WORKFLOW_PERSISTENCE=memory mvn spring-boot:run
+WORKFLOW_MODE=embedded WORKFLOW_PERSISTENCE=memory SECURITY_ENABLED=false mvn spring-boot:run
 ```
+
+The standalone apps default to `eventconductor.security.enabled=true` (`SECURITY_ENABLED`);
+set `SECURITY_ENABLED=false` for local runs or the UI/REST endpoints will demand login.
 
 Or run a headless testbench that starts a process on boot and logs the run — the quickest way
 to see orchestration without any wiring:
 
 ```bash
-mvn -q -pl testbench/workflow-embedded-headless -am spring-boot:run      # embedded + memory
-mvn -q -pl testbench/workflow-embedded-db-headless -am spring-boot:run   # embedded + jpa (H2)
+# testbench/ is a separate Maven reactor — run from inside the module, not with -pl from the root
+cd testbench/workflow-embedded-headless && mvn spring-boot:run      # embedded + memory
+cd testbench/workflow-embedded-db-headless && mvn spring-boot:run   # embedded + jpa (H2)
 ```
 
 The `*-headless` testbenches use `@WorkflowEmbeddedApplication` + an `ApplicationRunner` that
@@ -37,6 +41,11 @@ orchestrator from source against those infra services instead:
 cd apps/orchestrator-standalone-app && mvn spring-boot:run   # picks up kafka/jpa config
 ```
 
+**Two compose files, two broker ports.** `apps/docker-compose.yml` exposes Redpanda on
+`localhost:9092` (the standalone apps). The `demo/` services instead expect the dev infra from
+`.dev/docker-compose.yml`, which exposes the broker on `localhost:9192` — start that one before
+running a `demo/` service, or it will hang looking for `localhost:9192`.
+
 ## Drive a process to verify
 
 Embedded/from-source with the UI or REST up, or programmatically via
@@ -45,7 +54,20 @@ Embedded/from-source with the UI or REST up, or programmatically via
 
 - process reaches `COMPLETED` (or the expected `ERROR`/`CANCELLED`);
 - each `StepExecution` transitions `CREATED → PENDING → RUNNING → COMPLETED`;
-- output variables were merged (query `ProcessRepository.findByBusinessKey(...)`).
+- output variables were merged (query `ProcessRepository.findByBusinessKey(...)` — returns `Optional`).
+
+To resume a process waiting on a **MESSAGE** step in a live run, POST the message over REST:
+```bash
+curl -X POST http://localhost:8080/workflow/api/messages \
+  -H 'Content-Type: application/json' \
+  -d '{"messageName": "payment-confirmed", "correlationKey": "order-123", "variables": {"paid": "true"}}'
+```
+Responds 202; add `-H 'X-Api-Key: ...'` if `workflow.message-api.api-key` is set. The MCP
+`sendMessage` tool does the same.
+
+To cancel a process stuck waiting, call
+`cancelProcessUseCase.handle(new CancelProcessCommand(processId))` (or the UI): the process and
+its pending/running steps go `CANCELLED`, and late worker reports are ignored.
 
 ## What to check when it "doesn't run"
 
@@ -54,8 +76,9 @@ Embedded/from-source with the UI or REST up, or programmatically via
 - Step stuck in `PENDING` → the worker isn't reporting back, or is reporting with the wrong
   `taskExecutionId`.
 - Process never `COMPLETED` → missing `END`, or parallel branches without a `JOIN`.
-- Definition ignored → not under `classpath:/workflows/`, missing `name`/`steps`, or `status`
-  not `ACTIVE`.
+- Definition ignored → not under `classpath:/workflows/`, or it doesn't parse (check the
+  startup log). The classpath loader imports every parseable file regardless of `status`; the
+  `name`+`steps` minimum applies only to the Git importer.
 
 ## Build order
 

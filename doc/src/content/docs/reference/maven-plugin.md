@@ -6,8 +6,10 @@ description: Validate EventConductor workflow, form and rule definitions (JSON/Y
 Because EventConductor definitions are **data owned by developers** — flat JSON/YAML files
 in a pull request — you can validate them the same way you validate any other source: at
 build time. The `workflow-maven-plugin` checks every workflow, form and rule definition
-against the exact specifications the engine enforces, and **fails the build** on any
-problem, so mistakes are caught in the PR rather than at runtime when the engine loads them.
+against the same JSON schemas the engine ships plus most of the engine's semantic checks,
+and **fails the build** on any problem, so most mistakes are caught in the PR rather than
+at runtime when the engine loads them (see [what it checks](#what-it-checks) for the
+checks that still only happen at engine load).
 
 ## What it checks
 
@@ -23,13 +25,25 @@ schema cannot express:
   per output) and JEXL parseability of expressions.
 - **Forms** — schema validation.
 
+:::note[Checks that only happen at engine load]
+A few of the engine's invariants (`WorkflowDefinition.checkInvariants()`) are **not**
+replicated by the plugin and will only fail when the engine loads the definition:
+
+- **Precondition cycles** — steps whose `preconditionStepId` chains form a cycle.
+- **TIMER value checks** — the schema only requires that `duration` or `untilVariable` is
+  *present*; a `duration` of `0` (with no `untilVariable`) passes the build but is rejected
+  at load.
+- **MESSAGE value checks** — the schema only requires that `messageName` is *present*; a
+  blank `messageName` passes the build but is rejected at load.
+:::
+
 ## Setup
 
 ```xml
 <plugin>
   <groupId>io.mateu.workflow</groupId>
   <artifactId>workflow-maven-plugin</artifactId>
-  <version>1.0-beta.008</version>
+  <version>1.0-beta.012</version>
   <executions>
     <execution>
       <goals>

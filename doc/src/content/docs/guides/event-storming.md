@@ -53,7 +53,6 @@ flowchart TD
     CTO["CheckTimeoutUseCase"]:::cmd
     TCANR(["TaskCancellationRequested"]):::evt
 
-    PCANR(["ProcessCancellationRequested"]):::evt
     CPUC["CancelProcessUseCase"]:::cmd
 
     TLE(["TaskLogEmitted"]):::evt
@@ -85,7 +84,7 @@ flowchart TD
     SESCH -->|timeout| TCANR --> WRK
 
     %% Flujo 5: Cancelación
-    EXT -->|cancela| PCANR --> CPUC --> TCANR
+    EXT -->|cancela| CPUC --> TCANR
 
     %% Flujo 6: Logs y Recursos
     WRK -->|log| TLE --> TLEH --> RLM
@@ -162,11 +161,10 @@ TimeoutScheduler
 
 ### Flow 5 — Process Cancellation
 
-An external actor requests cancellation. The engine sends `TaskCancellationRequested` to any running worker. The worker responds with `TaskStatusChanged(CANCELLED)`, which re-enters Flow 3.
+An actor (UI, MCP tool, or your own code) invokes `CancelProcessUseCase` directly — there is no upstream cancellation event with a handler. The engine sends `TaskCancellationRequested` to any running worker. The worker responds with `TaskStatusChanged(CANCELLED)`, which re-enters Flow 3.
 
 ```
-ProcessCancellationRequested
-  → CancelProcessUseCase
+CancelProcessUseCase.handle(new CancelProcessCommand(processId))
   → TaskCancellationRequested → Worker
 ```
 
@@ -187,7 +185,7 @@ TaskResourceCreated  (stored; no further handler currently)
 |---|---|---|---|
 | `ProcessCreationRequested` | Integration (upstream) | External API / caller | `ProcessCreationRequestedEventHandler` |
 | `ProcessCreated` | Domain | `Process` aggregate | `ProcessCreatedEventHandler` |
-| `ProcessCancellationRequested` | Integration (upstream) | External API / caller | `CancelProcessUseCase` |
+| `ProcessCancellationRequested` | Integration (upstream) | — (declared but never raised; cancellation is a direct call to `CancelProcessUseCase`) | — (no handler) |
 | `TaskExecutionRequested` | Integration (downstream) | `StepExecution` aggregate | Worker |
 | `TaskCancellationRequested` | Integration (downstream) | `CancelProcessUseCase`, timeout handler | Worker |
 | `TaskStatusChanged` | Integration (upstream) | Worker | `TaskStatusChangedEventHandler` |

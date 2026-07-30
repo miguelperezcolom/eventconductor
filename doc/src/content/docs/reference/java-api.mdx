@@ -13,7 +13,7 @@ import Dependency from '../../../components/Dependency.astro';
 
 ### `ProcessUpstreamEventUseCase`
 
-The main entry point for all integration events. Handles process creation, cancellation, task status updates, and timeout checks.
+The main entry point for integration events. Handles process creation, task status updates, message delivery, and timeout/timer checks.
 
 ```java
 @Autowired
@@ -27,11 +27,20 @@ processUpstreamEventUseCase.handle(new ProcessUpstreamEventCommand(
         List.of(new Variable("key", "value"))
     )
 ));
+```
 
-// Cancel a process
-processUpstreamEventUseCase.handle(new ProcessUpstreamEventCommand(
-    new ProcessCancellationRequested(processId)
-));
+### `CancelProcessUseCase` and `RetryProcessUseCase`
+
+Cancellation and retry are dedicated use cases (they are not upstream events):
+
+```java
+@Autowired
+CancelProcessUseCase cancelProcessUseCase;
+cancelProcessUseCase.handle(new CancelProcessCommand(processId));
+
+@Autowired
+RetryProcessUseCase retryProcessUseCase;
+retryProcessUseCase.handle(new RetryProcessCommand(processId));
 ```
 
 ### `UpdateStepExecutionUseCase`
@@ -52,52 +61,64 @@ updateStepExecution.handle(new UpdateStepExecutionCommand(
 
 Valid `StepExecutionStatus` values for reporting: `RUNNING`, `COMPLETED`, `ERROR`.
 
+Note: the command's first record component is named `stepId` in the source, but the
+value to pass is the **task execution id** received in `TaskExecutionRequested` (it is
+the step *execution* id, not the step id from the definition). The `Variable` here is
+`io.mateu.workflow.domain.aggregates.Variable`.
+
 ## Repositories
 
 ### `ProcessRepository`
+
+Extends `CrudStore<Process>` and adds `findByBusinessKey` and `countByStatus`.
 
 ```java
 @Autowired
 ProcessRepository processRepository;
 
 // Find by ID
-Process process = processRepository.findById(processId);
+Optional<Process> process = processRepository.findById(processId);
 
 // Find by business key
-Process process = processRepository.findByBusinessKey("order-123");
+Optional<Process> process = processRepository.findByBusinessKey("order-123");
 
 // List all
 List<Process> processes = processRepository.findAll();
 
-// List by status
-List<Process> running = processRepository.findByStatus(ProcessStatus.RUNNING);
+// Count by status (there is no findByStatus — filter findAll() for listings)
+long running = processRepository.countByStatus(ProcessStatus.RUNNING);
 ```
 
 ### `StepExecutionRepository`
+
+Extends `CrudStore<StepExecution>` and adds two query methods:
 
 ```java
 @Autowired
 StepExecutionRepository stepExecutionRepository;
 
-// Find by process
-List<StepExecution> steps = stepExecutionRepository.findByProcessId(processId);
+// Find by process (takes the aggregate, not an id)
+List<StepExecution> steps = stepExecutionRepository.findByProcess(process);
 
-// Find by status
-List<StepExecution> pending = stepExecutionRepository.findByStatus(StepExecutionStatus.PENDING);
+// Steps awaiting or in execution
+List<StepExecution> active = stepExecutionRepository.findPendingOrRunning();
 ```
 
 ### `WorkflowDefinitionRepository`
+
+A plain `CrudStore<WorkflowDefinition>`:
 
 ```java
 @Autowired
 WorkflowDefinitionRepository workflowDefinitionRepository;
 
 // Find by ID
-WorkflowDefinition def = workflowDefinitionRepository.findById("my-workflow");
+Optional<WorkflowDefinition> def = workflowDefinitionRepository.findById("my-workflow");
 
-// List all active
-List<WorkflowDefinition> active = workflowDefinitionRepository
-    .findByStatus(WorkflowDefinitionStatus.ACTIVE);
+// List all active (no findByStatus — filter findAll())
+List<WorkflowDefinition> active = workflowDefinitionRepository.findAll().stream()
+    .filter(d -> d.status() == WorkflowDefinitionStatus.ACTIVE)
+    .toList();
 
 // Save/update
 workflowDefinitionRepository.save(definition);
@@ -136,26 +157,31 @@ public EmbeddedTaskExecutor myWorker(UpdateStepExecutionUseCase updateStepExecut
 | Field | Type | Description |
 |---|---|---|
 | `id` | String | Unique process ID |
+| `name` | String | Name of the workflow definition at creation time |
 | `workflowDefinitionId` | String | ID of the workflow definition |
+| `workflowDefinitionVersion` | int | Version of the definition the process runs on |
 | `businessKey` | String | Optional human-readable identifier |
 | `status` | ProcessStatus | Current status |
+| `completionPercentage` | int | Progress indicator (0–100) |
 | `variables` | List\<Variable\> | Process variables |
-| `createdAt` | Instant | Creation timestamp |
-| `updatedAt` | Instant | Last update timestamp |
+| `created` | LocalDateTime | Creation timestamp |
+| `started` | LocalDateTime | When execution started |
+| `finished` | LocalDateTime | When the process reached a terminal status |
 
 ### `StepExecution`
 
 | Field | Type | Description |
 |---|---|---|
-| `id` | String | Unique step execution ID |
+| `id` | String | Unique step execution ID — this is the `taskExecutionId` that workers receive and must echo back in `UpdateStepExecutionCommand` |
 | `processId` | String | Parent process ID |
+| `workflowDefinitionId` | String | Workflow definition ID |
 | `stepId` | String | Step ID from the workflow definition |
-| `taskExecutionId` | String | ID sent to workers (use this for `UpdateStepExecutionCommand`) |
 | `status` | StepExecutionStatus | Current status |
-| `retryCount` | int | Number of retries remaining |
-| `startedAt` | Instant | When the step started |
-| `completedAt` | Instant | When the step completed |
-| `log` | String | Last log message from the worker |
+| `workerId` | String | Worker that took the task |
+| `order` | long | Execution order within the process |
+| `startedAt` | LocalDateTime | When the step started |
+| `finishedAt` | LocalDateTime | Set when the step reaches a terminal status |
+| `attemptCount` | int | Attempts already made (0 = first attempt, 1 = first retry, …) |
 
 ### `Variable`
 
@@ -163,12 +189,25 @@ public EmbeddedTaskExecutor myWorker(UpdateStepExecutionUseCase updateStepExecut
 record Variable(String name, String value) {}
 ```
 
+There are two `Variable` records with this shape: `io.mateu.workflow.dtos.Variable`
+(used by the integration events `TaskExecutionRequested`, `TaskStatusChanged`,
+`ProcessCreationRequested`) and `io.mateu.workflow.domain.aggregates.Variable`
+(used by `UpdateStepExecutionCommand` and the aggregates). Import the one that
+matches the API you are calling — they are not interchangeable.
+
 ### `WorkflowDefinition`
 
 | Field | Type | Description |
 |---|---|---|
 | `id` | String | Unique workflow ID |
 | `name` | String | Human-readable name |
+| `description` | String | Optional description |
 | `version` | int | Version number |
 | `status` | WorkflowDefinitionStatus | DRAFT, ACTIVE, DISABLED, ARCHIVED |
+| `draftOfId` | String | Set on working copies: the ID of the definition this drafts |
+| `cronExpression` | String | Optional Spring cron expression for scheduled starts |
+| `limitConcurrentExecutions` | boolean | Whether to cap concurrent processes |
+| `maxConcurrentExecutions` | int | The cap, when limited |
+| `enqueueOnLimit` | boolean | Queue starts that exceed the cap instead of rejecting them |
+| `defaultMaxStepExecutions` | int | Default per-step execution cap (0 = unbounded) |
 | `steps` | List\<Step\> | Step definitions |

@@ -25,23 +25,26 @@ only when you need JPA/Kafka.
 <dependency>
   <groupId>io.mateu.workflow</groupId>
   <artifactId>workflow-engine</artifactId>
-  <version>LATEST</version>
+  <version>1.0-beta.010</version> <!-- check Maven Central / CHANGELOG.md for the newest release -->
 </dependency>
 <!-- add only if you use USER_TASK / human forms -->
 <dependency>
   <groupId>io.mateu.workflow</groupId>
   <artifactId>forms-engine</artifactId>
-  <version>LATEST</version>
+  <version>1.0-beta.010</version>
 </dependency>
 ```
-Kafka mode also needs `spring-cloud-starter-stream-kafka`; JPA mode needs
-`spring-boot-starter-data-jpa` + a JDBC driver.
+Kafka mode uses `spring-cloud-starter-stream-kafka` — it already arrives transitively as a
+non-optional dependency of `workflow-engine`, so you normally don't add it yourself. JPA mode
+needs `spring-boot-starter-data-jpa` + a JDBC driver.
 
 ## 3. Main class
 
 - **Embedded mode:** annotate the app with `@WorkflowEmbeddedApplication` (excludes the
   web/UI/JPA layers from scanning; Kafka & JPA autoconfig are excluded automatically). For
-  `embedded`+`jpa` also add `@EnableJpaRepositories(basePackages = "io.mateu.workflow")`.
+  `embedded`+`jpa` also add BOTH `@EnableJpaRepositories(basePackages = "io.mateu.workflow")`
+  AND `@AutoConfigurationPackage(basePackages = "io.mateu.workflow")` (see
+  `testbench/workflow-embedded-db-headless`'s `EmbeddedDbHeadlessApplication`).
 - **Kafka mode:** a normal `@SpringBootApplication`.
 
 ```java
@@ -80,6 +83,11 @@ spring.cloud.stream.function.definition=consumeOutbox;consumeUpstream;consumeWor
 ```
 Standalone distributed apps read `WORKFLOW_MODE` / `WORKFLOW_PERSISTENCE` env vars.
 
+**Forms and rules persist separately:** `workflow.persistence` only covers the workflow engine.
+If you use `forms-engine` or `rule-engine`, also set `forms.persistence=jpa` /
+`rules.persistence=jpa` (both default to `memory`) — otherwise a JPA scaffold silently keeps
+forms/rules in memory.
+
 ## 5. Place your definitions and workers
 
 - Put `.json` / `.yaml` definitions under `src/main/resources/workflows/`
@@ -92,8 +100,10 @@ Standalone distributed apps read `WORKFLOW_MODE` / `WORKFLOW_PERSISTENCE` env va
 - **No engine beans / autoconfig errors in embedded mode** → you used `@SpringBootApplication`
   instead of `@WorkflowEmbeddedApplication`, or set `mode=kafka` without a broker. Use the
   embedded annotation; leave `mode`/`persistence` at defaults for a no-deps app.
-- **Definition not picked up** → it isn't under `classpath:/workflows/`, or it lacks `name`
-  and `steps` (the minimum for a valid definition), or its `status` isn't `ACTIVE`.
+- **Definition not picked up** → it isn't under `classpath:/workflows/`, or it doesn't parse
+  (bad JSON/YAML, violated invariants — check the startup log). The classpath loader imports
+  every parseable file regardless of `status`; the `name`+`steps` minimum applies only to the
+  Git importer.
 - **JPA errors with `memory`** → don't add a datasource for `memory` persistence; and don't
   set `persistence=jpa` without a configured datasource.
 

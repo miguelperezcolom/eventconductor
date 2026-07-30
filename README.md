@@ -59,20 +59,40 @@ same JVM, or remotely fetching definitions over **REST or gRPC** with a local ca
 fresh by Kafka events. `RULE` workflow steps evaluate a rule and merge its outputs into
 the process variables.
 
-### Visual editors included
-- **Drag-and-drop workflow editor** — design and modify workflows visually; changes are
-  persisted back as JSON definitions.
+### Visual tooling included
+- **Workflow definition viewer** — a read-only detail view for every definition: property
+  summary, the list of steps and an auto-laid-out workflow graph, plus the lifecycle
+  actions (promote to production, create working copy, disable, enable, reactivate,
+  archive) and one-click **Export YAML**. Definitions themselves stay owned by developers
+  as JSON/YAML files (classpath, Git import or database).
 - **Drag-and-drop form editor** — build form layouts visually without writing HTML or schemas.
 
-Both editors are included in the platform UI.
+Both are included in the platform UI.
 
 ### Full management UI
 A web UI is provided out of the box for operators and developers:
-- Browse and manage workflow definitions
+- Browse workflow definitions (read-only) and drive their lifecycle — promote, working
+  copy, disable/enable, reactivate, archive, export as YAML
 - Monitor running process instances and step executions
 - Inspect variables, logs, and audit trail per process
-- Trigger and cancel processes manually
+- Start, retry and cancel processes manually
 - Manage form definitions
+
+### Observability, resilience and operations
+- **Metrics & tracing** — every engine emits Micrometer metrics when the host app provides a
+  `MeterRegistry` (Prometheus scrape at `/actuator/prometheus` in the standalone apps), and the
+  standalone apps ship optional OpenTelemetry tracing over OTLP. See the
+  [Observability reference](https://miguelperezcolom.github.io/eventconductor/reference/observability/).
+- **REST message delivery** — `POST /workflow/api/messages` (optional `X-Api-Key` guard)
+  delivers external messages to waiting `MESSAGE` steps, so webhooks and SaaS callbacks can
+  resume processes without producing to Kafka.
+- **Broker/DB outage resilience** — the orchestrator boots gracefully with Kafka or PostgreSQL
+  down and resumes parked work when they return (outbox-based recovery, chaos-tested — see
+  [TESTING.md](./TESTING.md)).
+- **Built-in analytics** — per-definition instance counts, completion/error rates, durations
+  and bottleneck detection, in the UI (Workflow → Analytics) and via the
+  `getWorkflowAnalytics` / `findBottleneck` MCP tools. See the
+  [Process Analytics guide](https://miguelperezcolom.github.io/eventconductor/guides/analytics/).
 
 ### Deploy anywhere, from a unit test to production
 Three deployment modes with no code changes:
@@ -138,6 +158,9 @@ and the final answer is returned as plain text or streamed via SSE.
 | `findProcessByBusinessKey` | Look up a process by its business key |
 | `getProcessLogs` | Audit trail and log messages for a process |
 | `retryProcess` | Re-trigger all failed (ERROR) steps in a process |
+| `sendMessage` | Deliver an external message to processes waiting on a `MESSAGE` step |
+| `getWorkflowAnalytics` | Per-definition analytics: instance counts, rates, durations, per-step stats |
+| `findBottleneck` | Find where processes get stuck: slowest step, waiting/running steps, failures |
 | `importWorkflowDefinitionsFromGit` | Pull and upsert workflow JSON files from Git |
 
 **Forms engine** (`forms-engine`, port 8106)
@@ -179,17 +202,23 @@ methods with `@Tool`. The agent discovers them automatically.
 ```bash
 # Terminal 1 — orchestrator (workflow engine MCP server)
 cd apps/orchestrator-standalone-app
-mvn spring-boot:run
+SECURITY_ENABLED=false mvn spring-boot:run
 
 # Terminal 2 — forms engine MCP server
 cd apps/forms-standalone-app
-mvn spring-boot:run
+SECURITY_ENABLED=false mvn spring-boot:run
 
 # Terminal 3 — AI agent
 export ANTHROPIC_API_KEY=sk-ant-...
 cd demo/ia-agent-service
 mvn spring-boot:run
 ```
+
+The standalone apps boot with security **on** by default (a password is generated at
+startup); `SECURITY_ENABLED=false` disables it for local experimentation. Note that
+`demo/ia-agent-service` is not built by the root Maven reactor — it lives in the separate
+`demo/` reactor with its own stack (Spring Boot 3.4.1, Spring AI 1.0.0), so run it from
+its own directory as shown.
 
 2. Add to your `claude_desktop_config.json`:
 
@@ -272,25 +301,37 @@ workflow definitions and workers:
 
 ```
 eventconductor/
-├── modules/                   Reusable library modules
+├── modules/                   Reusable library modules + test suites
 │   ├── shared/                DTOs, domain events, DDD base classes
 │   ├── workflow-engine/       Core orchestration engine (embeddable Spring Boot library)
 │   ├── forms-engine/          Form definition and rendering engine
 │   ├── rule-engine/           Business rule catalog (REST + gRPC read APIs, UI, MCP)
 │   ├── rule-runtime/          Lightweight embeddable rule evaluator (JEXL)
 │   ├── workflow-maven-plugin/ Build-time validator for workflow/form/rule definitions
+│   ├── workflow-e2e/          End-to-end test suite (embedded + JPA/H2 modes)
+│   ├── workflow-dist-e2e/     Distributed test suite (Testcontainers: Postgres + Kafka)
 │   └── sample-worker/         Hello-world worker example
-└── demo/                      Example microservices that use the modules
-    ├── api-gw/                API gateway
-    ├── booking-service/       Sample business service (orchestrated)
-    ├── content-service/       Sample content service
-    ├── control-plane-service/ Orchestrator host application
-    ├── embedded/              Embedded + memory mode with HTTP + MCP server
-    ├── embedded-headless/     Embedded + memory mode, no HTTP server
-    ├── embedded-db-headless/  Embedded + JPA (H2) mode, no HTTP server
-    ├── ia-agent-service/      AI agent (Claude) with MCP tool integration
-    ├── users-service/         User management
-    └── static-content-server/ Static asset server
+├── apps/                      Runnable standalone apps + docker-compose.yml
+│   ├── orchestrator-standalone-app/  Workflow engine (UI, REST, MCP)
+│   ├── forms-standalone-app/  Forms engine
+│   ├── rule-standalone-app/   Rule catalog (REST + gRPC + UI + MCP)
+│   ├── worker-standalone-app/ Kafka worker
+│   └── dev-app/               All engines in one JVM for development
+├── testbench/                 Minimal single-purpose apps (embedded workflow/forms/rules)
+├── demo/                      Example multi-service system (own Maven reactor,
+│   │                          not built by the root build)
+│   ├── api-gw/                API gateway
+│   ├── booking-service/       Sample business service (orchestrated)
+│   ├── content-service/       Sample content service
+│   ├── control-plane-service/ Orchestrator host application
+│   ├── users-service/         User management
+│   ├── shell/                 Web shell / front-end host
+│   ├── sdks/                  gRPC client SDK examples
+│   ├── ia-agent-service/      AI agent (Claude) with MCP tool integration
+│   ├── static/                Screenshot PNG assets
+│   └── static-content-server/ Static asset server (own pom, outside the demo reactor)
+├── charts/                    Helm chart for Kubernetes deployment
+└── doc/                       Astro Starlight documentation site
 ```
 
 ---
@@ -491,6 +532,8 @@ steps:
 | `USER_TASK` | Pauses the workflow for a human form submission | `formId` |
 | `RULE` | Evaluates a business rule; outputs merge into process variables | `ruleId` |
 | `PROCESS` | Starts a child workflow as a sub-process | `childWorkflowDefinitionId` |
+| `TIMER` | Durably pauses the process for a duration or until a date-time | `duration` or `untilVariable` |
+| `MESSAGE` | Waits for an external message with a matching correlation key | `messageName` |
 | `JOIN` | Waits for all parallel branches to complete | — |
 | `FORK` | Starts parallel branches | — |
 | `END` | Marks the workflow as complete | — |
@@ -510,10 +553,25 @@ steps:
 | `formId` | string | — | Form identifier (USER_TASK only) |
 | `ruleId` | string | — | Rule identifier (RULE only) |
 | `childWorkflowDefinitionId` | string | — | Child workflow ID (PROCESS only) |
+| `duration` | ISO 8601 duration or integer (ms) | — | How long to wait, counted from step start (TIMER only), e.g. `PT72H` |
+| `untilVariable` | string | — | Process variable holding an ISO 8601 date/date-time to wait until; takes precedence over `duration` (TIMER only) |
+| `messageName` | string | — | Name of the external message this step waits for (MESSAGE only) |
+| `correlationExpression` | string | — | JEXL expression over process variables yielding the expected correlation key; defaults to matching the process `businessKey` (MESSAGE only) |
 | `timeout` | integer (ms) | `0` | Max execution time; `0` = no timeout |
 | `retries` | integer | `0` | Auto-retry attempts on ERROR or TIMEOUT |
 | `rollbackable` | boolean | `false` | Trigger compensation step on failure |
 | `compensationStepId` | string | — | Step to run as compensation (requires `rollbackable: true`) |
+| `maxSuccessfulExecutions` | integer | `0` | Cap on successful runs of this step per process instance (loop backstop); `0` inherits the workflow's `defaultMaxStepExecutions` |
+
+### Workflow-level fields
+
+Besides `id`, `name`, `version`, `description`, `status` and the concurrency settings
+(`limitConcurrentExecutions`, `maxConcurrentExecutions`, `enqueueOnLimit`):
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `cronExpression` | string (Spring cron, 6 fields) | — | While the definition is ACTIVE, a process instance is created automatically at each occurrence |
+| `defaultMaxStepExecutions` | integer | `0` | Default cap on successful executions per step within one process instance; a step's `maxSuccessfulExecutions` overrides it; `0` = unbounded |
 
 ### Workflow definition status
 
@@ -540,7 +598,7 @@ parseability for rules.
 <plugin>
   <groupId>io.mateu.workflow</groupId>
   <artifactId>workflow-maven-plugin</artifactId>
-  <version>1.0-beta.008</version>
+  <version>1.0-beta.012</version>
   <executions>
     <execution>
       <goals>
@@ -568,7 +626,7 @@ Send a `ProcessCreationRequested` event to the `upstream` topic:
 
 ```json
 {
-  "@type": "ProcessCreationRequested",
+  "type": "process-creation-requested",
   "workflowDefinitionId": "my-workflow",
   "businessKey": "order-123",
   "variables": [
@@ -727,7 +785,7 @@ Place workflow definitions under `src/main/resources/workflows/` as JSON or YAML
 <dependency>
     <groupId>io.mateu.workflow</groupId>
     <artifactId>workflow-engine</artifactId>
-    <version>1.0-SNAPSHOT</version>
+    <version>1.0-beta.012</version>
 </dependency>
 ```
 
@@ -756,29 +814,22 @@ See [`demo/ia-agent-service/README.md`](demo/ia-agent-service/README.md) for ful
 
 ### With Docker Compose (full mode)
 
-```yaml
-# docker-compose.yml
-services:
-  postgres:
-    image: postgres:16
-    environment:
-      POSTGRES_DB: workflow
-      POSTGRES_USER: workflow
-      POSTGRES_PASSWORD: secret
-    ports: ["5432:5432"]
-
-  kafka:
-    image: confluentinc/cp-kafka:7.6.0
-    environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
-    ports: ["9092:9092"]
-```
+The repository ships a ready-to-use compose file at
+[`apps/docker-compose.yml`](apps/docker-compose.yml): PostgreSQL (`postgres-db`, port 5432),
+a Kafka-compatible Redpanda broker (`redpanda`, port 9092), the Redpanda console (port 8888)
+and the published `orchestrator` (port 8105), `forms` (port 8106) and `worker` (port 8107)
+images in `kafka` + `jpa` mode:
 
 ```shell
-docker-compose up -d
-mvn spring-boot:run
+docker compose -f apps/docker-compose.yml up -d
+```
+
+To run only the infrastructure and start the apps yourself from source:
+
+```shell
+docker compose -f apps/docker-compose.yml up -d postgres-db redpanda
+cd apps/orchestrator-standalone-app
+SECURITY_ENABLED=false mvn spring-boot:run
 ```
 
 ### Without any external dependency (fully embedded)

@@ -5,6 +5,8 @@ description: Kafka topic reference for EventConductor distributed mode.
 
 Applies to `workflow.mode=kafka` only.
 
+Events are serialized as JSON with a `type` property carrying the registered event id (kebab-case, as declared on `DomainEvent`) — for example `"type": "process-creation-requested"`.
+
 ## Topic overview
 
 | Topic | Direction | Description |
@@ -19,12 +21,12 @@ Applies to `workflow.mode=kafka` only.
 
 **Published by:** `OutboxRelay` (reads pending events from the DB and publishes here)
 
-**Consumed by:** Orchestrator event handlers (`ProcessCreatedEventHandler`, `StepExecutionStatusChangedEventHandler`, etc.)
+**Consumed by:** Orchestrator event handlers (`ProcessCreatedEventHandler`, `StepExecutionStatusUpdatedEventHandler`, etc.)
 
 **Event types:**
-- `ProcessCreated`
-- `StepExecutionStatusChanged`
-- `ProcessCancellationRequested`
+- `process-created`
+- `step-execution-status-changed`
+- `step-execution-creation-requested`
 
 ## upstream
 
@@ -39,7 +41,7 @@ Applies to `workflow.mode=kafka` only.
 ```json
 // Start a new process
 {
-  "@type": "ProcessCreationRequested",
+  "type": "process-creation-requested",
   "workflowDefinitionId": "my-workflow",
   "businessKey": "order-123",
   "variables": [
@@ -49,7 +51,7 @@ Applies to `workflow.mode=kafka` only.
 
 // Report task completion
 {
-  "@type": "TaskStatusChanged",
+  "type": "task-status-changed",
   "taskExecutionId": "exec-uuid",
   "status": "COMPLETED",
   "variables": [
@@ -57,17 +59,32 @@ Applies to `workflow.mode=kafka` only.
   ]
 }
 
-// Cancel a process
+// Append a log line to a task execution
 {
-  "@type": "ProcessCancellationRequested",
+  "type": "task-log-emitted",
+  "taskExecutionId": "exec-uuid",
+  "messageType": "Info",
+  "message": "40% done"
+}
+
+// Timeout check (sent by the orchestrator's scheduler)
+{
+  "type": "timeout-check-requested",
   "processId": "process-uuid"
 }
 
-// Timeout check (sent by orchestrator)
+// Timer check for due TIMER steps (sent by the orchestrator's scheduler)
 {
-  "@type": "TimeoutCheckRequested"
+  "type": "timer-check-requested",
+  "processId": "process-uuid"
 }
 ```
+
+A `MessageReceived` event (for `MESSAGE` steps) is also handled on the upstream surface, but it has no registered JSON type id, so it cannot currently be published as raw JSON on the topic. Deliver messages through `POST /workflow/api/messages`, the `sendMessage` MCP tool, or programmatically via `ProcessUpstreamEventUseCase` — see [Step Types — MESSAGE](/reference/step-types/#message).
+
+:::note[Cancellation is not an upstream event]
+Publishing a `process-cancellation-requested` event on this topic has no effect — no upstream handler consumes it. To cancel a process, call `CancelProcessUseCase` (or use the management UI / MCP tools) — see [Starting a Process — Cancelling a process](/guides/starting-a-process/#cancelling-a-process).
+:::
 
 ## downstream
 
@@ -81,7 +98,7 @@ Applies to `workflow.mode=kafka` only.
 
 ```json
 {
-  "@type": "TaskExecutionRequested",
+  "type": "task-execution-requested",
   "taskExecutionId": "exec-uuid",
   "processId": "process-uuid",
   "workflowDefinitionId": "my-workflow",
@@ -94,7 +111,7 @@ Applies to `workflow.mode=kafka` only.
 }
 ```
 
-Workers consume this topic, perform their work, and publish a `TaskStatusChanged` to the `upstream` topic.
+Workers consume this topic, perform their work, and publish a `task-status-changed` to the `upstream` topic.
 
 ## Consumer groups
 
@@ -104,4 +121,4 @@ Workers consume this topic, perform their work, and publish a `TaskStatusChanged
 | Orchestrator upstream handler | `orchestrator-group` | `upstream` |
 | Workers | `worker-group` | `downstream` |
 
-Multiple orchestrator instances in the same group will share the load and coordinate via PostgreSQL advisory locks.
+Multiple orchestrator instances in the same group will share the load and coordinate via database advisory locks — the lock dialect is auto-detected from the JDBC connection (PostgreSQL, MariaDB/MySQL, or Oracle; see the [configuration reference](/reference/configuration/#distributed-locking)).

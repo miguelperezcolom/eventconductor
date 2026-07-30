@@ -76,6 +76,8 @@ steps: [...]
 | `limitConcurrentExecutions` | boolean | Cap concurrent running instances |
 | `maxConcurrentExecutions` | integer | Max instances (if limit enabled) |
 | `enqueueOnLimit` | boolean | Queue new instances when limit reached |
+| `cronExpression` | string | Spring cron expression (six fields, seconds first). While the definition is `ACTIVE`, the engine creates a process instance at each occurrence. `null` = no scheduled starts |
+| `defaultMaxStepExecutions` | integer | Default cap on how many times each step may successfully run within one process instance; a step's own `maxSuccessfulExecutions` overrides it. `0` or `null` = unbounded |
 
 ### Definition statuses
 
@@ -137,7 +139,7 @@ A definition moves through those four statuses over its life. The management UI 
 
 - **New → `DRAFT`** — a definition you create in the UI starts as a `DRAFT`. Definitions loaded from the classpath (`classpath:/workflows/`) or imported from Git come in as `ACTIVE`.
 - **Create working copy** (`ACTIVE` → *working copy*) — clones a live definition into a `DRAFT` linked back to it via `draftOfId`. Only one working copy may exist per definition.
-- **Promote to production** (*working copy* → `ACTIVE`) — copies the working copy's content onto the original definition, bumps its version, and deletes the copy. Offered **only** on working copies (those with `draftOfId` set).
+- **Promote to production** (`DRAFT` → `ACTIVE`) — offered on any `DRAFT`. A working copy (one with `draftOfId` set) is promoted by copying its content onto the original definition, bumping the original's version, and deleting the copy; a standalone draft is simply activated in place.
 - **Disable / Enable** (`ACTIVE` ⇄ `DISABLED`) — stop or resume accepting new process instances; already-running instances are unaffected.
 - **Archive** (`DRAFT` or `DISABLED` → `ARCHIVED`) — retire a definition. An `ACTIVE` definition must be **disabled first**; archive is not offered while it is live.
 - **Reactivate** (`ARCHIVED` → `DRAFT`) — bring a retired definition back as a `DRAFT`, so it re-enters the lifecycle from the start.
@@ -231,19 +233,40 @@ Production definition updated (version + 1), working copy deleted
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `id` | string | — | Unique identifier within the workflow |
-| `type` | enum | — | `ACTION` \| `USER_TASK` \| `PROCESS` \| `FORK` \| `JOIN` \| `END` |
+| `type` | enum | — | `ACTION` \| `USER_TASK` \| `PROCESS` \| `FORK` \| `JOIN` \| `END` \| `TIMER` \| `MESSAGE` \| `RULE` |
 | `name` | string | — | Human-readable name |
 | `description` | string | — | Optional description |
 | `preconditionStepId` | string | — | Step that must complete before this one starts |
-| `preconditionExpression` | string | — | JEXL expression; step is skipped if evaluates to `false` |
+| `preconditionExpression` | string | — | JEXL expression; the step does not run while it evaluates to `false` |
 | `parallel` | boolean | `false` | Allows concurrent execution with other parallel steps |
 | `topic` | string | — | Worker topic/destination (ACTION only) |
 | `formId` | string | — | Form identifier (USER_TASK only) |
 | `childWorkflowDefinitionId` | string | — | Child workflow ID (PROCESS only) |
+| `ruleId` | string | — | Rule to evaluate (RULE only) |
+| `duration` | duration | `0` | TIMER only: how long to wait from the moment the step starts. ISO 8601 string (`PT72H`, `P3D`) or integer milliseconds |
+| `untilVariable` | string | — | TIMER only: process variable holding an ISO 8601 date/date-time the timer waits for. Takes precedence over `duration` |
+| `messageName` | string | — | MESSAGE only: name of the external message this step waits for |
+| `correlationExpression` | string | — | MESSAGE only: JEXL expression yielding the correlation key; defaults to matching the process `businessKey` |
 | `timeout` | duration | `0` | Max execution time. ISO 8601 string (`PT30S`, `PT5M`, `PT1H30M`) or integer milliseconds. `0` = no timeout |
 | `retries` | integer | `0` | Auto-retry attempts on ERROR or TIMEOUT |
 | `rollbackable` | boolean | `false` | Trigger compensation step on failure |
-| `compensationStepId` | string | — | Step to run as compensation (requires `rollbackable: true`) |
+| `compensationStepId` | string | — | Step to run as compensation (required when `rollbackable: true`) |
+| `maxSuccessfulExecutions` | integer | `0` | Cap on successful runs of this step per process instance; `0` inherits the workflow's `defaultMaxStepExecutions` |
+
+See [Step Types](/reference/step-types/) for the semantics of each type.
+
+## Validation at load
+
+Beyond the JSON schema, the engine checks these invariants when a definition is loaded or saved (`WorkflowDefinition.checkInvariants()`) and rejects the definition if any is violated:
+
+- **Duplicate step ids** — every `id` must be unique within the workflow.
+- **Self-reference** — a step cannot be its own `preconditionStepId` or its own `compensationStepId`.
+- **Dangling references** — `preconditionStepId` and `compensationStepId` must point to an existing step.
+- **Precondition cycles** — chains of `preconditionStepId` must not form a cycle (A waits for B waits for … waits for A), which would deadlock all the steps involved.
+- **TIMER required fields** — a `TIMER` step must define a positive `duration` or a non-blank `untilVariable`.
+- **MESSAGE required fields** — a `MESSAGE` step must define a non-blank `messageName`.
+
+The [Maven plugin](/reference/maven-plugin/) catches most of these at build time; precondition cycles and the TIMER/MESSAGE value checks are only verified at engine load.
 
 ## Examples
 

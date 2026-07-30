@@ -9,10 +9,10 @@ safety**.
 
 | Level | Module | Infrastructure | Runs in CI |
 |---|---|---|---|
-| Unit | `modules/*/src/test` | None (Mockito / plain objects) | Yes (`mvn verify`) — 261 tests |
-| End-to-end (embedded) | `modules/workflow-e2e` | None — engine in `embedded` + `memory` mode, programmable workers | Yes (`mvn verify`) — 30 tests, all green |
+| Unit | `modules/*/src/test` | None (Mockito / plain objects) | Yes (`mvn verify`) — ~390 tests |
+| End-to-end (embedded) | `modules/workflow-e2e` | None — engine in `embedded` + `memory` mode, programmable workers | Yes (`mvn verify`) — ~33 tests, all green |
 | End-to-end (JPA outbox) | `modules/workflow-e2e` | H2 in PostgreSQL mode — exercises the real outbox relay, JDBC advisory locks and JPA persistence | Yes (`mvn verify`) — 4 tests (see §5) |
-| Distributed (Kafka) | `modules/workflow-dist-e2e` (Testcontainers) | PostgreSQL + Kafka in Docker | Yes — dedicated CI job via the `dist-e2e` Maven profile — 5 tests (see §6) |
+| Distributed (Kafka) | `modules/workflow-dist-e2e` (Testcontainers) | PostgreSQL + Kafka in Docker | Yes — dedicated CI job via the `dist-e2e` Maven profile — 8 tests (see §6) |
 
 The e2e tests drive the engine exclusively through its public surface: upstream events
 (`ProcessCreationRequested`, worker status callbacks), the `EmbeddedTaskExecutor` port, and the
@@ -30,6 +30,7 @@ repositories for assertions. No engine internals are mocked.
 | E2E-COND-02 | **JEXL branching (false).** The guarded step does not run when the expression is falsy; the process still completes via the END step. |
 | E2E-COND-03 | **Fail-closed guards.** A step whose precondition references a missing variable (evaluation error) must NOT run. |
 | E2E-PRE-01 | **preconditionStepId gating.** A step with a `preconditionStepId` only runs after that step is COMPLETED. |
+| E2E-ANA-01 | **Built-in analytics.** After running completed and failing processes, the analytics service reports exact instance counts by status, completion/error rates, created-per-day series, per-step execution counts and durations, and flags exactly one step as the bottleneck (`AnalyticsE2eTest`). |
 
 ## 2. Failure handling (E2E, embedded + memory)
 
@@ -108,6 +109,9 @@ profile and a dedicated CI job.
 | DIST-03 | **Two orchestrator pods.** Both consume events for the same processes (multi-partition topics, shared consumer group); advisory locks guarantee each step is dispatched exactly once — asserted on worker-side execution counts across 20 concurrent processes. | ✅ `Dist03TwoOrchestratorsTest` |
 | DIST-04 | **Worker crash / redelivery.** A worker that dies mid-task (takes the task, never reports): the step times out (3 s), is retried, the second execution succeeds and the process completes. | ✅ `Dist04WorkerCrashTest` |
 | DIST-05 | **Load smoke.** N=500 concurrent processes (3 ACTION steps each → 1,500 task executions) through two orchestrator pods complete within the 300 s bound; no lost or stuck instances. Measured: **11.3 s wall clock → 44.1 process instances/second** (engine-side window 8.4 s → 59.7 PI/s, first creation → last completion) on an Apple M3 Max with default settings — the baseline published in the comparison guide. | ✅ `Dist05LoadSmokeTest` |
+| DIST-06 | **Kafka broker outage mid-flight.** With consumers already bound, the broker container is stopped while a process is held mid-flight; events park in the transactional outbox and, once the broker returns, the process reaches COMPLETED with the outbox fully drained. | ✅ `Dist06KafkaOutageRecoveryTest` |
+| DIST-07 | **Kafka down at startup.** With bounded binder admin/request timeouts and binding retry (the config now in the standalone apps), the orchestrator boots promptly while the broker is paused; once the broker resumes the consumers bind and a process created through the upstream topic completes. | ✅ `Dist07KafkaDownAtStartupTest` |
+| DIST-08 | **PostgreSQL down at startup.** With DB-resilient settings (lazy pool, `ddl-auto: none`, explicit dialect), the pod boots without a database; once PostgreSQL is reachable it drives a process parked mid-flight (Pending outbox row — the DIST-02 crash window) to completion and runs brand-new processes end to end. | ✅ `Dist08PostgresDownAtStartupTest` |
 
 ## How to run
 

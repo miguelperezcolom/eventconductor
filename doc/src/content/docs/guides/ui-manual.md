@@ -53,21 +53,33 @@ The definitions list shows all registered workflow definitions with their ID, na
 
 ![Workflow definitions list](/screenshots/03-workflow-definitions.png)
 
+The page is **read-only**: definitions are authored as JSON/YAML files (classpath, Git
+import or database), not created, edited or deleted from the UI.
+
 **Available actions:**
 
 | Button | Description |
 |--------|-------------|
 | **Import from github** | Pull workflow JSON files from a configured Git repository and upsert them |
-| **New** | Create a new workflow definition manually |
-| **Delete** | Delete selected definitions |
-| **View** | Open the definition detail and visual editor |
+| **View** | Open the read-only definition detail |
 
-When viewing a single definition, two additional toolbar buttons appear:
+**View** opens a read-only detail view — not an editor — with a compact property list
+(status, version, description, concurrency, cron, max step executions), a **Diagram**
+section rendering the workflow graph (read-only, with a full-screen expand button), and
+the list of steps below.
+
+The detail view's toolbar carries the lifecycle actions plus a YAML export. Each action
+is shown only when it makes sense for the definition's current status:
 
 | Button | Description |
 |--------|-------------|
-| **Create working copy** | Clone the definition as a `DRAFT` working copy. Fails if a working copy already exists for this definition. |
-| **Promote to production** | Copy the working copy's content back to the original definition (incrementing its version), then delete the working copy. Only available on definitions that are working copies (`draftOfId` is set). |
+| **Promote to production** | Copy the working copy's content back to the original definition (incrementing its version), then delete the working copy. Only shown on `DRAFT` working copies (`draftOfId` is set). |
+| **Create working copy** | Clone the definition as a `DRAFT` working copy. Only shown on `ACTIVE` definitions; fails if a working copy already exists. |
+| **Disable** | Stop accepting new instances (`ACTIVE` → `DISABLED`); running ones continue |
+| **Enable** | Re-activate a `DISABLED` definition |
+| **Reactivate** | Bring an `ARCHIVED` definition back |
+| **Archive** | Retire a definition (not available while `ACTIVE`) |
+| **Export YAML** | Download the definition as a YAML file |
 
 **Definition statuses** displayed in the Status column:
 
@@ -105,7 +117,7 @@ The processes list shows all process instances with their ID, workflow name, sta
 | `Error` | A step failed after exhausting retries |
 | `Cancelled` | Process was cancelled |
 
-Clicking **View** on a row opens the process detail, showing all step executions, their individual statuses, variables, and the full audit log.
+Clicking **View** on a row opens the process detail, showing all step executions, their individual statuses, variables, and the full audit log. The detail is organised in tabs: **Steps**, **Messages**, **Errors** and **Resources**.
 
 ### Analytics
 
@@ -178,6 +190,24 @@ Columns shown: ID, Name, Form, Assigned to, Status, and a **Run** action button 
 
 ---
 
+## Rule Engine
+
+Deployments that bundle the `rule-engine` module (for example `dev-app` or
+`rule-standalone-app`) also serve a rules UI at the `/_rules` path, alongside
+`/_workflow` and `/_forms`.
+
+### Rules
+
+Navigate via **Rules → Rules**.
+
+The rules list shows every rule definition in the catalog with its ID, name, type
+(expression rule or decision table) and version. Selecting a rule opens it for editing:
+the metadata fields are read-only and the full JSON or YAML definition is edited in a
+text area — the definition is the source of truth and is validated on save. New rules
+can be created and existing ones deleted from the same page.
+
+---
+
 ## Navigation structure
 
 ```
@@ -193,6 +223,9 @@ http://localhost:8191/_forms             Forms Engine
   └─ Forms → Executions                 Form executions (user tasks)
   └─ Forms → Tasks                      Pending tasks simplified view
   └─ /my-tasks                          Personal task inbox
+
+/_rules                                  Rule Engine (on apps bundling rule-engine,
+  └─ Rules → Rules                      e.g. dev-app or rule-standalone-app)
 ```
 
 ---

@@ -22,7 +22,7 @@ the semantic checks a JSON schema cannot express:
 <plugin>
   <groupId>io.mateu.workflow</groupId>
   <artifactId>workflow-maven-plugin</artifactId>
-  <version>1.0-beta.008</version>
+  <version>1.0-beta.012</version>
   <executions>
     <execution>
       <goals>
@@ -44,7 +44,9 @@ src/main/resources/
 ```
 
 Run it directly with `mvn eventconductor:validate`, or let it run in the build
-(`mvn verify`). On any violation the build fails with a per-file report:
+(`mvn verify`). The plugin also ships the standard auto-generated `help` goal:
+`mvn eventconductor:help -Ddetail=true -Dgoal=validate` describes every parameter.
+On any violation the build fails with a per-file report:
 
 ```
 EventConductor definition validation found 2 problem(s):

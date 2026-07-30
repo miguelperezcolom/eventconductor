@@ -11,6 +11,10 @@ record TaskExecutionRequested(
     List<Variable> variables) {}  // process vars here, incl. outputs of earlier steps
 ```
 
+Two `Variable` records exist — import the right one: `UpdateStepExecutionCommand` takes
+`io.mateu.workflow.domain.aggregates.Variable`; the events (`TaskExecutionRequested`,
+`TaskStatusChanged`, `ProcessCreationRequested`) use `io.mateu.workflow.dtos.Variable`.
+
 ## Embedded mode
 
 Register one `EmbeddedTaskExecutor` bean and branch on `stepId`:
@@ -35,8 +39,9 @@ Alternatively register per-topic beans (bean name = step `topic`): `@Bean("payme
 
 Consume `TaskExecutionRequested` from `downstream`; publish `TaskStatusChanged` to `upstream`:
 ```java
+// io.mateu.workflow.dtos.events.integration
 record TaskStatusChanged(String taskExecutionId, TaskStatus status,
-                         List<Variable> variables, String log) {}
+                         List<Variable> variables) {}
 
 @Bean
 Consumer<TaskExecutionRequested> paymentService(StreamBridge bridge) {
@@ -44,14 +49,17 @@ Consumer<TaskExecutionRequested> paymentService(StreamBridge bridge) {
         try {
             bridge.send("upstream", new TaskStatusChanged(
                 req.taskExecutionId(), TaskStatus.COMPLETED,
-                List.of(new Variable("charged", "true")), null));
+                List.of(new Variable("charged", "true"))));
         } catch (Exception e) {
             bridge.send("upstream", new TaskStatusChanged(
-                req.taskExecutionId(), TaskStatus.ERROR, List.of(), e.getMessage()));
+                req.taskExecutionId(), TaskStatus.ERROR, List.of()));
         }
     };
 }
 ```
+
+No log component on `TaskStatusChanged` — task logs travel in the separate
+`TaskLogEmitted(taskExecutionId, messageType, message)` event.
 
 ## Progress & async
 
@@ -67,4 +75,5 @@ available to all later steps and to JEXL `preconditionExpression`s.
 ## Reporting statuses
 
 Workers may report only `RUNNING`, `COMPLETED`, `ERROR`. The engine derives the rest
-(`TIMEOUT`, `SKIPPED`, `CANCELLED`) and manages retries.
+(`TIMEOUT`, `CANCELLED`) and manages retries. There is no `SKIPPED` status: a step whose
+precondition guard is falsy is never dispatched (stays `CREATED`, cancelled when `END` fires).

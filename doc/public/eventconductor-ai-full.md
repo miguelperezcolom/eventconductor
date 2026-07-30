@@ -13,20 +13,20 @@ It scales from a single JVM with no external dependencies up to a multi-pod Kube
 <dependency>
   <groupId>io.mateu.workflow</groupId>
   <artifactId>workflow-engine</artifactId>
-  <version>LATEST</version>
+  <version>1.0-beta.010</version>
 </dependency>
 
 <!-- only if you use USER_TASK steps (human forms) -->
 <dependency>
   <groupId>io.mateu.workflow</groupId>
   <artifactId>forms-engine</artifactId>
-  <version>LATEST</version>
+  <version>1.0-beta.010</version>
 </dependency>
 ```
 
-Check the current version on the Maven Central badge in the README (artifacts under `io.mateu.workflow`).
+1.0-beta.010 is the latest release at the time of writing — check the Maven Central badge in the README / `CHANGELOG.md` for the newest one (artifacts under `io.mateu.workflow`).
 
-Prebuilt standalone Docker images exist: `orchestrator-standalone-app`, `forms-standalone-app`, `worker-standalone-app`.
+Prebuilt standalone Docker images exist: `orchestrator-standalone-app`, `forms-standalone-app`, `worker-standalone-app`, `rule-standalone-app`.
 
 ---
 
@@ -107,6 +107,7 @@ Written in JSON or YAML (`.json`, `.yaml`, `.yml`); version-controlled and PR-re
 | `maxConcurrentExecutions` | integer | Max instances (when limit enabled) |
 | `enqueueOnLimit` | boolean | Queue new instances when the limit is reached |
 | `cronExpression` | string | Spring cron; the engine starts a new instance at each occurrence (deterministic business keys, multi-pod safe) |
+| `defaultMaxStepExecutions` | integer | Default cap on executions per step (validated metadata; not enforced at runtime today) |
 | `steps` | array | The step definitions |
 
 ### Definition statuses
@@ -199,7 +200,7 @@ Exactly one per workflow. Transitions the process to `COMPLETED`. With parallel 
 | `name` | string | — | Human-readable |
 | `description` | string | — | Optional |
 | `preconditionStepId` | string | — | Step that must complete first |
-| `preconditionExpression` | string | — | JEXL; step is `SKIPPED` if it evaluates to `false` |
+| `preconditionExpression` | string | — | JEXL guard; while falsy the step is never run (stays `CREATED`, → `CANCELLED` when `END` fires) |
 | `parallel` | boolean | `false` | Concurrent execution within a FORK branch |
 | `topic` | string | — | Worker destination (ACTION, Kafka mode) |
 | `formId` | string | — | Form to render (USER_TASK) |
@@ -213,6 +214,7 @@ Exactly one per workflow. Transitions the process to `COMPLETED`. With parallel 
 | `retries` | integer | `0` | Auto-retry attempts on ERROR/TIMEOUT |
 | `rollbackable` | boolean | `false` | Enable saga compensation on failure |
 | `compensationStepId` | string | — | Compensation step (needs `rollbackable: true`) |
+| `maxSuccessfulExecutions` | integer | `0` | Cap on successful executions of this step (validated metadata; not enforced at runtime today) |
 
 ---
 
@@ -240,15 +242,19 @@ processUpstreamEventUseCase.handle(new ProcessUpstreamEventCommand(
     new ProcessCreationRequested("my-workflow", "order-123",
         List.of(new Variable("orderId", "123"), new Variable("amount", "99.90")))));
 
-// cancel — running steps are cancelled, process → CANCELLED
-processUpstreamEventUseCase.handle(new ProcessUpstreamEventCommand(
-    new ProcessCancellationRequested(processId)));
+// cancel — running/pending steps → CANCELLED, process → CANCELLED
+@Autowired CancelProcessUseCase cancelProcessUseCase;
+cancelProcessUseCase.handle(new CancelProcessCommand(processId));
+
+// retry a process in ERROR — transitions back to RUNNING
+@Autowired RetryProcessUseCase retryProcessUseCase;
+retryProcessUseCase.handle(new RetryProcessCommand(processId));
 ```
 
 ### Via Kafka (mode: kafka)
 Send to the `upstream` topic:
 ```json
-{ "@type": "ProcessCreationRequested", "workflowDefinitionId": "my-workflow",
+{ "type": "process-creation-requested", "workflowDefinitionId": "my-workflow",
   "businessKey": "order-123",
   "variables": [ { "name": "orderId", "value": "123" }, { "name": "amount", "value": "99.90" } ] }
 ```
@@ -257,10 +263,11 @@ Send to the `upstream` topic:
 ### Query
 ```java
 @Autowired ProcessRepository processRepository;
-Process p  = processRepository.findById(processId);
-Process p2 = processRepository.findByBusinessKey("order-123");
-List<Process> running = processRepository.findByStatus(ProcessStatus.RUNNING);
+Optional<Process> p  = processRepository.findById(processId);
+Optional<Process> p2 = processRepository.findByBusinessKey("order-123");
+long running = processRepository.countByStatus(ProcessStatus.RUNNING);
 ```
+There is no `findByStatus`; filter `findAll()` (or use `find(...)`) for status-based queries.
 
 ---
 
@@ -281,6 +288,8 @@ record TaskExecutionRequested(
 ### Embedded worker (mode: embedded)
 
 Register one `EmbeddedTaskExecutor` bean; branch on `stepId`. (You may also register per-topic beans named after the step `topic`.)
+
+Mind the two `Variable` records: `UpdateStepExecutionCommand` takes `io.mateu.workflow.domain.aggregates.Variable`, while the events (`TaskExecutionRequested`, `TaskStatusChanged`, `ProcessCreationRequested`) use `io.mateu.workflow.dtos.Variable` — import the right one per use.
 
 ```java
 @Bean
@@ -315,8 +324,9 @@ EmbeddedTaskExecutor payment(UpdateStepExecutionUseCase update) { return request
 Consume `TaskExecutionRequested` from `downstream`; publish `TaskStatusChanged` to `upstream`.
 
 ```java
+// io.mateu.workflow.dtos.events.integration
 record TaskStatusChanged(String taskExecutionId, TaskStatus status,
-                         List<Variable> variables, String log) {}
+                         List<Variable> variables) {}
 
 @Bean
 Consumer<TaskExecutionRequested> myWorkerTopic(StreamBridge bridge) {
@@ -325,14 +335,16 @@ Consumer<TaskExecutionRequested> myWorkerTopic(StreamBridge bridge) {
             String result = doWork(req.variables());
             bridge.send("upstream", new TaskStatusChanged(
                 req.taskExecutionId(), TaskStatus.COMPLETED,
-                List.of(new Variable("result", result)), null));
+                List.of(new Variable("result", result))));
         } catch (Exception e) {
             bridge.send("upstream", new TaskStatusChanged(
-                req.taskExecutionId(), TaskStatus.ERROR, List.of(), e.getMessage()));
+                req.taskExecutionId(), TaskStatus.ERROR, List.of()));
         }
     };
 }
 ```
+
+There is no log component on `TaskStatusChanged`; task logs are emitted through the separate `TaskLogEmitted(String taskExecutionId, MessageType messageType, String message)` event.
 
 ### Progress & async
 
@@ -383,13 +395,14 @@ Worker outputs are **merged into process variables** (overwriting same-named one
 | `COMPLETED` | Worker reported success |
 | `ERROR` | Worker reported failure, or timeout with no retries left |
 | `TIMEOUT` | Exceeded `timeout` — retries if attempts remain |
-| `CANCELLED` | Process cancellation or saga compensation |
-| `SKIPPED` | `preconditionExpression` was `false` |
+| `CANCELLED` | Process cancellation, saga compensation, or step never run when `END` fired |
+
+There is **no `SKIPPED` status**. A step whose `preconditionExpression` is falsy is simply never run: it stays `CREATED` and is flipped to `CANCELLED` when the `END` step fires. Because dependent steps require their `preconditionStepId` step to be `COMPLETED`, a never-run step permanently blocks its dependents — give conditional chains an alternative path to `END`.
 
 Workers may only report `RUNNING`, `COMPLETED`, `ERROR`.
 
 ### Form execution
-`Assigned` → `Completed`.
+`PENDING` → `ASSIGNED` → `COMPLETED`; `CANCELLED`.
 
 ---
 
@@ -397,7 +410,7 @@ Workers may only report `RUNNING`, `COMPLETED`, `ERROR`.
 
 | Topic | Direction | Payloads |
 |---|---|---|
-| `upstream` | into the orchestrator | `ProcessCreationRequested`, `ProcessCancellationRequested`, `TaskStatusChanged` |
+| `upstream` | into the orchestrator | `ProcessCreationRequested`, `TaskStatusChanged`, `MessageReceived` |
 | `downstream` | orchestrator → workers | `TaskExecutionRequested` (per ACTION step `topic`) |
 | `outbox` | internal | orchestrator outbox relay |
 
@@ -415,7 +428,8 @@ spring.cloud.stream.kafka.binder.auto-create-topics=true
 ## 11. Java API summary
 
 ### Entry points
-- `ProcessUpstreamEventUseCase.handle(ProcessUpstreamEventCommand)` — wraps `ProcessCreationRequested` / `ProcessCancellationRequested`.
+- `ProcessUpstreamEventUseCase.handle(ProcessUpstreamEventCommand)` — wraps `ProcessCreationRequested` and other upstream events.
+- `CancelProcessUseCase.handle(CancelProcessCommand)` / `RetryProcessUseCase.handle(RetryProcessCommand)` — cancel / retry a process by id.
 - `UpdateStepExecutionUseCase.handle(UpdateStepExecutionCommand)` — report worker progress.
 
 ```java
@@ -427,12 +441,17 @@ new UpdateStepExecutionCommand(
 ```
 
 ### Repositories
-- `ProcessRepository`: `findById`, `findByBusinessKey`, `findAll`, `findByStatus`.
-- `StepExecutionRepository`: `findByProcessId`, `findByStatus`.
-- `WorkflowDefinitionRepository`: `findById`, `findByStatus`, `save`.
+
+All extend `CrudStore<T>` (`findById` → `Optional<T>`, `save`, `findAll`, `deleteAllById`, `find`). There is no `findByStatus` anywhere.
+- `ProcessRepository`: + `findByBusinessKey(String)` → `Optional<Process>`, `countByStatus(ProcessStatus)`.
+- `StepExecutionRepository`: + `findByProcess(Process)`, `findPendingOrRunning()`.
+- `WorkflowDefinitionRepository`: bare `CrudStore<WorkflowDefinition>`.
 
 ### Analytics
 - `ProcessAnalyticsService.analyze(definitionIdOrName, TimeWindow)` / `analyzeAll(TimeWindow)` — per-definition analytics computed on demand in any mode: instance counts by status, completion/error/cancellation rates, throughput per day, avg/p95 process duration, avg/p95 per-step duration with the slowest step flagged as bottleneck. `TimeWindow.lastDays(30)` / `TimeWindow.all()`.
+
+### Observability
+Micrometer metrics for the workflow, forms and rule engines — exposed at `GET /actuator/prometheus` when a Prometheus `MeterRegistry` is on the classpath (`micrometer-registry-prometheus` + `management.endpoints.web.exposure.include=health,prometheus`) — plus OTLP tracing configured via `TRACING_SAMPLING` (`management.tracing.sampling.probability`) and `OTLP_TRACING_ENDPOINT` (`management.otlp.tracing.endpoint`). Full reference: `doc/src/content/docs/reference/observability.md`.
 
 ### Interfaces & records
 ```java
@@ -441,9 +460,9 @@ record Variable(String name, String value) {}
 ```
 
 ### Domain model (selected fields)
-- `Process`: `id`, `workflowDefinitionId`, `businessKey`, `status`, `variables`, `createdAt`, `updatedAt`.
-- `StepExecution`: `id`, `processId`, `stepId`, `taskExecutionId`, `status`, `retryCount`, `startedAt`, `completedAt`, `log`.
-- `WorkflowDefinition`: `id`, `name`, `version`, `status`, `steps`.
+- `Process`: `id`, `name`, `workflowDefinitionId`, `workflowDefinitionVersion`, `workflowDefinitionJson`, `businessKey`, `variables`, `status`, `completionPercentage`, `created`, `started`, `finished`.
+- `StepExecution`: `id`, `processId`, `workflowDefinitionId`, `stepId`, `stepJson`, `variables`, `status`, `workerId`, `startedAt`, `finishedAt`, `attemptCount`. The step-execution `id` **is** the `taskExecutionId` used in events; there is no separate field, no `retryCount`/`completedAt`/`log`.
+- `WorkflowDefinition`: `id`, `name`, `version`, `description`, `status`, `draftOfId`, `limitConcurrentExecutions`, `maxConcurrentExecutions`, `enqueueOnLimit`, `cronExpression`, `defaultMaxStepExecutions`, `steps`.
 
 ---
 
@@ -462,7 +481,7 @@ workflow:
 ```
 Also triggerable via the MCP tool `importWorkflowDefinitionsFromGit`, or a GitHub webhook to `POST /workflow/webhooks/github` (responds 202, imports in background).
 
-**Working copies** — a `DRAFT` clone of a production definition (`draftOfId` = original). Edit safely, then **promote**: content is copied onto the original, `version`+1, working copy deleted, running processes unaffected. One working copy per definition.
+**Working copies** — a `DRAFT` clone of a production definition (`draftOfId` = original). Edit safely, then **promote**. Any `DRAFT` is promotable: if it has a `draftOfId`, its content is copied onto the original, `version`+1, working copy deleted, running processes unaffected; a standalone draft (`draftOfId == null`) is simply activated in place. One working copy per definition.
 
 ---
 
@@ -474,7 +493,7 @@ Also triggerable via the MCP tool `importWorkflowDefinitionsFromGit`, or a GitHu
 
 ## 14. AI / MCP integration
 
-The engine exposes an MCP server so AI agents can operate it in natural language. Representative tools: `getProcessDetails`, `sendMessage` (resume MESSAGE steps), `getWorkflowAnalytics` / `findBottleneck` (per-definition analytics and bottleneck detection), `importWorkflowDefinitionsFromGit`, process listing/starting, forms tools, and rule catalog tools (`listRules`, `evaluateRule`, ...). See `doc/src/content/docs/guides/mcp-overview.md`.
+The engine exposes an MCP server so AI agents can operate it in natural language. Workflow tools: `listProcesses`, `getProcessDetails`, `findProcessByBusinessKey`, `getProcessLogs`, `retryProcess`, `sendMessage` (resume MESSAGE steps), `getWorkflowAnalytics` / `findBottleneck` (per-definition analytics and bottleneck detection), `importWorkflowDefinitionsFromGit`. There is no start-process tool. Plus forms tools and rule catalog tools (`listRules`, `evaluateRule`, ...). See `doc/src/content/docs/guides/mcp-overview.md`.
 
 ---
 

@@ -31,9 +31,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   spans. Because it is enabled at the app layer, HTTP, Kafka (Spring Cloud Stream) and JDBC calls
   are auto-instrumented and trace context propagates across the engines' async boundaries without
   any engine-code changes — consistent with the metrics' "optional, host-activated" design.
-- **Observability docs** — the Configuration reference on the docs site now covers the metrics of
-  every engine (workflow, forms, rule catalog, rule runtime) plus a Distributed tracing section
-  (how to enable Prometheus scraping and OTLP tracing).
+- **Observability docs** — the docs site gains a dedicated Reference → Observability page
+  (`doc/src/content/docs/reference/observability.md`) covering the metrics of every engine
+  (workflow, forms, rule catalog, rule runtime) plus a Distributed tracing section (how to
+  enable Prometheus scraping and OTLP tracing); the Configuration reference keeps a short
+  pointer to it.
+- **Boot without the database and resume when it appears.** `DbLockDialectFactory` was the only
+  startup-time database access left: it now falls back to inferring the lock dialect from the
+  JDBC url when the database is unreachable (the pollers already retry every tick), so an
+  orchestrator configured for resilience (lazy pool, `ddl-auto: none`, explicit dialect) boots
+  in seconds with PostgreSQL down, and a process parked mid-flight with pending outbox rows
+  completes once the database returns. Proven by a new distributed chaos test (DIST-08) that
+  pauses/resumes PostgreSQL with `docker pause`, like the Kafka chaos tests.
+- **REST endpoint to deliver messages to `MESSAGE` steps.** `POST /workflow/api/messages`
+  publishes a `MessageReceived` through the same upstream surface as Kafka, the embedded
+  publisher and the `sendMessage` MCP tool, so webhooks and SaaS callbacks that cannot produce
+  to Kafka can resume waiting `MESSAGE` steps. Fire-and-forget (`202 Accepted`), with an
+  optional `X-Api-Key` guard configured via `workflow.message-api.api-key`.
+- **Read-only workflow definition detail view with graph.** Selecting a definition in the CRUD
+  now opens a dedicated `WorkflowDefinitionDetailView` (the "view" action) instead of the
+  editor: name as the title, lifecycle status as a header badge, a compact property list and a
+  read-only ELK graph side by side, with the steps as a full-width band below. The editor
+  layouts were tidied (5-column definition grid; the Step form's Main / Precondition /
+  Execution / Reliability sections sit side by side), a `PROCESS` step can no longer pick the
+  workflow it belongs to as its child, and the graph component gains a read-only mode (toolbar
+  and node-detail panel hidden, capped height with a full-screen expand button).
+- **Lifecycle actions on the detail view + Export YAML.** The read-only detail view now carries
+  the full lifecycle toolbar (*Promote to production*, *Create working copy*, *Disable*,
+  *Enable*, *Reactivate*, *Archive*) with the same visibility rules as before, so an `ACTIVE`
+  definition can again be disabled or copied from the UI. Any `DRAFT` is now promotable (a
+  standalone draft is activated in place), and *Export YAML* downloads the definition in the
+  exact shape the git/classpath importers read back.
+- **Definition-level guardrails against runaway loops.** `WorkflowDefinition.checkInvariants()`
+  now rejects precondition cycles (a step waits for its `preconditionStepId` to complete, so a
+  cycle deadlocks; the error names the cycle), and the model and JSON schema gain per-step
+  execution caps — `Step.maxSuccessfulExecutions` and
+  `WorkflowDefinition.defaultMaxStepExecutions` (`0` = inherit/unbounded) — carried through
+  working copies, imports and persistence, to be enforced when step re-execution lands.
 
 ### Changed
 - **Upgraded Mateu to `3.0-alpha.271`.** `3.0-alpha.271` is a breaking release that removed the
@@ -48,6 +82,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `View = Row`), because `Navigable.view()` is now generically typed.
   - `rule-engine` was pinned to Mateu `3.0-alpha.222`; it now tracks `${mateu.version}` like the
     rest of the reactor.
+  - In the demo services (booking, content, control-plane, shell, users) the `CrudAdapter` layer
+    was dissolved into the crud itself: every crud now implements the whole lifecycle
+    (`search(SearchRequest)`, `view`, `edit`, `creationForm`, `save`, `create`, `deleteAllById`)
+    in a single `Crud`/`AutoCrud`/`FilteredAutoCrud` subclass, and the demo `*CrudAdapter`
+    classes were deleted. The workflow engine keeps its adapters (`SimpleProcessCrudAdapter`,
+    `StepExecutionsCrudAdapter` and the process child-crud adapters) as collaborators of the
+    migrated pages.
+  - Testbench UI apps declare `spring-boot-starter-webmvc` explicitly: the Mateu MVC annotation
+    processor now generates SSE-capable controllers and the engines only carry the starter as
+    `optional`.
+  - The engine reactor builds against the released `3.0-alpha.271`; only the standalone demo and
+    testbench apps (which have their own poms outside the reactor) still pin
+    `3.0-alpha.271-SNAPSHOT` built locally from mateu master.
 - **The Workflow Definitions admin page is now read-only** (list + rich detail view). Definitions
   are authored as YAML and loaded from the classpath, Git or the database, and were never created
   or edited from this page; the write actions are disabled rather than reimplemented on the new
@@ -56,6 +103,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 - Dead `ProcessCrudAdapter` (superseded by `SimpleProcessCrudAdapter`; only referenced by an
   unused import) was deleted as part of the Mateu 271 migration.
+
+### Fixed
+- **Startup failure on databases with existing workflow definitions**: the new NOT NULL
+  `default_max_step_executions` column could not be added by `ddl-auto=update` (Postgres rejects
+  it without a default). `@ColumnDefault("0")` fixes Hibernate-managed schemas and a V4 Flyway
+  migration covers Flyway-managed deployments; `0` = unbounded.
+- **Process detail view**: explicit tab names keep *steps*, *log*, *errors* and *resources* as
+  separate tabs (consecutive bare `@Tab` fields now merge into one tab in Mateu), and
+  `CreateProcessForm` marks the form clean on create — creating *is* the save, so no
+  "save before leaving?" prompt.
+- **Workflow definition editor**: removed the backward-compatible `WorkflowDefinition`/`Step`
+  constructors that made Mateu's `ReflectionInstanceFactory` build empty objects on save
+  (`name=null`, `steps=[]`), and the precondition/compensation step lookups now exclude the step
+  being edited, so a step can no longer be offered as its own precondition or compensation.
 
 ## [1.0-beta.010] - 2026-07-24
 

@@ -11,7 +11,7 @@ A `USER_TASK` step pauses a workflow process until a human submits a form. This 
 2. The forms engine creates a **FormExecution** — a specific instance of the form linked to this process and step
 3. The step transitions to `RUNNING` and the process pauses
 4. The user opens the management UI (or a custom front-end), finds the pending task, fills the form, and submits
-5. The forms engine marks the `FormExecution` as `Completed` and notifies the orchestrator
+5. The forms engine marks the `FormExecution` as `COMPLETED` and notifies the orchestrator
 6. The step transitions to `COMPLETED` and the workflow advances
 
 ## Defining a USER_TASK step
@@ -34,8 +34,10 @@ A `USER_TASK` step pauses a workflow process until a human submits a form. This 
 
 | Status | Description |
 |---|---|
-| `Assigned` | Form created, waiting for user submission |
-| `Completed` | User submitted the form |
+| `PENDING` | Form execution created, not yet assigned |
+| `ASSIGNED` | Waiting for user submission |
+| `COMPLETED` | User submitted the form |
+| `CANCELLED` | The task (or its process) was cancelled |
 
 ## Querying pending user tasks
 
@@ -57,8 +59,10 @@ Navigate to **Form Executions** in the management UI to see all pending and comp
 @Autowired
 FormExecutionRepository formExecutionRepository;
 
-List<FormExecution> pending = formExecutionRepository
-    .findByStatus(FormExecutionStatus.Assigned);
+// FormExecutionRepository is a plain CrudStore — filter findAll() by status
+List<FormExecution> pending = formExecutionRepository.findAll().stream()
+    .filter(e -> e.status() == FormExecutionStatus.ASSIGNED)
+    .toList();
 ```
 
 ## Submitting a form
@@ -67,19 +71,27 @@ List<FormExecution> pending = formExecutionRepository
 
 Click on a pending task, fill the form fields, and click Submit.
 
-### Via the API
+### Programmatically
 
-```http
-POST /forms/api/executions/{formExecutionId}/submit
-Content-Type: application/json
+The forms engine exposes no REST submit endpoint; submit through `CompleteTaskUseCase`
+(this stores the values, marks the execution `COMPLETED` and notifies the orchestrator
+with a `TaskStatusChanged` event):
 
-{
-  "values": [
-    { "fieldId": "decision", "value": "APPROVE" },
-    { "fieldId": "comments", "value": "Looks good to me." }
-  ]
-}
+```java
+@Autowired
+CompleteTaskUseCase completeTaskUseCase;
+
+completeTaskUseCase.handle(new CompleteTaskCommand(
+    formExecutionId,
+    List.of(
+        new Value("decision", "APPROVE"),
+        new Value("comments", "Looks good to me.")
+    )
+));
 ```
+
+If you need an HTTP entry point, wrap this use case in your own controller — see
+`testbench/forms-embedded-mvc` for a minimal example of exposing forms over MVC.
 
 ## Submitted values as process variables
 

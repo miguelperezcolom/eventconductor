@@ -137,6 +137,9 @@ workflow:
   message-api:
     api-key: mysecret   # optional — leave unset to accept unauthenticated messages
 ```
+
+---
+
 ## RULE
 
 Evaluates a business rule from the rule engine against the process variables. The rule's outputs are merged back into the process variables.
@@ -161,6 +164,10 @@ The `ruleId` references a rule definition (expression rule or decision table) st
 
 Starts a child workflow as a sub-process. The parent step completes when the child process completes.
 
+:::caution[Not yet implemented by the engine]
+`PROCESS` exists in the step-type enum and the JSON schema, but the engine has no dedicated handling for it: a `PROCESS` step is dispatched downstream as a plain `TaskExecutionRequested`, exactly like an `ACTION` step — no child process is started automatically. Until native support lands, start the child process from a worker (or an `EmbeddedTaskExecutor`) that consumes the step and sends a `ProcessCreationRequested`.
+:::
+
 ```json
 {
   "id": "run-kyc",
@@ -180,6 +187,10 @@ Variables from the parent process are passed to the child process. Output variab
 ## FORK
 
 Starts multiple parallel branches simultaneously. All steps with `parallel: true` and the same `preconditionStepId` as the FORK (or following the FORK) will execute in parallel.
+
+:::caution[Not yet implemented by the engine]
+`FORK` exists in the step-type enum and the JSON schema, but the engine has no dedicated handling for it: a `FORK` step is dispatched downstream as a plain `TaskExecutionRequested`, so it only completes if a worker acknowledges it. Parallelism does not come from `FORK` — it comes from marking the branch steps themselves `parallel: true` and pointing their `preconditionStepId` at the same predecessor, as in the example below (which works with or without the `FORK` marker step).
+:::
 
 ```json
 {
@@ -212,6 +223,10 @@ Starts multiple parallel branches simultaneously. All steps with `parallel: true
 
 Waits for all parallel branches to complete before proceeding.
 
+:::caution[Not yet implemented by the engine]
+`JOIN` exists in the step-type enum and the JSON schema, but the engine has no dedicated handling for it: a `JOIN` step is dispatched downstream as a plain `TaskExecutionRequested`, so it only completes if a worker acknowledges it. The join behaviour you usually want comes from the orchestration loop itself: a non-`parallel` step placed after a group of parallel steps does not start until no parallel step is still active, so a plain `ACTION` (or the `END` step) after the branch acts as the join point.
+:::
+
 ```json
 {
   "id": "join-notifications",
@@ -238,7 +253,7 @@ Marks the workflow as complete. The process transitions to `COMPLETED`.
 }
 ```
 
-Every workflow must have exactly one END step. If a workflow has parallel branches, use a JOIN step before the END.
+An `END` step is recommended, but not enforced: the engine also completes a process **implicitly** when no runnable steps remain — no step is active, and every remaining step is blocked by a precondition that does not hold. On completion (explicit or implicit), any step still waiting is transitioned to `CANCELLED`. Declaring an explicit `END` makes the intended terminal point visible and lets you end the process early while other steps are still eligible.
 
 ---
 
@@ -256,4 +271,5 @@ Every workflow must have exactly one END step. If a workflow has parallel branch
 | `timeout` | integer (ms) | `0` | Max execution time; `0` = no timeout |
 | `retries` | integer | `0` | Auto-retry attempts on ERROR or TIMEOUT |
 | `rollbackable` | boolean | `false` | Trigger compensation step on failure |
-| `compensationStepId` | string | — | Step to run as compensation |
+| `compensationStepId` | string | — | Step to run as compensation. **Required when `rollbackable: true`** (enforced by the JSON schema) |
+| `maxSuccessfulExecutions` | integer | `0` | Cap on how many times this step may successfully run within one process instance (backstop against runaway loops). `0` inherits the workflow-level `defaultMaxStepExecutions`; both `0` = unbounded. Validated design metadata today — the engine runs each step once, and the cap will be enforced when step re-execution lands |

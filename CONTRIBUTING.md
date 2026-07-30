@@ -11,7 +11,8 @@ codebase is organized.
 - JDK 21
 - Maven 3.9+
 - Docker (optional, only for the full-distributed mode with Kafka + Postgres)
-- Node.js 20+ (optional, only if you want to build the `doc/` site)
+- Node.js 22+ (optional, only if you want to build the `doc/` site — Astro 7 requires
+  `^20.19.0 || >=22.12.0`; CI builds it with Node 24)
 
 ### Build
 
@@ -26,15 +27,17 @@ standalone app uber-jars.
 
 ```bash
 cd apps/orchestrator-standalone-app
-WORKFLOW_MODE=embedded WORKFLOW_PERSISTENCE=memory mvn spring-boot:run
+WORKFLOW_MODE=embedded WORKFLOW_PERSISTENCE=memory SECURITY_ENABLED=false mvn spring-boot:run
 ```
 
 ### Run locally (full distributed)
 
 ```bash
-docker compose -f apps/docker-compose.yml up -d   # Postgres + Redpanda
+# Infrastructure only — the full file would also start the published app
+# containers (the orchestrator container takes host port 8105)
+docker compose -f apps/docker-compose.yml up -d postgres-db redpanda
 cd apps/orchestrator-standalone-app
-mvn spring-boot:run
+SECURITY_ENABLED=false mvn spring-boot:run
 ```
 
 ## Repository layout
@@ -42,7 +45,9 @@ mvn spring-boot:run
 See the top-level `README.md` for a complete map. Brief summary:
 
 - `modules/` — reusable library jars (`workflow-engine`, `forms-engine`,
-  `shared`, `sample-worker`)
+  `rule-engine`, `rule-runtime`, `shared`, `sample-worker`), the
+  `workflow-maven-plugin` build-time validator, and the test-suite modules
+  `workflow-e2e` / `workflow-dist-e2e`
 - `apps/` — runnable Spring Boot standalone applications
 - `demo/` — example microservices showing how to consume the libraries
 - `testbench/` — minimal apps used as fixtures in tests
@@ -56,7 +61,9 @@ See the top-level `README.md` for a complete map. Brief summary:
 - DDD / hexagonal architecture: keep domain code in `domain/`, use cases in
   `application/usecases/`, adapters in `infra/in/*` and `infra/out/*`.
 - Domain events implement `DomainEvent` and live next to the aggregate.
-- Public API of a module is documented in its own module-level README.
+- Public API of a module is documented on the docs site (`doc/`). Module-level
+  READMEs (currently only `workflow-maven-plugin` has one) are welcome but not
+  required.
 - Public APIs MUST NOT depend on Spring annotations (we want the engine to
   be embeddable in any JVM app).
 
@@ -80,15 +87,17 @@ Before opening a PR:
 
 ## Releases
 
-Releases are cut from `main` by pushing a `vX.Y.Z` tag. The `Build and publish`
-GitHub Actions workflow then:
+Releases are cut from `main` by creating and **publishing a GitHub Release**
+(with a `vX.Y.Z` tag) — pushing a tag alone does nothing. The `Build and
+publish` GitHub Actions workflow triggers on the release being published and:
 
-1. Sets the Maven version from the tag.
-2. Publishes the jars to Maven Central.
-3. Builds and pushes the Docker images.
+1. Sets the Maven version from the release tag (`github.event.release.tag_name`).
+2. Deploys the jars to Maven Central.
+3. Builds and pushes the `orchestrator-standalone-app` and
+   `forms-standalone-app` Docker images.
 
-Update `CHANGELOG.md` (`[Unreleased]` → `[X.Y.Z] - YYYY-MM-DD`) in the same
-commit that creates the tag.
+Update `CHANGELOG.md` (`[Unreleased]` → `[X.Y.Z] - YYYY-MM-DD`) before
+creating the release.
 
 ## Code of conduct
 

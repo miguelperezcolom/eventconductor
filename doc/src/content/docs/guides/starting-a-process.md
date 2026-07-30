@@ -11,7 +11,7 @@ Send a `ProcessCreationRequested` event to the `upstream` topic:
 
 ```json
 {
-  "@type": "ProcessCreationRequested",
+  "type": "process-creation-requested",
   "workflowDefinitionId": "my-workflow",
   "businessKey": "order-123",
   "variables": [
@@ -76,27 +76,40 @@ Variables are typed as strings. Numeric comparisons in JEXL expressions work on 
 
 ## Looking up a process
 
-Use `ProcessRepository` to query by ID or business key:
+Use `ProcessRepository` to query by ID or business key (both return an `Optional`):
 
 ```java
 @Autowired
 ProcessRepository processRepository;
 
 // By ID
-Process process = processRepository.findById(processId);
+Optional<Process> process = processRepository.findById(processId);
 
 // By business key
-Process process = processRepository.findByBusinessKey("order-123");
+Optional<Process> process = processRepository.findByBusinessKey("order-123");
 ```
+
+## Resuming a waiting process (MESSAGE steps)
+
+A process paused on a `MESSAGE` step resumes when a matching external message arrives — via `POST /workflow/api/messages` or the `sendMessage` MCP tool. See [Step Types — MESSAGE](/reference/step-types/#message) for correlation and delivery semantics.
 
 ## Cancelling a process
 
-Send a `ProcessCancellationRequested` event via `ProcessUpstreamEventUseCase`:
+Call `CancelProcessUseCase` with the process id:
 
 ```java
-processUpstreamEventUseCase.handle(new ProcessUpstreamEventCommand(
-    new ProcessCancellationRequested(processId)
-));
+@Autowired
+CancelProcessUseCase cancelProcessUseCase;
+
+cancelProcessUseCase.handle(new CancelProcessCommand(processId));
 ```
 
-Running step executions will be cancelled, and the process status will transition to `CANCELLED`.
+Running step executions will be cancelled (workers are notified via `TaskCancellationRequested`), and the process status will transition to `CANCELLED`. Cancelling an already `COMPLETED` or `CANCELLED` process is a no-op.
+
+Note that publishing a `ProcessCancellationRequested` event on the upstream surface has **no effect** — no handler consumes it.
+
+A process in `ERROR` can be retried with `RetryProcessUseCase`, which resets its failed step executions to `CREATED` and puts the process back to `RUNNING`:
+
+```java
+retryProcessUseCase.handle(new RetryProcessCommand(processId));
+```
