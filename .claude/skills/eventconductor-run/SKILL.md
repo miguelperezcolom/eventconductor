@@ -56,7 +56,7 @@ Embedded/from-source with the UI or REST up, or programmatically via
 - each `StepExecution` transitions `CREATED → PENDING → RUNNING → COMPLETED`;
 - output variables were merged (query `ProcessRepository.findByBusinessKey(...)` — returns `Optional`).
 
-To resume a process waiting on a **MESSAGE** step in a live run, POST the message over REST:
+To resume a process waiting on a **WAIT_FOR_MESSAGE** step in a live run, POST the message over REST:
 ```bash
 curl -X POST http://localhost:8080/workflow/api/messages \
   -H 'Content-Type: application/json' \

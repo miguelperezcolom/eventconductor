@@ -139,6 +139,10 @@ public class WorkflowOrchestrationService {
         variables.put("process", process);
         variables.put("step", step);
         process.getVariables().forEach(variable -> variables.put(variable.name(), variable.value()));
+        // Seeded AFTER the variables so the canonical value always wins: JEXL runs with
+        // RESTRICTED permissions (no introspection of domain classes), so businessKey must
+        // be available as a plain context variable — `process.businessKey` cannot evaluate.
+        variables.put("businessKey", process.getBusinessKey());
 
         try {
             Object result = eval(step.preconditionExpression(), variables);
@@ -180,7 +184,7 @@ public class WorkflowOrchestrationService {
 
         // Start eligible steps
         executableSteps.stream()
-                .map(stepExecution -> stepExecution.start(process.getVariables()))
+                .map(stepExecution -> stepExecution.start(process))
                 .forEach(stepsToSave::add);
 
         // Handle implicit completion if no executable steps are scheduled, and no active steps remain

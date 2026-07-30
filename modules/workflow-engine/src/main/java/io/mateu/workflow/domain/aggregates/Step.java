@@ -71,11 +71,18 @@ public record Step(
         @Hidden("state['type'] != 'TIMER'")
         String untilVariable,
         @HiddenInList
-        @Hidden("state['type'] != 'MESSAGE'")
+        @Hidden("state['type'] != 'WAIT_FOR_MESSAGE' && state['type'] != 'SEND_MESSAGE'")
         String messageName,
         @HiddenInList
-        @Hidden("state['type'] != 'MESSAGE'")
+        @Hidden("state['type'] != 'WAIT_FOR_MESSAGE' && state['type'] != 'SEND_MESSAGE'")
         String correlationExpression,
+        /**
+         * SEND_MESSAGE only: names of the process variables to carry in the message. Empty or
+         * absent means the message carries no variables — process state is never sent implicitly.
+         */
+        @HiddenInList
+        @Hidden("state['type'] != 'SEND_MESSAGE'")
+        List<String> messageVariables,
         @Section(value = "Reliability", zone = "reliability")
         @JsonDeserialize(using = TimeoutDeserializer.class)
         long timeout,

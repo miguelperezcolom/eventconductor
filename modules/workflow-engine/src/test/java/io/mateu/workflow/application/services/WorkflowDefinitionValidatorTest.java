@@ -24,7 +24,7 @@ class WorkflowDefinitionValidatorTest {
     }
 
     private Step actionStep(String id) {
-        return new Step(id, null, StepType.ACTION, "Step " + id, null, null, null, false, "my-topic", null, null, null, 0, null, null, null, 0, 0, false, null, 0);
+        return new Step(id, null, StepType.ACTION, "Step " + id, null, null, null, false, "my-topic", null, null, null, 0, null, null, null, null, 0, 0, false, null, 0);
     }
 
     @Test
@@ -55,7 +55,7 @@ class WorkflowDefinitionValidatorTest {
 
     @Test
     void definitionWithSelfPreconditionFailsInvariantCheck() {
-        Step selfPrecondition = new Step("s1", null, StepType.ACTION, "Step", null, "s1", null, false, "topic", null, null, null, 0, null, null, null, 0, 0, false, null, 0);
+        Step selfPrecondition = new Step("s1", null, StepType.ACTION, "Step", null, "s1", null, false, "topic", null, null, null, 0, null, null, null, null, 0, 0, false, null, 0);
         var wd = new WorkflowDefinition("wd-1", "Test", 1, "desc",
                 WorkflowDefinitionStatus.ACTIVE, null, false, 0, false, null, 0, List.of(selfPrecondition));
 
@@ -66,7 +66,7 @@ class WorkflowDefinitionValidatorTest {
     @Test
     void definitionWithExecutionCapsPassesSchemaValidation() {
         Step capped = new Step("s1", null, StepType.ACTION, "Step s1", null, null, null, false, "my-topic",
-                null, null, null, 0, null, null, null, 0, 0, false, null, 3);
+                null, null, null, 0, null, null, null, null, 0, 0, false, null, 3);
         var wd = new WorkflowDefinition("wd-1", "Capped", 1, "desc",
                 WorkflowDefinitionStatus.ACTIVE, null, false, 0, false, null, 100, List.of(capped));
 
@@ -75,8 +75,8 @@ class WorkflowDefinitionValidatorTest {
 
     @Test
     void definitionWithPreconditionCycleIsRejected() {
-        Step s1 = new Step("s1", null, StepType.ACTION, "S1", null, "s2", null, false, "topic", null, null, null, 0, null, null, null, 0, 0, false, null, 0);
-        Step s2 = new Step("s2", null, StepType.ACTION, "S2", null, "s1", null, false, "topic", null, null, null, 0, null, null, null, 0, 0, false, null, 0);
+        Step s1 = new Step("s1", null, StepType.ACTION, "S1", null, "s2", null, false, "topic", null, null, null, 0, null, null, null, null, 0, 0, false, null, 0);
+        Step s2 = new Step("s2", null, StepType.ACTION, "S2", null, "s1", null, false, "topic", null, null, null, 0, null, null, null, null, 0, 0, false, null, 0);
         var wd = new WorkflowDefinition("wd-1", "Cyclic", 1, "desc",
                 WorkflowDefinitionStatus.ACTIVE, null, false, 0, false, null, 0, List.of(s1, s2));
 

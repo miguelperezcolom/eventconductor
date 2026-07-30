@@ -89,9 +89,9 @@ Optional<Process> process = processRepository.findById(processId);
 Optional<Process> process = processRepository.findByBusinessKey("order-123");
 ```
 
-## Resuming a waiting process (MESSAGE steps)
+## Resuming a waiting process (WAIT_FOR_MESSAGE steps)
 
-A process paused on a `MESSAGE` step resumes when a matching external message arrives — via `POST /workflow/api/messages` or the `sendMessage` MCP tool. See [Step Types — MESSAGE](/reference/step-types/#message) for correlation and delivery semantics.
+A process paused on a `WAIT_FOR_MESSAGE` step resumes when a matching message arrives — via `POST /workflow/api/messages`, the `sendMessage` MCP tool, a raw `message-received` event on the Kafka `upstream` topic, or a `SEND_MESSAGE` step in another process (in-engine process-to-process signaling, no worker needed). See [Step Types — WAIT_FOR_MESSAGE](/reference/step-types/#wait_for_message) for correlation and delivery semantics.
 
 ## Cancelling a process
 

@@ -8,6 +8,7 @@ import io.mateu.workflow.domain.aggregates.Step;
 import io.mateu.workflow.domain.aggregates.StepExecution;
 import io.mateu.workflow.domain.aggregates.StepExecutionStatus;
 import io.mateu.workflow.domain.aggregates.StepType;
+import io.mateu.workflow.domain.services.MessageCorrelation;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -15,10 +16,10 @@ import org.springframework.stereotype.Service;
 import static io.mateu.core.infra.JsonSerializer.pojoFromJson;
 
 /**
- * Correlates an incoming {@code MessageReceived} against MESSAGE steps waiting for it.
- * A step matches when it is PENDING on the same messageName and the process correlation
- * key (businessKey by default, or the step's correlationExpression) equals the message's
- * correlation key. Matches are completed by {@link CompleteMessageStepHandler} under the
+ * Correlates an incoming {@code MessageReceived} against WAIT_FOR_MESSAGE steps waiting for
+ * it. A step matches when it is PENDING on the same messageName and the process correlation
+ * key (the step's correlationExpression; businessKey only for pre-rename persisted steps)
+ * equals the message's correlation key. Matches are completed by {@link CompleteMessageStepHandler} under the
  * process lock. A message that matches no waiting step is ignored (logged, not buffered):
  * upstream delivery is at-least-once, so the sender simply retries once the process is
  * waiting.
@@ -49,7 +50,7 @@ public class CorrelateMessageUseCase {
 
     private boolean isWaitingFor(StepExecution stepExecution, CorrelateMessageCommand command) {
         var step = pojoFromJson(stepExecution.getStepJson(), Step.class);
-        if (!StepType.MESSAGE.equals(step.type()) || !command.messageName().equals(step.messageName())) {
+        if (!StepType.WAIT_FOR_MESSAGE.equals(step.type()) || !command.messageName().equals(step.messageName())) {
             return false;
         }
         return processRepository.findById(stepExecution.getProcessId())

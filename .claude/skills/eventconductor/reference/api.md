@@ -68,13 +68,14 @@ Two `Variable` records with that shape exist — import per use:
 
 ## Kafka (mode: kafka)
 
-- `upstream` — inbound: `ProcessCreationRequested`, `TaskStatusChanged`, `MessageReceived`.
+- `upstream` — inbound: `ProcessCreationRequested`, `TaskStatusChanged`, `MessageReceived`
+  (`{"type": "message-received", "messageName": "...", "correlationKey": "...", "variables": [{"name": "k", "value": "v"}]}`).
 - `downstream` — outbound to workers: `TaskExecutionRequested`.
 - `outbox` — internal relay.
 
 ## REST
 
-- `POST /workflow/api/messages` — deliver a message to waiting MESSAGE steps. Body
+- `POST /workflow/api/messages` — deliver a message to waiting WAIT_FOR_MESSAGE steps. Body
   `{"messageName": "...", "correlationKey": "...", "variables": {"k": "v"}}`; responds 202.
   `X-Api-Key` header required when `workflow.message-api.api-key` is set.
 - `POST /workflow/webhooks/github` — GitHub webhook; re-imports configured Git repos (202, async).

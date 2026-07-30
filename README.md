@@ -84,7 +84,7 @@ A web UI is provided out of the box for operators and developers:
   standalone apps ship optional OpenTelemetry tracing over OTLP. See the
   [Observability reference](https://miguelperezcolom.github.io/eventconductor/reference/observability/).
 - **REST message delivery** — `POST /workflow/api/messages` (optional `X-Api-Key` guard)
-  delivers external messages to waiting `MESSAGE` steps, so webhooks and SaaS callbacks can
+  delivers external messages to waiting `WAIT_FOR_MESSAGE` steps, so webhooks and SaaS callbacks can
   resume processes without producing to Kafka.
 - **Broker/DB outage resilience** — the orchestrator boots gracefully with Kafka or PostgreSQL
   down and resumes parked work when they return (outbox-based recovery, chaos-tested — see
@@ -158,7 +158,7 @@ and the final answer is returned as plain text or streamed via SSE.
 | `findProcessByBusinessKey` | Look up a process by its business key |
 | `getProcessLogs` | Audit trail and log messages for a process |
 | `retryProcess` | Re-trigger all failed (ERROR) steps in a process |
-| `sendMessage` | Deliver an external message to processes waiting on a `MESSAGE` step |
+| `sendMessage` | Deliver an external message to processes waiting on a `WAIT_FOR_MESSAGE` step |
 | `getWorkflowAnalytics` | Per-definition analytics: instance counts, rates, durations, per-step stats |
 | `findBottleneck` | Find where processes get stuck: slowest step, waiting/running steps, failures |
 | `importWorkflowDefinitionsFromGit` | Pull and upsert workflow JSON files from Git |
@@ -533,7 +533,8 @@ steps:
 | `RULE` | Evaluates a business rule; outputs merge into process variables | `ruleId` |
 | `PROCESS` | Starts a child workflow as a sub-process | `childWorkflowDefinitionId` |
 | `TIMER` | Durably pauses the process for a duration or until a date-time | `duration` or `untilVariable` |
-| `MESSAGE` | Waits for an external message with a matching correlation key | `messageName` |
+| `WAIT_FOR_MESSAGE` | Waits for a message with a matching correlation key (previously named `MESSAGE`) | `messageName`, `correlationExpression` |
+| `SEND_MESSAGE` | Emits a message (fire-and-forget) and completes immediately — resumes processes waiting on it | `messageName`, `correlationExpression` |
 | `JOIN` | Waits for all parallel branches to complete | — |
 | `FORK` | Starts parallel branches | — |
 | `END` | Marks the workflow as complete | — |
@@ -555,8 +556,9 @@ steps:
 | `childWorkflowDefinitionId` | string | — | Child workflow ID (PROCESS only) |
 | `duration` | ISO 8601 duration or integer (ms) | — | How long to wait, counted from step start (TIMER only), e.g. `PT72H` |
 | `untilVariable` | string | — | Process variable holding an ISO 8601 date/date-time to wait until; takes precedence over `duration` (TIMER only) |
-| `messageName` | string | — | Name of the external message this step waits for (MESSAGE only) |
-| `correlationExpression` | string | — | JEXL expression over process variables yielding the expected correlation key; defaults to matching the process `businessKey` (MESSAGE only) |
+| `messageName` | string | — | Name of the message this step waits for or emits (WAIT_FOR_MESSAGE / SEND_MESSAGE, required for both) |
+| `correlationExpression` | string | — | JEXL expression over process variables yielding the correlation key; use `businessKey` to correlate by business key (WAIT_FOR_MESSAGE / SEND_MESSAGE, required for both) |
+| `messageVariables` | string[] | — | Names of the process variables the outgoing message carries; empty/absent = none (SEND_MESSAGE only) |
 | `timeout` | integer (ms) | `0` | Max execution time; `0` = no timeout |
 | `retries` | integer | `0` | Auto-retry attempts on ERROR or TIMEOUT |
 | `rollbackable` | boolean | `false` | Trigger compensation step on failure |

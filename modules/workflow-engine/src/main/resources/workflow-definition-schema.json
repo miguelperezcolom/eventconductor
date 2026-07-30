@@ -91,7 +91,7 @@
         "type": {
           "type": "string",
           "description": "Execution type of the step.",
-          "enum": ["ACTION", "JOIN", "FORK", "END", "USER_TASK", "PROCESS", "TIMER", "MESSAGE", "RULE"]
+          "enum": ["ACTION", "JOIN", "FORK", "END", "USER_TASK", "PROCESS", "TIMER", "WAIT_FOR_MESSAGE", "SEND_MESSAGE", "RULE"]
         },
         "name": {
           "type": "string",
@@ -142,11 +142,16 @@
         },
         "messageName": {
           "type": ["string", "null"],
-          "description": "MESSAGE only: name of the external message this step waits for (MessageReceived events). Required for MESSAGE steps."
+          "description": "WAIT_FOR_MESSAGE / SEND_MESSAGE only: name of the message. A WAIT_FOR_MESSAGE step waits for a MessageReceived event with this name; a SEND_MESSAGE step emits one. Required for both types."
         },
         "correlationExpression": {
           "type": ["string", "null"],
-          "description": "MESSAGE only: JEXL expression evaluated against process variables that yields the correlation key this step expects. When omitted, the message's correlationKey is matched against the process businessKey."
+          "description": "WAIT_FOR_MESSAGE / SEND_MESSAGE only: JEXL expression evaluated against process variables that yields the correlation key — the key an incoming message must carry (WAIT_FOR_MESSAGE), or the key stamped on the outgoing message (SEND_MESSAGE). Use 'businessKey' to correlate by business key. Required for both types."
+        },
+        "messageVariables": {
+          "type": ["array", "null"],
+          "items": { "type": "string" },
+          "description": "SEND_MESSAGE only: names of the process variables to carry in the message. Empty or absent means the message carries no variables — process state is never sent implicitly."
         },
         "timeout": {
           "type": ["integer", "string", "null"],
@@ -215,11 +220,20 @@
         },
         {
           "if": {
-            "properties": { "type": { "const": "MESSAGE" } },
+            "properties": { "type": { "const": "WAIT_FOR_MESSAGE" } },
             "required": ["type"]
           },
           "then": {
-            "required": ["messageName"]
+            "required": ["messageName", "correlationExpression"]
+          }
+        },
+        {
+          "if": {
+            "properties": { "type": { "const": "SEND_MESSAGE" } },
+            "required": ["type"]
+          },
+          "then": {
+            "required": ["messageName", "correlationExpression"]
           }
         },
         {

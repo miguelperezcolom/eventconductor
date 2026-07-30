@@ -32,7 +32,7 @@ class StartStepExecutionUseCaseTest {
     }
 
     private StepExecution seWith(StepExecutionStatus status, StepType type, String formId, String ruleId) {
-        Step step = new Step("s1", "wd-1", type, "Step", null, null, null, false, "topic", formId, ruleId, null, 0, null, null, null, 0, 0, false, null, 0);
+        Step step = new Step("s1", "wd-1", type, "Step", null, null, null, false, "topic", formId, ruleId, null, 0, null, null, null, null, 0, 0, false, null, 0);
         return StepExecution.builder()
                 .id("se-1").processId("p-1").workflowDefinitionId("wd-1").stepId("s1")
                 .stepJson(JsonSerializer.toJson(step))

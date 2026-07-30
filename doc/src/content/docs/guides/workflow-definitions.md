@@ -233,7 +233,7 @@ Production definition updated (version + 1), working copy deleted
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `id` | string | — | Unique identifier within the workflow |
-| `type` | enum | — | `ACTION` \| `USER_TASK` \| `PROCESS` \| `FORK` \| `JOIN` \| `END` \| `TIMER` \| `MESSAGE` \| `RULE` |
+| `type` | enum | — | `ACTION` \| `USER_TASK` \| `PROCESS` \| `FORK` \| `JOIN` \| `END` \| `TIMER` \| `WAIT_FOR_MESSAGE` \| `SEND_MESSAGE` \| `RULE` |
 | `name` | string | — | Human-readable name |
 | `description` | string | — | Optional description |
 | `preconditionStepId` | string | — | Step that must complete before this one starts |
@@ -245,8 +245,9 @@ Production definition updated (version + 1), working copy deleted
 | `ruleId` | string | — | Rule to evaluate (RULE only) |
 | `duration` | duration | `0` | TIMER only: how long to wait from the moment the step starts. ISO 8601 string (`PT72H`, `P3D`) or integer milliseconds |
 | `untilVariable` | string | — | TIMER only: process variable holding an ISO 8601 date/date-time the timer waits for. Takes precedence over `duration` |
-| `messageName` | string | — | MESSAGE only: name of the external message this step waits for |
-| `correlationExpression` | string | — | MESSAGE only: JEXL expression yielding the correlation key; defaults to matching the process `businessKey` |
+| `messageName` | string | — | WAIT_FOR_MESSAGE / SEND_MESSAGE only (**required** for both): name of the message this step waits for (WAIT_FOR_MESSAGE) or emits (SEND_MESSAGE) |
+| `correlationExpression` | string | — | WAIT_FOR_MESSAGE / SEND_MESSAGE only (**required** for both): JEXL expression yielding the correlation key — the key an incoming message must carry, or the key stamped on the outgoing message. Use `businessKey` to correlate by business key |
+| `messageVariables` | string[] | — | SEND_MESSAGE only: names of the process variables the outgoing message carries. Empty or absent = none — process state is never sent implicitly |
 | `timeout` | duration | `0` | Max execution time. ISO 8601 string (`PT30S`, `PT5M`, `PT1H30M`) or integer milliseconds. `0` = no timeout |
 | `retries` | integer | `0` | Auto-retry attempts on ERROR or TIMEOUT |
 | `rollbackable` | boolean | `false` | Trigger compensation step on failure |
@@ -264,9 +265,9 @@ Beyond the JSON schema, the engine checks these invariants when a definition is 
 - **Dangling references** — `preconditionStepId` and `compensationStepId` must point to an existing step.
 - **Precondition cycles** — chains of `preconditionStepId` must not form a cycle (A waits for B waits for … waits for A), which would deadlock all the steps involved.
 - **TIMER required fields** — a `TIMER` step must define a positive `duration` or a non-blank `untilVariable`.
-- **MESSAGE required fields** — a `MESSAGE` step must define a non-blank `messageName`.
+- **Message required fields** — a `WAIT_FOR_MESSAGE` or `SEND_MESSAGE` step must define a non-blank `messageName` **and** a non-blank `correlationExpression`.
 
-The [Maven plugin](/reference/maven-plugin/) catches most of these at build time; precondition cycles and the TIMER/MESSAGE value checks are only verified at engine load.
+The [Maven plugin](/reference/maven-plugin/) catches most of these at build time; precondition cycles and the TIMER/message value checks are only verified at engine load.
 
 ## Examples
 

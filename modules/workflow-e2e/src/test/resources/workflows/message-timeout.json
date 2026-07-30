@@ -4,7 +4,20 @@
   "version": 1,
   "status": "ACTIVE",
   "steps": [
-    { "id": "wait", "type": "MESSAGE", "name": "Wait for payment", "messageName": "payment-received", "timeout": 500, "retries": 0 },
-    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "wait" }
+    {
+      "id": "wait",
+      "type": "WAIT_FOR_MESSAGE",
+      "name": "Wait for payment",
+      "messageName": "payment-received",
+      "timeout": 500,
+      "retries": 0,
+      "correlationExpression": "businessKey"
+    },
+    {
+      "id": "end",
+      "type": "END",
+      "name": "End",
+      "preconditionStepId": "wait"
+    }
   ]
 }

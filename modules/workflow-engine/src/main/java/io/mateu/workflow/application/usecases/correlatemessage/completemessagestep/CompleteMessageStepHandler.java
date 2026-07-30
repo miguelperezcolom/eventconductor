@@ -5,7 +5,7 @@ import io.mateu.workflow.application.out.ProcessLockService;
 import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.out.WorkflowMetrics;
-import io.mateu.workflow.application.usecases.correlatemessage.MessageCorrelation;
+import io.mateu.workflow.domain.services.MessageCorrelation;
 import io.mateu.workflow.domain.aggregates.LogMessage;
 import io.mateu.workflow.domain.aggregates.Step;
 import io.mateu.workflow.domain.aggregates.StepExecutionStatus;
@@ -50,7 +50,7 @@ public class CompleteMessageStepHandler {
 
             var step = pojoFromJson(stepExecution.getStepJson(), Step.class);
 
-            if (!StepType.MESSAGE.equals(step.type()) || stepExecution.getStartedAt() == null
+            if (!StepType.WAIT_FOR_MESSAGE.equals(step.type()) || stepExecution.getStartedAt() == null
                     || !command.messageName().equals(step.messageName())) {
                 return;
             }

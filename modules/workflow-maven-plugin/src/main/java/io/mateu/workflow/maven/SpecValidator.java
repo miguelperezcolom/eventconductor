@@ -129,6 +129,10 @@ public class SpecValidator {
             if (isSet(precExpr)) {
                 checkJexl(precExpr, "step '" + id + "' preconditionExpression", violations);
             }
+            String corrExpr = text(step, "correlationExpression");
+            if (isSet(corrExpr)) {
+                checkJexl(corrExpr, "step '" + id + "' correlationExpression", violations);
+            }
         }
     }
 

@@ -164,7 +164,7 @@ A detailed capability-by-capability view. ✅ built-in · 🟡 possible with ext
 | Human tasks + forms + task UI | ✅ built-in module + editors | ✅ Tasklist + Forms | ❌ build your own |
 | Timer / delay steps ("wait 3 days") | ✅ `TIMER` step (duration or date variable) | ✅ timer events | ✅ durable timers |
 | Cron / scheduled process starts | ✅ `cronExpression` on the definition | ✅ timer start events | ✅ Schedules |
-| Message correlation into running processes | ✅ `MESSAGE` step (businessKey or JEXL correlation) | ✅ message events | ✅ signals & updates |
+| Message correlation into running processes | ✅ `WAIT_FOR_MESSAGE` / `SEND_MESSAGE` steps (JEXL correlation) | ✅ message events | ✅ signals & updates |
 | Query running workflow state | ✅ repositories / API / UI | ✅ Operate API | ✅ queries + visibility API |
 | Business decision tables | ✅ rule engine (`RULE` step; expression rules & decision tables in JSON/YAML) | ✅ DMN engine | 🟡 code |
 | Definition versioning | ✅ versions + draft working copies | ✅ versioned deployments | 🟡 code patching APIs |

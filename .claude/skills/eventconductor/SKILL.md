@@ -1,6 +1,6 @@
 ---
 name: eventconductor
-description: Design and run business processes with EventConductor — the Java/Spring event-driven workflow & saga orchestration engine (io.mateu.workflow). Use when defining a workflow (JSON/YAML steps), implementing workers, starting/cancelling/querying processes, adding retries/timeouts/compensation (sagas), human USER_TASK forms, durable waits (TIMER), external-message waits (MESSAGE), business rules (RULE), or child (PROCESS) workflows. Triggers on workflow-engine, WorkflowDefinition, ProcessUpstreamEventUseCase, UpdateStepExecutionUseCase, EmbeddedTaskExecutor, TaskExecutionRequested, ACTION/USER_TASK/RULE/TIMER/MESSAGE/FORK/JOIN steps, workflow.mode, workflow.persistence.
+description: Design and run business processes with EventConductor — the Java/Spring event-driven workflow & saga orchestration engine (io.mateu.workflow). Use when defining a workflow (JSON/YAML steps), implementing workers, starting/cancelling/querying processes, adding retries/timeouts/compensation (sagas), human USER_TASK forms, durable waits (TIMER), message waits and sends (WAIT_FOR_MESSAGE, SEND_MESSAGE), business rules (RULE), or child (PROCESS) workflows. Triggers on workflow-engine, WorkflowDefinition, ProcessUpstreamEventUseCase, UpdateStepExecutionUseCase, EmbeddedTaskExecutor, TaskExecutionRequested, ACTION/USER_TASK/RULE/TIMER/WAIT_FOR_MESSAGE/SEND_MESSAGE/FORK/JOIN steps, workflow.mode, workflow.persistence.
 ---
 
 # Orchestrating processes with EventConductor
@@ -25,7 +25,8 @@ machine, a scheduler, or retry/timeout loops — declare them on the step.
 | a human approval / data entry | `USER_TASK` step + a form (`formId`) | [workflow-definitions.md](reference/workflow-definitions.md) |
 | a business rule / decision table | `RULE` step + a rule (`ruleId`) evaluated by rule-runtime | [workflow-definitions.md](reference/workflow-definitions.md) |
 | a durable wait (delay / until a date) | `TIMER` step (`duration` or `untilVariable`) | [workflow-definitions.md](reference/workflow-definitions.md) |
-| wait for an external event/callback | `MESSAGE` step (`messageName`, optional `correlationExpression`) | [workflow-definitions.md](reference/workflow-definitions.md) |
+| wait for an external event/callback | `WAIT_FOR_MESSAGE` step (`messageName` + `correlationExpression`, both required) | [workflow-definitions.md](reference/workflow-definitions.md) |
+| signal another process (no worker) | `SEND_MESSAGE` step (`messageName` + `correlationExpression`, optional `messageVariables`) | [workflow-definitions.md](reference/workflow-definitions.md) |
 | parallel work then a barrier | `FORK` + `parallel: true` steps + `JOIN` | [workflow-definitions.md](reference/workflow-definitions.md) |
 | a reusable sub-process | `PROCESS` step (`childWorkflowDefinitionId`) | [workflow-definitions.md](reference/workflow-definitions.md) |
 | undo-on-failure (saga) | `rollbackable: true` + `compensationStepId` | [workflow-definitions.md](reference/workflow-definitions.md) |

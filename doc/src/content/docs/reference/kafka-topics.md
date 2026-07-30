@@ -49,6 +49,16 @@ Events are serialized as JSON with a `type` property carrying the registered eve
   ]
 }
 
+// Deliver a message to waiting WAIT_FOR_MESSAGE steps
+{
+  "type": "message-received",
+  "messageName": "payment-received",
+  "correlationKey": "order-123",
+  "variables": [
+    { "name": "paymentId", "value": "P-9" }
+  ]
+}
+
 // Report task completion
 {
   "type": "task-status-changed",
@@ -80,7 +90,7 @@ Events are serialized as JSON with a `type` property carrying the registered eve
 }
 ```
 
-A `MessageReceived` event (for `MESSAGE` steps) is also handled on the upstream surface, but it has no registered JSON type id, so it cannot currently be published as raw JSON on the topic. Deliver messages through `POST /workflow/api/messages`, the `sendMessage` MCP tool, or programmatically via `ProcessUpstreamEventUseCase` — see [Step Types — MESSAGE](/reference/step-types/#message).
+A `message-received` event resumes processes waiting on a `WAIT_FOR_MESSAGE` step with the same `messageName` and correlation key. Alternatives to raw Kafka delivery: `POST /workflow/api/messages`, the `sendMessage` MCP tool, a `SEND_MESSAGE` step in another workflow, or programmatically via `ProcessUpstreamEventUseCase` — see [Step Types — WAIT_FOR_MESSAGE](/reference/step-types/#wait_for_message).
 
 :::note[Cancellation is not an upstream event]
 Publishing a `process-cancellation-requested` event on this topic has no effect — no upstream handler consumes it. To cancel a process, call `CancelProcessUseCase` (or use the management UI / MCP tools) — see [Starting a Process — Cancelling a process](/guides/starting-a-process/#cancelling-a-process).

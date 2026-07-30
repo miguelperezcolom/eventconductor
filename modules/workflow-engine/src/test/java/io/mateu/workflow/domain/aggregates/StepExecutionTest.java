@@ -9,7 +9,7 @@ class StepExecutionTest {
     @Test
     void shouldCreateStepExecution() {
         // given
-        Step step = new Step("step-1", "wd-1", StepType.ACTION, "Step 1", "Desc", null, null, false, "topic", null, null, null, 0, null, null, null, 0, 0, false, null, 0);
+        Step step = new Step("step-1", "wd-1", StepType.ACTION, "Step 1", "Desc", null, null, false, "topic", null, null, null, 0, null, null, null, null, 0, 0, false, null, 0);
         String processId = "process-1";
         int position = 1;
 
@@ -35,9 +35,10 @@ class StepExecutionTest {
                 .status(StepExecutionStatus.CREATED)
                 .build();
         List<Variable> variables = List.of(new Variable("v1", "val1"));
+        Process process = Process.builder().id("p-1").businessKey("bk-1").variables(variables).build();
 
         // when
-        stepExecution.start(variables);
+        stepExecution.start(process);
 
         // then
         assertThat(stepExecution.getStatus()).isEqualTo(StepExecutionStatus.PENDING);

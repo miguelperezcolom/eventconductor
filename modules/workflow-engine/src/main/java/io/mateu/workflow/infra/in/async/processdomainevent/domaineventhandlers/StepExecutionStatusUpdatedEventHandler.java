@@ -84,7 +84,7 @@ public class StepExecutionStatusUpdatedEventHandler implements DomainEventHandle
                 .filter(se -> StepExecutionStatus.CREATED.equals(se.getStatus()))
                 .findFirst()
                 .ifPresent(compensation -> {
-                    compensation.start(process.getVariables());
+                    compensation.start(process);
                     stepExecutionRepository.save(compensation);
                     workflowMetrics.compensationTriggered(stepExecution.getWorkflowDefinitionId());
                 });

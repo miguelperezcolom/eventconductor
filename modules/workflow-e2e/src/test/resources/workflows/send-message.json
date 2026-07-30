@@ -1,0 +1,17 @@
+{
+  "id": "send-message",
+  "name": "Message sender",
+  "version": 1,
+  "status": "ACTIVE",
+  "steps": [
+    {
+      "id": "send",
+      "type": "SEND_MESSAGE",
+      "name": "Send handoff",
+      "messageName": "handoff",
+      "correlationExpression": "targetKey",
+      "messageVariables": ["paymentId"]
+    },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "send" }
+  ]
+}

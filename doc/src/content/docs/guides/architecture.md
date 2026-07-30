@@ -213,7 +213,7 @@ The corollary is the engine's performance model: **it orchestrates, it doesn't e
 Three inbound adapters make processes react to more than worker reports:
 
 - **Schedulers** — `TIMER` steps (wait for a duration or until a date in a process variable), cron-scheduled process starts (`cronExpression` on the definition) and the timeout scan that drives hung tasks through retry/error/compensation.
-- **Message correlation** — `MESSAGE` steps pause until a `MessageReceived` event with a matching business key (or JEXL `correlationExpression`) arrives, merging its variables into the process.
+- **Message correlation** — `WAIT_FOR_MESSAGE` steps pause until a `MessageReceived` event with a matching correlation key (JEXL `correlationExpression`) arrives, merging its variables into the process; `SEND_MESSAGE` steps emit one, so processes can signal each other without a worker in between.
 - **Rules** — `RULE` steps evaluate expression rules or decision tables from the rule catalog via the embeddable `rule-runtime`, locally or over REST/gRPC with a Kafka-refreshed cache.
 
 ## One architecture, three sizes

@@ -31,7 +31,7 @@ ia-agent-service  (port 8095)
 | `findProcessByBusinessKey` | Look up a process by its business key |
 | `getProcessLogs` | Audit trail and log messages for a process |
 | `retryProcess` | Re-trigger all failed (ERROR) steps in a process |
-| `sendMessage` | Send an external message to resume processes waiting on a `MESSAGE` step |
+| `sendMessage` | Send an external message to resume processes waiting on a `WAIT_FOR_MESSAGE` step |
 | `getWorkflowAnalytics` | Per-definition analytics: counts by status, rates, throughput per day, avg/p95 durations, bottleneck step ([guide](/guides/analytics/)) |
 | `findBottleneck` | Where processes get stuck: slowest step, steps with waiting instances, steps with failures |
 | `importWorkflowDefinitionsFromGit` | Pull and upsert workflow JSON files from Git |

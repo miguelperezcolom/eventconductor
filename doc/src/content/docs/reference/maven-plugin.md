@@ -20,7 +20,7 @@ schema cannot express:
 
 - **Workflows** — schema, duplicate step ids, self-referencing / dangling
   `preconditionStepId` and `compensationStepId`, cron-expression validity, and JEXL
-  parseability of `preconditionExpression`.
+  parseability of `preconditionExpression` and `correlationExpression`.
 - **Rules** — schema, decision-table row arity (one `when` cell per input, one `then` cell
   per output) and JEXL parseability of expressions.
 - **Forms** — schema validation.
@@ -33,8 +33,9 @@ replicated by the plugin and will only fail when the engine loads the definition
 - **TIMER value checks** — the schema only requires that `duration` or `untilVariable` is
   *present*; a `duration` of `0` (with no `untilVariable`) passes the build but is rejected
   at load.
-- **MESSAGE value checks** — the schema only requires that `messageName` is *present*; a
-  blank `messageName` passes the build but is rejected at load.
+- **Message value checks** — the schema only requires that `messageName` and
+  `correlationExpression` are *present* on `WAIT_FOR_MESSAGE` / `SEND_MESSAGE` steps; a
+  blank value passes the build but is rejected at load.
 :::
 
 ## Setup

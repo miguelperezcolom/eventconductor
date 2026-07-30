@@ -10,23 +10,27 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class StepExecutionMoreTest {
 
+    private Process process(java.util.List<Variable> variables) {
+        return Process.builder().id("p-1").businessKey("bk-1").variables(variables).build();
+    }
+
     private Step actionStep() {
-        return new Step("step-1", "wd-1", StepType.ACTION, "Step 1", null, null, null, false, "topic", null, null, null, 0, null, null, null, 0, 0, false, null, 0);
+        return new Step("step-1", "wd-1", StepType.ACTION, "Step 1", null, null, null, false, "topic", null, null, null, 0, null, null, null, null, 0, 0, false, null, 0);
     }
 
     private Step userTaskStepWithForm(String formId) {
-        return new Step("step-1", "wd-1", StepType.USER_TASK, "User Step", null, null, null, false, null, formId, null, null, 0, null, null, null, 0, 0, false, null, 0);
+        return new Step("step-1", "wd-1", StepType.USER_TASK, "User Step", null, null, null, false, null, formId, null, null, 0, null, null, null, null, 0, 0, false, null, 0);
     }
 
     private Step ruleStepWithRule(String ruleId) {
-        return new Step("step-1", "wd-1", StepType.RULE, "Rule Step", null, null, null, false, null, null, ruleId, null, 0, null, null, null, 0, 0, false, null, 0);
+        return new Step("step-1", "wd-1", StepType.RULE, "Rule Step", null, null, null, false, null, null, ruleId, null, 0, null, null, null, null, 0, 0, false, null, 0);
     }
 
     @Test
     void scheduleRetryIncrementsAttemptCountAndResetsStatus() {
         var step = actionStep();
         var se = StepExecution.create(step, "p-1", 0);
-        se.start(List.of());
+        se.start(process(List.of()));
         se.popEvents();
 
         se.scheduleRetry();
@@ -55,7 +59,7 @@ class StepExecutionMoreTest {
                 .stepId("step-1").stepJson(io.mateu.core.infra.JsonSerializer.toJson(step))
                 .status(StepExecutionStatus.CREATED).build();
 
-        se.start(List.of(new Variable("v1", "val1")));
+        se.start(process(List.of(new Variable("v1", "val1"))));
 
         assertThat(se.getVariables()).anyMatch(v -> "formId".equals(v.name()) && "form-42".equals(v.value()));
         assertThat(se.getStatus()).isEqualTo(StepExecutionStatus.PENDING);
@@ -69,7 +73,7 @@ class StepExecutionMoreTest {
                 .stepId("step-1").stepJson(io.mateu.core.infra.JsonSerializer.toJson(step))
                 .status(StepExecutionStatus.CREATED).build();
 
-        se.start(List.of());
+        se.start(process(List.of()));
 
         assertThat(se.getStatus()).isEqualTo(StepExecutionStatus.ERROR);
         // The log entry plus StepExecutionStatusChanged(ERROR), so the normal failure
@@ -87,7 +91,7 @@ class StepExecutionMoreTest {
                 .stepId("step-1").stepJson(io.mateu.core.infra.JsonSerializer.toJson(step))
                 .status(StepExecutionStatus.CREATED).build();
 
-        se.start(List.of());
+        se.start(process(List.of()));
 
         var events = se.popEvents();
         assertThat(events).hasSize(1);
@@ -104,7 +108,7 @@ class StepExecutionMoreTest {
                 .stepId("step-1").stepJson(io.mateu.core.infra.JsonSerializer.toJson(step))
                 .status(StepExecutionStatus.CREATED).build();
 
-        se.start(List.of());
+        se.start(process(List.of()));
 
         var events = se.popEvents();
         assertThat(events).hasSize(1);
@@ -121,7 +125,7 @@ class StepExecutionMoreTest {
                 .stepId("step-1").stepJson(io.mateu.core.infra.JsonSerializer.toJson(step))
                 .status(StepExecutionStatus.CREATED).build();
 
-        se.start(List.of(new Variable("order.total", "200")));
+        se.start(process(List.of(new Variable("order.total", "200"))));
 
         assertThat(se.getVariables()).anyMatch(v -> "ruleId".equals(v.name()) && "high-value-order".equals(v.value()));
         assertThat(se.getStatus()).isEqualTo(StepExecutionStatus.PENDING);
@@ -139,7 +143,7 @@ class StepExecutionMoreTest {
                 .stepId("step-1").stepJson(io.mateu.core.infra.JsonSerializer.toJson(step))
                 .status(StepExecutionStatus.CREATED).build();
 
-        se.start(List.of());
+        se.start(process(List.of()));
 
         assertThat(se.getStatus()).isEqualTo(StepExecutionStatus.ERROR);
         // The log entry plus StepExecutionStatusChanged(ERROR), so the normal failure

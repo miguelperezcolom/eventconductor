@@ -14,7 +14,19 @@
 - **Precondition cycles are rejected at load.** `WorkflowDefinition.checkInvariants()` throws
   on a `preconditionStepId` cycle (A waits for B waits for … A would deadlock), plus duplicate
   step ids, self-preconditions/self-compensation, unknown referenced step ids, TIMER without
-  `duration`/`untilVariable`, and MESSAGE without `messageName`.
+  `duration`/`untilVariable`, and WAIT_FOR_MESSAGE / SEND_MESSAGE without `messageName` or
+  `correlationExpression`.
+
+- **`correlationExpression` is required on both message step types.** The old
+  defaults-to-businessKey behavior is gone for new definitions — write
+  `"correlationExpression": "businessKey"` explicitly. (Only legacy steps persisted
+  before the `MESSAGE` → `WAIT_FOR_MESSAGE` rename keep the businessKey fallback.)
+
+- **SEND_MESSAGE fails loud, not closed.** A missing `messageName`/`correlationExpression` or
+  a correlation key that cannot be evaluated puts the step in `ERROR` (normal retry/
+  compensation pipeline) — unlike precondition guards, which fail closed silently. And
+  messages are still **not buffered**: a sent message matching no waiting process is
+  discarded, so sequence the sender after the receiver is already waiting.
 
 - **Ordering by array position.** Steps run by `preconditionStepId`, not the order in the
   array. A step with no precondition starts immediately (possibly in parallel with others).

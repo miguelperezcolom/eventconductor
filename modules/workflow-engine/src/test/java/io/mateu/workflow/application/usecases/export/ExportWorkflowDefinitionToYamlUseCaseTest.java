@@ -61,7 +61,7 @@ class ExportWorkflowDefinitionToYamlUseCaseTest {
         var step = new Step(
                 "reserve", "wf-1", StepType.ACTION, "Reserve stock", "Reserves the stock",
                 null, null, false, "inventory", null, null, null,
-                0, null, null, null, 30000, 3, true, null, 0);
+                0, null, null, null, null, 30000, 3, true, null, 0);
         return new WorkflowDefinition(
                 "wf-1", "Order fulfillment!", 3, "Ships orders",
                 WorkflowDefinitionStatus.ACTIVE, null,

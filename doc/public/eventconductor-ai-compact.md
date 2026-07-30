@@ -64,7 +64,8 @@ In `embedded`+`memory` mode, definitions are loaded from `classpath:/workflows/`
 | `USER_TASK` | Pause for a human to submit a form | `formId` |
 | `RULE` | Evaluate a business rule; outputs become process variables | `ruleId` |
 | `TIMER` | Durable wait for a duration or until a date from a variable | `duration` / `untilVariable` |
-| `MESSAGE` | Durable wait for an external message (correlated by business key or JEXL expression); deliver via `POST /workflow/api/messages`, Kafka or MCP `sendMessage` | `messageName` (+ optional `correlationExpression`) |
+| `WAIT_FOR_MESSAGE` | Durable wait for a message (correlated by required JEXL `correlationExpression`; use `businessKey` for the business key); deliver via `POST /workflow/api/messages`, Kafka `upstream` (`"type":"message-received"`), MCP `sendMessage`, or a `SEND_MESSAGE` step. Previously named `MESSAGE` (legacy alias still deserializes) | `messageName` + `correlationExpression` (both required) |
+| `SEND_MESSAGE` | Emit a `MessageReceived` (fire-and-forget, no worker) and complete immediately; carries only the variables listed in `messageVariables` (absent = none). Missing fields or an unevaluable correlation key → step `ERROR` (fails loud, unlike fail-closed precondition guards); a message matching no waiting process is discarded, not buffered | `messageName` + `correlationExpression` (both required) |
 | `PROCESS` | Run a child workflow as a sub-process | `childWorkflowDefinitionId` |
 | `FORK` | Start parallel branches | — (branch steps set `parallel: true`) |
 | `JOIN` | Wait for all parallel branches | — |
@@ -72,7 +73,7 @@ In `embedded`+`memory` mode, definitions are loaded from `classpath:/workflows/`
 
 ### Step fields
 
-`id`, `type`, `name`, `description`, `preconditionStepId`, `preconditionExpression` (JEXL), `parallel` (bool), `topic` (ACTION), `formId` (USER_TASK), `ruleId` (RULE), `childWorkflowDefinitionId` (PROCESS), `duration` (TIMER: ISO-8601 or ms), `untilVariable` (TIMER: variable holding an ISO-8601 date/date-time; wins over `duration`), `messageName` + `correlationExpression` (MESSAGE), `timeout` (ISO-8601 `PT30S`/`PT1H30M` or ms int; `0`=none), `retries` (int), `rollbackable` (bool), `compensationStepId`, `maxSuccessfulExecutions` (int).
+`id`, `type`, `name`, `description`, `preconditionStepId`, `preconditionExpression` (JEXL), `parallel` (bool), `topic` (ACTION), `formId` (USER_TASK), `ruleId` (RULE), `childWorkflowDefinitionId` (PROCESS), `duration` (TIMER: ISO-8601 or ms), `untilVariable` (TIMER: variable holding an ISO-8601 date/date-time; wins over `duration`), `messageName` + `correlationExpression` (WAIT_FOR_MESSAGE / SEND_MESSAGE, both **required**), `messageVariables` (SEND_MESSAGE: string array of process-variable names the outgoing message carries; empty/absent = none), `timeout` (ISO-8601 `PT30S`/`PT1H30M` or ms int; `0`=none), `retries` (int), `rollbackable` (bool), `compensationStepId`, `maxSuccessfulExecutions` (int).
 
 A workflow definition can also declare a `cronExpression` (Spring syntax) to start a new process instance at each occurrence, with deterministic business keys so multiple pods never duplicate an occurrence, and a `defaultMaxStepExecutions` (int). Note: `defaultMaxStepExecutions` / `maxSuccessfulExecutions` are today validated metadata, not enforced at runtime.
 

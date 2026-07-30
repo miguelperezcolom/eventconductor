@@ -189,10 +189,15 @@ public record WorkflowDefinition(
                 throw new IllegalStateException(
                         "Timer step '" + step.id() + "' must define a duration or an untilVariable.");
             }
-            if (StepType.MESSAGE.equals(step.type())
-                    && (step.messageName() == null || step.messageName().isBlank())) {
-                throw new IllegalStateException(
-                        "Message step '" + step.id() + "' must define a messageName.");
+            if (StepType.WAIT_FOR_MESSAGE.equals(step.type()) || StepType.SEND_MESSAGE.equals(step.type())) {
+                if (step.messageName() == null || step.messageName().isBlank()) {
+                    throw new IllegalStateException(
+                            "Message step '" + step.id() + "' must define a messageName.");
+                }
+                if (step.correlationExpression() == null || step.correlationExpression().isBlank()) {
+                    throw new IllegalStateException(
+                            "Message step '" + step.id() + "' must define a correlationExpression.");
+                }
             }
         }
         for (var step : steps) {

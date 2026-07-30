@@ -163,12 +163,23 @@ Dispatches `taskId=evaluate-rule` with a `ruleId` variable; any app embedding `r
 ```
 Pauses the process without a worker: the step stays `PENDING` and the scheduler completes it once the due moment passes; the wait survives restarts. `duration` is ISO-8601 or ms; `untilVariable` names a process variable holding an ISO-8601 date/date-time and takes precedence. A misconfigured timer ends the step `ERROR` through the normal failure pipeline.
 
-### MESSAGE — wait for an external message
+### WAIT_FOR_MESSAGE — wait for a message
 ```json
-{ "id": "await-payment", "type": "MESSAGE", "name": "Await payment confirmation",
-  "messageName": "payment-confirmed", "preconditionStepId": "charge", "timeout": "PT24H" }
+{ "id": "await-payment", "type": "WAIT_FOR_MESSAGE", "name": "Await payment confirmation",
+  "messageName": "payment-confirmed", "correlationExpression": "businessKey",
+  "preconditionStepId": "charge", "timeout": "PT24H" }
 ```
-Waits until a `MessageReceived(messageName, correlationKey, variables)` arrives (REST/Kafka/MCP `sendMessage`). Correlation key matches the process `businessKey` by default, or the value of a JEXL `correlationExpression` evaluated against process variables (fail-closed). Message variables merge into the process. Unmatched messages are ignored, not buffered. `timeout`/`retries` keep their usual meaning. REST delivery: `POST /workflow/api/messages` with `{"messageName", "correlationKey", "variables": {..}}` responds 202; `X-Api-Key` header required when `workflow.message-api.api-key` is set.
+Waits until a `MessageReceived(messageName, correlationKey, variables)` arrives (REST / Kafka `upstream` as `"type":"message-received"` / MCP `sendMessage` / a `SEND_MESSAGE` step). **Both `messageName` and `correlationExpression` are required**: the correlation key is the value of the JEXL `correlationExpression` evaluated against process variables (fail-closed — an unevaluable expression matches nothing); write `"correlationExpression": "businessKey"` to correlate by business key. Message variables merge into the process. Unmatched messages are ignored, not buffered. `timeout`/`retries` keep their usual meaning. REST delivery: `POST /workflow/api/messages` with `{"messageName", "correlationKey", "variables": {..}}` responds 202; `X-Api-Key` header required when `workflow.message-api.api-key` is set.
+
+Previously named `MESSAGE`: the old name is a deserialization alias (persisted in-flight state and old definition files keep loading, and legacy steps without a `correlationExpression` fall back to the business key), but new/reimported definitions must use `WAIT_FOR_MESSAGE` with an explicit `correlationExpression`.
+
+### SEND_MESSAGE — emit a message (fire-and-forget)
+```json
+{ "id": "notify-payment", "type": "SEND_MESSAGE", "name": "Notify payment",
+  "messageName": "payment-confirmed", "correlationExpression": "orderId",
+  "messageVariables": ["paymentId", "amount"], "preconditionStepId": "charge" }
+```
+The throw side: no worker involved. On start the engine evaluates `correlationExpression` (same JEXL context as preconditions), emits `MessageReceived(messageName, correlationKey, variables)` through the outbox and completes the step immediately — in-engine process-to-process signaling without an ACTION step + worker. **Both `messageName` and `correlationExpression` are required.** `messageVariables` lists the process-variable names the message carries; empty/absent = none (process state is never sent implicitly). Fire-and-forget: delivery is not acknowledged, and a message matching no waiting process is discarded (not buffered). Failure is **loud**: missing `messageName`/`correlationExpression` or a correlation key that cannot be evaluated puts the step in `ERROR` (normal retry/compensation pipeline) — deliberately NOT the silent fail-closed of precondition guards.
 
 ### PROCESS — run a child workflow
 ```json
@@ -196,7 +207,7 @@ Exactly one per workflow. Transitions the process to `COMPLETED`. With parallel 
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `id` | string | — | Unique within the workflow |
-| `type` | enum | — | `ACTION`/`USER_TASK`/`RULE`/`TIMER`/`MESSAGE`/`PROCESS`/`FORK`/`JOIN`/`END` |
+| `type` | enum | — | `ACTION`/`USER_TASK`/`RULE`/`TIMER`/`WAIT_FOR_MESSAGE`/`SEND_MESSAGE`/`PROCESS`/`FORK`/`JOIN`/`END` |
 | `name` | string | — | Human-readable |
 | `description` | string | — | Optional |
 | `preconditionStepId` | string | — | Step that must complete first |
@@ -208,8 +219,9 @@ Exactly one per workflow. Transitions the process to `COMPLETED`. With parallel 
 | `childWorkflowDefinitionId` | string | — | Child workflow (PROCESS) |
 | `duration` | duration | `0` | Wait length (TIMER); ISO-8601 or ms |
 | `untilVariable` | string | — | Variable holding an ISO-8601 date/date-time (TIMER); wins over `duration` |
-| `messageName` | string | — | Message to wait for (MESSAGE) |
-| `correlationExpression` | string | — | JEXL producing the correlation key (MESSAGE); default is the business key |
+| `messageName` | string | — | Message to wait for / emit (WAIT_FOR_MESSAGE / SEND_MESSAGE; **required** for both) |
+| `correlationExpression` | string | — | JEXL producing the correlation key (WAIT_FOR_MESSAGE / SEND_MESSAGE; **required** for both — use `businessKey` for the business key) |
+| `messageVariables` | string[] | — | Process-variable names the outgoing message carries (SEND_MESSAGE); empty/absent = none |
 | `timeout` | duration | `0` | ISO-8601 (`PT30S`, `PT5M`, `PT1H30M`) or ms integer; `0` = none |
 | `retries` | integer | `0` | Auto-retry attempts on ERROR/TIMEOUT |
 | `rollbackable` | boolean | `false` | Enable saga compensation on failure |
@@ -410,7 +422,7 @@ Workers may only report `RUNNING`, `COMPLETED`, `ERROR`.
 
 | Topic | Direction | Payloads |
 |---|---|---|
-| `upstream` | into the orchestrator | `ProcessCreationRequested`, `TaskStatusChanged`, `MessageReceived` |
+| `upstream` | into the orchestrator | `ProcessCreationRequested`, `TaskStatusChanged`, `MessageReceived` (`{"type":"message-received","messageName":"...","correlationKey":"...","variables":[{"name":"...","value":"..."}]}`) |
 | `downstream` | orchestrator → workers | `TaskExecutionRequested` (per ACTION step `topic`) |
 | `outbox` | internal | orchestrator outbox relay |
 
@@ -493,7 +505,7 @@ Also triggerable via the MCP tool `importWorkflowDefinitionsFromGit`, or a GitHu
 
 ## 14. AI / MCP integration
 
-The engine exposes an MCP server so AI agents can operate it in natural language. Workflow tools: `listProcesses`, `getProcessDetails`, `findProcessByBusinessKey`, `getProcessLogs`, `retryProcess`, `sendMessage` (resume MESSAGE steps), `getWorkflowAnalytics` / `findBottleneck` (per-definition analytics and bottleneck detection), `importWorkflowDefinitionsFromGit`. There is no start-process tool. Plus forms tools and rule catalog tools (`listRules`, `evaluateRule`, ...). See `doc/src/content/docs/guides/mcp-overview.md`.
+The engine exposes an MCP server so AI agents can operate it in natural language. Workflow tools: `listProcesses`, `getProcessDetails`, `findProcessByBusinessKey`, `getProcessLogs`, `retryProcess`, `sendMessage` (resume WAIT_FOR_MESSAGE steps), `getWorkflowAnalytics` / `findBottleneck` (per-definition analytics and bottleneck detection), `importWorkflowDefinitionsFromGit`. There is no start-process tool. Plus forms tools and rule catalog tools (`listRules`, `evaluateRule`, ...). See `doc/src/content/docs/guides/mcp-overview.md`.
 
 ---
 

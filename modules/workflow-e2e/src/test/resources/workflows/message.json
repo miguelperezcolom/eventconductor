@@ -4,8 +4,25 @@
   "version": 1,
   "status": "ACTIVE",
   "steps": [
-    { "id": "wait", "type": "MESSAGE", "name": "Wait for payment", "messageName": "payment-received" },
-    { "id": "after", "type": "ACTION", "name": "After the message", "topic": "work", "preconditionStepId": "wait" },
-    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "after" }
+    {
+      "id": "wait",
+      "type": "WAIT_FOR_MESSAGE",
+      "name": "Wait for payment",
+      "messageName": "payment-received",
+      "correlationExpression": "businessKey"
+    },
+    {
+      "id": "after",
+      "type": "ACTION",
+      "name": "After the message",
+      "topic": "work",
+      "preconditionStepId": "wait"
+    },
+    {
+      "id": "end",
+      "type": "END",
+      "name": "End",
+      "preconditionStepId": "after"
+    }
   ]
 }

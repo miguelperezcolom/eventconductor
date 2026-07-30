@@ -67,6 +67,16 @@ class SpecValidatorTest {
     }
 
     @Test
+    void badCorrelationExpressionJexlIsReported() throws Exception {
+        List<String> violations = validate(SpecValidator.Kind.WORKFLOW, "/invalid/workflows/bad-correlation-jexl.json");
+        assertThat(violations).anySatisfy(v -> assertThat(v)
+                .contains("correlationExpression")
+                .contains("invalid JEXL expression"));
+        // The syntactically valid SEND_MESSAGE correlationExpression is not flagged.
+        assertThat(violations).noneSatisfy(v -> assertThat(v).contains("step 'send' correlationExpression"));
+    }
+
+    @Test
     void formMissingFieldsIsReported() throws Exception {
         assertThat(validate(SpecValidator.Kind.FORM, "/invalid/forms/missing-fields.json"))
                 .anySatisfy(v -> assertThat(v).containsIgnoringCase("fields"));

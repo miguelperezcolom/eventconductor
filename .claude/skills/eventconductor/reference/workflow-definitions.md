@@ -17,7 +17,7 @@ Add `"$schema"` (JSON) or a `# yaml-language-server: $schema=...` comment (YAML)
 
 | Field | Applies to | Notes |
 |---|---|---|
-| `id`, `type`, `name`, `description` | all | `type` ∈ ACTION/USER_TASK/RULE/TIMER/MESSAGE/PROCESS/FORK/JOIN/END |
+| `id`, `type`, `name`, `description` | all | `type` ∈ ACTION/USER_TASK/RULE/TIMER/WAIT_FOR_MESSAGE/SEND_MESSAGE/PROCESS/FORK/JOIN/END |
 | `preconditionStepId` | all | step that must complete first (defines ordering) |
 | `preconditionExpression` | all | JEXL guard; while falsy the step never runs (stays `CREATED`, → `CANCELLED` at `END`) |
 | `parallel` | all | `true` inside a FORK branch |
@@ -26,8 +26,9 @@ Add `"$schema"` (JSON) or a `# yaml-language-server: $schema=...` comment (YAML)
 | `ruleId` | RULE | rule to evaluate (rule-engine catalog) |
 | `duration` | TIMER | wait length; ISO-8601 or ms |
 | `untilVariable` | TIMER | variable holding an ISO-8601 date/date-time; wins over `duration` |
-| `messageName` | MESSAGE | message to wait for |
-| `correlationExpression` | MESSAGE | JEXL producing the correlation key; default is the business key |
+| `messageName` | WAIT_FOR_MESSAGE, SEND_MESSAGE | message to wait for / emit; **required** for both |
+| `correlationExpression` | WAIT_FOR_MESSAGE, SEND_MESSAGE | JEXL producing the correlation key; **required** for both (use `businessKey` for the business key) |
+| `messageVariables` | SEND_MESSAGE | array of process-variable names the message carries; empty/absent = none |
 | `childWorkflowDefinitionId` | PROCESS | child workflow id |
 | `timeout` | all | ISO-8601 (`PT30S`,`PT1H30M`) or ms int; `0`=none |
 | `retries` | all | auto-retry count on ERROR/TIMEOUT |
@@ -42,10 +43,15 @@ Add `"$schema"` (JSON) or a `# yaml-language-server: $schema=...` comment (YAML)
 - **RULE** — evaluate a business rule (`ruleId`) from the rule catalog; outputs merge into process variables (needs `rule-runtime` on the evaluating side; taskId is `evaluate-rule`).
 - **TIMER** — durable wait, no worker: `duration` (ISO-8601 or ms) or `untilVariable` (variable with an
   ISO-8601 date/date-time; wins). Survives restarts; a misconfigured timer ends the step `ERROR`.
-- **MESSAGE** — durable wait for an external `MessageReceived(messageName, correlationKey, variables)`
-  (via `POST /workflow/api/messages`, Kafka, or MCP `sendMessage`). Correlates on the process
-  `businessKey`, or on a JEXL `correlationExpression` over variables (fail-closed). Message variables
-  merge into the process; unmatched messages are ignored, not buffered.
+- **WAIT_FOR_MESSAGE** (previously `MESSAGE`; old name still deserializes) — durable wait for a
+  `MessageReceived(messageName, correlationKey, variables)` (via `POST /workflow/api/messages`, Kafka
+  `upstream` as `"type":"message-received"`, MCP `sendMessage`, or a SEND_MESSAGE step). Correlates on
+  the required JEXL `correlationExpression` over variables (fail-closed; use `businessKey` for
+  the business key). Message variables merge into the process; unmatched messages are ignored, not buffered.
+- **SEND_MESSAGE** — the throw side, no worker: on start, evaluates `correlationExpression`, emits
+  `MessageReceived(messageName, correlationKey, messageVariables)` through the outbox and completes
+  immediately. Fire-and-forget (delivery not acknowledged; unmatched messages discarded). Missing
+  fields or an unevaluable correlation key → step `ERROR` (fails loud, unlike precondition guards).
 - **PROCESS** — run `childWorkflowDefinitionId` as a sub-process; variables pass down and merge back up.
 - **FORK / JOIN** — FORK starts branches whose steps set `parallel: true`; JOIN waits for all.
 - **END** — exactly one; process → `COMPLETED`. Put a JOIN before it if there are branches.

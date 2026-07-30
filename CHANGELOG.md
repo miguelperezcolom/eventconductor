@@ -8,6 +8,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`SEND_MESSAGE` step type — fire-and-forget in-engine messaging.** The throw side of
+  `WAIT_FOR_MESSAGE`: on start the engine evaluates the step's `correlationExpression` (JEXL,
+  same context as preconditions), emits a `MessageReceived(messageName, correlationKey,
+  variables)` through the outbox and completes the step immediately — no worker, no `ACTION`
+  step needed for process-to-process signaling. The new optional `messageVariables` field
+  (array of process-variable names) selects which variables the outgoing message carries;
+  empty or absent means none — process state is never sent implicitly. Delivery is not
+  acknowledged and a message matching no waiting process is discarded (not buffered). A
+  missing `messageName`/`correlationExpression` or an unevaluable correlation key puts the
+  step in `ERROR` (fail loud, normal retry/compensation pipeline) — deliberately not the
+  silent fail-closed of precondition guards. The Maven plugin's `SpecValidator` now also
+  checks `correlationExpression` JEXL syntax at build time.
+- **`message-received` deliverable via the Kafka `upstream` topic.** `MessageReceived` is now a
+  registered `DomainEvent` subtype (`"type": "message-received"`), so external producers can
+  resume waiting `WAIT_FOR_MESSAGE` steps by publishing raw JSON to `upstream` — previously
+  only REST (`POST /workflow/api/messages`), the MCP `sendMessage` tool or the Java API could.
 - **Engine observability — metrics parity across all engines.** The Micrometer metrics pattern
   that already existed in the workflow engine (an `application/out` port with no-op defaults, a
   Micrometer implementation in `autoconfigure`, and an autoconfiguration guarded on a
@@ -70,6 +86,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   working copies, imports and persistence, to be enforced when step re-execution lands.
 
 ### Changed
+- **BREAKING: `MESSAGE` step type renamed to `WAIT_FOR_MESSAGE`, and `correlationExpression`
+  is now required on both message step types.** New or reimported definitions must use the
+  new name and declare `correlationExpression` explicitly — the old defaults-to-`businessKey`
+  behavior is gone; add `"correlationExpression": "businessKey"` to keep it. A legacy
+  deserialization alias keeps old persisted stepJson and definition files loading (`MESSAGE`
+  maps to `WAIT_FOR_MESSAGE`, and those legacy steps retain the businessKey fallback), so
+  in-flight processes survive the upgrade. To support the idiom, `businessKey` is now seeded
+  as a plain variable into every JEXL evaluation context (correlation **and** precondition
+  expressions) — property access such as `process.businessKey` was never evaluable, because
+  the JEXL engine deliberately runs with `RESTRICTED` permissions on untrusted expressions.
 - **Upgraded Mateu to `3.0-alpha.271`.** `3.0-alpha.271` is a breaking release that removed the
   UI CRUD API (`CrudRepository`, `CrudAdapter`, `CrudEditorForm`, `CrudCreationForm`,
   `ListingBackend`, the `core.infra.declarative.Listing` base and `AutoNamedView`) and split
@@ -105,6 +131,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   unused import) was deleted as part of the Mateu 271 migration.
 
 ### Fixed
+- **`MessageReceived` was missing from `DomainEvent`'s `@JsonSubTypes`**, so a raw
+  `message-received` event published on the Kafka `upstream` topic could not be deserialized.
+  It is now registered as `message-received`.
 - **Startup failure on databases with existing workflow definitions**: the new NOT NULL
   `default_max_step_executions` column could not be added by `ddl-auto=update` (Postgres rejects
   it without a default). `@ColumnDefault("0")` fixes Hibernate-managed schemas and a V4 Flyway

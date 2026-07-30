@@ -29,7 +29,7 @@ For AI-assisted development, use these context documents with your AI tool (Clau
 
 ## Reference
 
-- [Step Types](https://github.com/miguelperezcolom/eventconductor/blob/main/doc/src/content/docs/reference/step-types.md): ACTION, USER_TASK, RULE, TIMER, MESSAGE, PROCESS, FORK, JOIN, END
+- [Step Types](https://github.com/miguelperezcolom/eventconductor/blob/main/doc/src/content/docs/reference/step-types.md): ACTION, USER_TASK, RULE, TIMER, WAIT_FOR_MESSAGE, SEND_MESSAGE, PROCESS, FORK, JOIN, END
 - [Process & Step Statuses](https://github.com/miguelperezcolom/eventconductor/blob/main/doc/src/content/docs/reference/statuses.md): status values and transitions
 - [Configuration](https://github.com/miguelperezcolom/eventconductor/blob/main/doc/src/content/docs/reference/configuration.md): all properties and env vars
 - [Kafka Topics](https://github.com/miguelperezcolom/eventconductor/blob/main/doc/src/content/docs/reference/kafka-topics.md): upstream, downstream, outbox
@@ -39,7 +39,7 @@ For AI-assisted development, use these context documents with your AI tool (Clau
 
 - A **workflow definition** (`id`, `name`, `version`, `status`, `steps`) is JSON or YAML; in embedded/memory mode it is loaded from `classpath:/workflows/`.
 - Steps run **by data flow**: a step starts when its `preconditionStepId` step completes — not by array order. A step with no precondition starts immediately.
-- **Step types**: `ACTION` (dispatch to a worker via `topic`), `USER_TASK` (human form via `formId`), `RULE` (evaluate a business rule via `ruleId`; outputs become process variables), `TIMER` (durable wait for an ISO 8601 `duration` or until a date in `untilVariable`), `MESSAGE` (wait for an external message via `messageName`, correlated by business key or a JEXL `correlationExpression`), `PROCESS` (child workflow via `childWorkflowDefinitionId`), `FORK`/`JOIN` (parallel branches with `parallel: true`), `END` (exactly one per workflow; JOIN before it if branches exist).
+- **Step types**: `ACTION` (dispatch to a worker via `topic`), `USER_TASK` (human form via `formId`), `RULE` (evaluate a business rule via `ruleId`; outputs become process variables), `TIMER` (durable wait for an ISO 8601 `duration` or until a date in `untilVariable`), `WAIT_FOR_MESSAGE` (wait for a message via `messageName`, correlated by the required JEXL `correlationExpression` — use `businessKey` to correlate by business key), `SEND_MESSAGE` (fire-and-forget: emit a message with `messageName`, the key from `correlationExpression` and the process variables named in `messageVariables`), `PROCESS` (child workflow via `childWorkflowDefinitionId`), `FORK`/`JOIN` (parallel branches with `parallel: true`), `END` (recommended one per workflow; JOIN before it if branches exist).
 - **Variables** are `(name, value)` string pairs; worker outputs are merged into process variables and available to later steps and to JEXL `preconditionExpression`s.
 - **Workers** are stateless: they receive a `TaskExecutionRequested` and report `RUNNING` | `COMPLETED` | `ERROR` with output variables. Report using `taskExecutionId`, not the workflow `stepId`.
 - **Embedded mode**: register one `EmbeddedTaskExecutor` bean (or per-`topic` beans) and inject `UpdateStepExecutionUseCase`. **Kafka mode**: consume `downstream`, publish `TaskStatusChanged` to `upstream`.

@@ -80,18 +80,19 @@ Wait until an absolute date carried by a process variable (e.g. a check-in date)
 
 ---
 
-## MESSAGE
+## WAIT_FOR_MESSAGE
 
-Durably pauses the workflow until a matching external message arrives — the equivalent of a BPMN message catch event or a Temporal signal. No worker is involved: the step stays `PENDING` and the engine completes it when a `MessageReceived` event with the same `messageName` and a matching correlation key is published on the upstream surface (Kafka topic, embedded publisher, the `sendMessage` MCP tool, or the REST endpoint below).
+Durably pauses the workflow until a matching external message arrives — the equivalent of a BPMN message catch event or a Temporal signal. No worker is involved: the step stays `PENDING` and the engine completes it when a `MessageReceived` event with the same `messageName` and a matching correlation key is published on the upstream surface (Kafka topic, embedded publisher, a [`SEND_MESSAGE` step](#send_message) in another process, the `sendMessage` MCP tool, or the REST endpoint below).
 
-Correlate by business key (the default):
+Correlate by business key:
 
 ```json
 {
   "id": "wait-for-payment",
-  "type": "MESSAGE",
+  "type": "WAIT_FOR_MESSAGE",
   "name": "Wait for payment confirmation",
   "messageName": "payment-received",
+  "correlationExpression": "businessKey",
   "preconditionStepId": "send-invoice",
   "timeout": 259200000
 }
@@ -102,16 +103,16 @@ Correlate by a process variable via a JEXL expression:
 ```json
 {
   "id": "wait-for-payment",
-  "type": "MESSAGE",
+  "type": "WAIT_FOR_MESSAGE",
   "name": "Wait for payment confirmation",
   "messageName": "payment-received",
   "correlationExpression": "orderId"
 }
 ```
 
-**Required fields:** `messageName`
+**Required fields:** `messageName`, `correlationExpression`
 
-A message matches a waiting step when the message name is equal and the message's `correlationKey` equals the key the step expects: the process `businessKey` by default, or — when `correlationExpression` is set — the value of that JEXL expression evaluated against the process variables (same context and same fail-closed semantics as `preconditionExpression`; an expression that cannot be evaluated matches nothing). On match, the message's variables are merged into the process variables (visible to all successor steps) and the step completes.
+A message matches a waiting step when the message name is equal and the message's `correlationKey` equals the key the step expects: the value of `correlationExpression` — a JEXL expression evaluated against the process variables (same context and same fail-closed semantics as `preconditionExpression`; an expression that cannot be evaluated matches nothing). To correlate by business key, write `"correlationExpression": "businessKey"` explicitly. On match, the message's variables are merged into the process variables (visible to all successor steps) and the step completes.
 
 Delivery semantics:
 
@@ -119,7 +120,7 @@ Delivery semantics:
 - **Idempotent.** A duplicate delivery of an already-correlated message is ignored: the step only completes once.
 - **Broadcast.** If several processes are waiting on the same `messageName` and correlation key, all of them are resumed.
 
-`timeout` and `retries` keep their usual meaning: a waiting MESSAGE step that receives no message within `timeout` transitions to `TIMEOUT` and the normal retry/failure pipeline engages (a retry re-arms the wait).
+`timeout` and `retries` keep their usual meaning: a waiting WAIT_FOR_MESSAGE step that receives no message within `timeout` transitions to `TIMEOUT` and the normal retry/failure pipeline engages (a retry re-arms the wait).
 
 Systems that cannot produce to Kafka (webhooks, SaaS callbacks) can deliver messages over REST — same correlation, any mode (embedded or kafka):
 
@@ -137,6 +138,37 @@ workflow:
   message-api:
     api-key: mysecret   # optional — leave unset to accept unauthenticated messages
 ```
+
+:::note[Migration: this type was previously named `MESSAGE`]
+`MESSAGE` was renamed to `WAIT_FOR_MESSAGE`. The old name is kept as a deserialization alias, so the persisted stepJson of in-flight processes and old definition files keep loading; for those legacy steps, a missing `correlationExpression` still falls back to matching the process `businessKey`. New or reimported definitions must use `WAIT_FOR_MESSAGE` and declare `correlationExpression` explicitly.
+:::
+
+---
+
+## SEND_MESSAGE
+
+The throw side of messaging: emits a `MessageReceived` event and completes immediately — the equivalent of a BPMN message throw event. No worker is involved. When the step starts, the engine evaluates `correlationExpression` (same JEXL context as `preconditionExpression`) to compute the correlation key, publishes `MessageReceived(messageName, correlationKey, variables)` through the outbox, and completes the step. Any process waiting on a [`WAIT_FOR_MESSAGE`](#wait_for_message) step with the same `messageName` and key resumes — so a workflow can signal another workflow without an `ACTION` step and a worker in between.
+
+```json
+{
+  "id": "notify-payment",
+  "type": "SEND_MESSAGE",
+  "name": "Notify payment received",
+  "messageName": "payment-received",
+  "correlationExpression": "orderId",
+  "messageVariables": ["paymentId", "amount"],
+  "preconditionStepId": "charge-card"
+}
+```
+
+**Required fields:** `messageName`, `correlationExpression`
+
+**Optional fields:** `messageVariables` — an array of process-variable names selecting which variables the outgoing message carries. Empty or absent means the message carries no variables: process state is never sent implicitly.
+
+Semantics:
+
+- **Fire-and-forget.** Delivery is not acknowledged: the step completes when the message is emitted, not when someone receives it. A message that matches no waiting process is discarded (not buffered), per the delivery semantics above — sequence the two workflows so the receiver is already waiting, or have the sender retry.
+- **Fail loud.** A missing `messageName` or `correlationExpression`, or a correlation expression that cannot be evaluated, transitions the step to `ERROR` and the normal retry/compensation pipeline engages. This is deliberately **not** the silent fail-closed behaviour of precondition guards: a message that silently goes nowhere would be much harder to diagnose.
 
 ---
 

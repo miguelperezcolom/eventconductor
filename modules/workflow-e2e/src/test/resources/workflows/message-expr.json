@@ -4,7 +4,18 @@
   "version": 1,
   "status": "ACTIVE",
   "steps": [
-    { "id": "wait", "type": "MESSAGE", "name": "Wait for payment", "messageName": "payment-received", "correlationExpression": "orderId" },
-    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "wait" }
+    {
+      "id": "wait",
+      "type": "WAIT_FOR_MESSAGE",
+      "name": "Wait for payment",
+      "messageName": "payment-received",
+      "correlationExpression": "orderId"
+    },
+    {
+      "id": "end",
+      "type": "END",
+      "name": "End",
+      "preconditionStepId": "wait"
+    }
   ]
 }

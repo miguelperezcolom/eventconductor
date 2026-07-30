@@ -1,0 +1,16 @@
+{
+  "id": "send-message-receiver",
+  "name": "Message receiver",
+  "version": 1,
+  "status": "ACTIVE",
+  "steps": [
+    {
+      "id": "wait",
+      "type": "WAIT_FOR_MESSAGE",
+      "name": "Wait for handoff",
+      "messageName": "handoff",
+      "correlationExpression": "businessKey"
+    },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "wait" }
+  ]
+}

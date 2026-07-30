@@ -19,7 +19,7 @@ class WorkflowDefinitionInvariantsTest {
 
     private Step step(String id, String preconditionStepId, String compensationStepId) {
         return new Step(id, "wd-1", StepType.ACTION, "Step " + id, null,
-                preconditionStepId, null, false, "topic", null, null, null, 0, null, null, null,
+                preconditionStepId, null, false, "topic", null, null, null, 0, null, null, null, null,
                 0, 0, compensationStepId != null, compensationStepId, 0);
     }
 
@@ -36,7 +36,7 @@ class WorkflowDefinitionInvariantsTest {
     @Test
     void shouldFailWhenTimerStepHasNoDurationNorUntilVariable() {
         var timer = new Step("wait", "wd-1", StepType.TIMER, "Wait", null,
-                null, null, false, null, null, null, null, 0, null, null, null,
+                null, null, false, null, null, null, null, 0, null, null, null, null,
                 0, 0, false, null, 0);
         assertThatThrownBy(() -> definition(List.of(timer)).checkInvariants())
                 .isInstanceOf(IllegalStateException.class)
@@ -47,15 +47,15 @@ class WorkflowDefinitionInvariantsTest {
     @Test
     void shouldPassWhenTimerStepHasDuration() {
         var timer = new Step("wait", "wd-1", StepType.TIMER, "Wait", null,
-                null, null, false, null, null, null, null, 60000, null, null, null,
+                null, null, false, null, null, null, null, 60000, null, null, null, null,
                 0, 0, false, null, 0);
         assertThatNoException().isThrownBy(() -> definition(List.of(timer)).checkInvariants());
     }
 
     @Test
     void shouldFailWhenMessageStepHasNoMessageName() {
-        var message = new Step("wait", "wd-1", StepType.MESSAGE, "Wait", null,
-                null, null, false, null, null, null, null, 0, null, null, null,
+        var message = new Step("wait", "wd-1", StepType.WAIT_FOR_MESSAGE, "Wait", null,
+                null, null, false, null, null, null, null, 0, null, null, null, null,
                 0, 0, false, null, 0);
         assertThatThrownBy(() -> definition(List.of(message)).checkInvariants())
                 .isInstanceOf(IllegalStateException.class)
@@ -64,9 +64,50 @@ class WorkflowDefinitionInvariantsTest {
     }
 
     @Test
-    void shouldPassWhenMessageStepHasMessageName() {
-        var message = new Step("wait", "wd-1", StepType.MESSAGE, "Wait", null,
-                null, null, false, null, null, null, null, 0, null, "payment-received", null,
+    void shouldPassWhenMessageStepHasMessageNameAndCorrelationExpression() {
+        var message = new Step("wait", "wd-1", StepType.WAIT_FOR_MESSAGE, "Wait", null,
+                null, null, false, null, null, null, null, 0, null, "payment-received", "businessKey", null,
+                0, 0, false, null, 0);
+        assertThatNoException().isThrownBy(() -> definition(List.of(message)).checkInvariants());
+    }
+
+    @Test
+    void shouldFailWhenWaitForMessageStepHasNoCorrelationExpression() {
+        var message = new Step("wait", "wd-1", StepType.WAIT_FOR_MESSAGE, "Wait", null,
+                null, null, false, null, null, null, null, 0, null, "payment-received", null, null,
+                0, 0, false, null, 0);
+        assertThatThrownBy(() -> definition(List.of(message)).checkInvariants())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("wait")
+                .hasMessageContaining("correlationExpression");
+    }
+
+    @Test
+    void shouldFailWhenSendMessageStepHasNoCorrelationExpression() {
+        var message = new Step("send", "wd-1", StepType.SEND_MESSAGE, "Send", null,
+                null, null, false, null, null, null, null, 0, null, "payment-received", null, null,
+                0, 0, false, null, 0);
+        assertThatThrownBy(() -> definition(List.of(message)).checkInvariants())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("send")
+                .hasMessageContaining("correlationExpression");
+    }
+
+    @Test
+    void shouldFailWhenSendMessageStepHasNoMessageName() {
+        var message = new Step("send", "wd-1", StepType.SEND_MESSAGE, "Send", null,
+                null, null, false, null, null, null, null, 0, null, null, "businessKey", null,
+                0, 0, false, null, 0);
+        assertThatThrownBy(() -> definition(List.of(message)).checkInvariants())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("send")
+                .hasMessageContaining("messageName");
+    }
+
+    @Test
+    void shouldPassWhenSendMessageStepHasMessageNameAndCorrelationExpression() {
+        var message = new Step("send", "wd-1", StepType.SEND_MESSAGE, "Send", null,
+                null, null, false, null, null, null, null, 0, null, "payment-received", "businessKey", null,
                 0, 0, false, null, 0);
         assertThatNoException().isThrownBy(() -> definition(List.of(message)).checkInvariants());
     }
