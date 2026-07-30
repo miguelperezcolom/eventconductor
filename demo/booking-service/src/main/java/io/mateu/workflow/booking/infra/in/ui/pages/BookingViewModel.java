@@ -6,8 +6,6 @@ import io.mateu.uidl.annotations.HiddenInCreate;
 import io.mateu.uidl.annotations.ReadOnly;
 import io.mateu.uidl.data.Status;
 import io.mateu.uidl.data.StatusType;
-import io.mateu.uidl.interfaces.CrudCreationForm;
-import io.mateu.uidl.interfaces.CrudEditorForm;
 import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.uidl.interfaces.Identifiable;
 import io.mateu.workflow.booking.application.out.query.dto.BookingDto;
@@ -27,7 +25,7 @@ import java.util.UUID;
 @Service
 @Scope("prototype")
 @RequiredArgsConstructor
-public class BookingViewModel implements Identifiable, CrudEditorForm<String>, CrudCreationForm<String> {
+public class BookingViewModel implements Identifiable {
     @Hidden
     String id;
     @NotEmpty
@@ -39,12 +37,10 @@ public class BookingViewModel implements Identifiable, CrudEditorForm<String>, C
     final CreateBookingUseCase createResourceUseCase;
     final UpdateBookingUseCase updateResourceUseCase;
 
-    @Override
     public String create(HttpRequest httpRequest) {
         return createResourceUseCase.handle(new CreateBookingCommand(UUID.randomUUID().toString(), leadName));
     }
 
-    @Override
     public void save(HttpRequest httpRequest) {
         updateResourceUseCase.handle(new UpdateBookingCommand(id, leadName));
     }

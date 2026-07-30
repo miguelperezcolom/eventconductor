@@ -3,8 +3,10 @@ package io.mateu.workflow.controlplaneservice.infra.in.ui.pages.deployment;
 import io.mateu.uidl.annotations.*;
 import io.mateu.uidl.data.*;
 import io.mateu.uidl.data.Status;
+import io.mateu.uidl.interfaces.Filterable;
 import io.mateu.uidl.interfaces.HttpRequest;
-import io.mateu.uidl.interfaces.ListingBackend;
+import io.mateu.uidl.interfaces.Listing;
+import io.mateu.uidl.interfaces.Searchable;
 import io.mateu.workflow.controlplaneservice.application.out.ReleaseRepository;
 import io.mateu.workflow.controlplaneservice.application.query.DeploymentQueryService;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.release.Release;
@@ -26,15 +28,15 @@ import java.util.stream.Collectors;
 @Trigger(type = TriggerType.OnLoad, actionId = "search")
 @Trigger(type = TriggerType.OnSuccess, calledActionId = "deployRelease", actionId = "search")
 @Style("max-width:900px;margin: auto;")
-public class Deployer implements ListingBackend<NoFilters, DeploymentRow> {
+public class Deployer implements Listing<DeploymentRow>, Searchable, Filterable<NoFilters> {
 
     final DeployReleaseForm deployReleaseForm;
     final DeploymentQueryService queryService;
     final ReleaseRepository releaseRepository;
 
     @Override
-    public ListingData<DeploymentRow> search(String searchText, NoFilters filters, Pageable pageable, HttpRequest httpRequest) {
-        var found = queryService.findAll(searchText, filters, pageable);
+    public ListingData<DeploymentRow> search(SearchRequest request, HttpRequest httpRequest) {
+        var found = queryService.findAll(request.searchText(), filters(request), request.pageable());
         Map<Long, Release> releases = releaseRepository.findAll().stream()
                 .collect(Collectors.toMap(
                         r -> r.getId().id(),

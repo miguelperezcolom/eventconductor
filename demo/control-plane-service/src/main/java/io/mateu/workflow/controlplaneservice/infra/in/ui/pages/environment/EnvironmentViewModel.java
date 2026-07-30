@@ -1,8 +1,6 @@
 package io.mateu.workflow.controlplaneservice.infra.in.ui.pages.environment;
 
 import io.mateu.uidl.annotations.EditableOnlyWhenCreating;
-import io.mateu.uidl.interfaces.CrudCreationForm;
-import io.mateu.uidl.interfaces.CrudEditorForm;
 import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.uidl.interfaces.Identifiable;
 import io.mateu.workflow.controlplaneservice.application.query.dto.EnvironmentDto;
@@ -18,7 +16,7 @@ import org.springframework.stereotype.Service;
 @Service
 @Scope("prototype")
 @RequiredArgsConstructor
-public class EnvironmentViewModel implements Identifiable, CrudEditorForm<String>, CrudCreationForm<String> {
+public class EnvironmentViewModel implements Identifiable {
     @EditableOnlyWhenCreating
     String id;
     @NotEmpty
@@ -27,12 +25,10 @@ public class EnvironmentViewModel implements Identifiable, CrudEditorForm<String
     final CreateEnvironmentUseCase createEnvironmentUseCase;
     final UpdateEnvironmentUseCase updateEnvironmentUseCase;
 
-    @Override
     public String create(HttpRequest httpRequest) {
         return createEnvironmentUseCase.handle(new CreateEnvironmentCommand(id, name));
     }
 
-    @Override
     public void save(HttpRequest httpRequest) {
         updateEnvironmentUseCase.handle(new UpdateEnvironmentCommand(id, name));
     }

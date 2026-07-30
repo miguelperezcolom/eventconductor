@@ -2,8 +2,6 @@ package io.mateu.workflow.usersservice.infra.in.ui.pages.roles;
 
 import io.mateu.uidl.annotations.*;
 import io.mateu.uidl.data.FieldStereotype;
-import io.mateu.uidl.interfaces.CrudCreationForm;
-import io.mateu.uidl.interfaces.CrudEditorForm;
 import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.uidl.interfaces.Identifiable;
 import io.mateu.workflow.usersservice.application.query.dto.RoleDto;
@@ -25,7 +23,7 @@ import java.util.List;
 @Service
 @Scope("prototype")
 @RequiredArgsConstructor
-public class RoleViewModel implements Identifiable, CrudEditorForm<String>, CrudCreationForm<String> {
+public class RoleViewModel implements Identifiable {
     @EditableOnlyWhenCreating
     @NotEmpty
     String id;
@@ -43,13 +41,11 @@ public class RoleViewModel implements Identifiable, CrudEditorForm<String>, Crud
     final CreateRoleUseCase createRoleUseCase;
     final SaveRoleUseCase saveRoleUseCase;
 
-    @Override
     public String create(HttpRequest httpRequest) {
         createRoleUseCase.handle(new CreateRoleCommand(id, name, description, permissions));
         return id;
     }
 
-    @Override
     public void save(HttpRequest httpRequest) {
         saveRoleUseCase.handle(new SaveRoleCommand(id, name, description, permissions));
     }

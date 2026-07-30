@@ -2,8 +2,6 @@ package io.mateu.workflow.controlplaneservice.infra.in.ui.pages.resource;
 
 import io.mateu.uidl.annotations.*;
 import io.mateu.uidl.data.FieldStereotype;
-import io.mateu.uidl.interfaces.CrudCreationForm;
-import io.mateu.uidl.interfaces.CrudEditorForm;
 import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.uidl.interfaces.Identifiable;
 import io.mateu.workflow.controlplaneservice.application.query.dto.ResourceDto;
@@ -19,7 +17,7 @@ import org.springframework.stereotype.Service;
 @Service
 @Scope("prototype")
 @RequiredArgsConstructor
-public class ResourceViewModel implements Identifiable, CrudEditorForm<String>, CrudCreationForm<String> {
+public class ResourceViewModel implements Identifiable {
     @HiddenInCreate
     @ReadOnly
     String id;
@@ -39,12 +37,10 @@ public class ResourceViewModel implements Identifiable, CrudEditorForm<String>, 
     final CreateResourceUseCase createResourceUseCase;
     final UpdateResourceUseCase updateResourceUseCase;
 
-    @Override
     public String create(HttpRequest httpRequest) {
         return createResourceUseCase.handle(new CreateResourceCommand(name));
     }
 
-    @Override
     public void save(HttpRequest httpRequest) {
         updateResourceUseCase.handle(new UpdateResourceCommand(id, name));
     }

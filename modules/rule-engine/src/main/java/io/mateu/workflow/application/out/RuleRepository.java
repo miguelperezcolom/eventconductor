@@ -7,7 +7,7 @@ import java.util.Optional;
 
 /**
  * Catalog port. Deliberately framework-free (unlike FormRepository it does not
- * extend the Mateu CrudRepository) so the Rule domain model can stay in the
+ * extend the Mateu CrudStore) so the Rule domain model can stay in the
  * lightweight rule-runtime module; the UI adapts it through a view record.
  */
 public interface RuleRepository {

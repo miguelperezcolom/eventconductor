@@ -2,8 +2,6 @@ package io.mateu.workflow.usersservice.infra.in.ui.pages.permissions;
 
 import io.mateu.uidl.annotations.HiddenInCreate;
 import io.mateu.uidl.annotations.ReadOnly;
-import io.mateu.uidl.interfaces.CrudCreationForm;
-import io.mateu.uidl.interfaces.CrudEditorForm;
 import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.uidl.interfaces.Identifiable;
 import io.mateu.workflow.usersservice.application.query.dto.PermissionDto;
@@ -20,7 +18,7 @@ import org.springframework.stereotype.Service;
 @Service
 @Scope("prototype")
 @RequiredArgsConstructor
-public class PermissionViewModel implements Identifiable, CrudEditorForm<String>, CrudCreationForm<String> {
+public class PermissionViewModel implements Identifiable {
     @HiddenInCreate
     @ReadOnly
     String id;
@@ -31,12 +29,10 @@ public class PermissionViewModel implements Identifiable, CrudEditorForm<String>
     final CreatePermissionUseCase createPermissionUseCase;
     final SavePermissionUseCase savePermissionUseCase;
 
-    @Override
     public String create(HttpRequest httpRequest) {
         return createPermissionUseCase.handle(new CreatePermissionCommand(name, description, scope));
     }
 
-    @Override
     public void save(HttpRequest httpRequest) {
         savePermissionUseCase.handle(new SavePermissionCommand(id, name, description, scope));
     }

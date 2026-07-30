@@ -1,14 +1,14 @@
 package io.mateu.workflow.controlplaneservice.infra.in.ui.suppliers;
 
 import io.mateu.uidl.interfaces.HttpRequest;
-import io.mateu.uidl.interfaces.LabelSupplier;
+import io.mateu.uidl.interfaces.LookupLabelSupplier;
 import io.mateu.workflow.controlplaneservice.application.query.SiteQueryService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
-public class SiteIdLabelSupplier implements LabelSupplier {
+public class SiteIdLabelSupplier implements LookupLabelSupplier {
 
     final SiteQueryService queryService;
 

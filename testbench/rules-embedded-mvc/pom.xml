@@ -74,17 +74,17 @@
         <dependency>
             <groupId>io.mateu</groupId>
             <artifactId>annotation-processor-mvc</artifactId>
-            <version>3.0-alpha.222</version>
+            <version>3.0-alpha.271</version>
         </dependency>
         <dependency>
             <groupId>io.mateu</groupId>
             <artifactId>mvc-core</artifactId>
-            <version>3.0-alpha.222</version>
+            <version>3.0-alpha.271</version>
         </dependency>
         <dependency>
             <groupId>io.mateu</groupId>
             <artifactId>vaadin-lit</artifactId>
-            <version>3.0-alpha.222</version>
+            <version>3.0-alpha.271</version>
         </dependency>
 
     </dependencies>
@@ -120,7 +120,7 @@
                                 <path>
                                     <groupId>io.mateu</groupId>
                                     <artifactId>annotation-processor-mvc</artifactId>
-                                    <version>3.0-alpha.222</version>
+                                    <version>3.0-alpha.271</version>
                                 </path>
                             </annotationProcessorPaths>
                         </configuration>

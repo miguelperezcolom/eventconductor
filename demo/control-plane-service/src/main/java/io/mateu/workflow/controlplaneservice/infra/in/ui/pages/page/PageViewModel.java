@@ -3,8 +3,6 @@ package io.mateu.workflow.controlplaneservice.infra.in.ui.pages.page;
 import io.mateu.uidl.StyleConstants;
 import io.mateu.uidl.annotations.*;
 import io.mateu.uidl.data.FieldStereotype;
-import io.mateu.uidl.interfaces.CrudCreationForm;
-import io.mateu.uidl.interfaces.CrudEditorForm;
 import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.uidl.interfaces.Identifiable;
 import io.mateu.workflow.controlplaneservice.application.query.dto.PageDto;
@@ -30,7 +28,7 @@ import java.util.List;
 @RequiredArgsConstructor
 @FormLayout(columns = 3)
 @Style(StyleConstants.CONTAINER)
-public class PageViewModel implements Identifiable, CrudEditorForm<String>, CrudCreationForm<String> {
+public class PageViewModel implements Identifiable {
     @HiddenInCreate
     @ReadOnly
     String id;
@@ -62,12 +60,10 @@ public class PageViewModel implements Identifiable, CrudEditorForm<String>, Crud
     final CreatePageUseCase createPageUseCase;
     final UpdatePageUseCase updatePageUseCase;
 
-    @Override
     public String create(HttpRequest httpRequest) {
         return createPageUseCase.handle(new CreatePageCommand(siteId, name, path, jsonLd, dependsOnLanguage, dependsOnCountry, changeFrequency, priority, checks));
     }
 
-    @Override
     public void save(HttpRequest httpRequest) {
         updatePageUseCase.handle(new UpdatePageCommand(id, siteId, name, path, jsonLd, dependsOnLanguage, dependsOnCountry, changeFrequency, priority, checks));
     }

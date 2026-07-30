@@ -4,8 +4,6 @@ import io.mateu.uidl.annotations.Colspan;
 import io.mateu.uidl.annotations.EditableOnlyWhenCreating;
 import io.mateu.uidl.annotations.Lookup;
 import io.mateu.uidl.annotations.Style;
-import io.mateu.uidl.interfaces.CrudCreationForm;
-import io.mateu.uidl.interfaces.CrudEditorForm;
 import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.uidl.interfaces.Identifiable;
 import io.mateu.workflow.usersservice.application.query.dto.UserDto;
@@ -30,7 +28,7 @@ import java.util.List;
 @Service
 @Scope("prototype")
 @RequiredArgsConstructor
-public class UserViewModel implements Identifiable, CrudEditorForm<String>, CrudCreationForm<String> {
+public class UserViewModel implements Identifiable {
     @EditableOnlyWhenCreating
             @NotEmpty
     String id;
@@ -46,13 +44,11 @@ public class UserViewModel implements Identifiable, CrudEditorForm<String>, Crud
     final CreateUserUseCase createUserUseCase;
     final SaveUserUseCase saveUserUseCase;
 
-    @Override
     public String create(HttpRequest httpRequest) {
         createUserUseCase.handle(new CreateUserCommand(id, name, email, groups, roles));
         return id;
     }
 
-    @Override
     public void save(HttpRequest httpRequest) {
         saveUserUseCase.handle(new SaveUserCommand(id, name, email, groups, roles));
     }

@@ -3,8 +3,6 @@ package io.mateu.workflow.controlplaneservice.infra.in.ui.pages.route;
 import io.mateu.uidl.annotations.Lookup;
 import io.mateu.uidl.annotations.HiddenInCreate;
 import io.mateu.uidl.annotations.ReadOnly;
-import io.mateu.uidl.interfaces.CrudCreationForm;
-import io.mateu.uidl.interfaces.CrudEditorForm;
 import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.uidl.interfaces.Identifiable;
 import io.mateu.workflow.controlplaneservice.application.query.dto.RouteDto;
@@ -21,7 +19,7 @@ import org.springframework.stereotype.Service;
 @Service
 @Scope("prototype")
 @RequiredArgsConstructor
-public class RouteViewModel implements Identifiable, CrudEditorForm<String>, CrudCreationForm<String> {
+public class RouteViewModel implements Identifiable {
     @HiddenInCreate
     @ReadOnly
     String id;
@@ -39,12 +37,10 @@ public class RouteViewModel implements Identifiable, CrudEditorForm<String>, Cru
     final CreateRouteUseCase createRouteUseCase;
     final UpdateRouteUseCase updateRouteUseCase;
 
-    @Override
     public String create(HttpRequest httpRequest) {
         return createRouteUseCase.handle(new CreateRouteCommand(name, languageCode, countryCode, Long.valueOf(pageId), path, url));
     }
 
-    @Override
     public void save(HttpRequest httpRequest) {
         updateRouteUseCase.handle(new UpdateRouteCommand(id, name, languageCode, countryCode, Long.valueOf(pageId), path, url));
     }

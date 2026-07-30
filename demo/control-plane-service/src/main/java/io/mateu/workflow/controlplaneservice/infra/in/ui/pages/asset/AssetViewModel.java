@@ -3,8 +3,6 @@ package io.mateu.workflow.controlplaneservice.infra.in.ui.pages.asset;
 import io.mateu.uidl.annotations.Lookup;
 import io.mateu.uidl.annotations.HiddenInCreate;
 import io.mateu.uidl.annotations.ReadOnly;
-import io.mateu.uidl.interfaces.CrudCreationForm;
-import io.mateu.uidl.interfaces.CrudEditorForm;
 import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.uidl.interfaces.Identifiable;
 import io.mateu.workflow.controlplaneservice.application.query.dto.AssetDto;
@@ -22,7 +20,7 @@ import org.springframework.stereotype.Service;
 @Service
 @Scope("prototype")
 @RequiredArgsConstructor
-public class AssetViewModel implements Identifiable, CrudEditorForm<String>, CrudCreationForm<String> {
+public class AssetViewModel implements Identifiable {
     @HiddenInCreate
     @ReadOnly
     String id;
@@ -38,12 +36,10 @@ public class AssetViewModel implements Identifiable, CrudEditorForm<String>, Cru
     final CreateAssetUseCase createAssetUseCase;
     final UpdateAssetUseCase updateAssetUseCase;
 
-    @Override
     public String create(HttpRequest httpRequest) {
         return createAssetUseCase.handle(new CreateAssetCommand(name, path, url, country));
     }
 
-    @Override
     public void save(HttpRequest httpRequest) {
         updateAssetUseCase.handle(new UpdateAssetCommand(id, name, path, url, country));
     }

@@ -1,15 +1,14 @@
 package io.mateu.workflow.contentservice.infra.in.ui.suppliers;
 
 import io.mateu.uidl.interfaces.HttpRequest;
-import io.mateu.uidl.interfaces.LabelSupplier;
+import io.mateu.uidl.interfaces.LookupLabelSupplier;
 import io.mateu.workflow.contentservice.application.query.ContentTypeQueryService;
-import io.mateu.workflow.contentservice.domain.aggregates.contenttype.vo.ContentTypeId;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
-public class ContentTypeIdLabelSupplier implements LabelSupplier {
+public class ContentTypeIdLabelSupplier implements LookupLabelSupplier {
 
 final ContentTypeQueryService queryService;
 

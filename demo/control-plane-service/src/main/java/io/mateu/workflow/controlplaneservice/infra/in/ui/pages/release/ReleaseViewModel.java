@@ -3,8 +3,6 @@ package io.mateu.workflow.controlplaneservice.infra.in.ui.pages.release;
 import io.mateu.uidl.annotations.Lookup;
 import io.mateu.uidl.annotations.HiddenInCreate;
 import io.mateu.uidl.annotations.ReadOnly;
-import io.mateu.uidl.interfaces.CrudCreationForm;
-import io.mateu.uidl.interfaces.CrudEditorForm;
 import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.uidl.interfaces.Identifiable;
 import io.mateu.workflow.controlplaneservice.application.query.dto.ReleaseDto;
@@ -24,7 +22,7 @@ import java.util.List;
 @Service
 @Scope("prototype")
 @RequiredArgsConstructor
-public class ReleaseViewModel implements Identifiable, CrudEditorForm<String>, CrudCreationForm<String> {
+public class ReleaseViewModel implements Identifiable {
     @HiddenInCreate
     @ReadOnly
     String id;
@@ -43,12 +41,10 @@ public class ReleaseViewModel implements Identifiable, CrudEditorForm<String>, C
     final CreateReleaseUseCase createReleaseUseCase;
     final UpdateReleaseUseCase updateReleaseUseCase;
 
-    @Override
     public String create(HttpRequest httpRequest) {
         return createReleaseUseCase.handle(new CreateReleaseCommand(name, user, date, site, environment));
     }
 
-    @Override
     public void save(HttpRequest httpRequest) {
         updateReleaseUseCase.handle(new UpdateReleaseCommand(id, name, user, date, site, environment));
     }

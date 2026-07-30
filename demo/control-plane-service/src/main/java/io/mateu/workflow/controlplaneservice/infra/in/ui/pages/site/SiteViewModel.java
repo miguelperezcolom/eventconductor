@@ -4,8 +4,6 @@ import io.mateu.uidl.annotations.EditableOnlyWhenCreating;
 import io.mateu.uidl.annotations.Stereotype;
 import io.mateu.uidl.annotations.Toolbar;
 import io.mateu.uidl.data.FieldStereotype;
-import io.mateu.uidl.interfaces.CrudCreationForm;
-import io.mateu.uidl.interfaces.CrudEditorForm;
 import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.uidl.interfaces.Identifiable;
 import io.mateu.workflow.controlplaneservice.application.query.dto.SiteDto;
@@ -21,7 +19,7 @@ import org.springframework.stereotype.Service;
 @Service
 @Scope("prototype")
 @RequiredArgsConstructor
-public class SiteViewModel implements Identifiable, CrudEditorForm<String>, CrudCreationForm<String> {
+public class SiteViewModel implements Identifiable {
     @EditableOnlyWhenCreating
     String id;
     @NotEmpty
@@ -35,12 +33,10 @@ public class SiteViewModel implements Identifiable, CrudEditorForm<String>, Crud
     final CreateSiteUseCase createSiteUseCase;
     final UpdateSiteUseCase updateSiteUseCase;
 
-    @Override
     public String create(HttpRequest httpRequest) {
         return createSiteUseCase.handle(new CreateSiteCommand(id, name, url, llmsTxt));
     }
 
-    @Override
     public void save(HttpRequest httpRequest) {
         updateSiteUseCase.handle(new UpdateSiteCommand(id, name, url, llmsTxt));
     }

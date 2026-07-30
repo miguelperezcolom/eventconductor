@@ -118,9 +118,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Testbench UI apps declare `spring-boot-starter-webmvc` explicitly: the Mateu MVC annotation
     processor now generates SSE-capable controllers and the engines only carry the starter as
     `optional`.
-  - The engine reactor builds against the released `3.0-alpha.271`; only the standalone demo and
-    testbench apps (which have their own poms outside the reactor) still pin
-    `3.0-alpha.271-SNAPSHOT` built locally from mateu master.
+  - Everything builds against the released `3.0-alpha.271` — the engine reactor and the
+    standalone demo and testbench apps (which have their own poms outside the reactor) alike.
 - **The Workflow Definitions admin page is now read-only** (list + rich detail view). Definitions
   are authored as YAML and loaded from the classpath, Git or the database, and were never created
   or edited from this page; the write actions are disabled rather than reimplemented on the new

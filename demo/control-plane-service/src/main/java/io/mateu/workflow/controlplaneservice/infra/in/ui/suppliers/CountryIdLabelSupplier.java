@@ -1,14 +1,14 @@
 package io.mateu.workflow.controlplaneservice.infra.in.ui.suppliers;
 
 import io.mateu.uidl.interfaces.HttpRequest;
-import io.mateu.uidl.interfaces.LabelSupplier;
+import io.mateu.uidl.interfaces.LookupLabelSupplier;
 import io.mateu.workflow.controlplaneservice.application.query.CountryQueryService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
-public class CountryIdLabelSupplier implements LabelSupplier {
+public class CountryIdLabelSupplier implements LookupLabelSupplier {
 
     final CountryQueryService queryService;
 

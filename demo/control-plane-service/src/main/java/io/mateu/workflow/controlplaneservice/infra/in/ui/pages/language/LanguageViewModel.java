@@ -1,8 +1,6 @@
 package io.mateu.workflow.controlplaneservice.infra.in.ui.pages.language;
 
 import io.mateu.uidl.annotations.EditableOnlyWhenCreating;
-import io.mateu.uidl.interfaces.CrudCreationForm;
-import io.mateu.uidl.interfaces.CrudEditorForm;
 import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.uidl.interfaces.Identifiable;
 import io.mateu.workflow.controlplaneservice.application.query.dto.LanguageDto;
@@ -18,7 +16,7 @@ import org.springframework.stereotype.Service;
 @Service
 @Scope("prototype")
 @RequiredArgsConstructor
-public class LanguageViewModel implements Identifiable, CrudEditorForm<String>, CrudCreationForm<String> {
+public class LanguageViewModel implements Identifiable {
     @EditableOnlyWhenCreating
     String code;
     @NotEmpty
@@ -27,12 +25,10 @@ public class LanguageViewModel implements Identifiable, CrudEditorForm<String>, 
     final CreateLanguageUseCase createLanguageUseCase;
     final UpdateLanguageUseCase updateLanguageUseCase;
 
-    @Override
     public String create(HttpRequest httpRequest) {
         return createLanguageUseCase.handle(new CreateLanguageCommand(code, name));
     }
 
-    @Override
     public void save(HttpRequest httpRequest) {
         updateLanguageUseCase.handle(new UpdateLanguageCommand(code, name));
     }

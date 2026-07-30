@@ -1,14 +1,18 @@
 package io.mateu.workflow.controlplaneservice.infra.in.ui.pages.route;
 
-import io.mateu.core.infra.declarative.CrudOrchestrator;
+import io.mateu.core.infra.declarative.orchestrators.crud.Crud;
 import io.mateu.uidl.annotations.Title;
+import io.mateu.uidl.data.ListingData;
 import io.mateu.uidl.data.NoFilters;
+import io.mateu.uidl.data.SearchRequest;
 import io.mateu.uidl.fluent.OnSuccessTrigger;
 import io.mateu.uidl.fluent.Trigger;
-import io.mateu.uidl.interfaces.CrudAdapter;
 import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.workflow.controlplaneservice.application.out.RouteRepository;
+import io.mateu.workflow.controlplaneservice.application.query.RouteQueryService;
 import io.mateu.workflow.controlplaneservice.application.query.dto.RouteRow;
+import io.mateu.workflow.controlplaneservice.application.usecases.route.delete.DeleteRouteCommand;
+import io.mateu.workflow.controlplaneservice.application.usecases.route.delete.DeleteRouteUseCase;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.route.vo.RouteHash;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.route.vo.RouteId;
 import lombok.RequiredArgsConstructor;
@@ -23,7 +27,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 @Scope("prototype")
 @Title("Routes")
-public class RouteCrudOrchestrator extends CrudOrchestrator<
+public class RouteCrudOrchestrator extends Crud<
         RouteViewModel,
         RouteViewModel,
         RouteViewModel,
@@ -33,18 +37,46 @@ public class RouteCrudOrchestrator extends CrudOrchestrator<
         > {
 
     final RouteRepository routeRepository;
-    final RouteCrudAdapter adapter;
+    final RouteViewModel viewModel;
+    final DeleteRouteUseCase deleteRouteUseCase;
+    final RouteQueryService queryService;
 
     @Override
-    public CrudAdapter<RouteViewModel,
-            RouteViewModel, RouteViewModel,
-            NoFilters, RouteRow, String> adapter() {
-        return adapter;
+    public ListingData<RouteRow> search(SearchRequest request, HttpRequest httpRequest) {
+        return queryService.findAll(request.searchText(), filters(request), request.pageable());
     }
 
     @Override
-    public String toId(String s) {
-        return s;
+    public RouteViewModel view(String id, HttpRequest httpRequest) {
+        return viewModel.load(queryService.getById(id).orElseThrow());
+    }
+
+    @Override
+    public RouteViewModel edit(String id, HttpRequest httpRequest) {
+        return viewModel.load(queryService.getById(id).orElseThrow());
+    }
+
+    @Override
+    public RouteViewModel creationForm(HttpRequest httpRequest) {
+        return viewModel;
+    }
+
+    @Override
+    public String save(HttpRequest httpRequest) {
+        var editor = httpRequest.getComponentState(RouteViewModel.class);
+        editor.save(httpRequest);
+        return editor.id();
+    }
+
+    @Override
+    public String create(HttpRequest httpRequest) {
+        var form = httpRequest.getComponentState(RouteViewModel.class);
+        return form.create(httpRequest);
+    }
+
+    @Override
+    public void deleteAllById(List<String> selectedIds, HttpRequest httpRequest) {
+        deleteRouteUseCase.handle(new DeleteRouteCommand(selectedIds));
     }
 
     public void changeHash(HttpRequest httpRequest) {
@@ -55,8 +87,8 @@ public class RouteCrudOrchestrator extends CrudOrchestrator<
     }
 
     @Override
-    public List<Trigger> triggers(HttpRequest httpRequest) {
-        var triggers = new ArrayList<>(super.triggers(httpRequest));
+    public List<Trigger> triggers(String viewName, HttpRequest httpRequest) {
+        var triggers = new ArrayList<>(super.triggers(viewName, httpRequest));
         triggers.add(new OnSuccessTrigger("search", "action-on-row-changeHash"));
         return triggers;
     }
