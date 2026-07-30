@@ -31,8 +31,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   spans. Because it is enabled at the app layer, HTTP, Kafka (Spring Cloud Stream) and JDBC calls
   are auto-instrumented and trace context propagates across the engines' async boundaries without
   any engine-code changes — consistent with the metrics' "optional, host-activated" design.
-- **Observability reference** at `docs/observability.md` (meter catalogue + how to enable
-  Prometheus scraping and OTLP tracing).
+- **Observability docs** — the Configuration reference on the docs site now covers the metrics of
+  every engine (workflow, forms, rule catalog, rule runtime) plus a Distributed tracing section
+  (how to enable Prometheus scraping and OTLP tracing).
 
 ### Changed
 - **Upgraded Mateu to `3.0-alpha.271`.** `3.0-alpha.271` is a breaking release that removed the

@@ -284,7 +284,7 @@ spring.cloud.stream.kafka.binder.auto-create-topics=true
 
 ## Metrics
 
-The workflow engine publishes engine-level metrics through [Micrometer](https://micrometer.io/). They activate automatically when a `MeterRegistry` bean is present in the host application — no property is needed. The easiest way to get one (plus a Prometheus scrape endpoint) is:
+All engines (workflow, forms, rule catalog and rule runtime) publish engine-level metrics through [Micrometer](https://micrometer.io/). They activate automatically when a `MeterRegistry` bean is present in the host application — no property is needed. The easiest way to get one (plus a Prometheus scrape endpoint) is:
 
 ```xml
 <dependency>
@@ -301,11 +301,11 @@ The workflow engine publishes engine-level metrics through [Micrometer](https://
 management.endpoints.web.exposure.include=health,prometheus
 ```
 
-Metrics are then available at `GET /actuator/prometheus`. Without a `MeterRegistry` the engine falls back to a no-op implementation with zero overhead — Micrometer is an optional dependency of the `workflow-engine` module.
+Metrics are then available at `GET /actuator/prometheus`. Without a `MeterRegistry` each engine falls back to a no-op implementation with zero overhead — Micrometer is an optional dependency of every engine module.
 
-Instrumentation happens at the use-case layer, so the same metrics are emitted in **all three deployment modes** (embedded + memory, embedded + jpa, kafka + jpa).
+Instrumentation happens at the use-case layer, so the same metrics are emitted in **all deployment modes** (embedded + memory, embedded + jpa, kafka + jpa).
 
-### Available metrics
+### Workflow engine
 
 | Metric | Type | Tags | Description |
 |---|---|---|---|
@@ -321,12 +321,70 @@ Instrumentation happens at the use-case layer, so the same metrics are emitted i
 | `eventconductor.process.running` | Gauge | — | Processes currently in `RUNNING` status |
 | `eventconductor.outbox.pending` | Gauge | — | Outbox messages waiting to be relayed (only with `workflow.persistence=jpa`; the in-memory mode has no outbox) |
 
+### Forms engine
+
+| Metric | Type | Tags | Description |
+|---|---|---|---|
+| `eventconductor.forms.task.created` | Counter | `formId` | User tasks created |
+| `eventconductor.forms.task.completed` | Counter | `formId` | User tasks completed |
+| `eventconductor.forms.task.cancelled` | Counter | `formId` | User tasks cancelled |
+| `eventconductor.forms.task.duration` | Timer | `formId`, `outcome` | Task duration (recorded only when the form execution carries usable timestamps) |
+| `eventconductor.forms.imported` | Counter | — | Form definitions imported (e.g. from Git) |
+
+### Rule engine (catalog)
+
+| Metric | Type | Tags | Description |
+|---|---|---|---|
+| `eventconductor.rule.catalog.saved` | Counter | `ruleId` | Rules created/updated in the catalog |
+| `eventconductor.rule.catalog.deleted` | Counter | `ruleId` | Rules deleted |
+| `eventconductor.rule.catalog.imported` | Counter | — | Rules imported (e.g. from Git) |
+| `eventconductor.rule.catalog.served` | Counter | `ruleId`, `source` | Rules served to the runtime (e.g. `source=grpc`) |
+
+### Rule runtime (evaluation)
+
+| Metric | Type | Tags | Description |
+|---|---|---|---|
+| `eventconductor.rule.evaluation.count` | Counter | `ruleId`, `ruleType`, `outcome` | Rule evaluations, by outcome (`matched` \| `nomatch` \| `error`) |
+| `eventconductor.rule.evaluation.duration` | Timer | `ruleId`, `ruleType` | Evaluation duration |
+| `eventconductor.rule.evaluation.cache` | Counter | `ruleId`, `result` | Rule-source cache lookups (`result=hit` \| `miss`) |
+
+The forms, rule-catalog and rule-runtime metrics follow the same activation rules as the workflow metrics above (a `MeterRegistry` bean enables them; otherwise a zero-overhead no-op is used). The rule runtime also works as a plain, non-Spring library — its metrics port then defaults to the no-op.
+
 Notes:
 
 - With the Prometheus registry, names are exported in Prometheus form: `eventconductor.process.started` becomes `eventconductor_process_started_total`, timers become `_seconds_count` / `_seconds_sum` / `_seconds_max` families.
 - Each step retry that fails again increments `eventconductor.step.executions{outcome="ERROR"}`, so the counter reflects attempts, not distinct steps.
 - Counters are per-node and reset on restart, as usual with Prometheus counters — use `rate()`/`increase()` over them.
 - To customize (percentile histograms, common tags, renaming), use standard Micrometer `MeterFilter` beans, or replace the implementation entirely by defining your own `WorkflowMetrics` bean.
+
+## Distributed tracing
+
+The `orchestrator`, `forms` and `rule` standalone apps ship distributed tracing over
+[OpenTelemetry](https://opentelemetry.io/) (OTLP). It is **disabled by default** (sampling `0.0`)
+so there is no overhead until you opt in — set the sampling probability and point it at your
+collector:
+
+```properties
+# fraction of traces to sample, 0.0 (off) .. 1.0 (all)
+management.tracing.sampling.probability=${TRACING_SAMPLING:0.0}
+# OTLP HTTP traces endpoint (OTel Collector / Tempo / Jaeger)
+management.otlp.tracing.endpoint=${OTLP_TRACING_ENDPOINT:http://localhost:4318/v1/traces}
+```
+
+```bash
+export TRACING_SAMPLING=1.0
+export OTLP_TRACING_ENDPOINT=http://localhost:4318/v1/traces
+```
+
+With tracing on, HTTP requests, Kafka (Spring Cloud Stream) publish/consume and JDBC calls are
+auto-instrumented and the trace context propagates across the engines' asynchronous boundaries, so
+a single process execution can be followed end to end across services. The standalone apps bundle
+`micrometer-tracing-bridge-otel` and `opentelemetry-exporter-otlp`; enabling tracing needs only the
+two properties above.
+
+Tracing is wired at the application layer (rather than as hand-written spans inside the engines)
+because Micrometer is an *optional* engine dependency — this keeps the engine libraries runnable
+with zero observability dependencies, consistent with how metrics activate.
 
 ## Docker / environment variables
 
