@@ -123,6 +123,22 @@ class ProcessUpdateStepExecutionUpdateUseCaseTest {
     }
 
     @Test
+    void keepsPAUSEDStatusWhenStepsCompleteDuringThePause() {
+        var proc = process("p-1", ProcessStatus.PAUSED);
+        when(repository.findById("p-1")).thenReturn(Optional.of(proc));
+        // A worker report or a correlated message completed a step while paused.
+        when(stepExecutionRepository.findByProcess(proc)).thenReturn(List.of(se(StepExecutionStatus.COMPLETED)));
+
+        useCase.handle(new ProcessStepExecutionUpdateCommand("p-1"));
+
+        ArgumentCaptor<Process> captor = ArgumentCaptor.forClass(Process.class);
+        verify(repository).save(captor.capture());
+        // Sticky: only ResumeProcessUseCase leaves PAUSED — even a 100% completed flow waits.
+        assertThat(captor.getValue().getStatus()).isEqualTo(ProcessStatus.PAUSED);
+        verify(workflowMetrics, never()).processCompleted(any(), any());
+    }
+
+    @Test
     void setsFinishedWhenCompleted() {
         var proc = process("p-1", ProcessStatus.RUNNING);
         when(repository.findById("p-1")).thenReturn(Optional.of(proc));

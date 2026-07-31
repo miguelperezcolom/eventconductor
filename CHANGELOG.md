@@ -8,6 +8,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Pause/play for processes and workflow definitions.** New `ProcessStatus.PAUSED`:
+  `PauseProcessUseCase` pauses a `PENDING`/`RUNNING` process and `ResumeProcessUseCase`
+  puts it back to `RUNNING`. Pause freezes the frontier, not in-flight work — running
+  workers finish and their reports are accepted (steps complete, variables merge), and
+  messages still complete `WAIT_FOR_MESSAGE` steps — but successors do not start until
+  resume. Clocks freeze too: timeout and TIMER scanning skip paused processes and, on
+  resume, every non-terminal started step's `startedAt` is shifted forward by the pause
+  duration (recorded in the new `Process.pausedAt`), so step timeouts and timer
+  due-moments resume where they left off; blocking-error handling is deferred the same
+  way, and cancelling from `PAUSED` works. At the definition level, a new runtime
+  `paused` flag (orthogonal to the `DRAFT`/`ACTIVE`/... lifecycle; in the schema as
+  nullable boolean, default `false`, so exports round-trip): `PauseWorkflowUseCase` sets
+  it and pauses all the definition's `PENDING`/`RUNNING` processes, while new instances —
+  cron occurrences included — are still accepted and created **born-`PAUSED`**;
+  `ResumeWorkflowUseCase` clears it and resumes all its `PAUSED` processes. Surface:
+  **Pause**/**Resume** toolbar actions on the process detail and on the definition detail
+  (plus a **Paused** row), and four MCP tools — `pauseProcess`, `resumeProcess`,
+  `pauseWorkflow`, `resumeWorkflow`. Flyway migration V6 in the orchestrator app
+  (`process_entity.paused_at`, `workflow_definition_entity.paused`).
 - **`START` step type — explicit workflow entry points.** A no-worker node that completes
   instantly at process creation, fanning the flow out to its successors. A `START` must have
   no preconditions, and declaring several gives the process concurrent entry branches. Every

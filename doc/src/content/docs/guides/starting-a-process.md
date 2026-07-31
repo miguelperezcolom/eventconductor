@@ -93,6 +93,50 @@ Optional<Process> process = processRepository.findByBusinessKey("order-123");
 
 A process paused on a `WAIT_FOR_MESSAGE` step resumes when a matching message arrives — via `POST /workflow/api/messages`, the `sendMessage` MCP tool, a raw `message-received` event on the Kafka `upstream` topic, or a `SEND_MESSAGE` step in another process (in-engine process-to-process signaling, no worker needed). See [Step Types — WAIT_FOR_MESSAGE](/reference/step-types/#wait_for_message) for correlation and delivery semantics.
 
+## Pausing and resuming
+
+### A single process
+
+Call `PauseProcessUseCase` with the process id to pause a `PENDING` or `RUNNING` process, and `ResumeProcessUseCase` to put a `PAUSED` process back to `RUNNING`:
+
+```java
+@Autowired
+PauseProcessUseCase pauseProcessUseCase;
+@Autowired
+ResumeProcessUseCase resumeProcessUseCase;
+
+pauseProcessUseCase.handle(new PauseProcessCommand(processId));
+resumeProcessUseCase.handle(new ResumeProcessCommand(processId));
+```
+
+The same operations are available as the **Pause** / **Resume** toolbar actions on the process detail in the UI, and as the `pauseProcess` / `resumeProcess` MCP tools.
+
+Pause freezes the frontier, not in-flight work:
+
+- **Nothing is cancelled.** Workers that are already running finish and their reports are accepted — steps complete and their output variables merge into the process. Messages still correlate and complete `WAIT_FOR_MESSAGE` steps. Only the successors are held: no new step starts until the process is resumed.
+- **Clocks freeze.** Timeout and TIMER scanning skip paused processes, and on resume every non-terminal started step's `startedAt` is shifted forward by the pause duration — so a step timeout or a TIMER due-moment resumes where it left off instead of firing the instant you resume. Blocking-error handling is deferred the same way.
+- Cancelling a `PAUSED` process works as usual.
+
+Pausing a process that is not `PENDING`/`RUNNING` (or resuming one that is not `PAUSED`) is a no-op.
+
+### A whole workflow definition
+
+`PauseWorkflowUseCase` pauses a definition in one shot: it sets the definition's runtime `paused` flag and pauses all its `PENDING`/`RUNNING` processes. `ResumeWorkflowUseCase` clears the flag and resumes all its `PAUSED` processes:
+
+```java
+@Autowired
+PauseWorkflowUseCase pauseWorkflowUseCase;
+@Autowired
+ResumeWorkflowUseCase resumeWorkflowUseCase;
+
+pauseWorkflowUseCase.handle(workflowDefinitionId);
+resumeWorkflowUseCase.handle(workflowDefinitionId);
+```
+
+Also available as **Pause** / **Resume** on the definition detail in the UI and as the `pauseWorkflow` / `resumeWorkflow` MCP tools.
+
+While a definition is paused, **new instances are still accepted — they are created born-`PAUSED`**: the process and its steps exist, but nothing runs until the definition is resumed. This includes cron: a paused `ACTIVE` definition keeps creating an instance at each occurrence, born paused. Inputs are never rejected — pausing a definition parks the work, it does not drop it. The `paused` flag is orthogonal to the `DRAFT`/`ACTIVE`/`DISABLED`/`ARCHIVED` lifecycle status.
+
 ## Cancelling a process
 
 Call `CancelProcessUseCase` with the process id:

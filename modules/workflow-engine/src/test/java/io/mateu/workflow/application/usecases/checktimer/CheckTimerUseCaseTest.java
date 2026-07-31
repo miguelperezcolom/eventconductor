@@ -1,9 +1,11 @@
 package io.mateu.workflow.application.usecases.checktimer;
 
 import io.mateu.core.infra.JsonSerializer;
+import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.usecases.checktimer.completetimerstep.CompleteTimerStepHandler;
 import io.mateu.workflow.domain.aggregates.*;
+import io.mateu.workflow.domain.aggregates.Process;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -12,6 +14,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
@@ -20,6 +23,7 @@ import static org.mockito.Mockito.*;
 class CheckTimerUseCaseTest {
 
     @Mock StepExecutionRepository stepExecutionRepository;
+    @Mock ProcessRepository processRepository;
     @Mock CompleteTimerStepHandler completeTimerStepHandler;
 
     @InjectMocks CheckTimerUseCase useCase;
@@ -109,5 +113,28 @@ class CheckTimerUseCaseTest {
         useCase.handle(new CheckTimerCommand("p-1"));
 
         verify(completeTimerStepHandler, never()).handle(any());
+    }
+
+    @Test
+    void doesNotTriggerCompletionForDueTimerOfPausedProcess() {
+        var due = pendingSe(timerStep(100, null), LocalDateTime.now().minusSeconds(10));
+        when(stepExecutionRepository.findPendingOrRunning()).thenReturn(List.of(due));
+        when(processRepository.findById("p-1")).thenReturn(Optional.of(
+                Process.builder().id("p-1").status(ProcessStatus.PAUSED).build()));
+
+        useCase.handle(new CheckTimerCommand("p-1"));
+
+        // The paused process freezes the timer clock — the due moment must not fire.
+        verify(completeTimerStepHandler, never()).handle(any());
+    }
+
+    @Test
+    void onlyLooksUpTheProcessWhenATimerWouldFire() {
+        var notDue = pendingSe(timerStep(Long.MAX_VALUE, null), LocalDateTime.now());
+        when(stepExecutionRepository.findPendingOrRunning()).thenReturn(List.of(notDue));
+
+        useCase.handle(new CheckTimerCommand("p-1"));
+
+        verifyNoInteractions(processRepository);
     }
 }

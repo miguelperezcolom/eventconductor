@@ -9,6 +9,7 @@ description: All status values for process instances and step executions.
 |---|---|
 | `PENDING` | Created, not yet started — waiting for the orchestration loop |
 | `RUNNING` | At least one step is currently executing |
+| `PAUSED` | Held by an operator (or a paused definition) — no new steps start, clocks are frozen |
 | `COMPLETED` | All steps finished successfully |
 | `ERROR` | A step failed after exhausting all retries |
 | `CANCELLED` | Process was cancelled by an operator or a cancellation event |
@@ -20,9 +21,32 @@ PENDING → RUNNING → COMPLETED
                   → ERROR
          RUNNING → CANCELLED
 PENDING → CANCELLED
+PENDING / RUNNING → PAUSED → RUNNING (resume)
+PAUSED → CANCELLED
 ```
 
 A process in `ERROR` can be retried, which transitions it back to `RUNNING`.
+
+### Pause semantics
+
+Pausing (`PauseProcessUseCase`, the UI **Pause** action, or the `pauseProcess` MCP tool)
+freezes the frontier of the flow, not work already in flight:
+
+- **In-flight work is still accepted.** Running workers finish and their reports are
+  applied — steps complete and their output variables merge into the process. Messages
+  still correlate and complete `WAIT_FOR_MESSAGE` steps. What is held is the *next* move:
+  successors of completed steps do not start until the process is resumed.
+- **Clocks freeze.** The timeout and TIMER schedulers skip paused processes, and on
+  resume every non-terminal started step's `startedAt` is shifted forward by the pause
+  duration — so step timeouts and TIMER due-moments resume exactly where they left off
+  rather than firing in a burst. `Process.pausedAt` records when the pause began.
+- **Blocking-error handling is deferred.** A failure that would normally block or fail
+  the process only engages once the process is resumed.
+- Cancelling a `PAUSED` process works as usual (`PAUSED → CANCELLED`).
+
+A whole workflow definition can also be paused, which pauses all its `PENDING`/`RUNNING`
+processes and makes new instances be created born-`PAUSED` — see
+[Starting a Process — Pausing and resuming](/guides/starting-a-process/#pausing-and-resuming).
 
 ---
 

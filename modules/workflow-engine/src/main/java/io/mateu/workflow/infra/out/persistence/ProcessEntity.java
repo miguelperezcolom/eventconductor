@@ -41,6 +41,9 @@ public class ProcessEntity {
     private LocalDateTime started;
     private LocalDateTime finished;
 
+    /** Set while the process is PAUSED: the moment it was paused. Null otherwise. */
+    private LocalDateTime pausedAt;
+
     /** Parent PROCESS step execution that spawned this process; null for top-level processes. */
     private String parentStepExecutionId;
 }

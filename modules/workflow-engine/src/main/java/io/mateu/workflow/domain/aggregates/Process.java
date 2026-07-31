@@ -55,6 +55,12 @@ public class Process extends AggregateRoot implements Identifiable {
     @ReadOnly
     private LocalDateTime finished;
     /**
+     * Set while the process is PAUSED: the moment it was paused. On resume the in-flight step
+     * clocks (startedAt) are shifted by the pause duration, freezing timers and timeouts.
+     */
+    @Hidden
+    private LocalDateTime pausedAt;
+    /**
      * Set when this process was started by a PROCESS step of a parent process: the id of that
      * parent step execution, notified when this process reaches a terminal status. Null for
      * top-level processes.

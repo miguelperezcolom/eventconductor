@@ -19,6 +19,10 @@ import io.mateu.workflow.application.out.ResourceRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.usecases.process.cancel.CancelProcessCommand;
 import io.mateu.workflow.application.usecases.process.cancel.CancelProcessUseCase;
+import io.mateu.workflow.application.usecases.process.pause.PauseProcessCommand;
+import io.mateu.workflow.application.usecases.process.pause.PauseProcessUseCase;
+import io.mateu.workflow.application.usecases.process.resume.ResumeProcessCommand;
+import io.mateu.workflow.application.usecases.process.resume.ResumeProcessUseCase;
 import io.mateu.workflow.application.usecases.process.retry.RetryProcessUseCase;
 import io.mateu.workflow.domain.aggregates.LogMessage;
 import io.mateu.workflow.domain.aggregates.Process;
@@ -64,6 +68,8 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
     final ResourceRepository resourceRepository;
     final CancelProcessUseCase cancelProcessUseCase;
     final RetryProcessUseCase retryProcessUseCase;
+    final PauseProcessUseCase pauseProcessUseCase;
+    final ResumeProcessUseCase resumeProcessUseCase;
 
 
     String id;
@@ -71,6 +77,10 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
     String name;
 
     Status status;
+
+    /** Raw domain status, kept for the pause/resume toolbar visibility rules (the badge shows {@link #status}). */
+    @Hidden
+    ProcessStatus processStatus;
 
     @ReadOnly
     String returnTo;
@@ -102,6 +112,7 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
         this.id = id;
         Process process = processRepository.findById(id).orElse(processRepository.findByBusinessKey(id).orElse(null));
         this.name = process.getName();
+        this.processStatus = process.getStatus();
         this.status = mapProcessStatus(process.getStatus(), process.getCompletionPercentage());
         this.steps = stepExecutionRepository.findByProcess(process).stream()
                 .map(se -> new Step(id, se.id(), se.getStepId(), mapStepStatus(se.getStatus().name())))
@@ -158,6 +169,18 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
         cancelProcessUseCase.handle(new CancelProcessCommand(id));
     }
 
+    @Toolbar(buttonStyle = ButtonStyle.secondary)
+    @Action
+    public void pauseProcess() {
+        pauseProcessUseCase.handle(new PauseProcessCommand(id));
+    }
+
+    @Toolbar(buttonStyle = ButtonStyle.secondary)
+    @Action
+    public void resumeProcess() {
+        resumeProcessUseCase.handle(new ResumeProcessCommand(id));
+    }
+
 
     @Action
     public Object refresh(HttpRequest httpRequest) {
@@ -189,6 +212,12 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
     public boolean isHidden(String memberName, HttpRequest httpRequest) {
         if ("cancelProcess".equals(memberName)) {
             return StatusType.SUCCESS.equals(status.type()) || StatusType.DANGER.equals(status.type());
+        }
+        if ("pauseProcess".equals(memberName)) {
+            return processStatus != ProcessStatus.PENDING && processStatus != ProcessStatus.RUNNING;
+        }
+        if ("resumeProcess".equals(memberName)) {
+            return processStatus != ProcessStatus.PAUSED;
         }
         return false;
     }

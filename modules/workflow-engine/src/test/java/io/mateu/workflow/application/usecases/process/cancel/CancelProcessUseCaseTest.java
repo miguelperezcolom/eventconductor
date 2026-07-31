@@ -149,6 +149,21 @@ class CancelProcessUseCaseTest {
     }
 
     @Test
+    void aPausedProcessCanStillBeCancelled() {
+        var process = process("p-1").withStatus(ProcessStatus.PAUSED);
+        var se = se("se-1", StepExecutionStatus.PENDING);
+
+        when(processRepository.findById("p-1")).thenReturn(Optional.of(process));
+        when(stepExecutionRepository.findByProcess(process)).thenReturn(List.of(se));
+
+        useCase.handle(new CancelProcessCommand("p-1"));
+
+        verify(processRepository).save(argThat(p -> p.getStatus() == ProcessStatus.CANCELLED));
+        verify(stepExecutionRepository).save(argThat(s -> s.getStatus() == StepExecutionStatus.CANCELLED));
+        verify(workflowMetrics).processCancelled(any(), any());
+    }
+
+    @Test
     void cancellingACompletedProcessIsANoOp() {
         var process = process("p-1").withStatus(ProcessStatus.COMPLETED);
 

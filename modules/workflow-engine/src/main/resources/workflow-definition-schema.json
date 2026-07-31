@@ -57,6 +57,11 @@
       "type": ["string", "null"],
       "description": "Spring cron expression (six fields, seconds first, e.g. \"0 0 9 * * MON-FRI\"). While the definition is ACTIVE, the engine automatically creates a process instance at each occurrence. Null means no scheduled starts."
     },
+    "paused": {
+      "type": ["boolean", "null"],
+      "description": "Runtime pause flag: while true, all this definition's processes are held and new instances are created already PAUSED. Toggled at runtime (pause/resume), kept here so exported definitions round-trip.",
+      "default": false
+    },
     "defaultMaxStepExecutions": {
       "type": ["integer", "null"],
       "description": "Default cap on how many times each step may successfully run within one process instance. A step's own maxSuccessfulExecutions overrides it. 0 or null means unbounded.",

@@ -42,4 +42,8 @@ public class WorkflowDefinitionEntity {
     @ColumnDefault("0")
     int defaultMaxStepExecutions;
 
+    /** Runtime pause flag: while true all this definition's processes are held. */
+    @ColumnDefault("false")
+    boolean paused;
+
 }

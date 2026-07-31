@@ -43,6 +43,7 @@ public class ProcessDBRepository implements ProcessRepository {
                 entity.getCreated(),
                 entity.getStarted(),
                 entity.getFinished(),
+                entity.getPausedAt(),
                 entity.getParentStepExecutionId()
         );
     }
@@ -67,6 +68,7 @@ public class ProcessDBRepository implements ProcessRepository {
                 process.getCreated(),
                 process.getStarted(),
                 process.getFinished(),
+                process.getPausedAt(),
                 process.getParentStepExecutionId()
         ));
         process.popEvents().stream()

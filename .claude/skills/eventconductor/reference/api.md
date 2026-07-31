@@ -19,6 +19,20 @@ processUpstreamEventUseCase.handle(new ProcessUpstreamEventCommand(
 cancelProcess.handle(new CancelProcessCommand(processId));  // running/pending steps → CANCELLED, process → CANCELLED
 retryProcess.handle(new RetryProcessCommand(processId));    // ERROR process → back to RUNNING
 
+// Pause / resume a process by id
+@Autowired PauseProcessUseCase pauseProcess;
+@Autowired ResumeProcessUseCase resumeProcess;
+
+pauseProcess.handle(new PauseProcessCommand(processId));    // PENDING/RUNNING → PAUSED; in-flight work still accepted, successors held, clocks frozen
+resumeProcess.handle(new ResumeProcessCommand(processId));  // PAUSED → RUNNING; step startedAt shifted by the pause duration
+
+// Pause / resume a whole definition by id (bulk; new instances born PAUSED, cron included)
+@Autowired PauseWorkflowUseCase pauseWorkflow;
+@Autowired ResumeWorkflowUseCase resumeWorkflow;
+
+pauseWorkflow.handle(workflowDefinitionId);
+resumeWorkflow.handle(workflowDefinitionId);
+
 // Report worker progress
 @Autowired UpdateStepExecutionUseCase updateStepExecution;
 
@@ -57,13 +71,16 @@ Two `Variable` records with that shape exist — import per use:
 
 ## Domain model (selected fields)
 
-- `Process`: `id`, `name`, `workflowDefinitionId`, `workflowDefinitionVersion`, `workflowDefinitionJson`, `businessKey`, `variables`, `status`, `completionPercentage`, `created`, `started`, `finished`, `parentStepExecutionId` (set on children started by a parent `PROCESS` step; child businessKey is `parent:<stepExecutionId>`).
+- `Process`: `id`, `name`, `workflowDefinitionId`, `workflowDefinitionVersion`, `workflowDefinitionJson`, `businessKey`, `variables`, `status`, `completionPercentage`, `created`, `started`, `finished`, `pausedAt` (set while `PAUSED`; drives the clock shift on resume), `parentStepExecutionId` (set on children started by a parent `PROCESS` step; child businessKey is `parent:<stepExecutionId>`).
 - `StepExecution`: `id`, `processId`, `workflowDefinitionId`, `stepId`, `stepJson`, `variables`, `status`, `workerId`, `startedAt`, `finishedAt`, `attemptCount`. The step-execution `id` **is** the `taskExecutionId` (no separate field; no `retryCount`/`completedAt`/`log`).
-- `WorkflowDefinition`: `id`, `name`, `version`, `description`, `status`, `draftOfId`, `limitConcurrentExecutions`, `maxConcurrentExecutions`, `enqueueOnLimit`, `cronExpression`, `defaultMaxStepExecutions`, `steps`.
+- `WorkflowDefinition`: `id`, `name`, `version`, `description`, `status`, `paused` (runtime pause flag, orthogonal to `status`), `draftOfId`, `limitConcurrentExecutions`, `maxConcurrentExecutions`, `enqueueOnLimit`, `cronExpression`, `defaultMaxStepExecutions`, `steps`.
 
 ## Statuses
 
 - **Process**: `PENDING → RUNNING → COMPLETED | ERROR`; `→ CANCELLED`. `ERROR` is retriable.
+  `PENDING`/`RUNNING → PAUSED → RUNNING` (pause/resume; `PAUSED → CANCELLED` also works).
+  While `PAUSED`: worker reports and messages are still accepted, successors are held,
+  timeout/timer scans skip the process, blocking-error handling is deferred.
 - **StepExecution**: `CREATED → PENDING → RUNNING → COMPLETED | ERROR`; `TIMEOUT → CREATED (retry) | ERROR`; `CANCELLED`. No `SKIPPED`: a step with a falsy precondition guard stays `CREATED` and is cancelled when `END` fires.
 
 ## Kafka (mode: kafka)
@@ -79,3 +96,11 @@ Two `Variable` records with that shape exist — import per use:
   `{"messageName": "...", "correlationKey": "...", "variables": {"k": "v"}}`; responds 202.
   `X-Api-Key` header required when `workflow.message-api.api-key` is set.
 - `POST /workflow/webhooks/github` — GitHub webhook; re-imports configured Git repos (202, async).
+
+## MCP (workflow tools)
+
+`listProcesses`, `getProcessDetails`, `findProcessByBusinessKey`, `getProcessLogs`,
+`retryProcess`, `pauseProcess` / `resumeProcess` (pause/resume a process),
+`pauseWorkflow` / `resumeWorkflow` (pause/resume a whole definition), `sendMessage`,
+`getWorkflowAnalytics` / `findBottleneck`, `importWorkflowDefinitionsFromGit`.
+There is no start-process tool.

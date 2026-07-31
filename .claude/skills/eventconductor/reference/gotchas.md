@@ -63,6 +63,20 @@
   messages are still **not buffered**: a sent message matching no waiting process is
   discarded, so sequence the sender after the receiver is already waiting.
 
+- **Pause does not stop in-flight work — only successors are held.** A `PAUSED` process
+  still accepts worker reports (steps complete, output variables merge) and correlated
+  messages (WAIT_FOR_MESSAGE steps complete); what freezes is the frontier — no successor
+  starts until resume — plus the timer/timeout clocks and blocking-error handling. And the
+  clock freeze is implemented by **shifting `startedAt` forward** by the pause duration on
+  resume, so don't treat a step's `startedAt` as an immutable audit timestamp: on a
+  process that was paused it has moved.
+
+- **A paused definition still creates instances — born `PAUSED`.** Pausing a workflow
+  definition (runtime `paused` flag, orthogonal to `DRAFT`/`ACTIVE`/...) does NOT reject
+  new instances: creation requests — cron occurrences included — still create the process
+  and its steps, in status `PAUSED`, and they only start when the definition is resumed.
+  If you want new instances rejected, `DISABLE` the definition instead of pausing it.
+
 - **Ordering by array position.** Steps run by preconditions (`preconditionStepIds` /
   `preconditionStepId`), not the order in the array — and ALL eligible steps start
   concurrently. Sequencing only exists where you declare it.

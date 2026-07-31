@@ -23,7 +23,9 @@ import io.mateu.workflow.application.usecases.export.ExportWorkflowDefinitionToY
 import io.mateu.workflow.application.usecases.lifecycle.ArchiveWorkflowDefinitionUseCase;
 import io.mateu.workflow.application.usecases.lifecycle.DisableWorkflowDefinitionUseCase;
 import io.mateu.workflow.application.usecases.lifecycle.EnableWorkflowDefinitionUseCase;
+import io.mateu.workflow.application.usecases.lifecycle.PauseWorkflowUseCase;
 import io.mateu.workflow.application.usecases.lifecycle.ReactivateWorkflowDefinitionUseCase;
+import io.mateu.workflow.application.usecases.lifecycle.ResumeWorkflowUseCase;
 import io.mateu.workflow.application.usecases.workingcopy.CreateWorkingCopyUseCase;
 import io.mateu.workflow.application.usecases.workingcopy.PromoteWorkingCopyUseCase;
 import io.mateu.workflow.infra.in.ui.WorkflowHome;
@@ -72,6 +74,8 @@ public class WorkflowDefinitionDetailView implements VisibilitySupplier {
     final EnableWorkflowDefinitionUseCase enableWorkflowDefinitionUseCase;
     final ReactivateWorkflowDefinitionUseCase reactivateWorkflowDefinitionUseCase;
     final ArchiveWorkflowDefinitionUseCase archiveWorkflowDefinitionUseCase;
+    final PauseWorkflowUseCase pauseWorkflowUseCase;
+    final ResumeWorkflowUseCase resumeWorkflowUseCase;
 
     @Hidden
     String id;
@@ -79,6 +83,10 @@ public class WorkflowDefinitionDetailView implements VisibilitySupplier {
     /** Domain lifecycle status, kept for the toolbar visibility rules (the badge shows {@link #status}). */
     @Hidden
     WorkflowDefinitionStatus definitionStatus;
+
+    /** Runtime pause flag, kept for the pause/resume toolbar visibility rules. */
+    @Hidden
+    boolean definitionPaused;
 
     @Hidden
     String draftOfId;
@@ -107,6 +115,9 @@ public class WorkflowDefinitionDetailView implements VisibilitySupplier {
     @Label("Max step executions")
     String maxStepExecutions;
 
+    @Label("Paused")
+    String paused;
+
     // ── Right zone: read-only ELK graph (its own toolbar/panel hidden in read-only) ─
     @Section(value = "Diagram", zone = "graph")
     Element workflow;
@@ -133,6 +144,8 @@ public class WorkflowDefinitionDetailView implements VisibilitySupplier {
                 ? "—" : def.cronExpression();
         this.maxStepExecutions = def.defaultMaxStepExecutions() == 0
                 ? "unbounded" : String.valueOf(def.defaultMaxStepExecutions());
+        this.definitionPaused = def.paused();
+        this.paused = def.paused() ? "yes — processes are held" : "no";
         this.steps = def.steps();
         // Rendered through mateu's Element/import mechanism: mateu dynamically imports the module the
         // first time the tag is used, and the custom element upgrades in place.
@@ -187,6 +200,18 @@ public class WorkflowDefinitionDetailView implements VisibilitySupplier {
         return navigateToDefinition(id, httpRequest);
     }
 
+    @Toolbar
+    public UICommand pause(HttpRequest httpRequest) {
+        pauseWorkflowUseCase.handle(id);
+        return navigateToDefinition(id, httpRequest);
+    }
+
+    @Toolbar
+    public UICommand resume(HttpRequest httpRequest) {
+        resumeWorkflowUseCase.handle(id);
+        return navigateToDefinition(id, httpRequest);
+    }
+
     /** Mirrors {@code WorkflowDefinition.isHidden} so both surfaces enforce the same lifecycle. */
     @Override
     public boolean isHidden(String memberName, HttpRequest httpRequest) {
@@ -199,6 +224,9 @@ public class WorkflowDefinitionDetailView implements VisibilitySupplier {
             case "reactivate" -> definitionStatus != WorkflowDefinitionStatus.ARCHIVED;
             case "archive" -> definitionStatus == WorkflowDefinitionStatus.ACTIVE
                     || definitionStatus == WorkflowDefinitionStatus.ARCHIVED;
+            // Runtime pause is orthogonal to the lifecycle status: only the flag decides.
+            case "pause" -> definitionPaused;
+            case "resume" -> !definitionPaused;
             default -> false;
         };
     }

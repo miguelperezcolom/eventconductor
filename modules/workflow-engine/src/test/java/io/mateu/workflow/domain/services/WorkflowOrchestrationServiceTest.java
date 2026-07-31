@@ -158,4 +158,35 @@ class WorkflowOrchestrationServiceTest {
         assertThat(result.getStepsToSave()).extracting(StepExecution::getStepId)
                 .containsExactlyInAnyOrder("branch1", "branch2");
     }
+
+    // ── PAUSED: the gate holds everything until resume ──
+
+    @Test
+    void pausedProcessStartsNothingEvenWithEligibleSteps() {
+        var pausedProcess = Process.builder().id("p-1").status(ProcessStatus.PAUSED)
+                .variables(List.of()).build();
+        var done = se(step("a1", StepType.ACTION, "start", null), StepExecutionStatus.COMPLETED);
+        var eligible = se(step("a2", StepType.ACTION, "a1", null), StepExecutionStatus.CREATED);
+
+        var result = service.calculateNextTransitions(pausedProcess, List.of(done, eligible));
+
+        assertThat(result.getStepsToSave()).isEmpty();
+        assertThat(result.getUpdatedProcess()).isSameAs(pausedProcess);
+        assertThat(result.isProcessCompleted()).isFalse();
+        assertThat(result.isProcessErrored()).isFalse();
+    }
+
+    @Test
+    void pausedProcessDefersBlockingErrorHandlingUntilResume() {
+        var pausedProcess = Process.builder().id("p-1").status(ProcessStatus.PAUSED)
+                .variables(List.of()).build();
+        var failed = se(step("a1", StepType.ACTION, "start", null), StepExecutionStatus.ERROR);
+
+        var result = service.calculateNextTransitions(pausedProcess, List.of(failed));
+
+        // The failed step must not flip the process to ERROR while it is paused.
+        assertThat(result.getUpdatedProcess().getStatus()).isEqualTo(ProcessStatus.PAUSED);
+        assertThat(result.isProcessErrored()).isFalse();
+        assertThat(result.getStepsToSave()).isEmpty();
+    }
 }

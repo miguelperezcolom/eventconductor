@@ -6,6 +6,10 @@ from `classpath:/workflows/`; in `jpa` mode it can also be imported from Git.
 ## Top-level fields
 
 `id`, `name`, `version` (int), `description?`, `status` (`DRAFT`|`ACTIVE`|`DISABLED`|`ARCHIVED`),
+`paused?` (runtime pause flag, orthogonal to `status` and NOT an authoring decision —
+toggled by pause/resume at runtime; while true all the definition's processes are held and
+new instances, cron included, are created born-`PAUSED`; in the schema, default `false`,
+only so exports round-trip),
 `draftOfId?`, `limitConcurrentExecutions?`, `maxConcurrentExecutions?`, `enqueueOnLimit?`,
 `cronExpression?` (Spring cron: start a new instance per occurrence, multi-pod safe),
 `defaultMaxStepExecutions?` (validated metadata, not enforced at runtime today), `steps[]`.

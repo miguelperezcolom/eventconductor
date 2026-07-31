@@ -78,6 +78,8 @@ A web UI is provided out of the box for operators and developers:
 - Monitor running process instances and step executions
 - Inspect variables, logs, and audit trail per process
 - Start, retry and cancel processes manually
+- Pause and resume processes — or a whole workflow definition at once — with frozen
+  timer/timeout clocks while paused
 - Manage form definitions
 
 ### Observability, resilience and operations
@@ -160,6 +162,8 @@ and the final answer is returned as plain text or streamed via SSE.
 | `findProcessByBusinessKey` | Look up a process by its business key |
 | `getProcessLogs` | Audit trail and log messages for a process |
 | `retryProcess` | Re-trigger all failed (ERROR) steps in a process |
+| `pauseProcess` / `resumeProcess` | Pause a process (in-flight work finishes, successors held, clocks frozen) and resume it |
+| `pauseWorkflow` / `resumeWorkflow` | Pause/resume a whole definition: all its processes, with new instances born paused |
 | `sendMessage` | Deliver an external message to processes waiting on a `WAIT_FOR_MESSAGE` step |
 | `getWorkflowAnalytics` | Per-definition analytics: instance counts, rates, durations, per-step stats |
 | `findBottleneck` | Find where processes get stuck: slowest step, waiting/running steps, failures |

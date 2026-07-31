@@ -72,6 +72,7 @@ steps: [...]
 | `version` | integer | Version number |
 | `description` | string | Optional description |
 | `status` | enum | `DRAFT` \| `ACTIVE` \| `DISABLED` \| `ARCHIVED` |
+| `paused` | boolean | Runtime pause flag, orthogonal to `status` — toggled at runtime (UI, `PauseWorkflowUseCase`/`ResumeWorkflowUseCase`, MCP), not an authoring decision. While `true`, all the definition's processes are held and new instances (cron included) are created born-`PAUSED`. Kept in the schema (default `false`) only so exported definitions round-trip |
 | `draftOfId` | string | ID of the production definition this is a working copy of. `null` for production definitions. Set automatically by the UI. |
 | `limitConcurrentExecutions` | boolean | Cap concurrent running instances |
 | `maxConcurrentExecutions` | integer | Max instances (if limit enabled) |

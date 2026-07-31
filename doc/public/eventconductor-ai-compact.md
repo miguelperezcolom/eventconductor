@@ -54,7 +54,7 @@ In `embedded`+`memory` mode, definitions are loaded from `classpath:/workflows/`
 
 - Ordering is **pure data flow**, not array order: a step runs when **all** its preconditions (`preconditionStepIds` array, or the singular `preconditionStepId`) have completed and its guard holds. All eligible steps start **concurrently** — an active step never blocks unrelated branches. The `parallel` flag is deprecated and **ignored** (still deserializes).
 - **Roots rule:** every step with no preconditions must be a `START` or a `WAIT_FOR_MESSAGE` — every flow must enter through one; violating definitions are rejected at load. Migration for old definitions: add one `START` step and point the old first steps at it.
-- Every workflow has **exactly one `END`** step. With parallel branches, put a `JOIN` (with `preconditionStepIds` listing all branches) before the `END`.
+- Declare one `END` step (recommended; the engine also completes implicitly when no runnable steps remain). With parallel branches, put a `JOIN` (with `preconditionStepIds` listing all branches) before the `END`.
 - `preconditionExpression` is a **JEXL** expression evaluated against process variables; while falsy the step is simply never run (stays `CREATED`) and is flipped to `CANCELLED` when the `END` step fires. **Trap:** dependents wait for `COMPLETED`, so a step whose guard never turns true permanently blocks every step whose `preconditionStepId` points at it — give such chains an alternative path to `END`.
 - Variables are `(name, value)` string pairs. Worker outputs are **merged** into process variables and visible to later steps and JEXL expressions.
 - Add `"$schema"` (JSON) or a `# yaml-language-server:` comment (YAML) pointing at `workflow-definition-schema.json` for editor autocomplete.
@@ -103,6 +103,7 @@ processUpstreamEventUseCase.handle(new ProcessUpstreamEventCommand(
 
 Cancel: `cancelProcessUseCase.handle(new CancelProcessCommand(processId))` — running/pending steps go `CANCELLED`, process → `CANCELLED`.
 Retry a process in `ERROR`: `retryProcessUseCase.handle(new RetryProcessCommand(processId))`.
+Pause/resume: `pauseProcessUseCase.handle(new PauseProcessCommand(processId))` (PENDING/RUNNING → `PAUSED`) / `resumeProcessUseCase.handle(new ResumeProcessCommand(processId))`. Pause holds the frontier, not in-flight work: workers finish and their reports are accepted, messages still complete WAIT_FOR_MESSAGE steps, but successors don't start and timer/timeout clocks freeze (on resume `startedAt` is shifted forward by the pause duration). `PauseWorkflowUseCase.handle(defId)` / `ResumeWorkflowUseCase.handle(defId)` pause a whole definition (runtime `paused` flag, orthogonal to its lifecycle status): all its PENDING/RUNNING processes are paused and new instances — cron included — are still created, **born PAUSED**.
 Query: `ProcessRepository.findById(id)` / `.findByBusinessKey("order-123")` — both return `Optional<Process>`.
 
 ---
@@ -142,7 +143,7 @@ Report `RUNNING` for progress (resets the timeout clock). Long tasks can return 
 
 ## Statuses
 
-- **Process**: `PENDING → RUNNING → COMPLETED | ERROR`, or `→ CANCELLED`. `ERROR` can be retried.
+- **Process**: `PENDING → RUNNING → COMPLETED | ERROR`, or `→ CANCELLED`. `ERROR` can be retried. `PENDING`/`RUNNING → PAUSED → RUNNING` (pause/resume; `PAUSED → CANCELLED` also works).
 - **StepExecution**: `CREATED → PENDING → RUNNING → COMPLETED | ERROR`; `TIMEOUT → PENDING (retry) | ERROR`; `CANCELLED` on process cancellation or when `END` fires with the step never run (e.g. falsy `preconditionExpression`). There is no `SKIPPED` status.
 - Workers may only report `RUNNING`, `COMPLETED`, `ERROR`.
 
@@ -154,6 +155,8 @@ Report `RUNNING` for progress (resets the timeout clock). Long tasks can return 
 |---|---|
 | `ProcessUpstreamEventUseCase` | Start processes; entry point for integration events |
 | `CancelProcessUseCase` / `RetryProcessUseCase` | Cancel / retry a process (`CancelProcessCommand` / `RetryProcessCommand`) |
+| `PauseProcessUseCase` / `ResumeProcessUseCase` | Pause / resume a process (`PauseProcessCommand` / `ResumeProcessCommand`) |
+| `PauseWorkflowUseCase` / `ResumeWorkflowUseCase` | Pause / resume a whole definition by id (`handle(String)`): bulk pause/resume + born-paused new instances |
 | `UpdateStepExecutionUseCase` | Report task progress from workers |
 | `ProcessRepository` | Query process state (`findById`/`findByBusinessKey` → `Optional<Process>`, `findAll`, `countByStatus`) |
 | `StepExecutionRepository` | Query step executions (`findByProcess(Process)`, `findPendingOrRunning()`) |

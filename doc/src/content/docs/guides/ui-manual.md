@@ -64,7 +64,8 @@ import or database), not created, edited or deleted from the UI.
 | **View** | Open the read-only definition detail |
 
 **View** opens a read-only detail view — not an editor — with a compact property list
-(status, version, description, concurrency, cron, max step executions), a **Diagram**
+(status, version, description, concurrency, cron, max step executions, and a **Paused**
+row showing whether the definition's runtime pause flag is set), a **Diagram**
 section rendering the workflow graph (read-only, with a full-screen expand button), and
 the list of steps below.
 
@@ -79,7 +80,12 @@ is shown only when it makes sense for the definition's current status:
 | **Enable** | Re-activate a `DISABLED` definition |
 | **Reactivate** | Bring an `ARCHIVED` definition back |
 | **Archive** | Retire a definition (not available while `ACTIVE`) |
+| **Pause** | Set the runtime pause flag and pause all the definition's `PENDING`/`RUNNING` processes. New instances (cron included) are still created, born paused. Shown while the definition is not paused |
+| **Resume** | Clear the pause flag and resume all the definition's `PAUSED` processes, including the ones born paused. Shown only while the definition is paused |
 | **Export YAML** | Download the definition as a YAML file |
+
+**Pause**/**Resume** depend only on the runtime pause flag (the **Paused** row), not on
+the lifecycle status — pausing is orthogonal to `DRAFT`/`ACTIVE`/`DISABLED`/`ARCHIVED`.
 
 **Definition statuses** displayed in the Status column:
 
@@ -113,11 +119,21 @@ The processes list shows all process instances with their ID, workflow name, sta
 |-------|---------|
 | `Pending (0%)` | Created, not yet started |
 | `Running (N%)` | In progress — percentage shows completion |
+| `Paused` | Held by an operator or a paused definition — no new steps start until resumed |
 | `Completed` | All steps finished successfully |
 | `Error` | A step failed after exhausting retries |
 | `Cancelled` | Process was cancelled |
 
 Clicking **View** on a row opens the process detail, showing all step executions, their individual statuses, variables, and the full audit log. The detail is organised in tabs: **Steps**, **Messages**, **Errors** and **Resources**.
+
+The process detail toolbar carries the process-level actions, each shown only when it
+applies to the current status:
+
+| Button | Description |
+|--------|-------------|
+| **Cancel process** | Cancel the process (hidden once it has finished — completed, error or cancelled) |
+| **Pause process** | Pause the process: in-flight work finishes and is accepted, but no successor starts and timer/timeout clocks freeze. Shown while the process is `PENDING` or `RUNNING` |
+| **Resume process** | Put the process back to `RUNNING`; frozen clocks are shifted by the pause duration and held successors start. Shown only while the process is `PAUSED` |
 
 ### Analytics
 

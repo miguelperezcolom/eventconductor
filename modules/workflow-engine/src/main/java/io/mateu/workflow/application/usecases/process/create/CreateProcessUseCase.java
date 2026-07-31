@@ -5,11 +5,13 @@ import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
 import io.mateu.workflow.application.out.WorkflowMetrics;
 import io.mateu.workflow.domain.aggregates.Process;
+import io.mateu.workflow.domain.aggregates.ProcessStatus;
 import io.mateu.workflow.domain.aggregates.StepExecution;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -56,6 +58,17 @@ public class CreateProcessUseCase {
                         command.variables() != null?command.variables(): List.of(),
                         command.parentStepExecutionId()
                 );
+        if (workflowDefinition.paused()) {
+            // Born paused: creation is deliberately still accepted while the definition is
+            // paused (cron included), but nothing may start — the orchestration gate holds
+            // everything until the definition (or the process) is resumed. The @With copies
+            // start with an empty event list, so carry the ProcessCreated event over.
+            var events = process.popEvents();
+            process = process.withStatus(ProcessStatus.PAUSED).withPausedAt(LocalDateTime.now());
+            events.forEach(process::send);
+            log.info("Workflow definition '{}' is paused — process {} created PAUSED",
+                    workflowDefinition.id(), process.getId());
+        }
         processRepository.save(process);
 
         workflowMetrics.processStarted(command.workflowDefinitionId());

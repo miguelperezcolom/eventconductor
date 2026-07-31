@@ -1,8 +1,10 @@
 package io.mateu.workflow.application.usecases.checktimeout;
 
+import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.usecases.checktimeout.checksteptimeout.CheckStepTimeoutCommand;
 import io.mateu.workflow.application.usecases.checktimeout.checksteptimeout.CheckStepTimeoutHandler;
+import io.mateu.workflow.domain.aggregates.ProcessStatus;
 import io.mateu.workflow.domain.aggregates.Step;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -17,11 +19,12 @@ import static io.mateu.core.infra.JsonSerializer.pojoFromJson;
 public class CheckTimeoutUseCase {
 
     final StepExecutionRepository stepExecutionRepository;
+    final ProcessRepository processRepository;
     final CheckStepTimeoutHandler checkTimeoutUseCase;
 
     public void handle(CheckTimeoutCommand command) {
         var now = LocalDateTime.now();
-        stepExecutionRepository.findPendingOrRunning().stream()
+        var expired = stepExecutionRepository.findPendingOrRunning().stream()
                 .filter(se -> se.getProcessId().equals(command.processId()))
                 .filter(se -> se.getStartedAt() != null)
                 .filter(se -> {
@@ -29,7 +32,23 @@ public class CheckTimeoutUseCase {
                     return step.timeout() > 0
                             && se.getStartedAt().plus(step.timeout(), ChronoUnit.MILLIS).isBefore(now);
                 })
-                .forEach(se -> checkTimeoutUseCase.handle(new CheckStepTimeoutCommand(se.id())));
+                .toList();
+        if (expired.isEmpty()) {
+            return;
+        }
+        // A paused process freezes its step clocks: nothing may time out until it is resumed
+        // (on resume the startedAt shift pushes the deadlines forward by the pause duration).
+        // The process is only looked up when a step would otherwise fire.
+        if (isPaused(command.processId())) {
+            return;
+        }
+        expired.forEach(se -> checkTimeoutUseCase.handle(new CheckStepTimeoutCommand(se.id())));
+    }
+
+    private boolean isPaused(String processId) {
+        return processRepository.findById(processId)
+                .map(process -> ProcessStatus.PAUSED.equals(process.getStatus()))
+                .orElse(false);
     }
 
 }

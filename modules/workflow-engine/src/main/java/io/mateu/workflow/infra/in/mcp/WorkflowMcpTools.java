@@ -8,6 +8,12 @@ import io.mateu.workflow.dtos.Variable;
 import io.mateu.workflow.dtos.events.integration.MessageReceived;
 import io.mateu.workflow.application.services.ProcessAnalyticsService;
 import io.mateu.workflow.application.usecases.gitimport.ImportWorkflowDefinitionsFromGitUseCase;
+import io.mateu.workflow.application.usecases.lifecycle.PauseWorkflowUseCase;
+import io.mateu.workflow.application.usecases.lifecycle.ResumeWorkflowUseCase;
+import io.mateu.workflow.application.usecases.process.pause.PauseProcessCommand;
+import io.mateu.workflow.application.usecases.process.pause.PauseProcessUseCase;
+import io.mateu.workflow.application.usecases.process.resume.ResumeProcessCommand;
+import io.mateu.workflow.application.usecases.process.resume.ResumeProcessUseCase;
 import io.mateu.workflow.application.usecases.process.retry.RetryProcessCommand;
 import io.mateu.workflow.application.usecases.process.retry.RetryProcessUseCase;
 import io.mateu.workflow.domain.aggregates.Process;
@@ -33,10 +39,12 @@ public class WorkflowMcpTools implements McpTools, McpSystemContext {
                 - Puedes listar, consultar y diagnosticar procesos de negocio.
                 - Puedes consultar variables de proceso, pasos de ejecución y logs.
                 - Puedes reintentar los pasos fallidos de un proceso en estado ERROR.
+                - Puedes pausar (pauseProcess) y reanudar (resumeProcess) procesos: en pausa no arrancan pasos nuevos y los relojes de timers/timeouts quedan congelados; al reanudar se desplazan por la duración de la pausa.
+                - Puedes pausar (pauseWorkflow) y reanudar (resumeWorkflow) una definición completa: pausa todos sus procesos y las instancias nuevas nacen pausadas.
                 - Puedes enviar mensajes externos (sendMessage) para reanudar procesos que esperan en un paso MESSAGE, correlacionando por businessKey o por la correlationExpression del paso.
                 - Puedes consultar analíticas de procesos por definición (getWorkflowAnalytics): recuentos por estado, tasas de finalización/error, throughput diario y duraciones media/p95 por proceso y por paso.
                 - Puedes localizar dónde se atascan los procesos (findBottleneck): paso más lento, pasos con instancias esperando y pasos con fallos.
-                Estados posibles de un proceso: PENDING, RUNNING, COMPLETED, CANCELLED, ERROR.
+                Estados posibles de un proceso: PENDING, RUNNING, PAUSED, COMPLETED, CANCELLED, ERROR.
                 Cada proceso tiene un ID único, un businessKey (clave de negocio) y un porcentaje de completado.
                 Los pasos (StepExecution) contienen el workerId que los ejecutó y su estado individual.
                 """;
@@ -47,6 +55,10 @@ public class WorkflowMcpTools implements McpTools, McpSystemContext {
     private final StepExecutionRepository stepExecutionRepository;
     private final LogMessageRepository logMessageRepository;
     private final RetryProcessUseCase retryProcessUseCase;
+    private final PauseProcessUseCase pauseProcessUseCase;
+    private final ResumeProcessUseCase resumeProcessUseCase;
+    private final PauseWorkflowUseCase pauseWorkflowUseCase;
+    private final ResumeWorkflowUseCase resumeWorkflowUseCase;
     private final ImportWorkflowDefinitionsFromGitUseCase importWorkflowDefinitionsFromGitUseCase;
     private final UpstreamEventPublisher upstreamEventPublisher;
     private final ProcessAnalyticsService processAnalyticsService;
@@ -121,6 +133,34 @@ public class WorkflowMcpTools implements McpTools, McpSystemContext {
         log.info("Retrying process " + processId);
         retryProcessUseCase.handle(new RetryProcessCommand(processId));
         return "Retry triggered for process " + processId;
+    }
+
+    @Tool(description = "Pause a PENDING or RUNNING workflow process: no new steps start and timer/timeout clocks freeze until it is resumed. In-flight work is not cancelled — worker reports and messages are still accepted, only successors are held.")
+    public String pauseProcess(String processId) {
+        log.info("Pausing process " + processId);
+        pauseProcessUseCase.handle(new PauseProcessCommand(processId));
+        return "Pause triggered for process " + processId;
+    }
+
+    @Tool(description = "Resume a PAUSED workflow process: timer/timeout clocks are shifted forward by the pause duration and the flow moves on.")
+    public String resumeProcess(String processId) {
+        log.info("Resuming process " + processId);
+        resumeProcessUseCase.handle(new ResumeProcessCommand(processId));
+        return "Resume triggered for process " + processId;
+    }
+
+    @Tool(description = "Pause a workflow definition: pauses all its PENDING/RUNNING processes, and new instances (cron included) are still created but born PAUSED until the definition is resumed.")
+    public String pauseWorkflow(String workflowDefinitionId) {
+        log.info("Pausing workflow definition " + workflowDefinitionId);
+        pauseWorkflowUseCase.handle(workflowDefinitionId);
+        return "Pause triggered for workflow definition " + workflowDefinitionId;
+    }
+
+    @Tool(description = "Resume a paused workflow definition: clears the pause flag and resumes all its PAUSED processes (including the ones born paused).")
+    public String resumeWorkflow(String workflowDefinitionId) {
+        log.info("Resuming workflow definition " + workflowDefinitionId);
+        resumeWorkflowUseCase.handle(workflowDefinitionId);
+        return "Resume triggered for workflow definition " + workflowDefinitionId;
     }
 
     @Tool(description = "Send an external message to running workflow processes. Processes waiting on a MESSAGE step with this message name resume when the correlation key matches (the process business key by default, or the value of the step's correlationExpression). The variables map is merged into the process variables. Messages that match no waiting step are ignored, not buffered.")

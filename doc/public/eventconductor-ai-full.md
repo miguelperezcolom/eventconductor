@@ -102,6 +102,7 @@ Written in JSON or YAML (`.json`, `.yaml`, `.yml`); version-controlled and PR-re
 | `version` | integer | Version number |
 | `description` | string | Optional |
 | `status` | enum | `DRAFT` \| `ACTIVE` \| `DISABLED` \| `ARCHIVED` |
+| `paused` | boolean | Runtime pause flag, orthogonal to `status` — toggled at runtime, not authored. While `true` all the definition's processes are held and new instances (cron included) are created born-`PAUSED`. In the schema (default `false`) only so exports round-trip |
 | `draftOfId` | string | ID of the production definition this is a working copy of; `null` otherwise |
 | `limitConcurrentExecutions` | boolean | Cap concurrent running instances |
 | `maxConcurrentExecutions` | integer | Max instances (when limit enabled) |
@@ -293,7 +294,28 @@ cancelProcessUseCase.handle(new CancelProcessCommand(processId));
 // retry a process in ERROR — transitions back to RUNNING
 @Autowired RetryProcessUseCase retryProcessUseCase;
 retryProcessUseCase.handle(new RetryProcessCommand(processId));
+
+// pause a PENDING/RUNNING process → PAUSED; resume → back to RUNNING
+@Autowired PauseProcessUseCase pauseProcessUseCase;
+@Autowired ResumeProcessUseCase resumeProcessUseCase;
+pauseProcessUseCase.handle(new PauseProcessCommand(processId));
+resumeProcessUseCase.handle(new ResumeProcessCommand(processId));
+
+// pause/resume a whole definition by id (bulk + born-paused new instances)
+@Autowired PauseWorkflowUseCase pauseWorkflowUseCase;
+@Autowired ResumeWorkflowUseCase resumeWorkflowUseCase;
+pauseWorkflowUseCase.handle(workflowDefinitionId);
+resumeWorkflowUseCase.handle(workflowDefinitionId);
 ```
+
+Pause semantics: pause holds the frontier, not in-flight work — running workers finish and
+their reports are accepted (steps complete, variables merge), messages still complete
+`WAIT_FOR_MESSAGE` steps, but successors do not start until resume. Timer/timeout clocks
+freeze (the schedulers skip paused processes; on resume every non-terminal started step's
+`startedAt` is shifted forward by the pause duration) and blocking-error handling is
+deferred. Pausing a definition sets its runtime `paused` flag and pauses all its
+PENDING/RUNNING processes; new instances — cron included — are still created, **born
+PAUSED**, and start on resume.
 
 ### Via Kafka (mode: kafka)
 Send to the `upstream` topic:
@@ -432,7 +454,7 @@ Worker outputs are **merged into process variables** (overwriting same-named one
 ## 9. Statuses
 
 ### Process
-`PENDING` (created) → `RUNNING` → `COMPLETED` | `ERROR`; `RUNNING`/`PENDING` → `CANCELLED`. `ERROR` is retriable.
+`PENDING` (created) → `RUNNING` → `COMPLETED` | `ERROR`; `RUNNING`/`PENDING` → `CANCELLED`. `ERROR` is retriable. `PENDING`/`RUNNING` → `PAUSED` → `RUNNING` on resume (`PAUSED` → `CANCELLED` also works); see §6 for pause semantics.
 
 ### Step execution
 | Status | Meaning |
@@ -478,6 +500,8 @@ spring.cloud.stream.kafka.binder.auto-create-topics=true
 ### Entry points
 - `ProcessUpstreamEventUseCase.handle(ProcessUpstreamEventCommand)` — wraps `ProcessCreationRequested` and other upstream events.
 - `CancelProcessUseCase.handle(CancelProcessCommand)` / `RetryProcessUseCase.handle(RetryProcessCommand)` — cancel / retry a process by id.
+- `PauseProcessUseCase.handle(PauseProcessCommand)` / `ResumeProcessUseCase.handle(ResumeProcessCommand)` — pause / resume a process by id (see §6).
+- `PauseWorkflowUseCase.handle(String)` / `ResumeWorkflowUseCase.handle(String)` — pause / resume a whole definition by id (bulk + born-paused new instances).
 - `UpdateStepExecutionUseCase.handle(UpdateStepExecutionCommand)` — report worker progress.
 
 ```java
@@ -508,9 +532,9 @@ record Variable(String name, String value) {}
 ```
 
 ### Domain model (selected fields)
-- `Process`: `id`, `name`, `workflowDefinitionId`, `workflowDefinitionVersion`, `workflowDefinitionJson`, `businessKey`, `variables`, `status`, `completionPercentage`, `created`, `started`, `finished`, `parentStepExecutionId` (set on child processes started by a parent `PROCESS` step; `null` otherwise).
+- `Process`: `id`, `name`, `workflowDefinitionId`, `workflowDefinitionVersion`, `workflowDefinitionJson`, `businessKey`, `variables`, `status`, `completionPercentage`, `created`, `started`, `finished`, `pausedAt` (set while `PAUSED`; used to shift step clocks on resume), `parentStepExecutionId` (set on child processes started by a parent `PROCESS` step; `null` otherwise).
 - `StepExecution`: `id`, `processId`, `workflowDefinitionId`, `stepId`, `stepJson`, `variables`, `status`, `workerId`, `startedAt`, `finishedAt`, `attemptCount`. The step-execution `id` **is** the `taskExecutionId` used in events; there is no separate field, no `retryCount`/`completedAt`/`log`.
-- `WorkflowDefinition`: `id`, `name`, `version`, `description`, `status`, `draftOfId`, `limitConcurrentExecutions`, `maxConcurrentExecutions`, `enqueueOnLimit`, `cronExpression`, `defaultMaxStepExecutions`, `steps`.
+- `WorkflowDefinition`: `id`, `name`, `version`, `description`, `status`, `paused` (runtime pause flag), `draftOfId`, `limitConcurrentExecutions`, `maxConcurrentExecutions`, `enqueueOnLimit`, `cronExpression`, `defaultMaxStepExecutions`, `steps`.
 
 ---
 
@@ -541,7 +565,7 @@ Also triggerable via the MCP tool `importWorkflowDefinitionsFromGit`, or a GitHu
 
 ## 14. AI / MCP integration
 
-The engine exposes an MCP server so AI agents can operate it in natural language. Workflow tools: `listProcesses`, `getProcessDetails`, `findProcessByBusinessKey`, `getProcessLogs`, `retryProcess`, `sendMessage` (resume WAIT_FOR_MESSAGE steps), `getWorkflowAnalytics` / `findBottleneck` (per-definition analytics and bottleneck detection), `importWorkflowDefinitionsFromGit`. There is no start-process tool. Plus forms tools and rule catalog tools (`listRules`, `evaluateRule`, ...). See `doc/src/content/docs/guides/mcp-overview.md`.
+The engine exposes an MCP server so AI agents can operate it in natural language. Workflow tools: `listProcesses`, `getProcessDetails`, `findProcessByBusinessKey`, `getProcessLogs`, `retryProcess`, `pauseProcess` / `resumeProcess` (pause/resume a process — see §6 semantics), `pauseWorkflow` / `resumeWorkflow` (pause/resume a whole definition), `sendMessage` (resume WAIT_FOR_MESSAGE steps), `getWorkflowAnalytics` / `findBottleneck` (per-definition analytics and bottleneck detection), `importWorkflowDefinitionsFromGit`. There is no start-process tool. Plus forms tools and rule catalog tools (`listRules`, `evaluateRule`, ...). See `doc/src/content/docs/guides/mcp-overview.md`.
 
 ---
 

@@ -41,8 +41,12 @@ public class WorkflowOrchestrationService {
      * @return A TransitionResult containing the updated process, modified step executions, and metrics indicators
      */
     public TransitionResult calculateNextTransitions(Process process, List<StepExecution> stepExecutions) {
-        if (ProcessStatus.CANCELLED.equals(process.getStatus())) {
-            // A process being cancelled must not dispatch new steps.
+        if (ProcessStatus.CANCELLED.equals(process.getStatus())
+                || ProcessStatus.PAUSED.equals(process.getStatus())) {
+            // A process being cancelled must not dispatch new steps. Same for a paused one:
+            // in-flight steps may still complete (their reports are accepted), but their
+            // successors are held here — and blocking-error handling is deferred — until
+            // the process is resumed.
             return new TransitionResult(process, List.of(), false, false);
         }
 

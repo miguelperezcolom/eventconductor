@@ -74,7 +74,7 @@ public class SimpleProcessCrudAdapter  {
     public static Status mapProcessStatus(ProcessStatus status, int completionPercentage) {
         StatusType statusType = switch (status) {
             case PENDING -> StatusType.INFO;
-            case RUNNING -> StatusType.WARNING;
+            case RUNNING, PAUSED -> StatusType.WARNING;
             case COMPLETED -> StatusType.SUCCESS;
             case CANCELLED, ERROR -> StatusType.DANGER;
         };

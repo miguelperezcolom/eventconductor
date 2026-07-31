@@ -43,6 +43,40 @@ RetryProcessUseCase retryProcessUseCase;
 retryProcessUseCase.handle(new RetryProcessCommand(processId));
 ```
 
+### `PauseProcessUseCase` and `ResumeProcessUseCase`
+
+Pause a `PENDING`/`RUNNING` process (→ `PAUSED`) and resume it (→ `RUNNING`). Pause holds
+the frontier, not in-flight work: worker reports and messages are still accepted, but
+successors do not start and timer/timeout clocks freeze (shifted forward by the pause
+duration on resume). See [Statuses — Pause semantics](/reference/statuses/#pause-semantics).
+
+```java
+@Autowired
+PauseProcessUseCase pauseProcessUseCase;
+pauseProcessUseCase.handle(new PauseProcessCommand(processId));
+
+@Autowired
+ResumeProcessUseCase resumeProcessUseCase;
+resumeProcessUseCase.handle(new ResumeProcessCommand(processId));
+```
+
+### `PauseWorkflowUseCase` and `ResumeWorkflowUseCase`
+
+Pause/resume a whole workflow definition by id (a plain `String`, no command record):
+pausing sets the definition's runtime `paused` flag and pauses all its `PENDING`/`RUNNING`
+processes; while paused, new instances (cron included) are created born-`PAUSED`. Resuming
+clears the flag and resumes all the definition's `PAUSED` processes.
+
+```java
+@Autowired
+PauseWorkflowUseCase pauseWorkflowUseCase;
+pauseWorkflowUseCase.handle(workflowDefinitionId);
+
+@Autowired
+ResumeWorkflowUseCase resumeWorkflowUseCase;
+resumeWorkflowUseCase.handle(workflowDefinitionId);
+```
+
 ### `UpdateStepExecutionUseCase`
 
 Reports task progress from workers. Available as a Spring bean — inject it anywhere.
@@ -167,6 +201,7 @@ public EmbeddedTaskExecutor myWorker(UpdateStepExecutionUseCase updateStepExecut
 | `created` | LocalDateTime | Creation timestamp |
 | `started` | LocalDateTime | When execution started |
 | `finished` | LocalDateTime | When the process reached a terminal status |
+| `pausedAt` | LocalDateTime | Set while the process is `PAUSED`; used to shift step clocks on resume. `null` otherwise |
 
 ### `StepExecution`
 
@@ -204,6 +239,7 @@ matches the API you are calling — they are not interchangeable.
 | `description` | String | Optional description |
 | `version` | int | Version number |
 | `status` | WorkflowDefinitionStatus | DRAFT, ACTIVE, DISABLED, ARCHIVED |
+| `paused` | boolean | Runtime pause flag, orthogonal to `status`: while true, all the definition's processes are held and new instances are created born-`PAUSED` |
 | `draftOfId` | String | Set on working copies: the ID of the definition this drafts |
 | `cronExpression` | String | Optional Spring cron expression for scheduled starts |
 | `limitConcurrentExecutions` | boolean | Whether to cap concurrent processes |

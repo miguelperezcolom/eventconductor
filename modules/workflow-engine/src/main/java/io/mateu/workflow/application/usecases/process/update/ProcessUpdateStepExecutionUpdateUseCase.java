@@ -59,7 +59,11 @@ public class ProcessUpdateStepExecutionUpdateUseCase {
         }
         if (process.getStatus() != status) {
             if (process.getStatus() == ProcessStatus.CANCELLED
-                    || process.getStatus() == ProcessStatus.ERROR) {
+                    || process.getStatus() == ProcessStatus.ERROR
+                    // PAUSED is sticky too: steps completing during the pause (worker reports,
+                    // correlated messages) must not resurrect the process to RUNNING — only
+                    // ResumeProcessUseCase leaves PAUSED.
+                    || process.getStatus() == ProcessStatus.PAUSED) {
                 status = process.getStatus();
                 percent = process.getCompletionPercentage();
             }

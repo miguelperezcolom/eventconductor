@@ -63,7 +63,13 @@ public record WorkflowDefinition(
         int defaultMaxStepExecutions,
         @Colspan(5)
         @DetailFormCustomisation(position = FormPosition.modalRight, style = "display: block; min-width: 70rem;")
-        List<Step> steps
+        List<Step> steps,
+        // Runtime pause flag, orthogonal to the lifecycle status: while true, all this
+        // definition's processes are held and new instances are created already PAUSED
+        // (creation itself is still accepted, cron included). Never edited in a form —
+        // toggled through Pause/ResumeWorkflowUseCase.
+        @Hidden
+        boolean paused
 ) implements Identifiable, SearchableText, LookupOptionsSupplier, VisibilitySupplier {
 
     /** New definitions (status not set in the editor) start their lifecycle as DRAFT. */
@@ -73,11 +79,29 @@ public record WorkflowDefinition(
         }
     }
 
+    /** Creation without the runtime pause flag: definitions start unpaused. */
+    public WorkflowDefinition(String id, String name, int version, String description,
+                              WorkflowDefinitionStatus status, String draftOfId,
+                              boolean limitConcurrentExecutions, int maxConcurrentExecutions,
+                              boolean enqueueOnLimit, String cronExpression,
+                              int defaultMaxStepExecutions, List<Step> steps) {
+        this(id, name, version, description, status, draftOfId, limitConcurrentExecutions,
+                maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
+                steps, false);
+    }
+
     /** Returns a copy of this definition with a different lifecycle status. */
     public WorkflowDefinition withStatus(WorkflowDefinitionStatus newStatus) {
         return new WorkflowDefinition(id, name, version, description, newStatus, draftOfId,
                 limitConcurrentExecutions, maxConcurrentExecutions, enqueueOnLimit, cronExpression,
-                defaultMaxStepExecutions, steps);
+                defaultMaxStepExecutions, steps, paused);
+    }
+
+    /** Returns a copy of this definition with a different runtime pause flag. */
+    public WorkflowDefinition withPaused(boolean newPaused) {
+        return new WorkflowDefinition(id, name, version, description, status, draftOfId,
+                limitConcurrentExecutions, maxConcurrentExecutions, enqueueOnLimit, cronExpression,
+                defaultMaxStepExecutions, steps, newPaused);
     }
 
     // ── Detail-view lifecycle buttons (conditional on state via VisibilitySupplier) ──
