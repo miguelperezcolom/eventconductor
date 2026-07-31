@@ -41,6 +41,12 @@
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-annotations</artifactId>
         </dependency>
+        <!-- Parsing inbound git webhook payloads (GitHub/GitLab/Bitbucket) to extract the
+             pushed repository URL and branch. Version managed by the Spring Boot BOM. -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
 
 
     </dependencies>

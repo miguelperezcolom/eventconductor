@@ -5,7 +5,7 @@ description: The EventConductor workflow DSL — steps, branching, retries, and 
 
 Workflow definitions describe the steps of a business process. They can be written in **JSON** or **YAML** (`.json`, `.yaml`, `.yml`), are version-controlled, and are reviewable in a pull request.
 
-In `embedded` + `memory` mode, definitions are loaded from `classpath:/workflows/` at startup. In `jpa` persistence mode, they can also be imported from Git — either at startup, on demand via the MCP tool `importWorkflowDefinitionsFromGit`, or automatically via a **GitHub webhook**.
+In `embedded` + `memory` mode, definitions are loaded from `classpath:/workflows/` at startup. In `jpa` persistence mode, they can also be imported from Git — either at startup, on demand via the MCP tool `importWorkflowDefinitionsFromGit`, or automatically via a **git webhook** (GitHub, GitLab, Bitbucket or generic).
 
 ## IDE support
 
@@ -169,38 +169,63 @@ Multiple repositories are supported. Each repository is cloned into a temporary 
 
 Repositories are imported automatically on application startup by `WorkflowDefinitionGitImportRunner`. If a definition with the same ID already exists in the database it is overwritten (upsert). If a definition has no `id`, one is generated automatically.
 
-### GitHub webhook
+### Git webhook
 
-To re-import definitions automatically after a push or merge to a branch, configure EventConductor as a GitHub webhook receiver.
+To re-import definitions automatically after a push or merge, point your git provider's
+webhook at EventConductor.
+
+**Endpoint:** `POST /workflow/webhooks/{provider}` where `{provider}` is one of `github`,
+`gitlab`, `bitbucket` or `generic` (unknown values are treated as `generic`). `/github` keeps
+its original behaviour.
 
 **`application.yml`:**
 
 ```yaml
 workflow:
   git-import:
-    webhook-secret: mysecret   # optional — same value you set in GitHub repo settings
+    webhook-secret: mysecret   # optional — see "Authentication" below
     repositories:
       - url: https://github.com/your-org/workflow-defs.git
-        branch: main
+        branch: master
         username: my-user
         password: ghp_xxx
 ```
 
-**GitHub setup:** in your definitions repository go to *Settings → Webhooks → Add webhook* and fill in:
-
-| Field | Value |
-|---|---|
-| Payload URL | `https://your-server/workflow/webhooks/github` |
-| Content type | `application/json` |
-| Secret | same value as `workflow.git-import.webhook-secret` |
-| Events | *Just the push event* (or *Pull requests* filtered to `closed` + `merged`) |
+**GitHub setup:** in your definitions repository go to *Settings → Webhooks → Add webhook*,
+set the Payload URL to `https://your-server/workflow/webhooks/github`, Content type
+`application/json`, the Secret to your `webhook-secret`, and send *Just the push event*.
 
 **Behaviour:**
 
-- The endpoint responds **202 Accepted** immediately so GitHub's 10-second delivery timeout is never hit.
-- The import runs in the background; progress is logged at `INFO` level.
-- If `webhook-secret` is set, the `X-Hub-Signature-256` header is verified using HMAC-SHA256. Requests with a missing or invalid signature are rejected with `401 Unauthorized`.
-- If `webhook-secret` is blank, any caller can trigger an import (suitable for internal networks only).
+- Responds **202 Accepted** immediately and imports in the background (a provider's short
+  delivery timeout is never hit); progress is logged at `INFO`.
+- **Only the repository and branch that changed are reloaded.** The payload is parsed for the
+  pushed repository URL and branch; EventConductor reimports only the configured repositories
+  whose `url` and `branch` match. A push to a branch or repository nothing is configured for
+  is acknowledged and ignored (`202`, "ignored"). If the payload can't be parsed, it falls
+  back to reloading every configured repository (unchanged legacy behaviour).
+- **Removed definitions are pruned.** A definition that was previously imported from a repo
+  (and had an explicit `id`) but is no longer present is **archived** (moved to `ARCHIVED`);
+  running processes are unaffected. Only git-imported definitions are ever pruned — classpath
+  and hand-authored ones are never touched. (Pruning is tracked per running instance and
+  resets on restart, repopulating on the next import.)
+
+**Authentication** (per provider, using `webhook-secret`; blank disables it — internal
+networks only):
+
+| Provider | Endpoint | Verification |
+|---|---|---|
+| GitHub | `/workflow/webhooks/github` | HMAC-SHA256 of the body in `X-Hub-Signature-256` |
+| GitLab | `/workflow/webhooks/gitlab` | secret token in `X-Gitlab-Token` |
+| Bitbucket | `/workflow/webhooks/bitbucket` | HMAC-SHA256 in `X-Hub-Signature` (Bitbucket Server) |
+| Generic | `/workflow/webhooks/generic` | shared token in `X-Webhook-Token` |
+
+A missing or invalid signature/token is rejected with `401 Unauthorized`.
+
+The **Forms** and **Rules** engines expose the same webhook under `/forms/webhooks/{provider}`
+and `/rules/webhooks/{provider}` (configured via `forms.git-import.*` / `rules.git-import.*`).
+Because forms and rules have no lifecycle status, pruning **deletes** them rather than
+archiving.
 
 ## Working copies
 

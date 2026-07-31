@@ -544,14 +544,14 @@ record Variable(String name, String value) {}
 ```yaml
 workflow:
   git-import:
-    webhook-secret: mysecret        # optional; enables HMAC-SHA256 verification of GitHub webhooks
+    webhook-secret: mysecret        # optional; verifies inbound webhooks (HMAC or token, per provider)
     repositories:
       - url: https://github.com/your-org/workflow-defs.git
         branch: main
         username: my-user           # optional (token auth)
         password: ghp_xxx           # optional
 ```
-Also triggerable via the MCP tool `importWorkflowDefinitionsFromGit`, or a GitHub webhook to `POST /workflow/webhooks/github` (responds 202, imports in background).
+Also triggerable via the MCP tool `importWorkflowDefinitionsFromGit`, or a git webhook to `POST /workflow/webhooks/{provider}` (`github`/`gitlab`/`bitbucket`/`generic`; responds 202, imports in background). The webhook reloads **only the repository and branch named in the push** (payload parsed; unmatched pushes are acknowledged and ignored; an unparseable payload reloads everything). Definitions removed from a repo are **pruned** — workflow definitions are archived, forms/rules deleted (git-imported only; classpath/hand-authored never touched; tracked per instance, resets on restart). Verification per provider using `webhook-secret`: GitHub/Bitbucket HMAC-SHA256 (`X-Hub-Signature-256`/`X-Hub-Signature`), GitLab token (`X-Gitlab-Token`), generic token (`X-Webhook-Token`); blank secret disables it. Forms and rules expose the same at `/forms/webhooks/{provider}` and `/rules/webhooks/{provider}`.
 
 **Working copies** — a `DRAFT` clone of a production definition (`draftOfId` = original). Edit safely, then **promote**. Any `DRAFT` is promotable: if it has a `draftOfId`, its content is copied onto the original, `version`+1, working copy deleted, running processes unaffected; a standalone draft (`draftOfId == null`) is simply activated in place. One working copy per definition.
 

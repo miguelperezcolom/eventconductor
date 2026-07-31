@@ -2,35 +2,32 @@ package io.mateu.workflow.infra.in.rest;
 
 import io.mateu.workflow.application.usecases.gitimport.ImportFormsFromGitUseCase;
 import io.mateu.workflow.infra.config.GitImportProperties;
+import io.mateu.workflow.webhook.GitPushPayload;
+import io.mateu.workflow.webhook.GitPushPayloadParser;
+import io.mateu.workflow.webhook.RepositoryUrlMatcher;
+import io.mateu.workflow.webhook.WebhookProvider;
+import io.mateu.workflow.webhook.WebhookSignatureVerifier;
+import io.mateu.workflow.webhook.WebhookSignatureVerifier.WebhookVerificationException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
-import java.security.InvalidKeyException;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.util.HexFormat;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Webhook endpoint triggered by GitHub (or any compatible system) after a push/merge.
- * POST /forms/webhooks/github  →  re-imports all form definitions from configured Git repositories.
+ * Webhook endpoint triggered by a git provider after a push/merge.
+ * {@code POST /forms/webhooks/{provider}} — re-imports the matching configured repositories.
  *
- * Configure in application.yml:
- * <pre>
- *   forms:
- *     git-import:
- *       webhook-secret: mysecret   # optional — set in GitHub repo settings
- *       repositories:
- *         - url: https://github.com/org/form-defs.git
- *           branch: main
- * </pre>
+ * <p>{@code provider} is one of {@code github}, {@code gitlab}, {@code bitbucket} or
+ * {@code generic}. The payload is parsed to reload only the repository and branch that
+ * changed; a push to a repository/branch nothing is configured for is acknowledged and
+ * ignored. {@code /github} keeps the original behaviour.
  */
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 @RestController
@@ -39,34 +36,51 @@ import java.util.concurrent.CompletableFuture;
 @Slf4j
 public class FormGitImportWebhookController {
 
-    private static final String HMAC_ALGORITHM = "HmacSHA256";
-
     final GitImportProperties gitImportProperties;
     final ImportFormsFromGitUseCase importUseCase;
 
-    /**
-     * GitHub webhook receiver. Responds 202 immediately and runs the import in the background
-     * so GitHub's 10-second delivery timeout is never hit, even for large repos.
-     */
-    @PostMapping("/github")
-    public ResponseEntity<String> githubWebhook(
-            @RequestHeader(value = "X-Hub-Signature-256", required = false) String signatureHeader,
-            @RequestBody byte[] body) {
+    @PostMapping("/{provider}")
+    public ResponseEntity<String> webhook(
+            @PathVariable String provider,
+            @RequestHeader HttpHeaders headers,
+            @RequestBody(required = false) byte[] body) {
 
-        verifySignature(body, signatureHeader);
+        var webhookProvider = WebhookProvider.fromPath(provider);
+        var payloadBytes = body == null ? new byte[0] : body;
 
-        if (gitImportProperties.getRepositories().isEmpty()) {
+        try {
+            WebhookSignatureVerifier.verify(webhookProvider, gitImportProperties.getWebhookSecret(),
+                    headers::getFirst, payloadBytes);
+        } catch (WebhookVerificationException e) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, e.getMessage());
+        }
+
+        var repositories = gitImportProperties.getRepositories();
+        if (repositories.isEmpty()) {
             log.info("Webhook received but no Git repositories configured — nothing to import.");
             return ResponseEntity.accepted().body("no repositories configured");
         }
 
+        var payload = GitPushPayloadParser.parse(webhookProvider, payloadBytes);
+        var selected = selectRepositories(repositories, payload);
+
+        if (selected.isEmpty() && !payload.isEmpty()) {
+            log.info("Webhook ignored: no configured repository matches the push (branch={}, repos={}).",
+                    payload.branch(), payload.repositoryUrls());
+            return ResponseEntity.accepted().body("ignored: no configured repository matches this push");
+        }
+
+        var toImport = selected.isEmpty() ? repositories : selected;
+
         CompletableFuture.runAsync(() -> {
-            log.info("Webhook triggered: starting form import from {} repository/ies…",
-                    gitImportProperties.getRepositories().size());
+            log.info("Webhook ({}) triggered: importing forms from {} repository/ies…", webhookProvider, toImport.size());
             try {
-                var result = importUseCase.handle();
+                var result = importUseCase.handle(toImport);
                 if (!result.imported().isEmpty()) {
                     log.info("Webhook import: {} form(s) imported: {}", result.imported().size(), result.imported());
+                }
+                if (!result.pruned().isEmpty()) {
+                    log.info("Webhook import: {} form(s) pruned (deleted): {}", result.pruned().size(), result.pruned());
                 }
                 if (!result.errors().isEmpty()) {
                     log.warn("Webhook import: {} error(s): {}", result.errors().size(), result.errors());
@@ -76,38 +90,32 @@ public class FormGitImportWebhookController {
             }
         });
 
-        return ResponseEntity.accepted().body("import scheduled");
+        return ResponseEntity.accepted().body("import scheduled for " + toImport.size() + " repository/ies");
     }
 
-    private void verifySignature(byte[] body, String signatureHeader) {
-        String secret = gitImportProperties.getWebhookSecret();
-        if (secret == null || secret.isBlank()) {
-            return;
+    private List<GitImportProperties.GitRepository> selectRepositories(
+            List<GitImportProperties.GitRepository> repositories, GitPushPayload payload) {
+        if (payload.isEmpty()) {
+            return List.of();
         }
-        if (signatureHeader == null || !signatureHeader.startsWith("sha256=")) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,
-                    "Missing or malformed X-Hub-Signature-256 header");
-        }
-        String received = signatureHeader.substring(7);
-        String expected = hmacSha256Hex(secret, body);
-        byte[] receivedBytes;
-        try {
-            receivedBytes = HexFormat.of().parseHex(received);
-        } catch (IllegalArgumentException e) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid webhook signature");
-        }
-        if (!MessageDigest.isEqual(receivedBytes, HexFormat.of().parseHex(expected))) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid webhook signature");
-        }
+        return repositories.stream()
+                .filter(repo -> matchesRepository(repo, payload))
+                .filter(repo -> matchesBranch(repo, payload))
+                .toList();
     }
 
-    private static String hmacSha256Hex(String secret, byte[] data) {
-        try {
-            var mac = Mac.getInstance(HMAC_ALGORITHM);
-            mac.init(new SecretKeySpec(secret.getBytes(), HMAC_ALGORITHM));
-            return HexFormat.of().formatHex(mac.doFinal(data));
-        } catch (NoSuchAlgorithmException | InvalidKeyException e) {
-            throw new IllegalStateException("HMAC-SHA256 not available", e);
+    private boolean matchesRepository(GitImportProperties.GitRepository repo, GitPushPayload payload) {
+        if (payload.repositoryUrls() == null || payload.repositoryUrls().isEmpty()) {
+            return true;
         }
+        return payload.repositoryUrls().stream()
+                .anyMatch(url -> RepositoryUrlMatcher.sameRepository(url, repo.getUrl()));
+    }
+
+    private boolean matchesBranch(GitImportProperties.GitRepository repo, GitPushPayload payload) {
+        if (payload.branch() == null || payload.branch().isBlank()) {
+            return true;
+        }
+        return payload.branch().equals(repo.getBranch());
     }
 }
