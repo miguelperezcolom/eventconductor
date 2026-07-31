@@ -60,8 +60,10 @@ Add `"$schema"` (JSON) or a `# yaml-language-server: $schema=...` comment (YAML)
   with ALL parent variables and the deterministic businessKey `parent:<stepExecutionId>`
   (idempotent); the parent step waits `PENDING`; on child `COMPLETED` only the child variables
   named in `outputVariables` are copied back (absent = none); child `ERROR`/`CANCELLED` →
-  parent step `ERROR` (normal retry/compensation). `timeout` bounds the wait. Parent
-  cancellation does NOT yet propagate to the child.
+  parent step `ERROR` (normal retry/compensation). `timeout` bounds the wait. Parent-side
+  `CANCELLED`/`ERROR`/`TIMEOUT` (retries exhausted) cancels a still-running child (cascades to
+  grandchildren); while retries remain the child keeps running and a retried step re-attaches
+  to it.
 - **FORK / JOIN** — no-worker nodes that complete instantly. FORK is the explicit fan-out
   (every step preconditioned on it starts concurrently); JOIN is the barrier — its
   `preconditionStepIds` must ALL complete.

@@ -2,6 +2,7 @@ package io.mateu.workflow.application.usecases.process.cancel;
 
 import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
+import io.mateu.workflow.application.usecases.process.childcancel.CancelChildProcessService;
 import io.mateu.workflow.application.usecases.process.parentnotify.NotifyParentStepService;
 import io.mateu.workflow.application.usecases.process.stepover.StepOverProcessUseCase;
 import io.mateu.workflow.domain.aggregates.ProcessStatus;
@@ -21,6 +22,7 @@ public class CancelProcessUseCase {
     final DownstreamEventPublisher downstreamEventPublisher;
     final WorkflowMetrics workflowMetrics;
     final NotifyParentStepService notifyParentStepService;
+    final CancelChildProcessService cancelChildProcessService;
 
     public void handle(CancelProcessCommand command) {
         var process = processRepository.findById(command.processId()).orElseThrow();
@@ -45,6 +47,9 @@ public class CancelProcessUseCase {
                 }
                 stepExecution.updateStatus(StepExecutionStatus.CANCELLED);
                 stepExecutionRepository.save(stepExecution);
+                // A cancelled PROCESS step must take its still-running child down with it
+                // (which cascades into grandchildren through this very use case).
+                cancelChildProcessService.stepReachedTerminalStatus(stepExecution);
             }
         }
 

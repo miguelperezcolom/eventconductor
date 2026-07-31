@@ -136,6 +136,9 @@ public class ValidateMojo extends AbstractMojo {
             } else {
                 failures.add(file + ":\n  - " + String.join("\n  - ", violations));
             }
+            // Warnings never fail the build, regardless of failOnError.
+            validator.warnings(kind, document)
+                    .forEach(warning -> getLog().warn(file + ": " + warning));
         }
         return count;
     }

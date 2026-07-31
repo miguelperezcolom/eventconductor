@@ -134,14 +134,19 @@ public class WorkflowOrchestrationService {
     private TransitionResult handleEndStepTransition(Process process, List<StepExecution> stepExecutions, List<StepExecution> executableSteps) {
         List<StepExecution> stepsToSave = new ArrayList<>();
 
-        // Mark the current execution steps as completed
-        executableSteps.stream()
+        // Only the END-type executables complete. A co-eligible non-END sibling must NOT be
+        // recorded COMPLETED — it never ran; it falls into the cancel stream below like every
+        // other in-flight step.
+        List<StepExecution> endSteps = executableSteps.stream()
+                .filter(stepExecution -> StepType.END.equals(getStep(stepExecution).type()))
+                .toList();
+        endSteps.stream()
                 .map(stepExecution -> stepExecution.withStatus(StepExecutionStatus.COMPLETED))
                 .forEach(stepsToSave::add);
 
         // Cancel all remaining uncompleted steps
         stepExecutions.stream()
-                .filter(execution -> !executableSteps.contains(execution))
+                .filter(execution -> !endSteps.contains(execution))
                 .filter(execution -> List.of(StepExecutionStatus.PENDING,
                                 StepExecutionStatus.CREATED,
                                 StepExecutionStatus.RUNNING)

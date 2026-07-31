@@ -5,6 +5,7 @@ import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.out.WorkflowMetrics;
 import io.mateu.workflow.application.services.ProcessLocks;
+import io.mateu.workflow.application.usecases.process.childcancel.CancelChildProcessService;
 import io.mateu.workflow.application.usecases.process.parentnotify.NotifyParentStepService;
 import io.mateu.workflow.domain.services.WorkflowOrchestrationService;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +23,7 @@ public class StepOverProcessUseCase {
     final WorkflowMetrics workflowMetrics;
     final WorkflowOrchestrationService workflowOrchestrationService;
     final NotifyParentStepService notifyParentStepService;
+    final CancelChildProcessService cancelChildProcessService;
 
     public void handle(StepOverProcessCommand command) {
         // Serialize per process: two concurrent step-overs (e.g. two parallel steps
@@ -49,7 +51,13 @@ public class StepOverProcessUseCase {
             processRepository.save(result.getUpdatedProcess());
         }
 
-        result.getStepsToSave().forEach(stepExecutionRepository::save);
+        result.getStepsToSave().forEach(stepExecution -> {
+            stepExecutionRepository.save(stepExecution);
+            // END-transition and implicit-completion cancellations (and start-time errors)
+            // flow through here — a PROCESS step ending CANCELLED/ERROR must take its
+            // still-running child down with it.
+            cancelChildProcessService.stepReachedTerminalStatus(stepExecution);
+        });
 
         if (result.isProcessErrored()) {
             workflowMetrics.processErrored(

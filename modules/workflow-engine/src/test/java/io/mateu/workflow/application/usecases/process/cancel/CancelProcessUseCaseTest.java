@@ -4,6 +4,7 @@ import io.mateu.workflow.application.out.DownstreamEventPublisher;
 import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.out.WorkflowMetrics;
+import io.mateu.workflow.application.usecases.process.childcancel.CancelChildProcessService;
 import io.mateu.workflow.application.usecases.process.parentnotify.NotifyParentStepService;
 import io.mateu.workflow.domain.aggregates.*;
 import io.mateu.workflow.domain.aggregates.Process;
@@ -30,6 +31,7 @@ class CancelProcessUseCaseTest {
     @Mock DownstreamEventPublisher downstreamEventPublisher;
     @Mock WorkflowMetrics workflowMetrics;
     @Mock NotifyParentStepService notifyParentStepService;
+    @Mock CancelChildProcessService cancelChildProcessService;
 
     @InjectMocks CancelProcessUseCase useCase;
 
@@ -59,6 +61,35 @@ class CancelProcessUseCaseTest {
         verify(processRepository).save(pCaptor.capture());
         assertThat(pCaptor.getValue().getStatus()).isEqualTo(ProcessStatus.CANCELLED);
         verify(workflowMetrics).processCancelled(any(), any());
+    }
+
+    @Test
+    void everyCancelledStepIsOfferedToTheChildCancelCascade() {
+        var process = process("p-1");
+        var se = se("se-1", StepExecutionStatus.PENDING);
+
+        when(processRepository.findById("p-1")).thenReturn(Optional.of(process));
+        when(stepExecutionRepository.findByProcess(process)).thenReturn(List.of(se));
+
+        useCase.handle(new CancelProcessCommand("p-1"));
+
+        // The hook receives the step already CANCELLED so it can cascade into a child
+        // process if the step is a PROCESS step.
+        verify(cancelChildProcessService).stepReachedTerminalStatus(
+                argThat(step -> step.getStatus() == StepExecutionStatus.CANCELLED && "se-1".equals(step.id())));
+    }
+
+    @Test
+    void untouchedTerminalStepsAreNotOfferedToTheChildCancelCascade() {
+        var process = process("p-1");
+        var completed = se("se-1", StepExecutionStatus.COMPLETED);
+
+        when(processRepository.findById("p-1")).thenReturn(Optional.of(process));
+        when(stepExecutionRepository.findByProcess(process)).thenReturn(List.of(completed));
+
+        useCase.handle(new CancelProcessCommand("p-1"));
+
+        verify(cancelChildProcessService, never()).stepReachedTerminalStatus(any());
     }
 
     @Test

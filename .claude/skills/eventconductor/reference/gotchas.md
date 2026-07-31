@@ -29,9 +29,15 @@
   compensate plus `"preconditionExpression": "false"` so the dataflow never starts them; the
   compensation pipeline starts them directly and does not evaluate the guard.
 
-- **PROCESS cancellation does not propagate.** Cancelling the parent process leaves an
-  already-started child process running (known limitation). Child ERROR/CANCELLED does
-  propagate up: the parent PROCESS step goes `ERROR`.
+- **PROCESS cancellation propagates both ways.** Child ERROR/CANCELLED → parent PROCESS step
+  `ERROR`; and a parent step ending CANCELLED/ERROR/TIMEOUT (retries exhausted) cancels a
+  still-running child, cascading to grandchildren. While retries remain the child is NOT
+  cancelled — a retried PROCESS step re-attaches to the same child via the businessKey dedupe.
+
+- **A JOIN on a guarded branch can be cancelled silently.** If any branch feeding a JOIN
+  carries a falsy `preconditionExpression`, the JOIN never fires and implicit completion
+  cancels it and everything after it — the process still completes successfully. The Maven
+  plugin emits a build-time warning for JOINs whose direct precondition steps carry guards.
 
 - **Child processes get the businessKey `parent:<stepExecutionId>`**, not the parent's
   business key — it is deterministic so redelivered creation events are deduped. Look up

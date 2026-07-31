@@ -83,6 +83,54 @@ public class SpecValidator {
         return violations;
     }
 
+    /**
+     * Returns build-time warnings for {@code document} of the given {@code kind}; empty means
+     * nothing worth flagging. Warnings point at legal-but-treacherous constructs and must never
+     * fail the build — violations stay the exclusive business of {@link #validate}.
+     */
+    public List<String> warnings(Kind kind, JsonNode document) {
+        List<String> warnings = new ArrayList<>();
+        if (kind == Kind.WORKFLOW) {
+            addWorkflowWarnings(document, warnings);
+        }
+        return warnings;
+    }
+
+    /**
+     * A JOIN whose direct precondition step carries a guard ({@code preconditionExpression})
+     * can never fire when that guard is false — implicit completion then cancels the JOIN and
+     * everything after it, silently. Legal (fail-closed dataflow) but easy to trip over.
+     */
+    private void addWorkflowWarnings(JsonNode wf, List<String> warnings) {
+        JsonNode steps = wf.get("steps");
+        if (steps == null || !steps.isArray()) {
+            return;
+        }
+        java.util.Map<String, JsonNode> stepsById = new java.util.HashMap<>();
+        for (JsonNode step : steps) {
+            String id = text(step, "id");
+            if (id != null) {
+                stepsById.put(id, step);
+            }
+        }
+        for (JsonNode step : steps) {
+            if (!"JOIN".equals(text(step, "type"))) {
+                continue;
+            }
+            String id = text(step, "id");
+            if (id == null) {
+                continue;
+            }
+            for (String preconditionStepId : preconditions(step)) {
+                JsonNode preconditionStep = stepsById.get(preconditionStepId);
+                if (preconditionStep != null && isSet(text(preconditionStep, "preconditionExpression"))) {
+                    warnings.add("JOIN '" + id + "' waits on guarded step '" + preconditionStepId
+                            + "' — if its guard is false the join never fires and the flow beyond it is cancelled.");
+                }
+            }
+        }
+    }
+
     private void addSchemaViolations(Schema schema, JsonNode document, List<String> violations) {
         schema.validate(document.toString(), InputFormat.JSON).forEach(v -> violations.add(v.getInstanceLocation() + ": " + v.getMessage()));
     }

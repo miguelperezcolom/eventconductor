@@ -208,8 +208,10 @@ key `parent:<stepExecutionId>` (idempotent — redelivered creation events are d
 parent step waits `PENDING`. On child `COMPLETED`, the parent step completes and copies back
 **only** the child variables named in `outputVariables` (empty/absent = none). On child
 `ERROR` or `CANCELLED`, the parent step goes `ERROR` (normal retry/compensation pipeline).
-`timeout` bounds the wait. Known limitation: cancelling the parent does **not** yet cancel a
-running child.
+`timeout` bounds the wait. Cancellation propagates down: a parent step ending `CANCELLED`,
+`ERROR` or `TIMEOUT` (retries exhausted) cancels a still-running child, cascading to
+grandchildren; while retries remain the child keeps running (a retried step re-attaches to it
+via the deterministic business key).
 
 ### FORK / JOIN — parallel branches
 ```json

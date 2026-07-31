@@ -1,0 +1,28 @@
+{
+  "id": "parent-timeout",
+  "name": "Parent whose PROCESS step times out",
+  "version": 1,
+  "status": "ACTIVE",
+  "steps": [
+    {
+      "id": "start",
+      "type": "START",
+      "name": "Start"
+    },
+    {
+      "id": "spawn-child",
+      "type": "PROCESS",
+      "name": "Spawn the child",
+      "preconditionStepId": "start",
+      "childWorkflowDefinitionId": "child-flow",
+      "timeout": 500,
+      "retries": 0
+    },
+    {
+      "id": "end",
+      "type": "END",
+      "name": "End",
+      "preconditionStepId": "spawn-child"
+    }
+  ]
+}

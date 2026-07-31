@@ -45,6 +45,30 @@ class SpecValidatorTest {
     }
 
     @Test
+    void joinOnGuardedPreconditionWarnsButStaysValid() throws Exception {
+        JsonNode document = load("/valid/workflows/join-on-guarded-branch.json");
+        // Legal (fail-closed dataflow) → no violation…
+        assertThat(validator.validate(SpecValidator.Kind.WORKFLOW, document)).isEmpty();
+        // …but exactly one warning pointing at the guarded branch.
+        assertThat(validator.warnings(SpecValidator.Kind.WORKFLOW, document)).containsExactly(
+                "JOIN 'join' waits on guarded step 'maybe' — if its guard is false the join"
+                        + " never fires and the flow beyond it is cancelled.");
+    }
+
+    @Test
+    void joinOnUnguardedPreconditionsProducesNoWarnings() throws Exception {
+        JsonNode document = load("/valid/workflows/join-unguarded.json");
+        assertThat(validator.validate(SpecValidator.Kind.WORKFLOW, document)).isEmpty();
+        assertThat(validator.warnings(SpecValidator.Kind.WORKFLOW, document)).isEmpty();
+    }
+
+    @Test
+    void nonWorkflowKindsNeverWarn() throws Exception {
+        assertThat(validator.warnings(SpecValidator.Kind.FORM, load("/valid/forms/approval.json"))).isEmpty();
+        assertThat(validator.warnings(SpecValidator.Kind.RULE, load("/valid/rules/decision-table.json"))).isEmpty();
+    }
+
+    @Test
     void duplicateStepIdIsReported() throws Exception {
         assertThat(validate(SpecValidator.Kind.WORKFLOW, "/invalid/workflows/duplicate-id.json"))
                 .anySatisfy(v -> assertThat(v).contains("Duplicate step id 's1'"));

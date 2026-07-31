@@ -5,6 +5,7 @@ import io.mateu.workflow.application.out.ProcessLockService;
 import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.out.WorkflowMetrics;
+import io.mateu.workflow.application.usecases.process.childcancel.CancelChildProcessService;
 import io.mateu.workflow.application.usecases.process.parentnotify.NotifyParentStepService;
 import io.mateu.workflow.domain.aggregates.*;
 import io.mateu.workflow.domain.aggregates.Process;
@@ -33,6 +34,7 @@ class StepOverProcessUseCaseTest {
     @Mock ProcessLockService           lockService;
     @Mock WorkflowMetrics              workflowMetrics;
     @Mock NotifyParentStepService      notifyParentStepService;
+    @Mock CancelChildProcessService    cancelChildProcessService;
     @Spy  WorkflowOrchestrationService workflowOrchestrationService = new WorkflowOrchestrationService();
 
     @InjectMocks StepOverProcessUseCase useCase;
@@ -86,6 +88,37 @@ class StepOverProcessUseCaseTest {
         assertThat(captor.getValue().getStatus()).isEqualTo(ProcessStatus.COMPLETED);
         assertThat(captor.getValue().getCompletionPercentage()).isEqualTo(100);
         verify(workflowMetrics).processCompleted(any(), any());
+    }
+
+    @Test
+    void stepsCancelledByAnEndTransitionAreOfferedToTheChildCancelCascade() {
+        // An END fires while a PROCESS step is still waiting on its child: the PROCESS step
+        // is cancelled by the END transition and the hook must see it so the child process
+        // can be cancelled too.
+        var process = process("p-1");
+        var start = se("se-0", "start", StepType.START, StepExecutionStatus.COMPLETED, 0);
+        Step spawnStep = new Step("spawn", "wd-1", StepType.PROCESS, "spawn", null, "start", null, null, false, null, null, null, "wd-child", null, 0, null, null, null, null, 0, 0, false, null, 0);
+        var spawn = StepExecution.builder()
+                .id("se-spawn").processId("p-1").workflowDefinitionId("wd-1")
+                .stepId("spawn").stepJson(JsonSerializer.toJson(spawnStep))
+                .status(StepExecutionStatus.PENDING).order(1).variables(List.of()).build();
+        Step endStep = new Step("end", "wd-1", StepType.END, "end", null, "start", null, null, false, null, null, null, null, null, 0, null, null, null, null, 0, 0, false, null, 0);
+        var end = StepExecution.builder()
+                .id("se-end").processId("p-1").workflowDefinitionId("wd-1")
+                .stepId("end").stepJson(JsonSerializer.toJson(endStep))
+                .status(StepExecutionStatus.CREATED).order(2).variables(List.of()).build();
+
+        when(processRepository.findById("p-1")).thenReturn(Optional.of(process));
+        when(stepExecutionRepository.findByProcess(process)).thenReturn(List.of(start, spawn, end));
+
+        useCase.handle(new StepOverProcessCommand("p-1"));
+
+        verify(cancelChildProcessService).stepReachedTerminalStatus(
+                argThat(saved -> "spawn".equals(saved.getStepId())
+                        && saved.getStatus() == StepExecutionStatus.CANCELLED));
+        verify(cancelChildProcessService).stepReachedTerminalStatus(
+                argThat(saved -> "end".equals(saved.getStepId())
+                        && saved.getStatus() == StepExecutionStatus.COMPLETED));
     }
 
     @Test

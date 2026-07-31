@@ -99,6 +99,41 @@ class WorkflowOrchestrationServiceTest {
         assertThat(result.getStepsToSave().get(0).getStatus()).isEqualTo(StepExecutionStatus.COMPLETED);
     }
 
+    // ── END transition: only ENDs complete, co-eligible siblings are cancelled ──
+
+    @Test
+    void coEligibleNonEndSiblingIsCancelledNotCompletedWhenAnEndFires() {
+        // Both "end" and "action" become eligible in the same transition. The ACTION never
+        // ran, so it must come out CANCELLED — never COMPLETED, never started.
+        var start = se(step("start", StepType.START, null, null), StepExecutionStatus.COMPLETED);
+        var action = se(step("action", StepType.ACTION, "start", null), StepExecutionStatus.CREATED);
+        var end = se(step("end", StepType.END, "start", null), StepExecutionStatus.CREATED);
+
+        var result = service.calculateNextTransitions(process(), List.of(start, action, end));
+
+        var byStepId = result.getStepsToSave().stream()
+                .collect(java.util.stream.Collectors.toMap(StepExecution::getStepId, StepExecution::getStatus));
+        assertThat(byStepId).containsEntry("end", StepExecutionStatus.COMPLETED);
+        assertThat(byStepId).containsEntry("action", StepExecutionStatus.CANCELLED);
+        assertThat(result.isProcessCompleted()).isTrue();
+        assertThat(result.getUpdatedProcess().getStatus()).isEqualTo(ProcessStatus.COMPLETED);
+    }
+
+    @Test
+    void endTransitionStillCancelsInFlightStepsAndCompletesTheEnd() {
+        var start = se(step("start", StepType.START, null, null), StepExecutionStatus.COMPLETED);
+        var inFlight = se(step("busy", StepType.ACTION, "start", null), StepExecutionStatus.PENDING);
+        var end = se(step("end", StepType.END, "start", null), StepExecutionStatus.CREATED);
+
+        var result = service.calculateNextTransitions(process(), List.of(start, inFlight, end));
+
+        var byStepId = result.getStepsToSave().stream()
+                .collect(java.util.stream.Collectors.toMap(StepExecution::getStepId, StepExecution::getStatus));
+        assertThat(byStepId).containsEntry("end", StepExecutionStatus.COMPLETED);
+        assertThat(byStepId).containsEntry("busy", StepExecutionStatus.CANCELLED);
+        assertThat(result.isProcessCompleted()).isTrue();
+    }
+
     // ── START / FORK: instant pass-through control-flow nodes ──
 
     @Test

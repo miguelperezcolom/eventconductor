@@ -1,0 +1,45 @@
+{
+  "id": "join-unguarded",
+  "name": "JOIN on unguarded branches",
+  "version": 1,
+  "status": "ACTIVE",
+  "steps": [
+    {
+      "id": "start",
+      "type": "START",
+      "name": "Start"
+    },
+    {
+      "id": "fork",
+      "type": "FORK",
+      "name": "Fork",
+      "preconditionStepId": "start"
+    },
+    {
+      "id": "left",
+      "type": "ACTION",
+      "name": "Left branch",
+      "topic": "work",
+      "preconditionStepId": "fork"
+    },
+    {
+      "id": "right",
+      "type": "ACTION",
+      "name": "Right branch",
+      "topic": "work",
+      "preconditionStepId": "fork"
+    },
+    {
+      "id": "join",
+      "type": "JOIN",
+      "name": "Join",
+      "preconditionStepIds": ["left", "right"]
+    },
+    {
+      "id": "end",
+      "type": "END",
+      "name": "End",
+      "preconditionStepId": "join"
+    }
+  ]
+}

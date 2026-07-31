@@ -3,6 +3,7 @@ package io.mateu.workflow.infra.in.async.processdomainevent.domaineventhandlers;
 import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.out.WorkflowMetrics;
+import io.mateu.workflow.application.usecases.process.childcancel.CancelChildProcessService;
 import io.mateu.workflow.application.usecases.process.stepover.StepOverProcessCommand;
 import io.mateu.workflow.application.usecases.process.stepover.StepOverProcessUseCase;
 import io.mateu.workflow.application.usecases.process.update.ProcessStepExecutionUpdateCommand;
@@ -31,6 +32,7 @@ public class StepExecutionStatusUpdatedEventHandler implements DomainEventHandle
     final ProcessRepository processRepository;
     final DownstreamEventPublisher downstreamEventPublisher;
     final WorkflowMetrics workflowMetrics;
+    final CancelChildProcessService cancelChildProcessService;
 
     @Override
     public Class<? extends DomainEvent> eventClass() {
@@ -61,6 +63,12 @@ public class StepExecutionStatusUpdatedEventHandler implements DomainEventHandle
 
             // Retries exhausted: start compensation step if the step is rollbackable.
             triggerCompensation(stepExecution, step);
+
+            // Retries exhausted on a PROCESS step (ERROR from the worker pipeline or TIMEOUT
+            // from the timeout scheduler — both saved before this event): its still-running
+            // child process must be cancelled. Not done while retries remain, because a
+            // retried PROCESS step re-attaches to the same running child.
+            cancelChildProcessService.stepReachedTerminalStatus(stepExecution);
         }
 
         processUpdateStepExecutionUpdateUseCase.handle(new ProcessStepExecutionUpdateCommand(stepExecution.getProcessId()));

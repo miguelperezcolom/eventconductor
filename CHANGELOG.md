@@ -19,7 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and `JOIN` are no-worker nodes that complete instantly — `FORK` is the explicit fan-out
   (all its successors start concurrently when it completes), and `JOIN`'s barrier is exactly
   its multiple preconditions (the converge point of parallel branches). Precondition-cycle
-  detection is now a DFS over the multi-edge graph.
+  detection is now a DFS over the multi-edge graph. The Maven plugin emits a build-time
+  warning (never a failure) when a `JOIN` waits directly on a guarded step — if the guard is
+  false the join never fires and the flow beyond it is cancelled.
 - **`PROCESS` step type — child workflows are now implemented.** A `PROCESS` step (required
   `childWorkflowDefinitionId`, which must differ from the workflow's own id) starts a child
   process carrying ALL parent variables under the deterministic businessKey
@@ -28,8 +30,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   only the child variables named in the new `outputVariables` step field (absent/empty =
   none); a child ending `ERROR` or `CANCELLED` puts the parent step in `ERROR` (normal
   retry/compensation pipeline), and `timeout` bounds the wait. `Process` gains
-  `parentStepExecutionId` (Flyway migration V5 in the orchestrator app). Known limitation:
-  cancellation does not yet propagate parent→child.
+  `parentStepExecutionId` (Flyway migration V5 in the orchestrator app). Cancellation
+  propagates parent→child: a parent `PROCESS` step ending `CANCELLED`, `ERROR` or `TIMEOUT`
+  (retries exhausted) cancels a still-running child, cascading to grandchildren; while
+  retries remain the child keeps running and a retried step re-attaches to it through the
+  deterministic business key.
 - **Graph and build-time validation support for the new model.** The workflow graph renders
   multi-precondition edges and `START`/`FORK`/`JOIN` nodes, and the Maven plugin's
   `SpecValidator` mirrors all the new invariants (roots rule, START-without-preconditions,
@@ -170,6 +175,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   unused import) was deleted as part of the Mateu 271 migration.
 
 ### Fixed
+- **`END` no longer records co-eligible sibling steps as `COMPLETED` without running them.**
+  When an `END` became eligible in the same transition as another executable step, that step
+  was silently marked `COMPLETED` even though it never ran; it is now `CANCELLED` like every
+  other in-flight step the `END` terminates.
 - **`MessageReceived` was missing from `DomainEvent`'s `@JsonSubTypes`**, so a raw
   `message-received` event published on the Kafka `upstream` topic could not be deserialized.
   It is now registered as `message-received`.

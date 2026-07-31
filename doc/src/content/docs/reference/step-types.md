@@ -280,10 +280,10 @@ Semantics:
 - `timeout` bounds the wait: a parent step whose child has not finished within `timeout` goes
   through the usual `TIMEOUT` → retry/`ERROR` pipeline.
 
-:::note[Known limitation]
-Cancellation does not yet propagate from parent to child: cancelling the parent process leaves
-an already-started child process running.
-:::
+Cancellation propagates from parent to child: when the parent `PROCESS` step ends `CANCELLED`,
+`ERROR` or `TIMEOUT` (retries exhausted), a still-running child process is cancelled too — and
+the cascade continues to grandchildren. While retries remain, the child is left running: a
+retried `PROCESS` step re-attaches to the same child through the deterministic business key.
 
 ---
 
@@ -340,6 +340,14 @@ all met, the step completes instantly and the flow continues after it.
 The barrier **is** the multiple preconditions: a JOIN with a single precondition waits for
 nothing extra. (Any step may declare several preconditions — a `JOIN` node just makes the
 convergence explicit, exactly as `FORK` makes the fan-out explicit.)
+
+:::caution[JOIN on a guarded branch]
+If a branch feeding the JOIN carries a `preconditionExpression` that evaluates false, that
+branch never runs — so the JOIN never fires, and implicit completion cancels the JOIN and
+everything after it while the process still completes successfully. The
+[Maven plugin](/reference/maven-plugin/) emits a build-time warning when a JOIN waits directly
+on a guarded step.
+:::
 
 ---
 

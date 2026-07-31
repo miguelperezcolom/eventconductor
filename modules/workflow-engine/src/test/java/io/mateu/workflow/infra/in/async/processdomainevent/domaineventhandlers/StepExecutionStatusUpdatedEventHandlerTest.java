@@ -5,6 +5,7 @@ import io.mateu.workflow.application.out.DownstreamEventPublisher;
 import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.out.WorkflowMetrics;
+import io.mateu.workflow.application.usecases.process.childcancel.CancelChildProcessService;
 import io.mateu.workflow.application.usecases.process.stepover.StepOverProcessUseCase;
 import io.mateu.workflow.application.usecases.process.update.ProcessUpdateStepExecutionUpdateUseCase;
 import io.mateu.workflow.domain.aggregates.*;
@@ -33,6 +34,7 @@ class StepExecutionStatusUpdatedEventHandlerTest {
     @Mock ProcessRepository processRepository;
     @Mock DownstreamEventPublisher downstreamEventPublisher;
     @Mock WorkflowMetrics workflowMetrics;
+    @Mock CancelChildProcessService cancelChildProcessService;
 
     @InjectMocks StepExecutionStatusUpdatedEventHandler handler;
 
@@ -67,6 +69,9 @@ class StepExecutionStatusUpdatedEventHandlerTest {
         verify(stepOverProcessUseCase).handle(any());
         verify(processUpdateUseCase, never()).handle(any());
         verify(workflowMetrics).retryPerformed("wd-1", WorkflowMetrics.RetryTrigger.AUTO);
+        // While retries remain the step is not finally failed — a still-running child of a
+        // PROCESS step must NOT be cancelled (the retry re-attaches to it).
+        verify(cancelChildProcessService, never()).stepReachedTerminalStatus(any());
     }
 
     @Test
@@ -78,6 +83,8 @@ class StepExecutionStatusUpdatedEventHandlerTest {
 
         verify(processUpdateUseCase).handle(any());
         verify(stepOverProcessUseCase).handle(any());
+        // Retries exhausted → the failure is final; a PROCESS step's child gets cancelled here.
+        verify(cancelChildProcessService).stepReachedTerminalStatus(se);
     }
 
     @Test

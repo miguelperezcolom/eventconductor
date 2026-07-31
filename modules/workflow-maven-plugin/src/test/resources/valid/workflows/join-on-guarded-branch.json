@@ -1,0 +1,46 @@
+{
+  "id": "join-on-guarded-branch",
+  "name": "JOIN waiting on a guarded branch",
+  "version": 1,
+  "status": "ACTIVE",
+  "steps": [
+    {
+      "id": "start",
+      "type": "START",
+      "name": "Start"
+    },
+    {
+      "id": "fork",
+      "type": "FORK",
+      "name": "Fork",
+      "preconditionStepId": "start"
+    },
+    {
+      "id": "always",
+      "type": "ACTION",
+      "name": "Always runs",
+      "topic": "work",
+      "preconditionStepId": "fork"
+    },
+    {
+      "id": "maybe",
+      "type": "ACTION",
+      "name": "Guarded branch",
+      "topic": "work",
+      "preconditionStepId": "fork",
+      "preconditionExpression": "tier == 'premium'"
+    },
+    {
+      "id": "join",
+      "type": "JOIN",
+      "name": "Join",
+      "preconditionStepIds": ["always", "maybe"]
+    },
+    {
+      "id": "end",
+      "type": "END",
+      "name": "End",
+      "preconditionStepId": "join"
+    }
+  ]
+}

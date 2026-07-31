@@ -1,13 +1,17 @@
 package io.mateu.workflow.e2e;
 
+import io.mateu.workflow.application.usecases.process.cancel.CancelProcessCommand;
 import io.mateu.workflow.domain.aggregates.ProcessStatus;
 import io.mateu.workflow.domain.aggregates.StepExecutionStatus;
 import io.mateu.workflow.e2e.support.AbstractE2eTest;
 import io.mateu.workflow.e2e.support.TestWorker;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
+
 import static io.mateu.workflow.e2e.support.TestWorker.var;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 
 /**
  * PROCESS steps (child workflows): the parent's "spawn-child" step starts a process of
@@ -75,5 +79,50 @@ class ChildProcessE2eTest extends AbstractE2eTest {
                 .count();
         assertThat(children).isEqualTo(1);
         assertThat(process("parent-3").getStatus()).isEqualTo(ProcessStatus.COMPLETED);
+    }
+
+    @Test
+    void cancellingTheParentCancelsTheInFlightChild() {
+        // The child's worker never responds, so the child stays alive until cancelled.
+        worker.on("child-work", TestWorker.deferForever());
+
+        createProcess("parent-flow", "parent-4");
+
+        var spawnStep = step("parent-4", "spawn-child");
+        var childKey = "parent:" + spawnStep.getId();
+        assertThat(process(childKey).getStatus()).isEqualTo(ProcessStatus.RUNNING);
+
+        cancelProcessUseCase.handle(new CancelProcessCommand(process("parent-4").getId()));
+
+        // The parent's cancellation cascaded into the child: the child process AND its
+        // in-flight steps all ended CANCELLED.
+        assertThat(process("parent-4").getStatus()).isEqualTo(ProcessStatus.CANCELLED);
+        assertThat(step("parent-4", "spawn-child").getStatus()).isEqualTo(StepExecutionStatus.CANCELLED);
+        assertThat(process(childKey).getStatus()).isEqualTo(ProcessStatus.CANCELLED);
+        assertThat(step(childKey, "child-work").getStatus()).isEqualTo(StepExecutionStatus.CANCELLED);
+        assertThat(steps(childKey))
+                .allMatch(se -> se.getStatus() == StepExecutionStatus.CANCELLED
+                        || se.getStatus() == StepExecutionStatus.COMPLETED);
+    }
+
+    @Test
+    void parentProcessStepTimeoutCancelsTheInFlightChild() {
+        // The child hangs; the parent's PROCESS step carries a 500ms timeout and no
+        // retries, so the timeout scheduler finally fails it — and the child must not be
+        // left running for a parent that will never consume its result.
+        worker.on("child-work", TestWorker.deferForever());
+
+        createProcess("parent-timeout", "pt-1");
+
+        var spawnStep = step("pt-1", "spawn-child");
+        var childKey = "parent:" + spawnStep.getId();
+        assertThat(process(childKey).getStatus()).isEqualTo(ProcessStatus.RUNNING);
+
+        await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
+            assertThat(step("pt-1", "spawn-child").getStatus()).isEqualTo(StepExecutionStatus.TIMEOUT);
+            assertThat(process("pt-1").getStatus()).isEqualTo(ProcessStatus.ERROR);
+            assertThat(process(childKey).getStatus()).isEqualTo(ProcessStatus.CANCELLED);
+            assertThat(step(childKey, "child-work").getStatus()).isEqualTo(StepExecutionStatus.CANCELLED);
+        });
     }
 }

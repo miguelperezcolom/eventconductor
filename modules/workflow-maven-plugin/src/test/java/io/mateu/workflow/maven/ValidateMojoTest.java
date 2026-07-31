@@ -51,6 +51,27 @@ class ValidateMojoTest {
     }
 
     @Test
+    void joinOnGuardedBranchWarnsWithoutFailingTheBuild() throws Exception {
+        var warnings = new java.util.ArrayList<String>();
+        ValidateMojo mojo = mojo("valid");
+        mojo.setLog(new org.apache.maven.plugin.logging.SystemStreamLog() {
+            @Override
+            public void warn(CharSequence content) {
+                warnings.add(content.toString());
+                super.warn(content);
+            }
+        });
+
+        // failOnError is true, yet the guarded-JOIN construct only warns.
+        assertThatCode(mojo::execute).doesNotThrowAnyException();
+
+        assertThat(warnings).anySatisfy(w -> assertThat(w)
+                .contains("join-on-guarded-branch.json")
+                .contains("JOIN 'join' waits on guarded step 'maybe'"));
+        assertThat(warnings).noneSatisfy(w -> assertThat(w).contains("join-unguarded.json"));
+    }
+
+    @Test
     void failOnErrorFalseDoesNotThrow() throws Exception {
         ValidateMojo mojo = mojo("invalid");
         set(mojo, "failOnError", false);
