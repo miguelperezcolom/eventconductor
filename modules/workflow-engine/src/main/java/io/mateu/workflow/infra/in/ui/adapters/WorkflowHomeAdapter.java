@@ -48,7 +48,8 @@ public class WorkflowHomeAdapter {
                         .filter(process ->
                                 ProcessStatus.COMPLETED.name().equals(process.getStatus())
                                         || ProcessStatus.ERROR.name().equals(process.getStatus())
-                                        || ProcessStatus.CANCELLED.name().equals(process.getStatus()))
+                                        || ProcessStatus.CANCELLED.name().equals(process.getStatus())
+                                        || ProcessStatus.COMPENSATED.name().equals(process.getStatus()))
                         .count())
                 .processesCount(processEntityRepository.count())
                 .processesByDefinitionChartData(ChartData.builder()

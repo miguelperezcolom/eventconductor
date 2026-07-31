@@ -10,13 +10,16 @@ import io.mateu.workflow.application.usecases.process.stepover.StepOverProcessUs
 import io.mateu.workflow.application.usecases.process.update.ProcessUpdateStepExecutionUpdateUseCase;
 import io.mateu.workflow.domain.aggregates.*;
 import io.mateu.workflow.domain.aggregates.Process;
+import io.mateu.workflow.domain.services.CompensationService;
 import io.mateu.workflow.dtos.events.domain.StepExecutionStatusChanged;
 import io.mateu.workflow.dtos.events.integration.TaskCancellationRequested;
 import io.mateu.workflow.dtos.events.integration.TaskStatus;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
@@ -35,8 +38,21 @@ class StepExecutionStatusUpdatedEventHandlerTest {
     @Mock DownstreamEventPublisher downstreamEventPublisher;
     @Mock WorkflowMetrics workflowMetrics;
     @Mock CancelChildProcessService cancelChildProcessService;
+    // Real service (spy): the reverse-order rollback decision is pure and cheap, so we exercise
+    // it for real and only stub the repositories that feed it.
+    @Spy CompensationService compensationService = new CompensationService();
 
     @InjectMocks StepExecutionStatusUpdatedEventHandler handler;
+
+    private Process proc;
+
+    @BeforeEach
+    void setUp() {
+        proc = Process.builder().id("p-1").variables(List.of()).status(ProcessStatus.RUNNING).build();
+        // advanceCompensation loads the process on every terminal event; default it so the
+        // paths that don't set up a specific rollback still run.
+        lenient().when(processRepository.findById(any())).thenReturn(Optional.of(proc));
+    }
 
     private Step step(int retries, boolean rollbackable, String compensationStepId) {
         return new Step("s1", "wd-1", StepType.ACTION, "Step", null, null, null, null, false, "topic",
@@ -106,16 +122,35 @@ class StepExecutionStatusUpdatedEventHandlerTest {
                 .stepJson(JsonSerializer.toJson(compensationStep))
                 .status(StepExecutionStatus.CREATED)
                 .variables(List.of()).build();
-        var proc = Process.builder().id("p-1").variables(List.of()).build();
 
         when(stepExecutionRepository.findById("se-1")).thenReturn(Optional.of(se));
-        when(processRepository.findById("p-1")).thenReturn(Optional.of(proc));
         when(stepExecutionRepository.findByProcess(proc)).thenReturn(List.of(se, compensationSe));
 
         handler.handle(new StepExecutionStatusChanged("se-1", TaskStatus.ERROR, List.of()));
 
+        // The failed rollbackable step's own compensation is the latest-executed, so it runs first.
         verify(stepExecutionRepository).save(compensationSe);
         verify(workflowMetrics).compensationTriggered("wd-1");
+    }
+
+    @Test
+    void marksProcessCompensatedWhenRollbackChainCompletes() {
+        // A rollbackable step that failed, whose compensation has already COMPLETED: the chain
+        // is done, so the completion event flips the process to COMPENSATED.
+        var failed = se(1, 1, true, "comp-step");
+        var compensationStep = step(0, false, null).withId("comp-step");
+        var compensationSe = StepExecution.builder()
+                .id("comp-se").processId("p-1").workflowDefinitionId("wd-1").stepId("comp-step")
+                .stepJson(JsonSerializer.toJson(compensationStep))
+                .status(StepExecutionStatus.COMPLETED)
+                .variables(List.of()).build();
+
+        when(stepExecutionRepository.findById("comp-se")).thenReturn(Optional.of(compensationSe));
+        when(stepExecutionRepository.findByProcess(proc)).thenReturn(List.of(failed, compensationSe));
+
+        handler.handle(new StepExecutionStatusChanged("comp-se", TaskStatus.COMPLETED, List.of()));
+
+        verify(processRepository).save(argThat(p -> p.getStatus() == ProcessStatus.COMPENSATED));
     }
 
     @Test

@@ -62,7 +62,12 @@ public class NotifyParentStepService {
                     "Child process " + process.getId() + " completed",
                     StepExecutionStatus.COMPLETED));
         } else if (ProcessStatus.ERROR.equals(process.getStatus())
-                || ProcessStatus.CANCELLED.equals(process.getStatus())) {
+                || ProcessStatus.CANCELLED.equals(process.getStatus())
+                // A child that rolled back (COMPENSATED) still failed from the parent's point
+                // of view: fail the parent PROCESS step. In practice the child already errored
+                // (and notified) before compensating, so this is usually a no-op guarded by the
+                // parent's terminal-status idempotency above.
+                || ProcessStatus.COMPENSATED.equals(process.getStatus())) {
             updateStepExecutionUseCase.getObject().handle(new UpdateStepExecutionCommand(
                     process.getParentStepExecutionId(),
                     List.of(),

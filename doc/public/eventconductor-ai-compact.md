@@ -137,7 +137,7 @@ Report `RUNNING` for progress (resets the timeout clock). Long tasks can return 
 
 - `retries: N` — auto-retry on `ERROR` or `TIMEOUT` up to N times.
 - `timeout` — after it elapses the step goes `TIMEOUT`, then retries if any remain, else `ERROR`.
-- **Saga/compensation**: set `rollbackable: true` + `compensationStepId: "..."` on a step; if the process fails, the compensation step runs to undo it. Define compensation steps as normal `ACTION` steps anchored to the step they compensate with `"preconditionExpression": "false"` — the dataflow never starts them (and the roots rule is satisfied); the compensation pipeline starts them directly, ignoring the guard.
+- **Saga/compensation**: set `rollbackable: true` + `compensationStepId: "..."` on a step. When any step fails after exhausting retries, the compensations of **all executed rollbackable steps** run **sequentially in reverse execution order** (saga rollback); when the chain finishes the process ends in the terminal **`COMPENSATED`** state (a failed compensation halts the chain and leaves it `ERROR`). Define compensation steps as normal `ACTION` steps anchored to the step they compensate with `"preconditionExpression": "false"` — the dataflow never starts them (and the roots rule is satisfied); the compensation pipeline starts them directly, ignoring the guard.
 
 ---
 

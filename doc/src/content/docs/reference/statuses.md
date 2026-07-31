@@ -11,14 +11,15 @@ description: All status values for process instances and step executions.
 | `RUNNING` | At least one step is currently executing |
 | `PAUSED` | Held by an operator (or a paused definition) — no new steps start, clocks are frozen |
 | `COMPLETED` | All steps finished successfully |
-| `ERROR` | A step failed after exhausting all retries |
+| `ERROR` | A step failed after exhausting all retries (and the process did not, or could not, fully roll back) |
+| `COMPENSATED` | The process failed and every executed rollbackable step was successfully compensated in reverse execution order (saga rollback) |
 | `CANCELLED` | Process was cancelled by an operator or a cancellation event |
 
 ### Status transitions
 
 ```
 PENDING → RUNNING → COMPLETED
-                  → ERROR
+                  → ERROR → COMPENSATED (saga rollback finished)
          RUNNING → CANCELLED
 PENDING → CANCELLED
 PENDING / RUNNING → PAUSED → RUNNING (resume)
@@ -26,6 +27,14 @@ PAUSED → CANCELLED
 ```
 
 A process in `ERROR` can be retried, which transitions it back to `RUNNING`.
+
+`ERROR` and `COMPENSATED` are both terminal failure states, but distinct: `ERROR` means the
+process failed and was left as-is; `COMPENSATED` means it failed and then cleanly undid its
+side effects. While the rollback is running the process is `ERROR`; it flips to `COMPENSATED`
+only once the whole reverse-order compensation chain has completed. If a compensation itself
+fails after its own retries, the chain halts and the process stays `ERROR`. Both are sticky —
+nothing transitions them back to `RUNNING` on their own. See
+[Retries, Timeouts & Compensation](/guides/retries-timeouts-compensation/).
 
 ### Pause semantics
 

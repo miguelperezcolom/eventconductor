@@ -60,6 +60,9 @@ public class ProcessUpdateStepExecutionUpdateUseCase {
         if (process.getStatus() != status) {
             if (process.getStatus() == ProcessStatus.CANCELLED
                     || process.getStatus() == ProcessStatus.ERROR
+                    // COMPENSATED is a terminal saga-rollback state: once reached it must not
+                    // fall back to ERROR (its failed step is still ERROR) or any other status.
+                    || process.getStatus() == ProcessStatus.COMPENSATED
                     // PAUSED is sticky too: steps completing during the pause (worker reports,
                     // correlated messages) must not resurrect the process to RUNNING — only
                     // ResumeProcessUseCase leaves PAUSED.

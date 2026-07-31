@@ -76,6 +76,9 @@ public class SimpleProcessCrudAdapter  {
             case PENDING -> StatusType.INFO;
             case RUNNING, PAUSED -> StatusType.WARNING;
             case COMPLETED -> StatusType.SUCCESS;
+            // COMPENSATED: a clean saga rollback — a non-happy terminal, but distinct from a
+            // raw failure, so WARNING rather than DANGER.
+            case COMPENSATED -> StatusType.WARNING;
             case CANCELLED, ERROR -> StatusType.DANGER;
         };
         return new Status(statusType, toUpperCaseFirst(status.name()) + " (" + completionPercentage + "%)");
