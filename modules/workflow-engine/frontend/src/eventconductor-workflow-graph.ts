@@ -158,6 +158,22 @@ function orthogonalRoute(a: Box, b: Box, spread = 0): Pt[] {
     return straightRoute(a, b, spread);
 }
 
+/** The point halfway along a polyline's total length — where an edge label sits. */
+function polylineMidpoint(pts: Pt[]): Pt {
+    let total = 0;
+    for (let i = 0; i < pts.length - 1; i++) total += Math.hypot(pts[i + 1].x - pts[i].x, pts[i + 1].y - pts[i].y);
+    let remaining = total / 2;
+    for (let i = 0; i < pts.length - 1; i++) {
+        const seg = Math.hypot(pts[i + 1].x - pts[i].x, pts[i + 1].y - pts[i].y);
+        if (seg >= remaining && seg > 0) {
+            const t = remaining / seg;
+            return {x: pts[i].x + (pts[i + 1].x - pts[i].x) * t, y: pts[i].y + (pts[i + 1].y - pts[i].y) * t};
+        }
+        remaining -= seg;
+    }
+    return pts[Math.floor(pts.length / 2)];
+}
+
 /** SVG path along a polyline with the interior corners rounded off. */
 function roundedPath(pts: Pt[], r = 9): string {
     if (pts.length < 2) return "";
@@ -501,6 +517,7 @@ export class MateuWorkflowElk extends LitElement {
                             </defs>
                             ${steps.map(s => this.renderArrows(s))}
                             ${steps.map(s => this.renderNode(s))}
+                            ${steps.map(s => this.renderGuard(s))}
                         </svg>
                     </div>
                     ${this.selectedId && !this.readOnly ? this.renderPanel() : ""}
@@ -589,6 +606,32 @@ export class MateuWorkflowElk extends LitElement {
             const pts = orthogonalRoute(this.boxOf(from), tBox, spread);
             return svg`<path class="edge" d="${roundedPath(pts)}" marker-end="url(#ec-arrow)"/>`;
         });
+    }
+
+    /**
+     * The step's precondition guard (JEXL) painted as a chip on its incoming edge — the guard
+     * gates entry to the step, so it is shown once, at the midpoint of the first precondition's
+     * route (not per-edge, which would duplicate it).
+     */
+    private renderGuard(step: WorkflowStep) {
+        const expr = step.preconditionExpression?.trim();
+        if (!expr) return svg``;
+        const to = this.positions[step.id];
+        const preconditions = preconditionsOf(step);
+        if (!to || preconditions.length === 0) return svg``;
+        const from = this.positions[preconditions[0]];
+        if (!from) return svg``;
+
+        const mid = polylineMidpoint(orthogonalRoute(this.boxOf(from), this.boxOf(to), 0));
+        const text = expr.length > 30 ? expr.slice(0, 29) + "…" : expr;
+        const w = Math.max(30, text.length * 6.3 + 22);
+        const h = 19;
+        return svg`
+            <g class="guard" transform="translate(${mid.x}, ${mid.y})">
+                <rect x="${-w / 2}" y="${-h / 2}" width="${w}" height="${h}" rx="9.5"/>
+                <text x="0" y="3.6" text-anchor="middle">◇ ${text}</text>
+            </g>
+        `;
     }
 
     private renderNode(step: WorkflowStep) {
@@ -813,6 +856,14 @@ export class MateuWorkflowElk extends LitElement {
 
         /* edges */
         .edge {fill: none; stroke: var(--ec-edge); stroke-width: 1.6; stroke-linejoin: round;}
+
+        /* precondition guard chips on edges */
+        .guard {pointer-events: none;}
+        .guard rect {fill: var(--ec-surface); stroke: var(--ec-border); stroke-width: 1;}
+        .guard text {
+            font-size: 10.5px; fill: var(--ec-text-dim);
+            font-family: var(--lumo-font-family-monospace, ui-monospace, monospace);
+        }
 
         /* properties panel */
         .properties {
