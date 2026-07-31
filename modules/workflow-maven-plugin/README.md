@@ -22,7 +22,7 @@ the semantic checks a JSON schema cannot express:
 <plugin>
   <groupId>io.mateu.workflow</groupId>
   <artifactId>workflow-maven-plugin</artifactId>
-  <version>1.0-beta.012</version>
+  <version>1.0-beta.013</version>
   <executions>
     <execution>
       <goals>

@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0-beta.013] - 2026-07-31
+
+Cumulative since `1.0-beta.010` — releases `1.0-beta.011` and `1.0-beta.012` were cut
+without changelog sections, so their contents are included below.
+
 ### Added
 - **Pause/play for processes and workflow definitions.** New `ProcessStatus.PAUSED`:
   `PauseProcessUseCase` pauses a `PENDING`/`RUNNING` process and `ResumeProcessUseCase`
