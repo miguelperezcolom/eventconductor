@@ -133,6 +133,72 @@ class WebhookHelpersTest {
                 "https://github.com/org/defs", "https://github.com/org/other")).isFalse();
     }
 
+    @Test
+    void verifiesBitbucketHmac() {
+        // Bitbucket Server uses the same HMAC as GitHub, in X-Hub-Signature.
+        var secret = "It's a Secret to Everybody";
+        var body = "Hello, World!".getBytes(StandardCharsets.UTF_8);
+        var good = "sha256=757107ea0eb2509fc211221cce984b8a37570b6d7586c22c46f4379c8b043e17";
+
+        assertThatCode(() -> WebhookSignatureVerifier.verify(WebhookProvider.BITBUCKET, secret,
+                headers(Map.of("X-Hub-Signature", good)), body)).doesNotThrowAnyException();
+        // Malformed (non-hex) signature → rejected.
+        assertThatThrownBy(() -> WebhookSignatureVerifier.verify(WebhookProvider.BITBUCKET, secret,
+                headers(Map.of("X-Hub-Signature", "sha256=zz")), body))
+                .isInstanceOf(WebhookVerificationException.class);
+        // Missing header → rejected.
+        assertThatThrownBy(() -> WebhookSignatureVerifier.verify(WebhookProvider.BITBUCKET, secret,
+                headers(Map.of()), body)).isInstanceOf(WebhookVerificationException.class);
+    }
+
+    @Test
+    void parsesGenericPayloads() {
+        var stringForm = "{\"repository\":\"https://x/defs.git\",\"branch\":\"master\"}".getBytes(StandardCharsets.UTF_8);
+        var p1 = GitPushPayloadParser.parse(WebhookProvider.GENERIC, stringForm);
+        assertThat(p1.branch()).isEqualTo("master");
+        assertThat(p1.repositoryUrls()).contains("https://x/defs.git");
+
+        var objForm = "{\"repository\":{\"clone_url\":\"https://y/defs.git\"},\"ref\":\"refs/heads/dev\"}".getBytes(StandardCharsets.UTF_8);
+        var p2 = GitPushPayloadParser.parse(WebhookProvider.GENERIC, objForm);
+        assertThat(p2.branch()).isEqualTo("dev");
+        assertThat(p2.repositoryUrls()).contains("https://y/defs.git");
+
+        var urlField = "{\"repositoryUrl\":\"https://z/defs.git\"}".getBytes(StandardCharsets.UTF_8);
+        assertThat(GitPushPayloadParser.parse(WebhookProvider.GENERIC, urlField).repositoryUrls())
+                .contains("https://z/defs.git");
+    }
+
+    @Test
+    void collectsAlternateRepositoryUrlFields() {
+        var gitlab = ("{\"ref\":\"refs/heads/main\",\"project\":{\"web_url\":\"https://gitlab.com/o/d\"},"
+                + "\"repository\":{\"git_http_url\":\"https://gitlab.com/o/d.git\",\"homepage\":\"https://gitlab.com/o/d\"}}")
+                .getBytes(StandardCharsets.UTF_8);
+        assertThat(GitPushPayloadParser.parse(WebhookProvider.GITLAB, gitlab).repositoryUrls())
+                .contains("https://gitlab.com/o/d.git");
+
+        var github = "{\"ref\":\"refs/heads/x\",\"repository\":{\"git_url\":\"git://github.com/o/d.git\",\"html_url\":\"https://github.com/o/d\"}}"
+                .getBytes(StandardCharsets.UTF_8);
+        assertThat(GitPushPayloadParser.parse(WebhookProvider.GITHUB, github).repositoryUrls())
+                .contains("git://github.com/o/d.git", "https://github.com/o/d");
+    }
+
+    @Test
+    void payloadEmptinessAndNonObjectRoot() {
+        assertThat(GitPushPayload.EMPTY.isEmpty()).isTrue();
+        assertThat(new GitPushPayload(java.util.List.of(), "master").isEmpty()).isFalse();       // branch only
+        assertThat(new GitPushPayload(java.util.List.of("https://x"), null).isEmpty()).isFalse(); // repo only
+        // A JSON array (root is not an object) → EMPTY.
+        assertThat(GitPushPayloadParser.parse(WebhookProvider.GITHUB, "[]".getBytes(StandardCharsets.UTF_8)).isEmpty()).isTrue();
+    }
+
+    @Test
+    void normalizesWwwAndNullUrls() {
+        assertThat(RepositoryUrlMatcher.sameRepository(
+                "https://www.github.com/o/d.git", "https://github.com/o/d")).isTrue();
+        assertThat(RepositoryUrlMatcher.sameRepository(null, "https://x")).isFalse();
+        assertThat(RepositoryUrlMatcher.sameRepository("   ", "https://x")).isFalse();
+    }
+
     // ── registry ────────────────────────────────────────────────────────────
 
     @Test
