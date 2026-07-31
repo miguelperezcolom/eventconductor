@@ -158,11 +158,11 @@ function orthogonalRoute(a: Box, b: Box, spread = 0): Pt[] {
     return straightRoute(a, b, spread);
 }
 
-/** The point halfway along a polyline's total length — where an edge label sits. */
-function polylineMidpoint(pts: Pt[]): Pt {
+/** The point at `frac` (0 = source … 1 = target) along a polyline — where an edge label sits. */
+function polylinePointAt(pts: Pt[], frac = 0.5): Pt {
     let total = 0;
     for (let i = 0; i < pts.length - 1; i++) total += Math.hypot(pts[i + 1].x - pts[i].x, pts[i + 1].y - pts[i].y);
-    let remaining = total / 2;
+    let remaining = total * Math.min(Math.max(frac, 0), 1);
     for (let i = 0; i < pts.length - 1; i++) {
         const seg = Math.hypot(pts[i + 1].x - pts[i].x, pts[i + 1].y - pts[i].y);
         if (seg >= remaining && seg > 0) {
@@ -622,7 +622,8 @@ export class MateuWorkflowElk extends LitElement {
         const from = this.positions[preconditions[0]];
         if (!from) return svg``;
 
-        const mid = polylineMidpoint(orthogonalRoute(this.boxOf(from), this.boxOf(to), 0));
+        // Sit toward the source end of the edge, clear of the target node's badge.
+        const mid = polylinePointAt(orthogonalRoute(this.boxOf(from), this.boxOf(to), 0), 0.38);
         const text = expr.length > 30 ? expr.slice(0, 29) + "…" : expr;
         const w = Math.max(30, text.length * 6.3 + 22);
         const h = 19;
