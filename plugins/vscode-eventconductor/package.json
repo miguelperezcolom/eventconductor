@@ -3,7 +3,7 @@
   "displayName": "EventConductor",
   "description": "Edit EventConductor workflow definitions (.ec) as an interactive graph or as YAML/JSON with schema validation.",
   "version": "0.1.0",
-  "publisher": "eventconductor",
+  "publisher": "miguelperezcolom",
   "license": "MIT",
   "icon": "media/icon.png",
   "engines": {
