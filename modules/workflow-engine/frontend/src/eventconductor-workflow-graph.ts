@@ -66,20 +66,30 @@ const STEP_TYPES: StepType[] = [
  */
 interface NodeStyle { fill: string; stroke: string; symbol: string; dashed?: boolean; }
 const NODE_STYLE: Record<StepType, NodeStyle> = {
-    START:            {fill: "#ffffff", stroke: "#64748b", symbol: "flow"},
+    // BPMN events: start = thin green circle, end = thick red circle.
+    START:            {fill: "#f0fdf4", stroke: "#16a34a", symbol: "flow"},
     ACTION:           {fill: "#ffffff", stroke: "#6d28d9", symbol: "process"},
     USER_TASK:        {fill: "#fef9c3", stroke: "#ca8a04", symbol: "person"},
     RULE:             {fill: "#ffffff", stroke: "#4f46e5", symbol: "operation"},
     TIMER:            {fill: "#ffffff", stroke: "#d97706", symbol: "clock"},
     WAIT_FOR_MESSAGE: {fill: "#ffffff", stroke: "#0891b2", symbol: "event"},
     SEND_MESSAGE:     {fill: "#ffffff", stroke: "#0891b2", symbol: "flow"},
-    FORK:             {fill: "#f5f3ff", stroke: "#6d28d9", symbol: "flow", dashed: true},
-    JOIN:             {fill: "#f5f3ff", stroke: "#6d28d9", symbol: "flow", dashed: true},
+    // BPMN parallel gateways: amber diamonds with a "+".
+    FORK:             {fill: "#fffbeb", stroke: "#b45309", symbol: "flow"},
+    JOIN:             {fill: "#fffbeb", stroke: "#b45309", symbol: "flow"},
     PROCESS:          {fill: "#eef2ff", stroke: "#4f46e5", symbol: "component"},
-    END:              {fill: "#dcfce7", stroke: "#16a34a", symbol: "event"},
+    END:              {fill: "#fef2f2", stroke: "#dc2626", symbol: "event"},
 };
 const DEFAULT_STYLE: NodeStyle = {fill: "#ffffff", stroke: "#94a3b8", symbol: "process"};
 const styleOf = (t: StepType): NodeStyle => NODE_STYLE[t] ?? DEFAULT_STYLE;
+
+/** BPMN events (START/END) and gateways (FORK/JOIN) are compact squares; the rest are tasks. */
+const EVENT_SIZE = 56;
+function isEventType(t: StepType): boolean { return t === "START" || t === "END"; }
+function isGatewayType(t: StepType): boolean { return t === "FORK" || t === "JOIN"; }
+function sizeOf(t: StepType): {w: number; h: number} {
+    return (isEventType(t) || isGatewayType(t)) ? {w: EVENT_SIZE, h: EVENT_SIZE} : {w: NODE_W, h: NODE_H};
+}
 
 /**
  * ArchiMate-inspired glyphs (ported from modux), each fitting a 12×12 box, stroke-only — drawn
@@ -174,6 +184,13 @@ function polylinePointAt(pts: Pt[], frac = 0.5): Pt {
     return pts[Math.floor(pts.length / 2)];
 }
 
+/** Total length of a polyline. */
+function polylineLength(pts: Pt[]): number {
+    let total = 0;
+    for (let i = 0; i < pts.length - 1; i++) total += Math.hypot(pts[i + 1].x - pts[i].x, pts[i + 1].y - pts[i].y);
+    return total;
+}
+
 /** SVG path along a polyline with the interior corners rounded off. */
 function roundedPath(pts: Pt[], r = 9): string {
     if (pts.length < 2) return "";
@@ -243,6 +260,14 @@ export class MateuWorkflowElk extends LitElement {
     @state() private layoutError: string | null = null;
     /** When true, the graph overlays the whole viewport (expand button). */
     @state() private fullscreen = false;
+    /** When true, animated tokens flow along the sequence edges (BPMN token simulation). */
+    @state() private flowOn = true;
+
+    // ── Token-flow animation state (driven by requestAnimationFrame, off the render path) ──
+    private flowRaf = 0;
+    private flowStartTs = 0;
+    /** nodeId → timestamp of the last token arrival, for the ping effect. */
+    private pulseAt: Record<string, number> = {};
 
     private draggingId: string | null = null;
     private dragOffset = {x: 0, y: 0};
@@ -277,6 +302,14 @@ export class MateuWorkflowElk extends LitElement {
                 /* keep previous */
             }
         }
+        // Keep the token-flow loop in sync with the toggle and layout readiness.
+        if (this.flowOn && this.layoutReady) this.startFlow();
+        else this.stopFlow();
+    }
+
+    disconnectedCallback() {
+        super.disconnectedCallback();
+        this.stopFlow();
     }
 
     // ── ELK layout ────────────────────────────────────────────────────────────
@@ -302,11 +335,10 @@ export class MateuWorkflowElk extends LitElement {
                 "elk.edgeRouting": "ORTHOGONAL",
                 "elk.layered.nodePlacement.strategy": "BRANDES_KOEPF",
             },
-            children: steps.map(s => ({
-                id: s.id,
-                width: NODE_W,
-                height: NODE_H,
-            })),
+            children: steps.map(s => {
+                const {w, h} = sizeOf(s.type);
+                return {id: s.id, width: w, height: h};
+            }),
             // One edge per precondition: a step with several incoming preconditions
             // (preconditionStepIds) gets several edges into it.
             edges: steps.flatMap(s =>
@@ -472,14 +504,93 @@ export class MateuWorkflowElk extends LitElement {
     // ── Canvas size ───────────────────────────────────────────────────────────
 
     private canvasSize() {
-        const pts = Object.values(this.positions);
-        const w = pts.length ? Math.max(...pts.map(p => p.x)) + NODE_W + PAD : 600;
-        const h = pts.length ? Math.max(...pts.map(p => p.y)) + NODE_H + PAD : 400;
-        return {w: Math.max(w, 600), h: Math.max(h, 400)};
+        let w = 600, h = 400;
+        for (const s of this.wf.steps ?? []) {
+            const p = this.positions[s.id];
+            if (!p) continue;
+            const sz = sizeOf(s.type);
+            w = Math.max(w, p.x + sz.w + PAD);
+            h = Math.max(h, p.y + sz.h + PAD);
+        }
+        return {w, h};
     }
 
-    private boxOf(pos: NodePos): Box {
-        return {x: pos.x + NODE_W / 2, y: pos.y + NODE_H / 2, w: NODE_W, h: NODE_H};
+    /** Center-plus-size box of a step (by id), honouring its per-type shape size. */
+    private boxForId(id: string): Box | null {
+        const pos = this.positions[id];
+        const step = (this.wf.steps ?? []).find(s => s.id === id);
+        if (!pos || !step) return null;
+        const {w, h} = sizeOf(step.type);
+        return {x: pos.x + w / 2, y: pos.y + h / 2, w, h};
+    }
+
+    // ── Token-flow animation ────────────────────────────────────────────────────
+
+    /** The sequence-flow edges (one per precondition) that tokens travel along. */
+    private sequenceEdges(): {from: string; to: string; key: string}[] {
+        const out: {from: string; to: string; key: string}[] = [];
+        for (const s of this.wf.steps ?? []) {
+            for (const from of preconditionsOf(s)) out.push({from, to: s.id, key: `${from}->${s.id}`});
+        }
+        return out;
+    }
+
+    private startFlow() {
+        if (this.flowRaf) return;
+        this.flowStartTs = performance.now();
+        const tick = (now: number) => {
+            if (!this.flowOn) { this.flowRaf = 0; return; }
+            this.stepFlow(now);
+            this.flowRaf = requestAnimationFrame(tick);
+        };
+        this.flowRaf = requestAnimationFrame(tick);
+    }
+
+    private stopFlow() {
+        if (this.flowRaf) cancelAnimationFrame(this.flowRaf);
+        this.flowRaf = 0;
+        this.pulseAt = {};
+        (this.renderRoot as unknown as ParentNode).querySelectorAll?.("[data-pulse]")
+            .forEach(el => (el as SVGElement).setAttribute("opacity", "0"));
+    }
+
+    /**
+     * One animation frame: advance a token along every sequence edge at constant speed and ping
+     * the target node as each token arrives. Runs off the Lit render path — it queries the SVG
+     * elements and mutates their attributes directly, so it stays smooth and never re-renders.
+     */
+    private stepFlow(now: number) {
+        const root = this.renderRoot as unknown as ParentNode;
+        const elapsed = (now - this.flowStartTs) / 1000;
+        const speed = 85; // px per second
+
+        this.sequenceEdges().forEach((e, i) => {
+            const token = root.querySelector(`[data-tk="${e.key}"]`) as SVGCircleElement | null;
+            if (!token) return;
+            const a = this.boxForId(e.from), b = this.boxForId(e.to);
+            if (!a || !b) { token.style.opacity = "0"; return; }
+            const pts = orthogonalRoute(a, b, 0);
+            const len = polylineLength(pts) || 1;
+            const frac = ((((elapsed + i * 0.55) * speed) % len) + len) % len / len; // staggered, looping
+            const p = polylinePointAt(pts, frac);
+            token.setAttribute("cx", String(p.x));
+            token.setAttribute("cy", String(p.y));
+            // Fade near the endpoints so the wrap from target back to source is invisible.
+            token.style.opacity = String(Math.max(0.12, Math.min(1, Math.min(frac, 1 - frac) * 7)));
+            if (frac > 0.985) this.pulseAt[e.to] = now; // arrived → ping the target node
+        });
+
+        for (const s of this.wf.steps ?? []) {
+            const ring = root.querySelector(`[data-pulse="${s.id}"]`) as SVGCircleElement | null;
+            if (!ring) continue;
+            const t0 = this.pulseAt[s.id];
+            const dt = t0 ? (now - t0) / 1000 : Infinity;
+            if (dt > 0.6) { ring.setAttribute("opacity", "0"); continue; }
+            const k = dt / 0.6; // 0 → 1 over the ping lifetime
+            const base = Math.max(sizeOf(s.type).w, sizeOf(s.type).h) / 2;
+            ring.setAttribute("r", String(base + k * 16));
+            ring.setAttribute("opacity", String((1 - k) * 0.45));
+        }
     }
 
     // ── Render ────────────────────────────────────────────────────────────────
@@ -494,6 +605,10 @@ export class MateuWorkflowElk extends LitElement {
 
         return html`
             <div class="root ${this.fullscreen ? "fullscreen" : ""}">
+                <button class="flow-btn" title="${this.flowOn ? "Pause token flow" : "Play token flow"}"
+                        @click="${() => { this.flowOn = !this.flowOn; }}">
+                    ${this.flowOn ? "⏸" : "▶"}
+                </button>
                 <button class="expand-btn" title="${this.fullscreen ? "Collapse" : "Expand"}"
                         @click="${() => { this.fullscreen = !this.fullscreen; }}">
                     ${this.fullscreen ? "✕" : "⤢"}
@@ -516,8 +631,11 @@ export class MateuWorkflowElk extends LitElement {
                                 </filter>
                             </defs>
                             ${steps.map(s => this.renderArrows(s))}
+                            ${steps.map(s => this.renderCompensationEdge(s))}
                             ${steps.map(s => this.renderNode(s))}
                             ${steps.map(s => this.renderGuard(s))}
+                            ${this.flowOn ? this.sequenceEdges().map(e =>
+                                svg`<circle class="flow-token" data-tk="${e.key}" r="4" cx="-100" cy="-100"/>`) : nothing}
                         </svg>
                     </div>
                     ${this.selectedId && !this.readOnly ? this.renderPanel() : ""}
@@ -591,21 +709,33 @@ export class MateuWorkflowElk extends LitElement {
     }
 
     private renderArrows(step: WorkflowStep) {
-        const to = this.positions[step.id];
-        if (!to) return svg``;
-        const tBox = this.boxOf(to);
+        const tBox = this.boxForId(step.id);
+        if (!tBox) return svg``;
         const preconditions = preconditionsOf(step);
         const n = preconditions.length;
 
         return preconditions.map((fromId, i) => {
-            const from = this.positions[fromId];
-            if (!from) return svg``;
+            const fBox = this.boxForId(fromId);
+            if (!fBox) return svg``;
             // Orthogonal route, with several edges into the same node spread apart so they stay
             // distinguishable (echoing modux's parallel-edge handling).
             const spread = n <= 1 ? 0 : (i - (n - 1) / 2) * 11;
-            const pts = orthogonalRoute(this.boxOf(from), tBox, spread);
+            const pts = orthogonalRoute(fBox, tBox, spread);
             return svg`<path class="edge" d="${roundedPath(pts)}" marker-end="url(#ec-arrow)"/>`;
         });
+    }
+
+    /**
+     * Compensation associations, BPMN-style: a red dashed line from a rollbackable step to the
+     * step that undoes it (`compensationStepId`). Drawn on top of the sequence flow.
+     */
+    private renderCompensationEdge(step: WorkflowStep) {
+        if (!step.rollbackable || !step.compensationStepId) return svg``;
+        const a = this.boxForId(step.id);
+        const b = this.boxForId(step.compensationStepId);
+        if (!a || !b) return svg``;
+        const pts = orthogonalRoute(a, b, 0);
+        return svg`<path class="comp-edge" d="${roundedPath(pts)}" marker-end="url(#ec-arrow)"/>`;
     }
 
     /**
@@ -619,11 +749,12 @@ export class MateuWorkflowElk extends LitElement {
         const to = this.positions[step.id];
         const preconditions = preconditionsOf(step);
         if (!to || preconditions.length === 0) return svg``;
-        const from = this.positions[preconditions[0]];
-        if (!from) return svg``;
+        const fBox = this.boxForId(preconditions[0]);
+        const tBox = this.boxForId(step.id);
+        if (!fBox || !tBox) return svg``;
 
         // Sit toward the source end of the edge, clear of the target node's badge.
-        const mid = polylinePointAt(orthogonalRoute(this.boxOf(from), this.boxOf(to), 0), 0.38);
+        const mid = polylinePointAt(orthogonalRoute(fBox, tBox, 0), 0.38);
         const text = expr.length > 30 ? expr.slice(0, 29) + "…" : expr;
         const w = Math.max(30, text.length * 6.3 + 22);
         const h = 19;
@@ -638,24 +769,53 @@ export class MateuWorkflowElk extends LitElement {
     private renderNode(step: WorkflowStep) {
         const pos = this.positions[step.id] ?? {x: PAD, y: PAD};
         const st = styleOf(step.type);
-        const selected = this.selectedId === step.id;
+        const {w, h} = sizeOf(step.type);
+        const sel = this.selectedId === step.id ? "sel" : "";
         const label = step.name.length > 22 ? step.name.slice(0, 21) + "…" : step.name;
-        const badge = badgeOf(step);
-        const badgeText = badge.length > 26 ? badge.slice(0, 25) + "…" : badge;
 
-        return svg`
-            <g class="node ${selected ? "sel" : ""}" transform="translate(${pos.x},${pos.y})"
-               @mousedown="${(e: MouseEvent) => this.onNodeMouseDown(e, step.id)}"
-               @click="${(e: MouseEvent) => {e.stopPropagation(); this.selectedId = step.id;}}">
+        // A radar-ping ring that flashes when a flow token arrives (driven by the rAF loop).
+        const pulse = svg`<circle class="flow-pulse" data-pulse="${step.id}"
+                                  cx="${w / 2}" cy="${h / 2}" r="${Math.max(w, h) / 2}" opacity="0"/>`;
+
+        let shape = svg``;
+        if (isEventType(step.type)) {
+            // BPMN event: circle (START thin green, END thick red), name below.
+            const kind = step.type === "END" ? "ev-end" : "ev-start";
+            shape = svg`
+                <circle class="node-shape ${kind}" cx="${w / 2}" cy="${h / 2}" r="${w / 2 - 3}"
+                        fill="${st.fill}" stroke="${st.stroke}"/>
+                <text class="node-caption" x="${w / 2}" y="${h + 15}" text-anchor="middle">${label}</text>`;
+        } else if (isGatewayType(step.type)) {
+            // BPMN parallel gateway: diamond with a "+", name below.
+            const cx = w / 2, cy = h / 2;
+            const pts = `${cx},2 ${w - 2},${cy} ${cx},${h - 2} 2,${cy}`;
+            shape = svg`
+                <polygon class="node-shape gateway" points="${pts}" fill="${st.fill}" stroke="${st.stroke}"/>
+                <path class="gw-plus" d="M${cx - 9},${cy} H${cx + 9} M${cx},${cy - 9} V${cy + 9}"
+                      stroke="${st.stroke}"/>
+                <text class="node-caption" x="${w / 2}" y="${h + 15}" text-anchor="middle">${label}</text>`;
+        } else {
+            // BPMN task: rounded card with a corner glyph, an uppercase caption, title + id.
+            const badge = badgeOf(step);
+            const badgeText = badge.length > 26 ? badge.slice(0, 25) + "…" : badge;
+            shape = svg`
                 <text class="node-badge" x="2" y="-7">${badgeText}</text>
-                <rect class="node-card" width="${NODE_W}" height="${NODE_H}" rx="10"
+                <rect class="node-shape" width="${w}" height="${h}" rx="10"
                       fill="${st.fill}" stroke="${st.stroke}" stroke-width="1.4"
                       stroke-dasharray="${st.dashed ? "6 4" : "0"}"/>
-                <g class="node-symbol" transform="translate(${NODE_W - 23}, 9)"
+                <g class="node-symbol" transform="translate(${w - 23}, 9)"
                    fill="none" stroke="${st.stroke}" stroke-width="1.1"
                    stroke-linejoin="round">${SYMBOLS[st.symbol] ?? svg``}</g>
-                <text class="node-title" x="14" y="${NODE_H / 2 - 2}">${label}</text>
-                <text class="node-id" x="14" y="${NODE_H / 2 + 14}">${step.id}</text>
+                <text class="node-title" x="14" y="${h / 2 - 2}">${label}</text>
+                <text class="node-id" x="14" y="${h / 2 + 14}">${step.id}</text>`;
+        }
+
+        return svg`
+            <g class="node ${sel}" transform="translate(${pos.x},${pos.y})"
+               @mousedown="${(e: MouseEvent) => this.onNodeMouseDown(e, step.id)}"
+               @click="${(e: MouseEvent) => {e.stopPropagation(); this.selectedId = step.id;}}">
+                ${pulse}
+                ${shape}
             </g>
         `;
     }
@@ -807,6 +967,15 @@ export class MateuWorkflowElk extends LitElement {
         }
         .expand-btn:hover {background: var(--lumo-contrast-5pct, #f1f5f9);}
 
+        .flow-btn {
+            position: absolute; top: 8px; right: 44px; z-index: 6;
+            width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
+            border: 1px solid var(--ec-border); border-radius: 6px;
+            background: var(--lumo-base-color, #fff); color: var(--ec-text-dim); cursor: pointer;
+            font-size: 13px; line-height: 1; box-shadow: 0 1px 2px #0000000f;
+        }
+        .flow-btn:hover {background: var(--lumo-contrast-5pct, #f1f5f9);}
+
         .loading {
             display: flex; align-items: center; justify-content: center;
             height: 100%; color: var(--ec-text-faint); font-size: .9rem;
@@ -848,15 +1017,25 @@ export class MateuWorkflowElk extends LitElement {
 
         /* nodes */
         .node {cursor: grab;}
-        .node-card {filter: url(#ec-shadow); transition: stroke .12s, stroke-width .12s;}
-        .node:hover .node-card, .node.sel .node-card {stroke: var(--ec-primary) !important; stroke-width: 2.4 !important; stroke-dasharray: 0 !important;}
+        .node-shape {filter: url(#ec-shadow); stroke-width: 1.6; transition: stroke .12s, stroke-width .12s;}
+        .node-shape.ev-start {stroke-width: 1.8;}
+        .node-shape.ev-end {stroke-width: 3;}
+        .node:hover .node-shape, .node.sel .node-shape {stroke: var(--ec-primary) !important; stroke-width: 2.6 !important; stroke-dasharray: 0 !important;}
+        .gw-plus {stroke-width: 2.2; stroke-linecap: round; fill: none; pointer-events: none;}
         .node-badge {font-size: 9.5px; fill: var(--ec-text-dim); text-transform: uppercase; letter-spacing: .05em; font-weight: 600;}
+        .node-caption {font-size: 11px; font-weight: 600; fill: var(--ec-text);}
         .node-symbol {opacity: .9;}
         .node-title {font-size: 13px; font-weight: 600; fill: var(--ec-text);}
         .node-id {font-size: 9.5px; fill: var(--ec-text-faint);}
+        /* radar-ping shown as a flow token passes through a node */
+        .flow-pulse {fill: var(--ec-primary); pointer-events: none;}
 
         /* edges */
         .edge {fill: none; stroke: var(--ec-edge); stroke-width: 1.6; stroke-linejoin: round;}
+        /* compensation associations (BPMN): red dashed */
+        .comp-edge {fill: none; stroke: #dc2626; stroke-width: 1.6; stroke-dasharray: 6 5; stroke-linejoin: round;}
+        /* animated flow tokens */
+        .flow-token {fill: var(--ec-primary); pointer-events: none;}
 
         /* precondition guard chips on edges */
         .guard {pointer-events: none;}
