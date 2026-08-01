@@ -170,7 +170,7 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
      * The read-only graph for this process, overlaid with each step's live state and an "active"
      * highlight on the running step(s) — so the diagram shows where the process currently is.
      */
-    private Element buildDiagram(Process process, List<StepExecution> stepExecutions) {
+    Element buildDiagram(Process process, List<StepExecution> stepExecutions) {
         var def = workflowDefinitionRepository.findById(process.getWorkflowDefinitionId()).orElse(null);
         if (def == null) return null;
         // Collapse retries: keep the most telling status per step (running/error over completed).
@@ -195,7 +195,7 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
     }
 
     /** Overlay state token understood by the graph component. */
-    private static String overlayState(StepExecutionStatus status) {
+    static String overlayState(StepExecutionStatus status) {
         return switch (status) {
             case RUNNING -> "RUNNING";
             case COMPLETED -> "COMPLETED";
@@ -206,7 +206,7 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
     }
 
     /** How "telling" a status is when several executions exist for one step (retries). */
-    private static int statusRank(StepExecutionStatus status) {
+    static int statusRank(StepExecutionStatus status) {
         return switch (status) {
             case ERROR, TIMEOUT -> 5;
             case RUNNING -> 4;

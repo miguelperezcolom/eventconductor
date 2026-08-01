@@ -174,7 +174,7 @@ public class WorkflowDefinitionDetailView implements VisibilitySupplier {
      * How many live (running/pending/paused) process instances of this definition currently sit on
      * each step — i.e. have a RUNNING or PENDING step execution there. Keyed by step id.
      */
-    private Map<String, Integer> liveProcessCountsByStep(String definitionId) {
+    Map<String, Integer> liveProcessCountsByStep(String definitionId) {
         var counts = new java.util.HashMap<String, Integer>();
         for (var process : processRepository.findAll()) {
             if (!definitionId.equals(process.getWorkflowDefinitionId())) continue;
