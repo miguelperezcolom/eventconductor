@@ -244,6 +244,54 @@ function routeAvoiding(src: Box, tgt: Box, obstacles: Box[], spread = 0, margin 
     return base;
 }
 
+type Side = "R" | "L" | "T" | "B";
+function stubOut(pt: Pt, side: Side, d: number): Pt {
+    return side === "R" ? {x: pt.x + d, y: pt.y} : side === "L" ? {x: pt.x - d, y: pt.y}
+        : side === "T" ? {x: pt.x, y: pt.y - d} : {x: pt.x, y: pt.y + d};
+}
+
+/**
+ * Orthogonal route between two *specific border points* (each leaving its node perpendicular
+ * to its side), avoiding the other nodes. Lets edges attach at distinct points on a node so
+ * parallel edges never lie on top of one another. Same candidate-scoring idea as routeAvoiding.
+ */
+function routeThrough(sPt: Pt, sSide: Side, tPt: Pt, tSide: Side, obstacles: Box[], margin = 20): Pt[] {
+    const STUB = 16;
+    const S = stubOut(sPt, sSide, STUB), T = stubOut(tPt, tSide, STUB);
+    const crossings = (pts: Pt[]): number => {
+        let n = 0;
+        for (let i = 0; i < pts.length - 1; i++)
+            for (const o of obstacles)
+                if (segmentCrossesBox(pts[i], pts[i + 1], {x: o.x, y: o.y, w: o.w + 2 * margin, h: o.h + 2 * margin})) n++;
+        return n;
+    };
+    const cands: Pt[][] = [[{x: T.x, y: S.y}], [{x: S.x, y: T.y}]];
+    for (const f of [0.5, 0.35, 0.65, 0.25, 0.75]) {
+        const mx = S.x + (T.x - S.x) * f, my = S.y + (T.y - S.y) * f;
+        cands.push([{x: mx, y: S.y}, {x: mx, y: T.y}]);
+        cands.push([{x: S.x, y: my}, {x: T.x, y: my}]);
+    }
+    const loX = Math.min(S.x, T.x), hiX = Math.max(S.x, T.x), loY = Math.min(S.y, T.y), hiY = Math.max(S.y, T.y);
+    for (const o of obstacles) {
+        const m = margin + 8;
+        if (o.x > loX - o.w && o.x < hiX + o.w) {
+            cands.push([{x: S.x, y: o.y - o.h / 2 - m}, {x: T.x, y: o.y - o.h / 2 - m}]);
+            cands.push([{x: S.x, y: o.y + o.h / 2 + m}, {x: T.x, y: o.y + o.h / 2 + m}]);
+        }
+        if (o.y > loY - o.h && o.y < hiY + o.h) {
+            cands.push([{x: o.x - o.w / 2 - m, y: S.y}, {x: o.x - o.w / 2 - m, y: T.y}]);
+            cands.push([{x: o.x + o.w / 2 + m, y: S.y}, {x: o.x + o.w / 2 + m, y: T.y}]);
+        }
+    }
+    let best = cands[0], bestScore = Infinity;
+    for (const c of cands) {
+        const full = [sPt, S, ...c, T, tPt];
+        const score = crossings(full) * 1e6 + polylineLength(full) + c.length * 40;
+        if (score < bestScore) { best = c; bestScore = score; }
+    }
+    return [sPt, S, ...best, T, tPt];
+}
+
 /** Where do segments a→b and c→d cross (strictly interior)? Returns the point + its t on a→b. */
 function segIntersect(a: Pt, b: Pt, c: Pt, d: Pt): (Pt & {t: number}) | null {
     const rx = b.x - a.x, ry = b.y - a.y, sx = d.x - c.x, sy = d.y - c.y;
@@ -465,6 +513,10 @@ export class MateuWorkflowElk extends LitElement {
     private focusNodeId: string | null = null;
     /** The paths currently animated — all of them, or the ones passing through the focus node. */
     private activePaths: string[][] = [];
+
+    /** Distributed edge routes ("from->to" → polyline), set by renderEdges and reused by the
+     * token (pathGeometry) and guard chips so they follow the exact painted lines. */
+    private edgeCache = new Map<string, Pt[]>();
 
     private draggingId: string | null = null;
     private dragOffset = {x: 0, y: 0};
@@ -742,6 +794,72 @@ export class MateuWorkflowElk extends LitElement {
         return routeAvoiding(a, b, obstacles, spread);
     }
 
+    /**
+     * All edges with node-avoiding routes AND distributed endpoints: edges sharing a side of a
+     * node attach at distinct points along that side, so parallel lines never overlap. Sequence
+     * edges first, compensation last. The routes are also cached (by "from->to") for the token.
+     */
+    private computeEdges(): {key: string; from: string; to: string; comp: boolean; pts: Pt[]}[] {
+        const steps = this.wf.steps ?? [];
+        const targets = compTargets(steps);
+        const raw: {from: string; to: string; comp: boolean}[] = [];
+        for (const s of steps) {
+            if (targets.has(s.id)) continue;
+            for (const f of preconditionsOf(s)) if (this.boxForId(f) && this.boxForId(s.id)) raw.push({from: f, to: s.id, comp: false});
+        }
+        for (const s of steps) {
+            if (s.rollbackable && s.compensationStepId && this.boxForId(s.id) && this.boxForId(s.compensationStepId)) {
+                raw.push({from: s.id, to: s.compensationStepId, comp: true});
+            }
+        }
+
+        const sideOf = (b: Box, px: number, py: number): Side => {
+            const dx = px - b.x, dy = py - b.y;
+            return Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? "R" : "L") : (dy >= 0 ? "B" : "T");
+        };
+        const sides: [Side, Side][] = raw.map(e => {
+            const A = this.boxForId(e.from)!, B = this.boxForId(e.to)!;
+            return [sideOf(A, B.x, B.y), sideOf(B, A.x, A.y)];
+        });
+
+        // Group the endpoints landing on each (node, side) so they can be spread along it.
+        const groups = new Map<string, {edge: number; role: 0 | 1; perp: number}[]>();
+        raw.forEach((e, idx) => {
+            const A = this.boxForId(e.from)!, B = this.boxForId(e.to)!;
+            const [sS, tS] = sides[idx];
+            const g1 = `${e.from}|${sS}`, g2 = `${e.to}|${tS}`;
+            (groups.get(g1) ?? groups.set(g1, []).get(g1)!).push({edge: idx, role: 0, perp: (sS === "L" || sS === "R") ? B.y : B.x});
+            (groups.get(g2) ?? groups.set(g2, []).get(g2)!).push({edge: idx, role: 1, perp: (tS === "L" || tS === "R") ? A.y : A.x});
+        });
+        const attach: [Pt, Pt][] = raw.map(() => [{x: 0, y: 0}, {x: 0, y: 0}]);
+        for (const [k, members] of groups) {
+            const sd = k.slice(k.lastIndexOf("|") + 1) as Side;
+            const box = this.boxForId(k.slice(0, k.lastIndexOf("|")))!;
+            members.sort((a, b) => a.perp - b.perp);
+            const n = members.length;
+            members.forEach((m, i) => {
+                const f = n <= 1 ? 0.5 : 0.28 + 0.44 * (i / (n - 1)); // spread across the middle of the side
+                const pt: Pt = sd === "R" ? {x: box.x + box.w / 2, y: box.y - box.h / 2 + box.h * f}
+                    : sd === "L" ? {x: box.x - box.w / 2, y: box.y - box.h / 2 + box.h * f}
+                    : sd === "T" ? {x: box.x - box.w / 2 + box.w * f, y: box.y - box.h / 2}
+                    : {x: box.x - box.w / 2 + box.w * f, y: box.y + box.h / 2};
+                attach[m.edge][m.role] = pt;
+            });
+        }
+
+        return raw.map((e, idx) => {
+            const [sS, tS] = sides[idx];
+            const obstacles: Box[] = [];
+            for (const s of steps) {
+                if (s.id === e.from || s.id === e.to) continue;
+                const box = this.boxForId(s.id);
+                if (box) obstacles.push(box);
+            }
+            return {key: `${e.from}->${e.to}`, from: e.from, to: e.to, comp: e.comp,
+                pts: routeThrough(attach[idx][0], sS, attach[idx][1], tS, obstacles)};
+        });
+    }
+
     // ── Token-flow animation (path by path) ─────────────────────────────────────
 
     /**
@@ -758,7 +876,9 @@ export class MateuWorkflowElk extends LitElement {
         }
         const edges: Pt[][] = [];
         for (let i = 1; i < ids.length; i++) {
-            const e = this.routeBetween(ids[i - 1], ids[i], 0);
+            // Reuse the exact distributed route the edge was drawn with, so the token walks the
+            // painted line (not a re-derived box-center one that could diverge / overlap).
+            const e = this.edgeCache.get(`${ids[i - 1]}->${ids[i]}`) ?? this.routeBetween(ids[i - 1], ids[i], 0);
             if (!e) return null;
             edges.push(e);
         }
@@ -948,6 +1068,8 @@ export class MateuWorkflowElk extends LitElement {
             if (!ring) continue;
             const t0 = this.pulseAt[s.id];
             const dt = t0 ? (now - t0) / 1000 : Infinity;
+            // A failing node trembles briefly while its red ping is fresh (CSS @keyframes ec-shake).
+            if (g) g.classList.toggle("err", errorNodes.has(s.id) && dt < 0.45);
             if (dt > 0.6) { ring.setAttribute("opacity", "0"); continue; }
             const k = dt / 0.6;
             const base = Math.max(sizeOf(s.type).w, sizeOf(s.type).h) / 2;
@@ -1076,33 +1198,18 @@ export class MateuWorkflowElk extends LitElement {
      * in modux. Compensation edges are drawn last so they hop over the sequence flow.
      */
     private renderEdges() {
-        const steps = this.wf.steps ?? [];
-        const targets = compTargets(steps);
-        const list: {from: string; to: string; comp: boolean; spread: number}[] = [];
-        for (const s of steps) {
-            // A compensation step is only entered through its (red) compensation edge; skip its
-            // false-guarded anchor edge so it doesn't look like part of the normal flow.
-            if (targets.has(s.id)) continue;
-            const pre = preconditionsOf(s);
-            const n = pre.length;
-            pre.forEach((f, i) => list.push({from: f, to: s.id, comp: false, spread: n <= 1 ? 0 : (i - (n - 1) / 2) * 11}));
-        }
-        for (const s of steps) {
-            if (s.rollbackable && s.compensationStepId) list.push({from: s.id, to: s.compensationStepId, comp: true, spread: 0});
-        }
-
+        const edges = this.computeEdges();
+        this.edgeCache = new Map(edges.map(e => [e.key, e.pts])); // token & guards reuse these routes
         const prior: [Pt, Pt][] = [];
         const out: unknown[] = [];
-        for (const e of list) {
-            const pts = this.routeBetween(e.from, e.to, e.spread);
-            if (!pts) continue;
-            const d = bridgedPath(pts, prior);
+        for (const e of edges) {
+            const d = bridgedPath(e.pts, prior);
             out.push(e.comp
-                ? svg`<path class="comp-edge" data-comp="${e.from}" data-edge="${e.from}->${e.to}"
+                ? svg`<path class="comp-edge" data-comp="${e.from}" data-edge="${e.key}"
                              d="${d}" marker-end="url(#ec-arrow)"/>`
-                : svg`<path class="edge" data-edge="${e.from}->${e.to}"
+                : svg`<path class="edge" data-edge="${e.key}"
                              d="${d}" marker-end="url(#ec-arrow)"/>`);
-            for (let i = 0; i < pts.length - 1; i++) prior.push([pts[i], pts[i + 1]]);
+            for (let i = 0; i < e.pts.length - 1; i++) prior.push([e.pts[i], e.pts[i + 1]]);
         }
         return out;
     }
@@ -1118,7 +1225,7 @@ export class MateuWorkflowElk extends LitElement {
         const to = this.positions[step.id];
         const preconditions = preconditionsOf(step);
         if (!to || preconditions.length === 0) return svg``;
-        const route = this.routeBetween(preconditions[0], step.id, 0);
+        const route = this.edgeCache.get(`${preconditions[0]}->${step.id}`) ?? this.routeBetween(preconditions[0], step.id, 0);
         if (!route) return svg``;
 
         // Sit toward the source end of the edge, clear of the target node's badge.
@@ -1128,8 +1235,11 @@ export class MateuWorkflowElk extends LitElement {
         const h = 19;
         return svg`
             <g class="guard" data-edge="${preconditions[0]}->${step.id}" transform="translate(${mid.x}, ${mid.y})">
-                <rect x="${-w / 2}" y="${-h / 2}" width="${w}" height="${h}" rx="9.5"/>
-                <text x="0" y="3.6" text-anchor="middle">◇ ${text}</text>
+                <rect class="guard-halo" x="${-w / 2 - 4}" y="${-h / 2 - 4}" width="${w + 8}" height="${h + 8}" rx="12"/>
+                <g class="guard-chip">
+                    <rect x="${-w / 2}" y="${-h / 2}" width="${w}" height="${h}" rx="9.5"/>
+                    <text x="0" y="3.6" text-anchor="middle">◇ ${text}</text>
+                </g>
             </g>
         `;
     }
@@ -1183,7 +1293,7 @@ export class MateuWorkflowElk extends LitElement {
                @mousedown="${(e: MouseEvent) => this.onNodeMouseDown(e, step.id)}"
                @click="${(e: MouseEvent) => this.onNodeClick(e, step.id)}">
                 ${pulse}
-                ${shape}
+                <g class="node-inner" data-inner="${step.id}">${shape}</g>
             </g>
         `;
     }
@@ -1401,6 +1511,17 @@ export class MateuWorkflowElk extends LitElement {
         .node-id {font-size: 9.5px; fill: var(--ec-text-faint);}
         /* radar-ping shown as a flow token passes through a node */
         .flow-pulse {fill: var(--ec-primary); pointer-events: none;}
+        /* a failing node trembles while its red ping is fresh */
+        .node-inner {transform-box: fill-box; transform-origin: center;}
+        .node.err .node-inner {animation: ec-shake .4s ease-in-out;}
+        @keyframes ec-shake {
+            0%, 100% {transform: translateX(0);}
+            15% {transform: translateX(-2.5px) rotate(-1deg);}
+            30% {transform: translateX(2.5px) rotate(1deg);}
+            45% {transform: translateX(-2px) rotate(-.8deg);}
+            60% {transform: translateX(2px) rotate(.8deg);}
+            75% {transform: translateX(-1px);}
+        }
 
         /* edges */
         .edge {fill: none; stroke: var(--ec-edge); stroke-width: 1.6; stroke-linejoin: round; transition: opacity .2s, stroke .2s, stroke-width .2s;}
@@ -1416,11 +1537,19 @@ export class MateuWorkflowElk extends LitElement {
         /* precondition guard chips on edges */
         .guard {pointer-events: none; transition: opacity .2s;}
         .guard.dim {opacity: .15;}   /* its edge is not in the focus */
-        .guard rect {fill: var(--ec-surface); stroke: var(--ec-border); stroke-width: 1;}
+        .guard-chip {transform-box: fill-box; transform-origin: center; transition: transform .2s;}
+        .guard rect {fill: var(--ec-surface); stroke: var(--ec-border); stroke-width: 1; transition: stroke .2s, stroke-width .2s;}
         .guard text {
             font-size: 10.5px; fill: var(--ec-text-dim);
             font-family: var(--lumo-font-family-monospace, ui-monospace, monospace);
+            transition: fill .2s;
         }
+        /* halo behind the chip: hidden until the token walks this edge, then it glows */
+        .guard rect.guard-halo {fill: var(--ec-primary); stroke: none; opacity: 0; filter: blur(5px); transition: opacity .2s;}
+        .guard.active rect.guard-halo {opacity: .38;}
+        .guard.active .guard-chip {transform: scale(1.22);}
+        .guard.active .guard-chip rect {stroke: var(--ec-primary); stroke-width: 1.7;}
+        .guard.active .guard-chip text {fill: var(--ec-primary); font-weight: 700;}
 
         /* properties panel */
         .properties {
