@@ -7,7 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0-beta.014] - 2026-08-01
+
 ### Added
+- **IDE plugins for VS Code and IntelliJ IDEA.** New editor plugins (under `plugins/`) open a
+  workflow definition as an **interactive graph** or as plain **YAML/JSON**, both views editing the
+  same file, with schema validation, and they embed the exact graph web component the app renders.
+  VS Code ships a custom editor (graph by default, *Show YAML/JSON side-by-side*); IntelliJ
+  (2024.2+) ships a split graph/text editor via JCEF. Published to the VS Code and JetBrains
+  marketplaces. See [IDE Plugins](/guides/ide-plugins/).
+- **`.ec` — a first-class workflow-definition extension.** An `.ec` file holds a definition as
+  **JSON or YAML** (detected from the content and preserved on save). The git import and the
+  classpath importer now read `.ec` alongside `.json` / `.yaml` / `.yml`.
+- **JOIN gains an AND/XOR type.** A `JOIN` now carries a `joinType`: **`AND`** (default) is a
+  synchronizing join that waits for all incoming branches; **`XOR`** is an exclusive join that
+  proceeds as soon as any one completes. Null/absent = `AND`, so existing definitions are
+  unaffected. The precondition check honours it (all-match for AND, any-match for XOR).
+- **Live process state on the in-app graphs (read-only monitoring).** The workflow-definition view
+  badges each node with how many live process instances currently sit on it; the process view gains
+  a *Diagram* tab that shows the graph with the active step highlighted and the parts not yet
+  reached dimmed. Driven by a new `overlay` property on the graph component.
+- **Workflow graph editor — major UX pass.** Zoom/pan with fit-to-view and a minimap; dark-mode
+  support outside Lumo (for the IDE webviews); BPMN-style event/gateway shapes with an
+  exclusive-gateway (`×`) glyph for XOR joins; a token-flow simulation that dwells on long-running
+  steps and, on an AND-join, lights up all its incoming branches to show it synchronising;
+  node-avoiding, non-overlapping, shape-fitting edge routing; and drawing precondition lines by
+  Shift+drag. The same built bundle is reused by both IDE plugins.
 - **Whole-process saga rollback in reverse execution order.** When any step fails or times out
   after exhausting its retries, the engine now compensates **every executed rollbackable step**
   (completed steps plus the one that just failed) — not only the failed step's own
@@ -38,6 +63,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `preconditionExpression` guard shown as a chip on its incoming edge.
 
 ### Changed
+- **At most one `START` per workflow.** More than one `START` step is now rejected at validation.
+  Multiple `END` steps remain valid — a flow may finish through several distinct outcomes.
+- **Gateway-model guidance (warnings, not errors).** The validator now logs non-fatal warnings
+  nudging a multi-input step toward a `JOIN` (with explicit AND/XOR semantics) and a multi-output
+  step toward a `FORK`. Compensation anchors are excluded and conditional (guarded) splits stay
+  allowed; it never blocks a definition.
 - **BREAKING: a fully compensated process ends `COMPENSATED`, not `ERROR`.** A failed process
   that runs its saga rollback to completion now reaches the new terminal
   `ProcessStatus.COMPENSATED` instead of remaining `ERROR`; if a compensation itself fails
