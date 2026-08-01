@@ -1,0 +1,71 @@
+{
+  "id": "compensation-cascade",
+  "name": "Saga compensation cascade",
+  "version": 1,
+  "status": "ACTIVE",
+  "steps": [
+    {
+      "id": "start",
+      "type": "START",
+      "name": "Start"
+    },
+    {
+      "id": "a",
+      "type": "ACTION",
+      "name": "A",
+      "topic": "work",
+      "rollbackable": true,
+      "compensationStepId": "comp-a",
+      "preconditionStepId": "start"
+    },
+    {
+      "id": "b",
+      "type": "ACTION",
+      "name": "B",
+      "topic": "work",
+      "rollbackable": true,
+      "compensationStepId": "comp-b",
+      "preconditionStepId": "a"
+    },
+    {
+      "id": "c",
+      "type": "ACTION",
+      "name": "C",
+      "topic": "work",
+      "retries": 0,
+      "rollbackable": true,
+      "compensationStepId": "comp-c",
+      "preconditionStepId": "b"
+    },
+    {
+      "id": "comp-a",
+      "type": "ACTION",
+      "name": "Compensate A",
+      "topic": "work",
+      "preconditionExpression": "false",
+      "preconditionStepId": "start"
+    },
+    {
+      "id": "comp-b",
+      "type": "ACTION",
+      "name": "Compensate B",
+      "topic": "work",
+      "preconditionExpression": "false",
+      "preconditionStepId": "start"
+    },
+    {
+      "id": "comp-c",
+      "type": "ACTION",
+      "name": "Compensate C",
+      "topic": "work",
+      "preconditionExpression": "false",
+      "preconditionStepId": "start"
+    },
+    {
+      "id": "end",
+      "type": "END",
+      "name": "End",
+      "preconditionStepId": "c"
+    }
+  ]
+}

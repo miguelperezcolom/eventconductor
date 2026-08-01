@@ -23,6 +23,8 @@ class CompensationE2eTest extends AbstractE2eTest {
                 .as("compensation step must run when a rollbackable step exhausts retries")
                 .isEqualTo(1);
         assertThat(step("comp-1", "refund").getStatus()).isEqualTo(StepExecutionStatus.COMPLETED);
-        assertThat(process("comp-1").getStatus()).isEqualTo(ProcessStatus.ERROR);
+        // A single failed rollbackable step is the degenerate cascade: its compensation runs
+        // and the process ends fully rolled back (COMPENSATED), not left in ERROR.
+        assertThat(process("comp-1").getStatus()).isEqualTo(ProcessStatus.COMPENSATED);
     }
 }

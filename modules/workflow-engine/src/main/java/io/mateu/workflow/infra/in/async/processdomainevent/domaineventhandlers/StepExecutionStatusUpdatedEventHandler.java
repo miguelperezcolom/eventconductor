@@ -11,14 +11,17 @@ import io.mateu.workflow.application.usecases.process.update.ProcessUpdateStepEx
 import io.mateu.workflow.ddd.DomainEvent;
 import io.mateu.workflow.application.out.DownstreamEventPublisher;
 import io.mateu.workflow.ddd.DomainEventHandler;
+import io.mateu.workflow.domain.aggregates.Process;
+import io.mateu.workflow.domain.aggregates.ProcessStatus;
 import io.mateu.workflow.domain.aggregates.Step;
-import io.mateu.workflow.domain.aggregates.StepExecution;
-import io.mateu.workflow.domain.aggregates.StepExecutionStatus;
+import io.mateu.workflow.domain.services.CompensationService;
 import io.mateu.workflow.dtos.events.domain.StepExecutionStatusChanged;
 import io.mateu.workflow.dtos.events.integration.TaskCancellationRequested;
 import io.mateu.workflow.dtos.events.integration.TaskStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+
+import java.time.LocalDateTime;
 
 import static io.mateu.core.infra.JsonSerializer.pojoFromJson;
 
@@ -33,6 +36,7 @@ public class StepExecutionStatusUpdatedEventHandler implements DomainEventHandle
     final DownstreamEventPublisher downstreamEventPublisher;
     final WorkflowMetrics workflowMetrics;
     final CancelChildProcessService cancelChildProcessService;
+    final CompensationService compensationService;
 
     @Override
     public Class<? extends DomainEvent> eventClass() {
@@ -61,9 +65,6 @@ public class StepExecutionStatusUpdatedEventHandler implements DomainEventHandle
                 return;
             }
 
-            // Retries exhausted: start compensation step if the step is rollbackable.
-            triggerCompensation(stepExecution, step);
-
             // Retries exhausted on a PROCESS step (ERROR from the worker pipeline or TIMEOUT
             // from the timeout scheduler — both saved before this event): its still-running
             // child process must be cancelled. Not done while retries remain, because a
@@ -72,29 +73,54 @@ public class StepExecutionStatusUpdatedEventHandler implements DomainEventHandle
         }
 
         processUpdateStepExecutionUpdateUseCase.handle(new ProcessStepExecutionUpdateCommand(stepExecution.getProcessId()));
+        // Drive saga rollback before stepping the process over: a failed process starts (or
+        // continues) compensating executed steps in reverse order here; step-over then just
+        // sees the blocking error and holds the normal flow.
+        advanceCompensation(stepExecution.getProcessId());
         stepOverProcessUseCase.handle(new StepOverProcessCommand(stepExecution.getProcessId()));
     }
 
     /**
-     * Starts the compensation step (if configured) when a step has exhausted all its
-     * retries.  The compensation step is a regular StepExecution already created at
-     * process-start time; we just call start() on it so it gets dispatched.
+     * Advances process-level saga rollback. When the process has finally failed, the
+     * compensations of every executed rollbackable step run sequentially in reverse execution
+     * order: the failing event starts the first (latest-executed) compensation, and each
+     * compensation's own completion event starts the next. Called on every terminal event and
+     * kept idempotent by deriving the next action purely from persisted state
+     * ({@link CompensationService}), so redelivery and restarts are safe.
      */
-    private void triggerCompensation(StepExecution stepExecution, Step step) {
-        if (!step.rollbackable()
-                || step.compensationStepId() == null
-                || step.compensationStepId().isBlank()) {
+    private void advanceCompensation(String processId) {
+        var process = processRepository.findById(processId).orElseThrow();
+        var executions = stepExecutionRepository.findByProcess(process);
+        var decision = compensationService.decide(executions);
+        switch (decision.outcome()) {
+            case RUN -> {
+                // The compensation step is a regular StepExecution created at process-start
+                // time (CREATED); start() dispatches it. Only one is ever in flight, so the
+                // reverse-order chain advances one completion at a time.
+                var compensation = decision.next();
+                compensation.start(process);
+                stepExecutionRepository.save(compensation);
+                workflowMetrics.compensationTriggered(compensation.getWorkflowDefinitionId());
+            }
+            case DONE -> markCompensated(process);
+            case NONE, WAITING, FAILED -> { /* nothing to start now */ }
+        }
+    }
+
+    /**
+     * Marks a fully rolled-back process COMPENSATED. It was already ERROR while compensating
+     * (which blocks the normal flow and, for a child, has already notified its parent as a
+     * failure); this only records the clean-rollback terminal state, which is sticky so
+     * nothing reverts it to ERROR.
+     */
+    private void markCompensated(Process process) {
+        if (ProcessStatus.COMPENSATED.equals(process.getStatus())) {
             return;
         }
-        var process = processRepository.findById(stepExecution.getProcessId()).orElseThrow();
-        stepExecutionRepository.findByProcess(process).stream()
-                .filter(se -> step.compensationStepId().equals(se.getStepId()))
-                .filter(se -> StepExecutionStatus.CREATED.equals(se.getStatus()))
-                .findFirst()
-                .ifPresent(compensation -> {
-                    compensation.start(process);
-                    stepExecutionRepository.save(compensation);
-                    workflowMetrics.compensationTriggered(stepExecution.getWorkflowDefinitionId());
-                });
+        var compensated = process.withStatus(ProcessStatus.COMPENSATED);
+        if (compensated.getFinished() == null) {
+            compensated = compensated.withFinished(LocalDateTime.now());
+        }
+        processRepository.save(compensated);
     }
 }

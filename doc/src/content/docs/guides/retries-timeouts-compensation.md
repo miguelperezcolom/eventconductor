@@ -108,12 +108,23 @@ For distributed transactions, use `rollbackable` + `compensationStepId` to defin
 Compensation steps need a precondition like every other step (the [roots rule](/guides/workflow-definitions/#validation-at-load)):
 anchor each one to the step it compensates and guard it with `"preconditionExpression": "false"`,
 so the normal dataflow never starts it. The compensation pipeline starts it directly — without
-evaluating the guard — when the rollbackable step exhausts its retries.
+evaluating the guard — during rollback.
 
-**How it works:**
-1. If `reserve-flight` fails after exhausting retries, the engine triggers `cancel-hotel` (the compensation step of the previously completed `reserve-hotel`)
-2. Compensation steps run in reverse order of the completed rollbackable steps
-3. The process transitions to `ERROR` after compensation completes
+**How it works:** compensation is a **whole-process saga rollback**, not a per-step undo. When
+any step fails after exhausting its retries:
+
+1. The process enters `ERROR` and the normal flow is blocked (no new steps start).
+2. The engine collects **every step that has executed** (completed, plus the one that just
+   failed) and declares a `compensationStepId`, and runs their compensations **sequentially,
+   in reverse execution order** — the latest-executed step is undone first. In the example, if
+   `reserve-flight` fails, `cancel-flight` runs first, then `cancel-hotel`.
+3. Each compensation starts only once the previous one has completed, so the order is strict.
+4. When the whole chain completes, the process transitions to the terminal **`COMPENSATED`**
+   state (a clean rollback — distinct from a raw `ERROR`). If a compensation itself fails after
+   its own retries, the chain halts and the process stays `ERROR`.
+
+A single failed rollbackable step is just the degenerate case of this cascade: its one
+compensation runs and the process ends `COMPENSATED`.
 
 ## Conditional skipping
 

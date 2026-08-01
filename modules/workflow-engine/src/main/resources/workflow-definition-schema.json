@@ -181,12 +181,12 @@
         },
         "rollbackable": {
           "type": ["boolean", "null"],
-          "description": "Whether a compensation step should be triggered when this step fails after exhausting retries.",
+          "description": "Whether this step must be compensated (undone) when the process fails. When any step fails after exhausting its retries, the compensations of ALL executed rollbackable steps run sequentially in reverse execution order (saga rollback), and the process ends COMPENSATED.",
           "default": false
         },
         "compensationStepId": {
           "type": ["string", "null"],
-          "description": "ID of the step to execute as compensation when this step fails. Only relevant when rollbackable is true."
+          "description": "ID of the step that undoes this step's effect. Run during saga rollback (in reverse execution order) when the process fails. Only relevant when rollbackable is true. Anchor the compensation step to a precondition and guard it with preconditionExpression 'false' so the normal flow never starts it."
         },
         "maxSuccessfulExecutions": {
           "type": ["integer", "null"],
