@@ -5,7 +5,9 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
 import io.mateu.workflow.application.services.WorkflowDefinitionValidator;
 import io.mateu.workflow.domain.aggregates.WorkflowDefinition;
+import io.mateu.workflow.domain.aggregates.WorkflowDefinitionStatus;
 import io.mateu.workflow.infra.config.GitImportProperties;
+import io.mateu.workflow.webhook.ImportedDefinitionsRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.api.Git;
@@ -18,7 +20,9 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -26,35 +30,51 @@ import java.util.UUID;
 @Slf4j
 public class ImportWorkflowDefinitionsFromGitUseCase {
 
+    /** Registry namespace so workflows, forms and rules can share one provenance store. */
+    private static final String NAMESPACE = "workflow";
+
     final GitImportProperties gitImportProperties;
     final WorkflowDefinitionRepository workflowDefinitionRepository;
     final WorkflowDefinitionValidator workflowDefinitionValidator;
+    final ImportedDefinitionsRegistry importedDefinitionsRegistry;
     final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
     private static final YAMLMapper YAML_MAPPER = new YAMLMapper();
 
+    /** Re-imports every configured repository. */
     public ImportWorkflowDefinitionsResult handle() {
+        return handle(gitImportProperties.getRepositories());
+    }
+
+    /** Re-imports the given subset of repositories (used by the webhook to reload only what changed). */
+    public ImportWorkflowDefinitionsResult handle(List<GitImportProperties.GitRepository> repositories) {
         var imported = new ArrayList<String>();
         var errors = new ArrayList<String>();
+        var pruned = new ArrayList<String>();
 
-        for (var repo : gitImportProperties.getRepositories()) {
+        for (var repo : repositories) {
             try {
-                importFromRepository(repo, imported, errors);
+                importFromRepository(repo, imported, errors, pruned);
             } catch (Exception e) {
                 log.error("Failed to import from repository {}: {}", repo.getUrl(), e.getMessage(), e);
                 errors.add("Repository " + repo.getUrl() + ": " + e.getMessage());
             }
         }
 
-        return new ImportWorkflowDefinitionsResult(imported, errors);
+        return new ImportWorkflowDefinitionsResult(imported, errors, pruned);
     }
 
     private void importFromRepository(GitImportProperties.GitRepository repo,
                                       List<String> imported,
-                                      List<String> errors) throws IOException, GitAPIException {
+                                      List<String> errors,
+                                      List<String> pruned) throws IOException, GitAPIException {
         Path tempDir = Files.createTempDirectory("workflow-git-import-");
         try {
             cloneRepository(repo, tempDir);
-            scanAndImport(tempDir, imported, errors);
+            // Ids of the definitions that have an explicit, stable id in this repo — only these
+            // can be reconciled across imports, so only these participate in pruning.
+            var importedIds = new LinkedHashSet<String>();
+            scanAndImport(tempDir, imported, errors, importedIds);
+            pruneRemovedDefinitions(repo.getUrl(), importedIds, pruned);
         } finally {
             deleteDirectory(tempDir.toFile());
         }
@@ -82,12 +102,13 @@ public class ImportWorkflowDefinitionsFromGitUseCase {
         return name.endsWith(".json") || name.endsWith(".yaml") || name.endsWith(".yml");
     }
 
-    private void scanAndImport(Path repoRoot, List<String> imported, List<String> errors) throws IOException {
+    private void scanAndImport(Path repoRoot, List<String> imported, List<String> errors,
+                               Set<String> importedIds) throws IOException {
         try (var stream = Files.walk(repoRoot)) {
             stream.filter(ImportWorkflowDefinitionsFromGitUseCase::isDefinitionFile)
                     .forEach(file -> {
                         try {
-                            importDefinitionFile(file, repoRoot, imported);
+                            importDefinitionFile(file, repoRoot, imported, importedIds);
                         } catch (Exception e) {
                             log.warn("Skipping {}: {}", file, e.getMessage());
                             errors.add("File " + repoRoot.relativize(file) + ": " + e.getMessage());
@@ -96,7 +117,8 @@ public class ImportWorkflowDefinitionsFromGitUseCase {
         }
     }
 
-    private void importDefinitionFile(Path file, Path repoRoot, List<String> imported) throws IOException {
+    private void importDefinitionFile(Path file, Path repoRoot, List<String> imported,
+                                      Set<String> importedIds) throws IOException {
         String fileName = file.toString();
         var node = (fileName.endsWith(".yaml") || fileName.endsWith(".yml"))
                 ? YAML_MAPPER.readTree(file.toFile())
@@ -109,8 +131,10 @@ public class ImportWorkflowDefinitionsFromGitUseCase {
 
         var definition = objectMapper.treeToValue(node, WorkflowDefinition.class);
 
+        boolean hadExplicitId = definition.id() != null && !definition.id().isBlank();
+
         // Assign an ID if missing (schema marks it as optional).
-        if (definition.id() == null || definition.id().isBlank()) {
+        if (!hadExplicitId) {
             definition = new WorkflowDefinition(
                     UUID.randomUUID().toString(),
                     definition.name(),
@@ -130,9 +154,38 @@ public class ImportWorkflowDefinitionsFromGitUseCase {
         // Validation is delegated to WorkflowDefinitionValidator (called inside repository.save()).
         // Any violation will throw WorkflowDefinitionValidationException, caught by the caller.
         workflowDefinitionRepository.save(definition);
+        // Only definitions with an explicit id can be reconciled on a later import (an
+        // auto-generated id changes every time), so only those are prune-tracked.
+        if (hadExplicitId) {
+            importedIds.add(definition.id());
+        }
         log.info("Imported workflow definition '{}' (id={}) from {}",
                 definition.name(), definition.id(), repoRoot.relativize(file));
         imported.add(definition.name() + " [" + definition.id() + "]");
+    }
+
+    /**
+     * Archives definitions previously imported from this repository that are no longer present
+     * (removed or renamed in the repo). Scoped by the registry to git-imported definitions, so
+     * classpath and hand-authored definitions are never touched. Archive (not delete) keeps it
+     * reversible and never fights the "cannot delete an ACTIVE definition" guard.
+     */
+    void pruneRemovedDefinitions(String repositoryUrl, Set<String> importedIds, List<String> pruned) {
+        var previous = importedDefinitionsRegistry.idsFor(NAMESPACE, repositoryUrl);
+        for (var id : previous) {
+            if (importedIds.contains(id)) {
+                continue;
+            }
+            workflowDefinitionRepository.findById(id).ifPresent(def -> {
+                if (def.status() != WorkflowDefinitionStatus.ARCHIVED) {
+                    workflowDefinitionRepository.save(def.withStatus(WorkflowDefinitionStatus.ARCHIVED));
+                    log.info("Pruned (archived) workflow definition '{}' (id={}) — no longer in {}",
+                            def.name(), id, repositoryUrl);
+                    pruned.add(def.name() + " [" + id + "]");
+                }
+            });
+        }
+        importedDefinitionsRegistry.replace(NAMESPACE, repositoryUrl, importedIds);
     }
 
     private void deleteDirectory(File dir) {
@@ -146,5 +199,5 @@ public class ImportWorkflowDefinitionsFromGitUseCase {
         dir.delete();
     }
 
-    public record ImportWorkflowDefinitionsResult(List<String> imported, List<String> errors) {}
+    public record ImportWorkflowDefinitionsResult(List<String> imported, List<String> errors, List<String> pruned) {}
 }

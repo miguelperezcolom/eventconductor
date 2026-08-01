@@ -427,7 +427,7 @@ Worker outputs are **merged into process variables** (overwriting same-named one
 
 - `retries: N` — retry a step up to N times on `ERROR` or `TIMEOUT`.
 - `timeout` — on expiry the step goes `TIMEOUT`, then retries if attempts remain, else `ERROR`. A process in `ERROR` (after retries exhausted) can be retried, transitioning back to `RUNNING`.
-- **Saga**: mark steps `rollbackable: true` with a `compensationStepId`. If the process fails, compensation steps run to undo completed work. Define compensation steps as ordinary `ACTION` steps anchored to the step they compensate with `"preconditionExpression": "false"` — the dataflow never starts them (and the roots rule is satisfied); the compensation pipeline starts them directly, ignoring the guard.
+- **Saga**: mark steps `rollbackable: true` with a `compensationStepId`. When any step fails after exhausting retries, the engine runs the compensations of **every executed rollbackable step** (completed steps plus the one that just failed) **sequentially, in reverse execution order** — latest-executed undone first, each starting only once the previous compensation completes. When the whole chain finishes the process ends in the terminal **`COMPENSATED`** state; if a compensation itself fails after its own retries, the chain halts and the process stays `ERROR`. Define compensation steps as ordinary `ACTION` steps anchored to the step they compensate with `"preconditionExpression": "false"` — the dataflow never starts them (and the roots rule is satisfied); the compensation pipeline starts them directly, ignoring the guard.
 
 ```json
 {
@@ -454,7 +454,7 @@ Worker outputs are **merged into process variables** (overwriting same-named one
 ## 9. Statuses
 
 ### Process
-`PENDING` (created) → `RUNNING` → `COMPLETED` | `ERROR`; `RUNNING`/`PENDING` → `CANCELLED`. `ERROR` is retriable. `PENDING`/`RUNNING` → `PAUSED` → `RUNNING` on resume (`PAUSED` → `CANCELLED` also works); see §6 for pause semantics.
+`PENDING` (created) → `RUNNING` → `COMPLETED` | `ERROR`; `RUNNING`/`PENDING` → `CANCELLED`. `ERROR` is retriable. A failed process that fully rolls back via saga compensation ends in the terminal `COMPENSATED` state (`ERROR` → `COMPENSATED`); both `ERROR` and `COMPENSATED` are sticky failure states, distinguished by whether the side effects were undone (see §8). `PENDING`/`RUNNING` → `PAUSED` → `RUNNING` on resume (`PAUSED` → `CANCELLED` also works); see §6 for pause semantics.
 
 ### Step execution
 | Status | Meaning |
@@ -544,14 +544,14 @@ record Variable(String name, String value) {}
 ```yaml
 workflow:
   git-import:
-    webhook-secret: mysecret        # optional; enables HMAC-SHA256 verification of GitHub webhooks
+    webhook-secret: mysecret        # optional; verifies inbound webhooks (HMAC or token, per provider)
     repositories:
       - url: https://github.com/your-org/workflow-defs.git
         branch: main
         username: my-user           # optional (token auth)
         password: ghp_xxx           # optional
 ```
-Also triggerable via the MCP tool `importWorkflowDefinitionsFromGit`, or a GitHub webhook to `POST /workflow/webhooks/github` (responds 202, imports in background).
+Also triggerable via the MCP tool `importWorkflowDefinitionsFromGit`, or a git webhook to `POST /workflow/webhooks/{provider}` (`github`/`gitlab`/`bitbucket`/`generic`; responds 202, imports in background). The webhook reloads **only the repository and branch named in the push** (payload parsed; unmatched pushes are acknowledged and ignored; an unparseable payload reloads everything). Definitions removed from a repo are **pruned** — workflow definitions are archived, forms/rules deleted (git-imported only; classpath/hand-authored never touched; tracked per instance, resets on restart). Verification per provider using `webhook-secret`: GitHub/Bitbucket HMAC-SHA256 (`X-Hub-Signature-256`/`X-Hub-Signature`), GitLab token (`X-Gitlab-Token`), generic token (`X-Webhook-Token`); blank secret disables it. Forms and rules expose the same at `/forms/webhooks/{provider}` and `/rules/webhooks/{provider}`.
 
 **Working copies** — a `DRAFT` clone of a production definition (`draftOfId` = original). Edit safely, then **promote**. Any `DRAFT` is promotable: if it has a `draftOfId`, its content is copied onto the original, `version`+1, working copy deleted, running processes unaffected; a standalone draft (`draftOfId == null`) is simply activated in place. One working copy per definition.
 
