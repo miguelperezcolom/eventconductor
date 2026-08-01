@@ -193,6 +193,13 @@ public record WorkflowDefinition(
      */
     public void checkInvariants() {
         if (steps == null) return;
+        // At most one START: a flow has a single entry point (or enters via WAIT_FOR_MESSAGE).
+        // Multiple END steps are fine — a flow may finish through several distinct outcomes.
+        long startCount = steps.stream().filter(s -> StepType.START.equals(s.type())).count();
+        if (startCount > 1) {
+            throw new IllegalStateException(
+                    "A workflow can have at most one START step, but found " + startCount + ".");
+        }
         var stepIds = new java.util.HashSet<String>();
         for (var step : steps) {
             if (step.id() == null) continue;
