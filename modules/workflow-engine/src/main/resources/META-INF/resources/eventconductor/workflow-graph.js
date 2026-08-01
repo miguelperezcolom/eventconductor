@@ -1614,9 +1614,11 @@ let ah = class extends ZP {
 };
 ah.styles = [YLn, Pfn`
         :host {
-            /* Fill the host's container (a Mateu zone, or a sized wrapper); fall back to a
-               sensible minimum when the container has no height of its own. */
+            /* Fill all the space the container offers: height:100% for a block/sized parent,
+               flex:1 to grow inside a flex column/row (a Mateu zone), and align-self:stretch to
+               fill the cross axis — falling back to a sensible minimum when there is no height. */
             display: block; height: 100%; min-height: 230px; box-sizing: border-box;
+            flex: 1 1 auto; align-self: stretch;
             font-family: var(--lumo-font-family, sans-serif);
             /* Themeable palette (modux-style). Light defaults; :host([dark]) maps onto Lumo. */
             --ec-canvas-bg: #f8fafc;
