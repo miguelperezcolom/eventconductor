@@ -27,7 +27,7 @@ description: Complete reference for all EventConductor configuration properties.
 
 ## Git import (`workflow.git-import.*`)
 
-Clones Git repositories at startup and imports workflow definition files (`.json`, `.yaml`, `.yml`). Only available when `workflow.persistence=jpa`.
+Clones Git repositories at startup and imports workflow definition files (`.ec`, `.json`, `.yaml`, `.yml`). `.ec` is EventConductor's first-class extension — its content may be JSON or YAML (detected automatically). Only available when `workflow.persistence=jpa`.
 
 | Property | Default | Description |
 |---|---|---|
