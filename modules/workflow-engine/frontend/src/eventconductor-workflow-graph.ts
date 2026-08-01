@@ -1280,9 +1280,15 @@ export class MateuWorkflowElk extends LitElement {
         // USER_TASK (a human is in the loop), WAIT_FOR_MESSAGE / TIMER (they wait by nature),
         // and any step with a high timeout (assumed slow).
         const SLOW_TYPES = new Set<StepType>(["USER_TASK", "WAIT_FOR_MESSAGE", "TIMER"]);
+        // An AND-join synchronises: it waits for ALL its incoming branches. Treat it as a dwell
+        // node so the token pauses there and we can light up the branches it is waiting for.
+        const isAndJoin = (id: string) => {
+            const s = byId.get(id);
+            return !!s && s.type === "JOIN" && s.joinType !== "XOR" && preconditionsOf(s).length > 1;
+        };
         const isSlow = (id: string) => {
             const s = byId.get(id);
-            return !!s && (SLOW_TYPES.has(s.type) || (s.timeout ?? 0) >= SLOW_TIMEOUT_MS);
+            return !!s && (SLOW_TYPES.has(s.type) || (s.timeout ?? 0) >= SLOW_TIMEOUT_MS || isAndJoin(id));
         };
 
         const stops = geo.marks;
@@ -1370,6 +1376,15 @@ export class MateuWorkflowElk extends LitElement {
         // there is no universe, so everything but the animated path dims.
         const activeEdges = new Set<string>();
         for (let i = 1; i < path.length; i++) activeEdges.add(`${path[i - 1]}->${path[i]}`);
+        // While the token synchronises at an AND-join, light up ALL its incoming branches (and keep
+        // their source nodes lit) — a visual "waiting for every branch to complete".
+        const syncNodes = new Set<string>();
+        if (dwellId && isAndJoin(dwellId)) {
+            for (const pre of preconditionsOf(byId.get(dwellId)!)) {
+                activeEdges.add(`${pre}->${dwellId}`);
+                syncNodes.add(pre);
+            }
+        }
         let unionEdges: Set<string> | null = null;
         let focusNodes: Set<string> | null = null;
         if (this.focusMode !== "auto") {
@@ -1400,7 +1415,7 @@ export class MateuWorkflowElk extends LitElement {
         const pathNodes = new Set(path);
         for (const s of this.wf.steps ?? []) {
             const g = root.querySelector?.(`.node[data-node="${s.id}"]`) as SVGGElement | null;
-            const onPath = pathNodes.has(s.id);
+            const onPath = pathNodes.has(s.id) || syncNodes.has(s.id);
             const dim = focusNodes ? (!focusNodes.has(s.id) && !onPath) : !onPath;
             if (g) g.classList.toggle("dim", dim);
             const ring = root.querySelector?.(`[data-pulse="${s.id}"]`) as SVGCircleElement | null;
