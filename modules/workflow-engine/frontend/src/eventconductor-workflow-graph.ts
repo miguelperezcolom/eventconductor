@@ -245,6 +245,28 @@ function routeAvoiding(src: Box, tgt: Box, obstacles: Box[], spread = 0, margin 
 }
 
 type Side = "R" | "L" | "T" | "B";
+
+/**
+ * Move a box-border attach point onto the node's actual outline so lines meet the shape with no
+ * gap: a circle for events, a diamond for gateways, the box itself for tasks. `cx,cy` is the node
+ * centre; `pt` is the (possibly offset) point on the box side; `side` is the side it exits.
+ */
+function snapToShape(cx: number, cy: number, type: StepType, pt: Pt, side: Side): Pt {
+    const horiz = side === "L" || side === "R", sgn = (side === "R" || side === "B") ? 1 : -1;
+    const clamp = (v: number, m: number) => Math.max(-m, Math.min(m, v));
+    if (isEventType(type)) {
+        const R = EVENT_SIZE / 2 - 3;
+        if (horiz) { const dy = clamp(pt.y - cy, R - 1); return {x: cx + sgn * Math.sqrt(R * R - dy * dy), y: cy + dy}; }
+        const dx = clamp(pt.x - cx, R - 1); return {x: cx + dx, y: cy + sgn * Math.sqrt(R * R - dx * dx)};
+    }
+    if (isGatewayType(type)) {
+        const hw = EVENT_SIZE / 2 - 2, hh = EVENT_SIZE / 2 - 2; // diamond inscribed in the box
+        if (horiz) { const dy = clamp(pt.y - cy, hh - 1); return {x: cx + sgn * hw * (1 - Math.abs(dy) / hh), y: cy + dy}; }
+        const dx = clamp(pt.x - cx, hw - 1); return {x: cx + dx, y: cy + sgn * hh * (1 - Math.abs(dx) / hw)};
+    }
+    return pt; // rectangle: the box border already is the shape
+}
+
 function stubOut(pt: Pt, side: Side, d: number): Pt {
     return side === "R" ? {x: pt.x + d, y: pt.y} : side === "L" ? {x: pt.x - d, y: pt.y}
         : side === "T" ? {x: pt.x, y: pt.y - d} : {x: pt.x, y: pt.y + d};
@@ -255,7 +277,7 @@ function stubOut(pt: Pt, side: Side, d: number): Pt {
  * to its side), avoiding the other nodes. Lets edges attach at distinct points on a node so
  * parallel edges never lie on top of one another. Same candidate-scoring idea as routeAvoiding.
  */
-function routeThrough(sPt: Pt, sSide: Side, tPt: Pt, tSide: Side, obstacles: Box[], margin = 20): Pt[] {
+function routeThrough(sPt: Pt, sSide: Side, tPt: Pt, tSide: Side, obstacles: Box[], prior: [Pt, Pt][] = [], margin = 20): Pt[] {
     const STUB = 16;
     const S = stubOut(sPt, sSide, STUB), T = stubOut(tPt, tSide, STUB);
     const crossings = (pts: Pt[]): number => {
@@ -265,8 +287,26 @@ function routeThrough(sPt: Pt, sSide: Side, tPt: Pt, tSide: Side, obstacles: Box
                 if (segmentCrossesBox(pts[i], pts[i + 1], {x: o.x, y: o.y, w: o.w + 2 * margin, h: o.h + 2 * margin})) n++;
         return n;
     };
+    // Length that this path runs collinear-and-coincident with an already-routed edge (what we
+    // must avoid): two verticals at the same x, or two horizontals at the same y, that share span.
+    const overlap = (pts: Pt[]): number => {
+        let total = 0;
+        for (let i = 0; i < pts.length - 1; i++) {
+            const a = pts[i], b = pts[i + 1];
+            const vert = Math.abs(a.x - b.x) < 1.5, horiz = Math.abs(a.y - b.y) < 1.5;
+            if (!vert && !horiz) continue;
+            for (const [c, d] of prior) {
+                if (vert && Math.abs(c.x - d.x) < 1.5 && Math.abs(c.x - a.x) < 2.5) {
+                    total += Math.max(0, Math.min(Math.max(a.y, b.y), Math.max(c.y, d.y)) - Math.max(Math.min(a.y, b.y), Math.min(c.y, d.y)));
+                } else if (horiz && Math.abs(c.y - d.y) < 1.5 && Math.abs(c.y - a.y) < 2.5) {
+                    total += Math.max(0, Math.min(Math.max(a.x, b.x), Math.max(c.x, d.x)) - Math.max(Math.min(a.x, b.x), Math.min(c.x, d.x)));
+                }
+            }
+        }
+        return total;
+    };
     const cands: Pt[][] = [[{x: T.x, y: S.y}], [{x: S.x, y: T.y}]];
-    for (const f of [0.5, 0.35, 0.65, 0.25, 0.75]) {
+    for (const f of [0.5, 0.4, 0.6, 0.3, 0.7, 0.2, 0.8, 0.15, 0.85]) {
         const mx = S.x + (T.x - S.x) * f, my = S.y + (T.y - S.y) * f;
         cands.push([{x: mx, y: S.y}, {x: mx, y: T.y}]);
         cands.push([{x: S.x, y: my}, {x: T.x, y: my}]);
@@ -286,7 +326,8 @@ function routeThrough(sPt: Pt, sSide: Side, tPt: Pt, tSide: Side, obstacles: Box
     let best = cands[0], bestScore = Infinity;
     for (const c of cands) {
         const full = [sPt, S, ...c, T, tPt];
-        const score = crossings(full) * 1e6 + polylineLength(full) + c.length * 40;
+        // crossings dominate, then avoiding overlap with existing lines, then length + bend count.
+        const score = crossings(full) * 1e6 + overlap(full) * 2e3 + polylineLength(full) + c.length * 40;
         if (score < bestScore) { best = c; bestScore = score; }
     }
     return [sPt, S, ...best, T, tPt];
@@ -950,7 +991,9 @@ export class MateuWorkflowElk extends LitElement {
         const attach: [Pt, Pt][] = raw.map(() => [{x: 0, y: 0}, {x: 0, y: 0}]);
         for (const [k, members] of groups) {
             const sd = k.slice(k.lastIndexOf("|") + 1) as Side;
-            const box = this.boxForId(k.slice(0, k.lastIndexOf("|")))!;
+            const nodeId = k.slice(0, k.lastIndexOf("|"));
+            const box = this.boxForId(nodeId)!;
+            const type = (this.wf.steps ?? []).find(s => s.id === nodeId)!.type;
             members.sort((a, b) => a.perp - b.perp);
             const n = members.length;
             members.forEach((m, i) => {
@@ -959,10 +1002,14 @@ export class MateuWorkflowElk extends LitElement {
                     : sd === "L" ? {x: box.x - box.w / 2, y: box.y - box.h / 2 + box.h * f}
                     : sd === "T" ? {x: box.x - box.w / 2 + box.w * f, y: box.y - box.h / 2}
                     : {x: box.x - box.w / 2 + box.w * f, y: box.y + box.h / 2};
-                attach[m.edge][m.role] = pt;
+                // Pull the point onto the real outline (circle/diamond) so no white gap remains.
+                attach[m.edge][m.role] = snapToShape(box.x, box.y, type, pt, sd);
             });
         }
 
+        // Route one edge at a time, letting each avoid overlapping the lines already placed
+        // (sequence edges first, compensation last — so comp lines yield to the normal flow).
+        const priorSegs: [Pt, Pt][] = [];
         return raw.map((e, idx) => {
             const [sS, tS] = sides[idx];
             const obstacles: Box[] = [];
@@ -971,8 +1018,9 @@ export class MateuWorkflowElk extends LitElement {
                 const box = this.boxForId(s.id);
                 if (box) obstacles.push(box);
             }
-            return {key: `${e.from}->${e.to}`, from: e.from, to: e.to, comp: e.comp,
-                pts: routeThrough(attach[idx][0], sS, attach[idx][1], tS, obstacles)};
+            const pts = routeThrough(attach[idx][0], sS, attach[idx][1], tS, obstacles, priorSegs);
+            for (let i = 0; i < pts.length - 1; i++) priorSegs.push([pts[i], pts[i + 1]]);
+            return {key: `${e.from}->${e.to}`, from: e.from, to: e.to, comp: e.comp, pts};
         });
     }
 
