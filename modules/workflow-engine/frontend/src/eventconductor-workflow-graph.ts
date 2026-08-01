@@ -168,6 +168,82 @@ function orthogonalRoute(a: Box, b: Box, spread = 0): Pt[] {
     return straightRoute(a, b, spread);
 }
 
+/** Does the segment a→b clip the axis-aligned box (centre + size)? Liang–Barsky. */
+function segmentCrossesBox(a: Pt, b: Pt, box: Box): boolean {
+    const minX = box.x - box.w / 2, maxX = box.x + box.w / 2;
+    const minY = box.y - box.h / 2, maxY = box.y + box.h / 2;
+    let t0 = 0, t1 = 1;
+    const dx = b.x - a.x, dy = b.y - a.y;
+    for (const [p, q] of [[-dx, a.x - minX], [dx, maxX - a.x], [-dy, a.y - minY], [dy, maxY - a.y]] as [number, number][]) {
+        if (p === 0) { if (q < 0) return false; continue; }
+        const r = q / p;
+        if (p < 0) { if (r > t1) return false; if (r > t0) t0 = r; }
+        else { if (r < t0) return false; if (r < t1) t1 = r; }
+    }
+    return t1 - t0 > 0.02; // a mere corner graze does not count
+}
+
+/** Border exit of `box` aligned to (tx,ty)'s perpendicular coord, so the stub stays orthogonal. */
+function orthoBorder(box: Box, tx: number, ty: number): Pt {
+    const dx = tx - box.x, dy = ty - box.y, hw = box.w / 2, hh = box.h / 2;
+    if (Math.abs(dx) >= Math.abs(dy) && Math.abs(dy) <= hh) return {x: box.x + Math.sign(dx) * hw, y: ty};
+    if (Math.abs(dy) >= Math.abs(dx) && Math.abs(dx) <= hw) return {x: tx, y: box.y + Math.sign(dy) * hh};
+    if (dx === 0 && dy === 0) return {x: box.x, y: box.y};
+    const scale = 1 / Math.max(Math.abs(dx) / hw, Math.abs(dy) / hh);
+    return {x: box.x + dx * scale, y: box.y + dy * scale};
+}
+
+/**
+ * Orthogonal route between two boxes that steers around the other nodes (obstacles), so no
+ * line ever runs across a node. Ported from modux: if the default route is clean it is kept;
+ * otherwise a family of orthogonal detours (L-shapes and Z-channels, plus channels that clear
+ * each nearby obstacle) is scored (boxes crossed dominate, then length + bends) and the best is
+ * taken. Endpoints are re-anchored to the borders so the whole path stays horizontal/vertical.
+ */
+function routeAvoiding(src: Box, tgt: Box, obstacles: Box[], spread = 0, margin = 22): Pt[] {
+    const crossings = (pts: Pt[]): number => {
+        let n = 0;
+        for (let i = 0; i < pts.length - 1; i++)
+            for (const o of obstacles)
+                if (segmentCrossesBox(pts[i], pts[i + 1], {x: o.x, y: o.y, w: o.w + 2 * margin, h: o.h + 2 * margin})) n++;
+        return n;
+    };
+    const base = orthogonalRoute(src, tgt, spread);
+    const baseCross = crossings(base);
+    if (baseCross === 0) return base;
+
+    const S = {x: src.x, y: src.y}, T = {x: tgt.x, y: tgt.y};
+    const cands: Pt[][] = [[{x: T.x, y: S.y}], [{x: S.x, y: T.y}]]; // two L shapes
+    for (const f of [0.5, 0.38, 0.62, 0.26, 0.74]) {
+        const mx = S.x + (T.x - S.x) * f, my = S.y + (T.y - S.y) * f;
+        cands.push([{x: mx, y: S.y}, {x: mx, y: T.y}]);
+        cands.push([{x: S.x, y: my}, {x: T.x, y: my}]);
+    }
+    const loX = Math.min(S.x, T.x), hiX = Math.max(S.x, T.x), loY = Math.min(S.y, T.y), hiY = Math.max(S.y, T.y);
+    for (const o of obstacles) {
+        const m = margin + 8;
+        if (o.x > loX - o.w && o.x < hiX + o.w) {
+            cands.push([{x: S.x, y: o.y - o.h / 2 - m}, {x: T.x, y: o.y - o.h / 2 - m}]);
+            cands.push([{x: S.x, y: o.y + o.h / 2 + m}, {x: T.x, y: o.y + o.h / 2 + m}]);
+        }
+        if (o.y > loY - o.h && o.y < hiY + o.h) {
+            cands.push([{x: o.x - o.w / 2 - m, y: S.y}, {x: o.x - o.w / 2 - m, y: T.y}]);
+            cands.push([{x: o.x + o.w / 2 + m, y: S.y}, {x: o.x + o.w / 2 + m, y: T.y}]);
+        }
+    }
+    let best: Pt[] | null = null, bestScore = Infinity, bestCross = Infinity;
+    for (const c of cands) {
+        const full = [S, ...c, T];
+        const cross = crossings(full);
+        const score = cross * 1e6 + polylineLength(full) + c.length * 40;
+        if (score < bestScore) { best = c; bestScore = score; bestCross = cross; }
+    }
+    if (best && bestCross < baseCross) {
+        return [orthoBorder(src, best[0].x, best[0].y), ...best, orthoBorder(tgt, best[best.length - 1].x, best[best.length - 1].y)];
+    }
+    return base;
+}
+
 /** The point at `frac` (0 = source … 1 = target) along a polyline — where an edge label sits. */
 function polylinePointAt(pts: Pt[], frac = 0.5): Pt {
     let total = 0;
@@ -603,6 +679,19 @@ export class MateuWorkflowElk extends LitElement {
         return {x: pos.x + w / 2, y: pos.y + h / 2, w, h};
     }
 
+    /** Orthogonal route between two steps that steers around every other node. */
+    private routeBetween(fromId: string, toId: string, spread = 0): Pt[] | null {
+        const a = this.boxForId(fromId), b = this.boxForId(toId);
+        if (!a || !b) return null;
+        const obstacles: Box[] = [];
+        for (const s of this.wf.steps ?? []) {
+            if (s.id === fromId || s.id === toId) continue;
+            const box = this.boxForId(s.id);
+            if (box) obstacles.push(box);
+        }
+        return routeAvoiding(a, b, obstacles, spread);
+    }
+
     // ── Token-flow animation (path by path) ─────────────────────────────────────
 
     /**
@@ -618,7 +707,11 @@ export class MateuWorkflowElk extends LitElement {
             return {pts: [{x: boxes[0]!.x, y: boxes[0]!.y}], marks: [{id: ids[0], d: 0}], hidden: []};
         }
         const edges: Pt[][] = [];
-        for (let i = 1; i < ids.length; i++) edges.push(orthogonalRoute(boxes[i - 1]!, boxes[i]!, 0));
+        for (let i = 1; i < ids.length; i++) {
+            const e = this.routeBetween(ids[i - 1], ids[i], 0);
+            if (!e) return null;
+            edges.push(e);
+        }
 
         const pts: Pt[] = [...edges[0]];
         const marks = [{id: ids[0], d: 0}];
@@ -938,18 +1031,16 @@ export class MateuWorkflowElk extends LitElement {
         // A compensation step is only entered through its (red) compensation edge; skip its
         // false-guarded anchor edge so it doesn't look like part of the normal flow.
         if (compTargets(this.wf.steps ?? []).has(step.id)) return svg``;
-        const tBox = this.boxForId(step.id);
-        if (!tBox) return svg``;
+        if (!this.boxForId(step.id)) return svg``;
         const preconditions = preconditionsOf(step);
         const n = preconditions.length;
 
         return preconditions.map((fromId, i) => {
-            const fBox = this.boxForId(fromId);
-            if (!fBox) return svg``;
-            // Orthogonal route, with several edges into the same node spread apart so they stay
-            // distinguishable (echoing modux's parallel-edge handling).
+            // Node-avoiding route, with several edges into the same node spread apart so they
+            // stay distinguishable (echoing modux's parallel-edge handling).
             const spread = n <= 1 ? 0 : (i - (n - 1) / 2) * 11;
-            const pts = orthogonalRoute(fBox, tBox, spread);
+            const pts = this.routeBetween(fromId, step.id, spread);
+            if (!pts) return svg``;
             return svg`<path class="edge" data-edge="${fromId}->${step.id}"
                              d="${roundedPath(pts)}" marker-end="url(#ec-arrow)"/>`;
         });
@@ -961,10 +1052,8 @@ export class MateuWorkflowElk extends LitElement {
      */
     private renderCompensationEdge(step: WorkflowStep) {
         if (!step.rollbackable || !step.compensationStepId) return svg``;
-        const a = this.boxForId(step.id);
-        const b = this.boxForId(step.compensationStepId);
-        if (!a || !b) return svg``;
-        const pts = orthogonalRoute(a, b, 0);
+        const pts = this.routeBetween(step.id, step.compensationStepId, 0);
+        if (!pts) return svg``;
         return svg`<path class="comp-edge" data-comp="${step.id}"
                          data-edge="${step.id}->${step.compensationStepId}"
                          d="${roundedPath(pts)}" marker-end="url(#ec-arrow)"/>`;
@@ -981,12 +1070,11 @@ export class MateuWorkflowElk extends LitElement {
         const to = this.positions[step.id];
         const preconditions = preconditionsOf(step);
         if (!to || preconditions.length === 0) return svg``;
-        const fBox = this.boxForId(preconditions[0]);
-        const tBox = this.boxForId(step.id);
-        if (!fBox || !tBox) return svg``;
+        const route = this.routeBetween(preconditions[0], step.id, 0);
+        if (!route) return svg``;
 
         // Sit toward the source end of the edge, clear of the target node's badge.
-        const mid = polylinePointAt(orthogonalRoute(fBox, tBox, 0), 0.38);
+        const mid = polylinePointAt(route, 0.38);
         const text = expr.length > 30 ? expr.slice(0, 29) + "…" : expr;
         const w = Math.max(30, text.length * 6.3 + 22);
         const h = 19;
@@ -1161,7 +1249,10 @@ export class MateuWorkflowElk extends LitElement {
 
     static styles = [neutralButtonStyles, css`
         :host {
-            display: block; height: 230px; font-family: var(--lumo-font-family, sans-serif);
+            /* Fill the host's container (a Mateu zone, or a sized wrapper); fall back to a
+               sensible minimum when the container has no height of its own. */
+            display: block; height: 100%; min-height: 230px; box-sizing: border-box;
+            font-family: var(--lumo-font-family, sans-serif);
             /* Themeable palette (modux-style). Light defaults; :host([dark]) maps onto Lumo. */
             --ec-canvas-bg: #f8fafc;
             --ec-surface: #ffffff;
