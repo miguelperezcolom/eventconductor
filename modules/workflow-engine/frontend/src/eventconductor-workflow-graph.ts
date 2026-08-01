@@ -502,6 +502,8 @@ export class MateuWorkflowElk extends LitElement {
     private pulseAt: Record<string, number> = {};
     /** nodeId → ping colour ("" = default/primary, red on an error/compensation path). */
     private pulseColor: Record<string, string> = {};
+    /** the token's distance along the path on the previous frame, to detect guard-crossings once. */
+    private flowPrevPosD = 0;
 
     // ── Focus interaction ───────────────────────────────────────────────────────
     /**
@@ -868,11 +870,11 @@ export class MateuWorkflowElk extends LitElement {
      * since the node's own ping already marks the passage. `marks` gives the distance at which
      * the token reaches each node (for the ping).
      */
-    private pathGeometry(ids: string[]): {pts: Pt[]; marks: {id: string; d: number}[]; hidden: {from: number; to: number}[]} | null {
+    private pathGeometry(ids: string[]): {pts: Pt[]; marks: {id: string; d: number}[]; hidden: {from: number; to: number}[]; segs: {to: string; startD: number; len: number}[]} | null {
         const boxes = ids.map(id => this.boxForId(id));
         if (boxes.some(b => !b)) return null;
         if (ids.length < 2) {
-            return {pts: [{x: boxes[0]!.x, y: boxes[0]!.y}], marks: [{id: ids[0], d: 0}], hidden: []};
+            return {pts: [{x: boxes[0]!.x, y: boxes[0]!.y}], marks: [{id: ids[0], d: 0}], hidden: [], segs: []};
         }
         const edges: Pt[][] = [];
         for (let i = 1; i < ids.length; i++) {
@@ -886,6 +888,9 @@ export class MateuWorkflowElk extends LitElement {
         const pts: Pt[] = [...edges[0]];
         const marks = [{id: ids[0], d: 0}];
         const hidden: {from: number; to: number}[] = [];
+        // Where each edge's own route begins along the path, and its length — so a guard chip
+        // (placed at fraction 0.38 of an edge) can be located as a distance along the path.
+        const segs = [{to: ids[1], startD: 0, len: polylineLength(edges[0])}];
         for (let j = 1; j < edges.length; j++) {
             const d0 = polylineLength(pts);   // at node j's entry border (end of the previous edge)
             pts.push(edges[j][0]);            // node j's exit border (start of this edge)
@@ -893,9 +898,10 @@ export class MateuWorkflowElk extends LitElement {
             hidden.push({from: d0, to: d1});  // straight span across node j → token hidden here
             marks.push({id: ids[j], d: d0});  // ping node j as the token reaches it
             pts.push(...edges[j].slice(1));
+            segs.push({to: ids[j + 1], startD: d1, len: polylineLength(edges[j])});
         }
         marks.push({id: ids[ids.length - 1], d: polylineLength(pts)}); // sink node arrival
-        return {pts, marks, hidden};
+        return {pts, marks, hidden, segs};
     }
 
     private onNodeClick(e: MouseEvent, id: string) {
@@ -998,11 +1004,13 @@ export class MateuWorkflowElk extends LitElement {
         const SLOW_TIMEOUT_MS = 30000;
 
         const byId = new Map((this.wf.steps ?? []).map(s => [s.id, s] as const));
-        // USER_TASK (a human is in the loop) and any step with a high timeout are treated as
-        // long-running: the token pauses on them and the node pulses several times.
+        // Long-running steps — the token pauses on them and the node pulses several times:
+        // USER_TASK (a human is in the loop), WAIT_FOR_MESSAGE / TIMER (they wait by nature),
+        // and any step with a high timeout (assumed slow).
+        const SLOW_TYPES = new Set<StepType>(["USER_TASK", "WAIT_FOR_MESSAGE", "TIMER"]);
         const isSlow = (id: string) => {
             const s = byId.get(id);
-            return !!s && (s.type === "USER_TASK" || (s.timeout ?? 0) >= SLOW_TIMEOUT_MS);
+            return !!s && (SLOW_TYPES.has(s.type) || (s.timeout ?? 0) >= SLOW_TIMEOUT_MS);
         };
 
         const stops = geo.marks;
@@ -1016,6 +1024,7 @@ export class MateuWorkflowElk extends LitElement {
             if (this.focusMode !== "path") this.flowPathIndex = (idx + 1) % paths.length;
             this.flowStartTs = now;
             this.pulsedThisPath = new Set();
+            this.flowPrevPosD = 0;
             return;
         }
 
@@ -1061,6 +1070,24 @@ export class MateuWorkflowElk extends LitElement {
                 this.pulsedThisPath.add(m.id);
             }
         }
+
+        // As the token reaches the middle of a guarded edge, pop its precondition chip once —
+        // a one-shot pulse (via the Web Animations API, so it replays cleanly each pass).
+        for (const seg of geo.segs) {
+            const s = byId.get(seg.to);
+            if (!s?.preconditionExpression) continue;
+            const gd = seg.startD + 0.38 * seg.len;     // where the chip sits (renderGuard uses 0.38)
+            if (this.flowPrevPosD < gd && posD >= gd) {
+                const q = `.guard[data-guard="${seg.to}"]`;
+                (root.querySelector(`${q} .guard-chip`) as SVGGElement | null)?.animate?.(
+                    [{transform: "scale(1.22)"}, {transform: "scale(1.6)", offset: 0.4}, {transform: "scale(1.22)"}],
+                    {duration: 520, easing: "ease-out"});
+                (root.querySelector(`${q} .guard-halo`) as SVGElement | null)?.animate?.(
+                    [{opacity: "0.38"}, {opacity: "0.8", offset: 0.4}, {opacity: "0.38"}],
+                    {duration: 520, easing: "ease-out"});
+            }
+        }
+        this.flowPrevPosD = posD;
         // …but a long-running node keeps re-pinging while the token dwells inside it.
         if (dwellId && now - (this.pulseAt[dwellId] ?? 0) >= PING_MS) {
             this.pulseAt[dwellId] = now;
@@ -1269,7 +1296,7 @@ export class MateuWorkflowElk extends LitElement {
         const w = Math.max(30, text.length * 6.3 + 22);
         const h = 19;
         return svg`
-            <g class="guard" data-edge="${preconditions[0]}->${step.id}" transform="translate(${mid.x}, ${mid.y})">
+            <g class="guard" data-guard="${step.id}" data-edge="${preconditions[0]}->${step.id}" transform="translate(${mid.x}, ${mid.y})">
                 <rect class="guard-halo" x="${-w / 2 - 4}" y="${-h / 2 - 4}" width="${w + 8}" height="${h + 8}" rx="12"/>
                 <g class="guard-chip">
                     <rect x="${-w / 2}" y="${-h / 2}" width="${w}" height="${h}" rx="9.5"/>
