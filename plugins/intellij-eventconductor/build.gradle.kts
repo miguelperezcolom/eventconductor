@@ -36,6 +36,18 @@ intellijPlatform {
     }
     // Pure-Kotlin plugin: skip the (Java NotNull) bytecode instrumentation step.
     instrumentCode = false
+
+    // `./gradlew publishPlugin` — reads secrets from the environment (set by CI).
+    publishing {
+        token = providers.environmentVariable("PUBLISH_TOKEN")
+    }
+    // JetBrains Marketplace requires signed plugins for API uploads. Provide a certificate
+    // chain + private key (see https://plugins.jetbrains.com/docs/intellij/plugin-signing.html).
+    signing {
+        certificateChain = providers.environmentVariable("CERTIFICATE_CHAIN")
+        privateKey = providers.environmentVariable("PRIVATE_KEY")
+        password = providers.environmentVariable("PRIVATE_KEY_PASSWORD")
+    }
 }
 
 kotlin {
