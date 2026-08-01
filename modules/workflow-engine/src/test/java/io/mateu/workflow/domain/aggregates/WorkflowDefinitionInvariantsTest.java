@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.assertThatNoException;
 
@@ -305,5 +306,46 @@ class WorkflowDefinitionInvariantsTest {
                 endStep("end-1", "a"),
                 endStep("end-2", "a"));
         assertThatNoException().isThrownBy(() -> definition(steps).checkInvariants());
+    }
+
+    private Step gateway(String id, StepType type, List<String> preconditionStepIds) {
+        return new Step(id, "wd-1", type, id, null,
+                null, preconditionStepIds, null, false, null, null, null, null, null, 0, null, null, null, null,
+                0, 0, false, null, 0);
+    }
+
+    @Test
+    void warnsAboutAFanOutThatIsNotAFork() {
+        var steps = List.of(startStep(), step("a", "start", null), step("b", "start", null));
+        assertThat(definition(steps).topologyWarnings())
+                .anySatisfy(w -> assertThat(w).contains("'start'").contains("outgoing").contains("FORK"));
+    }
+
+    @Test
+    void warnsAboutAMergeThatIsNotAJoin() {
+        var steps = List.of(startStep(), step("a", "start", null), step("b", "start", null),
+                step("merge", List.of("a", "b")));
+        assertThat(definition(steps).topologyWarnings())
+                .anySatisfy(w -> assertThat(w).contains("'merge'").contains("incoming").contains("JOIN"));
+    }
+
+    @Test
+    void doesNotWarnAboutCompensationAnchors() {
+        // 'start' points at both the real step and its false-guarded compensation anchor.
+        var steps = List.of(startStep(), step("charge", "start", "refund"), step("refund", "start", null),
+                endStep("end", "charge"));
+        assertThat(definition(steps).topologyWarnings()).isEmpty();
+    }
+
+    @Test
+    void doesNotWarnWhenForkAndJoinAreUsed() {
+        var steps = List.of(
+                startStep(),
+                gateway("fork", StepType.FORK, List.of("start")),
+                step("a", "fork", null),
+                step("b", "fork", null),
+                gateway("join", StepType.JOIN, List.of("a", "b")),
+                endStep("end", "join"));
+        assertThat(definition(steps).topologyWarnings()).isEmpty();
     }
 }
