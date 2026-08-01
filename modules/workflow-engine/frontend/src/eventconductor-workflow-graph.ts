@@ -530,6 +530,8 @@ export class MateuWorkflowElk extends LitElement {
     @state() private fullscreen = false;
     /** When true, animated tokens flow along the sequence edges (BPMN token simulation). */
     @state() private flowOn = true;
+    /** Token speed in px/second, adjustable via the viewbar slider. */
+    @state() private flowSpeed = 260;
 
     // ── Token-flow animation state (driven by requestAnimationFrame, off the render path) ──
     private flowRaf = 0;
@@ -1159,7 +1161,7 @@ export class MateuWorkflowElk extends LitElement {
         const geo = this.pathGeometry(path);
         if (!geo) return;
         const len = polylineLength(geo.pts) || 1;
-        const speed = 180;         // px per second
+        const speed = this.flowSpeed; // px per second (viewbar slider)
         const pausePx = 55;        // brief gap between paths
         const DWELL_MS = 1800;     // a long-running node holds the token this long…
         const PING_MS = 600;       // …re-pinging at this cadence (≈3 pulses) to signal "this takes a while"
@@ -1339,6 +1341,21 @@ export class MateuWorkflowElk extends LitElement {
             </div>`;
     }
 
+    /** Floating view/animation controls (bottom-left, clear of the toolbar and the minimap). */
+    private renderViewbar() {
+        return html`
+            <div class="viewbar" @mousedown="${(e: MouseEvent) => e.stopPropagation()}">
+                <button class="vbtn" title="${this.flowOn ? "Pause token flow" : "Play token flow"}"
+                        @click="${() => { this.flowOn = !this.flowOn; }}">${this.flowOn ? "⏸" : "▶"}</button>
+                <input class="vspeed" type="range" min="80" max="520" step="10"
+                       title="Animation speed" .value="${String(this.flowSpeed)}"
+                       @input="${(e: Event) => { this.flowSpeed = Number((e.target as HTMLInputElement).value); }}"/>
+                <button class="vbtn" title="Fit graph to view" @click="${() => this.fitToView()}">${iconFit}</button>
+                <button class="vbtn" title="${this.fullscreen ? "Collapse" : "Expand"}"
+                        @click="${() => { this.fullscreen = !this.fullscreen; }}">${this.fullscreen ? "✕" : "⤢"}</button>
+            </div>`;
+    }
+
     render() {
         if (!this.layoutReady) {
             return html`<div class="loading">Computing layout…</div>`;
@@ -1348,21 +1365,12 @@ export class MateuWorkflowElk extends LitElement {
 
         return html`
             <div class="root ${this.fullscreen ? "fullscreen" : ""}">
-                <button class="flow-btn" title="${this.flowOn ? "Pause token flow" : "Play token flow"}"
-                        @click="${() => { this.flowOn = !this.flowOn; }}">
-                    ${this.flowOn ? "⏸" : "▶"}
-                </button>
-                <button class="fit-btn" title="Fit graph to view"
-                        @click="${() => this.fitToView()}">${iconFit}</button>
-                <button class="expand-btn" title="${this.fullscreen ? "Collapse" : "Expand"}"
-                        @click="${() => { this.fullscreen = !this.fullscreen; }}">
-                    ${this.fullscreen ? "✕" : "⤢"}
-                </button>
                 ${this.readOnly ? nothing : this.renderToolbar()}
                 ${this.showMeta ? this.renderMeta() : ""}
                 ${this.layoutError ? html`<div class="error">⚠ ${this.layoutError}</div>` : ""}
                 <div class="workspace">
                     <div class="canvas-wrap">
+                        ${this.renderViewbar()}
                         <svg width="100%" height="100%" class="canvas ${this.panning ? "panning" : ""}"
                              @mousedown="${this.onCanvasMouseDown}">
                             <defs>
@@ -1703,33 +1711,24 @@ export class MateuWorkflowElk extends LitElement {
             box-shadow: 0 0 0 100vmax rgba(0, 0, 0, .15);
         }
 
-        .expand-btn {
-            position: absolute; top: 8px; right: 8px; z-index: 6;
-            width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
-            border: 1px solid var(--ec-border); border-radius: 6px;
-            background: var(--lumo-base-color, #fff); color: var(--ec-text-dim); cursor: pointer;
-            font-size: 15px; line-height: 1; box-shadow: 0 1px 2px #0000000f;
+        /* floating view/animation controls — bottom-left, clear of toolbar + minimap */
+        .viewbar {
+            position: absolute; left: 10px; bottom: 10px; z-index: 6;
+            display: flex; align-items: center; gap: 4px; padding: 4px 6px;
+            border: 1px solid var(--ec-border); border-radius: 9px;
+            background: color-mix(in srgb, var(--lumo-base-color, #fff) 88%, transparent);
+            box-shadow: 0 2px 8px #0000001a; backdrop-filter: blur(2px);
         }
-        .expand-btn:hover {background: var(--lumo-contrast-5pct, #f1f5f9);}
-
-        .flow-btn {
-            position: absolute; top: 8px; right: 80px; z-index: 6;
-            width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
-            border: 1px solid var(--ec-border); border-radius: 6px;
-            background: var(--lumo-base-color, #fff); color: var(--ec-text-dim); cursor: pointer;
-            font-size: 13px; line-height: 1; box-shadow: 0 1px 2px #0000000f;
+        .viewbar .vbtn {
+            width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
+            border: none; border-radius: 6px; background: transparent; color: var(--ec-text-dim);
+            cursor: pointer; font-size: 14px; line-height: 1;
         }
-        .flow-btn:hover {background: var(--lumo-contrast-5pct, #f1f5f9);}
-
-        .fit-btn {
-            position: absolute; top: 8px; right: 44px; z-index: 6;
-            width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
-            border: 1px solid var(--ec-border); border-radius: 6px;
-            background: var(--lumo-base-color, #fff); color: var(--ec-text-dim); cursor: pointer;
-            line-height: 1; box-shadow: 0 1px 2px #0000000f;
+        .viewbar .vbtn:hover {background: var(--lumo-contrast-5pct, #f1f5f9); color: var(--ec-text);}
+        .viewbar .vbtn svg {width: 16px; height: 16px;}
+        .viewbar .vspeed {
+            width: 92px; height: 4px; margin: 0 2px; cursor: pointer; accent-color: var(--ec-primary);
         }
-        .fit-btn:hover {background: var(--lumo-contrast-5pct, #f1f5f9);}
-        .fit-btn svg {width: 16px; height: 16px;}
 
         .loading {
             display: flex; align-items: center; justify-content: center;
