@@ -281,6 +281,7 @@ Production definition updated (version + 1), working copy deleted
 | `rollbackable` | boolean | `false` | Trigger compensation step on failure |
 | `compensationStepId` | string | — | Step to run as compensation (required when `rollbackable: true`) |
 | `maxSuccessfulExecutions` | integer | `0` | Cap on successful runs of this step per process instance; `0` inherits the workflow's `defaultMaxStepExecutions` |
+| `joinType` | enum | `AND` | JOIN only: `AND` (default) is a synchronizing join that waits for **all** incoming branches; `XOR` is an exclusive join that proceeds on **any one**. Null/absent = `AND` |
 
 See [Step Types](/reference/step-types/) for the semantics of each type.
 
@@ -291,8 +292,10 @@ Steps run **by data flow, not by array order**. A step starts when it has not ru
 (if any) is truthy — and every eligible step starts **concurrently**. There is no ordering
 beyond the precondition graph: an active step never blocks unrelated branches. Parallelism is
 expressed structurally — several steps sharing a precondition fan out ([`FORK`](/reference/step-types/#fork)
-makes that explicit), and one step declaring several preconditions is a barrier
-([`JOIN`](/reference/step-types/#join)). The `parallel` flag is deprecated and ignored.
+makes that explicit), and one step declaring several preconditions is a barrier. A
+[`JOIN`](/reference/step-types/#join) makes that barrier explicit and, via its `joinType`, chooses
+the merge semantics: **`AND`** (the default) waits for **all** incoming branches, while **`XOR`**
+proceeds as soon as **any one** completes. The `parallel` flag is deprecated and ignored.
 
 Because only preconditions drive eligibility, every flow needs an explicit entry point: a step
 with no preconditions must be a `START` (completes instantly at process creation) or a
@@ -315,12 +318,20 @@ Beyond the JSON schema, the engine checks these invariants when a definition is 
 - **Self-reference** — a step cannot be one of its own preconditions or its own `compensationStepId`.
 - **Dangling references** — every id in `preconditionStepIds`/`preconditionStepId` and `compensationStepId` must point to an existing step.
 - **Entry points (roots rule)** — every step with no preconditions must be a `START` or a `WAIT_FOR_MESSAGE`: every flow must enter through one. Conversely, a `START` step must have **no** preconditions.
+- **At most one START** — a workflow has a single entry point (or enters via `WAIT_FOR_MESSAGE`); more than one `START` is rejected. Multiple `END` steps are fine — a flow may finish through several distinct outcomes.
 - **Precondition cycles** — the precondition graph must be acyclic (A waits for B waits for … waits for A would deadlock). Steps may declare several preconditions, so the check is a DFS over the multi-edge graph.
 - **TIMER required fields** — a `TIMER` step must define a positive `duration` or a non-blank `untilVariable`.
 - **Message required fields** — a `WAIT_FOR_MESSAGE` or `SEND_MESSAGE` step must define a non-blank `messageName` **and** a non-blank `correlationExpression`.
 - **PROCESS required fields** — a `PROCESS` step must define a `childWorkflowDefinitionId`, and it must differ from the workflow's own id (direct self-recursion is rejected).
 
 The [Maven plugin](/reference/maven-plugin/) mirrors the structural checks (duplicate/dangling/self references, the roots rule, START-without-preconditions, multi-edge cycle detection, the PROCESS child id) at build time; the TIMER/message value checks are only verified at engine load.
+
+:::tip[Gateway-model guidance (warnings, not errors)]
+The engine also logs non-fatal **warnings** nudging you toward the FORK/JOIN gateway model: a
+normal step with more than one incoming flow should be a `JOIN` (so its AND/XOR semantics are
+explicit), and one with more than one outgoing flow should be a `FORK`. These are compensation-aware
+(the false-guarded anchor edge into a compensation step is excluded) and never block a definition.
+:::
 
 ## Examples
 

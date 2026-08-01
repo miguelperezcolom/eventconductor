@@ -324,22 +324,27 @@ want the branching point to be explicit in the definition and the graph.
 
 ## JOIN
 
-The converge point of parallel branches: a barrier that waits until **all** the steps listed in
-its `preconditionStepIds` have `COMPLETED`. No worker is involved — once its preconditions are
-all met, the step completes instantly and the flow continues after it.
+The converge point of parallel branches. No worker is involved — once its preconditions are met,
+the step completes instantly and the flow continues after it. Its `joinType` chooses the merge:
+
+- **`AND`** (default) — a synchronizing join: waits until **all** the steps in its
+  `preconditionStepIds` have `COMPLETED`.
+- **`XOR`** — an exclusive join: proceeds as soon as **any one** incoming branch completes.
 
 ```json
 {
   "id": "join-notifications",
   "type": "JOIN",
   "name": "All notifications sent",
+  "joinType": "AND",
   "preconditionStepIds": ["send-email", "send-sms"]
 }
 ```
 
 The barrier **is** the multiple preconditions: a JOIN with a single precondition waits for
 nothing extra. (Any step may declare several preconditions — a `JOIN` node just makes the
-convergence explicit, exactly as `FORK` makes the fan-out explicit.)
+convergence explicit, exactly as `FORK` makes the fan-out explicit.) `joinType` is `AND` unless
+set to `XOR`; it is ignored on non-JOIN steps.
 
 :::caution[JOIN on a guarded branch]
 If a branch feeding the JOIN carries a `preconditionExpression` that evaluates false, that
