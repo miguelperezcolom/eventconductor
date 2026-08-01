@@ -60,7 +60,7 @@ class EcGraphFileEditor(
         browser.jbCefClient.addLoadHandler(object : CefLoadHandlerAdapter() {
             override fun onLoadEnd(b: CefBrowser?, frame: CefFrame?, httpStatusCode: Int) {
                 exec("window.__ecOnEdit = function(t){ ${onEdit.inject("t")} };")
-                exec("window.__ecSetTheme(${UIUtil.isUnderDarcula()});")
+                exec("window.__ecSetTheme(${isDarkTheme()});")
                 pageReady = true
                 pushToBrowser()
             }
@@ -71,6 +71,12 @@ class EcGraphFileEditor(
     }
 
     private fun exec(js: String) = browser.cefBrowser.executeJavaScript(js, browser.cefBrowser.url, 0)
+
+    /** Dark vs light UI from the panel background luminance — avoids the removed isUnderDarcula(). */
+    private fun isDarkTheme(): Boolean {
+        val c = UIUtil.getPanelBackground()
+        return (c.red * 0.299 + c.green * 0.587 + c.blue * 0.114) < 128
+    }
 
     private fun pushToBrowser() {
         if (!pageReady) return
