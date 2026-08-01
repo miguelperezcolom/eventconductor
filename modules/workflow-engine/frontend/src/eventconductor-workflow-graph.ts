@@ -1855,6 +1855,7 @@ export class MateuWorkflowElk extends LitElement {
             --ec-text-faint: #94a3b8;
             --ec-edge: #94a3b8;
             --ec-primary: #2563eb;
+            --ec-hover: #f1f5f9;
         }
         :host([dark]) {
             --ec-canvas-bg: var(--lumo-shade-5pct, #16181a);
@@ -1865,9 +1866,10 @@ export class MateuWorkflowElk extends LitElement {
             --ec-text-faint: var(--lumo-tertiary-text-color, #7d838b);
             --ec-edge: var(--lumo-tertiary-text-color, #7d838b);
             --ec-primary: var(--lumo-primary-color, #60a5fa);
+            --ec-hover: var(--lumo-contrast-10pct, #2a2e34);
         }
 
-        .root {display: flex; flex-direction: column; height: 100%; position: relative; background: var(--lumo-base-color, #fff);}
+        .root {display: flex; flex-direction: column; height: 100%; position: relative; background: var(--ec-surface);}
 
         .root.fullscreen {
             position: fixed; inset: 0; height: 100vh; width: 100vw; z-index: 9999;
@@ -1879,7 +1881,7 @@ export class MateuWorkflowElk extends LitElement {
             position: absolute; left: 10px; bottom: 10px; z-index: 6;
             display: flex; align-items: center; gap: 4px; padding: 4px 6px;
             border: 1px solid var(--ec-border); border-radius: 9px;
-            background: color-mix(in srgb, var(--lumo-base-color, #fff) 88%, transparent);
+            background: color-mix(in srgb, var(--ec-surface) 88%, transparent);
             box-shadow: 0 2px 8px #0000001a; backdrop-filter: blur(2px);
         }
         .viewbar .vbtn {
@@ -1887,7 +1889,7 @@ export class MateuWorkflowElk extends LitElement {
             border: none; border-radius: 6px; background: transparent; color: var(--ec-text-dim);
             cursor: pointer; font-size: 14px; line-height: 1;
         }
-        .viewbar .vbtn:hover {background: var(--lumo-contrast-5pct, #f1f5f9); color: var(--ec-text);}
+        .viewbar .vbtn:hover {background: var(--ec-hover); color: var(--ec-text);}
         .viewbar .vbtn svg {width: 16px; height: 16px;}
         .viewbar .vspeed {
             width: 92px; height: 4px; margin: 0 2px; cursor: pointer; accent-color: var(--ec-primary);
@@ -1906,9 +1908,9 @@ export class MateuWorkflowElk extends LitElement {
         .toolbar {
             display: flex; align-items: center; gap: .5rem;
             padding: .5rem 1rem; flex-shrink: 0;
-            border-bottom: 1px solid var(--lumo-contrast-10pct, #e2e8f0);
+            border-bottom: 1px solid var(--ec-border);
         }
-        .wf-name {font-weight: 600; font-size: 1rem; color: var(--lumo-body-text-color, #1e293b);}
+        .wf-name {font-weight: 600; font-size: 1rem; color: var(--ec-text);}
         .badge {
             font-size: .7rem; font-weight: 600; padding: .15rem .5rem;
             border-radius: 9999px; text-transform: uppercase; letter-spacing: .04em;
@@ -1921,8 +1923,8 @@ export class MateuWorkflowElk extends LitElement {
         /* meta */
         .meta-panel {
             padding: .75rem 1rem; flex-shrink: 0;
-            border-bottom: 1px solid var(--lumo-contrast-10pct, #e2e8f0);
-            background: var(--lumo-contrast-5pct, #f8fafc);
+            border-bottom: 1px solid var(--ec-border);
+            background: var(--ec-hover);
         }
         .meta-grid {display: grid; grid-template-columns: 120px 1fr; gap: .4rem .75rem; align-items: start;}
         .meta-grid label {font-size: .8rem; color: var(--ec-text-dim); padding-top: .3rem;}
@@ -1938,7 +1940,7 @@ export class MateuWorkflowElk extends LitElement {
         .minimap {
             position: absolute; right: 10px; bottom: 10px; z-index: 5;
             border: 1px solid var(--ec-border); border-radius: 8px; overflow: hidden;
-            background: color-mix(in srgb, var(--lumo-base-color, #fff) 82%, transparent);
+            background: color-mix(in srgb, var(--ec-surface) 82%, transparent);
             box-shadow: 0 2px 8px #0000001a; cursor: pointer;
             backdrop-filter: blur(2px);
         }
@@ -1959,8 +1961,9 @@ export class MateuWorkflowElk extends LitElement {
         .node-badge {font-size: 9.5px; fill: var(--ec-text-dim); text-transform: uppercase; letter-spacing: .05em; font-weight: 600;}
         .node-caption {font-size: 11px; font-weight: 600; fill: var(--ec-text);}
         .node-symbol {opacity: .9;}
-        .node-title {font-size: 13px; font-weight: 600; fill: var(--ec-text);}
-        .node-id {font-size: 9.5px; fill: var(--ec-text-faint);}
+        /* title + id sit INSIDE the always-light node card, so they stay dark in either theme */
+        .node-title {font-size: 13px; font-weight: 600; fill: #1e293b;}
+        .node-id {font-size: 9.5px; fill: #64748b;}
         /* radar-ping shown as a flow token passes through a node */
         .flow-pulse {fill: var(--ec-primary); pointer-events: none;}
 
@@ -1974,7 +1977,7 @@ export class MateuWorkflowElk extends LitElement {
         .node.ov-active .node-shape {stroke: var(--ec-primary) !important; stroke-width: 3 !important; filter: drop-shadow(0 0 5px color-mix(in srgb, var(--ec-primary) 60%, transparent));}
         .node.ov-active .node-inner {animation: ec-active-pulse 1.6s ease-in-out infinite;}
         @keyframes ec-active-pulse {0%,100% {opacity: 1;} 50% {opacity: .72;}}
-        .ov-count circle {fill: var(--ec-primary); stroke: var(--lumo-base-color, #fff); stroke-width: 1.5;}
+        .ov-count circle {fill: var(--ec-primary); stroke: var(--ec-surface); stroke-width: 1.5;}
         .ov-count text {fill: #fff; font-size: 11px; font-weight: 700;}
         /* parts the process hasn't reached yet fade back */
         .node.mon-dim {opacity: .3;}
@@ -2034,14 +2037,14 @@ export class MateuWorkflowElk extends LitElement {
         /* properties panel */
         .properties {
             width: 280px; flex-shrink: 0;
-            border-left: 1px solid var(--lumo-contrast-10pct, #e2e8f0);
+            border-left: 1px solid var(--ec-border);
             display: flex; flex-direction: column;
-            background: var(--lumo-base-color, #fff);
+            background: var(--ec-surface);
         }
         .prop-header {
             display: flex; align-items: center; gap: .4rem;
             padding: .6rem .75rem; font-size: .85rem; font-weight: 600;
-            border-bottom: 1px solid var(--lumo-contrast-10pct, #e2e8f0);
+            border-bottom: 1px solid var(--ec-border);
         }
         .prop-header span {flex: 1;}
         .del-btn, .close-btn {
@@ -2059,19 +2062,19 @@ export class MateuWorkflowElk extends LitElement {
         .inp {
             width: 100%; box-sizing: border-box;
             padding: .3rem .5rem; border: 1px solid var(--ec-border); border-radius: 6px;
-            font-size: .82rem; color: var(--ec-text); background: var(--lumo-base-color, #fff);
+            font-size: .82rem; color: var(--ec-text); background: var(--ec-surface);
             outline: none; font-family: inherit; transition: border-color .15s;
         }
         .inp:focus {border-color: var(--ec-primary);}
         textarea.inp {resize: vertical;}
-        input[readonly].inp {background: var(--lumo-contrast-5pct, #f8fafc); color: var(--ec-text-faint);}
+        input[readonly].inp {background: var(--ec-hover); color: var(--ec-text-faint);}
 
         /* precondition checklist */
         .checklist {
             display: flex; flex-direction: column; gap: .15rem;
             max-height: 140px; overflow-y: auto;
             border: 1px solid var(--ec-border); border-radius: 6px; padding: .35rem .5rem;
-            background: var(--lumo-base-color, #fff);
+            background: var(--ec-surface);
         }
         .check {display: flex; align-items: center; gap: .4rem; font-size: .8rem; color: var(--ec-text);}
         .check input {margin: 0;}
