@@ -14,6 +14,7 @@ interface WorkflowStep {
     name: string;
     description?: string;
     preconditionStepId?: string;
+    preconditionStepIds?: string[];
     preconditionExpression?: string;
     parallel?: boolean;
     topic?: string;
@@ -78,6 +79,22 @@ function newId(): string {
     return "step-" + Math.random().toString(36).slice(2, 8);
 }
 
+/**
+ * The step ids that must ALL have completed before this step can start — the plural
+ * `preconditionStepIds` when non-empty, else the singular `preconditionStepId`, else none.
+ * Mirrors the engine's `Step.preconditions()` so the graph draws exactly the edges the
+ * orchestrator honours.
+ */
+function preconditionsOf(step: WorkflowStep): string[] {
+    if (step.preconditionStepIds && step.preconditionStepIds.length > 0) {
+        return step.preconditionStepIds.filter(Boolean);
+    }
+    if (step.preconditionStepId) {
+        return [step.preconditionStepId];
+    }
+    return [];
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 @customElement("eventconductor-workflow-graph")
@@ -120,7 +137,8 @@ export class MateuWorkflowElk extends LitElement {
                     [...newIds].some(id => {
                         const oldStep = (this.wf.steps ?? []).find(s => s.id === id);
                         const newStep = (parsed.steps ?? []).find(s => s.id === id);
-                        return oldStep?.preconditionStepId !== newStep?.preconditionStepId;
+                        return oldStep && newStep &&
+                            preconditionsOf(oldStep).join(",") !== preconditionsOf(newStep).join(",");
                     });
                 this.wf = parsed;
                 if (structureChanged || !this.layoutReady) {
@@ -157,13 +175,14 @@ export class MateuWorkflowElk extends LitElement {
                 width: NODE_W,
                 height: NODE_H,
             })),
-            edges: steps
-                .filter(s => s.preconditionStepId)
-                .map(s => ({
-                    id: `${s.preconditionStepId}->${s.id}`,
-                    sources: [s.preconditionStepId!],
+            // One edge per precondition: a step with several incoming preconditions
+            // (preconditionStepIds) gets several edges into it.
+            edges: steps.flatMap(s =>
+                preconditionsOf(s).map(from => ({
+                    id: `${from}->${s.id}`,
+                    sources: [from],
                     targets: [s.id],
-                } as ElkExtendedEdge)),
+                } as ElkExtendedEdge))),
         };
 
         try {
@@ -204,8 +223,9 @@ export class MateuWorkflowElk extends LitElement {
     private updateStep(id: string, patch: Partial<WorkflowStep>) {
         const steps = this.wf.steps.map(s => s.id === id ? {...s, ...patch} : s);
         const oldStep = this.wf.steps.find(s => s.id === id);
-        const edgeChanged = patch.preconditionStepId !== undefined &&
-            patch.preconditionStepId !== oldStep?.preconditionStepId;
+        const newStep = steps.find(s => s.id === id);
+        const edgeChanged = !!oldStep && !!newStep &&
+            preconditionsOf(oldStep).join(",") !== preconditionsOf(newStep).join(",");
         this.wf = {...this.wf, steps};
         if (edgeChanged) {
             // Invalidate ELK positions so a fresh layout runs
@@ -213,6 +233,21 @@ export class MateuWorkflowElk extends LitElement {
             this.runElkLayout();
         }
         this.emit();
+    }
+
+    /**
+     * Adds or removes one incoming precondition. Normalises onto the plural
+     * `preconditionStepIds` (and clears the singular `preconditionStepId`) so a step can have
+     * any number of inputs; an empty set drops the field entirely.
+     */
+    private togglePrecondition(step: WorkflowStep, otherId: string, checked: boolean) {
+        const current = new Set(preconditionsOf(step));
+        if (checked) current.add(otherId); else current.delete(otherId);
+        const list = [...current];
+        this.updateStep(step.id, {
+            preconditionStepIds: list.length ? list : undefined,
+            preconditionStepId: undefined,
+        });
     }
 
     private addStep() {
@@ -238,7 +273,14 @@ export class MateuWorkflowElk extends LitElement {
             ...this.wf,
             steps: this.wf.steps
                 .filter(s => s.id !== id)
-                .map(s => s.preconditionStepId === id ? {...s, preconditionStepId: undefined} : s),
+                .map(s => {
+                    const next = {...s};
+                    if (next.preconditionStepId === id) next.preconditionStepId = undefined;
+                    if (next.preconditionStepIds) {
+                        next.preconditionStepIds = next.preconditionStepIds.filter(p => p !== id);
+                    }
+                    return next;
+                }),
         };
         const {[id]: _, ...rest} = this.positions;
         this.positions = rest;
@@ -337,7 +379,7 @@ export class MateuWorkflowElk extends LitElement {
                                                   flood-color="#00000018"/>
                                 </filter>
                             </defs>
-                            ${steps.map(s => this.renderArrow(s))}
+                            ${steps.map(s => this.renderArrows(s))}
                             ${steps.map(s => this.renderNode(s))}
                         </svg>
                     </div>
@@ -411,24 +453,32 @@ export class MateuWorkflowElk extends LitElement {
         `;
     }
 
-    private renderArrow(step: WorkflowStep) {
-        if (!step.preconditionStepId) return svg``;
-        const from = this.positions[step.preconditionStepId];
+    private renderArrows(step: WorkflowStep) {
         const to = this.positions[step.id];
-        if (!from || !to) return svg``;
-
-        // Connect right-center of source → left-center of target
-        const x1 = from.x + NODE_W;
-        const y1 = from.y + NODE_H / 2;
+        if (!to) return svg``;
         const x2 = to.x;
-        const y2 = to.y + NODE_H / 2;
-        const cx = (x1 + x2) / 2;
+        const preconditions = preconditionsOf(step);
+        // Fan several incoming edges onto distinct points along the target's left edge so
+        // they stay visually distinguishable instead of piling onto one point.
+        const n = preconditions.length;
 
-        return svg`
-            <path d="M${x1},${y1} C${cx},${y1} ${cx},${y2} ${x2},${y2}"
-                  fill="none" stroke="#94a3b8" stroke-width="2"
-                  marker-end="url(#arrow)"/>
-        `;
+        return preconditions.map((fromId, i) => {
+            const from = this.positions[fromId];
+            if (!from) return svg``;
+
+            // Connect right-center of source → a slot on the left edge of the target.
+            const x1 = from.x + NODE_W;
+            const y1 = from.y + NODE_H / 2;
+            const slot = n <= 1 ? 0.5 : (i + 1) / (n + 1);
+            const y2 = to.y + NODE_H * slot;
+            const cx = (x1 + x2) / 2;
+
+            return svg`
+                <path d="M${x1},${y1} C${cx},${y1} ${cx},${y2} ${x2},${y2}"
+                      fill="none" stroke="#94a3b8" stroke-width="2"
+                      marker-end="url(#arrow)"/>
+            `;
+        });
     }
 
     private renderNode(step: WorkflowStep) {
@@ -499,15 +549,17 @@ export class MateuWorkflowElk extends LitElement {
                         </select>`)}
                     ${field("Description", html`<textarea class="inp" rows="2" ?readonly="${ro}"
                         @change="${ro ? nothing : (e: Event) => this.updateStep(step.id, {description: (e.target as HTMLTextAreaElement).value})}">${step.description ?? ""}</textarea>`)}
-                    ${field("Precondition step", html`
-                        <select class="inp" ?disabled="${ro}"
-                                @change="${ro ? nothing : (e: Event) => this.updateStep(step.id, {preconditionStepId: (e.target as HTMLSelectElement).value || undefined})}">
-                            <option value="">— none —</option>
-                            ${others.map(s => html`
-                                <option value="${s.id}" ?selected="${step.preconditionStepId === s.id}">
-                                    ${s.name} (${s.id})
-                                </option>`)}
-                        </select>`)}
+                    ${field("Preconditions (all must complete)", html`
+                        <div class="checklist">
+                            ${others.length === 0 ? html`<span class="check-empty">no other steps</span>`
+                                : others.map(s => html`
+                                <label class="check">
+                                    <input type="checkbox" ?disabled="${ro}"
+                                           ?checked="${preconditionsOf(step).includes(s.id)}"
+                                           @change="${ro ? nothing : (e: Event) => this.togglePrecondition(step, s.id, (e.target as HTMLInputElement).checked)}"/>
+                                    <span>${s.name} <em>(${s.id})</em></span>
+                                </label>`)}
+                        </div>`)}
                     ${field("Precondition expression", html`
                         <input class="inp" placeholder="JEXL expression" ?readonly="${ro}"
                                .value="${step.preconditionExpression ?? ""}"
@@ -661,6 +713,17 @@ export class MateuWorkflowElk extends LitElement {
         .inp:focus {border-color: #3B82F6;}
         textarea.inp {resize: vertical;}
         input[readonly].inp {background: #f8fafc; color: #94a3b8;}
+
+        /* precondition checklist */
+        .checklist {
+            display: flex; flex-direction: column; gap: .15rem;
+            max-height: 140px; overflow-y: auto;
+            border: 1px solid #e2e8f0; border-radius: 6px; padding: .35rem .5rem; background: #fff;
+        }
+        .check {display: flex; align-items: center; gap: .4rem; font-size: .8rem; color: #1e293b;}
+        .check input {margin: 0;}
+        .check em {color: #94a3b8; font-style: normal;}
+        .check-empty {font-size: .78rem; color: #94a3b8;}
     `];
 }
 
