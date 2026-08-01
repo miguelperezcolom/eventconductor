@@ -1,0 +1,21 @@
+<idea-plugin>
+    <id>com.eventconductor.intellij</id>
+    <name>EventConductor</name>
+    <vendor url="https://github.com/miguelperezcolom/eventconductor">EventConductor</vendor>
+
+    <description><![CDATA[
+        Edit EventConductor workflow definitions (<code>.ec</code> files) as an interactive graph
+        or as YAML/JSON with schema validation. The graph is the same component used inside the
+        EventConductor app, embedded via JCEF, backed by the text document so both views stay in sync.
+    ]]></description>
+
+    <depends>com.intellij.modules.platform</depends>
+    <depends>com.intellij.modules.json</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <!-- A split editor: text (YAML/JSON) on one side, the interactive graph (JCEF) on the other. -->
+        <fileEditorProvider implementation="com.eventconductor.intellij.EcFileEditorProvider"/>
+        <!-- Validate/complete .ec against the workflow-definition JSON schema (JSON and YAML bodies). -->
+        <json.jsonSchemaProviderFactory implementation="com.eventconductor.intellij.EcJsonSchemaProviderFactory"/>
+    </extensions>
+</idea-plugin>
