@@ -22,6 +22,8 @@ dependencies {
         create(IntelliJPlatformType.IntellijIdeaCommunity, "2024.2.4")
         // JSON language + JSON-schema support (for the .ec schema provider).
         bundledModule("com.intellij.modules.json")
+        // YAML support so .ec (parsed as YAML) gets highlighting + schema validation.
+        bundledPlugin("org.jetbrains.plugins.yaml")
     }
 }
 
