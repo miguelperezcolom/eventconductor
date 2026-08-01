@@ -1,0 +1,31 @@
+name: Publish VSCode plugin
+
+# Publishes plugins/vscode-eventconductor to the VS Code Marketplace.
+# Trigger: push a tag like `plugins-v0.1.0`, or run manually.
+# Required repo secret:
+#   VSCE_PAT — Azure DevOps Personal Access Token with scope "Marketplace > Manage",
+#              for the publisher named in package.json ("publisher").
+on:
+  push:
+    tags:
+      - 'plugins-v*'
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: plugins/vscode-eventconductor
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm ci
+      # `vsce publish` runs the `vscode:prepublish` script (sync-assets + tsc) and publishes
+      # the version in package.json. sync-assets copies the committed graph bundle from the repo.
+      - name: Publish to the VS Code Marketplace
+        run: npx --yes @vscode/vsce publish -p "$VSCE_PAT"
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
