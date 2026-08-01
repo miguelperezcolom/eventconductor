@@ -326,6 +326,8 @@ export class MateuWorkflowElk extends LitElement {
     private pulsedThisPath = new Set<string>();
     /** nodeId → timestamp of the last token arrival, for the ping effect. */
     private pulseAt: Record<string, number> = {};
+    /** nodeId → ping colour ("" = default/primary, red on an error/compensation path). */
+    private pulseColor: Record<string, string> = {};
 
     // ── Focus interaction ───────────────────────────────────────────────────────
     /**
@@ -700,13 +702,14 @@ export class MateuWorkflowElk extends LitElement {
         if (this.flowRaf) cancelAnimationFrame(this.flowRaf);
         this.flowRaf = 0;
         this.pulseAt = {};
+        this.pulseColor = {};
         this.pulsedThisPath = new Set();
         const root = this.renderRoot as unknown as ParentNode;
         root.querySelectorAll?.("[data-pulse]").forEach(el => (el as SVGElement).setAttribute("opacity", "0"));
         root.querySelectorAll?.("[data-edge]").forEach(el => el.classList.remove("dim", "active"));
         root.querySelectorAll?.(".node").forEach(el => el.classList.remove("dim"));
         const token = root.querySelector?.(".flow-token") as SVGElement | null;
-        if (token) token.style.opacity = "0";
+        if (token) { token.style.opacity = "0"; token.style.fill = ""; }
     }
 
     /**
@@ -746,10 +749,27 @@ export class MateuWorkflowElk extends LitElement {
         const crossingNode = geo.hidden.some(hr => clamped >= hr.from && clamped <= hr.to);
         token.style.opacity = (dist <= len && !crossingNode) ? "1" : "0";
 
-        // Ping each node once, as the token reaches it.
+        // Error/compensation path (its last edge is a compensation edge): the failing rollbackable
+        // node and its compensation node ping red, and the token turns red once it enters the
+        // compensation edge.
+        const byId = new Map((this.wf.steps ?? []).map(s => [s.id, s] as const));
+        const errorNodes = new Set<string>();
+        let errorStartD = Infinity;
+        for (let i = 1; i < path.length; i++) {
+            const s = byId.get(path[i - 1]);
+            if (s && s.rollbackable && s.compensationStepId === path[i]) {
+                errorNodes.add(path[i - 1]);
+                errorNodes.add(path[i]);
+                errorStartD = Math.min(errorStartD, geo.marks[i - 1]?.d ?? 0);
+            }
+        }
+        token.style.fill = errorNodes.size && clamped >= errorStartD ? "#dc2626" : "";
+
+        // Ping each node once, as the token reaches it (red on the error/compensation nodes).
         for (const m of geo.marks) {
             if (dist >= m.d && !this.pulsedThisPath.has(m.id)) {
                 this.pulseAt[m.id] = now;
+                this.pulseColor[m.id] = errorNodes.has(m.id) ? "#dc2626" : "";
                 this.pulsedThisPath.add(m.id);
             }
         }
@@ -794,6 +814,7 @@ export class MateuWorkflowElk extends LitElement {
             if (dt > 0.6) { ring.setAttribute("opacity", "0"); continue; }
             const k = dt / 0.6;
             const base = Math.max(sizeOf(s.type).w, sizeOf(s.type).h) / 2;
+            ring.style.fill = this.pulseColor[s.id] || "";  // red on error nodes, else default
             ring.setAttribute("r", String(base + k * 16));
             ring.setAttribute("opacity", String((1 - k) * 0.45));
         }
