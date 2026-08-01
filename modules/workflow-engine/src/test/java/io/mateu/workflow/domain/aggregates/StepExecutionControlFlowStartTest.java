@@ -26,7 +26,7 @@ class StepExecutionControlFlowStartTest {
     private Step step(StepType type, String childWorkflowDefinitionId) {
         return new Step("s-1", "wd-1", type, "Step", null, null, null, null, false,
                 null, null, null, childWorkflowDefinitionId, null,
-                0, null, null, null, null, 0, 0, false, null, 0);
+                0, null, null, null, null, 0, 0, false, null, 0, null);
     }
 
     @ParameterizedTest

@@ -47,7 +47,7 @@ class NotifyParentStepServiceTest {
     private Step processStep(List<String> outputVariables) {
         return new Step("spawn", "wd-parent", StepType.PROCESS, "Spawn", null, "start", null, null, false,
                 null, null, null, "wd-child", outputVariables,
-                0, null, null, null, null, 0, 0, false, null, 0);
+                0, null, null, null, null, 0, 0, false, null, 0, null);
     }
 
     private StepExecution parentStepExecution(StepExecutionStatus status, List<String> outputVariables) {

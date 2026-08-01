@@ -41,6 +41,9 @@ public class WorkflowDefinitionValidator {
 
     public void validate(WorkflowDefinition definition) {
         definition.checkInvariants();
+        // Non-fatal guidance toward the FORK/JOIN gateway model (compensation-aware).
+        definition.topologyWarnings().forEach(w ->
+                log.warn("Workflow definition '{}': {}", definition.name(), w));
         if (definition.cronExpression() != null && !definition.cronExpression().isBlank()
                 && !org.springframework.scheduling.support.CronExpression.isValidExpression(definition.cronExpression().trim())) {
             throw new WorkflowDefinitionValidationException(

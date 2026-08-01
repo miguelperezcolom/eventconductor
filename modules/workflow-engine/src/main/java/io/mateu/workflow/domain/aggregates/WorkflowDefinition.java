@@ -283,6 +283,46 @@ public record WorkflowDefinition(
         }
     }
 
+    /**
+     * Non-fatal style guidance toward the FORK/JOIN gateway model: a normal step should have a
+     * single incoming and a single outgoing flow, using FORK to split and JOIN to merge. These are
+     * WARNINGS, not errors — compensation anchors (the false-guarded edge into a step that is some
+     * other step's {@code compensationStepId}) are excluded from the counts, and conditional splits
+     * (several guarded successors) stay allowed. Returns one message per node that could be clearer.
+     */
+    public List<String> topologyWarnings() {
+        if (steps == null || steps.isEmpty()) return List.of();
+        var compensationTargets = new java.util.HashSet<String>();
+        for (var step : steps) {
+            if (step.compensationStepId() != null && !step.compensationStepId().isBlank()) {
+                compensationTargets.add(step.compensationStepId());
+            }
+        }
+        // Real outgoing edges per node, excluding the anchor edges into compensation steps.
+        var realOut = new java.util.LinkedHashMap<String, Integer>();
+        for (var step : steps) {
+            for (var pre : step.preconditions()) {
+                if (compensationTargets.contains(step.id())) continue; // anchor edge — not real flow
+                realOut.merge(pre, 1, Integer::sum);
+            }
+        }
+        var warnings = new java.util.ArrayList<String>();
+        for (var step : steps) {
+            if (step.id() == null) continue;
+            int in = step.preconditions().size();
+            if (in > 1 && step.type() != StepType.JOIN) {
+                warnings.add("Step '" + step.id() + "' has " + in + " incoming flows but is not a JOIN"
+                        + " — merge branches through a JOIN so its semantics (all vs any) are explicit.");
+            }
+            int out = realOut.getOrDefault(step.id(), 0);
+            if (out > 1 && step.type() != StepType.FORK) {
+                warnings.add("Step '" + step.id() + "' has " + out + " outgoing flows but is not a FORK"
+                        + " — split through a FORK to keep the graph unambiguous.");
+            }
+        }
+        return warnings;
+    }
+
     /** DFS step for cycle detection: {@code path} is the grey set (current walk), {@code acyclic} the black set. */
     private void checkNoPreconditionCycle(String stepId, java.util.Map<String, List<String>> preconditions,
                                           java.util.LinkedHashSet<String> path, java.util.Set<String> acyclic) {

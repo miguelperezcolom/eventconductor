@@ -47,7 +47,7 @@ class CancelChildProcessServiceTest {
         return new Step("spawn", "wd-parent", type, "Spawn", null, "start", null, null, false,
                 StepType.ACTION.equals(type) ? "topic" : null, null, null,
                 StepType.PROCESS.equals(type) ? "wd-child" : null, null,
-                0, null, null, null, null, 0, 0, false, null, 0);
+                0, null, null, null, null, 0, 0, false, null, 0, null);
     }
 
     private StepExecution stepExecution(StepType type, StepExecutionStatus status) {

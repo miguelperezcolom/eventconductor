@@ -29,7 +29,7 @@ class CheckTimeoutUseCaseTest {
     @InjectMocks CheckTimeoutUseCase useCase;
 
     private Step stepWithTimeout(long millis) {
-        return new Step("s1", "wd-1", StepType.ACTION, "Step", null, null, null, null, false, "t", null, null, null, null, 0, null, null, null, null, millis, 0, false, null, 0);
+        return new Step("s1", "wd-1", StepType.ACTION, "Step", null, null, null, null, false, "t", null, null, null, null, 0, null, null, null, null, millis, 0, false, null, 0, null);
     }
 
     private StepExecution pendingSeWithTimeout(long timeoutMillis, LocalDateTime startedAt) {

@@ -16,7 +16,7 @@ class StepExecutionTimerStartTest {
     }
 
     private Step timerStep(long durationMillis, String untilVariable) {
-        return new Step("wait", "wd-1", StepType.TIMER, "Wait", null, null, null, null, false, null, null, null, null, null, durationMillis, untilVariable, null, null, null, 0, 0, false, null, 0);
+        return new Step("wait", "wd-1", StepType.TIMER, "Wait", null, null, null, null, false, null, null, null, null, null, durationMillis, untilVariable, null, null, null, 0, 0, false, null, 0, null);
     }
 
     @Test
