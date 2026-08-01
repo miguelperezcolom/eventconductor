@@ -15,15 +15,15 @@ class StepExecutionMoreTest {
     }
 
     private Step actionStep() {
-        return new Step("step-1", "wd-1", StepType.ACTION, "Step 1", null, null, null, null, false, "topic", null, null, null, null, 0, null, null, null, null, 0, 0, false, null, 0);
+        return new Step("step-1", "wd-1", StepType.ACTION, "Step 1", null, null, null, null, false, "topic", null, null, null, null, 0, null, null, null, null, 0, 0, false, null, 0, null);
     }
 
     private Step userTaskStepWithForm(String formId) {
-        return new Step("step-1", "wd-1", StepType.USER_TASK, "User Step", null, null, null, null, false, null, formId, null, null, null, 0, null, null, null, null, 0, 0, false, null, 0);
+        return new Step("step-1", "wd-1", StepType.USER_TASK, "User Step", null, null, null, null, false, null, formId, null, null, null, 0, null, null, null, null, 0, 0, false, null, 0, null);
     }
 
     private Step ruleStepWithRule(String ruleId) {
-        return new Step("step-1", "wd-1", StepType.RULE, "Rule Step", null, null, null, null, false, null, null, ruleId, null, null, 0, null, null, null, null, 0, 0, false, null, 0);
+        return new Step("step-1", "wd-1", StepType.RULE, "Rule Step", null, null, null, null, false, null, null, ruleId, null, null, 0, null, null, null, null, 0, 0, false, null, 0, null);
     }
 
     @Test

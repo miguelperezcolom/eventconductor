@@ -30,7 +30,7 @@ class WorkflowOrchestrationServiceTest {
     private Step step(String id, StepType type, String preconditionStepId, List<String> preconditionStepIds) {
         return new Step(id, "wd-1", type, id, null, preconditionStepId, preconditionStepIds, null, false,
                 StepType.ACTION.equals(type) ? "topic" : null, null, null, null, null,
-                0, null, null, null, null, 0, 0, false, null, 0);
+                0, null, null, null, null, 0, 0, false, null, 0, null);
     }
 
     private StepExecution se(Step step, StepExecutionStatus status) {
@@ -97,6 +97,25 @@ class WorkflowOrchestrationServiceTest {
         // JOIN is a pure control-flow node: starting it completes it instantly (no worker).
         assertThat(result.getStepsToSave()).extracting(StepExecution::getStepId).containsExactly("join");
         assertThat(result.getStepsToSave().get(0).getStatus()).isEqualTo(StepExecutionStatus.COMPLETED);
+    }
+
+    @Test
+    void xorJoinStartsAsSoonAsAnyPreconditionCompletes() {
+        var a = se(step("a", StepType.ACTION, "start", null), StepExecutionStatus.COMPLETED);
+        var b = se(step("b", StepType.ACTION, "start", null), StepExecutionStatus.PENDING); // still in flight
+        var join = se(xorJoin("join", List.of("a", "b")), StepExecutionStatus.CREATED);
+
+        var result = service.calculateNextTransitions(process(), List.of(a, b, join));
+
+        // XOR join proceeds on the first completed branch, unlike the AND join above.
+        assertThat(result.getStepsToSave()).extracting(StepExecution::getStepId).containsExactly("join");
+        assertThat(result.getStepsToSave().get(0).getStatus()).isEqualTo(StepExecutionStatus.COMPLETED);
+    }
+
+    private Step xorJoin(String id, List<String> preconditionStepIds) {
+        return new Step(id, "wd-1", StepType.JOIN, id, null, null, preconditionStepIds, null, false,
+                null, null, null, null, null, 0, null, null, null, null, 0, 0, false, null, 0,
+                io.mateu.workflow.domain.aggregates.JoinType.XOR);
     }
 
     // ── END transition: only ENDs complete, co-eligible siblings are cancelled ──

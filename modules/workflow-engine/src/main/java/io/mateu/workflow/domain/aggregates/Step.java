@@ -119,7 +119,14 @@ public record Step(
          * runs each step once; enforced when step re-execution lands.)
          */
         @HiddenInList
-        int maxSuccessfulExecutions
+        int maxSuccessfulExecutions,
+        /**
+         * JOIN only: whether the join waits for ALL incoming branches ({@link JoinType#AND}, the
+         * default) or proceeds on ANY one ({@link JoinType#XOR}). Null is treated as AND.
+         */
+        @HiddenInList
+        @Hidden("state['type'] != 'JOIN'")
+        JoinType joinType
 ) implements Identifiable {
 
     /**

@@ -16,7 +16,7 @@ class StepExecutionMessageStartTest {
     }
 
     private Step messageStep(String messageName) {
-        return new Step("wait", "wd-1", StepType.WAIT_FOR_MESSAGE, "Wait for message", null, null, null, null, false, null, null, null, null, null, 0, null, messageName, null, null, 0, 0, false, null, 0);
+        return new Step("wait", "wd-1", StepType.WAIT_FOR_MESSAGE, "Wait for message", null, null, null, null, false, null, null, null, null, null, 0, null, messageName, null, null, 0, 0, false, null, 0, null);
     }
 
     @Test

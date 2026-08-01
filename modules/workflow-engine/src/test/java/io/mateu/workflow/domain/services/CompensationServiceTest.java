@@ -20,7 +20,7 @@ class CompensationServiceTest {
 
     private Step step(String id, boolean rollbackable, String compensationStepId) {
         return new Step(id, "wd", StepType.ACTION, id, null, null, null, null, false, "topic",
-                null, null, null, null, 0, null, null, null, null, 0, 0, rollbackable, compensationStepId, 0);
+                null, null, null, null, 0, null, null, null, null, 0, 0, rollbackable, compensationStepId, 0, null);
     }
 
     private StepExecution exec(String stepId, StepExecutionStatus status, boolean rollbackable,

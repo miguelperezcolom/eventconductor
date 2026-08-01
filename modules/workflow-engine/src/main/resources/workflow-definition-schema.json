@@ -193,6 +193,12 @@
           "description": "Cap on how many times this step may successfully run within one process instance (runtime backstop against runaway loops). 0 or null inherits the workflow's defaultMaxStepExecutions.",
           "minimum": 0,
           "default": 0
+        },
+        "joinType": {
+          "type": ["string", "null"],
+          "enum": ["AND", "XOR", null],
+          "description": "JOIN only: how the join merges its incoming branches. AND (default) is a parallel/synchronizing join that waits for ALL branches to complete; XOR is an exclusive join that proceeds as soon as ANY one branch completes. Null is treated as AND.",
+          "default": "AND"
         }
       },
       "if": {

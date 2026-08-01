@@ -102,13 +102,16 @@ public class WorkflowOrchestrationService {
     }
 
     private boolean checkPreconditionStep(Step step, List<StepExecution> stepExecutions) {
-        // ALL declared preconditions must have a COMPLETED step execution. This is also
-        // JOIN's barrier: a JOIN with several preconditions only runs when every incoming
-        // branch has completed.
-        return step.preconditions().stream()
-                .allMatch(preconditionStepId -> stepExecutions.stream()
-                        .filter(se -> preconditionStepId.equals(se.getStepId()))
-                        .anyMatch(se -> StepExecutionStatus.COMPLETED.equals(se.getStatus())));
+        // A precondition is satisfied once it has a COMPLETED step execution. An XOR join proceeds
+        // as soon as ANY incoming branch has completed; every other step — including an AND join,
+        // the default barrier — needs them ALL.
+        java.util.function.Predicate<String> satisfied = preconditionStepId -> stepExecutions.stream()
+                .filter(se -> preconditionStepId.equals(se.getStepId()))
+                .anyMatch(se -> StepExecutionStatus.COMPLETED.equals(se.getStatus()));
+        boolean xorJoin = step.type() == StepType.JOIN && step.joinType() == JoinType.XOR;
+        return xorJoin
+                ? step.preconditions().stream().anyMatch(satisfied)
+                : step.preconditions().stream().allMatch(satisfied);
     }
 
     private boolean evaluatePreconditionExpression(Step step, Process process) {

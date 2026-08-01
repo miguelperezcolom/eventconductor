@@ -28,6 +28,8 @@ interface WorkflowStep {
     retries?: number;
     rollbackable?: boolean;
     compensationStepId?: string;
+    /** JOIN only: "AND" (default, wait all) or "XOR" (proceed on any one). */
+    joinType?: "AND" | "XOR";
 }
 
 interface WorkflowDefinition {
@@ -1672,13 +1674,16 @@ export class MateuWorkflowElk extends LitElement {
                         fill="${st.fill}" stroke="${st.stroke}"/>
                 <text class="node-caption" x="${w / 2}" y="${h + 15}" text-anchor="middle">${label}</text>`;
         } else if (isGatewayType(step.type)) {
-            // BPMN parallel gateway: diamond with a "+", name below.
+            // BPMN gateway diamond. Parallel (FORK / AND-JOIN) shows "+", exclusive (XOR-JOIN) "×".
             const cx = w / 2, cy = h / 2;
             const pts = `${cx},2 ${w - 2},${cy} ${cx},${h - 2} 2,${cy}`;
+            const xor = step.type === "JOIN" && step.joinType === "XOR";
+            const glyph = xor
+                ? svg`<path class="gw-plus" d="M${cx - 8},${cy - 8} L${cx + 8},${cy + 8} M${cx + 8},${cy - 8} L${cx - 8},${cy + 8}" stroke="${st.stroke}"/>`
+                : svg`<path class="gw-plus" d="M${cx - 9},${cy} H${cx + 9} M${cx},${cy - 9} V${cy + 9}" stroke="${st.stroke}"/>`;
             shape = svg`
                 <polygon class="node-shape gateway" points="${pts}" fill="${st.fill}" stroke="${st.stroke}"/>
-                <path class="gw-plus" d="M${cx - 9},${cy} H${cx + 9} M${cx},${cy - 9} V${cy + 9}"
-                      stroke="${st.stroke}"/>
+                ${glyph}
                 <text class="node-caption" x="${w / 2}" y="${h + 15}" text-anchor="middle">${label}</text>`;
         } else {
             // BPMN task: rounded card with a corner glyph, an uppercase caption, title + id.
@@ -1753,6 +1758,12 @@ export class MateuWorkflowElk extends LitElement {
                         </select>`)}
                     ${field("Description", html`<textarea class="inp" rows="2" ?readonly="${ro}"
                         @change="${ro ? nothing : (e: Event) => this.updateStep(step.id, {description: (e.target as HTMLTextAreaElement).value})}">${step.description ?? ""}</textarea>`)}
+                    ${step.type === "JOIN" ? field("Join type", html`
+                        <select class="inp" ?disabled="${ro}"
+                                @change="${ro ? nothing : (e: Event) => this.updateStep(step.id, {joinType: (e.target as HTMLSelectElement).value as "AND" | "XOR"})}">
+                            <option value="AND" ?selected="${(step.joinType ?? "AND") === "AND"}">AND — wait for all</option>
+                            <option value="XOR" ?selected="${step.joinType === "XOR"}">XOR — any one</option>
+                        </select>`) : nothing}
                     ${field("Preconditions (all must complete)", html`
                         <div class="checklist">
                             ${others.length === 0 ? html`<span class="check-empty">no other steps</span>`

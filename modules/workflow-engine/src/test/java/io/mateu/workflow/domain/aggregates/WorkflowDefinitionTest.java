@@ -11,7 +11,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class WorkflowDefinitionTest {
 
     private Step step(String id) {
-        return new Step(id, "wd-1", StepType.ACTION, "Step " + id, null, null, null, null, false, "topic", null, null, null, null, 0, null, null, null, null, 0, 0, false, null, 0);
+        return new Step(id, "wd-1", StepType.ACTION, "Step " + id, null, null, null, null, false, "topic", null, null, null, null, 0, null, null, null, null, 0, 0, false, null, 0, null);
     }
 
     private WorkflowDefinition definition(List<Step> steps) {
