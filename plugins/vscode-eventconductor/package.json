@@ -27,7 +27,18 @@
       "description": "The graph editor only reads and rewrites the .ec file you open."
     }
   },
+  "extensionPack": [
+    "redhat.vscode-yaml"
+  ],
   "contributes": {
+    "languages": [
+      {
+        "id": "yaml",
+        "extensions": [
+          ".ec"
+        ]
+      }
+    ],
     "customEditors": [
       {
         "viewType": "eventconductor.graphEditor",

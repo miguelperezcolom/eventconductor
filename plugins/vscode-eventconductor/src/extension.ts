@@ -19,9 +19,32 @@ export function activate(context: vscode.ExtensionContext) {
       openActiveBeside()
     )
   );
+  // Validate .ec (YAML or JSON) against the bundled workflow-definition schema.
+  registerYamlSchema(context);
 }
 
 export function deactivate() {}
+
+/**
+ * Bind the bundled JSON schema to `*.ec` through the Red Hat YAML extension's API, so YAML (and
+ * JSON, a YAML subset) `.ec` files get validation and completion in the text view.
+ */
+async function registerYamlSchema(context: vscode.ExtensionContext) {
+  try {
+    const yamlExt = vscode.extensions.getExtension("redhat.vscode-yaml");
+    if (!yamlExt) return;
+    const api = await yamlExt.activate();
+    if (!api || typeof api.registerContributor !== "function") return;
+    const schemaUri = vscode.Uri.joinPath(context.extensionUri, "schema", "ec.schema.json").toString();
+    api.registerContributor(
+      "eventconductor",
+      (resource: string) => (resource.endsWith(".ec") ? schemaUri : undefined),
+      () => undefined
+    );
+  } catch {
+    /* YAML extension missing or API changed — schema validation just won't be active */
+  }
+}
 
 /** The .ec file shown in the active tab (custom-editor tabs expose their uri on the input). */
 function activeUri(): vscode.Uri | undefined {
