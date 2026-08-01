@@ -243,15 +243,32 @@ function preconditionsOf(step: WorkflowStep): string[] {
  * path-by-path token animation. Roots are steps with no precondition; sinks are steps nothing
  * depends on. Capped, and cycle-guarded, so a pathological graph can't blow up.
  */
+/** Step ids that are some rollbackable step's compensationStepId. */
+function compTargets(steps: WorkflowStep[]): Set<string> {
+    const t = new Set<string>();
+    for (const s of steps) if (s.rollbackable && s.compensationStepId) t.add(s.compensationStepId);
+    return t;
+}
+
 function allPaths(steps: WorkflowStep[]): string[][] {
     const ids = new Set(steps.map(s => s.id));
+    const targets = compTargets(steps);
     const outgoing: Record<string, string[]> = {};
     const hasIncoming = new Set<string>();
     for (const s of steps) {
-        for (const from of preconditionsOf(s)) {
-            if (!ids.has(from)) continue;
-            (outgoing[from] ??= []).push(s.id);
-            hasIncoming.add(s.id);
+        // Normal sequence edges — but not the false-guarded anchor that keeps a compensation
+        // step valid at load: a compensation step is only entered through its compensation edge.
+        if (!targets.has(s.id)) {
+            for (const from of preconditionsOf(s)) {
+                if (!ids.has(from)) continue;
+                (outgoing[from] ??= []).push(s.id);
+                hasIncoming.add(s.id);
+            }
+        }
+        // Compensation edge — the error case: a rollbackable step can go to its compensation.
+        if (s.rollbackable && s.compensationStepId && ids.has(s.compensationStepId)) {
+            (outgoing[s.id] ??= []).push(s.compensationStepId);
+            hasIncoming.add(s.compensationStepId);
         }
     }
     const roots = steps.map(s => s.id).filter(id => !hasIncoming.has(id));
@@ -310,6 +327,17 @@ export class MateuWorkflowElk extends LitElement {
     /** nodeId → timestamp of the last token arrival, for the ping effect. */
     private pulseAt: Record<string, number> = {};
 
+    // ── Focus interaction ───────────────────────────────────────────────────────
+    /**
+     * 'auto' cycles every path; 'reachable' (shift+click a node) keeps that node's
+     * ancestors + descendants and dims the rest; 'path' (alt+click) shows a single path through
+     * the node and cycles to the next on each further alt+click.
+     */
+    private focusMode: "auto" | "reachable" | "path" = "auto";
+    private focusNodeId: string | null = null;
+    /** The paths currently animated — all of them, or the ones passing through the focus node. */
+    private activePaths: string[][] = [];
+
     private draggingId: string | null = null;
     private dragOffset = {x: 0, y: 0};
     private svgEl: SVGSVGElement | null = null;
@@ -339,8 +367,11 @@ export class MateuWorkflowElk extends LitElement {
                 if (structureChanged || !this.layoutReady) {
                     this.runElkLayout();
                 }
-                // Recompute the paths the token animation cycles through.
+                // Recompute the paths the token animation cycles through; reset focus.
                 this.flowPaths = allPaths(this.wf.steps ?? []);
+                this.focusMode = "auto";
+                this.focusNodeId = null;
+                this.activePaths = this.flowPaths;
                 this.flowPathIndex = 0;
                 this.pulsedThisPath = new Set();
             } catch {
@@ -503,6 +534,7 @@ export class MateuWorkflowElk extends LitElement {
 
     private onNodeMouseDown(e: MouseEvent, id: string) {
         if (this.readOnly) return;
+        if (e.shiftKey || e.altKey) return; // shift/alt are focus clicks, not drags
         e.preventDefault();
         this.draggingId = id;
         const pos = this.positions[id] ?? {x: 0, y: 0};
@@ -601,6 +633,57 @@ export class MateuWorkflowElk extends LitElement {
         return {pts, marks, hidden};
     }
 
+    private onNodeClick(e: MouseEvent, id: string) {
+        e.stopPropagation();
+        if (e.shiftKey) { this.focusReachable(id); return; }   // node's ancestors + descendants
+        if (e.altKey) { this.focusNextPath(id); return; }      // one path through the node, cycling
+        this.clearFocus();
+        this.selectedId = id;
+    }
+
+    /** Root→sink paths passing through a node (falls back to all paths if none). */
+    private pathsThrough(id: string): string[][] {
+        const through = this.flowPaths.filter(p => p.includes(id));
+        return through.length ? through : this.flowPaths;
+    }
+
+    private focusReachable(id: string) {
+        this.focusMode = "reachable";
+        this.focusNodeId = id;
+        this.activePaths = this.pathsThrough(id);
+        this.restartFlow();
+        this.flowOn = true;
+    }
+
+    private focusNextPath(id: string) {
+        const through = this.pathsThrough(id);
+        if (this.focusMode === "path" && this.focusNodeId === id) {
+            this.flowPathIndex = (this.flowPathIndex + 1) % through.length; // next path through it
+        } else {
+            this.focusMode = "path";
+            this.focusNodeId = id;
+            this.flowPathIndex = 0;
+        }
+        this.activePaths = through;
+        this.flowStartTs = performance.now(); // restart the token from this path's beginning
+        this.pulsedThisPath = new Set();
+        this.flowOn = true;
+    }
+
+    private clearFocus() {
+        this.focusMode = "auto";
+        this.focusNodeId = null;
+        this.activePaths = this.flowPaths;
+        this.restartFlow();
+    }
+
+    /** Restart the animation at the first active path (used when the focus set changes). */
+    private restartFlow() {
+        this.flowPathIndex = 0;
+        this.flowStartTs = performance.now();
+        this.pulsedThisPath = new Set();
+    }
+
     private startFlow() {
         if (this.flowRaf) return;
         this.flowStartTs = performance.now();
@@ -620,7 +703,8 @@ export class MateuWorkflowElk extends LitElement {
         this.pulsedThisPath = new Set();
         const root = this.renderRoot as unknown as ParentNode;
         root.querySelectorAll?.("[data-pulse]").forEach(el => (el as SVGElement).setAttribute("opacity", "0"));
-        root.querySelectorAll?.(".edge").forEach(el => el.classList.remove("dim", "active"));
+        root.querySelectorAll?.("[data-edge]").forEach(el => el.classList.remove("dim", "active"));
+        root.querySelectorAll?.(".node").forEach(el => el.classList.remove("dim"));
         const token = root.querySelector?.(".flow-token") as SVGElement | null;
         if (token) token.style.opacity = "0";
     }
@@ -633,7 +717,7 @@ export class MateuWorkflowElk extends LitElement {
     private stepFlow(now: number) {
         const root = this.renderRoot as unknown as ParentNode;
         const token = root.querySelector?.(".flow-token") as SVGCircleElement | null;
-        const paths = this.flowPaths;
+        const paths = this.activePaths.length ? this.activePaths : this.flowPaths;
         if (!token || paths.length === 0) { if (token) token.style.opacity = "0"; return; }
 
         const idx = this.flowPathIndex % paths.length;
@@ -646,7 +730,8 @@ export class MateuWorkflowElk extends LitElement {
         const dist = ((now - this.flowStartTs) / 1000) * speed;
 
         if (dist >= len + pausePx) {
-            this.flowPathIndex = (idx + 1) % paths.length; // next path
+            // In 'path' focus we loop the chosen path; otherwise advance to the next one.
+            if (this.focusMode !== "path") this.flowPathIndex = (idx + 1) % paths.length;
             this.flowStartTs = now;
             this.pulsedThisPath = new Set();
             return;
@@ -661,7 +746,7 @@ export class MateuWorkflowElk extends LitElement {
         const crossingNode = geo.hidden.some(hr => clamped >= hr.from && clamped <= hr.to);
         token.style.opacity = (dist <= len && !crossingNode) ? "1" : "0";
 
-        // Ping each node once, as the token reaches its centre.
+        // Ping each node once, as the token reaches it.
         for (const m of geo.marks) {
             if (dist >= m.d && !this.pulsedThisPath.has(m.id)) {
                 this.pulseAt[m.id] = now;
@@ -669,17 +754,39 @@ export class MateuWorkflowElk extends LitElement {
             }
         }
 
-        // Highlight the active path's edges, dim the rest.
-        const active = new Set<string>();
-        for (let i = 1; i < path.length; i++) active.add(`${path[i - 1]}->${path[i]}`);
-        root.querySelectorAll?.(".edge[data-edge]").forEach(el => {
-            const on = active.has((el as SVGElement).dataset.edge ?? "");
-            el.classList.toggle("active", on);
-            el.classList.toggle("dim", !on);
+        // The currently-animated path's edges (brightest) and, in a focus mode, the "universe"
+        // to keep un-dimmed (the reachable sub-graph, or just the chosen path). In auto mode
+        // there is no universe, so everything but the animated path dims.
+        const activeEdges = new Set<string>();
+        for (let i = 1; i < path.length; i++) activeEdges.add(`${path[i - 1]}->${path[i]}`);
+        let unionEdges: Set<string> | null = null;
+        let focusNodes: Set<string> | null = null;
+        if (this.focusMode !== "auto") {
+            unionEdges = new Set();
+            focusNodes = new Set();
+            const universe = this.focusMode === "path" ? [path] : paths;
+            for (const pth of universe) {
+                for (let i = 0; i < pth.length; i++) {
+                    focusNodes.add(pth[i]);
+                    if (i > 0) unionEdges.add(`${pth[i - 1]}->${pth[i]}`);
+                }
+            }
+        }
+
+        // Sequence AND compensation edges (both carry data-edge): the animated path is 'active',
+        // and anything outside the focus universe (or, in auto mode, off the current path) dims.
+        root.querySelectorAll?.("[data-edge]").forEach(el => {
+            const key = (el as SVGElement).dataset.edge ?? "";
+            const isActive = activeEdges.has(key);
+            const dim = unionEdges ? (!unionEdges.has(key) && !isActive) : !isActive;
+            el.classList.toggle("active", isActive);
+            el.classList.toggle("dim", dim);
         });
 
-        // Render the node pings.
+        // Dim nodes outside the focus universe, and render the node pings.
         for (const s of this.wf.steps ?? []) {
+            const g = root.querySelector?.(`.node[data-node="${s.id}"]`) as SVGGElement | null;
+            if (g) g.classList.toggle("dim", !!focusNodes && !focusNodes.has(s.id));
             const ring = root.querySelector?.(`[data-pulse="${s.id}"]`) as SVGCircleElement | null;
             if (!ring) continue;
             const t0 = this.pulseAt[s.id];
@@ -718,7 +825,7 @@ export class MateuWorkflowElk extends LitElement {
                 <div class="workspace">
                     <div class="canvas-wrap">
                         <svg width="${w}" height="${h}" class="canvas"
-                             @click="${(e: MouseEvent) => {if (e.target === e.currentTarget) this.selectedId = null;}}">
+                             @click="${(e: MouseEvent) => {if (e.target === e.currentTarget) { this.selectedId = null; this.clearFocus(); }}}">
                             <defs>
                                 <marker id="ec-arrow" markerWidth="9" markerHeight="9"
                                         refX="7.5" refY="3.2" orient="auto" markerUnits="userSpaceOnUse">
@@ -807,6 +914,9 @@ export class MateuWorkflowElk extends LitElement {
     }
 
     private renderArrows(step: WorkflowStep) {
+        // A compensation step is only entered through its (red) compensation edge; skip its
+        // false-guarded anchor edge so it doesn't look like part of the normal flow.
+        if (compTargets(this.wf.steps ?? []).has(step.id)) return svg``;
         const tBox = this.boxForId(step.id);
         if (!tBox) return svg``;
         const preconditions = preconditionsOf(step);
@@ -834,7 +944,9 @@ export class MateuWorkflowElk extends LitElement {
         const b = this.boxForId(step.compensationStepId);
         if (!a || !b) return svg``;
         const pts = orthogonalRoute(a, b, 0);
-        return svg`<path class="comp-edge" d="${roundedPath(pts)}" marker-end="url(#ec-arrow)"/>`;
+        return svg`<path class="comp-edge" data-comp="${step.id}"
+                         data-edge="${step.id}->${step.compensationStepId}"
+                         d="${roundedPath(pts)}" marker-end="url(#ec-arrow)"/>`;
     }
 
     /**
@@ -910,9 +1022,9 @@ export class MateuWorkflowElk extends LitElement {
         }
 
         return svg`
-            <g class="node ${sel}" transform="translate(${pos.x},${pos.y})"
+            <g class="node ${sel}" data-node="${step.id}" transform="translate(${pos.x},${pos.y})"
                @mousedown="${(e: MouseEvent) => this.onNodeMouseDown(e, step.id)}"
-               @click="${(e: MouseEvent) => {e.stopPropagation(); this.selectedId = step.id;}}">
+               @click="${(e: MouseEvent) => this.onNodeClick(e, step.id)}">
                 ${pulse}
                 ${shape}
             </g>
@@ -1115,7 +1227,8 @@ export class MateuWorkflowElk extends LitElement {
         .canvas {display: block;}
 
         /* nodes */
-        .node {cursor: grab;}
+        .node {cursor: grab; transition: opacity .2s;}
+        .node.dim {opacity: .2;}   /* not reachable from the focused node (shift/alt click) */
         .node-shape {filter: url(#ec-shadow); stroke-width: 1.6; transition: stroke .12s, stroke-width .12s;}
         .node-shape.ev-start {stroke-width: 1.8;}
         .node-shape.ev-end {stroke-width: 3;}
@@ -1134,7 +1247,9 @@ export class MateuWorkflowElk extends LitElement {
         .edge.dim {opacity: .22;}                                    /* not on the active path */
         .edge.active {stroke: var(--ec-primary); stroke-width: 2.4;} /* the path being animated */
         /* compensation associations (BPMN): red dashed */
-        .comp-edge {fill: none; stroke: #dc2626; stroke-width: 1.6; stroke-dasharray: 6 5; stroke-linejoin: round;}
+        .comp-edge {fill: none; stroke: #dc2626; stroke-width: 1.6; stroke-dasharray: 6 5; stroke-linejoin: round; transition: opacity .2s, stroke-width .2s;}
+        .comp-edge.dim {opacity: .18;}
+        .comp-edge.active {stroke-width: 2.6;}  /* the error path — stays red, just bolder */
         /* the single animated token walking the current path */
         .flow-token {fill: var(--ec-primary); pointer-events: none; filter: drop-shadow(0 0 3px var(--ec-primary));}
 
