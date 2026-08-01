@@ -244,6 +244,56 @@ function routeAvoiding(src: Box, tgt: Box, obstacles: Box[], spread = 0, margin 
     return base;
 }
 
+/** Where do segments a→b and c→d cross (strictly interior)? Returns the point + its t on a→b. */
+function segIntersect(a: Pt, b: Pt, c: Pt, d: Pt): (Pt & {t: number}) | null {
+    const rx = b.x - a.x, ry = b.y - a.y, sx = d.x - c.x, sy = d.y - c.y;
+    const denom = rx * sy - ry * sx;
+    if (Math.abs(denom) < 1e-9) return null;
+    const t = ((c.x - a.x) * sy - (c.y - a.y) * sx) / denom;
+    const u = ((c.x - a.x) * ry - (c.y - a.y) * rx) / denom;
+    if (t <= 0.02 || t >= 0.98 || u <= 0.02 || u >= 0.98) return null;
+    return {x: a.x + t * rx, y: a.y + t * ry, t};
+}
+
+/** A straight run a→b that hops over each prior segment it crosses with a small arc (a wire bridge). */
+function straightWithBridges(a: Pt, b: Pt, prior: [Pt, Pt][], radius: number): string {
+    const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+    const ux = (b.x - a.x) / len, uy = (b.y - a.y) / len;
+    const crossings = prior
+        .map(([c, e]) => segIntersect(a, b, c, e))
+        .filter((p): p is Pt & {t: number} => p !== null)
+        .filter(p => p.t * len > radius + 2 && (1 - p.t) * len > radius + 2)
+        .sort((p, q) => p.t - q.t);
+    let d = "";
+    let lastEnd = -Infinity;
+    for (const p of crossings) {
+        if (p.t * len - radius <= lastEnd + 2) continue; // merged with the previous hop
+        d += ` L ${p.x - ux * radius} ${p.y - uy * radius}`;
+        d += ` A ${radius} ${radius} 0 0 1 ${p.x + ux * radius} ${p.y + uy * radius}`;
+        lastEnd = p.t * len + radius;
+    }
+    return d + ` L ${b.x} ${b.y}`;
+}
+
+/** Rounded-corner polyline path that also bridges (hops over) every prior segment it crosses. */
+function bridgedPath(pts: Pt[], prior: [Pt, Pt][], cornerR = 9, bridgeR = 6): string {
+    if (pts.length < 2) return pts.length ? `M ${pts[0].x} ${pts[0].y}` : "";
+    let d = `M ${pts[0].x} ${pts[0].y}`;
+    let from = pts[0];
+    for (let i = 1; i < pts.length - 1; i++) {
+        const p = pts[i], next = pts[i + 1];
+        const dPrev = Math.hypot(p.x - from.x, p.y - from.y) || 1;
+        const dNext = Math.hypot(next.x - p.x, next.y - p.y) || 1;
+        const r = Math.min(cornerR, dPrev / 2, dNext / 2);
+        const a1 = {x: p.x + ((from.x - p.x) / dPrev) * r, y: p.y + ((from.y - p.y) / dPrev) * r};
+        const a2 = {x: p.x + ((next.x - p.x) / dNext) * r, y: p.y + ((next.y - p.y) / dNext) * r};
+        d += straightWithBridges(from, a1, prior, bridgeR);
+        d += ` Q ${p.x} ${p.y} ${a2.x} ${a2.y}`;
+        from = a2;
+    }
+    return d + straightWithBridges(from, pts[pts.length - 1], prior, bridgeR);
+}
+
 /** The point at `frac` (0 = source … 1 = target) along a polyline — where an edge label sits. */
 function polylinePointAt(pts: Pt[], frac = 0.5): Pt {
     let total = 0;
@@ -842,23 +892,17 @@ export class MateuWorkflowElk extends LitElement {
         const crossingNode = geo.hidden.some(hr => clamped >= hr.from && clamped <= hr.to);
         token.style.opacity = (dist <= len && !crossingNode) ? "1" : "0";
 
-        // Error/compensation path (its last edge is a compensation edge): the failing rollbackable
-        // node and its compensation node ping red, and the token turns red once it enters the
-        // compensation edge.
+        // On an error/compensation path (its last edge is a compensation edge), only the failing
+        // rollbackable node pings red to flag the failure. The compensation step is the
+        // (successful) recovery, so it — and the token — keep their normal colour.
         const byId = new Map((this.wf.steps ?? []).map(s => [s.id, s] as const));
         const errorNodes = new Set<string>();
-        let errorStartD = Infinity;
         for (let i = 1; i < path.length; i++) {
             const s = byId.get(path[i - 1]);
-            if (s && s.rollbackable && s.compensationStepId === path[i]) {
-                errorNodes.add(path[i - 1]);
-                errorNodes.add(path[i]);
-                errorStartD = Math.min(errorStartD, geo.marks[i - 1]?.d ?? 0);
-            }
+            if (s && s.rollbackable && s.compensationStepId === path[i]) errorNodes.add(path[i - 1]);
         }
-        token.style.fill = errorNodes.size && clamped >= errorStartD ? "#dc2626" : "";
 
-        // Ping each node once, as the token reaches it (red on the error/compensation nodes).
+        // Ping each node once, as the token reaches it (red only on the failing node).
         for (const m of geo.marks) {
             if (dist >= m.d && !this.pulsedThisPath.has(m.id)) {
                 this.pulseAt[m.id] = now;
@@ -950,8 +994,7 @@ export class MateuWorkflowElk extends LitElement {
                                                   flood-opacity="0.10"/>
                                 </filter>
                             </defs>
-                            ${steps.map(s => this.renderArrows(s))}
-                            ${steps.map(s => this.renderCompensationEdge(s))}
+                            ${this.renderEdges()}
                             ${steps.map(s => this.renderNode(s))}
                             ${steps.map(s => this.renderGuard(s))}
                             ${this.flowOn ? svg`<circle class="flow-token" r="5.5" cx="-100" cy="-100"/>` : nothing}
@@ -1027,36 +1070,41 @@ export class MateuWorkflowElk extends LitElement {
         `;
     }
 
-    private renderArrows(step: WorkflowStep) {
-        // A compensation step is only entered through its (red) compensation edge; skip its
-        // false-guarded anchor edge so it doesn't look like part of the normal flow.
-        if (compTargets(this.wf.steps ?? []).has(step.id)) return svg``;
-        if (!this.boxForId(step.id)) return svg``;
-        const preconditions = preconditionsOf(step);
-        const n = preconditions.length;
-
-        return preconditions.map((fromId, i) => {
-            // Node-avoiding route, with several edges into the same node spread apart so they
-            // stay distinguishable (echoing modux's parallel-edge handling).
-            const spread = n <= 1 ? 0 : (i - (n - 1) / 2) * 11;
-            const pts = this.routeBetween(fromId, step.id, spread);
-            if (!pts) return svg``;
-            return svg`<path class="edge" data-edge="${fromId}->${step.id}"
-                             d="${roundedPath(pts)}" marker-end="url(#ec-arrow)"/>`;
-        });
-    }
-
     /**
-     * Compensation associations, BPMN-style: a red dashed line from a rollbackable step to the
-     * step that undoes it (`compensationStepId`). Drawn on top of the sequence flow.
+     * All edges (sequence + compensation) drawn in one pass, so a later line can bridge (hop
+     * over with a small arc) any earlier line it crosses — the classic wiring-diagram look, as
+     * in modux. Compensation edges are drawn last so they hop over the sequence flow.
      */
-    private renderCompensationEdge(step: WorkflowStep) {
-        if (!step.rollbackable || !step.compensationStepId) return svg``;
-        const pts = this.routeBetween(step.id, step.compensationStepId, 0);
-        if (!pts) return svg``;
-        return svg`<path class="comp-edge" data-comp="${step.id}"
-                         data-edge="${step.id}->${step.compensationStepId}"
-                         d="${roundedPath(pts)}" marker-end="url(#ec-arrow)"/>`;
+    private renderEdges() {
+        const steps = this.wf.steps ?? [];
+        const targets = compTargets(steps);
+        const list: {from: string; to: string; comp: boolean; spread: number}[] = [];
+        for (const s of steps) {
+            // A compensation step is only entered through its (red) compensation edge; skip its
+            // false-guarded anchor edge so it doesn't look like part of the normal flow.
+            if (targets.has(s.id)) continue;
+            const pre = preconditionsOf(s);
+            const n = pre.length;
+            pre.forEach((f, i) => list.push({from: f, to: s.id, comp: false, spread: n <= 1 ? 0 : (i - (n - 1) / 2) * 11}));
+        }
+        for (const s of steps) {
+            if (s.rollbackable && s.compensationStepId) list.push({from: s.id, to: s.compensationStepId, comp: true, spread: 0});
+        }
+
+        const prior: [Pt, Pt][] = [];
+        const out: unknown[] = [];
+        for (const e of list) {
+            const pts = this.routeBetween(e.from, e.to, e.spread);
+            if (!pts) continue;
+            const d = bridgedPath(pts, prior);
+            out.push(e.comp
+                ? svg`<path class="comp-edge" data-comp="${e.from}" data-edge="${e.from}->${e.to}"
+                             d="${d}" marker-end="url(#ec-arrow)"/>`
+                : svg`<path class="edge" data-edge="${e.from}->${e.to}"
+                             d="${d}" marker-end="url(#ec-arrow)"/>`);
+            for (let i = 0; i < pts.length - 1; i++) prior.push([pts[i], pts[i + 1]]);
+        }
+        return out;
     }
 
     /**
@@ -1079,7 +1127,7 @@ export class MateuWorkflowElk extends LitElement {
         const w = Math.max(30, text.length * 6.3 + 22);
         const h = 19;
         return svg`
-            <g class="guard" transform="translate(${mid.x}, ${mid.y})">
+            <g class="guard" data-edge="${preconditions[0]}->${step.id}" transform="translate(${mid.x}, ${mid.y})">
                 <rect x="${-w / 2}" y="${-h / 2}" width="${w}" height="${h}" rx="9.5"/>
                 <text x="0" y="3.6" text-anchor="middle">◇ ${text}</text>
             </g>
@@ -1366,7 +1414,8 @@ export class MateuWorkflowElk extends LitElement {
         .flow-token {fill: var(--ec-primary); pointer-events: none; filter: drop-shadow(0 0 3px var(--ec-primary));}
 
         /* precondition guard chips on edges */
-        .guard {pointer-events: none;}
+        .guard {pointer-events: none; transition: opacity .2s;}
+        .guard.dim {opacity: .15;}   /* its edge is not in the focus */
         .guard rect {fill: var(--ec-surface); stroke: var(--ec-border); stroke-width: 1;}
         .guard text {
             font-size: 10.5px; fill: var(--ec-text-dim);
