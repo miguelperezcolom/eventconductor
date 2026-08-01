@@ -1,7 +1,7 @@
 import {customElement, property, state} from "lit/decorators.js";
 import {css, html, LitElement, nothing, svg} from "lit";
 import type {ELK, ElkNode, ElkExtendedEdge} from "elkjs/lib/elk.bundled.js";
-import {neutralButtonStyles, iconCog, iconPlus, iconDownload, iconSitemap} from "./neutralChrome";
+import {neutralButtonStyles, iconCog, iconPlus, iconDownload, iconSitemap, iconFit} from "./neutralChrome";
 
 // ── Domain types ─────────────────────────────────────────────────────────────
 
@@ -42,6 +42,10 @@ interface WorkflowDefinition {
     steps: WorkflowStep[];
 }
 
+type StepState = "PENDING" | "RUNNING" | "COMPLETED" | "ERROR" | "CANCELLED" | "COMPENSATED";
+/** Per-step monitoring overlay entry (read-only views): a live process count and/or a state. */
+interface StepOverlay { count?: number; state?: StepState; active?: boolean; }
+
 interface NodePos { x: number; y: number; }
 interface Pt { x: number; y: number; }
 /** A node's geometry as center + size — the shape the router works in. */
@@ -66,20 +70,30 @@ const STEP_TYPES: StepType[] = [
  */
 interface NodeStyle { fill: string; stroke: string; symbol: string; dashed?: boolean; }
 const NODE_STYLE: Record<StepType, NodeStyle> = {
-    START:            {fill: "#ffffff", stroke: "#64748b", symbol: "flow"},
+    // BPMN events: start = thin green circle, end = thick red circle.
+    START:            {fill: "#f0fdf4", stroke: "#16a34a", symbol: "flow"},
     ACTION:           {fill: "#ffffff", stroke: "#6d28d9", symbol: "process"},
     USER_TASK:        {fill: "#fef9c3", stroke: "#ca8a04", symbol: "person"},
     RULE:             {fill: "#ffffff", stroke: "#4f46e5", symbol: "operation"},
     TIMER:            {fill: "#ffffff", stroke: "#d97706", symbol: "clock"},
     WAIT_FOR_MESSAGE: {fill: "#ffffff", stroke: "#0891b2", symbol: "event"},
     SEND_MESSAGE:     {fill: "#ffffff", stroke: "#0891b2", symbol: "flow"},
-    FORK:             {fill: "#f5f3ff", stroke: "#6d28d9", symbol: "flow", dashed: true},
-    JOIN:             {fill: "#f5f3ff", stroke: "#6d28d9", symbol: "flow", dashed: true},
+    // BPMN parallel gateways: amber diamonds with a "+".
+    FORK:             {fill: "#fffbeb", stroke: "#b45309", symbol: "flow"},
+    JOIN:             {fill: "#fffbeb", stroke: "#b45309", symbol: "flow"},
     PROCESS:          {fill: "#eef2ff", stroke: "#4f46e5", symbol: "component"},
-    END:              {fill: "#dcfce7", stroke: "#16a34a", symbol: "event"},
+    END:              {fill: "#fef2f2", stroke: "#dc2626", symbol: "event"},
 };
 const DEFAULT_STYLE: NodeStyle = {fill: "#ffffff", stroke: "#94a3b8", symbol: "process"};
 const styleOf = (t: StepType): NodeStyle => NODE_STYLE[t] ?? DEFAULT_STYLE;
+
+/** BPMN events (START/END) and gateways (FORK/JOIN) are compact squares; the rest are tasks. */
+const EVENT_SIZE = 56;
+function isEventType(t: StepType): boolean { return t === "START" || t === "END"; }
+function isGatewayType(t: StepType): boolean { return t === "FORK" || t === "JOIN"; }
+function sizeOf(t: StepType): {w: number; h: number} {
+    return (isEventType(t) || isGatewayType(t)) ? {w: EVENT_SIZE, h: EVENT_SIZE} : {w: NODE_W, h: NODE_H};
+}
 
 /**
  * ArchiMate-inspired glyphs (ported from modux), each fitting a 12×12 box, stroke-only — drawn
@@ -158,6 +172,221 @@ function orthogonalRoute(a: Box, b: Box, spread = 0): Pt[] {
     return straightRoute(a, b, spread);
 }
 
+/** Does the segment a→b clip the axis-aligned box (centre + size)? Liang–Barsky. */
+function segmentCrossesBox(a: Pt, b: Pt, box: Box): boolean {
+    const minX = box.x - box.w / 2, maxX = box.x + box.w / 2;
+    const minY = box.y - box.h / 2, maxY = box.y + box.h / 2;
+    let t0 = 0, t1 = 1;
+    const dx = b.x - a.x, dy = b.y - a.y;
+    for (const [p, q] of [[-dx, a.x - minX], [dx, maxX - a.x], [-dy, a.y - minY], [dy, maxY - a.y]] as [number, number][]) {
+        if (p === 0) { if (q < 0) return false; continue; }
+        const r = q / p;
+        if (p < 0) { if (r > t1) return false; if (r > t0) t0 = r; }
+        else { if (r < t0) return false; if (r < t1) t1 = r; }
+    }
+    return t1 - t0 > 0.02; // a mere corner graze does not count
+}
+
+/** Border exit of `box` aligned to (tx,ty)'s perpendicular coord, so the stub stays orthogonal. */
+function orthoBorder(box: Box, tx: number, ty: number): Pt {
+    const dx = tx - box.x, dy = ty - box.y, hw = box.w / 2, hh = box.h / 2;
+    if (Math.abs(dx) >= Math.abs(dy) && Math.abs(dy) <= hh) return {x: box.x + Math.sign(dx) * hw, y: ty};
+    if (Math.abs(dy) >= Math.abs(dx) && Math.abs(dx) <= hw) return {x: tx, y: box.y + Math.sign(dy) * hh};
+    if (dx === 0 && dy === 0) return {x: box.x, y: box.y};
+    const scale = 1 / Math.max(Math.abs(dx) / hw, Math.abs(dy) / hh);
+    return {x: box.x + dx * scale, y: box.y + dy * scale};
+}
+
+/**
+ * Orthogonal route between two boxes that steers around the other nodes (obstacles), so no
+ * line ever runs across a node. Ported from modux: if the default route is clean it is kept;
+ * otherwise a family of orthogonal detours (L-shapes and Z-channels, plus channels that clear
+ * each nearby obstacle) is scored (boxes crossed dominate, then length + bends) and the best is
+ * taken. Endpoints are re-anchored to the borders so the whole path stays horizontal/vertical.
+ */
+function routeAvoiding(src: Box, tgt: Box, obstacles: Box[], spread = 0, margin = 22): Pt[] {
+    const crossings = (pts: Pt[]): number => {
+        let n = 0;
+        for (let i = 0; i < pts.length - 1; i++)
+            for (const o of obstacles)
+                if (segmentCrossesBox(pts[i], pts[i + 1], {x: o.x, y: o.y, w: o.w + 2 * margin, h: o.h + 2 * margin})) n++;
+        return n;
+    };
+    const base = orthogonalRoute(src, tgt, spread);
+    const baseCross = crossings(base);
+    if (baseCross === 0) return base;
+
+    const S = {x: src.x, y: src.y}, T = {x: tgt.x, y: tgt.y};
+    const cands: Pt[][] = [[{x: T.x, y: S.y}], [{x: S.x, y: T.y}]]; // two L shapes
+    for (const f of [0.5, 0.38, 0.62, 0.26, 0.74]) {
+        const mx = S.x + (T.x - S.x) * f, my = S.y + (T.y - S.y) * f;
+        cands.push([{x: mx, y: S.y}, {x: mx, y: T.y}]);
+        cands.push([{x: S.x, y: my}, {x: T.x, y: my}]);
+    }
+    const loX = Math.min(S.x, T.x), hiX = Math.max(S.x, T.x), loY = Math.min(S.y, T.y), hiY = Math.max(S.y, T.y);
+    for (const o of obstacles) {
+        const m = margin + 8;
+        if (o.x > loX - o.w && o.x < hiX + o.w) {
+            cands.push([{x: S.x, y: o.y - o.h / 2 - m}, {x: T.x, y: o.y - o.h / 2 - m}]);
+            cands.push([{x: S.x, y: o.y + o.h / 2 + m}, {x: T.x, y: o.y + o.h / 2 + m}]);
+        }
+        if (o.y > loY - o.h && o.y < hiY + o.h) {
+            cands.push([{x: o.x - o.w / 2 - m, y: S.y}, {x: o.x - o.w / 2 - m, y: T.y}]);
+            cands.push([{x: o.x + o.w / 2 + m, y: S.y}, {x: o.x + o.w / 2 + m, y: T.y}]);
+        }
+    }
+    let best: Pt[] | null = null, bestScore = Infinity, bestCross = Infinity;
+    for (const c of cands) {
+        const full = [S, ...c, T];
+        const cross = crossings(full);
+        const score = cross * 1e6 + polylineLength(full) + c.length * 40;
+        if (score < bestScore) { best = c; bestScore = score; bestCross = cross; }
+    }
+    if (best && bestCross < baseCross) {
+        return [orthoBorder(src, best[0].x, best[0].y), ...best, orthoBorder(tgt, best[best.length - 1].x, best[best.length - 1].y)];
+    }
+    return base;
+}
+
+type Side = "R" | "L" | "T" | "B";
+
+/**
+ * Move a box-border attach point onto the node's actual outline so lines meet the shape with no
+ * gap: a circle for events, a diamond for gateways, the box itself for tasks. `cx,cy` is the node
+ * centre; `pt` is the (possibly offset) point on the box side; `side` is the side it exits.
+ */
+function snapToShape(cx: number, cy: number, type: StepType, pt: Pt, side: Side): Pt {
+    const horiz = side === "L" || side === "R", sgn = (side === "R" || side === "B") ? 1 : -1;
+    const clamp = (v: number, m: number) => Math.max(-m, Math.min(m, v));
+    if (isEventType(type)) {
+        const R = EVENT_SIZE / 2 - 3;
+        if (horiz) { const dy = clamp(pt.y - cy, R - 1); return {x: cx + sgn * Math.sqrt(R * R - dy * dy), y: cy + dy}; }
+        const dx = clamp(pt.x - cx, R - 1); return {x: cx + dx, y: cy + sgn * Math.sqrt(R * R - dx * dx)};
+    }
+    if (isGatewayType(type)) {
+        const hw = EVENT_SIZE / 2 - 2, hh = EVENT_SIZE / 2 - 2; // diamond inscribed in the box
+        if (horiz) { const dy = clamp(pt.y - cy, hh - 1); return {x: cx + sgn * hw * (1 - Math.abs(dy) / hh), y: cy + dy}; }
+        const dx = clamp(pt.x - cx, hw - 1); return {x: cx + dx, y: cy + sgn * hh * (1 - Math.abs(dx) / hw)};
+    }
+    return pt; // rectangle: the box border already is the shape
+}
+
+function stubOut(pt: Pt, side: Side, d: number): Pt {
+    return side === "R" ? {x: pt.x + d, y: pt.y} : side === "L" ? {x: pt.x - d, y: pt.y}
+        : side === "T" ? {x: pt.x, y: pt.y - d} : {x: pt.x, y: pt.y + d};
+}
+
+/**
+ * Orthogonal route between two *specific border points* (each leaving its node perpendicular
+ * to its side), avoiding the other nodes. Lets edges attach at distinct points on a node so
+ * parallel edges never lie on top of one another. Same candidate-scoring idea as routeAvoiding.
+ */
+function routeThrough(sPt: Pt, sSide: Side, tPt: Pt, tSide: Side, obstacles: Box[], prior: [Pt, Pt][] = [], margin = 20): Pt[] {
+    const STUB = 16;
+    const S = stubOut(sPt, sSide, STUB), T = stubOut(tPt, tSide, STUB);
+    const crossings = (pts: Pt[]): number => {
+        let n = 0;
+        for (let i = 0; i < pts.length - 1; i++)
+            for (const o of obstacles)
+                if (segmentCrossesBox(pts[i], pts[i + 1], {x: o.x, y: o.y, w: o.w + 2 * margin, h: o.h + 2 * margin})) n++;
+        return n;
+    };
+    // Length that this path runs collinear-and-coincident with an already-routed edge (what we
+    // must avoid): two verticals at the same x, or two horizontals at the same y, that share span.
+    const overlap = (pts: Pt[]): number => {
+        let total = 0;
+        for (let i = 0; i < pts.length - 1; i++) {
+            const a = pts[i], b = pts[i + 1];
+            const vert = Math.abs(a.x - b.x) < 1.5, horiz = Math.abs(a.y - b.y) < 1.5;
+            if (!vert && !horiz) continue;
+            for (const [c, d] of prior) {
+                if (vert && Math.abs(c.x - d.x) < 1.5 && Math.abs(c.x - a.x) < 2.5) {
+                    total += Math.max(0, Math.min(Math.max(a.y, b.y), Math.max(c.y, d.y)) - Math.max(Math.min(a.y, b.y), Math.min(c.y, d.y)));
+                } else if (horiz && Math.abs(c.y - d.y) < 1.5 && Math.abs(c.y - a.y) < 2.5) {
+                    total += Math.max(0, Math.min(Math.max(a.x, b.x), Math.max(c.x, d.x)) - Math.max(Math.min(a.x, b.x), Math.min(c.x, d.x)));
+                }
+            }
+        }
+        return total;
+    };
+    const cands: Pt[][] = [[{x: T.x, y: S.y}], [{x: S.x, y: T.y}]];
+    for (const f of [0.5, 0.4, 0.6, 0.3, 0.7, 0.2, 0.8, 0.15, 0.85]) {
+        const mx = S.x + (T.x - S.x) * f, my = S.y + (T.y - S.y) * f;
+        cands.push([{x: mx, y: S.y}, {x: mx, y: T.y}]);
+        cands.push([{x: S.x, y: my}, {x: T.x, y: my}]);
+    }
+    const loX = Math.min(S.x, T.x), hiX = Math.max(S.x, T.x), loY = Math.min(S.y, T.y), hiY = Math.max(S.y, T.y);
+    for (const o of obstacles) {
+        const m = margin + 8;
+        if (o.x > loX - o.w && o.x < hiX + o.w) {
+            cands.push([{x: S.x, y: o.y - o.h / 2 - m}, {x: T.x, y: o.y - o.h / 2 - m}]);
+            cands.push([{x: S.x, y: o.y + o.h / 2 + m}, {x: T.x, y: o.y + o.h / 2 + m}]);
+        }
+        if (o.y > loY - o.h && o.y < hiY + o.h) {
+            cands.push([{x: o.x - o.w / 2 - m, y: S.y}, {x: o.x - o.w / 2 - m, y: T.y}]);
+            cands.push([{x: o.x + o.w / 2 + m, y: S.y}, {x: o.x + o.w / 2 + m, y: T.y}]);
+        }
+    }
+    let best = cands[0], bestScore = Infinity;
+    for (const c of cands) {
+        const full = [sPt, S, ...c, T, tPt];
+        // crossings dominate, then avoiding overlap with existing lines, then length + bend count.
+        const score = crossings(full) * 1e6 + overlap(full) * 2e3 + polylineLength(full) + c.length * 40;
+        if (score < bestScore) { best = c; bestScore = score; }
+    }
+    return [sPt, S, ...best, T, tPt];
+}
+
+/** Where do segments a→b and c→d cross (strictly interior)? Returns the point + its t on a→b. */
+function segIntersect(a: Pt, b: Pt, c: Pt, d: Pt): (Pt & {t: number}) | null {
+    const rx = b.x - a.x, ry = b.y - a.y, sx = d.x - c.x, sy = d.y - c.y;
+    const denom = rx * sy - ry * sx;
+    if (Math.abs(denom) < 1e-9) return null;
+    const t = ((c.x - a.x) * sy - (c.y - a.y) * sx) / denom;
+    const u = ((c.x - a.x) * ry - (c.y - a.y) * rx) / denom;
+    if (t <= 0.02 || t >= 0.98 || u <= 0.02 || u >= 0.98) return null;
+    return {x: a.x + t * rx, y: a.y + t * ry, t};
+}
+
+/** A straight run a→b that hops over each prior segment it crosses with a small arc (a wire bridge). */
+function straightWithBridges(a: Pt, b: Pt, prior: [Pt, Pt][], radius: number): string {
+    const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+    const ux = (b.x - a.x) / len, uy = (b.y - a.y) / len;
+    const crossings = prior
+        .map(([c, e]) => segIntersect(a, b, c, e))
+        .filter((p): p is Pt & {t: number} => p !== null)
+        .filter(p => p.t * len > radius + 2 && (1 - p.t) * len > radius + 2)
+        .sort((p, q) => p.t - q.t);
+    let d = "";
+    let lastEnd = -Infinity;
+    for (const p of crossings) {
+        if (p.t * len - radius <= lastEnd + 2) continue; // merged with the previous hop
+        d += ` L ${p.x - ux * radius} ${p.y - uy * radius}`;
+        d += ` A ${radius} ${radius} 0 0 1 ${p.x + ux * radius} ${p.y + uy * radius}`;
+        lastEnd = p.t * len + radius;
+    }
+    return d + ` L ${b.x} ${b.y}`;
+}
+
+/** Rounded-corner polyline path that also bridges (hops over) every prior segment it crosses. */
+function bridgedPath(pts: Pt[], prior: [Pt, Pt][], cornerR = 9, bridgeR = 6): string {
+    if (pts.length < 2) return pts.length ? `M ${pts[0].x} ${pts[0].y}` : "";
+    let d = `M ${pts[0].x} ${pts[0].y}`;
+    let from = pts[0];
+    for (let i = 1; i < pts.length - 1; i++) {
+        const p = pts[i], next = pts[i + 1];
+        const dPrev = Math.hypot(p.x - from.x, p.y - from.y) || 1;
+        const dNext = Math.hypot(next.x - p.x, next.y - p.y) || 1;
+        const r = Math.min(cornerR, dPrev / 2, dNext / 2);
+        const a1 = {x: p.x + ((from.x - p.x) / dPrev) * r, y: p.y + ((from.y - p.y) / dPrev) * r};
+        const a2 = {x: p.x + ((next.x - p.x) / dNext) * r, y: p.y + ((next.y - p.y) / dNext) * r};
+        d += straightWithBridges(from, a1, prior, bridgeR);
+        d += ` Q ${p.x} ${p.y} ${a2.x} ${a2.y}`;
+        from = a2;
+    }
+    return d + straightWithBridges(from, pts[pts.length - 1], prior, bridgeR);
+}
+
 /** The point at `frac` (0 = source … 1 = target) along a polyline — where an edge label sits. */
 function polylinePointAt(pts: Pt[], frac = 0.5): Pt {
     let total = 0;
@@ -172,6 +401,13 @@ function polylinePointAt(pts: Pt[], frac = 0.5): Pt {
         remaining -= seg;
     }
     return pts[Math.floor(pts.length / 2)];
+}
+
+/** Total length of a polyline. */
+function polylineLength(pts: Pt[]): number {
+    let total = 0;
+    for (let i = 0; i < pts.length - 1; i++) total += Math.hypot(pts[i + 1].x - pts[i].x, pts[i + 1].y - pts[i].y);
+    return total;
 }
 
 /** SVG path along a polyline with the interior corners rounded off. */
@@ -221,6 +457,59 @@ function preconditionsOf(step: WorkflowStep): string[] {
     return [];
 }
 
+/**
+ * Every root→sink path through the sequence graph (each a list of step ids), for the
+ * path-by-path token animation. Roots are steps with no precondition; sinks are steps nothing
+ * depends on. Capped, and cycle-guarded, so a pathological graph can't blow up.
+ */
+/** Step ids that are some rollbackable step's compensationStepId. */
+function compTargets(steps: WorkflowStep[]): Set<string> {
+    const t = new Set<string>();
+    for (const s of steps) if (s.rollbackable && s.compensationStepId) t.add(s.compensationStepId);
+    return t;
+}
+
+function allPaths(steps: WorkflowStep[]): string[][] {
+    const ids = new Set(steps.map(s => s.id));
+    const targets = compTargets(steps);
+    const outgoing: Record<string, string[]> = {};
+    const hasIncoming = new Set<string>();
+    for (const s of steps) {
+        // Normal sequence edges — but not the false-guarded anchor that keeps a compensation
+        // step valid at load: a compensation step is only entered through its compensation edge.
+        if (!targets.has(s.id)) {
+            for (const from of preconditionsOf(s)) {
+                if (!ids.has(from)) continue;
+                (outgoing[from] ??= []).push(s.id);
+                hasIncoming.add(s.id);
+            }
+        }
+        // Compensation edge — the error case: a rollbackable step can go to its compensation.
+        if (s.rollbackable && s.compensationStepId && ids.has(s.compensationStepId)) {
+            (outgoing[s.id] ??= []).push(s.compensationStepId);
+            hasIncoming.add(s.compensationStepId);
+        }
+    }
+    const roots = steps.map(s => s.id).filter(id => !hasIncoming.has(id));
+    const paths: string[][] = [];
+    const MAX = 200;
+    const dfs = (node: string, trail: string[], seen: Set<string>) => {
+        if (paths.length >= MAX) return;
+        trail.push(node);
+        seen.add(node);
+        const outs = (outgoing[node] ?? []).filter(n => !seen.has(n));
+        if (outs.length === 0) {
+            paths.push([...trail]);
+        } else {
+            for (const nxt of outs) dfs(nxt, trail, seen);
+        }
+        trail.pop();
+        seen.delete(node);
+    };
+    for (const r of roots) dfs(r, [], new Set());
+    return paths;
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 @customElement("eventconductor-workflow-graph")
@@ -232,10 +521,23 @@ export class MateuWorkflowElk extends LitElement {
     /** When true, all editing interactions are disabled. */
     @property({type: Boolean}) readOnly = false;
 
+    /**
+     * JSON string with a per-step monitoring overlay (read-only views). Map of stepId →
+     * `{count?, state?, active?}`:
+     *  - `count`: how many process instances currently sit at this step (definition view badge).
+     *  - `state`: this step's status in one process (process view): PENDING | RUNNING | COMPLETED
+     *    | ERROR | CANCELLED | COMPENSATED.
+     *  - `active`: highlight this node as "where the process is now" (process view).
+     * Reused as-is by the IDE plugins.
+     */
+    @property() overlay = "";
+
     /** Reflected so `:host([dark])` maps the theme onto the host's Lumo dark palette. */
     @property({type: Boolean, reflect: true}) dark = false;
 
     @state() private wf: WorkflowDefinition = {name: "New Workflow", steps: []};
+    /** Parsed monitoring overlay (see the `overlay` property): stepId → live count / state. */
+    @state() private overlayData: Record<string, StepOverlay> = {};
     @state() private positions: Record<string, NodePos> = {};
     @state() private layoutReady = false;
     @state() private selectedId: string | null = null;
@@ -243,6 +545,40 @@ export class MateuWorkflowElk extends LitElement {
     @state() private layoutError: string | null = null;
     /** When true, the graph overlays the whole viewport (expand button). */
     @state() private fullscreen = false;
+    /** When true, animated tokens flow along the sequence edges (BPMN token simulation). */
+    @state() private flowOn = true;
+    /** Token speed in px/second, adjustable via the viewbar slider. */
+    @state() private flowSpeed = 260;
+
+    // ── Token-flow animation state (driven by requestAnimationFrame, off the render path) ──
+    private flowRaf = 0;
+    private flowStartTs = 0;
+    /** All root→sink paths; one is animated at a time, cycling. */
+    private flowPaths: string[][] = [];
+    private flowPathIndex = 0;
+    /** nodes already pinged on the current path pass (so each pings once per pass). */
+    private pulsedThisPath = new Set<string>();
+    /** nodeId → timestamp of the last token arrival, for the ping effect. */
+    private pulseAt: Record<string, number> = {};
+    /** nodeId → ping colour ("" = default/primary, red on an error/compensation path). */
+    private pulseColor: Record<string, string> = {};
+    /** the token's distance along the path on the previous frame, to detect guard-crossings once. */
+    private flowPrevPosD = 0;
+
+    // ── Focus interaction ───────────────────────────────────────────────────────
+    /**
+     * 'auto' cycles every path; 'reachable' (shift+click a node) keeps that node's
+     * ancestors + descendants and dims the rest; 'path' (alt+click) shows a single path through
+     * the node and cycles to the next on each further alt+click.
+     */
+    private focusMode: "auto" | "reachable" | "path" = "auto";
+    private focusNodeId: string | null = null;
+    /** The paths currently animated — all of them, or the ones passing through the focus node. */
+    private activePaths: string[][] = [];
+
+    /** Distributed edge routes ("from->to" → polyline), set by renderEdges and reused by the
+     * token (pathGeometry) and guard chips so they follow the exact painted lines. */
+    private edgeCache = new Map<string, Pt[]>();
 
     private draggingId: string | null = null;
     private dragOffset = {x: 0, y: 0};
@@ -250,6 +586,32 @@ export class MateuWorkflowElk extends LitElement {
     /** Track which step ids already have an ELK-computed position so we only
      *  re-layout genuinely new nodes, not ones the user has repositioned. */
     private elkPositioned = new Set<string>();
+
+    // ── Edge drawing (ctrl+drag from a node to another) ─────────────────────────
+    /** The source node id while dragging a new precondition line, else null. */
+    private linkingFrom: string | null = null;
+    /** Live cursor position (scene coords) while drawing, for the rubber-band line. */
+    @state() private linkCursor: Pt | null = null;
+    /** The node currently hovered as a drop target while drawing. */
+    @state() private linkHoverId: string | null = null;
+
+    // ── Zoom / pan viewport ─────────────────────────────────────────────────────
+    /** Scene→screen transform: screen = scene * zoomK + pan. */
+    @state() private zoomK = 1;
+    @state() private panX = 0;
+    @state() private panY = 0;
+    /** Measured size of the visible canvas area (drives fit + minimap viewport rect). */
+    @state() private viewW = 0;
+    @state() private viewH = 0;
+    private didInitialFit = false;
+    private viewportSetup = false;
+    private resizeObs?: ResizeObserver;
+    /** Background pan drag state. */
+    private panning = false;
+    private panMoved = false;
+    private panStart = {x: 0, y: 0, panX: 0, panY: 0};
+    /** True while dragging inside the minimap to scrub the viewport. */
+    private miniDrag = false;
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -271,12 +633,64 @@ export class MateuWorkflowElk extends LitElement {
                     });
                 this.wf = parsed;
                 if (structureChanged || !this.layoutReady) {
+                    this.didInitialFit = false;   // re-fit the new graph in view
                     this.runElkLayout();
                 }
+                // Recompute the paths the token animation cycles through; reset focus.
+                this.flowPaths = allPaths(this.wf.steps ?? []);
+                this.focusMode = "auto";
+                this.focusNodeId = null;
+                this.activePaths = this.flowPaths;
+                this.flowPathIndex = 0;
+                this.pulsedThisPath = new Set();
             } catch {
                 /* keep previous */
             }
         }
+        if (changed.has("overlay")) {
+            try {
+                this.overlayData = this.overlay ? JSON.parse(this.overlay) : {};
+            } catch {
+                this.overlayData = {};
+            }
+        }
+        // Keep the token-flow loop in sync with the toggle and layout readiness. A monitoring
+        // overlay turns the graph into a live monitor, so the simulation steps aside for it.
+        if (this.flowOn && this.layoutReady && !this.isMonitoring()) this.startFlow();
+        else this.stopFlow();
+
+        // The canvas only exists once layout is ready — wire up viewport measuring/zoom then.
+        this.ensureViewportSetup();
+
+        // Once the layout is ready and the viewport is measured, fit the whole graph in view once.
+        if (this.layoutReady && this.viewW > 0 && !this.didInitialFit) {
+            this.didInitialFit = true;
+            this.fitToView();
+        }
+    }
+
+    /** Attach the resize observer and wheel-zoom to the canvas once it is in the DOM (idempotent). */
+    private ensureViewportSetup() {
+        if (this.viewportSetup) return;
+        const root = this.renderRoot as ParentNode;
+        const svg = root.querySelector("svg.canvas") as SVGSVGElement | null;
+        const wrap = root.querySelector(".canvas-wrap") as HTMLElement | null;
+        if (!svg || !wrap) return;
+        this.viewportSetup = true;
+        this.svgEl = svg;
+        const measure = () => { this.viewW = wrap.clientWidth; this.viewH = wrap.clientHeight; };
+        measure();
+        this.resizeObs = new ResizeObserver(measure);
+        this.resizeObs.observe(wrap);
+        // Native listener (not @wheel) so we can preventDefault the page scroll while zooming.
+        svg.addEventListener("wheel", this.onWheel, {passive: false});
+    }
+
+    disconnectedCallback() {
+        super.disconnectedCallback();
+        this.stopFlow();
+        this.resizeObs?.disconnect();
+        this.svgEl?.removeEventListener("wheel", this.onWheel);
     }
 
     // ── ELK layout ────────────────────────────────────────────────────────────
@@ -302,11 +716,10 @@ export class MateuWorkflowElk extends LitElement {
                 "elk.edgeRouting": "ORTHOGONAL",
                 "elk.layered.nodePlacement.strategy": "BRANDES_KOEPF",
             },
-            children: steps.map(s => ({
-                id: s.id,
-                width: NODE_W,
-                height: NODE_H,
-            })),
+            children: steps.map(s => {
+                const {w, h} = sizeOf(s.type);
+                return {id: s.id, width: w, height: h};
+            }),
             // One edge per precondition: a step with several incoming preconditions
             // (preconditionStepIds) gets several edges into it.
             edges: steps.flatMap(s =>
@@ -425,7 +838,9 @@ export class MateuWorkflowElk extends LitElement {
     // ── Drag & drop ───────────────────────────────────────────────────────────
 
     private onNodeMouseDown(e: MouseEvent, id: string) {
+        if (e.shiftKey) { if (!this.readOnly) this.startLink(e, id); return; } // shift+drag = draw a line
         if (this.readOnly) return;
+        if (e.altKey) return; // alt is a focus click (handled on click), not a drag
         e.preventDefault();
         this.draggingId = id;
         const pos = this.positions[id] ?? {x: 0, y: 0};
@@ -456,10 +871,84 @@ export class MateuWorkflowElk extends LitElement {
         window.removeEventListener("mouseup", this.onMouseUp);
     };
 
+    // ── Edge drawing ────────────────────────────────────────────────────────────
+
+    private startLink(e: MouseEvent, id: string) {
+        e.preventDefault();
+        e.stopPropagation(); // don't let the canvas start a pan
+        this.svgEl = (e.currentTarget as SVGElement).closest("svg") as SVGSVGElement;
+        this.linkingFrom = id;
+        this.linkCursor = this.toSvgPoint(e);
+        this.linkHoverId = null;
+        window.addEventListener("mousemove", this.onLinkMove);
+        window.addEventListener("mouseup", this.onLinkUp);
+    }
+
+    private onLinkMove = (e: MouseEvent) => {
+        if (!this.linkingFrom) return;
+        this.linkCursor = this.toSvgPoint(e);
+        this.linkHoverId = this.nodeAt(this.linkCursor);
+    };
+
+    private onLinkUp = () => {
+        const from = this.linkingFrom, to = this.linkHoverId;
+        this.linkingFrom = null;
+        this.linkCursor = null;
+        this.linkHoverId = null;
+        window.removeEventListener("mousemove", this.onLinkMove);
+        window.removeEventListener("mouseup", this.onLinkUp);
+        if (from && to && from !== to) this.createLink(from, to);
+    };
+
+    /** The step whose box contains the point (for the drop target), excluding the link source. */
+    private nodeAt(pt: Pt): string | null {
+        for (const s of this.wf.steps ?? []) {
+            if (s.id === this.linkingFrom) continue;
+            const b = this.boxForId(s.id);
+            if (b && Math.abs(pt.x - b.x) <= b.w / 2 && Math.abs(pt.y - b.y) <= b.h / 2) return s.id;
+        }
+        return null;
+    }
+
+    /**
+     * Create a normal precondition line `from → to` (from becomes a precondition of to). At most
+     * one normal line may exist between two nodes: a duplicate, the reverse direction, or a line
+     * that would close a cycle is rejected silently.
+     */
+    private createLink(from: string, to: string) {
+        const toStep = this.wf.steps.find(s => s.id === to);
+        const fromStep = this.wf.steps.find(s => s.id === from);
+        if (!toStep || !fromStep) return;
+        if (toStep.type === "START") return;                     // START never has preconditions
+        if (preconditionsOf(toStep).includes(from)) return;      // already exists
+        if (preconditionsOf(fromStep).includes(to)) return;      // reverse line already exists
+        if (this.ancestorsOf(from).has(to)) return;              // would close a cycle
+        this.togglePrecondition(toStep, from, true);
+    }
+
+    /** All transitive preconditions (ancestors) of a step. */
+    private ancestorsOf(id: string): Set<string> {
+        const byId = new Map((this.wf.steps ?? []).map(s => [s.id, s] as const));
+        const seen = new Set<string>();
+        const stack = [...preconditionsOf(byId.get(id) ?? {} as WorkflowStep)];
+        while (stack.length) {
+            const cur = stack.pop()!;
+            if (seen.has(cur)) continue;
+            seen.add(cur);
+            const s = byId.get(cur);
+            if (s) stack.push(...preconditionsOf(s));
+        }
+        return seen;
+    }
+
     private toSvgPoint(e: MouseEvent): {x: number; y: number} {
         if (!this.svgEl) return {x: 0, y: 0};
         const rect = this.svgEl.getBoundingClientRect();
-        return {x: e.clientX - rect.left, y: e.clientY - rect.top};
+        // screen → scene: undo the pan/zoom transform applied to the scene group
+        return {
+            x: (e.clientX - rect.left - this.panX) / this.zoomK,
+            y: (e.clientY - rect.top - this.panY) / this.zoomK,
+        };
     }
 
     // ── Re-layout button ──────────────────────────────────────────────────────
@@ -472,39 +961,552 @@ export class MateuWorkflowElk extends LitElement {
     // ── Canvas size ───────────────────────────────────────────────────────────
 
     private canvasSize() {
-        const pts = Object.values(this.positions);
-        const w = pts.length ? Math.max(...pts.map(p => p.x)) + NODE_W + PAD : 600;
-        const h = pts.length ? Math.max(...pts.map(p => p.y)) + NODE_H + PAD : 400;
-        return {w: Math.max(w, 600), h: Math.max(h, 400)};
+        let w = 600, h = 400;
+        for (const s of this.wf.steps ?? []) {
+            const p = this.positions[s.id];
+            if (!p) continue;
+            const sz = sizeOf(s.type);
+            w = Math.max(w, p.x + sz.w + PAD);
+            h = Math.max(h, p.y + sz.h + PAD);
+        }
+        return {w, h};
     }
 
-    private boxOf(pos: NodePos): Box {
-        return {x: pos.x + NODE_W / 2, y: pos.y + NODE_H / 2, w: NODE_W, h: NODE_H};
+    /** Tight bounding box of all laid-out nodes (scene coords), padded. Null if empty. */
+    private graphBounds(pad = 60): {minX: number; minY: number; w: number; h: number} | null {
+        const steps = (this.wf.steps ?? []).filter(s => this.positions[s.id]);
+        if (steps.length === 0) return null;
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (const s of steps) {
+            const p = this.positions[s.id], sz = sizeOf(s.type);
+            minX = Math.min(minX, p.x); minY = Math.min(minY, p.y);
+            maxX = Math.max(maxX, p.x + sz.w); maxY = Math.max(maxY, p.y + sz.h + 18); // +caption
+        }
+        return {minX: minX - pad, minY: minY - pad, w: maxX - minX + 2 * pad, h: maxY - minY + 2 * pad};
+    }
+
+    private clampZoom(k: number) { return Math.max(0.1, Math.min(2.5, k)); }
+
+    /** Scale + centre the whole graph so it all fits inside the visible canvas area. */
+    private fitToView = () => {
+        const b = this.graphBounds();
+        if (!b || this.viewW === 0 || this.viewH === 0) return;
+        const k = this.clampZoom(Math.min(this.viewW / b.w, this.viewH / b.h));
+        this.zoomK = k;
+        this.panX = (this.viewW - k * b.w) / 2 - k * b.minX;
+        this.panY = (this.viewH - k * b.h) / 2 - k * b.minY;
+    };
+
+    private onWheel = (e: WheelEvent) => {
+        e.preventDefault();
+        if (!this.svgEl) return;
+        const rect = this.svgEl.getBoundingClientRect();
+        const cx = e.clientX - rect.left, cy = e.clientY - rect.top;
+        const newK = this.clampZoom(this.zoomK * Math.exp(-e.deltaY * 0.0015));
+        // keep the scene point under the cursor fixed while zooming
+        const sx = (cx - this.panX) / this.zoomK, sy = (cy - this.panY) / this.zoomK;
+        this.panX = cx - sx * newK; this.panY = cy - sy * newK;
+        this.zoomK = newK;
+    };
+
+    private onCanvasMouseDown = (e: MouseEvent) => {
+        if (this.draggingId || this.linkingFrom || e.button !== 0 || e.shiftKey || e.altKey
+                || e.ctrlKey || e.metaKey) return; // node drag / link / focus click
+        this.panning = true; this.panMoved = false;
+        this.panStart = {x: e.clientX, y: e.clientY, panX: this.panX, panY: this.panY};
+        window.addEventListener("mousemove", this.onPanMove);
+        window.addEventListener("mouseup", this.onPanUp);
+    };
+    private onPanMove = (e: MouseEvent) => {
+        if (!this.panning) return;
+        const dx = e.clientX - this.panStart.x, dy = e.clientY - this.panStart.y;
+        if (Math.abs(dx) + Math.abs(dy) > 3) this.panMoved = true;
+        this.panX = this.panStart.panX + dx; this.panY = this.panStart.panY + dy;
+    };
+    private onPanUp = () => {
+        this.panning = false;
+        window.removeEventListener("mousemove", this.onPanMove);
+        window.removeEventListener("mouseup", this.onPanUp);
+        if (!this.panMoved) { this.selectedId = null; this.clearFocus(); } // a plain click clears selection
+    };
+
+    /** Recentre the viewport on a scene point (used by minimap click/drag). */
+    private centerOn(sceneX: number, sceneY: number) {
+        this.panX = this.viewW / 2 - this.zoomK * sceneX;
+        this.panY = this.viewH / 2 - this.zoomK * sceneY;
+    }
+
+    /** Center-plus-size box of a step (by id), honouring its per-type shape size. */
+    private boxForId(id: string): Box | null {
+        const pos = this.positions[id];
+        const step = (this.wf.steps ?? []).find(s => s.id === id);
+        if (!pos || !step) return null;
+        const {w, h} = sizeOf(step.type);
+        return {x: pos.x + w / 2, y: pos.y + h / 2, w, h};
+    }
+
+    /** Orthogonal route between two steps that steers around every other node. */
+    private routeBetween(fromId: string, toId: string, spread = 0): Pt[] | null {
+        const a = this.boxForId(fromId), b = this.boxForId(toId);
+        if (!a || !b) return null;
+        const obstacles: Box[] = [];
+        for (const s of this.wf.steps ?? []) {
+            if (s.id === fromId || s.id === toId) continue;
+            const box = this.boxForId(s.id);
+            if (box) obstacles.push(box);
+        }
+        return routeAvoiding(a, b, obstacles, spread);
+    }
+
+    /**
+     * All edges with node-avoiding routes AND distributed endpoints: edges sharing a side of a
+     * node attach at distinct points along that side, so parallel lines never overlap. Sequence
+     * edges first, compensation last. The routes are also cached (by "from->to") for the token.
+     */
+    private computeEdges(): {key: string; from: string; to: string; comp: boolean; pts: Pt[]}[] {
+        const steps = this.wf.steps ?? [];
+        const targets = compTargets(steps);
+        const raw: {from: string; to: string; comp: boolean}[] = [];
+        for (const s of steps) {
+            if (targets.has(s.id)) continue;
+            for (const f of preconditionsOf(s)) if (this.boxForId(f) && this.boxForId(s.id)) raw.push({from: f, to: s.id, comp: false});
+        }
+        for (const s of steps) {
+            if (s.rollbackable && s.compensationStepId && this.boxForId(s.id) && this.boxForId(s.compensationStepId)) {
+                raw.push({from: s.id, to: s.compensationStepId, comp: true});
+            }
+        }
+
+        const sideOf = (b: Box, px: number, py: number): Side => {
+            const dx = px - b.x, dy = py - b.y;
+            return Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? "R" : "L") : (dy >= 0 ? "B" : "T");
+        };
+        const sides: [Side, Side][] = raw.map(e => {
+            const A = this.boxForId(e.from)!, B = this.boxForId(e.to)!;
+            return [sideOf(A, B.x, B.y), sideOf(B, A.x, A.y)];
+        });
+
+        // Group the endpoints landing on each (node, side) so they can be spread along it.
+        const groups = new Map<string, {edge: number; role: 0 | 1; perp: number}[]>();
+        raw.forEach((e, idx) => {
+            const A = this.boxForId(e.from)!, B = this.boxForId(e.to)!;
+            const [sS, tS] = sides[idx];
+            const g1 = `${e.from}|${sS}`, g2 = `${e.to}|${tS}`;
+            (groups.get(g1) ?? groups.set(g1, []).get(g1)!).push({edge: idx, role: 0, perp: (sS === "L" || sS === "R") ? B.y : B.x});
+            (groups.get(g2) ?? groups.set(g2, []).get(g2)!).push({edge: idx, role: 1, perp: (tS === "L" || tS === "R") ? A.y : A.x});
+        });
+        const attach: [Pt, Pt][] = raw.map(() => [{x: 0, y: 0}, {x: 0, y: 0}]);
+        for (const [k, members] of groups) {
+            const sd = k.slice(k.lastIndexOf("|") + 1) as Side;
+            const nodeId = k.slice(0, k.lastIndexOf("|"));
+            const box = this.boxForId(nodeId)!;
+            const type = (this.wf.steps ?? []).find(s => s.id === nodeId)!.type;
+            members.sort((a, b) => a.perp - b.perp);
+            const n = members.length;
+            members.forEach((m, i) => {
+                const f = n <= 1 ? 0.5 : 0.28 + 0.44 * (i / (n - 1)); // spread across the middle of the side
+                const pt: Pt = sd === "R" ? {x: box.x + box.w / 2, y: box.y - box.h / 2 + box.h * f}
+                    : sd === "L" ? {x: box.x - box.w / 2, y: box.y - box.h / 2 + box.h * f}
+                    : sd === "T" ? {x: box.x - box.w / 2 + box.w * f, y: box.y - box.h / 2}
+                    : {x: box.x - box.w / 2 + box.w * f, y: box.y + box.h / 2};
+                // Pull the point onto the real outline (circle/diamond) so no white gap remains.
+                attach[m.edge][m.role] = snapToShape(box.x, box.y, type, pt, sd);
+            });
+        }
+
+        // Route one edge at a time, letting each avoid overlapping the lines already placed
+        // (sequence edges first, compensation last — so comp lines yield to the normal flow).
+        const priorSegs: [Pt, Pt][] = [];
+        return raw.map((e, idx) => {
+            const [sS, tS] = sides[idx];
+            const obstacles: Box[] = [];
+            for (const s of steps) {
+                if (s.id === e.from || s.id === e.to) continue;
+                const box = this.boxForId(s.id);
+                if (box) obstacles.push(box);
+            }
+            const pts = routeThrough(attach[idx][0], sS, attach[idx][1], tS, obstacles, priorSegs);
+            for (let i = 0; i < pts.length - 1; i++) priorSegs.push([pts[i], pts[i + 1]]);
+            return {key: `${e.from}->${e.to}`, from: e.from, to: e.to, comp: e.comp, pts};
+        });
+    }
+
+    // ── Token-flow animation (path by path) ─────────────────────────────────────
+
+    /**
+     * The polyline a token walks for a path (list of step ids): the edge routes joined end to
+     * end. The token stays ON the edges — while it crosses a node it is hidden (`hidden` ranges),
+     * since the node's own ping already marks the passage. `marks` gives the distance at which
+     * the token reaches each node (for the ping).
+     */
+    private pathGeometry(ids: string[]): {pts: Pt[]; marks: {id: string; d: number}[]; hidden: {from: number; to: number}[]; segs: {to: string; startD: number; len: number}[]} | null {
+        const boxes = ids.map(id => this.boxForId(id));
+        if (boxes.some(b => !b)) return null;
+        if (ids.length < 2) {
+            return {pts: [{x: boxes[0]!.x, y: boxes[0]!.y}], marks: [{id: ids[0], d: 0}], hidden: [], segs: []};
+        }
+        const edges: Pt[][] = [];
+        for (let i = 1; i < ids.length; i++) {
+            // Reuse the exact distributed route the edge was drawn with, so the token walks the
+            // painted line (not a re-derived box-center one that could diverge / overlap).
+            const e = this.edgeCache.get(`${ids[i - 1]}->${ids[i]}`) ?? this.routeBetween(ids[i - 1], ids[i], 0);
+            if (!e) return null;
+            edges.push(e);
+        }
+
+        const pts: Pt[] = [...edges[0]];
+        const marks = [{id: ids[0], d: 0}];
+        const hidden: {from: number; to: number}[] = [];
+        // Where each edge's own route begins along the path, and its length — so a guard chip
+        // (placed at fraction 0.38 of an edge) can be located as a distance along the path.
+        const segs = [{to: ids[1], startD: 0, len: polylineLength(edges[0])}];
+        for (let j = 1; j < edges.length; j++) {
+            const d0 = polylineLength(pts);   // at node j's entry border (end of the previous edge)
+            pts.push(edges[j][0]);            // node j's exit border (start of this edge)
+            const d1 = polylineLength(pts);
+            hidden.push({from: d0, to: d1});  // straight span across node j → token hidden here
+            marks.push({id: ids[j], d: d0});  // ping node j as the token reaches it
+            pts.push(...edges[j].slice(1));
+            segs.push({to: ids[j + 1], startD: d1, len: polylineLength(edges[j])});
+        }
+        marks.push({id: ids[ids.length - 1], d: polylineLength(pts)}); // sink node arrival
+        return {pts, marks, hidden, segs};
+    }
+
+    private onNodeClick(e: MouseEvent, id: string) {
+        e.stopPropagation();
+        if (e.shiftKey) return;                                // shift is line drawing, not focus
+        if (e.altKey) { this.focusNextPath(id); return; }      // one path through the node, cycling
+        // Plain click: select the node AND filter to what's connected to it (its ancestors +
+        // descendants), dimming the rest.
+        this.selectedId = id;
+        this.focusReachable(id);
+    }
+
+    /** Root→sink paths passing through a node (falls back to all paths if none). */
+    private pathsThrough(id: string): string[][] {
+        const through = this.flowPaths.filter(p => p.includes(id));
+        return through.length ? through : this.flowPaths;
+    }
+
+    private focusReachable(id: string) {
+        this.focusMode = "reachable";
+        this.focusNodeId = id;
+        this.activePaths = this.pathsThrough(id);
+        if (!this.isMonitoring()) { this.restartFlow(); this.flowOn = true; } // don't wake the sim in a monitor
+    }
+
+    private focusNextPath(id: string) {
+        const through = this.pathsThrough(id);
+        if (this.focusMode === "path" && this.focusNodeId === id) {
+            this.flowPathIndex = (this.flowPathIndex + 1) % through.length; // next path through it
+        } else {
+            this.focusMode = "path";
+            this.focusNodeId = id;
+            this.flowPathIndex = 0;
+        }
+        this.activePaths = through;
+        this.flowStartTs = performance.now(); // restart the token from this path's beginning
+        this.pulsedThisPath = new Set();
+        this.flowOn = true;
+    }
+
+    private clearFocus() {
+        this.focusMode = "auto";
+        this.focusNodeId = null;
+        this.activePaths = this.flowPaths;
+        this.restartFlow();
+    }
+
+    /** Restart the animation at the first active path (used when the focus set changes). */
+    private restartFlow() {
+        this.flowPathIndex = 0;
+        this.flowStartTs = performance.now();
+        this.pulsedThisPath = new Set();
+    }
+
+    private startFlow() {
+        if (this.flowRaf) return;
+        this.flowStartTs = performance.now();
+        this.pulsedThisPath = new Set();
+        const tick = (now: number) => {
+            if (!this.flowOn) { this.flowRaf = 0; return; }
+            this.stepFlow(now);
+            this.flowRaf = requestAnimationFrame(tick);
+        };
+        this.flowRaf = requestAnimationFrame(tick);
+    }
+
+    private stopFlow() {
+        if (this.flowRaf) cancelAnimationFrame(this.flowRaf);
+        this.flowRaf = 0;
+        this.pulseAt = {};
+        this.pulseColor = {};
+        this.pulsedThisPath = new Set();
+        const root = this.renderRoot as unknown as ParentNode;
+        root.querySelectorAll?.("[data-pulse]").forEach(el => (el as SVGElement).setAttribute("opacity", "0"));
+        root.querySelectorAll?.("[data-edge]").forEach(el => el.classList.remove("dim", "active"));
+        root.querySelectorAll?.(".node").forEach(el => el.classList.remove("dim"));
+        const token = root.querySelector?.(".flow-token") as SVGElement | null;
+        if (token) { token.style.opacity = "0"; token.style.fill = ""; }
+    }
+
+    /**
+     * One animation frame: a single token walks the current path from its root to its sink; the
+     * other edges dim, each node pings as the token reaches it, and when the path finishes the
+     * next path takes over (looping). Runs off the Lit render path via direct SVG mutation.
+     */
+    private stepFlow(now: number) {
+        const root = this.renderRoot as unknown as ParentNode;
+        const token = root.querySelector?.(".flow-token") as SVGCircleElement | null;
+        const paths = this.activePaths.length ? this.activePaths : this.flowPaths;
+        if (!token || paths.length === 0) { if (token) token.style.opacity = "0"; return; }
+
+        const idx = this.flowPathIndex % paths.length;
+        const path = paths[idx];
+        const geo = this.pathGeometry(path);
+        if (!geo) return;
+        const len = polylineLength(geo.pts) || 1;
+        const speed = this.flowSpeed; // px per second (viewbar slider)
+        const pausePx = 55;        // brief gap between paths
+        const DWELL_MS = 1800;     // a long-running node holds the token this long…
+        const PING_MS = 600;       // …re-pinging at this cadence (≈3 pulses) to signal "this takes a while"
+        const SLOW_TIMEOUT_MS = 30000;
+
+        const byId = new Map((this.wf.steps ?? []).map(s => [s.id, s] as const));
+        // Long-running steps — the token pauses on them and the node pulses several times:
+        // USER_TASK (a human is in the loop), WAIT_FOR_MESSAGE / TIMER (they wait by nature),
+        // and any step with a high timeout (assumed slow).
+        const SLOW_TYPES = new Set<StepType>(["USER_TASK", "WAIT_FOR_MESSAGE", "TIMER"]);
+        const isSlow = (id: string) => {
+            const s = byId.get(id);
+            return !!s && (SLOW_TYPES.has(s.type) || (s.timeout ?? 0) >= SLOW_TIMEOUT_MS);
+        };
+
+        const stops = geo.marks;
+        let schedMs = (len / speed) * 1000;
+        for (const m of stops) if (isSlow(m.id)) schedMs += DWELL_MS;
+        const pauseMs = (pausePx / speed) * 1000;
+        const elapsed = now - this.flowStartTs;
+
+        if (elapsed >= schedMs + pauseMs) {
+            // In 'path' focus we loop the chosen path; otherwise advance to the next one.
+            if (this.focusMode !== "path") this.flowPathIndex = (idx + 1) % paths.length;
+            this.flowStartTs = now;
+            this.pulsedThisPath = new Set();
+            this.flowPrevPosD = 0;
+            return;
+        }
+
+        // Walk the polyline at constant speed, holding at each long-running node for DWELL_MS.
+        // posD is the token's distance along the path; dwellId is the node it currently sits in.
+        let acc = 0, prevD = 0, posD = len;
+        let dwellId: string | null = null;
+        for (const m of stops) {
+            const segMs = ((m.d - prevD) / speed) * 1000;
+            if (elapsed < acc + segMs) { posD = prevD + (segMs <= 0 ? 0 : (elapsed - acc) / segMs) * (m.d - prevD); break; }
+            acc += segMs;
+            if (isSlow(m.id)) {
+                if (elapsed < acc + DWELL_MS) { posD = m.d; dwellId = m.id; break; }
+                acc += DWELL_MS;
+            }
+            prevD = m.d;
+            posD = m.d;
+        }
+
+        // Position the token; hide it while it crosses (or dwells inside) a node, and during the
+        // brief inter-path pause.
+        const clamped = Math.min(posD, len);
+        const p = polylinePointAt(geo.pts, clamped / len);
+        token.setAttribute("cx", String(p.x));
+        token.setAttribute("cy", String(p.y));
+        const crossingNode = geo.hidden.some(hr => clamped >= hr.from && clamped <= hr.to);
+        token.style.opacity = (elapsed <= schedMs && !crossingNode && !dwellId) ? "1" : "0";
+
+        // On an error/compensation path (its last edge is a compensation edge), only the failing
+        // rollbackable node pings red to flag the failure. The compensation step is the
+        // (successful) recovery, so it — and the token — keep their normal colour.
+        const errorNodes = new Set<string>();
+        for (let i = 1; i < path.length; i++) {
+            const s = byId.get(path[i - 1]);
+            if (s && s.rollbackable && s.compensationStepId === path[i]) errorNodes.add(path[i - 1]);
+        }
+
+        // Ping each node once, as the token reaches it (red only on the failing node)…
+        for (const m of stops) {
+            if (posD >= m.d && !this.pulsedThisPath.has(m.id)) {
+                this.pulseAt[m.id] = now;
+                this.pulseColor[m.id] = errorNodes.has(m.id) ? "#dc2626" : "";
+                this.pulsedThisPath.add(m.id);
+            }
+        }
+
+        // As the token reaches the middle of a guarded edge, pop its precondition chip once —
+        // a one-shot pulse (via the Web Animations API, so it replays cleanly each pass).
+        for (const seg of geo.segs) {
+            const s = byId.get(seg.to);
+            if (!s?.preconditionExpression) continue;
+            const gd = seg.startD + 0.38 * seg.len;     // where the chip sits (renderGuard uses 0.38)
+            if (this.flowPrevPosD < gd && posD >= gd) {
+                const q = `.guard[data-guard="${seg.to}"]`;
+                (root.querySelector(`${q} .guard-chip`) as SVGGElement | null)?.animate?.(
+                    [{transform: "scale(1.22)"}, {transform: "scale(1.6)", offset: 0.4}, {transform: "scale(1.22)"}],
+                    {duration: 520, easing: "ease-out"});
+                (root.querySelector(`${q} .guard-halo`) as SVGElement | null)?.animate?.(
+                    [{opacity: "0.38"}, {opacity: "0.8", offset: 0.4}, {opacity: "0.38"}],
+                    {duration: 520, easing: "ease-out"});
+            }
+        }
+        this.flowPrevPosD = posD;
+        // …but a long-running node keeps re-pinging while the token dwells inside it.
+        if (dwellId && now - (this.pulseAt[dwellId] ?? 0) >= PING_MS) {
+            this.pulseAt[dwellId] = now;
+        }
+
+        // The currently-animated path's edges (brightest) and, in a focus mode, the "universe"
+        // to keep un-dimmed (the reachable sub-graph, or just the chosen path). In auto mode
+        // there is no universe, so everything but the animated path dims.
+        const activeEdges = new Set<string>();
+        for (let i = 1; i < path.length; i++) activeEdges.add(`${path[i - 1]}->${path[i]}`);
+        let unionEdges: Set<string> | null = null;
+        let focusNodes: Set<string> | null = null;
+        if (this.focusMode !== "auto") {
+            unionEdges = new Set();
+            focusNodes = new Set();
+            const universe = this.focusMode === "path" ? [path] : paths;
+            for (const pth of universe) {
+                for (let i = 0; i < pth.length; i++) {
+                    focusNodes.add(pth[i]);
+                    if (i > 0) unionEdges.add(`${pth[i - 1]}->${pth[i]}`);
+                }
+            }
+        }
+
+        // Sequence AND compensation edges (both carry data-edge): the animated path is 'active',
+        // and anything outside the focus universe (or, in auto mode, off the current path) dims.
+        root.querySelectorAll?.("[data-edge]").forEach(el => {
+            const key = (el as SVGElement).dataset.edge ?? "";
+            const isActive = activeEdges.has(key);
+            const dim = unionEdges ? (!unionEdges.has(key) && !isActive) : !isActive;
+            el.classList.toggle("active", isActive);
+            el.classList.toggle("dim", dim);
+        });
+
+        // Dim nodes that don't take part in the animated path (mirroring the edges), and render
+        // the node pings. In a focus mode the whole focus universe stays lit; in auto mode only
+        // the current path's nodes stay lit.
+        const pathNodes = new Set(path);
+        for (const s of this.wf.steps ?? []) {
+            const g = root.querySelector?.(`.node[data-node="${s.id}"]`) as SVGGElement | null;
+            const onPath = pathNodes.has(s.id);
+            const dim = focusNodes ? (!focusNodes.has(s.id) && !onPath) : !onPath;
+            if (g) g.classList.toggle("dim", dim);
+            const ring = root.querySelector?.(`[data-pulse="${s.id}"]`) as SVGCircleElement | null;
+            if (!ring) continue;
+            const t0 = this.pulseAt[s.id];
+            const dt = t0 ? (now - t0) / 1000 : Infinity;
+            // A failing node trembles briefly while its red ping is fresh (CSS @keyframes ec-shake).
+            if (g) g.classList.toggle("err", errorNodes.has(s.id) && dt < 0.5);
+            if (dt > 0.6) { ring.setAttribute("opacity", "0"); continue; }
+            const k = dt / 0.6;
+            const base = Math.max(sizeOf(s.type).w, sizeOf(s.type).h) / 2;
+            ring.style.fill = this.pulseColor[s.id] || "";  // red on error nodes, else default
+            ring.setAttribute("r", String(base + k * 16));
+            ring.setAttribute("opacity", String((1 - k) * 0.45));
+        }
     }
 
     // ── Render ────────────────────────────────────────────────────────────────
+
+    /** The rubber-band line drawn from the source node to the cursor while ctrl+dragging a link. */
+    private renderLinkDraft() {
+        if (!this.linkingFrom || !this.linkCursor) return nothing;
+        const b = this.boxForId(this.linkingFrom);
+        if (!b) return nothing;
+        const start = borderTowards(b, this.linkCursor.x, this.linkCursor.y);
+        return svg`<line class="link-draft" x1="${start.x}" y1="${start.y}"
+                         x2="${this.linkCursor.x}" y2="${this.linkCursor.y}"/>`;
+    }
+
+    /** A modux-style minimap: the whole graph in miniature with the current viewport framed. */
+    private renderMinimap() {
+        const b = this.graphBounds();
+        if (!b || (this.wf.steps ?? []).length < 2 || this.viewW === 0) return nothing;
+        const MW = 168, MH = 116;
+        const scale = Math.min(MW / b.w, MH / b.h);
+        const mw = b.w * scale, mh = b.h * scale;
+        // The scene rectangle currently visible on screen, in scene coords.
+        const vx = -this.panX / this.zoomK, vy = -this.panY / this.zoomK;
+        const vw = this.viewW / this.zoomK, vh = this.viewH / this.zoomK;
+        const scrub = (e: MouseEvent) => {
+            const box = (e.currentTarget as Element).getBoundingClientRect();
+            this.centerOn(b.minX + (e.clientX - box.left) / scale, b.minY + (e.clientY - box.top) / scale);
+        };
+        return html`
+            <div class="minimap" style="width:${mw}px;height:${mh}px"
+                 title="Minimap — click or drag to navigate"
+                 @mousedown="${(e: MouseEvent) => { e.stopPropagation(); this.miniDrag = true; scrub(e); }}"
+                 @mousemove="${(e: MouseEvent) => { if (this.miniDrag) scrub(e); }}"
+                 @mouseup="${() => { this.miniDrag = false; }}"
+                 @mouseleave="${() => { this.miniDrag = false; }}">
+                <svg viewBox="0 0 ${b.w} ${b.h}" width="${mw}" height="${mh}">
+                    ${(this.wf.steps ?? []).map(s => {
+                        const p = this.positions[s.id];
+                        if (!p) return nothing;
+                        const sz = sizeOf(s.type), st = styleOf(s.type);
+                        return svg`<rect x="${p.x - b.minX}" y="${p.y - b.minY}" width="${sz.w}" height="${sz.h}"
+                                         rx="4" fill="${st.fill}" stroke="${st.stroke}" stroke-width="2"/>`;
+                    })}
+                    <rect class="mini-view" x="${vx - b.minX}" y="${vy - b.minY}" width="${vw}" height="${vh}"/>
+                </svg>
+            </div>`;
+    }
+
+    /** True when a monitoring overlay is present — the graph is a live monitor, not a simulator. */
+    private isMonitoring() { return Object.keys(this.overlayData).length > 0; }
+
+    /** In a monitoring overlay, a step is "visited" once the process has reached it (any state
+     *  other than not-yet-started PENDING). Used to dim the parts the process hasn't passed. */
+    private isVisited(id: string): boolean {
+        const st = this.overlayData[id]?.state;
+        return !!st && st !== "PENDING";
+    }
+
+    /** Floating view/animation controls (bottom-left, clear of the toolbar and the minimap). */
+    private renderViewbar() {
+        // In a monitoring view the token simulation is off, so only the zoom controls are shown.
+        const sim = this.isMonitoring() ? nothing : html`
+            <button class="vbtn" title="${this.flowOn ? "Pause token flow" : "Play token flow"}"
+                    @click="${() => { this.flowOn = !this.flowOn; }}">${this.flowOn ? "⏸" : "▶"}</button>
+            <input class="vspeed" type="range" min="80" max="520" step="10"
+                   title="Animation speed" .value="${String(this.flowSpeed)}"
+                   @input="${(e: Event) => { this.flowSpeed = Number((e.target as HTMLInputElement).value); }}"/>`;
+        return html`
+            <div class="viewbar" @mousedown="${(e: MouseEvent) => e.stopPropagation()}">
+                ${sim}
+                <button class="vbtn" title="Fit graph to view" @click="${() => this.fitToView()}">${iconFit}</button>
+                <button class="vbtn" title="${this.fullscreen ? "Collapse" : "Expand"}"
+                        @click="${() => { this.fullscreen = !this.fullscreen; }}">${this.fullscreen ? "✕" : "⤢"}</button>
+            </div>`;
+    }
 
     render() {
         if (!this.layoutReady) {
             return html`<div class="loading">Computing layout…</div>`;
         }
 
-        const {w, h} = this.canvasSize();
         const steps = this.wf.steps ?? [];
 
         return html`
             <div class="root ${this.fullscreen ? "fullscreen" : ""}">
-                <button class="expand-btn" title="${this.fullscreen ? "Collapse" : "Expand"}"
-                        @click="${() => { this.fullscreen = !this.fullscreen; }}">
-                    ${this.fullscreen ? "✕" : "⤢"}
-                </button>
                 ${this.readOnly ? nothing : this.renderToolbar()}
                 ${this.showMeta ? this.renderMeta() : ""}
                 ${this.layoutError ? html`<div class="error">⚠ ${this.layoutError}</div>` : ""}
                 <div class="workspace">
                     <div class="canvas-wrap">
-                        <svg width="${w}" height="${h}" class="canvas"
-                             @click="${(e: MouseEvent) => {if (e.target === e.currentTarget) this.selectedId = null;}}">
+                        ${this.renderViewbar()}
+                        <svg width="100%" height="100%" class="canvas ${this.panning ? "panning" : ""}"
+                             @mousedown="${this.onCanvasMouseDown}">
                             <defs>
                                 <marker id="ec-arrow" markerWidth="9" markerHeight="9"
                                         refX="7.5" refY="3.2" orient="auto" markerUnits="userSpaceOnUse">
@@ -515,10 +1517,15 @@ export class MateuWorkflowElk extends LitElement {
                                                   flood-opacity="0.10"/>
                                 </filter>
                             </defs>
-                            ${steps.map(s => this.renderArrows(s))}
-                            ${steps.map(s => this.renderNode(s))}
-                            ${steps.map(s => this.renderGuard(s))}
+                            <g class="scene" transform="translate(${this.panX},${this.panY}) scale(${this.zoomK})">
+                                ${this.renderEdges()}
+                                ${steps.map(s => this.renderNode(s))}
+                                ${steps.map(s => this.renderGuard(s))}
+                                ${this.renderLinkDraft()}
+                                ${this.flowOn ? svg`<circle class="flow-token" r="5.5" cx="-100" cy="-100"/>` : nothing}
+                            </g>
                         </svg>
+                        ${this.renderMinimap()}
                     </div>
                     ${this.selectedId && !this.readOnly ? this.renderPanel() : ""}
                 </div>
@@ -590,22 +1597,29 @@ export class MateuWorkflowElk extends LitElement {
         `;
     }
 
-    private renderArrows(step: WorkflowStep) {
-        const to = this.positions[step.id];
-        if (!to) return svg``;
-        const tBox = this.boxOf(to);
-        const preconditions = preconditionsOf(step);
-        const n = preconditions.length;
-
-        return preconditions.map((fromId, i) => {
-            const from = this.positions[fromId];
-            if (!from) return svg``;
-            // Orthogonal route, with several edges into the same node spread apart so they stay
-            // distinguishable (echoing modux's parallel-edge handling).
-            const spread = n <= 1 ? 0 : (i - (n - 1) / 2) * 11;
-            const pts = orthogonalRoute(this.boxOf(from), tBox, spread);
-            return svg`<path class="edge" d="${roundedPath(pts)}" marker-end="url(#ec-arrow)"/>`;
-        });
+    /**
+     * All edges (sequence + compensation) drawn in one pass, so a later line can bridge (hop
+     * over with a small arc) any earlier line it crosses — the classic wiring-diagram look, as
+     * in modux. Compensation edges are drawn last so they hop over the sequence flow.
+     */
+    private renderEdges() {
+        const edges = this.computeEdges();
+        this.edgeCache = new Map(edges.map(e => [e.key, e.pts])); // token & guards reuse these routes
+        const prior: [Pt, Pt][] = [];
+        const out: unknown[] = [];
+        const mon = this.isMonitoring();
+        for (const e of edges) {
+            const d = bridgedPath(e.pts, prior);
+            // In a monitoring view, dim edges the process hasn't traversed (either end unvisited).
+            const monDim = mon && !(this.isVisited(e.from) && this.isVisited(e.to)) ? "mon-dim" : "";
+            out.push(e.comp
+                ? svg`<path class="comp-edge ${monDim}" data-comp="${e.from}" data-edge="${e.key}"
+                             d="${d}" marker-end="url(#ec-arrow)"/>`
+                : svg`<path class="edge ${monDim}" data-edge="${e.key}"
+                             d="${d}" marker-end="url(#ec-arrow)"/>`);
+            for (let i = 0; i < e.pts.length - 1; i++) prior.push([e.pts[i], e.pts[i + 1]]);
+        }
+        return out;
     }
 
     /**
@@ -619,18 +1633,21 @@ export class MateuWorkflowElk extends LitElement {
         const to = this.positions[step.id];
         const preconditions = preconditionsOf(step);
         if (!to || preconditions.length === 0) return svg``;
-        const from = this.positions[preconditions[0]];
-        if (!from) return svg``;
+        const route = this.edgeCache.get(`${preconditions[0]}->${step.id}`) ?? this.routeBetween(preconditions[0], step.id, 0);
+        if (!route) return svg``;
 
         // Sit toward the source end of the edge, clear of the target node's badge.
-        const mid = polylinePointAt(orthogonalRoute(this.boxOf(from), this.boxOf(to), 0), 0.38);
+        const mid = polylinePointAt(route, 0.38);
         const text = expr.length > 30 ? expr.slice(0, 29) + "…" : expr;
         const w = Math.max(30, text.length * 6.3 + 22);
         const h = 19;
         return svg`
-            <g class="guard" transform="translate(${mid.x}, ${mid.y})">
-                <rect x="${-w / 2}" y="${-h / 2}" width="${w}" height="${h}" rx="9.5"/>
-                <text x="0" y="3.6" text-anchor="middle">◇ ${text}</text>
+            <g class="guard" data-guard="${step.id}" data-edge="${preconditions[0]}->${step.id}" transform="translate(${mid.x}, ${mid.y})">
+                <rect class="guard-halo" x="${-w / 2 - 4}" y="${-h / 2 - 4}" width="${w + 8}" height="${h + 8}" rx="12"/>
+                <g class="guard-chip">
+                    <rect x="${-w / 2}" y="${-h / 2}" width="${w}" height="${h}" rx="9.5"/>
+                    <text x="0" y="3.6" text-anchor="middle">◇ ${text}</text>
+                </g>
             </g>
         `;
     }
@@ -638,24 +1655,66 @@ export class MateuWorkflowElk extends LitElement {
     private renderNode(step: WorkflowStep) {
         const pos = this.positions[step.id] ?? {x: PAD, y: PAD};
         const st = styleOf(step.type);
-        const selected = this.selectedId === step.id;
+        const {w, h} = sizeOf(step.type);
+        const sel = this.selectedId === step.id ? "sel" : "";
         const label = step.name.length > 22 ? step.name.slice(0, 21) + "…" : step.name;
-        const badge = badgeOf(step);
-        const badgeText = badge.length > 26 ? badge.slice(0, 25) + "…" : badge;
 
-        return svg`
-            <g class="node ${selected ? "sel" : ""}" transform="translate(${pos.x},${pos.y})"
-               @mousedown="${(e: MouseEvent) => this.onNodeMouseDown(e, step.id)}"
-               @click="${(e: MouseEvent) => {e.stopPropagation(); this.selectedId = step.id;}}">
+        // A radar-ping ring that flashes when a flow token arrives (driven by the rAF loop).
+        const pulse = svg`<circle class="flow-pulse" data-pulse="${step.id}"
+                                  cx="${w / 2}" cy="${h / 2}" r="${Math.max(w, h) / 2}" opacity="0"/>`;
+
+        let shape = svg``;
+        if (isEventType(step.type)) {
+            // BPMN event: circle (START thin green, END thick red), name below.
+            const kind = step.type === "END" ? "ev-end" : "ev-start";
+            shape = svg`
+                <circle class="node-shape ${kind}" cx="${w / 2}" cy="${h / 2}" r="${w / 2 - 3}"
+                        fill="${st.fill}" stroke="${st.stroke}"/>
+                <text class="node-caption" x="${w / 2}" y="${h + 15}" text-anchor="middle">${label}</text>`;
+        } else if (isGatewayType(step.type)) {
+            // BPMN parallel gateway: diamond with a "+", name below.
+            const cx = w / 2, cy = h / 2;
+            const pts = `${cx},2 ${w - 2},${cy} ${cx},${h - 2} 2,${cy}`;
+            shape = svg`
+                <polygon class="node-shape gateway" points="${pts}" fill="${st.fill}" stroke="${st.stroke}"/>
+                <path class="gw-plus" d="M${cx - 9},${cy} H${cx + 9} M${cx},${cy - 9} V${cy + 9}"
+                      stroke="${st.stroke}"/>
+                <text class="node-caption" x="${w / 2}" y="${h + 15}" text-anchor="middle">${label}</text>`;
+        } else {
+            // BPMN task: rounded card with a corner glyph, an uppercase caption, title + id.
+            const badge = badgeOf(step);
+            const badgeText = badge.length > 26 ? badge.slice(0, 25) + "…" : badge;
+            shape = svg`
                 <text class="node-badge" x="2" y="-7">${badgeText}</text>
-                <rect class="node-card" width="${NODE_W}" height="${NODE_H}" rx="10"
+                <rect class="node-shape" width="${w}" height="${h}" rx="10"
                       fill="${st.fill}" stroke="${st.stroke}" stroke-width="1.4"
                       stroke-dasharray="${st.dashed ? "6 4" : "0"}"/>
-                <g class="node-symbol" transform="translate(${NODE_W - 23}, 9)"
+                <g class="node-symbol" transform="translate(${w - 23}, 9)"
                    fill="none" stroke="${st.stroke}" stroke-width="1.1"
                    stroke-linejoin="round">${SYMBOLS[st.symbol] ?? svg``}</g>
-                <text class="node-title" x="14" y="${NODE_H / 2 - 2}">${label}</text>
-                <text class="node-id" x="14" y="${NODE_H / 2 + 14}">${step.id}</text>
+                <text class="node-title" x="14" y="${h / 2 - 2}">${label}</text>
+                <text class="node-id" x="14" y="${h / 2 + 14}">${step.id}</text>`;
+        }
+
+        // Read-only monitoring overlay: state tint / active highlight + a live process-count badge.
+        const ov = this.overlayData[step.id];
+        const ovCls = ov ? `${ov.active ? "ov-active" : ""} ${ov.state ? "ov-" + ov.state.toLowerCase() : ""}` : "";
+        const count = ov?.count ?? 0;
+        const badge = count > 0 ? svg`
+            <g class="ov-count" transform="translate(${w - 5}, 5)">
+                <circle r="10"/>
+                <text text-anchor="middle" dy="3.6">${count > 99 ? "99+" : count}</text>
+            </g>` : nothing;
+
+        const linkCls = `${this.linkHoverId === step.id ? "link-target" : ""} ${this.linkingFrom === step.id ? "link-source" : ""}`;
+        const monDim = this.isMonitoring() && !this.isVisited(step.id) ? "mon-dim" : "";
+        return svg`
+            <g class="node ${sel} ${ovCls} ${linkCls} ${monDim}" data-node="${step.id}" transform="translate(${pos.x},${pos.y})"
+               @mousedown="${(e: MouseEvent) => this.onNodeMouseDown(e, step.id)}"
+               @click="${(e: MouseEvent) => this.onNodeClick(e, step.id)}">
+                ${pulse}
+                <g class="node-inner" data-inner="${step.id}">${shape}</g>
+                ${badge}
             </g>
         `;
     }
@@ -769,7 +1828,12 @@ export class MateuWorkflowElk extends LitElement {
 
     static styles = [neutralButtonStyles, css`
         :host {
-            display: block; height: 230px; font-family: var(--lumo-font-family, sans-serif);
+            /* Fill all the space the container offers: height:100% for a block/sized parent,
+               flex:1 to grow inside a flex column/row (a Mateu zone), and align-self:stretch to
+               fill the cross axis — falling back to a sensible minimum when there is no height. */
+            display: block; height: 100%; min-height: 230px; box-sizing: border-box;
+            flex: 1 1 auto; align-self: stretch;
+            font-family: var(--lumo-font-family, sans-serif);
             /* Themeable palette (modux-style). Light defaults; :host([dark]) maps onto Lumo. */
             --ec-canvas-bg: #f8fafc;
             --ec-surface: #ffffff;
@@ -798,14 +1862,24 @@ export class MateuWorkflowElk extends LitElement {
             box-shadow: 0 0 0 100vmax rgba(0, 0, 0, .15);
         }
 
-        .expand-btn {
-            position: absolute; top: 8px; right: 8px; z-index: 6;
-            width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
-            border: 1px solid var(--ec-border); border-radius: 6px;
-            background: var(--lumo-base-color, #fff); color: var(--ec-text-dim); cursor: pointer;
-            font-size: 15px; line-height: 1; box-shadow: 0 1px 2px #0000000f;
+        /* floating view/animation controls — bottom-left, clear of toolbar + minimap */
+        .viewbar {
+            position: absolute; left: 10px; bottom: 10px; z-index: 6;
+            display: flex; align-items: center; gap: 4px; padding: 4px 6px;
+            border: 1px solid var(--ec-border); border-radius: 9px;
+            background: color-mix(in srgb, var(--lumo-base-color, #fff) 88%, transparent);
+            box-shadow: 0 2px 8px #0000001a; backdrop-filter: blur(2px);
         }
-        .expand-btn:hover {background: var(--lumo-contrast-5pct, #f1f5f9);}
+        .viewbar .vbtn {
+            width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
+            border: none; border-radius: 6px; background: transparent; color: var(--ec-text-dim);
+            cursor: pointer; font-size: 14px; line-height: 1;
+        }
+        .viewbar .vbtn:hover {background: var(--lumo-contrast-5pct, #f1f5f9); color: var(--ec-text);}
+        .viewbar .vbtn svg {width: 16px; height: 16px;}
+        .viewbar .vspeed {
+            width: 92px; height: 4px; margin: 0 2px; cursor: pointer; accent-color: var(--ec-primary);
+        }
 
         .loading {
             display: flex; align-items: center; justify-content: center;
@@ -843,28 +1917,107 @@ export class MateuWorkflowElk extends LitElement {
 
         /* workspace */
         .workspace {display: flex; flex: 1; overflow: hidden;}
-        .canvas-wrap {flex: 1; overflow: auto; background: var(--ec-canvas-bg);}
-        .canvas {display: block;}
+        .canvas-wrap {flex: 1; overflow: hidden; position: relative; background: var(--ec-canvas-bg);}
+        .canvas {display: block; width: 100%; height: 100%; cursor: grab; touch-action: none;}
+        .canvas.panning {cursor: grabbing;}
+        .scene {will-change: transform;}
+
+        /* minimap (modux-style) */
+        .minimap {
+            position: absolute; right: 10px; bottom: 10px; z-index: 5;
+            border: 1px solid var(--ec-border); border-radius: 8px; overflow: hidden;
+            background: color-mix(in srgb, var(--lumo-base-color, #fff) 82%, transparent);
+            box-shadow: 0 2px 8px #0000001a; cursor: pointer;
+            backdrop-filter: blur(2px);
+        }
+        .minimap svg {display: block;}
+        .minimap .mini-view {
+            fill: color-mix(in srgb, var(--ec-primary) 12%, transparent);
+            stroke: var(--ec-primary); stroke-width: 2; vector-effect: non-scaling-stroke;
+        }
 
         /* nodes */
-        .node {cursor: grab;}
-        .node-card {filter: url(#ec-shadow); transition: stroke .12s, stroke-width .12s;}
-        .node:hover .node-card, .node.sel .node-card {stroke: var(--ec-primary) !important; stroke-width: 2.4 !important; stroke-dasharray: 0 !important;}
+        .node {cursor: grab; transition: opacity .2s;}
+        .node.dim {opacity: .2;}   /* not reachable from the focused node (shift/alt click) */
+        .node-shape {filter: url(#ec-shadow); stroke-width: 1.6; transition: stroke .12s, stroke-width .12s;}
+        .node-shape.ev-start {stroke-width: 1.8;}
+        .node-shape.ev-end {stroke-width: 3;}
+        .node:hover .node-shape, .node.sel .node-shape {stroke: var(--ec-primary) !important; stroke-width: 2.6 !important; stroke-dasharray: 0 !important;}
+        .gw-plus {stroke-width: 2.2; stroke-linecap: round; fill: none; pointer-events: none;}
         .node-badge {font-size: 9.5px; fill: var(--ec-text-dim); text-transform: uppercase; letter-spacing: .05em; font-weight: 600;}
+        .node-caption {font-size: 11px; font-weight: 600; fill: var(--ec-text);}
         .node-symbol {opacity: .9;}
         .node-title {font-size: 13px; font-weight: 600; fill: var(--ec-text);}
         .node-id {font-size: 9.5px; fill: var(--ec-text-faint);}
+        /* radar-ping shown as a flow token passes through a node */
+        .flow-pulse {fill: var(--ec-primary); pointer-events: none;}
+
+        /* monitoring overlay (read-only): state tint, active highlight, live count badge */
+        .node.ov-running   .node-shape {stroke: #d97706 !important; stroke-width: 2.4 !important;}
+        .node.ov-pending   .node-shape {stroke: #64748b !important; stroke-dasharray: 4 3 !important;}
+        .node.ov-completed .node-shape {stroke: #16a34a !important;}
+        .node.ov-error     .node-shape {stroke: #dc2626 !important; stroke-width: 2.4 !important;}
+        .node.ov-cancelled .node-shape {stroke: #94a3b8 !important; opacity: .7;}
+        .node.ov-compensated .node-shape {stroke: #dc2626 !important; stroke-dasharray: 5 4 !important;}
+        .node.ov-active .node-shape {stroke: var(--ec-primary) !important; stroke-width: 3 !important; filter: drop-shadow(0 0 5px color-mix(in srgb, var(--ec-primary) 60%, transparent));}
+        .node.ov-active .node-inner {animation: ec-active-pulse 1.6s ease-in-out infinite;}
+        @keyframes ec-active-pulse {0%,100% {opacity: 1;} 50% {opacity: .72;}}
+        .ov-count circle {fill: var(--ec-primary); stroke: var(--lumo-base-color, #fff); stroke-width: 1.5;}
+        .ov-count text {fill: #fff; font-size: 11px; font-weight: 700;}
+        /* parts the process hasn't reached yet fade back */
+        .node.mon-dim {opacity: .3;}
+        .edge.mon-dim, .comp-edge.mon-dim {opacity: .18;}
+
+        /* a failing node shakes like an earthquake while its red ping is fresh */
+        .node-inner {transform-box: fill-box; transform-origin: center;}
+        .node.err .node-inner {animation: ec-shake .5s cubic-bezier(.36,.07,.19,.97) both;}
+        @keyframes ec-shake {
+            0%, 100% {transform: translate(0, 0) rotate(0);}
+            10% {transform: translate(-5px, 1px) rotate(-2.5deg);}
+            20% {transform: translate(5px, -1px) rotate(2.5deg);}
+            35% {transform: translate(-4px, 1px) rotate(-2deg);}
+            50% {transform: translate(4px, -1px) rotate(2deg);}
+            65% {transform: translate(-3px, 0) rotate(-1.2deg);}
+            80% {transform: translate(2px, 0) rotate(.8deg);}
+            92% {transform: translate(-1px, 0) rotate(-.4deg);}
+        }
 
         /* edges */
-        .edge {fill: none; stroke: var(--ec-edge); stroke-width: 1.6; stroke-linejoin: round;}
+        .edge {fill: none; stroke: var(--ec-edge); stroke-width: 1.6; stroke-linejoin: round; transition: opacity .2s, stroke .2s, stroke-width .2s;}
+        .edge.dim {opacity: .22;}                                    /* not on the active path */
+        .edge.active {stroke: var(--ec-primary); stroke-width: 2.4;} /* the path being animated */
+        /* compensation associations (BPMN): red dashed */
+        .comp-edge {fill: none; stroke: #dc2626; stroke-width: 1.6; stroke-dasharray: 6 5; stroke-linejoin: round; transition: opacity .2s, stroke-width .2s;}
+        .comp-edge.dim {opacity: .18;}
+        .comp-edge.active {stroke-width: 2.6;}  /* the error path — stays red, just bolder */
+        /* the single animated token walking the current path */
+        .flow-token {fill: var(--ec-primary); pointer-events: none; filter: drop-shadow(0 0 3px var(--ec-primary));}
+
+        /* drawing a new precondition line (ctrl+drag) */
+        .link-draft {stroke: var(--ec-primary); stroke-width: 2; stroke-dasharray: 5 4; fill: none; pointer-events: none;}
+        .node.link-source .node-shape {stroke: var(--ec-primary) !important;}
+        .node.link-target .node-shape {
+            stroke: var(--ec-primary) !important; stroke-width: 3 !important; stroke-dasharray: 0 !important;
+            filter: drop-shadow(0 0 6px color-mix(in srgb, var(--ec-primary) 70%, transparent));
+        }
+        .node.link-target {cursor: alias;}
 
         /* precondition guard chips on edges */
-        .guard {pointer-events: none;}
-        .guard rect {fill: var(--ec-surface); stroke: var(--ec-border); stroke-width: 1;}
+        .guard {pointer-events: none; transition: opacity .2s;}
+        .guard.dim {opacity: .15;}   /* its edge is not in the focus */
+        .guard-chip {transform-box: fill-box; transform-origin: center; transition: transform .2s;}
+        .guard rect {fill: var(--ec-surface); stroke: var(--ec-border); stroke-width: 1; transition: stroke .2s, stroke-width .2s;}
         .guard text {
             font-size: 10.5px; fill: var(--ec-text-dim);
             font-family: var(--lumo-font-family-monospace, ui-monospace, monospace);
+            transition: fill .2s;
         }
+        /* halo behind the chip: hidden until the token walks this edge, then it glows */
+        .guard rect.guard-halo {fill: var(--ec-primary); stroke: none; opacity: 0; filter: blur(5px); transition: opacity .2s;}
+        .guard.active rect.guard-halo {opacity: .38;}
+        .guard.active .guard-chip {transform: scale(1.22);}
+        .guard.active .guard-chip rect {stroke: var(--ec-primary); stroke-width: 1.7;}
+        .guard.active .guard-chip text {fill: var(--ec-primary); font-weight: 700;}
 
         /* properties panel */
         .properties {

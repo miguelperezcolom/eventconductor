@@ -240,7 +240,7 @@ class WorkflowDefinitionInvariantsTest {
         var badStart = new Step("start", "wd-1", StepType.START, "Start", null,
                 "step-1", null, null, false, null, null, null, null, null, 0, null, null, null, null,
                 0, 0, false, null, 0);
-        var steps = List.of(startStep().withId("real-start"), badStart, step("step-1", "real-start", null));
+        var steps = List.of(badStart, step("step-1", "start", null));
         assertThatThrownBy(() -> definition(steps).checkInvariants())
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("START step 'start' cannot have preconditions");
@@ -278,5 +278,32 @@ class WorkflowDefinitionInvariantsTest {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("spawn")
                 .hasMessageContaining("cannot start this workflow itself as its child");
+    }
+
+    private Step endStep(String id, String preconditionStepId) {
+        return new Step(id, "wd-1", StepType.END, "End " + id, null,
+                preconditionStepId, null, null, false, null, null, null, null, null, 0, null, null, null, null,
+                0, 0, false, null, 0);
+    }
+
+    @Test
+    void shouldFailWhenMoreThanOneStart() {
+        var secondStart = new Step("start-2", "wd-1", StepType.START, "Start 2", null,
+                null, null, null, false, null, null, null, null, null, 0, null, null, null, null,
+                0, 0, false, null, 0);
+        var steps = List.of(startStep(), secondStart, step("a", "start", null));
+        assertThatThrownBy(() -> definition(steps).checkInvariants())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("at most one START");
+    }
+
+    @Test
+    void shouldPassWithMultipleEndSteps() {
+        var steps = List.of(
+                startStep(),
+                step("a", "start", null),
+                endStep("end-1", "a"),
+                endStep("end-2", "a"));
+        assertThatNoException().isThrownBy(() -> definition(steps).checkInvariants());
     }
 }
