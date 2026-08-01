@@ -1,0 +1,87 @@
+{
+  "name": "eventconductor-vscode",
+  "displayName": "EventConductor",
+  "description": "Edit EventConductor workflow definitions (.ec) as an interactive graph or as YAML/JSON with schema validation.",
+  "version": "0.1.0",
+  "publisher": "eventconductor",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.84.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Visualization"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/miguelperezcolom/eventconductor.git",
+    "directory": "plugins/vscode-eventconductor"
+  },
+  "main": "./out/extension.js",
+  "activationEvents": [],
+  "contributes": {
+    "languages": [
+      {
+        "id": "json",
+        "extensions": [
+          ".ec"
+        ],
+        "aliases": [
+          "EventConductor"
+        ]
+      }
+    ],
+    "customEditors": [
+      {
+        "viewType": "eventconductor.graphEditor",
+        "displayName": "EventConductor Graph",
+        "selector": [
+          {
+            "filenamePattern": "*.ec"
+          }
+        ],
+        "priority": "default"
+      }
+    ],
+    "jsonValidation": [
+      {
+        "fileMatch": "*.ec",
+        "url": "./schema/ec.schema.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "eventconductor.openAsText",
+        "title": "EventConductor: Open as Text (YAML/JSON)"
+      },
+      {
+        "command": "eventconductor.openAsGraph",
+        "title": "EventConductor: Open as Graph"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "eventconductor.openAsText",
+          "when": "activeCustomEditorId == eventconductor.graphEditor",
+          "group": "navigation"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "sync-assets": "node scripts/sync-assets.js",
+    "compile": "npm run sync-assets && tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "vscode:prepublish": "npm run compile"
+  },
+  "dependencies": {
+    "js-yaml": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.84.0",
+    "typescript": "^5.4.0"
+  }
+}
