@@ -10,82 +10,54 @@
   grpc:
     client:
       auth-service: # Este nombre debe coincidir con el de @GrpcClient
-        address: 'static://localhost:9191' # O el nombre del servicio en Kubernetes/Consul
-        negotiation-type: plaintext # Usa TLS en produccion, pero plaintext para pruebas locales
+        address: ${AUTH_GRPC_ADDRESS:static://localhost:9191}
+        negotiation-type: plaintext
   spring:
     application:
       name: api-gw
     cloud:
       gateway:
+        # Plain router: authentication happens at the shell (Keycloak); the backend
+        # services sit behind the gateway with no auth. Hosts are overridable per env
+        # (defaults target local dev; Kubernetes overrides them with service URLs).
         routes:
           - id: static_route
-            uri: http://localhost:8107
+            uri: ${STATIC_URL:http://localhost:8107}
             predicates:
               - Path=/static/**
           - id: forms_route
-            uri: http://localhost:8106
+            uri: ${FORMS_URL:http://localhost:8106}
             predicates:
               - Path=/_forms/**
-            filters:
-              - TokenEnrichmentFilter
-          - id: forms_route
-            uri: http://localhost:8106
-            predicates:
-              - Path=/_forms/**
-            filters:
-              - TokenEnrichmentFilter
           - id: orchestrator_route
-            uri: http://localhost:8105
+            uri: ${WORKFLOW_URL:http://localhost:8105}
             predicates:
               - Path=/_workflow/**
-            filters:
-              - TokenEnrichmentFilter
           - id: content_service_route
-            uri: http://localhost:8104
+            uri: ${CONTENT_URL:http://localhost:8104}
             predicates:
               - Path=/_content-service/**
-            filters:
-              - TokenEnrichmentFilter
-
           - id: control_plane_route
-            uri: http://localhost:8103
+            uri: ${CONTROL_PLANE_URL:http://localhost:8103}
             predicates:
               - Path=/_control-plane/**
-            filters:
-              - TokenEnrichmentFilter
-
           - id: control_plane_data_route
-            uri: http://localhost:8103
+            uri: ${CONTROL_PLANE_URL:http://localhost:8103}
             predicates:
               - Path=/_cp-data/**
-            filters:
-              - TokenEnrichmentFilter
-
           - id: users_route
-            uri: http://localhost:8102
+            uri: ${USERS_URL:http://localhost:8102}
             predicates:
               - Path=/_users/**
-            filters:
-              - TokenEnrichmentFilter
-
           - id: booking_route
-            uri: http://localhost:8108
+            uri: ${BOOKING_URL:http://localhost:8108}
             predicates:
               - Path=/_booking/**
-            filters:
-              - TokenEnrichmentFilter
-
           - id: ai_agent_route
-            uri: http://localhost:8095
+            uri: ${AI_URL:http://localhost:8095}
             predicates:
               - Path=/ai/**
-            filters:
-              - TokenEnrichmentFilter
-
           - id: shell_route
-            uri: http://localhost:8101
+            uri: ${SHELL_URL:http://localhost:8101}
             predicates:
               - Path=/**
-            filters:
-              - TokenEnrichmentFilter
-

@@ -26,11 +26,11 @@ spring:
         sse:
           connections:
             event-conductor:
-              url: http://localhost:8105
+              url: ${WORKFLOW_URL:http://localhost:8105}
             forms-engine:
-              url: http://localhost:8106
+              url: ${FORMS_URL:http://localhost:8106}
             booking-service:
-              url: http://localhost:8108
+              url: ${BOOKING_URL:http://localhost:8108}
 
 server:
   port: 8095

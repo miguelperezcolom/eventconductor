@@ -20,7 +20,7 @@ import static io.mateu.core.infra.JsonSerializer.fromJson;
 
 @UI("")
 @Title("Demo Console")
-@KeycloakSecured(url = "https://lemur-11.cloud-iam.com/auth", realm = "mateu", clientId = "demo")
+@KeycloakSecured(url = "https://auth.mateu.io", realm = "mateu", clientId = "demo")
 @FavIcon("/images/riu.svg")
 @PageTitle("Home")
 //@Logo("/images/riu.svg")

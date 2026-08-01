@@ -7,7 +7,6 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          # URL pública de tu API Gateway donde expusiste las claves
-          jwk-set-uri: http://localhost:8191/.well-known/jwks.json
-          # Opcional: Validar que el issuer coincida con el que pusimos en el filtro
-          issuer-uri: my-api-gateway
+          # Validate access tokens against Keycloak (realm "mateu").
+          jwk-set-uri: ${KEYCLOAK_JWKS_URI:https://auth.mateu.io/realms/mateu/protocol/openid-connect/certs}
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:https://auth.mateu.io/realms/mateu}
