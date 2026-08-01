@@ -42,6 +42,9 @@ metadata:
     app.kubernetes.io/component: postgres
 spec:
   replicas: 1
+  # Single RWO volume — never run two pods at once (avoids multi-attach deadlock).
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app.kubernetes.io/instance: {{ .Release.Name }}
@@ -52,6 +55,10 @@ spec:
         app.kubernetes.io/instance: {{ .Release.Name }}
         app.kubernetes.io/component: postgres
     spec:
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       securityContext:
         runAsNonRoot: true
         runAsUser: 70
@@ -59,8 +66,17 @@ spec:
       containers:
         - name: postgres
           image: {{ .Values.postgres.image }}
+          {{- with .Values.postgres.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           ports:
             - containerPort: 5432
+          env:
+            # Use a subdirectory, not the volume mount root (which holds lost+found
+            # on ext4 block volumes and cannot be used directly as PGDATA).
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
           envFrom:
             - secretRef:
                 name: {{ default (printf "%s-postgres" (include "eventconductor.fullname" .)) .Values.postgres.existingSecret }}

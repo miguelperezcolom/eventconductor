@@ -11,6 +11,8 @@ postgres:
   port: 5432
   storage: 8Gi
   storageClass: ""
+  # Recommended on autoscaled clusters so the node provisioner can size nodes.
+  resources: {}
 
 ## ── Redpanda ─────────────────────────────────────────────────────────────────
 redpanda:
@@ -19,6 +21,8 @@ redpanda:
   externalNodePort: 30092
   storage: 8Gi
   storageClass: ""
+  # Recommended on autoscaled clusters so the node provisioner can size nodes.
+  resources: {}
 
 ## ── Orchestrator ─────────────────────────────────────────────────────────────
 orchestrator:
@@ -31,6 +35,9 @@ orchestrator:
   # In production keep ddl-auto=validate so Flyway owns the schema.
   ddlAuto: validate
   flywayEnabled: true
+  # Extra environment variables injected verbatim (e.g. git-import config via Spring
+  # relaxed binding: WORKFLOW_GITIMPORT_REPOSITORIES_0_URL / _0_BRANCH).
+  extraEnv: {}
   security:
     enabled: true
     user: admin
@@ -117,3 +124,11 @@ networkPolicy:
   # Pod selector for clients allowed to talk to orchestrator/forms/rules.
   # Empty means "only same-namespace pods".
   ingressFromPodSelector: {}
+
+## ── Scheduling ───────────────────────────────────────────────────────────────
+# Applied to every workload pod (orchestrator, forms, rules, postgres, redpanda).
+# On clusters whose autoscaler can provision both arm64 and amd64 nodes, pin the
+# architecture the published images are built for, e.g.:
+#   nodeSelector:
+#     kubernetes.io/arch: amd64
+nodeSelector: {}
