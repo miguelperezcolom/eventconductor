@@ -20,7 +20,11 @@
         <fileType name="YAML" extensions="ec"/>
         <!-- A split editor: text (YAML/JSON) on one side, the interactive graph (JCEF) on the other. -->
         <fileEditorProvider implementation="com.eventconductor.intellij.EcFileEditorProvider"/>
-        <!-- Validate/complete .ec against the workflow-definition JSON schema (JSON and YAML bodies). -->
-        <json.jsonSchemaProviderFactory implementation="com.eventconductor.intellij.EcJsonSchemaProviderFactory"/>
+    </extensions>
+
+    <!-- Validate/complete .ec against the workflow-definition JSON schema (applies to YAML too).
+         The JSON-schema provider EP lives in the JavaScript namespace. -->
+    <extensions defaultExtensionNs="JavaScript">
+        <JsonSchema.ProviderFactory implementation="com.eventconductor.intellij.EcJsonSchemaProviderFactory"/>
     </extensions>
 </idea-plugin>
