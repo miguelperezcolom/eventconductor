@@ -991,11 +991,27 @@ export class MateuWorkflowElk extends LitElement {
         const geo = this.pathGeometry(path);
         if (!geo) return;
         const len = polylineLength(geo.pts) || 1;
-        const speed = 180;   // px per second
-        const pausePx = 55;  // brief gap between paths
-        const dist = ((now - this.flowStartTs) / 1000) * speed;
+        const speed = 180;         // px per second
+        const pausePx = 55;        // brief gap between paths
+        const DWELL_MS = 1800;     // a long-running node holds the token this long…
+        const PING_MS = 600;       // …re-pinging at this cadence (≈3 pulses) to signal "this takes a while"
+        const SLOW_TIMEOUT_MS = 30000;
 
-        if (dist >= len + pausePx) {
+        const byId = new Map((this.wf.steps ?? []).map(s => [s.id, s] as const));
+        // USER_TASK (a human is in the loop) and any step with a high timeout are treated as
+        // long-running: the token pauses on them and the node pulses several times.
+        const isSlow = (id: string) => {
+            const s = byId.get(id);
+            return !!s && (s.type === "USER_TASK" || (s.timeout ?? 0) >= SLOW_TIMEOUT_MS);
+        };
+
+        const stops = geo.marks;
+        let schedMs = (len / speed) * 1000;
+        for (const m of stops) if (isSlow(m.id)) schedMs += DWELL_MS;
+        const pauseMs = (pausePx / speed) * 1000;
+        const elapsed = now - this.flowStartTs;
+
+        if (elapsed >= schedMs + pauseMs) {
             // In 'path' focus we loop the chosen path; otherwise advance to the next one.
             if (this.focusMode !== "path") this.flowPathIndex = (idx + 1) % paths.length;
             this.flowStartTs = now;
@@ -1003,32 +1019,51 @@ export class MateuWorkflowElk extends LitElement {
             return;
         }
 
-        // Position the token; hide it while it crosses a node (the ping marks that) and during
-        // the brief inter-path pause.
-        const clamped = Math.min(dist, len);
+        // Walk the polyline at constant speed, holding at each long-running node for DWELL_MS.
+        // posD is the token's distance along the path; dwellId is the node it currently sits in.
+        let acc = 0, prevD = 0, posD = len;
+        let dwellId: string | null = null;
+        for (const m of stops) {
+            const segMs = ((m.d - prevD) / speed) * 1000;
+            if (elapsed < acc + segMs) { posD = prevD + (segMs <= 0 ? 0 : (elapsed - acc) / segMs) * (m.d - prevD); break; }
+            acc += segMs;
+            if (isSlow(m.id)) {
+                if (elapsed < acc + DWELL_MS) { posD = m.d; dwellId = m.id; break; }
+                acc += DWELL_MS;
+            }
+            prevD = m.d;
+            posD = m.d;
+        }
+
+        // Position the token; hide it while it crosses (or dwells inside) a node, and during the
+        // brief inter-path pause.
+        const clamped = Math.min(posD, len);
         const p = polylinePointAt(geo.pts, clamped / len);
         token.setAttribute("cx", String(p.x));
         token.setAttribute("cy", String(p.y));
         const crossingNode = geo.hidden.some(hr => clamped >= hr.from && clamped <= hr.to);
-        token.style.opacity = (dist <= len && !crossingNode) ? "1" : "0";
+        token.style.opacity = (elapsed <= schedMs && !crossingNode && !dwellId) ? "1" : "0";
 
         // On an error/compensation path (its last edge is a compensation edge), only the failing
         // rollbackable node pings red to flag the failure. The compensation step is the
         // (successful) recovery, so it — and the token — keep their normal colour.
-        const byId = new Map((this.wf.steps ?? []).map(s => [s.id, s] as const));
         const errorNodes = new Set<string>();
         for (let i = 1; i < path.length; i++) {
             const s = byId.get(path[i - 1]);
             if (s && s.rollbackable && s.compensationStepId === path[i]) errorNodes.add(path[i - 1]);
         }
 
-        // Ping each node once, as the token reaches it (red only on the failing node).
-        for (const m of geo.marks) {
-            if (dist >= m.d && !this.pulsedThisPath.has(m.id)) {
+        // Ping each node once, as the token reaches it (red only on the failing node)…
+        for (const m of stops) {
+            if (posD >= m.d && !this.pulsedThisPath.has(m.id)) {
                 this.pulseAt[m.id] = now;
                 this.pulseColor[m.id] = errorNodes.has(m.id) ? "#dc2626" : "";
                 this.pulsedThisPath.add(m.id);
             }
+        }
+        // …but a long-running node keeps re-pinging while the token dwells inside it.
+        if (dwellId && now - (this.pulseAt[dwellId] ?? 0) >= PING_MS) {
+            this.pulseAt[dwellId] = now;
         }
 
         // The currently-animated path's edges (brightest) and, in a focus mode, the "universe"
