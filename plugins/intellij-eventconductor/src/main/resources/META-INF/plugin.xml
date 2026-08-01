@@ -11,11 +11,20 @@
 
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.modules.json</depends>
+    <depends>org.jetbrains.plugins.yaml</depends>
 
     <extensions defaultExtensionNs="com.intellij">
+        <!-- Parse .ec as YAML (a JSON superset) so it gets highlighting and, together with the
+             schema provider below, validation. Without a file-type association it is plain text
+             and the JSON-schema engine has no PSI to validate. -->
+        <fileType name="YAML" extensions="ec"/>
         <!-- A split editor: text (YAML/JSON) on one side, the interactive graph (JCEF) on the other. -->
         <fileEditorProvider implementation="com.eventconductor.intellij.EcFileEditorProvider"/>
-        <!-- Validate/complete .ec against the workflow-definition JSON schema (JSON and YAML bodies). -->
-        <json.jsonSchemaProviderFactory implementation="com.eventconductor.intellij.EcJsonSchemaProviderFactory"/>
+    </extensions>
+
+    <!-- Validate/complete .ec against the workflow-definition JSON schema (applies to YAML too).
+         The JSON-schema provider EP lives in the JavaScript namespace. -->
+    <extensions defaultExtensionNs="JavaScript">
+        <JsonSchema.ProviderFactory implementation="com.eventconductor.intellij.EcJsonSchemaProviderFactory"/>
     </extensions>
 </idea-plugin>

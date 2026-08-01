@@ -14,21 +14,56 @@ export function activate(context: vscode.ExtensionContext) {
     ),
     vscode.commands.registerCommand("eventconductor.openAsGraph", () =>
       reopenActive(VIEW_TYPE)
+    ),
+    vscode.commands.registerCommand("eventconductor.showTextBeside", () =>
+      openActiveBeside()
     )
   );
+  // Validate .ec (YAML or JSON) against the bundled workflow-definition schema.
+  registerYamlSchema(context);
 }
 
 export function deactivate() {}
 
-/** Reopen the .ec file in the active tab with the given editor (text = "default", graph = view type). */
-function reopenActive(viewType: string) {
+/**
+ * Bind the bundled JSON schema to `*.ec` through the Red Hat YAML extension's API, so YAML (and
+ * JSON, a YAML subset) `.ec` files get validation and completion in the text view.
+ */
+async function registerYamlSchema(context: vscode.ExtensionContext) {
+  try {
+    const yamlExt = vscode.extensions.getExtension("redhat.vscode-yaml");
+    if (!yamlExt) return;
+    const api = await yamlExt.activate();
+    if (!api || typeof api.registerContributor !== "function") return;
+    const schemaUri = vscode.Uri.joinPath(context.extensionUri, "schema", "ec.schema.json").toString();
+    api.registerContributor(
+      "eventconductor",
+      (resource: string) => (resource.endsWith(".ec") ? schemaUri : undefined),
+      () => undefined
+    );
+  } catch {
+    /* YAML extension missing or API changed — schema validation just won't be active */
+  }
+}
+
+/** The .ec file shown in the active tab (custom-editor tabs expose their uri on the input). */
+function activeUri(): vscode.Uri | undefined {
   const input = vscode.window.tabGroups.activeTabGroup.activeTab?.input as
     | { uri?: vscode.Uri }
     | undefined;
-  const uri = input?.uri;
-  if (uri) {
-    vscode.commands.executeCommand("vscode.openWith", uri, viewType);
-  }
+  return input?.uri;
+}
+
+/** Reopen the .ec file in the active tab with the given editor (text = "default", graph = view type). */
+function reopenActive(viewType: string) {
+  const uri = activeUri();
+  if (uri) vscode.commands.executeCommand("vscode.openWith", uri, viewType);
+}
+
+/** Open the .ec's raw YAML/JSON in a text editor beside the graph, so both show the same file. */
+function openActiveBeside() {
+  const uri = activeUri();
+  if (uri) vscode.commands.executeCommand("vscode.openWith", uri, "default", vscode.ViewColumn.Beside);
 }
 
 class EcEditorProvider implements vscode.CustomTextEditorProvider {

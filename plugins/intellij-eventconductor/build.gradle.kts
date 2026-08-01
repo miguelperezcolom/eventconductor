@@ -21,7 +21,9 @@ dependencies {
         // Community edition is enough; JCEF ships with the platform.
         create(IntelliJPlatformType.IntellijIdeaCommunity, "2024.2.4")
         // JSON language + JSON-schema support (for the .ec schema provider).
-        bundledPlugin("com.intellij.modules.json")
+        bundledModule("com.intellij.modules.json")
+        // YAML support so .ec (parsed as YAML) gets highlighting + schema validation.
+        bundledPlugin("org.jetbrains.plugins.yaml")
     }
 }
 
@@ -32,10 +34,13 @@ intellijPlatform {
             untilBuild = provider { null }
         }
     }
+    // Pure-Kotlin plugin: skip the (Java NotNull) bytecode instrumentation step.
+    instrumentCode = false
 }
 
 kotlin {
-    jvmToolchain(17)
+    // IntelliJ 2024.2 targets JDK 21.
+    jvmToolchain(21)
 }
 
 // Copy the shared graph bundle and the JSON schema from the main repo into plugin resources,

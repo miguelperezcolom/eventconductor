@@ -18,16 +18,24 @@
     "directory": "plugins/vscode-eventconductor"
   },
   "main": "./out/extension.js",
-  "activationEvents": [],
+  "activationEvents": [
+    "onCustomEditor:eventconductor.graphEditor"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true,
+      "description": "The graph editor only reads and rewrites the .ec file you open."
+    }
+  },
+  "extensionPack": [
+    "redhat.vscode-yaml"
+  ],
   "contributes": {
     "languages": [
       {
-        "id": "json",
+        "id": "yaml",
         "extensions": [
           ".ec"
-        ],
-        "aliases": [
-          "EventConductor"
         ]
       }
     ],
@@ -57,14 +65,24 @@
       {
         "command": "eventconductor.openAsGraph",
         "title": "EventConductor: Open as Graph"
+      },
+      {
+        "command": "eventconductor.showTextBeside",
+        "title": "EventConductor: Show YAML/JSON side-by-side",
+        "icon": "$(split-horizontal)"
       }
     ],
     "menus": {
       "editor/title": [
         {
+          "command": "eventconductor.showTextBeside",
+          "when": "activeCustomEditorId == eventconductor.graphEditor",
+          "group": "navigation@1"
+        },
+        {
           "command": "eventconductor.openAsText",
           "when": "activeCustomEditorId == eventconductor.graphEditor",
-          "group": "navigation"
+          "group": "navigation@2"
         }
       ]
     }
