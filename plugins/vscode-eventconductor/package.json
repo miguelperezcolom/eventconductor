@@ -18,19 +18,16 @@
     "directory": "plugins/vscode-eventconductor"
   },
   "main": "./out/extension.js",
-  "activationEvents": [],
+  "activationEvents": [
+    "onCustomEditor:eventconductor.graphEditor"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true,
+      "description": "The graph editor only reads and rewrites the .ec file you open."
+    }
+  },
   "contributes": {
-    "languages": [
-      {
-        "id": "json",
-        "extensions": [
-          ".ec"
-        ],
-        "aliases": [
-          "EventConductor"
-        ]
-      }
-    ],
     "customEditors": [
       {
         "viewType": "eventconductor.graphEditor",
