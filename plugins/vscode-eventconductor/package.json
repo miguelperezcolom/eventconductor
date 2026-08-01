@@ -54,14 +54,24 @@
       {
         "command": "eventconductor.openAsGraph",
         "title": "EventConductor: Open as Graph"
+      },
+      {
+        "command": "eventconductor.showTextBeside",
+        "title": "EventConductor: Show YAML/JSON side-by-side",
+        "icon": "$(split-horizontal)"
       }
     ],
     "menus": {
       "editor/title": [
         {
+          "command": "eventconductor.showTextBeside",
+          "when": "activeCustomEditorId == eventconductor.graphEditor",
+          "group": "navigation@1"
+        },
+        {
           "command": "eventconductor.openAsText",
           "when": "activeCustomEditorId == eventconductor.graphEditor",
-          "group": "navigation"
+          "group": "navigation@2"
         }
       ]
     }

@@ -14,21 +14,33 @@ export function activate(context: vscode.ExtensionContext) {
     ),
     vscode.commands.registerCommand("eventconductor.openAsGraph", () =>
       reopenActive(VIEW_TYPE)
+    ),
+    vscode.commands.registerCommand("eventconductor.showTextBeside", () =>
+      openActiveBeside()
     )
   );
 }
 
 export function deactivate() {}
 
-/** Reopen the .ec file in the active tab with the given editor (text = "default", graph = view type). */
-function reopenActive(viewType: string) {
+/** The .ec file shown in the active tab (custom-editor tabs expose their uri on the input). */
+function activeUri(): vscode.Uri | undefined {
   const input = vscode.window.tabGroups.activeTabGroup.activeTab?.input as
     | { uri?: vscode.Uri }
     | undefined;
-  const uri = input?.uri;
-  if (uri) {
-    vscode.commands.executeCommand("vscode.openWith", uri, viewType);
-  }
+  return input?.uri;
+}
+
+/** Reopen the .ec file in the active tab with the given editor (text = "default", graph = view type). */
+function reopenActive(viewType: string) {
+  const uri = activeUri();
+  if (uri) vscode.commands.executeCommand("vscode.openWith", uri, viewType);
+}
+
+/** Open the .ec's raw YAML/JSON in a text editor beside the graph, so both show the same file. */
+function openActiveBeside() {
+  const uri = activeUri();
+  if (uri) vscode.commands.executeCommand("vscode.openWith", uri, "default", vscode.ViewColumn.Beside);
 }
 
 class EcEditorProvider implements vscode.CustomTextEditorProvider {
