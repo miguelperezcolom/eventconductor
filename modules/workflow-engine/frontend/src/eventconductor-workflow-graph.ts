@@ -1,7 +1,7 @@
 import {customElement, property, state} from "lit/decorators.js";
 import {css, html, LitElement, nothing, svg} from "lit";
 import type {ELK, ElkNode, ElkExtendedEdge} from "elkjs/lib/elk.bundled.js";
-import {neutralButtonStyles, iconCog, iconPlus, iconDownload, iconSitemap} from "./neutralChrome";
+import {neutralButtonStyles, iconCog, iconPlus, iconDownload, iconSitemap, iconFit} from "./neutralChrome";
 
 // ── Domain types ─────────────────────────────────────────────────────────────
 
@@ -527,6 +527,24 @@ export class MateuWorkflowElk extends LitElement {
      *  re-layout genuinely new nodes, not ones the user has repositioned. */
     private elkPositioned = new Set<string>();
 
+    // ── Zoom / pan viewport ─────────────────────────────────────────────────────
+    /** Scene→screen transform: screen = scene * zoomK + pan. */
+    @state() private zoomK = 1;
+    @state() private panX = 0;
+    @state() private panY = 0;
+    /** Measured size of the visible canvas area (drives fit + minimap viewport rect). */
+    @state() private viewW = 0;
+    @state() private viewH = 0;
+    private didInitialFit = false;
+    private viewportSetup = false;
+    private resizeObs?: ResizeObserver;
+    /** Background pan drag state. */
+    private panning = false;
+    private panMoved = false;
+    private panStart = {x: 0, y: 0, panX: 0, panY: 0};
+    /** True while dragging inside the minimap to scrub the viewport. */
+    private miniDrag = false;
+
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
     updated(changed: Map<string, unknown>) {
@@ -547,6 +565,7 @@ export class MateuWorkflowElk extends LitElement {
                     });
                 this.wf = parsed;
                 if (structureChanged || !this.layoutReady) {
+                    this.didInitialFit = false;   // re-fit the new graph in view
                     this.runElkLayout();
                 }
                 // Recompute the paths the token animation cycles through; reset focus.
@@ -563,11 +582,39 @@ export class MateuWorkflowElk extends LitElement {
         // Keep the token-flow loop in sync with the toggle and layout readiness.
         if (this.flowOn && this.layoutReady) this.startFlow();
         else this.stopFlow();
+
+        // The canvas only exists once layout is ready — wire up viewport measuring/zoom then.
+        this.ensureViewportSetup();
+
+        // Once the layout is ready and the viewport is measured, fit the whole graph in view once.
+        if (this.layoutReady && this.viewW > 0 && !this.didInitialFit) {
+            this.didInitialFit = true;
+            this.fitToView();
+        }
+    }
+
+    /** Attach the resize observer and wheel-zoom to the canvas once it is in the DOM (idempotent). */
+    private ensureViewportSetup() {
+        if (this.viewportSetup) return;
+        const root = this.renderRoot as ParentNode;
+        const svg = root.querySelector("svg.canvas") as SVGSVGElement | null;
+        const wrap = root.querySelector(".canvas-wrap") as HTMLElement | null;
+        if (!svg || !wrap) return;
+        this.viewportSetup = true;
+        this.svgEl = svg;
+        const measure = () => { this.viewW = wrap.clientWidth; this.viewH = wrap.clientHeight; };
+        measure();
+        this.resizeObs = new ResizeObserver(measure);
+        this.resizeObs.observe(wrap);
+        // Native listener (not @wheel) so we can preventDefault the page scroll while zooming.
+        svg.addEventListener("wheel", this.onWheel, {passive: false});
     }
 
     disconnectedCallback() {
         super.disconnectedCallback();
         this.stopFlow();
+        this.resizeObs?.disconnect();
+        this.svgEl?.removeEventListener("wheel", this.onWheel);
     }
 
     // ── ELK layout ────────────────────────────────────────────────────────────
@@ -750,7 +797,11 @@ export class MateuWorkflowElk extends LitElement {
     private toSvgPoint(e: MouseEvent): {x: number; y: number} {
         if (!this.svgEl) return {x: 0, y: 0};
         const rect = this.svgEl.getBoundingClientRect();
-        return {x: e.clientX - rect.left, y: e.clientY - rect.top};
+        // screen → scene: undo the pan/zoom transform applied to the scene group
+        return {
+            x: (e.clientX - rect.left - this.panX) / this.zoomK,
+            y: (e.clientY - rect.top - this.panY) / this.zoomK,
+        };
     }
 
     // ── Re-layout button ──────────────────────────────────────────────────────
@@ -772,6 +823,69 @@ export class MateuWorkflowElk extends LitElement {
             h = Math.max(h, p.y + sz.h + PAD);
         }
         return {w, h};
+    }
+
+    /** Tight bounding box of all laid-out nodes (scene coords), padded. Null if empty. */
+    private graphBounds(pad = 60): {minX: number; minY: number; w: number; h: number} | null {
+        const steps = (this.wf.steps ?? []).filter(s => this.positions[s.id]);
+        if (steps.length === 0) return null;
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (const s of steps) {
+            const p = this.positions[s.id], sz = sizeOf(s.type);
+            minX = Math.min(minX, p.x); minY = Math.min(minY, p.y);
+            maxX = Math.max(maxX, p.x + sz.w); maxY = Math.max(maxY, p.y + sz.h + 18); // +caption
+        }
+        return {minX: minX - pad, minY: minY - pad, w: maxX - minX + 2 * pad, h: maxY - minY + 2 * pad};
+    }
+
+    private clampZoom(k: number) { return Math.max(0.1, Math.min(2.5, k)); }
+
+    /** Scale + centre the whole graph so it all fits inside the visible canvas area. */
+    private fitToView = () => {
+        const b = this.graphBounds();
+        if (!b || this.viewW === 0 || this.viewH === 0) return;
+        const k = this.clampZoom(Math.min(this.viewW / b.w, this.viewH / b.h));
+        this.zoomK = k;
+        this.panX = (this.viewW - k * b.w) / 2 - k * b.minX;
+        this.panY = (this.viewH - k * b.h) / 2 - k * b.minY;
+    };
+
+    private onWheel = (e: WheelEvent) => {
+        e.preventDefault();
+        if (!this.svgEl) return;
+        const rect = this.svgEl.getBoundingClientRect();
+        const cx = e.clientX - rect.left, cy = e.clientY - rect.top;
+        const newK = this.clampZoom(this.zoomK * Math.exp(-e.deltaY * 0.0015));
+        // keep the scene point under the cursor fixed while zooming
+        const sx = (cx - this.panX) / this.zoomK, sy = (cy - this.panY) / this.zoomK;
+        this.panX = cx - sx * newK; this.panY = cy - sy * newK;
+        this.zoomK = newK;
+    };
+
+    private onCanvasMouseDown = (e: MouseEvent) => {
+        if (this.draggingId || e.button !== 0 || e.shiftKey || e.altKey) return; // node drag / focus click
+        this.panning = true; this.panMoved = false;
+        this.panStart = {x: e.clientX, y: e.clientY, panX: this.panX, panY: this.panY};
+        window.addEventListener("mousemove", this.onPanMove);
+        window.addEventListener("mouseup", this.onPanUp);
+    };
+    private onPanMove = (e: MouseEvent) => {
+        if (!this.panning) return;
+        const dx = e.clientX - this.panStart.x, dy = e.clientY - this.panStart.y;
+        if (Math.abs(dx) + Math.abs(dy) > 3) this.panMoved = true;
+        this.panX = this.panStart.panX + dx; this.panY = this.panStart.panY + dy;
+    };
+    private onPanUp = () => {
+        this.panning = false;
+        window.removeEventListener("mousemove", this.onPanMove);
+        window.removeEventListener("mouseup", this.onPanUp);
+        if (!this.panMoved) { this.selectedId = null; this.clearFocus(); } // a plain click clears selection
+    };
+
+    /** Recentre the viewport on a scene point (used by minimap click/drag). */
+    private centerOn(sceneX: number, sceneY: number) {
+        this.panX = this.viewW / 2 - this.zoomK * sceneX;
+        this.panY = this.viewH / 2 - this.zoomK * sceneY;
     }
 
     /** Center-plus-size box of a step (by id), honouring its per-type shape size. */
@@ -1143,12 +1257,45 @@ export class MateuWorkflowElk extends LitElement {
 
     // ── Render ────────────────────────────────────────────────────────────────
 
+    /** A modux-style minimap: the whole graph in miniature with the current viewport framed. */
+    private renderMinimap() {
+        const b = this.graphBounds();
+        if (!b || (this.wf.steps ?? []).length < 2 || this.viewW === 0) return nothing;
+        const MW = 168, MH = 116;
+        const scale = Math.min(MW / b.w, MH / b.h);
+        const mw = b.w * scale, mh = b.h * scale;
+        // The scene rectangle currently visible on screen, in scene coords.
+        const vx = -this.panX / this.zoomK, vy = -this.panY / this.zoomK;
+        const vw = this.viewW / this.zoomK, vh = this.viewH / this.zoomK;
+        const scrub = (e: MouseEvent) => {
+            const box = (e.currentTarget as Element).getBoundingClientRect();
+            this.centerOn(b.minX + (e.clientX - box.left) / scale, b.minY + (e.clientY - box.top) / scale);
+        };
+        return html`
+            <div class="minimap" style="width:${mw}px;height:${mh}px"
+                 title="Minimap — click or drag to navigate"
+                 @mousedown="${(e: MouseEvent) => { e.stopPropagation(); this.miniDrag = true; scrub(e); }}"
+                 @mousemove="${(e: MouseEvent) => { if (this.miniDrag) scrub(e); }}"
+                 @mouseup="${() => { this.miniDrag = false; }}"
+                 @mouseleave="${() => { this.miniDrag = false; }}">
+                <svg viewBox="0 0 ${b.w} ${b.h}" width="${mw}" height="${mh}">
+                    ${(this.wf.steps ?? []).map(s => {
+                        const p = this.positions[s.id];
+                        if (!p) return nothing;
+                        const sz = sizeOf(s.type), st = styleOf(s.type);
+                        return svg`<rect x="${p.x - b.minX}" y="${p.y - b.minY}" width="${sz.w}" height="${sz.h}"
+                                         rx="4" fill="${st.fill}" stroke="${st.stroke}" stroke-width="2"/>`;
+                    })}
+                    <rect class="mini-view" x="${vx - b.minX}" y="${vy - b.minY}" width="${vw}" height="${vh}"/>
+                </svg>
+            </div>`;
+    }
+
     render() {
         if (!this.layoutReady) {
             return html`<div class="loading">Computing layout…</div>`;
         }
 
-        const {w, h} = this.canvasSize();
         const steps = this.wf.steps ?? [];
 
         return html`
@@ -1157,6 +1304,8 @@ export class MateuWorkflowElk extends LitElement {
                         @click="${() => { this.flowOn = !this.flowOn; }}">
                     ${this.flowOn ? "⏸" : "▶"}
                 </button>
+                <button class="fit-btn" title="Fit graph to view"
+                        @click="${() => this.fitToView()}">${iconFit}</button>
                 <button class="expand-btn" title="${this.fullscreen ? "Collapse" : "Expand"}"
                         @click="${() => { this.fullscreen = !this.fullscreen; }}">
                     ${this.fullscreen ? "✕" : "⤢"}
@@ -1166,8 +1315,8 @@ export class MateuWorkflowElk extends LitElement {
                 ${this.layoutError ? html`<div class="error">⚠ ${this.layoutError}</div>` : ""}
                 <div class="workspace">
                     <div class="canvas-wrap">
-                        <svg width="${w}" height="${h}" class="canvas"
-                             @click="${(e: MouseEvent) => {if (e.target === e.currentTarget) { this.selectedId = null; this.clearFocus(); }}}">
+                        <svg width="100%" height="100%" class="canvas ${this.panning ? "panning" : ""}"
+                             @mousedown="${this.onCanvasMouseDown}">
                             <defs>
                                 <marker id="ec-arrow" markerWidth="9" markerHeight="9"
                                         refX="7.5" refY="3.2" orient="auto" markerUnits="userSpaceOnUse">
@@ -1178,11 +1327,14 @@ export class MateuWorkflowElk extends LitElement {
                                                   flood-opacity="0.10"/>
                                 </filter>
                             </defs>
-                            ${this.renderEdges()}
-                            ${steps.map(s => this.renderNode(s))}
-                            ${steps.map(s => this.renderGuard(s))}
-                            ${this.flowOn ? svg`<circle class="flow-token" r="5.5" cx="-100" cy="-100"/>` : nothing}
+                            <g class="scene" transform="translate(${this.panX},${this.panY}) scale(${this.zoomK})">
+                                ${this.renderEdges()}
+                                ${steps.map(s => this.renderNode(s))}
+                                ${steps.map(s => this.renderGuard(s))}
+                                ${this.flowOn ? svg`<circle class="flow-token" r="5.5" cx="-100" cy="-100"/>` : nothing}
+                            </g>
                         </svg>
+                        ${this.renderMinimap()}
                     </div>
                     ${this.selectedId && !this.readOnly ? this.renderPanel() : ""}
                 </div>
@@ -1511,13 +1663,23 @@ export class MateuWorkflowElk extends LitElement {
         .expand-btn:hover {background: var(--lumo-contrast-5pct, #f1f5f9);}
 
         .flow-btn {
-            position: absolute; top: 8px; right: 44px; z-index: 6;
+            position: absolute; top: 8px; right: 80px; z-index: 6;
             width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
             border: 1px solid var(--ec-border); border-radius: 6px;
             background: var(--lumo-base-color, #fff); color: var(--ec-text-dim); cursor: pointer;
             font-size: 13px; line-height: 1; box-shadow: 0 1px 2px #0000000f;
         }
         .flow-btn:hover {background: var(--lumo-contrast-5pct, #f1f5f9);}
+
+        .fit-btn {
+            position: absolute; top: 8px; right: 44px; z-index: 6;
+            width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
+            border: 1px solid var(--ec-border); border-radius: 6px;
+            background: var(--lumo-base-color, #fff); color: var(--ec-text-dim); cursor: pointer;
+            line-height: 1; box-shadow: 0 1px 2px #0000000f;
+        }
+        .fit-btn:hover {background: var(--lumo-contrast-5pct, #f1f5f9);}
+        .fit-btn svg {width: 16px; height: 16px;}
 
         .loading {
             display: flex; align-items: center; justify-content: center;
@@ -1555,8 +1717,24 @@ export class MateuWorkflowElk extends LitElement {
 
         /* workspace */
         .workspace {display: flex; flex: 1; overflow: hidden;}
-        .canvas-wrap {flex: 1; overflow: auto; background: var(--ec-canvas-bg);}
-        .canvas {display: block;}
+        .canvas-wrap {flex: 1; overflow: hidden; position: relative; background: var(--ec-canvas-bg);}
+        .canvas {display: block; width: 100%; height: 100%; cursor: grab; touch-action: none;}
+        .canvas.panning {cursor: grabbing;}
+        .scene {will-change: transform;}
+
+        /* minimap (modux-style) */
+        .minimap {
+            position: absolute; right: 10px; bottom: 10px; z-index: 5;
+            border: 1px solid var(--ec-border); border-radius: 8px; overflow: hidden;
+            background: color-mix(in srgb, var(--lumo-base-color, #fff) 82%, transparent);
+            box-shadow: 0 2px 8px #0000001a; cursor: pointer;
+            backdrop-filter: blur(2px);
+        }
+        .minimap svg {display: block;}
+        .minimap .mini-view {
+            fill: color-mix(in srgb, var(--ec-primary) 12%, transparent);
+            stroke: var(--ec-primary); stroke-width: 2; vector-effect: non-scaling-stroke;
+        }
 
         /* nodes */
         .node {cursor: grab; transition: opacity .2s;}

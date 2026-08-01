@@ -69,6 +69,10 @@ export const iconSitemap = icon(svg`
     <rect x="16" y="17" width="6" height="5" rx="1"></rect>
     <path d="M12 7v4M5 17v-3h14v3M12 11v3"></path>`);
 
+/** Fit to view — four corner brackets pointing inward. */
+export const iconFit = icon(svg`
+    <path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"></path>`);
+
 /** Microphone. */
 export const iconMicrophone = icon(svg`
     <rect x="9" y="2" width="6" height="12" rx="3"></rect>
