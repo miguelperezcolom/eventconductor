@@ -587,6 +587,14 @@ export class MateuWorkflowElk extends LitElement {
      *  re-layout genuinely new nodes, not ones the user has repositioned. */
     private elkPositioned = new Set<string>();
 
+    // ── Edge drawing (ctrl+drag from a node to another) ─────────────────────────
+    /** The source node id while dragging a new precondition line, else null. */
+    private linkingFrom: string | null = null;
+    /** Live cursor position (scene coords) while drawing, for the rubber-band line. */
+    @state() private linkCursor: Pt | null = null;
+    /** The node currently hovered as a drop target while drawing. */
+    @state() private linkHoverId: string | null = null;
+
     // ── Zoom / pan viewport ─────────────────────────────────────────────────────
     /** Scene→screen transform: screen = scene * zoomK + pan. */
     @state() private zoomK = 1;
@@ -831,6 +839,7 @@ export class MateuWorkflowElk extends LitElement {
 
     private onNodeMouseDown(e: MouseEvent, id: string) {
         if (this.readOnly) return;
+        if (e.ctrlKey || e.metaKey) { this.startLink(e, id); return; } // ctrl+drag = draw a line
         if (e.shiftKey || e.altKey) return; // shift/alt are focus clicks, not drags
         e.preventDefault();
         this.draggingId = id;
@@ -861,6 +870,76 @@ export class MateuWorkflowElk extends LitElement {
         window.removeEventListener("mousemove", this.onMouseMove);
         window.removeEventListener("mouseup", this.onMouseUp);
     };
+
+    // ── Edge drawing ────────────────────────────────────────────────────────────
+
+    private startLink(e: MouseEvent, id: string) {
+        e.preventDefault();
+        e.stopPropagation(); // don't let the canvas start a pan
+        this.svgEl = (e.currentTarget as SVGElement).closest("svg") as SVGSVGElement;
+        this.linkingFrom = id;
+        this.linkCursor = this.toSvgPoint(e);
+        this.linkHoverId = null;
+        window.addEventListener("mousemove", this.onLinkMove);
+        window.addEventListener("mouseup", this.onLinkUp);
+    }
+
+    private onLinkMove = (e: MouseEvent) => {
+        if (!this.linkingFrom) return;
+        this.linkCursor = this.toSvgPoint(e);
+        this.linkHoverId = this.nodeAt(this.linkCursor);
+    };
+
+    private onLinkUp = () => {
+        const from = this.linkingFrom, to = this.linkHoverId;
+        this.linkingFrom = null;
+        this.linkCursor = null;
+        this.linkHoverId = null;
+        window.removeEventListener("mousemove", this.onLinkMove);
+        window.removeEventListener("mouseup", this.onLinkUp);
+        if (from && to && from !== to) this.createLink(from, to);
+    };
+
+    /** The step whose box contains the point (for the drop target), excluding the link source. */
+    private nodeAt(pt: Pt): string | null {
+        for (const s of this.wf.steps ?? []) {
+            if (s.id === this.linkingFrom) continue;
+            const b = this.boxForId(s.id);
+            if (b && Math.abs(pt.x - b.x) <= b.w / 2 && Math.abs(pt.y - b.y) <= b.h / 2) return s.id;
+        }
+        return null;
+    }
+
+    /**
+     * Create a normal precondition line `from → to` (from becomes a precondition of to). At most
+     * one normal line may exist between two nodes: a duplicate, the reverse direction, or a line
+     * that would close a cycle is rejected silently.
+     */
+    private createLink(from: string, to: string) {
+        const toStep = this.wf.steps.find(s => s.id === to);
+        const fromStep = this.wf.steps.find(s => s.id === from);
+        if (!toStep || !fromStep) return;
+        if (toStep.type === "START") return;                     // START never has preconditions
+        if (preconditionsOf(toStep).includes(from)) return;      // already exists
+        if (preconditionsOf(fromStep).includes(to)) return;      // reverse line already exists
+        if (this.ancestorsOf(from).has(to)) return;              // would close a cycle
+        this.togglePrecondition(toStep, from, true);
+    }
+
+    /** All transitive preconditions (ancestors) of a step. */
+    private ancestorsOf(id: string): Set<string> {
+        const byId = new Map((this.wf.steps ?? []).map(s => [s.id, s] as const));
+        const seen = new Set<string>();
+        const stack = [...preconditionsOf(byId.get(id) ?? {} as WorkflowStep)];
+        while (stack.length) {
+            const cur = stack.pop()!;
+            if (seen.has(cur)) continue;
+            seen.add(cur);
+            const s = byId.get(cur);
+            if (s) stack.push(...preconditionsOf(s));
+        }
+        return seen;
+    }
 
     private toSvgPoint(e: MouseEvent): {x: number; y: number} {
         if (!this.svgEl) return {x: 0, y: 0};
@@ -931,7 +1010,8 @@ export class MateuWorkflowElk extends LitElement {
     };
 
     private onCanvasMouseDown = (e: MouseEvent) => {
-        if (this.draggingId || e.button !== 0 || e.shiftKey || e.altKey) return; // node drag / focus click
+        if (this.draggingId || this.linkingFrom || e.button !== 0 || e.shiftKey || e.altKey
+                || e.ctrlKey || e.metaKey) return; // node drag / link / focus click
         this.panning = true; this.panMoved = false;
         this.panStart = {x: e.clientX, y: e.clientY, panX: this.panX, panY: this.panY};
         window.addEventListener("mousemove", this.onPanMove);
@@ -1337,6 +1417,16 @@ export class MateuWorkflowElk extends LitElement {
 
     // ── Render ────────────────────────────────────────────────────────────────
 
+    /** The rubber-band line drawn from the source node to the cursor while ctrl+dragging a link. */
+    private renderLinkDraft() {
+        if (!this.linkingFrom || !this.linkCursor) return nothing;
+        const b = this.boxForId(this.linkingFrom);
+        if (!b) return nothing;
+        const start = borderTowards(b, this.linkCursor.x, this.linkCursor.y);
+        return svg`<line class="link-draft" x1="${start.x}" y1="${start.y}"
+                         x2="${this.linkCursor.x}" y2="${this.linkCursor.y}"/>`;
+    }
+
     /** A modux-style minimap: the whole graph in miniature with the current viewport framed. */
     private renderMinimap() {
         const b = this.graphBounds();
@@ -1373,6 +1463,13 @@ export class MateuWorkflowElk extends LitElement {
 
     /** True when a monitoring overlay is present — the graph is a live monitor, not a simulator. */
     private isMonitoring() { return Object.keys(this.overlayData).length > 0; }
+
+    /** In a monitoring overlay, a step is "visited" once the process has reached it (any state
+     *  other than not-yet-started PENDING). Used to dim the parts the process hasn't passed. */
+    private isVisited(id: string): boolean {
+        const st = this.overlayData[id]?.state;
+        return !!st && st !== "PENDING";
+    }
 
     /** Floating view/animation controls (bottom-left, clear of the toolbar and the minimap). */
     private renderViewbar() {
@@ -1423,6 +1520,7 @@ export class MateuWorkflowElk extends LitElement {
                                 ${this.renderEdges()}
                                 ${steps.map(s => this.renderNode(s))}
                                 ${steps.map(s => this.renderGuard(s))}
+                                ${this.renderLinkDraft()}
                                 ${this.flowOn ? svg`<circle class="flow-token" r="5.5" cx="-100" cy="-100"/>` : nothing}
                             </g>
                         </svg>
@@ -1508,12 +1606,15 @@ export class MateuWorkflowElk extends LitElement {
         this.edgeCache = new Map(edges.map(e => [e.key, e.pts])); // token & guards reuse these routes
         const prior: [Pt, Pt][] = [];
         const out: unknown[] = [];
+        const mon = this.isMonitoring();
         for (const e of edges) {
             const d = bridgedPath(e.pts, prior);
+            // In a monitoring view, dim edges the process hasn't traversed (either end unvisited).
+            const monDim = mon && !(this.isVisited(e.from) && this.isVisited(e.to)) ? "mon-dim" : "";
             out.push(e.comp
-                ? svg`<path class="comp-edge" data-comp="${e.from}" data-edge="${e.key}"
+                ? svg`<path class="comp-edge ${monDim}" data-comp="${e.from}" data-edge="${e.key}"
                              d="${d}" marker-end="url(#ec-arrow)"/>`
-                : svg`<path class="edge" data-edge="${e.key}"
+                : svg`<path class="edge ${monDim}" data-edge="${e.key}"
                              d="${d}" marker-end="url(#ec-arrow)"/>`);
             for (let i = 0; i < e.pts.length - 1; i++) prior.push([e.pts[i], e.pts[i + 1]]);
         }
@@ -1604,8 +1705,10 @@ export class MateuWorkflowElk extends LitElement {
                 <text text-anchor="middle" dy="3.6">${count > 99 ? "99+" : count}</text>
             </g>` : nothing;
 
+        const linkCls = `${this.linkHoverId === step.id ? "link-target" : ""} ${this.linkingFrom === step.id ? "link-source" : ""}`;
+        const monDim = this.isMonitoring() && !this.isVisited(step.id) ? "mon-dim" : "";
         return svg`
-            <g class="node ${sel} ${ovCls}" data-node="${step.id}" transform="translate(${pos.x},${pos.y})"
+            <g class="node ${sel} ${ovCls} ${linkCls} ${monDim}" data-node="${step.id}" transform="translate(${pos.x},${pos.y})"
                @mousedown="${(e: MouseEvent) => this.onNodeMouseDown(e, step.id)}"
                @click="${(e: MouseEvent) => this.onNodeClick(e, step.id)}">
                 ${pulse}
@@ -1860,6 +1963,9 @@ export class MateuWorkflowElk extends LitElement {
         @keyframes ec-active-pulse {0%,100% {opacity: 1;} 50% {opacity: .72;}}
         .ov-count circle {fill: var(--ec-primary); stroke: var(--lumo-base-color, #fff); stroke-width: 1.5;}
         .ov-count text {fill: #fff; font-size: 11px; font-weight: 700;}
+        /* parts the process hasn't reached yet fade back */
+        .node.mon-dim {opacity: .3;}
+        .edge.mon-dim, .comp-edge.mon-dim {opacity: .18;}
 
         /* a failing node shakes like an earthquake while its red ping is fresh */
         .node-inner {transform-box: fill-box; transform-origin: center;}
@@ -1885,6 +1991,15 @@ export class MateuWorkflowElk extends LitElement {
         .comp-edge.active {stroke-width: 2.6;}  /* the error path — stays red, just bolder */
         /* the single animated token walking the current path */
         .flow-token {fill: var(--ec-primary); pointer-events: none; filter: drop-shadow(0 0 3px var(--ec-primary));}
+
+        /* drawing a new precondition line (ctrl+drag) */
+        .link-draft {stroke: var(--ec-primary); stroke-width: 2; stroke-dasharray: 5 4; fill: none; pointer-events: none;}
+        .node.link-source .node-shape {stroke: var(--ec-primary) !important;}
+        .node.link-target .node-shape {
+            stroke: var(--ec-primary) !important; stroke-width: 3 !important; stroke-dasharray: 0 !important;
+            filter: drop-shadow(0 0 6px color-mix(in srgb, var(--ec-primary) 70%, transparent));
+        }
+        .node.link-target {cursor: alias;}
 
         /* precondition guard chips on edges */
         .guard {pointer-events: none; transition: opacity .2s;}
