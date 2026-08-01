@@ -238,6 +238,42 @@ function preconditionsOf(step: WorkflowStep): string[] {
     return [];
 }
 
+/**
+ * Every root→sink path through the sequence graph (each a list of step ids), for the
+ * path-by-path token animation. Roots are steps with no precondition; sinks are steps nothing
+ * depends on. Capped, and cycle-guarded, so a pathological graph can't blow up.
+ */
+function allPaths(steps: WorkflowStep[]): string[][] {
+    const ids = new Set(steps.map(s => s.id));
+    const outgoing: Record<string, string[]> = {};
+    const hasIncoming = new Set<string>();
+    for (const s of steps) {
+        for (const from of preconditionsOf(s)) {
+            if (!ids.has(from)) continue;
+            (outgoing[from] ??= []).push(s.id);
+            hasIncoming.add(s.id);
+        }
+    }
+    const roots = steps.map(s => s.id).filter(id => !hasIncoming.has(id));
+    const paths: string[][] = [];
+    const MAX = 200;
+    const dfs = (node: string, trail: string[], seen: Set<string>) => {
+        if (paths.length >= MAX) return;
+        trail.push(node);
+        seen.add(node);
+        const outs = (outgoing[node] ?? []).filter(n => !seen.has(n));
+        if (outs.length === 0) {
+            paths.push([...trail]);
+        } else {
+            for (const nxt of outs) dfs(nxt, trail, seen);
+        }
+        trail.pop();
+        seen.delete(node);
+    };
+    for (const r of roots) dfs(r, [], new Set());
+    return paths;
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 @customElement("eventconductor-workflow-graph")
@@ -266,6 +302,11 @@ export class MateuWorkflowElk extends LitElement {
     // ── Token-flow animation state (driven by requestAnimationFrame, off the render path) ──
     private flowRaf = 0;
     private flowStartTs = 0;
+    /** All root→sink paths; one is animated at a time, cycling. */
+    private flowPaths: string[][] = [];
+    private flowPathIndex = 0;
+    /** nodes already pinged on the current path pass (so each pings once per pass). */
+    private pulsedThisPath = new Set<string>();
     /** nodeId → timestamp of the last token arrival, for the ping effect. */
     private pulseAt: Record<string, number> = {};
 
@@ -298,6 +339,10 @@ export class MateuWorkflowElk extends LitElement {
                 if (structureChanged || !this.layoutReady) {
                     this.runElkLayout();
                 }
+                // Recompute the paths the token animation cycles through.
+                this.flowPaths = allPaths(this.wf.steps ?? []);
+                this.flowPathIndex = 0;
+                this.pulsedThisPath = new Set();
             } catch {
                 /* keep previous */
             }
@@ -524,20 +569,30 @@ export class MateuWorkflowElk extends LitElement {
         return {x: pos.x + w / 2, y: pos.y + h / 2, w, h};
     }
 
-    // ── Token-flow animation ────────────────────────────────────────────────────
+    // ── Token-flow animation (path by path) ─────────────────────────────────────
 
-    /** The sequence-flow edges (one per precondition) that tokens travel along. */
-    private sequenceEdges(): {from: string; to: string; key: string}[] {
-        const out: {from: string; to: string; key: string}[] = [];
-        for (const s of this.wf.steps ?? []) {
-            for (const from of preconditionsOf(s)) out.push({from, to: s.id, key: `${from}->${s.id}`});
+    /**
+     * The continuous polyline for a path (list of step ids): each node's centre, joined by the
+     * orthogonal route between consecutive nodes, so the token visibly passes through every node.
+     * `marks` records the distance at which the token reaches each node's centre (for the pings).
+     */
+    private pathGeometry(ids: string[]): {pts: Pt[]; marks: {id: string; d: number}[]} | null {
+        const boxes = ids.map(id => this.boxForId(id));
+        if (boxes.some(b => !b)) return null;
+        const pts: Pt[] = [{x: boxes[0]!.x, y: boxes[0]!.y}];
+        const marks = [{id: ids[0], d: 0}];
+        for (let i = 1; i < ids.length; i++) {
+            pts.push(...orthogonalRoute(boxes[i - 1]!, boxes[i]!, 0));
+            pts.push({x: boxes[i]!.x, y: boxes[i]!.y});
+            marks.push({id: ids[i], d: polylineLength(pts)});
         }
-        return out;
+        return {pts, marks};
     }
 
     private startFlow() {
         if (this.flowRaf) return;
         this.flowStartTs = performance.now();
+        this.pulsedThisPath = new Set();
         const tick = (now: number) => {
             if (!this.flowOn) { this.flowRaf = 0; return; }
             this.stepFlow(now);
@@ -550,43 +605,73 @@ export class MateuWorkflowElk extends LitElement {
         if (this.flowRaf) cancelAnimationFrame(this.flowRaf);
         this.flowRaf = 0;
         this.pulseAt = {};
-        (this.renderRoot as unknown as ParentNode).querySelectorAll?.("[data-pulse]")
-            .forEach(el => (el as SVGElement).setAttribute("opacity", "0"));
+        this.pulsedThisPath = new Set();
+        const root = this.renderRoot as unknown as ParentNode;
+        root.querySelectorAll?.("[data-pulse]").forEach(el => (el as SVGElement).setAttribute("opacity", "0"));
+        root.querySelectorAll?.(".edge").forEach(el => el.classList.remove("dim", "active"));
+        const token = root.querySelector?.(".flow-token") as SVGElement | null;
+        if (token) token.style.opacity = "0";
     }
 
     /**
-     * One animation frame: advance a token along every sequence edge at constant speed and ping
-     * the target node as each token arrives. Runs off the Lit render path — it queries the SVG
-     * elements and mutates their attributes directly, so it stays smooth and never re-renders.
+     * One animation frame: a single token walks the current path from its root to its sink; the
+     * other edges dim, each node pings as the token reaches it, and when the path finishes the
+     * next path takes over (looping). Runs off the Lit render path via direct SVG mutation.
      */
     private stepFlow(now: number) {
         const root = this.renderRoot as unknown as ParentNode;
-        const elapsed = (now - this.flowStartTs) / 1000;
-        const speed = 85; // px per second
+        const token = root.querySelector?.(".flow-token") as SVGCircleElement | null;
+        const paths = this.flowPaths;
+        if (!token || paths.length === 0) { if (token) token.style.opacity = "0"; return; }
 
-        this.sequenceEdges().forEach((e, i) => {
-            const token = root.querySelector(`[data-tk="${e.key}"]`) as SVGCircleElement | null;
-            if (!token) return;
-            const a = this.boxForId(e.from), b = this.boxForId(e.to);
-            if (!a || !b) { token.style.opacity = "0"; return; }
-            const pts = orthogonalRoute(a, b, 0);
-            const len = polylineLength(pts) || 1;
-            const frac = ((((elapsed + i * 0.55) * speed) % len) + len) % len / len; // staggered, looping
-            const p = polylinePointAt(pts, frac);
-            token.setAttribute("cx", String(p.x));
-            token.setAttribute("cy", String(p.y));
-            // Fade near the endpoints so the wrap from target back to source is invisible.
-            token.style.opacity = String(Math.max(0.12, Math.min(1, Math.min(frac, 1 - frac) * 7)));
-            if (frac > 0.985) this.pulseAt[e.to] = now; // arrived → ping the target node
+        const idx = this.flowPathIndex % paths.length;
+        const path = paths[idx];
+        const geo = this.pathGeometry(path);
+        if (!geo) return;
+        const len = polylineLength(geo.pts) || 1;
+        const speed = 130;   // px per second
+        const pausePx = 55;  // brief gap between paths
+        const dist = ((now - this.flowStartTs) / 1000) * speed;
+
+        if (dist >= len + pausePx) {
+            this.flowPathIndex = (idx + 1) % paths.length; // next path
+            this.flowStartTs = now;
+            this.pulsedThisPath = new Set();
+            return;
+        }
+
+        // Position the token (hidden during the inter-path pause).
+        const clamped = Math.min(dist, len);
+        const p = polylinePointAt(geo.pts, clamped / len);
+        token.setAttribute("cx", String(p.x));
+        token.setAttribute("cy", String(p.y));
+        token.style.opacity = dist <= len ? "1" : "0";
+
+        // Ping each node once, as the token reaches its centre.
+        for (const m of geo.marks) {
+            if (dist >= m.d && !this.pulsedThisPath.has(m.id)) {
+                this.pulseAt[m.id] = now;
+                this.pulsedThisPath.add(m.id);
+            }
+        }
+
+        // Highlight the active path's edges, dim the rest.
+        const active = new Set<string>();
+        for (let i = 1; i < path.length; i++) active.add(`${path[i - 1]}->${path[i]}`);
+        root.querySelectorAll?.(".edge[data-edge]").forEach(el => {
+            const on = active.has((el as SVGElement).dataset.edge ?? "");
+            el.classList.toggle("active", on);
+            el.classList.toggle("dim", !on);
         });
 
+        // Render the node pings.
         for (const s of this.wf.steps ?? []) {
-            const ring = root.querySelector(`[data-pulse="${s.id}"]`) as SVGCircleElement | null;
+            const ring = root.querySelector?.(`[data-pulse="${s.id}"]`) as SVGCircleElement | null;
             if (!ring) continue;
             const t0 = this.pulseAt[s.id];
             const dt = t0 ? (now - t0) / 1000 : Infinity;
             if (dt > 0.6) { ring.setAttribute("opacity", "0"); continue; }
-            const k = dt / 0.6; // 0 → 1 over the ping lifetime
+            const k = dt / 0.6;
             const base = Math.max(sizeOf(s.type).w, sizeOf(s.type).h) / 2;
             ring.setAttribute("r", String(base + k * 16));
             ring.setAttribute("opacity", String((1 - k) * 0.45));
@@ -634,8 +719,7 @@ export class MateuWorkflowElk extends LitElement {
                             ${steps.map(s => this.renderCompensationEdge(s))}
                             ${steps.map(s => this.renderNode(s))}
                             ${steps.map(s => this.renderGuard(s))}
-                            ${this.flowOn ? this.sequenceEdges().map(e =>
-                                svg`<circle class="flow-token" data-tk="${e.key}" r="4" cx="-100" cy="-100"/>`) : nothing}
+                            ${this.flowOn ? svg`<circle class="flow-token" r="5.5" cx="-100" cy="-100"/>` : nothing}
                         </svg>
                     </div>
                     ${this.selectedId && !this.readOnly ? this.renderPanel() : ""}
@@ -721,7 +805,8 @@ export class MateuWorkflowElk extends LitElement {
             // distinguishable (echoing modux's parallel-edge handling).
             const spread = n <= 1 ? 0 : (i - (n - 1) / 2) * 11;
             const pts = orthogonalRoute(fBox, tBox, spread);
-            return svg`<path class="edge" d="${roundedPath(pts)}" marker-end="url(#ec-arrow)"/>`;
+            return svg`<path class="edge" data-edge="${fromId}->${step.id}"
+                             d="${roundedPath(pts)}" marker-end="url(#ec-arrow)"/>`;
         });
     }
 
@@ -1031,11 +1116,13 @@ export class MateuWorkflowElk extends LitElement {
         .flow-pulse {fill: var(--ec-primary); pointer-events: none;}
 
         /* edges */
-        .edge {fill: none; stroke: var(--ec-edge); stroke-width: 1.6; stroke-linejoin: round;}
+        .edge {fill: none; stroke: var(--ec-edge); stroke-width: 1.6; stroke-linejoin: round; transition: opacity .2s, stroke .2s, stroke-width .2s;}
+        .edge.dim {opacity: .22;}                                    /* not on the active path */
+        .edge.active {stroke: var(--ec-primary); stroke-width: 2.4;} /* the path being animated */
         /* compensation associations (BPMN): red dashed */
         .comp-edge {fill: none; stroke: #dc2626; stroke-width: 1.6; stroke-dasharray: 6 5; stroke-linejoin: round;}
-        /* animated flow tokens */
-        .flow-token {fill: var(--ec-primary); pointer-events: none;}
+        /* the single animated token walking the current path */
+        .flow-token {fill: var(--ec-primary); pointer-events: none; filter: drop-shadow(0 0 3px var(--ec-primary));}
 
         /* precondition guard chips on edges */
         .guard {pointer-events: none;}
