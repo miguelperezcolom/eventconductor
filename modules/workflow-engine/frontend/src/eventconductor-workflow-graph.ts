@@ -838,9 +838,9 @@ export class MateuWorkflowElk extends LitElement {
     // ── Drag & drop ───────────────────────────────────────────────────────────
 
     private onNodeMouseDown(e: MouseEvent, id: string) {
+        if (e.shiftKey) { if (!this.readOnly) this.startLink(e, id); return; } // shift+drag = draw a line
         if (this.readOnly) return;
-        if (e.ctrlKey || e.metaKey) { this.startLink(e, id); return; } // ctrl+drag = draw a line
-        if (e.shiftKey || e.altKey) return; // shift/alt are focus clicks, not drags
+        if (e.altKey) return; // alt is a focus click (handled on click), not a drag
         e.preventDefault();
         this.draggingId = id;
         const pos = this.positions[id] ?? {x: 0, y: 0};
@@ -1175,10 +1175,12 @@ export class MateuWorkflowElk extends LitElement {
 
     private onNodeClick(e: MouseEvent, id: string) {
         e.stopPropagation();
-        if (e.shiftKey) { this.focusReachable(id); return; }   // node's ancestors + descendants
+        if (e.shiftKey) return;                                // shift is line drawing, not focus
         if (e.altKey) { this.focusNextPath(id); return; }      // one path through the node, cycling
-        this.clearFocus();
+        // Plain click: select the node AND filter to what's connected to it (its ancestors +
+        // descendants), dimming the rest.
         this.selectedId = id;
+        this.focusReachable(id);
     }
 
     /** Root→sink paths passing through a node (falls back to all paths if none). */
@@ -1191,8 +1193,7 @@ export class MateuWorkflowElk extends LitElement {
         this.focusMode = "reachable";
         this.focusNodeId = id;
         this.activePaths = this.pathsThrough(id);
-        this.restartFlow();
-        this.flowOn = true;
+        if (!this.isMonitoring()) { this.restartFlow(); this.flowOn = true; } // don't wake the sim in a monitor
     }
 
     private focusNextPath(id: string) {

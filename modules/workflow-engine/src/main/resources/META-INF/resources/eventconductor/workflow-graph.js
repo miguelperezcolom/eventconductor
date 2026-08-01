@@ -1049,12 +1049,11 @@ let Vs = class extends tO {
   }
   // ── Drag & drop ───────────────────────────────────────────────────────────
   onNodeMouseDown(P, D) {
-    if (this.readOnly) return;
-    if (P.ctrlKey || P.metaKey) {
-      this.startLink(P, D);
+    if (P.shiftKey) {
+      this.readOnly || this.startLink(P, D);
       return;
     }
-    if (P.shiftKey || P.altKey) return;
+    if (this.readOnly || P.altKey) return;
     P.preventDefault(), this.draggingId = D;
     const G = this.positions[D] ?? { x: 0, y: 0 }, X = this.toSvgPoint(P);
     this.dragOffset = { x: X.x - G.x, y: X.y - G.y }, this.svgEl = P.currentTarget.closest("svg"), window.addEventListener("mousemove", this.onMouseMove), window.addEventListener("mouseup", this.onMouseUp);
@@ -1227,15 +1226,13 @@ let Vs = class extends tO {
     return z.push({ id: P[P.length - 1], d: e6(X) }), { pts: X, marks: z, hidden: Ie, segs: k };
   }
   onNodeClick(P, D) {
-    if (P.stopPropagation(), P.shiftKey) {
-      this.focusReachable(D);
-      return;
+    if (P.stopPropagation(), !P.shiftKey) {
+      if (P.altKey) {
+        this.focusNextPath(D);
+        return;
+      }
+      this.selectedId = D, this.focusReachable(D);
     }
-    if (P.altKey) {
-      this.focusNextPath(D);
-      return;
-    }
-    this.clearFocus(), this.selectedId = D;
   }
   /** Root→sink paths passing through a node (falls back to all paths if none). */
   pathsThrough(P) {
@@ -1243,7 +1240,7 @@ let Vs = class extends tO {
     return D.length ? D : this.flowPaths;
   }
   focusReachable(P) {
-    this.focusMode = "reachable", this.focusNodeId = P, this.activePaths = this.pathsThrough(P), this.restartFlow(), this.flowOn = !0;
+    this.focusMode = "reachable", this.focusNodeId = P, this.activePaths = this.pathsThrough(P), this.isMonitoring() || (this.restartFlow(), this.flowOn = !0);
   }
   focusNextPath(P) {
     const D = this.pathsThrough(P);
