@@ -3,6 +3,7 @@ package io.mateu.workflow.infra.out.classpath;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
+import io.mateu.workflow.application.services.DefinitionFileFormat;
 import io.mateu.workflow.domain.aggregates.Step;
 import io.mateu.workflow.domain.aggregates.WorkflowDefinition;
 import lombok.RequiredArgsConstructor;
@@ -41,18 +42,18 @@ public class ClasspathWorkflowDefinitionImporter implements ApplicationRunner {
     public void run(ApplicationArguments args) {
         var resolver = new PathMatchingResourcePatternResolver();
         try {
-            var jsonResources = resolver.getResources("classpath:/workflows/*.json");
-            var yamlResources = resolver.getResources("classpath:/workflows/*.{yaml,yml}");
             var resources = new java.util.ArrayList<Resource>();
-            resources.addAll(Arrays.asList(jsonResources));
-            resources.addAll(Arrays.asList(yamlResources));
+            resources.addAll(Arrays.asList(resolver.getResources("classpath:/workflows/*.json")));
+            resources.addAll(Arrays.asList(resolver.getResources("classpath:/workflows/*.{yaml,yml}")));
+            resources.addAll(Arrays.asList(resolver.getResources("classpath:/workflows/*.ec")));
             for (var resource : resources) {
                 try {
                     String filename = resource.getFilename();
-                    boolean isYaml = filename != null && (filename.endsWith(".yaml") || filename.endsWith(".yml"));
-                    WorkflowDefinition def = isYaml
-                            ? YAML_MAPPER.readValue(resource.getInputStream(), WorkflowDefinition.class)
-                            : pojoFromJson(new String(resource.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8), WorkflowDefinition.class);
+                    byte[] bytes = resource.getInputStream().readAllBytes();
+                    // .ec content may be JSON or YAML; sniff to pick the parser.
+                    WorkflowDefinition def = DefinitionFileFormat.isYaml(filename, bytes)
+                            ? YAML_MAPPER.readValue(bytes, WorkflowDefinition.class)
+                            : pojoFromJson(new String(bytes, java.nio.charset.StandardCharsets.UTF_8), WorkflowDefinition.class);
                     if (workflowDefinitionRepository.findById(def.id()).isPresent()) {
                         log.info("Workflow definition '{}' already in DB, skipping classpath import", def.id());
                         continue;

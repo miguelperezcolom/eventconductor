@@ -3,6 +3,7 @@ package io.mateu.workflow.application.usecases.gitimport;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
+import io.mateu.workflow.application.services.DefinitionFileFormat;
 import io.mateu.workflow.application.services.WorkflowDefinitionValidator;
 import io.mateu.workflow.domain.aggregates.WorkflowDefinition;
 import io.mateu.workflow.domain.aggregates.WorkflowDefinitionStatus;
@@ -98,11 +99,10 @@ public class ImportWorkflowDefinitionsFromGitUseCase {
     }
 
     private static boolean isDefinitionFile(Path path) {
-        String name = path.toString();
-        return name.endsWith(".json") || name.endsWith(".yaml") || name.endsWith(".yml");
+        return DefinitionFileFormat.isDefinitionFileName(path.toString());
     }
 
-    private void scanAndImport(Path repoRoot, List<String> imported, List<String> errors,
+    void scanAndImport(Path repoRoot, List<String> imported, List<String> errors,
                                Set<String> importedIds) throws IOException {
         try (var stream = Files.walk(repoRoot)) {
             stream.filter(ImportWorkflowDefinitionsFromGitUseCase::isDefinitionFile)
@@ -120,9 +120,11 @@ public class ImportWorkflowDefinitionsFromGitUseCase {
     private void importDefinitionFile(Path file, Path repoRoot, List<String> imported,
                                       Set<String> importedIds) throws IOException {
         String fileName = file.toString();
-        var node = (fileName.endsWith(".yaml") || fileName.endsWith(".yml"))
-                ? YAML_MAPPER.readTree(file.toFile())
-                : objectMapper.readTree(file.toFile());
+        var bytes = Files.readAllBytes(file);
+        // .ec content may be JSON or YAML; sniff to pick the parser (.json/.yaml decide by extension).
+        var node = DefinitionFileFormat.isYaml(fileName, bytes)
+                ? YAML_MAPPER.readTree(bytes)
+                : objectMapper.readTree(bytes);
 
         // Quick pre-check: must have both "name" and "steps" to be a workflow definition at all.
         if (!node.has("name") || !node.has("steps")) {
