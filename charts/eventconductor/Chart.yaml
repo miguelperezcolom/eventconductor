@@ -2,7 +2,7 @@ apiVersion: v2
 name: eventconductor
 description: EventConductor workflow orchestration — Redpanda, PostgreSQL, orchestrator and forms.
 type: application
-version: 0.1.0
+version: 0.1.1
 # Pinned to a real release in CI. The chart fails to template when this is
 # the literal string "latest" so users notice if they forget to override it.
 appVersion: "0.0.0"
