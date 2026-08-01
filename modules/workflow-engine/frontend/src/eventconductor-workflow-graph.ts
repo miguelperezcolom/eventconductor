@@ -42,6 +42,10 @@ interface WorkflowDefinition {
     steps: WorkflowStep[];
 }
 
+type StepState = "PENDING" | "RUNNING" | "COMPLETED" | "ERROR" | "CANCELLED" | "COMPENSATED";
+/** Per-step monitoring overlay entry (read-only views): a live process count and/or a state. */
+interface StepOverlay { count?: number; state?: StepState; active?: boolean; }
+
 interface NodePos { x: number; y: number; }
 interface Pt { x: number; y: number; }
 /** A node's geometry as center + size — the shape the router works in. */
@@ -517,10 +521,23 @@ export class MateuWorkflowElk extends LitElement {
     /** When true, all editing interactions are disabled. */
     @property({type: Boolean}) readOnly = false;
 
+    /**
+     * JSON string with a per-step monitoring overlay (read-only views). Map of stepId →
+     * `{count?, state?, active?}`:
+     *  - `count`: how many process instances currently sit at this step (definition view badge).
+     *  - `state`: this step's status in one process (process view): PENDING | RUNNING | COMPLETED
+     *    | ERROR | CANCELLED | COMPENSATED.
+     *  - `active`: highlight this node as "where the process is now" (process view).
+     * Reused as-is by the IDE plugins.
+     */
+    @property() overlay = "";
+
     /** Reflected so `:host([dark])` maps the theme onto the host's Lumo dark palette. */
     @property({type: Boolean, reflect: true}) dark = false;
 
     @state() private wf: WorkflowDefinition = {name: "New Workflow", steps: []};
+    /** Parsed monitoring overlay (see the `overlay` property): stepId → live count / state. */
+    @state() private overlayData: Record<string, StepOverlay> = {};
     @state() private positions: Record<string, NodePos> = {};
     @state() private layoutReady = false;
     @state() private selectedId: string | null = null;
@@ -622,8 +639,16 @@ export class MateuWorkflowElk extends LitElement {
                 /* keep previous */
             }
         }
-        // Keep the token-flow loop in sync with the toggle and layout readiness.
-        if (this.flowOn && this.layoutReady) this.startFlow();
+        if (changed.has("overlay")) {
+            try {
+                this.overlayData = this.overlay ? JSON.parse(this.overlay) : {};
+            } catch {
+                this.overlayData = {};
+            }
+        }
+        // Keep the token-flow loop in sync with the toggle and layout readiness. A monitoring
+        // overlay turns the graph into a live monitor, so the simulation steps aside for it.
+        if (this.flowOn && this.layoutReady && !this.isMonitoring()) this.startFlow();
         else this.stopFlow();
 
         // The canvas only exists once layout is ready — wire up viewport measuring/zoom then.
@@ -1286,16 +1311,21 @@ export class MateuWorkflowElk extends LitElement {
             el.classList.toggle("dim", dim);
         });
 
-        // Dim nodes outside the focus universe, and render the node pings.
+        // Dim nodes that don't take part in the animated path (mirroring the edges), and render
+        // the node pings. In a focus mode the whole focus universe stays lit; in auto mode only
+        // the current path's nodes stay lit.
+        const pathNodes = new Set(path);
         for (const s of this.wf.steps ?? []) {
             const g = root.querySelector?.(`.node[data-node="${s.id}"]`) as SVGGElement | null;
-            if (g) g.classList.toggle("dim", !!focusNodes && !focusNodes.has(s.id));
+            const onPath = pathNodes.has(s.id);
+            const dim = focusNodes ? (!focusNodes.has(s.id) && !onPath) : !onPath;
+            if (g) g.classList.toggle("dim", dim);
             const ring = root.querySelector?.(`[data-pulse="${s.id}"]`) as SVGCircleElement | null;
             if (!ring) continue;
             const t0 = this.pulseAt[s.id];
             const dt = t0 ? (now - t0) / 1000 : Infinity;
             // A failing node trembles briefly while its red ping is fresh (CSS @keyframes ec-shake).
-            if (g) g.classList.toggle("err", errorNodes.has(s.id) && dt < 0.45);
+            if (g) g.classList.toggle("err", errorNodes.has(s.id) && dt < 0.5);
             if (dt > 0.6) { ring.setAttribute("opacity", "0"); continue; }
             const k = dt / 0.6;
             const base = Math.max(sizeOf(s.type).w, sizeOf(s.type).h) / 2;
@@ -1341,15 +1371,21 @@ export class MateuWorkflowElk extends LitElement {
             </div>`;
     }
 
+    /** True when a monitoring overlay is present — the graph is a live monitor, not a simulator. */
+    private isMonitoring() { return Object.keys(this.overlayData).length > 0; }
+
     /** Floating view/animation controls (bottom-left, clear of the toolbar and the minimap). */
     private renderViewbar() {
+        // In a monitoring view the token simulation is off, so only the zoom controls are shown.
+        const sim = this.isMonitoring() ? nothing : html`
+            <button class="vbtn" title="${this.flowOn ? "Pause token flow" : "Play token flow"}"
+                    @click="${() => { this.flowOn = !this.flowOn; }}">${this.flowOn ? "⏸" : "▶"}</button>
+            <input class="vspeed" type="range" min="80" max="520" step="10"
+                   title="Animation speed" .value="${String(this.flowSpeed)}"
+                   @input="${(e: Event) => { this.flowSpeed = Number((e.target as HTMLInputElement).value); }}"/>`;
         return html`
             <div class="viewbar" @mousedown="${(e: MouseEvent) => e.stopPropagation()}">
-                <button class="vbtn" title="${this.flowOn ? "Pause token flow" : "Play token flow"}"
-                        @click="${() => { this.flowOn = !this.flowOn; }}">${this.flowOn ? "⏸" : "▶"}</button>
-                <input class="vspeed" type="range" min="80" max="520" step="10"
-                       title="Animation speed" .value="${String(this.flowSpeed)}"
-                       @input="${(e: Event) => { this.flowSpeed = Number((e.target as HTMLInputElement).value); }}"/>
+                ${sim}
                 <button class="vbtn" title="Fit graph to view" @click="${() => this.fitToView()}">${iconFit}</button>
                 <button class="vbtn" title="${this.fullscreen ? "Collapse" : "Expand"}"
                         @click="${() => { this.fullscreen = !this.fullscreen; }}">${this.fullscreen ? "✕" : "⤢"}</button>
@@ -1558,12 +1594,23 @@ export class MateuWorkflowElk extends LitElement {
                 <text class="node-id" x="14" y="${h / 2 + 14}">${step.id}</text>`;
         }
 
+        // Read-only monitoring overlay: state tint / active highlight + a live process-count badge.
+        const ov = this.overlayData[step.id];
+        const ovCls = ov ? `${ov.active ? "ov-active" : ""} ${ov.state ? "ov-" + ov.state.toLowerCase() : ""}` : "";
+        const count = ov?.count ?? 0;
+        const badge = count > 0 ? svg`
+            <g class="ov-count" transform="translate(${w - 5}, 5)">
+                <circle r="10"/>
+                <text text-anchor="middle" dy="3.6">${count > 99 ? "99+" : count}</text>
+            </g>` : nothing;
+
         return svg`
-            <g class="node ${sel}" data-node="${step.id}" transform="translate(${pos.x},${pos.y})"
+            <g class="node ${sel} ${ovCls}" data-node="${step.id}" transform="translate(${pos.x},${pos.y})"
                @mousedown="${(e: MouseEvent) => this.onNodeMouseDown(e, step.id)}"
                @click="${(e: MouseEvent) => this.onNodeClick(e, step.id)}">
                 ${pulse}
                 <g class="node-inner" data-inner="${step.id}">${shape}</g>
+                ${badge}
             </g>
         `;
     }
@@ -1800,16 +1847,32 @@ export class MateuWorkflowElk extends LitElement {
         .node-id {font-size: 9.5px; fill: var(--ec-text-faint);}
         /* radar-ping shown as a flow token passes through a node */
         .flow-pulse {fill: var(--ec-primary); pointer-events: none;}
-        /* a failing node trembles while its red ping is fresh */
+
+        /* monitoring overlay (read-only): state tint, active highlight, live count badge */
+        .node.ov-running   .node-shape {stroke: #d97706 !important; stroke-width: 2.4 !important;}
+        .node.ov-pending   .node-shape {stroke: #64748b !important; stroke-dasharray: 4 3 !important;}
+        .node.ov-completed .node-shape {stroke: #16a34a !important;}
+        .node.ov-error     .node-shape {stroke: #dc2626 !important; stroke-width: 2.4 !important;}
+        .node.ov-cancelled .node-shape {stroke: #94a3b8 !important; opacity: .7;}
+        .node.ov-compensated .node-shape {stroke: #dc2626 !important; stroke-dasharray: 5 4 !important;}
+        .node.ov-active .node-shape {stroke: var(--ec-primary) !important; stroke-width: 3 !important; filter: drop-shadow(0 0 5px color-mix(in srgb, var(--ec-primary) 60%, transparent));}
+        .node.ov-active .node-inner {animation: ec-active-pulse 1.6s ease-in-out infinite;}
+        @keyframes ec-active-pulse {0%,100% {opacity: 1;} 50% {opacity: .72;}}
+        .ov-count circle {fill: var(--ec-primary); stroke: var(--lumo-base-color, #fff); stroke-width: 1.5;}
+        .ov-count text {fill: #fff; font-size: 11px; font-weight: 700;}
+
+        /* a failing node shakes like an earthquake while its red ping is fresh */
         .node-inner {transform-box: fill-box; transform-origin: center;}
-        .node.err .node-inner {animation: ec-shake .4s ease-in-out;}
+        .node.err .node-inner {animation: ec-shake .5s cubic-bezier(.36,.07,.19,.97) both;}
         @keyframes ec-shake {
-            0%, 100% {transform: translateX(0);}
-            15% {transform: translateX(-2.5px) rotate(-1deg);}
-            30% {transform: translateX(2.5px) rotate(1deg);}
-            45% {transform: translateX(-2px) rotate(-.8deg);}
-            60% {transform: translateX(2px) rotate(.8deg);}
-            75% {transform: translateX(-1px);}
+            0%, 100% {transform: translate(0, 0) rotate(0);}
+            10% {transform: translate(-5px, 1px) rotate(-2.5deg);}
+            20% {transform: translate(5px, -1px) rotate(2.5deg);}
+            35% {transform: translate(-4px, 1px) rotate(-2deg);}
+            50% {transform: translate(4px, -1px) rotate(2deg);}
+            65% {transform: translate(-3px, 0) rotate(-1.2deg);}
+            80% {transform: translate(2px, 0) rotate(.8deg);}
+            92% {transform: translate(-1px, 0) rotate(-.4deg);}
         }
 
         /* edges */
