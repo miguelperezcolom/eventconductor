@@ -37,7 +37,7 @@ Clones Git repositories at startup and imports workflow definition files (`.json
 | `workflow.git-import.repositories[].password` | — | Password or personal access token |
 | `workflow.git-import.webhook-secret` | — | HMAC-SHA256 secret for verifying GitHub webhook payloads (`X-Hub-Signature-256`). Leave blank to disable signature verification. |
 
-The webhook endpoint is `POST /workflow/webhooks/github`. See [Workflow Definitions — Importing from Git](/guides/workflow-definitions/#importing-from-git) for setup instructions.
+The webhook endpoint is `POST /workflow/webhooks/{provider}` (`github`/`gitlab`/`bitbucket`/`generic`); it reloads only the pushed repository/branch and archives definitions removed from the repo. See [Workflow Definitions — Importing from Git](/guides/workflow-definitions/#importing-from-git) for setup instructions.
 
 ## Git import — Forms engine (`forms.git-import.*`)
 
@@ -51,7 +51,7 @@ Clones Git repositories at startup and imports form definition files (`.json`, `
 | `forms.git-import.repositories[].password` | — | Password or personal access token |
 | `forms.git-import.webhook-secret` | — | HMAC-SHA256 secret for verifying GitHub webhook payloads (`X-Hub-Signature-256`). Leave blank to disable signature verification. |
 
-The webhook endpoint is `POST /forms/webhooks/github`. See [Form Definitions — Importing from Git](/guides/form-definitions/#importing-from-git) for setup instructions.
+The webhook endpoint is `POST /forms/webhooks/{provider}` (`github`/`gitlab`/`bitbucket`/`generic`); it reloads only the pushed repository/branch and deletes forms removed from the repo. See [Form Definitions — Importing from Git](/guides/form-definitions/#importing-from-git) for setup instructions.
 
 ## Git import — Rule engine (`rules.git-import.*`)
 
@@ -65,7 +65,7 @@ Clones Git repositories at startup and imports rule definition files (`.json`, `
 | `rules.git-import.repositories[].password` | — | Password or personal access token |
 | `rules.git-import.webhook-secret` | — | HMAC-SHA256 secret for verifying GitHub webhook payloads (`X-Hub-Signature-256`). Leave blank to disable signature verification. |
 
-The webhook endpoint is `POST /rules/webhooks/github`. See [Rule Definitions — Git import](/guides/rule-definitions/#git-import) for setup instructions.
+The webhook endpoint is `POST /rules/webhooks/{provider}` (`github`/`gitlab`/`bitbucket`/`generic`); it reloads only the pushed repository/branch and deletes rules removed from the repo. See [Rule Definitions — Git import](/guides/rule-definitions/#git-import) for setup instructions.
 
 ## Application class (embedded modes)
 
