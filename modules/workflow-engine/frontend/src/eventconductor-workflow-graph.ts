@@ -5,7 +5,9 @@ import {neutralButtonStyles, iconCog, iconPlus, iconDownload, iconSitemap} from 
 
 // ── Domain types ─────────────────────────────────────────────────────────────
 
-type StepType = "ACTION" | "JOIN" | "FORK" | "END" | "USER_TASK" | "PROCESS";
+type StepType =
+    | "START" | "ACTION" | "USER_TASK" | "RULE" | "TIMER"
+    | "WAIT_FOR_MESSAGE" | "SEND_MESSAGE" | "FORK" | "JOIN" | "PROCESS" | "END";
 type WorkflowStatus = "DRAFT" | "ACTIVE" | "DISABLED" | "ARCHIVED";
 
 interface WorkflowStep {
@@ -19,6 +21,8 @@ interface WorkflowStep {
     parallel?: boolean;
     topic?: string;
     formId?: string;
+    ruleId?: string;
+    messageName?: string;
     childWorkflowDefinitionId?: string;
     timeout?: number;
     retries?: number;
@@ -39,32 +43,154 @@ interface WorkflowDefinition {
 }
 
 interface NodePos { x: number; y: number; }
+interface Pt { x: number; y: number; }
+/** A node's geometry as center + size — the shape the router works in. */
+interface Box { x: number; y: number; w: number; h: number; }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const NODE_W = 160;
-const NODE_H = 56;
+const NODE_W = 176;
+const NODE_H = 60;
 const PAD = 60;
 
-const TYPE_COLOR: Record<StepType, string> = {
-    ACTION:    "#3B82F6",
-    JOIN:      "#8B5CF6",
-    FORK:      "#F59E0B",
-    END:       "#EF4444",
-    USER_TASK: "#10B981",
-    PROCESS:   "#6366F1",
+const STEP_TYPES: StepType[] = [
+    "START", "ACTION", "USER_TASK", "RULE", "TIMER",
+    "WAIT_FOR_MESSAGE", "SEND_MESSAGE", "FORK", "JOIN", "PROCESS", "END",
+];
+
+/**
+ * Per-type visual identity — fill, stroke and a corner glyph — echoing modux's workflow
+ * palette. Type colours are intentionally literal (like modux's view adapters); the canvas,
+ * text and edges use the themeable `--ec-*` custom properties instead so the component dresses
+ * like its host (light / Lumo dark).
+ */
+interface NodeStyle { fill: string; stroke: string; symbol: string; dashed?: boolean; }
+const NODE_STYLE: Record<StepType, NodeStyle> = {
+    START:            {fill: "#ffffff", stroke: "#64748b", symbol: "flow"},
+    ACTION:           {fill: "#ffffff", stroke: "#6d28d9", symbol: "process"},
+    USER_TASK:        {fill: "#fef9c3", stroke: "#ca8a04", symbol: "person"},
+    RULE:             {fill: "#ffffff", stroke: "#4f46e5", symbol: "operation"},
+    TIMER:            {fill: "#ffffff", stroke: "#d97706", symbol: "clock"},
+    WAIT_FOR_MESSAGE: {fill: "#ffffff", stroke: "#0891b2", symbol: "event"},
+    SEND_MESSAGE:     {fill: "#ffffff", stroke: "#0891b2", symbol: "flow"},
+    FORK:             {fill: "#f5f3ff", stroke: "#6d28d9", symbol: "flow", dashed: true},
+    JOIN:             {fill: "#f5f3ff", stroke: "#6d28d9", symbol: "flow", dashed: true},
+    PROCESS:          {fill: "#eef2ff", stroke: "#4f46e5", symbol: "component"},
+    END:              {fill: "#dcfce7", stroke: "#16a34a", symbol: "event"},
+};
+const DEFAULT_STYLE: NodeStyle = {fill: "#ffffff", stroke: "#94a3b8", symbol: "process"};
+const styleOf = (t: StepType): NodeStyle => NODE_STYLE[t] ?? DEFAULT_STYLE;
+
+/**
+ * ArchiMate-inspired glyphs (ported from modux), each fitting a 12×12 box, stroke-only — drawn
+ * in the node's top-right corner in the node's own stroke colour.
+ */
+const SYMBOLS: Record<string, ReturnType<typeof svg>> = {
+    flow:      svg`<path d="M0.5 6 H8"/><path d="M5.5 2.5 L9.5 6 L5.5 9.5"/>`,
+    process:   svg`<path d="M0.5 3 H7 V0.8 L11.5 6 L7 11.2 V9 H0.5 Z"/>`,
+    person:    svg`<circle cx="6" cy="3.2" r="2.4"/><path d="M1.5 11.5 C1.5 7.6, 10.5 7.6, 10.5 11.5"/>`,
+    operation: svg`<circle cx="6" cy="6" r="2.4"/><path d="M6 0.8 V2.6 M6 9.4 V11.2 M0.8 6 H2.6 M9.4 6 H11.2" stroke-linecap="round"/>`,
+    clock:     svg`<circle cx="6" cy="6" r="4.4"/><path d="M6 3.4 L6 6 L7.9 7.4" stroke-linecap="round"/>`,
+    event:     svg`<circle cx="6" cy="6" r="5"/><circle cx="6" cy="6" r="2.6"/>`,
+    component: svg`<rect x="3.5" y="0.5" width="8" height="11" rx="1"/><rect x="0.5" y="2.5" width="6" height="2.6"/><rect x="0.5" y="6.9" width="6" height="2.6"/>`,
 };
 
-const TYPE_ICON: Record<StepType, string> = {
-    ACTION:    "▶",
-    JOIN:      "⟨",
-    FORK:      "⟩",
-    END:       "◼",
-    USER_TASK: "👤",
-    PROCESS:   "⚙",
-};
+/** Short caption shown above each node — the step's salient reference, modux-style. */
+function badgeOf(step: WorkflowStep): string {
+    switch (step.type) {
+        case "ACTION": return step.topic ? "→ " + step.topic : "ACTION";
+        case "USER_TASK": return "👤 " + (step.formId || "form");
+        case "RULE": return "ƒ " + (step.ruleId || "rule");
+        case "WAIT_FOR_MESSAGE": return "✉ " + (step.messageName || "message");
+        case "SEND_MESSAGE": return "✉→ " + (step.messageName || "message");
+        case "FORK": return "⑃ FORK";
+        case "JOIN": return "⨝ JOIN";
+        case "PROCESS": return "⚙ " + (step.childWorkflowDefinitionId || "subprocess");
+        default: return step.type; // START, TIMER, END
+    }
+}
 
-const STEP_TYPES: StepType[] = ["ACTION", "JOIN", "FORK", "END", "USER_TASK", "PROCESS"];
+// ── Edge routing (ported from modux) ───────────────────────────────────────────
+
+/** Point on the border of `box` along the line from its center towards (tx, ty). */
+function borderTowards(box: Box, tx: number, ty: number): Pt {
+    const dx = tx - box.x, dy = ty - box.y;
+    if (dx === 0 && dy === 0) return {x: box.x, y: box.y};
+    const scale = 1 / Math.max(Math.abs(dx) / (box.w / 2), Math.abs(dy) / (box.h / 2));
+    return {x: box.x + dx * scale, y: box.y + dy * scale};
+}
+
+function straightRoute(a: Box, b: Box, spread: number): Pt[] {
+    let p0 = borderTowards(a, b.x, b.y);
+    let p1 = borderTowards(b, a.x, a.y);
+    if (spread !== 0) {
+        const len = Math.hypot(p1.x - p0.x, p1.y - p0.y) || 1;
+        const nx = (-(p1.y - p0.y) / len) * spread;
+        const ny = ((p1.x - p0.x) / len) * spread;
+        p0 = {x: p0.x + nx, y: p0.y + ny};
+        p1 = {x: p1.x + nx, y: p1.y + ny};
+    }
+    return [p0, p1];
+}
+
+/** Orthogonal route between two node boxes; `spread` separates edges sharing a node pair. */
+function orthogonalRoute(a: Box, b: Box, spread = 0): Pt[] {
+    const dx = b.x - a.x, dy = b.y - a.y, EPS = 0.5;
+    if (Math.abs(dx) <= EPS || Math.abs(dy) <= EPS) return straightRoute(a, b, spread);
+    const gapX = dx > 0 ? b.x - b.w / 2 - (a.x + a.w / 2) : a.x - a.w / 2 - (b.x + b.w / 2);
+    const gapY = dy > 0 ? b.y - b.h / 2 - (a.y + a.h / 2) : a.y - a.h / 2 - (b.y + b.h / 2);
+    const horizontalPreferred = Math.abs(dx) >= Math.abs(dy);
+    const horizontal = () => {
+        const p0 = {x: a.x + (Math.sign(dx) * a.w) / 2, y: a.y + spread};
+        const p1 = {x: b.x - (Math.sign(dx) * b.w) / 2, y: b.y + spread};
+        const midX = (p0.x + p1.x) / 2 + spread;
+        return [p0, {x: midX, y: p0.y}, {x: midX, y: p1.y}, p1];
+    };
+    const vertical = () => {
+        const p0 = {x: a.x + spread, y: a.y + (Math.sign(dy) * a.h) / 2};
+        const p1 = {x: b.x + spread, y: b.y - (Math.sign(dy) * b.h) / 2};
+        const midY = (p0.y + p1.y) / 2 + spread;
+        return [p0, {x: p0.x, y: midY}, {x: p1.x, y: midY}, p1];
+    };
+    if (gapX >= 0 && (horizontalPreferred || gapY < 0)) return horizontal();
+    if (gapY >= 0) return vertical();
+    if (gapX >= 0) return horizontal();
+    return straightRoute(a, b, spread);
+}
+
+/** The point at `frac` (0 = source … 1 = target) along a polyline — where an edge label sits. */
+function polylinePointAt(pts: Pt[], frac = 0.5): Pt {
+    let total = 0;
+    for (let i = 0; i < pts.length - 1; i++) total += Math.hypot(pts[i + 1].x - pts[i].x, pts[i + 1].y - pts[i].y);
+    let remaining = total * Math.min(Math.max(frac, 0), 1);
+    for (let i = 0; i < pts.length - 1; i++) {
+        const seg = Math.hypot(pts[i + 1].x - pts[i].x, pts[i + 1].y - pts[i].y);
+        if (seg >= remaining && seg > 0) {
+            const t = remaining / seg;
+            return {x: pts[i].x + (pts[i + 1].x - pts[i].x) * t, y: pts[i].y + (pts[i + 1].y - pts[i].y) * t};
+        }
+        remaining -= seg;
+    }
+    return pts[Math.floor(pts.length / 2)];
+}
+
+/** SVG path along a polyline with the interior corners rounded off. */
+function roundedPath(pts: Pt[], r = 9): string {
+    if (pts.length < 2) return "";
+    let d = `M ${pts[0].x} ${pts[0].y}`;
+    for (let i = 1; i < pts.length - 1; i++) {
+        const p = pts[i], a = pts[i - 1], b = pts[i + 1];
+        const da = Math.hypot(p.x - a.x, p.y - a.y) || 1;
+        const db = Math.hypot(b.x - p.x, b.y - p.y) || 1;
+        const rr = Math.min(r, da / 2, db / 2);
+        const p1 = {x: p.x + ((a.x - p.x) / da) * rr, y: p.y + ((a.y - p.y) / da) * rr};
+        const p2 = {x: p.x + ((b.x - p.x) / db) * rr, y: p.y + ((b.y - p.y) / db) * rr};
+        d += ` L ${p1.x} ${p1.y} Q ${p.x} ${p.y} ${p2.x} ${p2.y}`;
+    }
+    const last = pts[pts.length - 1];
+    d += ` L ${last.x} ${last.y}`;
+    return d;
+}
 
 // elkjs (~1.4 MB) is lazy-loaded on first layout so it stays out of the initial bundle.
 let elkPromise: Promise<ELK> | undefined;
@@ -105,6 +231,9 @@ export class MateuWorkflowElk extends LitElement {
 
     /** When true, all editing interactions are disabled. */
     @property({type: Boolean}) readOnly = false;
+
+    /** Reflected so `:host([dark])` maps the theme onto the host's Lumo dark palette. */
+    @property({type: Boolean, reflect: true}) dark = false;
 
     @state() private wf: WorkflowDefinition = {name: "New Workflow", steps: []};
     @state() private positions: Record<string, NodePos> = {};
@@ -165,8 +294,11 @@ export class MateuWorkflowElk extends LitElement {
             layoutOptions: {
                 "elk.algorithm": "layered",
                 "elk.direction": "RIGHT",
-                "elk.spacing.nodeNode": "40",
-                "elk.layered.spacing.nodeNodeBetweenLayers": "80",
+                "elk.spacing.nodeNode": "45",
+                "elk.layered.spacing.nodeNodeBetweenLayers": "90",
+                "elk.layered.spacing.edgeNodeBetweenLayers": "25",
+                "elk.spacing.edgeNode": "18",
+                "elk.spacing.edgeEdge": "12",
                 "elk.edgeRouting": "ORTHOGONAL",
                 "elk.layered.nodePlacement.strategy": "BRANDES_KOEPF",
             },
@@ -346,6 +478,10 @@ export class MateuWorkflowElk extends LitElement {
         return {w: Math.max(w, 600), h: Math.max(h, 400)};
     }
 
+    private boxOf(pos: NodePos): Box {
+        return {x: pos.x + NODE_W / 2, y: pos.y + NODE_H / 2, w: NODE_W, h: NODE_H};
+    }
+
     // ── Render ────────────────────────────────────────────────────────────────
 
     render() {
@@ -370,17 +506,18 @@ export class MateuWorkflowElk extends LitElement {
                         <svg width="${w}" height="${h}" class="canvas"
                              @click="${(e: MouseEvent) => {if (e.target === e.currentTarget) this.selectedId = null;}}">
                             <defs>
-                                <marker id="arrow" markerWidth="10" markerHeight="10"
-                                        refX="8" refY="3.5" orient="auto">
-                                    <path d="M0,0 L0,7 L10,3.5 z" fill="#94a3b8"/>
+                                <marker id="ec-arrow" markerWidth="9" markerHeight="9"
+                                        refX="7.5" refY="3.2" orient="auto" markerUnits="userSpaceOnUse">
+                                    <path d="M0,0 L0,6.4 L8,3.2 z" fill="context-stroke"/>
                                 </marker>
-                                <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
-                                    <feDropShadow dx="0" dy="2" stdDeviation="3"
-                                                  flood-color="#00000018"/>
+                                <filter id="ec-shadow" x="-20%" y="-20%" width="140%" height="150%">
+                                    <feDropShadow dx="0" dy="1" stdDeviation="1.2" flood-color="#0f172a"
+                                                  flood-opacity="0.10"/>
                                 </filter>
                             </defs>
                             ${steps.map(s => this.renderArrows(s))}
                             ${steps.map(s => this.renderNode(s))}
+                            ${steps.map(s => this.renderGuard(s))}
                         </svg>
                     </div>
                     ${this.selectedId && !this.readOnly ? this.renderPanel() : ""}
@@ -456,61 +593,69 @@ export class MateuWorkflowElk extends LitElement {
     private renderArrows(step: WorkflowStep) {
         const to = this.positions[step.id];
         if (!to) return svg``;
-        const x2 = to.x;
+        const tBox = this.boxOf(to);
         const preconditions = preconditionsOf(step);
-        // Fan several incoming edges onto distinct points along the target's left edge so
-        // they stay visually distinguishable instead of piling onto one point.
         const n = preconditions.length;
 
         return preconditions.map((fromId, i) => {
             const from = this.positions[fromId];
             if (!from) return svg``;
-
-            // Connect right-center of source → a slot on the left edge of the target.
-            const x1 = from.x + NODE_W;
-            const y1 = from.y + NODE_H / 2;
-            const slot = n <= 1 ? 0.5 : (i + 1) / (n + 1);
-            const y2 = to.y + NODE_H * slot;
-            const cx = (x1 + x2) / 2;
-
-            return svg`
-                <path d="M${x1},${y1} C${cx},${y1} ${cx},${y2} ${x2},${y2}"
-                      fill="none" stroke="#94a3b8" stroke-width="2"
-                      marker-end="url(#arrow)"/>
-            `;
+            // Orthogonal route, with several edges into the same node spread apart so they stay
+            // distinguishable (echoing modux's parallel-edge handling).
+            const spread = n <= 1 ? 0 : (i - (n - 1) / 2) * 11;
+            const pts = orthogonalRoute(this.boxOf(from), tBox, spread);
+            return svg`<path class="edge" d="${roundedPath(pts)}" marker-end="url(#ec-arrow)"/>`;
         });
+    }
+
+    /**
+     * The step's precondition guard (JEXL) painted as a chip on its incoming edge — the guard
+     * gates entry to the step, so it is shown once, at the midpoint of the first precondition's
+     * route (not per-edge, which would duplicate it).
+     */
+    private renderGuard(step: WorkflowStep) {
+        const expr = step.preconditionExpression?.trim();
+        if (!expr) return svg``;
+        const to = this.positions[step.id];
+        const preconditions = preconditionsOf(step);
+        if (!to || preconditions.length === 0) return svg``;
+        const from = this.positions[preconditions[0]];
+        if (!from) return svg``;
+
+        // Sit toward the source end of the edge, clear of the target node's badge.
+        const mid = polylinePointAt(orthogonalRoute(this.boxOf(from), this.boxOf(to), 0), 0.38);
+        const text = expr.length > 30 ? expr.slice(0, 29) + "…" : expr;
+        const w = Math.max(30, text.length * 6.3 + 22);
+        const h = 19;
+        return svg`
+            <g class="guard" transform="translate(${mid.x}, ${mid.y})">
+                <rect x="${-w / 2}" y="${-h / 2}" width="${w}" height="${h}" rx="9.5"/>
+                <text x="0" y="3.6" text-anchor="middle">◇ ${text}</text>
+            </g>
+        `;
     }
 
     private renderNode(step: WorkflowStep) {
         const pos = this.positions[step.id] ?? {x: PAD, y: PAD};
-        const color = TYPE_COLOR[step.type] ?? "#64748b";
-        const icon = TYPE_ICON[step.type] ?? "•";
+        const st = styleOf(step.type);
         const selected = this.selectedId === step.id;
-        const label = step.name.length > 16 ? step.name.slice(0, 15) + "…" : step.name;
+        const label = step.name.length > 22 ? step.name.slice(0, 21) + "…" : step.name;
+        const badge = badgeOf(step);
+        const badgeText = badge.length > 26 ? badge.slice(0, 25) + "…" : badge;
 
         return svg`
-            <g transform="translate(${pos.x},${pos.y})"
-               style="cursor:grab"
+            <g class="node ${selected ? "sel" : ""}" transform="translate(${pos.x},${pos.y})"
                @mousedown="${(e: MouseEvent) => this.onNodeMouseDown(e, step.id)}"
                @click="${(e: MouseEvent) => {e.stopPropagation(); this.selectedId = step.id;}}">
-                <rect width="${NODE_W}" height="${NODE_H}" rx="8"
-                      fill="white"
-                      stroke="${selected ? color : "#e2e8f0"}"
-                      stroke-width="${selected ? 2.5 : 1.5}"
-                      filter="url(#shadow)"/>
-                <!-- type badge strip -->
-                <rect x="0" y="0" width="32" height="${NODE_H}" rx="8"
-                      fill="${color}" clip-path="inset(0 -8px 0 0 round 8px)"/>
-                <rect x="24" y="0" width="8" height="${NODE_H}" fill="${color}"/>
-                <text x="16" y="${NODE_H / 2 + 5}" text-anchor="middle"
-                      font-size="14" fill="white">${icon}</text>
-                <!-- labels -->
-                <text x="44" y="${NODE_H / 2 - 6}" font-size="11"
-                      fill="#1e293b" font-weight="600">${label}</text>
-                <text x="44" y="${NODE_H / 2 + 8}" font-size="9"
-                      fill="#94a3b8">${step.id}</text>
-                <text x="44" y="${NODE_H / 2 + 20}" font-size="9"
-                      fill="${color}">${step.type}</text>
+                <text class="node-badge" x="2" y="-7">${badgeText}</text>
+                <rect class="node-card" width="${NODE_W}" height="${NODE_H}" rx="10"
+                      fill="${st.fill}" stroke="${st.stroke}" stroke-width="1.4"
+                      stroke-dasharray="${st.dashed ? "6 4" : "0"}"/>
+                <g class="node-symbol" transform="translate(${NODE_W - 23}, 9)"
+                   fill="none" stroke="${st.stroke}" stroke-width="1.1"
+                   stroke-linejoin="round">${SYMBOLS[st.symbol] ?? svg``}</g>
+                <text class="node-title" x="14" y="${NODE_H / 2 - 2}">${label}</text>
+                <text class="node-id" x="14" y="${NODE_H / 2 + 14}">${step.id}</text>
             </g>
         `;
     }
@@ -564,11 +709,6 @@ export class MateuWorkflowElk extends LitElement {
                         <input class="inp" placeholder="JEXL expression" ?readonly="${ro}"
                                .value="${step.preconditionExpression ?? ""}"
                                @change="${ro ? nothing : (e: Event) => this.updateStep(step.id, {preconditionExpression: (e.target as HTMLInputElement).value || undefined})}"/>`)}
-                    <div class="field row">
-                        <label class="field-label">Parallel</label>
-                        <input type="checkbox" ?checked="${step.parallel}" ?disabled="${ro}"
-                               @change="${ro ? nothing : (e: Event) => this.updateStep(step.id, {parallel: (e.target as HTMLInputElement).checked})}"/>
-                    </div>
                     ${field("Timeout (ms)", html`
                         <input class="inp" type="number" min="0" ?readonly="${ro}"
                                .value="${String(step.timeout ?? 0)}"
@@ -598,6 +738,12 @@ export class MateuWorkflowElk extends LitElement {
                     ${step.type === "USER_TASK" ? field("Form ID", html`
                         <input class="inp" ?readonly="${ro}" .value="${step.formId ?? ""}"
                                @change="${ro ? nothing : (e: Event) => this.updateStep(step.id, {formId: (e.target as HTMLInputElement).value || undefined})}"/>`) : ""}
+                    ${step.type === "RULE" ? field("Rule ID", html`
+                        <input class="inp" ?readonly="${ro}" .value="${step.ruleId ?? ""}"
+                               @change="${ro ? nothing : (e: Event) => this.updateStep(step.id, {ruleId: (e.target as HTMLInputElement).value || undefined})}"/>`) : ""}
+                    ${step.type === "WAIT_FOR_MESSAGE" || step.type === "SEND_MESSAGE" ? field("Message name", html`
+                        <input class="inp" ?readonly="${ro}" .value="${step.messageName ?? ""}"
+                               @change="${ro ? nothing : (e: Event) => this.updateStep(step.id, {messageName: (e.target as HTMLInputElement).value || undefined})}"/>`) : ""}
                     ${step.type === "PROCESS" ? field("Child workflow ID", html`
                         <input class="inp" ?readonly="${ro}" .value="${step.childWorkflowDefinitionId ?? ""}"
                                @change="${ro ? nothing : (e: Event) => this.updateStep(step.id, {childWorkflowDefinitionId: (e.target as HTMLInputElement).value || undefined})}"/>`) : ""}
@@ -622,7 +768,28 @@ export class MateuWorkflowElk extends LitElement {
     // ── Styles ────────────────────────────────────────────────────────────────
 
     static styles = [neutralButtonStyles, css`
-        :host {display: block; height: 230px; font-family: var(--lumo-font-family, sans-serif);}
+        :host {
+            display: block; height: 230px; font-family: var(--lumo-font-family, sans-serif);
+            /* Themeable palette (modux-style). Light defaults; :host([dark]) maps onto Lumo. */
+            --ec-canvas-bg: #f8fafc;
+            --ec-surface: #ffffff;
+            --ec-border: #e2e8f0;
+            --ec-text: #1e293b;
+            --ec-text-dim: #64748b;
+            --ec-text-faint: #94a3b8;
+            --ec-edge: #94a3b8;
+            --ec-primary: #2563eb;
+        }
+        :host([dark]) {
+            --ec-canvas-bg: var(--lumo-shade-5pct, #16181a);
+            --ec-surface: var(--lumo-base-color, #1f2123);
+            --ec-border: var(--lumo-contrast-20pct, #3a3d42);
+            --ec-text: var(--lumo-body-text-color, #e8e9ea);
+            --ec-text-dim: var(--lumo-secondary-text-color, #a8adb4);
+            --ec-text-faint: var(--lumo-tertiary-text-color, #7d838b);
+            --ec-edge: var(--lumo-tertiary-text-color, #7d838b);
+            --ec-primary: var(--lumo-primary-color, #60a5fa);
+        }
 
         .root {display: flex; flex-direction: column; height: 100%; position: relative; background: var(--lumo-base-color, #fff);}
 
@@ -634,15 +801,15 @@ export class MateuWorkflowElk extends LitElement {
         .expand-btn {
             position: absolute; top: 8px; right: 8px; z-index: 6;
             width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
-            border: 1px solid var(--lumo-contrast-20pct, #e2e8f0); border-radius: 6px;
-            background: var(--lumo-base-color, #fff); color: #334155; cursor: pointer;
+            border: 1px solid var(--ec-border); border-radius: 6px;
+            background: var(--lumo-base-color, #fff); color: var(--ec-text-dim); cursor: pointer;
             font-size: 15px; line-height: 1; box-shadow: 0 1px 2px #0000000f;
         }
         .expand-btn:hover {background: var(--lumo-contrast-5pct, #f1f5f9);}
 
         .loading {
             display: flex; align-items: center; justify-content: center;
-            height: 100%; color: #94a3b8; font-size: .9rem;
+            height: 100%; color: var(--ec-text-faint); font-size: .9rem;
         }
         .error {
             padding: .4rem 1rem; background: #fee2e2; color: #991b1b;
@@ -672,12 +839,32 @@ export class MateuWorkflowElk extends LitElement {
             background: var(--lumo-contrast-5pct, #f8fafc);
         }
         .meta-grid {display: grid; grid-template-columns: 120px 1fr; gap: .4rem .75rem; align-items: start;}
-        .meta-grid label {font-size: .8rem; color: #64748b; padding-top: .3rem;}
+        .meta-grid label {font-size: .8rem; color: var(--ec-text-dim); padding-top: .3rem;}
 
         /* workspace */
         .workspace {display: flex; flex: 1; overflow: hidden;}
-        .canvas-wrap {flex: 1; overflow: auto; background: #f8fafc;}
+        .canvas-wrap {flex: 1; overflow: auto; background: var(--ec-canvas-bg);}
         .canvas {display: block;}
+
+        /* nodes */
+        .node {cursor: grab;}
+        .node-card {filter: url(#ec-shadow); transition: stroke .12s, stroke-width .12s;}
+        .node:hover .node-card, .node.sel .node-card {stroke: var(--ec-primary) !important; stroke-width: 2.4 !important; stroke-dasharray: 0 !important;}
+        .node-badge {font-size: 9.5px; fill: var(--ec-text-dim); text-transform: uppercase; letter-spacing: .05em; font-weight: 600;}
+        .node-symbol {opacity: .9;}
+        .node-title {font-size: 13px; font-weight: 600; fill: var(--ec-text);}
+        .node-id {font-size: 9.5px; fill: var(--ec-text-faint);}
+
+        /* edges */
+        .edge {fill: none; stroke: var(--ec-edge); stroke-width: 1.6; stroke-linejoin: round;}
+
+        /* precondition guard chips on edges */
+        .guard {pointer-events: none;}
+        .guard rect {fill: var(--ec-surface); stroke: var(--ec-border); stroke-width: 1;}
+        .guard text {
+            font-size: 10.5px; fill: var(--ec-text-dim);
+            font-family: var(--lumo-font-family-monospace, ui-monospace, monospace);
+        }
 
         /* properties panel */
         .properties {
@@ -703,27 +890,28 @@ export class MateuWorkflowElk extends LitElement {
         /* fields */
         .field {display: flex; flex-direction: column; gap: .2rem;}
         .field.row {flex-direction: row; align-items: center; gap: .5rem;}
-        .field-label {font-size: .75rem; color: #64748b; font-weight: 500;}
+        .field-label {font-size: .75rem; color: var(--ec-text-dim); font-weight: 500;}
         .inp {
             width: 100%; box-sizing: border-box;
-            padding: .3rem .5rem; border: 1px solid #e2e8f0; border-radius: 6px;
-            font-size: .82rem; color: #1e293b; background: #fff;
+            padding: .3rem .5rem; border: 1px solid var(--ec-border); border-radius: 6px;
+            font-size: .82rem; color: var(--ec-text); background: var(--lumo-base-color, #fff);
             outline: none; font-family: inherit; transition: border-color .15s;
         }
-        .inp:focus {border-color: #3B82F6;}
+        .inp:focus {border-color: var(--ec-primary);}
         textarea.inp {resize: vertical;}
-        input[readonly].inp {background: #f8fafc; color: #94a3b8;}
+        input[readonly].inp {background: var(--lumo-contrast-5pct, #f8fafc); color: var(--ec-text-faint);}
 
         /* precondition checklist */
         .checklist {
             display: flex; flex-direction: column; gap: .15rem;
             max-height: 140px; overflow-y: auto;
-            border: 1px solid #e2e8f0; border-radius: 6px; padding: .35rem .5rem; background: #fff;
+            border: 1px solid var(--ec-border); border-radius: 6px; padding: .35rem .5rem;
+            background: var(--lumo-base-color, #fff);
         }
-        .check {display: flex; align-items: center; gap: .4rem; font-size: .8rem; color: #1e293b;}
+        .check {display: flex; align-items: center; gap: .4rem; font-size: .8rem; color: var(--ec-text);}
         .check input {margin: 0;}
-        .check em {color: #94a3b8; font-style: normal;}
-        .check-empty {font-size: .78rem; color: #94a3b8;}
+        .check em {color: var(--ec-text-faint); font-style: normal;}
+        .check-empty {font-size: .78rem; color: var(--ec-text-faint);}
     `];
 }
 
