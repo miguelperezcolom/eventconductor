@@ -572,21 +572,33 @@ export class MateuWorkflowElk extends LitElement {
     // ── Token-flow animation (path by path) ─────────────────────────────────────
 
     /**
-     * The continuous polyline for a path (list of step ids): each node's centre, joined by the
-     * orthogonal route between consecutive nodes, so the token visibly passes through every node.
-     * `marks` records the distance at which the token reaches each node's centre (for the pings).
+     * The polyline a token walks for a path (list of step ids): the edge routes joined end to
+     * end. The token stays ON the edges — while it crosses a node it is hidden (`hidden` ranges),
+     * since the node's own ping already marks the passage. `marks` gives the distance at which
+     * the token reaches each node (for the ping).
      */
-    private pathGeometry(ids: string[]): {pts: Pt[]; marks: {id: string; d: number}[]} | null {
+    private pathGeometry(ids: string[]): {pts: Pt[]; marks: {id: string; d: number}[]; hidden: {from: number; to: number}[]} | null {
         const boxes = ids.map(id => this.boxForId(id));
         if (boxes.some(b => !b)) return null;
-        const pts: Pt[] = [{x: boxes[0]!.x, y: boxes[0]!.y}];
-        const marks = [{id: ids[0], d: 0}];
-        for (let i = 1; i < ids.length; i++) {
-            pts.push(...orthogonalRoute(boxes[i - 1]!, boxes[i]!, 0));
-            pts.push({x: boxes[i]!.x, y: boxes[i]!.y});
-            marks.push({id: ids[i], d: polylineLength(pts)});
+        if (ids.length < 2) {
+            return {pts: [{x: boxes[0]!.x, y: boxes[0]!.y}], marks: [{id: ids[0], d: 0}], hidden: []};
         }
-        return {pts, marks};
+        const edges: Pt[][] = [];
+        for (let i = 1; i < ids.length; i++) edges.push(orthogonalRoute(boxes[i - 1]!, boxes[i]!, 0));
+
+        const pts: Pt[] = [...edges[0]];
+        const marks = [{id: ids[0], d: 0}];
+        const hidden: {from: number; to: number}[] = [];
+        for (let j = 1; j < edges.length; j++) {
+            const d0 = polylineLength(pts);   // at node j's entry border (end of the previous edge)
+            pts.push(edges[j][0]);            // node j's exit border (start of this edge)
+            const d1 = polylineLength(pts);
+            hidden.push({from: d0, to: d1});  // straight span across node j → token hidden here
+            marks.push({id: ids[j], d: d0});  // ping node j as the token reaches it
+            pts.push(...edges[j].slice(1));
+        }
+        marks.push({id: ids[ids.length - 1], d: polylineLength(pts)}); // sink node arrival
+        return {pts, marks, hidden};
     }
 
     private startFlow() {
@@ -629,7 +641,7 @@ export class MateuWorkflowElk extends LitElement {
         const geo = this.pathGeometry(path);
         if (!geo) return;
         const len = polylineLength(geo.pts) || 1;
-        const speed = 130;   // px per second
+        const speed = 180;   // px per second
         const pausePx = 55;  // brief gap between paths
         const dist = ((now - this.flowStartTs) / 1000) * speed;
 
@@ -640,12 +652,14 @@ export class MateuWorkflowElk extends LitElement {
             return;
         }
 
-        // Position the token (hidden during the inter-path pause).
+        // Position the token; hide it while it crosses a node (the ping marks that) and during
+        // the brief inter-path pause.
         const clamped = Math.min(dist, len);
         const p = polylinePointAt(geo.pts, clamped / len);
         token.setAttribute("cx", String(p.x));
         token.setAttribute("cy", String(p.y));
-        token.style.opacity = dist <= len ? "1" : "0";
+        const crossingNode = geo.hidden.some(hr => clamped >= hr.from && clamped <= hr.to);
+        token.style.opacity = (dist <= len && !crossingNode) ? "1" : "0";
 
         // Ping each node once, as the token reaches its centre.
         for (const m of geo.marks) {
