@@ -1574,8 +1574,8 @@ export class MateuWorkflowElk extends LitElement {
                     <input class="inp" .value="${wf.name}"
                            @change="${(e: Event) => this.updateWf({name: (e.target as HTMLInputElement).value})}"/>
                     <label>Description</label>
-                    <textarea class="inp" rows="2"
-                              @change="${(e: Event) => this.updateWf({description: (e.target as HTMLTextAreaElement).value})}">${wf.description ?? ""}</textarea>
+                    <textarea class="inp" rows="2" .value="${wf.description ?? ""}"
+                              @change="${(e: Event) => this.updateWf({description: (e.target as HTMLTextAreaElement).value})}"></textarea>
                     <label>Status</label>
                     <select class="inp"
                             @change="${(e: Event) => this.updateWf({status: (e.target as HTMLSelectElement).value as WorkflowStatus})}">
@@ -1757,7 +1757,8 @@ export class MateuWorkflowElk extends LitElement {
                                 <option value="${t}" ?selected="${step.type === t}">${t}</option>`)}
                         </select>`)}
                     ${field("Description", html`<textarea class="inp" rows="2" ?readonly="${ro}"
-                        @change="${ro ? nothing : (e: Event) => this.updateStep(step.id, {description: (e.target as HTMLTextAreaElement).value})}">${step.description ?? ""}</textarea>`)}
+                        .value="${step.description ?? ""}"
+                        @change="${ro ? nothing : (e: Event) => this.updateStep(step.id, {description: (e.target as HTMLTextAreaElement).value})}"></textarea>`)}
                     ${step.type === "JOIN" ? field("Join type", html`
                         <select class="inp" ?disabled="${ro}"
                                 @change="${ro ? nothing : (e: Event) => this.updateStep(step.id, {joinType: (e.target as HTMLSelectElement).value as "AND" | "XOR"})}">

@@ -1521,8 +1521,8 @@ let Vs = class extends tO {
                     <input class="inp" .value="${P.name}"
                            @change="${(D) => this.updateWf({ name: D.target.value })}"/>
                     <label>Description</label>
-                    <textarea class="inp" rows="2"
-                              @change="${(D) => this.updateWf({ description: D.target.value })}">${P.description ?? ""}</textarea>
+                    <textarea class="inp" rows="2" .value="${P.description ?? ""}"
+                              @change="${(D) => this.updateWf({ description: D.target.value })}"></textarea>
                     <label>Status</label>
                     <select class="inp"
                             @change="${(D) => this.updateWf({ status: D.target.value })}">
@@ -1659,7 +1659,8 @@ let Vs = class extends tO {
                                 <option value="${U}" ?selected="${P.type === U}">${U}</option>`)}
                         </select>`)}
                     ${X("Description", Gc`<textarea class="inp" rows="2" ?readonly="${G}"
-                        @change="${G ? jr : (U) => this.updateStep(P.id, { description: U.target.value })}">${P.description ?? ""}</textarea>`)}
+                        .value="${P.description ?? ""}"
+                        @change="${G ? jr : (U) => this.updateStep(P.id, { description: U.target.value })}"></textarea>`)}
                     ${P.type === "JOIN" ? X("Join type", Gc`
                         <select class="inp" ?disabled="${G}"
                                 @change="${G ? jr : (U) => this.updateStep(P.id, { joinType: U.target.value })}">
