@@ -7,6 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Whole-process saga rollback in reverse execution order.** When any step fails or times out
+  after exhausting its retries, the engine now compensates **every executed rollbackable step**
+  (completed steps plus the one that just failed) — not only the failed step's own
+  compensation — running them **sequentially, in reverse execution order**: the latest-executed
+  step is undone first, and each compensation starts only once the previous one completes. The
+  next compensation is derived purely from persisted step-execution state (new
+  `CompensationService`), so it is idempotent under redelivery and across restarts. A single
+  failed rollbackable step is just the degenerate case of this cascade. See the new
+  `COMPENSATED` terminal state under Changed.
+- **Git reload webhook: multiple providers, targeted reload and pruning.** The
+  `POST /{engine}/webhooks/{provider}` endpoint (workflow, forms and rule engines) now accepts
+  `github`, `gitlab`, `bitbucket` and `generic` (`/github` keeps its behaviour), each
+  authenticated with the configured `webhook-secret` — GitHub/Bitbucket HMAC-SHA256
+  (`X-Hub-Signature-256`/`X-Hub-Signature`), GitLab (`X-Gitlab-Token`) and generic
+  (`X-Webhook-Token`) tokens; a blank secret skips verification. The push payload is parsed to
+  reload **only the repository and branch that changed** (an unmatched push is acknowledged and
+  ignored; an unparseable payload falls back to reloading everything). Shared, reusable helpers
+  live in a new `io.mateu.workflow.webhook` package. See pruning under Changed.
+- **Workflow graph editor: multiple incoming preconditions per step.** The graph now renders
+  and edits several `preconditionStepIds` into a single step (one edge per precondition, a
+  multi-select editor) — the engine already honoured them; only the editor had modelled a
+  single incoming edge.
+- **Workflow graph editor: restyled, more expressive SVG.** The graph is redrawn in a richer
+  visual language on the same Lit + ELK stack: per-type node cards with a corner glyph and an
+  uppercase caption (`→ topic`, `👤 form`, `ƒ rule`, `⨝ JOIN`, `✉→ message`, …), dashed
+  `FORK`/`JOIN` gateways, orthogonal rounded edges with arrowheads, a themeable palette
+  (`--ec-*` custom properties, with a Lumo dark-mode mapping), and a step's
+  `preconditionExpression` guard shown as a chip on its incoming edge.
+
+### Changed
+- **BREAKING: a fully compensated process ends `COMPENSATED`, not `ERROR`.** A failed process
+  that runs its saga rollback to completion now reaches the new terminal
+  `ProcessStatus.COMPENSATED` instead of remaining `ERROR`; if a compensation itself fails
+  after its retries, the chain halts and the process stays `ERROR`. `COMPENSATED` is a sticky
+  terminal failure state (like `ERROR`), distinguished by whether the side effects were undone.
+  Consumers, queries and dashboards that treat `ERROR` as the only failure terminal — and a
+  parent `PROCESS` step, which now also errors on a `COMPENSATED` child — should account for
+  the new state.
+- **BREAKING: the git reload webhook reloads a subset and prunes removed definitions.**
+  Previously every webhook call re-imported **all** configured repositories and only
+  added/updated definitions. It now reloads only the repository and branch named in the push,
+  and definitions that were removed from a repo are **pruned** — workflow definitions are
+  archived (`ARCHIVED`), forms and rules are deleted (git-imported definitions only, never
+  classpath or hand-authored ones; tracked per running instance). Only definitions with an
+  explicit `id` are prune-tracked.
+
 ## [1.0-beta.013] - 2026-07-31
 
 Cumulative since `1.0-beta.010` — releases `1.0-beta.011` and `1.0-beta.012` were cut
