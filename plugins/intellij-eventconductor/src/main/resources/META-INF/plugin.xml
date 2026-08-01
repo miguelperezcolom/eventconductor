@@ -1,5 +1,5 @@
 <idea-plugin>
-    <id>com.eventconductor</id>
+    <id>io.mateu.eventconductor</id>
     <name>EventConductor</name>
     <vendor url="https://github.com/miguelperezcolom/eventconductor">EventConductor</vendor>
 
