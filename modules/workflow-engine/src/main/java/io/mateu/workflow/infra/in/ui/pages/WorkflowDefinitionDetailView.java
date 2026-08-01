@@ -18,7 +18,11 @@ import io.mateu.uidl.data.UICommand;
 import io.mateu.uidl.data.UICommandType;
 import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.uidl.interfaces.VisibilitySupplier;
+import io.mateu.workflow.application.out.ProcessRepository;
+import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
+import io.mateu.workflow.domain.aggregates.ProcessStatus;
+import io.mateu.workflow.domain.aggregates.StepExecutionStatus;
 import io.mateu.workflow.application.usecases.export.ExportWorkflowDefinitionToYamlUseCase;
 import io.mateu.workflow.application.usecases.lifecycle.ArchiveWorkflowDefinitionUseCase;
 import io.mateu.workflow.application.usecases.lifecycle.DisableWorkflowDefinitionUseCase;
@@ -67,6 +71,8 @@ public class WorkflowDefinitionDetailView implements VisibilitySupplier {
     private static final String GRAPH_MODULE = "/eventconductor/workflow-graph.js";
 
     final WorkflowDefinitionRepository repository;
+    final ProcessRepository processRepository;
+    final StepExecutionRepository stepExecutionRepository;
     final ExportWorkflowDefinitionToYamlUseCase exportWorkflowDefinitionToYamlUseCase;
     final PromoteWorkingCopyUseCase promoteWorkingCopyUseCase;
     final CreateWorkingCopyUseCase createWorkingCopyUseCase;
@@ -148,15 +154,39 @@ public class WorkflowDefinitionDetailView implements VisibilitySupplier {
         this.paused = def.paused() ? "yes — processes are held" : "no";
         this.steps = def.steps();
         // Rendered through mateu's Element/import mechanism: mateu dynamically imports the module the
-        // first time the tag is used, and the custom element upgrades in place.
-        this.workflow = new Element(
-                GRAPH_TAG,
-                Map.of(
-                        "import", GRAPH_MODULE,
-                        "value", toJson(def),
-                        "readonly", "true"),
-                "");
+        // first time the tag is used, and the custom element upgrades in place. When live processes
+        // exist, an overlay badges each node with how many are currently sitting on it.
+        var attrs = new java.util.HashMap<String, String>();
+        attrs.put("import", GRAPH_MODULE);
+        attrs.put("value", toJson(def));
+        attrs.put("readonly", "true");
+        var counts = liveProcessCountsByStep(def.id());
+        if (!counts.isEmpty()) {
+            var overlay = new java.util.HashMap<String, Object>();
+            counts.forEach((stepId, c) -> overlay.put(stepId, Map.of("count", c)));
+            attrs.put("overlay", toJson(overlay));
+        }
+        this.workflow = new Element(GRAPH_TAG, attrs, "");
         return this;
+    }
+
+    /**
+     * How many live (running/pending/paused) process instances of this definition currently sit on
+     * each step — i.e. have a RUNNING or PENDING step execution there. Keyed by step id.
+     */
+    private Map<String, Integer> liveProcessCountsByStep(String definitionId) {
+        var counts = new java.util.HashMap<String, Integer>();
+        for (var process : processRepository.findAll()) {
+            if (!definitionId.equals(process.getWorkflowDefinitionId())) continue;
+            var st = process.getStatus();
+            if (st != ProcessStatus.RUNNING && st != ProcessStatus.PENDING && st != ProcessStatus.PAUSED) continue;
+            for (var se : stepExecutionRepository.findByProcess(process)) {
+                if (se.getStatus() == StepExecutionStatus.RUNNING || se.getStatus() == StepExecutionStatus.PENDING) {
+                    counts.merge(se.getStepId(), 1, Integer::sum);
+                }
+            }
+        }
+        return counts;
     }
 
     // ── Lifecycle toolbar: same actions and visibility rules as the WorkflowDefinition record
