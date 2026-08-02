@@ -1,6 +1,5 @@
 package io.mateu.workflow.controlplaneservice.infra.in.ui;
 
-import io.mateu.uidl.StyleConstants;
 import io.mateu.uidl.annotations.FavIcon;
 import io.mateu.uidl.annotations.Hidden;
 import io.mateu.uidl.annotations.Logo;
@@ -31,7 +30,7 @@ import java.util.List;
 @FavIcon("/images/riu.svg")
 @PageTitle("Control Plane")
 @Logo("/images/riu.svg")
-@Style(StyleConstants.CONTAINER)
+@Style(HomeStyles.PAGE)
 @RequiredArgsConstructor
 @Service
 public class ControlPlaneHome implements PostHydrationHandler {
@@ -63,15 +62,16 @@ public class ControlPlaneHome implements PostHydrationHandler {
         var data = adapter.fetch();
 
         charts = io.mateu.uidl.data.HorizontalLayout.builder()
-                .content(    List.of(
-                        Chart.builder()
+                .content(List.of(
+                        chartCard("Routes", Chart.builder()
                                 .chartType(ChartType.doughnut)
                                 .chartData(data.processesByDefinitionChartData())
                                 .chartOptions(ChartOptions.builder()
                                         .maintainAspectRatio(false)
                                         .build())
-                                .build(),
-                        Chart.builder()
+                                .style(HomeStyles.CHART)
+                                .build()),
+                        chartCard("By status", Chart.builder()
                                 .chartType(ChartType.bar)
                                 .chartData(data.processesByStatusChartData())
                                 .chartOptions(ChartOptions.builder()
@@ -82,52 +82,48 @@ public class ControlPlaneHome implements PostHydrationHandler {
                                                         .build())
                                                 .build())
                                         .build())
-                                .build(),
-                        Chart.builder()
+                                .style(HomeStyles.CHART)
+                                .build()),
+                        chartCard("Distribution", Chart.builder()
                                 .chartType(ChartType.polarArea)
                                 .chartData(data.userTasksChartData())
                                 .chartOptions(ChartOptions.builder()
                                         .maintainAspectRatio(false)
                                         .build())
-                                .build()
+                                .style(HomeStyles.CHART)
+                                .build())
                 ))
-                .style("width: 100%;justify-content: space-around; margin-bottom: 2rem;align-items: center;")
+                .style(HomeStyles.CHART_ROW)
                 .build();
 
         kpis = io.mateu.uidl.data.HorizontalLayout.builder()
                 .content(List.of(
-                        Card.builder()
-                                .title(Text.builder().text("Releases").build())
-                                .content(Text.builder().text("" + data.processDefinitionsCount()).style("text-align: center;").build())
-                                .style("flex-grow: 1;width: 12rem;")
-                                .build(),
-                        Card.builder()
-                                .title(Text.builder().text("Pending routes").build())
-                                .content(Text.builder().text("" + data.activeProcessesCount()).style("text-align: center;").build())
-                                .style("flex-grow: 1;width: 12rem;")
-                                .build(),
-                        Card.builder()
-                                .title(Text.builder().text("Changed routes").build())
-                                .content(Text.builder().text("" + data.completedProcessesCount()).style("text-align: center;").build())
-                                .style("flex-grow: 1;width: 12rem;")
-                                .build(),
-                        Card.builder()
-                                .title(Text.builder().text("Routes").build())
-                                .content(Text.builder().text("" + data.processesCount()).style("text-align: center;").build())
-                                .style("flex-grow: 1;width: 12rem;")
-                                .build(),
-                        Card.builder()
-                                .title(Text.builder().text("Languages").build())
-                                .content(Text.builder().text("" + data.userTasksCount()).style("text-align: center;").build())
-                                .style("flex-grow: 1;width: 12rem;")
-                                .build(),
-                        Card.builder()
-                                .title(Text.builder().text("Countries").build())
-                                .content(Text.builder().text("" + data.countriesCount()).style("text-align: center;").build())
-                                .style("flex-grow: 1;width: 12rem;")
-                                .build()
+                        kpiCard("Releases", data.processDefinitionsCount()),
+                        kpiCard("Pending routes", data.activeProcessesCount()),
+                        kpiCard("Changed routes", data.completedProcessesCount()),
+                        kpiCard("Routes", data.processesCount()),
+                        kpiCard("Languages", data.userTasksCount()),
+                        kpiCard("Countries", data.countriesCount())
                 ))
-                .spacing(true)
+                .style(HomeStyles.KPI_ROW)
+                .build();
+    }
+
+    /** A KPI card: a small uppercase label above a large, bold value. */
+    private static Card kpiCard(String label, Object value) {
+        return Card.builder()
+                .title(Text.builder().text(label).style(HomeStyles.KPI_LABEL).build())
+                .content(Text.builder().text(String.valueOf(value)).style(HomeStyles.KPI_VALUE).build())
+                .style(HomeStyles.KPI_CARD)
+                .build();
+    }
+
+    /** A chart card: an uppercase caption above a bounded chart. */
+    private static Card chartCard(String caption, Chart chart) {
+        return Card.builder()
+                .title(Text.builder().text(caption).style(HomeStyles.CHART_TITLE).build())
+                .content(chart)
+                .style(HomeStyles.CHART_CARD)
                 .build();
     }
 

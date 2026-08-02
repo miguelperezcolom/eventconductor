@@ -184,7 +184,8 @@ spec:
       nodeSelector: { kubernetes.io/arch: amd64 }
       containers:
         - name: control-plane-service
-          image: miguelperezcolom/mateu-demo-control-plane:0.1.0
+          # 0.1.1-restyle: ControlPlaneHome dashboard restyle (KPI + captioned chart cards).
+          image: miguelperezcolom/mateu-demo-control-plane:0.1.1-restyle
           imagePullPolicy: IfNotPresent
           securityContext:
             allowPrivilegeEscalation: false
