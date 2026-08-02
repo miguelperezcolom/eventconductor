@@ -24,7 +24,12 @@ public class CheckTimeoutUseCase {
 
     public void handle(CheckTimeoutCommand command) {
         var now = LocalDateTime.now();
-        var expired = stepExecutionRepository.findPendingOrRunningByProcessId(command.processId()).stream()
+        // Only the steps whose materialised deadline has already passed are candidates — the same
+        // filter the global scan used to find this process. This avoids loading every live step and
+        // deserialising its JSON just to recompute a deadline already on the row; the timeout()>0
+        // check below still excludes pure TIMER steps (whose deadline is a due moment, not a
+        // timeout) so their firing stays with the timer path.
+        var expired = stepExecutionRepository.findDueByProcessId(command.processId(), now).stream()
                 .filter(se -> se.getStartedAt() != null)
                 .filter(se -> {
                     var step = pojoFromJson(se.getStepJson(), Step.class);

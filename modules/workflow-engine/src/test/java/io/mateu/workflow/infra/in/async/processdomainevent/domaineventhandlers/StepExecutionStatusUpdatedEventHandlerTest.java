@@ -83,7 +83,7 @@ class StepExecutionStatusUpdatedEventHandlerTest {
 
         verify(stepExecutionRepository).save(se);
         verify(stepOverProcessUseCase).handle(any());
-        verify(processUpdateUseCase, never()).handle(any());
+        verify(processUpdateUseCase, never()).handle(any(), any());
         verify(workflowMetrics).retryPerformed("wd-1", WorkflowMetrics.RetryTrigger.AUTO);
         // While retries remain the step is not finally failed — a still-running child of a
         // PROCESS step must NOT be cancelled (the retry re-attaches to it).
@@ -97,7 +97,7 @@ class StepExecutionStatusUpdatedEventHandlerTest {
 
         handler.handle(new StepExecutionStatusChanged("se-1", TaskStatus.ERROR, List.of()));
 
-        verify(processUpdateUseCase).handle(any());
+        verify(processUpdateUseCase).handle(any(), any());
         verify(stepOverProcessUseCase).handle(any());
         // Retries exhausted → the failure is final; a PROCESS step's child gets cancelled here.
         verify(cancelChildProcessService).stepReachedTerminalStatus(se);
@@ -166,7 +166,7 @@ class StepExecutionStatusUpdatedEventHandlerTest {
 
         handler.handle(new StepExecutionStatusChanged("se-1", TaskStatus.COMPLETED, List.of()));
 
-        verify(processUpdateUseCase).handle(any());
+        verify(processUpdateUseCase).handle(any(), any());
         verify(stepOverProcessUseCase).handle(any());
     }
 }

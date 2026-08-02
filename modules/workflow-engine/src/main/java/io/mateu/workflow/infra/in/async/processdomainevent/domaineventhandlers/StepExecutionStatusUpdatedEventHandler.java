@@ -14,6 +14,7 @@ import io.mateu.workflow.ddd.DomainEventHandler;
 import io.mateu.workflow.domain.aggregates.Process;
 import io.mateu.workflow.domain.aggregates.ProcessStatus;
 import io.mateu.workflow.domain.aggregates.Step;
+import io.mateu.workflow.domain.aggregates.StepExecution;
 import io.mateu.workflow.domain.services.CompensationService;
 import io.mateu.workflow.dtos.events.domain.StepExecutionStatusChanged;
 import io.mateu.workflow.dtos.events.integration.TaskCancellationRequested;
@@ -22,6 +23,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import static io.mateu.core.infra.JsonSerializer.pojoFromJson;
 
@@ -72,12 +74,20 @@ public class StepExecutionStatusUpdatedEventHandler implements DomainEventHandle
             cancelChildProcessService.stepReachedTerminalStatus(stepExecution);
         }
 
-        processUpdateStepExecutionUpdateUseCase.handle(new ProcessStepExecutionUpdateCommand(stepExecution.getProcessId()));
+        // Load the process's steps once and reuse them for the status recompute and the saga
+        // rollback decision — neither mutates the step set, so a single terminal event no longer
+        // reloads it twice over. Step-over deliberately reloads under its own lock: it is the one
+        // that dispatches, so it must read the authoritative view.
+        var processId = stepExecution.getProcessId();
+        var process = processRepository.findById(processId).orElseThrow();
+        var executions = stepExecutionRepository.findByProcess(process);
+
+        processUpdateStepExecutionUpdateUseCase.handle(new ProcessStepExecutionUpdateCommand(processId), executions);
         // Drive saga rollback before stepping the process over: a failed process starts (or
         // continues) compensating executed steps in reverse order here; step-over then just
         // sees the blocking error and holds the normal flow.
-        advanceCompensation(stepExecution.getProcessId());
-        stepOverProcessUseCase.handle(new StepOverProcessCommand(stepExecution.getProcessId()));
+        advanceCompensation(processId, executions);
+        stepOverProcessUseCase.handle(new StepOverProcessCommand(processId));
     }
 
     /**
@@ -88,9 +98,11 @@ public class StepExecutionStatusUpdatedEventHandler implements DomainEventHandle
      * kept idempotent by deriving the next action purely from persisted state
      * ({@link CompensationService}), so redelivery and restarts are safe.
      */
-    private void advanceCompensation(String processId) {
+    private void advanceCompensation(String processId, List<StepExecution> executions) {
+        // Reload the process (not the steps): the status recompute just saved it, so a fresh read
+        // carries the current @Version — reusing the pre-update snapshot here would save a stale
+        // version and trip optimistic locking. The step list is unchanged, so it is reused.
         var process = processRepository.findById(processId).orElseThrow();
-        var executions = stepExecutionRepository.findByProcess(process);
         var decision = compensationService.decide(executions);
         switch (decision.outcome()) {
             case RUN -> {

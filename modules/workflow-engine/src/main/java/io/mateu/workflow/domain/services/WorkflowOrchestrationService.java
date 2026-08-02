@@ -10,6 +10,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static io.mateu.core.infra.JsonSerializer.pojoFromJson;
 import static io.mateu.workflow.application.services.JEXLEvaluator.eval;
@@ -65,19 +66,23 @@ public class WorkflowOrchestrationService {
             }
         }
 
+        // Parse each step's JSON at most once per call: getStep is hit 2-3× per candidate
+        // (eligibility, END detection, END transition) and pojoFromJson is not free.
+        var stepCache = new HashMap<String, Step>();
+
         // Pure dataflow: every CREATED step whose preconditions are ALL satisfied (and whose
         // guard expression is truthy) starts now, concurrently. There is no ordering between
         // steps beyond the precondition graph — active steps never block unrelated branches.
         List<StepExecution> executableSteps = stepExecutions.stream()
                 .filter(this::isCreated)
-                .filter(stepExecution -> shouldRunStep(stepExecution, process, stepExecutions))
+                .filter(stepExecution -> shouldRunStep(stepExecution, process, stepExecutions, stepCache))
                 .toList();
 
         boolean hasEndStep = executableSteps.stream()
-                .anyMatch(stepExecution -> StepType.END.equals(getStep(stepExecution).type()));
+                .anyMatch(stepExecution -> StepType.END.equals(getStep(stepExecution, stepCache).type()));
 
         if (hasEndStep) {
-            return handleEndStepTransition(process, stepExecutions, executableSteps);
+            return handleEndStepTransition(process, stepExecutions, executableSteps, stepCache);
         }
 
         return handleStandardOrImplicitCompletionTransition(process, stepExecutions, executableSteps);
@@ -92,12 +97,13 @@ public class WorkflowOrchestrationService {
         return StepExecutionStatus.CREATED.equals(stepExecution.getStatus());
     }
 
-    private Step getStep(StepExecution stepExecution) {
-        return pojoFromJson(stepExecution.getStepJson(), Step.class);
+    private Step getStep(StepExecution stepExecution, Map<String, Step> cache) {
+        return cache.computeIfAbsent(stepExecution.id(),
+                k -> pojoFromJson(stepExecution.getStepJson(), Step.class));
     }
 
-    private boolean shouldRunStep(StepExecution stepExecution, Process process, List<StepExecution> stepExecutions) {
-        Step step = getStep(stepExecution);
+    private boolean shouldRunStep(StepExecution stepExecution, Process process, List<StepExecution> stepExecutions, Map<String, Step> cache) {
+        Step step = getStep(stepExecution, cache);
         return checkPreconditionStep(step, stepExecutions) && evaluatePreconditionExpression(step, process);
     }
 
@@ -140,14 +146,14 @@ public class WorkflowOrchestrationService {
         }
     }
 
-    private TransitionResult handleEndStepTransition(Process process, List<StepExecution> stepExecutions, List<StepExecution> executableSteps) {
+    private TransitionResult handleEndStepTransition(Process process, List<StepExecution> stepExecutions, List<StepExecution> executableSteps, Map<String, Step> cache) {
         List<StepExecution> stepsToSave = new ArrayList<>();
 
         // Only the END-type executables complete. A co-eligible non-END sibling must NOT be
         // recorded COMPLETED — it never ran; it falls into the cancel stream below like every
         // other in-flight step.
         List<StepExecution> endSteps = executableSteps.stream()
-                .filter(stepExecution -> StepType.END.equals(getStep(stepExecution).type()))
+                .filter(stepExecution -> StepType.END.equals(getStep(stepExecution, cache).type()))
                 .toList();
         endSteps.stream()
                 .map(stepExecution -> stepExecution.withStatus(StepExecutionStatus.COMPLETED))

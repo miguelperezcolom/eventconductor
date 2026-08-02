@@ -10,5 +10,6 @@ public interface StepExecutionEntityRepository extends JpaRepository<StepExecuti
     List<StepExecutionEntity> findAllByStatusIn(List<String> statuses);
     List<StepExecutionEntity> findAllByProcessIdAndStatusIn(String processId, List<String> statuses);
     List<StepExecutionEntity> findAllByStatusInAndDeadlineAtLessThanEqual(List<String> statuses, LocalDateTime deadline);
+    List<StepExecutionEntity> findAllByProcessIdAndStatusInAndDeadlineAtLessThanEqual(String processId, List<String> statuses, LocalDateTime deadline);
     List<StepExecutionEntity> findAllByStatusAndAwaitingMessageNameAndAwaitingCorrelationKey(String status, String messageName, String correlationKey);
 }

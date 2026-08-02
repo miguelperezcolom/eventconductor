@@ -59,6 +59,12 @@ spring:
         binder:
           brokers: ${KAFKA_BROKERS:localhost:9092}
           auto-create-topics: true
+          # Horizontal parallelism is capped by partition count: a process is pinned to one
+          # partition (keyed by processId), so N partitions is the most pods that can share the
+          # engine's load. Auto-created topics otherwise default to a single partition — one
+          # consumer, no scale-out however many pods run. Provision several partitions so pods can
+          # spread the per-process load. Set >= the largest consumer group you expect to run.
+          min-partition-count: ${KAFKA_MIN_PARTITIONS:6}
           # Bound the broker-provisioning admin timeout (default 120s) so a broker that is not
           # yet reachable at startup fails fast instead of blocking the context ~2 minutes and
           # losing its AdminClient; bindings then retry (see bindingRetryInterval) and bind once
@@ -82,11 +88,16 @@ spring:
             # a single commit is most of the write cost. Turning this off falls back to one
             # transaction per event.
             batch-mode: true
+            # Consumer threads on this pod: each owns a disjoint set of partitions, so one pod can
+            # work several partitions in parallel. Keep <= partitions assigned to this pod; total
+            # concurrency across pods is still capped by min-partition-count above.
+            concurrency: ${KAFKA_CONCURRENCY:1}
         consumeUpstream-in-0:
           destination: upstream
           group: orchestrator-upstream
           consumer:
             batch-mode: true
+            concurrency: ${KAFKA_CONCURRENCY:1}
         consumeWorkerEvent-in-0:
           destination: downstream
           group: worker-group
@@ -109,7 +120,10 @@ spring:
 
   hikari:
     connection-timeout: ${DB_CONNECTION_TIMEOUT:20000}
-    maximum-pool-size: ${DB_POOL_SIZE:10}
+    # A process update holds a connection for its critical section, so the pool caps how many
+    # in-flight processes this pod can advance at once. Size it to expected concurrency (and to the
+    # database's max_connections across all pods); raise DB_POOL_SIZE to scale.
+    maximum-pool-size: ${DB_POOL_SIZE:16}
 
   jpa:
     database-platform: ${JPA_DIALECT:org.hibernate.dialect.PostgreSQLDialect}
@@ -122,6 +136,13 @@ spring:
     properties:
       hibernate:
         format_sql: true
+        # Batch the per-step write burst (step + process + N outbox rows) into few JDBC round-trips
+        # instead of one statement each. order_inserts/updates group same-table statements so the
+        # batches are effective; the repositories already saveAll the outbox rows.
+        jdbc:
+          batch_size: ${HIBERNATE_BATCH_SIZE:20}
+        order_inserts: true
+        order_updates: true
 
   flyway:
     # On by default: the migrations are the schema of record, and they are the only place the

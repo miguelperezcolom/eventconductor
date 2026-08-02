@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -45,7 +46,7 @@ class CheckTimeoutUseCaseTest {
     @Test
     void triggersCheckForTimedOutStepExecution() {
         var timedOut = pendingSeWithTimeout(100, LocalDateTime.now().minusSeconds(10));
-        when(stepExecutionRepository.findPendingOrRunningByProcessId("p-1")).thenReturn(List.of(timedOut));
+        when(stepExecutionRepository.findDueByProcessId(eq("p-1"), any())).thenReturn(List.of(timedOut));
 
         useCase.handle(new CheckTimeoutCommand("p-1"));
 
@@ -55,7 +56,7 @@ class CheckTimeoutUseCaseTest {
     @Test
     void doesNotTriggerCheckForStepNotYetTimedOut() {
         var notTimedOut = pendingSeWithTimeout(Long.MAX_VALUE, LocalDateTime.now());
-        when(stepExecutionRepository.findPendingOrRunningByProcessId("p-1")).thenReturn(List.of(notTimedOut));
+        when(stepExecutionRepository.findDueByProcessId(eq("p-1"), any())).thenReturn(List.of(notTimedOut));
 
         useCase.handle(new CheckTimeoutCommand("p-1"));
 
@@ -65,7 +66,7 @@ class CheckTimeoutUseCaseTest {
     @Test
     void doesNotTriggerCheckForStepWithNoTimeout() {
         var noTimeout = pendingSeWithTimeout(0, LocalDateTime.now().minusSeconds(10));
-        when(stepExecutionRepository.findPendingOrRunningByProcessId("p-1")).thenReturn(List.of(noTimeout));
+        when(stepExecutionRepository.findDueByProcessId(eq("p-1"), any())).thenReturn(List.of(noTimeout));
 
         useCase.handle(new CheckTimeoutCommand("p-1"));
 
@@ -74,12 +75,12 @@ class CheckTimeoutUseCaseTest {
 
     @Test
     void looksUpOnlyTheStepsOfTheCommandedProcess() {
-        // The scoping is the query, not an in-memory filter: loading every live step in the
-        // system and filtering by process turns one scheduler tick into a full table load per
-        // process it finds.
+        // The scoping is the query, and it filters to already-due steps by the materialised
+        // deadline: loading every live step of the process and recomputing timeouts in memory turns
+        // one scheduler tick into a full step load (plus a JSON parse each) per process it finds.
         useCase.handle(new CheckTimeoutCommand("other-process"));
 
-        verify(stepExecutionRepository).findPendingOrRunningByProcessId("other-process");
+        verify(stepExecutionRepository).findDueByProcessId(eq("other-process"), any());
         verify(stepExecutionRepository, never()).findPendingOrRunning();
         verify(checkStepTimeoutHandler, never()).handle(any());
     }
@@ -93,7 +94,7 @@ class CheckTimeoutUseCaseTest {
                 .status(StepExecutionStatus.PENDING)
                 .startedAt(null)
                 .build();
-        when(stepExecutionRepository.findPendingOrRunningByProcessId("p-1")).thenReturn(List.of(se));
+        when(stepExecutionRepository.findDueByProcessId(eq("p-1"), any())).thenReturn(List.of(se));
 
         useCase.handle(new CheckTimeoutCommand("p-1"));
 
@@ -103,7 +104,7 @@ class CheckTimeoutUseCaseTest {
     @Test
     void doesNotTriggerCheckForExpiredStepOfPausedProcess() {
         var timedOut = pendingSeWithTimeout(100, LocalDateTime.now().minusSeconds(10));
-        when(stepExecutionRepository.findPendingOrRunningByProcessId("p-1")).thenReturn(List.of(timedOut));
+        when(stepExecutionRepository.findDueByProcessId(eq("p-1"), any())).thenReturn(List.of(timedOut));
         when(processRepository.findById("p-1")).thenReturn(Optional.of(
                 Process.builder().id("p-1").status(ProcessStatus.PAUSED).build()));
 
@@ -116,7 +117,7 @@ class CheckTimeoutUseCaseTest {
     @Test
     void onlyLooksUpTheProcessWhenAStepWouldFire() {
         var notTimedOut = pendingSeWithTimeout(Long.MAX_VALUE, LocalDateTime.now());
-        when(stepExecutionRepository.findPendingOrRunningByProcessId("p-1")).thenReturn(List.of(notTimedOut));
+        when(stepExecutionRepository.findDueByProcessId(eq("p-1"), any())).thenReturn(List.of(notTimedOut));
 
         useCase.handle(new CheckTimeoutCommand("p-1"));
 

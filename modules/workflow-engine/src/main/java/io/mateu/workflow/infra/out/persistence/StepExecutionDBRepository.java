@@ -74,7 +74,7 @@ public class StepExecutionDBRepository implements StepExecutionRepository {
         ));
 
         var outbox = stepExecution.popEvents().stream().map(OutboxMessageEntity::new).toList();
-        outbox.forEach(outboxMessageEntityRepository::save);
+        outboxMessageEntityRepository.saveAll(outbox);
         if (!outbox.isEmpty()) {
             // Wake this pod's relay once the transaction commits, rather than leaving the row to
             // be found on the next poll — which is latency added to every step.
@@ -118,6 +118,14 @@ public class StepExecutionDBRepository implements StepExecutionRepository {
     public List<StepExecution> findDue(LocalDateTime now) {
         return stepExecutionEntityRepository
                 .findAllByStatusInAndDeadlineAtLessThanEqual(List.of(PENDING.name(), RUNNING.name()), now)
+                .stream().map(this::map).toList();
+    }
+
+    @Override
+    public List<StepExecution> findDueByProcessId(String processId, LocalDateTime now) {
+        return stepExecutionEntityRepository
+                .findAllByProcessIdAndStatusInAndDeadlineAtLessThanEqual(
+                        processId, List.of(PENDING.name(), RUNNING.name()), now)
                 .stream().map(this::map).toList();
     }
 

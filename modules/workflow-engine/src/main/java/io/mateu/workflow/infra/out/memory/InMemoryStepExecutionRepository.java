@@ -81,6 +81,15 @@ public class InMemoryStepExecutionRepository implements StepExecutionRepository 
     }
 
     @Override
+    public List<StepExecution> findDueByProcessId(String processId, java.time.LocalDateTime now) {
+        return store.values().stream()
+                .filter(se -> processId.equals(se.getProcessId()))
+                .filter(InMemoryStepExecutionRepository::isLive)
+                .filter(se -> se.getDeadlineAt() != null && !se.getDeadlineAt().isAfter(now))
+                .toList();
+    }
+
+    @Override
     public List<StepExecution> findWaitingForMessage(String messageName, String correlationKey) {
         return store.values().stream()
                 .filter(se -> se.getStatus() == StepExecutionStatus.PENDING)

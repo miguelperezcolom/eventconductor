@@ -75,7 +75,7 @@ public class ProcessDBRepository implements ProcessRepository {
                 process.getVersion()
         ));
         var outbox = process.popEvents().stream().map(OutboxMessageEntity::new).toList();
-        outbox.forEach(outboxMessageEntityRepository::save);
+        outboxMessageEntityRepository.saveAll(outbox);
         if (!outbox.isEmpty()) {
             // Wake this pod's relay once the transaction commits, rather than leaving the row to
             // be found on the next poll — which is latency added to every step.

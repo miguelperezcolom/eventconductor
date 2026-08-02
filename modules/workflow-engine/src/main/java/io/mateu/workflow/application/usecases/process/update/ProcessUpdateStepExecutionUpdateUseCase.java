@@ -15,6 +15,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -28,32 +29,49 @@ public class ProcessUpdateStepExecutionUpdateUseCase {
 
     public void handle(ProcessStepExecutionUpdateCommand command) {
         var process = repository.findById(command.processId()).orElseThrow();
+        apply(process, stepExecutionRepository.findByProcess(process));
+    }
+
+    /**
+     * Same recompute, but over an already-loaded step list. The terminal-event handler loads the
+     * process's steps once and feeds them to this and the compensation pass, so a single event no
+     * longer reloads the whole step set three times over — this use case does not mutate any step,
+     * so the caller's snapshot is still current here.
+     */
+    public void handle(ProcessStepExecutionUpdateCommand command, List<StepExecution> executions) {
+        var process = repository.findById(command.processId()).orElseThrow();
+        apply(process, executions);
+    }
+
+    private void apply(Process process, List<StepExecution> executions) {
         var previousStatus = process.getStatus();
-        var executions = stepExecutionRepository.findByProcess(process);
-        var status = !executions.isEmpty() ? ProcessStatus.COMPLETED:ProcessStatus.PENDING;
+        // One pass over the steps for everything the status derives from: how many completed,
+        // whether any is still live, whether any has finally failed.
+        long completed = 0;
+        boolean anyLive = false;
+        boolean anyFailed = false;
         for (StepExecution execution : executions) {
-            if (StepExecutionStatus.PENDING == execution.getStatus()) {
-                status = ProcessStatus.RUNNING;
+            switch (execution.getStatus()) {
+                case COMPLETED -> completed++;
+                case PENDING, RUNNING -> anyLive = true;
+                // A step in a final failure state (retries already exhausted — auto-retry resets
+                // the step to CREATED before this use case runs) means the process itself failed.
+                case ERROR, TIMEOUT -> anyFailed = true;
+                default -> { /* CREATED / CANCELLED do not move the process status */ }
             }
         }
-        for (StepExecution execution : executions) {
-            if (StepExecutionStatus.RUNNING == execution.getStatus()) {
-                status = ProcessStatus.RUNNING;
-            }
+        var status = executions.isEmpty() ? ProcessStatus.PENDING : ProcessStatus.COMPLETED;
+        if (anyLive) {
+            status = ProcessStatus.RUNNING;
         }
         var percent = executions.isEmpty() ? 0
-                : Math.round(100d * executions.stream().filter(e -> StepExecutionStatus.COMPLETED.equals(e.getStatus())).count() / (double) executions.size());
+                : Math.round(100d * completed / (double) executions.size());
         if (percent > 0) {
             status = ProcessStatus.RUNNING;
         }
         if (percent == 100) {
             status = ProcessStatus.COMPLETED;
         }
-        // A step in a final failure state (retries already exhausted — auto-retry resets the
-        // step to CREATED before this use case runs) means the process itself has failed.
-        var anyFailed = executions.stream().anyMatch(e ->
-                StepExecutionStatus.ERROR.equals(e.getStatus())
-                        || StepExecutionStatus.TIMEOUT.equals(e.getStatus()));
         if (anyFailed) {
             status = ProcessStatus.ERROR;
         }
