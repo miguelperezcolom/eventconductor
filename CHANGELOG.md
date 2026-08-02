@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **An event that lost an optimistic race is now redelivered instead of disappearing.** The
+  rejection was caught, counted, logged as "the event will be redelivered" — and then the handler
+  returned normally, the consumer committed its offset, and the event was gone. Nothing redelivered
+  it. The log line was simply wrong. A rejection now propagates as
+  `ConcurrentProcessAccessException` all the way out of the consumer, which is what actually stops
+  the offset from advancing over work that never happened. It is deliberately the one failure that
+  is not swallowed: the event is not defective, it just lost a race, so retrying is the right
+  answer rather than a log line.
+
+### Known gap
+- **Failures other than that one are still logged and dropped, with no dead letter.** An event the
+  engine genuinely cannot process — a worker reporting a task id that no longer exists, say — is
+  logged and forgotten in every mode. It should go to a dead-letter topic where it can be
+  inspected and replayed. Doing it properly needs retry classification, a DLQ binding, and a
+  parking path for embedded mode (where propagating instead would turn a poison message into an
+  endless relay loop), so it is not bolted onto this change. `DIST-12` covers the part that must
+  hold in the meantime: one unprocessable event does not stall the traffic around it.
+
 ### Changed
 - **A Kafka poll batch is committed as one transaction per process, not one per event.** A busy
   batch carries several events for the same process, and collapsing those into a single commit is

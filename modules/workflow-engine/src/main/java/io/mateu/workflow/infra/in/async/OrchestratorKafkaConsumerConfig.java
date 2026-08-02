@@ -73,9 +73,15 @@ public class OrchestratorKafkaConsumerConfig {
                             log.debug("Processing {}", event);
                             handle.accept(event);
                         }));
+            } catch (io.mateu.workflow.application.out.ConcurrentProcessAccessException e) {
+                // Lost a race rather than failed: let it out so the binder redelivers the batch
+                // instead of committing over work that never happened. Handlers are idempotent,
+                // so the slices that did commit are harmless to repeat.
+                throw e;
             } catch (Exception e) {
                 // One process's slice failed and rolled back; the others in this batch are
-                // unaffected. Its events are redelivered, and the handlers are idempotent.
+                // unaffected. Today that failure is logged and the events are dropped — see the
+                // dead-letter gap noted in the changelog.
                 log.error("Batch slice for process {} failed and was rolled back", group.getKey(), e);
             }
         }

@@ -47,9 +47,11 @@ public class PartitionOwnedProcessLockService implements ProcessLockService {
             }));
         } catch (org.springframework.dao.OptimisticLockingFailureException e) {
             workflowMetrics.concurrentWriteRejected(processId);
-            log.warn("Concurrent write to process {} was rejected; the event will be redelivered",
-                    processId);
-            return false;
+            // Rethrown rather than reported. Returning false here would let the handler finish
+            // normally, the consumer commit its offset, and the event vanish — the work never
+            // happened and nothing would ever retry it. Propagating is what makes "it will be
+            // redelivered" true.
+            throw new io.mateu.workflow.application.out.ConcurrentProcessAccessException(processId, e);
         }
     }
 }

@@ -21,6 +21,11 @@ public class ProcessUpstreamEventUseCase {
                 .forEach(h -> {
                     try {
                         h.handle(command.event());
+                    } catch (io.mateu.workflow.application.out.ConcurrentProcessAccessException e) {
+                        // Not a bad event, just one that lost a race. It has to reach the
+                        // consumer so the offset is not committed over work that never
+                        // happened — swallowing it here is how such an event disappears.
+                        throw e;
                     } catch (Throwable e) {
                         log.error("Error processing domain event", e);
                     }
