@@ -22,6 +22,7 @@ public class ProcessDBRepository implements ProcessRepository {
 
     final ProcessEntityRepository processEntityRepository;
     final OutboxMessageEntityRepository outboxMessageEntityRepository;
+    final io.mateu.workflow.infra.out.async.OutboxSignal outboxSignal;
 
     @Override
     public Optional<Process> findById(String id) {
@@ -73,9 +74,13 @@ public class ProcessDBRepository implements ProcessRepository {
                 process.getParentStepExecutionId(),
                 process.getVersion()
         ));
-        process.popEvents().stream()
-                .map(OutboxMessageEntity::new)
-                .forEach(outboxMessageEntityRepository::save);
+        var outbox = process.popEvents().stream().map(OutboxMessageEntity::new).toList();
+        outbox.forEach(outboxMessageEntityRepository::save);
+        if (!outbox.isEmpty()) {
+            // Wake this pod's relay once the transaction commits, rather than leaving the row to
+            // be found on the next poll — which is latency added to every step.
+            outboxSignal.raise();
+        }
         return process.getId();
     }
 

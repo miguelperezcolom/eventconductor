@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **The relay is woken by the write instead of finding out on its next poll.** A pod that commits
+  an outbox row raises a signal its own relay is waiting on; the poll interval stays as the
+  fallback for rows written by other pods, which a pod has no way to hear about directly.
+
+  The poll interval was never a scheduling preference — it was latency added to every step, and a
+  transition crosses the relay twice. Measured on the benchmark harness at 40 instances/s, p50 per
+  transition:
+
+  | `workflow.outbox-poll-interval-ms` | before | after |
+  |---|---|---|
+  | 500 (the shipped default) | 508,8 ms | **10,1 ms** |
+  | 20 | 28,6 ms | **10,7 ms** |
+
+  Fifty times at the default, and still nearly three times better than the most aggressive polling
+  worth running — which also stops mattering, since the interval no longer sets the latency.
+
+  The signal fires **after the commit**, not at the write: raised inside the transaction it would
+  wake the relay to look for a row not yet visible, which finds nothing, goes back to waiting, and
+  spends the wakeup — leaving exactly the latency it exists to remove, with an extra query on top.
+  It carries one permit rather than a count, because the relay drains until empty and only needs
+  to know that something arrived.
+
 ### Fixed
 - **An event that lost an optimistic race is now redelivered instead of disappearing.** The
   rejection was caught, counted, logged as "the event will be redelivered" — and then the handler

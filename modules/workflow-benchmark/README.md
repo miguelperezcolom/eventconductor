@@ -71,7 +71,16 @@ Latency at 40 instances/s (120 steps/s), sweeping only the relay poll interval:
 | 5 | 13,9 ms | 20,7 ms |
 | 1 | 11,7 ms | 19,1 ms |
 
-Roughly half the per-transition cost at a 20 ms poll is *waiting for the poll*, and the floor
-around 12 ms is the broker hops and the writes. The shipped default is 500 ms, which puts a
-transition in the hundreds of milliseconds — worth knowing before tuning anything else, and an
-argument for waking the relay on write rather than polling for it.
+Roughly half the per-transition cost at a 20 ms poll was *waiting for the poll*, and the floor
+around 12 ms is the broker hops and the writes.
+
+That finding is what led to waking the relay on write instead of polling for it. Re-measured
+after that change, the poll interval barely registers:
+
+| `bench.outbox.poll-ms` | before the signal | after |
+|---|---|---|
+| 500 (the shipped default) | 508,8 ms | **10,1 ms** |
+| 20 | 28,6 ms | **10,7 ms** |
+
+Which is the harness doing its job: a number nobody had measured, an attribution, a change, and
+the same measurement again.

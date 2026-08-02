@@ -18,6 +18,11 @@ import org.springframework.stereotype.Service;
  * outbox while the rest idled, which put a ceiling on the distributed topology that adding pods
  * could not lift — every state transition in kafka mode passes through here.
  *
+ * <p>The loop does not simply sleep between passes: it waits on {@link OutboxSignal}, which the
+ * pod raises after committing a write of its own. The poll interval becomes a fallback for rows
+ * written by other pods rather than the latency every step pays — measured on the benchmark
+ * harness, that wait was about half the cost of a transition.
+ *
  * <p>A pass that comes back with a full batch means more is waiting, so the loop keeps draining
  * until it does not — otherwise throughput would be capped at one batch per poll interval, and a
  * backlog would take as many intervals as it has batches. It stops early if a full batch settles
@@ -31,6 +36,7 @@ import org.springframework.stereotype.Service;
 public class OutboxRelay {
 
     final OutboxDrain outboxDrain;
+    final OutboxSignal outboxSignal;
     final StreamBridge streamBridge;
     final JdbcTemplate jdbcTemplate;
     final DbLockDialect dbLockDialect;
@@ -51,7 +57,9 @@ public class OutboxRelay {
                     } catch (Throwable e) {
                         log.error("Error relaying outbox messages", e);
                     }
-                    Thread.sleep(pollIntervalMs);
+                    // Woken by this pod's own writes, and falling back to the poll for rows
+                    // written by other pods, which there is no way to hear about directly.
+                    outboxSignal.awaitWork(pollIntervalMs);
                 }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
