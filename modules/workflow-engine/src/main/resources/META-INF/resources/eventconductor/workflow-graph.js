@@ -1423,6 +1423,15 @@ let Vs = class extends iO {
   isMonitoring() {
     return Object.keys(this.overlayData).length > 0;
   }
+  /**
+   * True only when the overlay carries per-step execution *state* (a single-process view, where
+   * dimming the not-yet-visited parts is meaningful). A definition view attaches a counts-only
+   * overlay (how many live processes sit on each step) with no state — there is no single
+   * execution to trace, so nothing should be dimmed: the whole graph stays active by default.
+   */
+  hasStateOverlay() {
+    return Object.values(this.overlayData).some((P) => !!P?.state);
+  }
   /** In a monitoring overlay, a step is "visited" once the process has reached it (any state
    *  other than not-yet-started PENDING). Used to dim the parts the process hasn't passed. */
   isVisited(P) {
@@ -1560,7 +1569,7 @@ let Vs = class extends iO {
   renderEdges() {
     const P = this.computeEdges();
     this.edgeCache = new Map(P.map((U) => [U.key, U.pts]));
-    const D = [], G = [], X = this.isMonitoring();
+    const D = [], G = [], X = this.hasStateOverlay();
     for (const U of P) {
       const Ie = pDn(U.pts, D), k = X && !(this.isVisited(U.from) && this.isVisited(U.to)) ? "mon-dim" : "";
       G.push(U.comp ? Sc`<path class="comp-edge ${k}" data-comp="${U.from}" data-edge="${U.key}"
@@ -1630,7 +1639,7 @@ let Vs = class extends iO {
             <g class="ov-done" transform="translate(${X - 6}, ${U - 6})">
                 <circle r="12"/>
                 <path class="ov-check" d="M -6 0.5 L -1.5 5 L 6 -4.5"/>
-            </g>` : pr, Nt = `${this.linkHoverId === P.id ? "link-target" : ""} ${this.linkingFrom === P.id ? "link-source" : ""}`, Te = this.isMonitoring() && !this.isVisited(P.id) ? "mon-dim" : "";
+            </g>` : pr, Nt = `${this.linkHoverId === P.id ? "link-target" : ""} ${this.linkingFrom === P.id ? "link-source" : ""}`, Te = this.hasStateOverlay() && !this.isVisited(P.id) ? "mon-dim" : "";
     return Sc`
             <g class="node ${Ie} ${Gn} ${Nt} ${Te}" data-node="${P.id}" transform="translate(${D.x},${D.y})"
                @mousedown="${(Pi) => this.onNodeMouseDown(Pi, P.id)}"

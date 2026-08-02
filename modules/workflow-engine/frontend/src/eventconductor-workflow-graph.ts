@@ -1482,6 +1482,16 @@ export class MateuWorkflowElk extends LitElement {
     /** True when a monitoring overlay is present — the graph is a live monitor, not a simulator. */
     private isMonitoring() { return Object.keys(this.overlayData).length > 0; }
 
+    /**
+     * True only when the overlay carries per-step execution *state* (a single-process view, where
+     * dimming the not-yet-visited parts is meaningful). A definition view attaches a counts-only
+     * overlay (how many live processes sit on each step) with no state — there is no single
+     * execution to trace, so nothing should be dimmed: the whole graph stays active by default.
+     */
+    private hasStateOverlay() {
+        return Object.values(this.overlayData).some(o => !!o?.state);
+    }
+
     /** In a monitoring overlay, a step is "visited" once the process has reached it (any state
      *  other than not-yet-started PENDING). Used to dim the parts the process hasn't passed. */
     private isVisited(id: string): boolean {
@@ -1624,10 +1634,10 @@ export class MateuWorkflowElk extends LitElement {
         this.edgeCache = new Map(edges.map(e => [e.key, e.pts])); // token & guards reuse these routes
         const prior: [Pt, Pt][] = [];
         const out: unknown[] = [];
-        const mon = this.isMonitoring();
+        const mon = this.hasStateOverlay();
         for (const e of edges) {
             const d = bridgedPath(e.pts, prior);
-            // In a monitoring view, dim edges the process hasn't traversed (either end unvisited).
+            // In a process (state) view, dim edges the process hasn't traversed (either end unvisited).
             const monDim = mon && !(this.isVisited(e.from) && this.isVisited(e.to)) ? "mon-dim" : "";
             out.push(e.comp
                 ? svg`<path class="comp-edge ${monDim}" data-comp="${e.from}" data-edge="${e.key}"
@@ -1734,7 +1744,7 @@ export class MateuWorkflowElk extends LitElement {
             </g>` : nothing;
 
         const linkCls = `${this.linkHoverId === step.id ? "link-target" : ""} ${this.linkingFrom === step.id ? "link-source" : ""}`;
-        const monDim = this.isMonitoring() && !this.isVisited(step.id) ? "mon-dim" : "";
+        const monDim = this.hasStateOverlay() && !this.isVisited(step.id) ? "mon-dim" : "";
         return svg`
             <g class="node ${sel} ${ovCls} ${linkCls} ${monDim}" data-node="${step.id}" transform="translate(${pos.x},${pos.y})"
                @mousedown="${(e: MouseEvent) => this.onNodeMouseDown(e, step.id)}"
