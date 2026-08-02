@@ -184,18 +184,34 @@ public final class DistInfra {
     }
 
     /** Direct JDBC access to the shared PostgreSQL for state assertions. */
+    /** A fresh, independent session — used to act as a second pod against the same database. */
+    public static Connection newSession() {
+        ensureStarted();
+        try {
+            var connection = DriverManager.getConnection(
+                    postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
+            connection.setAutoCommit(false);
+            return connection;
+        } catch (Exception e) {
+            throw new IllegalStateException("Could not open a database session", e);
+        }
+    }
+
     public static JdbcTemplate jdbc() {
         ensureStarted();
         return jdbc;
     }
 
     /**
-     * Blocks every orchestrator's outbox relay by grabbing its PostgreSQL advisory lock
-     * from a dedicated session. While held, domain events pile up as {@code Pending} rows —
-     * the deterministic "crashed between committing a step and dispatching the next" window
-     * DIST-02 needs. Returns the holding connection; pass it to {@link #unblockOutboxRelay}.
+     * Freezes every orchestrator's outbox relay by taking the relay gate <b>exclusively</b>.
+     * The relays hold that same advisory lock in shared mode while draining — shared holders do
+     * not block each other, so all pods relay concurrently, but this exclusive holder shuts them
+     * all down at once. While held, domain events pile up as {@code Pending} rows — the
+     * deterministic "crashed between committing a step and dispatching the next" window DIST-02
+     * needs. Returns the holding connection; pass it to {@link #unblockOutboxRelay}.
      */
     public static Connection blockOutboxRelay() {
+        ensureStarted();
         try {
             var connection = DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
             try (var statement = connection.createStatement()) {

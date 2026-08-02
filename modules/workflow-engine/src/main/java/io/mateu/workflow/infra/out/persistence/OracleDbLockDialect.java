@@ -38,4 +38,16 @@ public class OracleDbLockDialect implements DbLockDialect {
             cs.execute();
         }
     }
+
+    /**
+     * Oracle rejects a row-limiting clause together with {@code FOR UPDATE} (ORA-02014), so the
+     * limit is applied in a {@code ROWNUM} subquery — which also keeps the ordering that a bare
+     * {@code ROWNUM} predicate would lose, since it is evaluated before {@code ORDER BY}.
+     */
+    @Override
+    public String claimPendingOutboxSql() {
+        return "SELECT id FROM outbox_message_entity WHERE id IN ("
+                + "SELECT id FROM (SELECT id FROM outbox_message_entity WHERE status = 'Pending' "
+                + "ORDER BY timestamp) WHERE ROWNUM <= ?) FOR UPDATE SKIP LOCKED";
+    }
 }

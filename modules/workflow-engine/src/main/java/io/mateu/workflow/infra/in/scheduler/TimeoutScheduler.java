@@ -29,9 +29,8 @@ import org.springframework.stereotype.Service;
 @Slf4j
 public class TimeoutScheduler {
 
-    // Must differ from WorkflowOrchestrator.LOCK_ID (123456789L),
-    // OutboxRelay.LOCK_ID (111222333L), EmbeddedOutboxRelay.LOCK_ID (444555666L)
-    // and CronStartScheduler.LOCK_ID (222333444L)
+    // Advisory lock ids in use: 222333444 (CronStartScheduler),
+    // 444555666 (EmbeddedOutboxRelay), 777888999 (here). Keep them distinct.
     private static final long LOCK_ID = 777888999L;
 
     final StepExecutionRepository stepExecutionRepository;
