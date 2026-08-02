@@ -20,11 +20,12 @@ spec:
         - name: api-gw
           image: miguelperezcolom/mateu-demo-api-gw:0.1.0
           imagePullPolicy: IfNotPresent
-          ports:
-            - { containerPort: 8191 }
           securityContext:
             allowPrivilegeEscalation: false
-            capabilities: { drop: [\"ALL\"] }
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          ports:
+            - { containerPort: 8191 }
           env:
             - { name: SHELL_URL, value: "http://shell:8101" }
             - { name: USERS_URL, value: "http://users-service:8102" }
@@ -38,11 +39,15 @@ spec:
           resources:
             requests: { memory: "448Mi", cpu: "150m" }
             limits:   { memory: "1Gi", cpu: "1" }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
           readinessProbe:
             tcpSocket: { port: 8191 }
             initialDelaySeconds: 30
             periodSeconds: 10
             failureThreshold: 30
+      volumes:
+        - { name: tmp, emptyDir: {} }
 ---
 apiVersion: v1
 kind: Service
@@ -77,19 +82,24 @@ spec:
         - name: shell
           image: miguelperezcolom/mateu-demo-shell:0.1.0
           imagePullPolicy: IfNotPresent
-          ports:
-            - { containerPort: 8101 }
           securityContext:
             allowPrivilegeEscalation: false
-            capabilities: { drop: [\"ALL\"] }
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          ports:
+            - { containerPort: 8101 }
           resources:
             requests: { memory: "448Mi", cpu: "150m" }
             limits:   { memory: "1Gi", cpu: "1" }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
           readinessProbe:
             tcpSocket: { port: 8101 }
             initialDelaySeconds: 30
             periodSeconds: 10
             failureThreshold: 30
+      volumes:
+        - { name: tmp, emptyDir: {} }
 ---
 apiVersion: v1
 kind: Service
@@ -124,19 +134,24 @@ spec:
         - name: users-service
           image: miguelperezcolom/mateu-demo-users:0.1.0
           imagePullPolicy: IfNotPresent
-          ports:
-            - { containerPort: 8102 }
           securityContext:
             allowPrivilegeEscalation: false
-            capabilities: { drop: [\"ALL\"] }
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          ports:
+            - { containerPort: 8102 }
           resources:
             requests: { memory: "448Mi", cpu: "150m" }
             limits:   { memory: "1Gi", cpu: "1" }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
           readinessProbe:
             tcpSocket: { port: 8102 }
             initialDelaySeconds: 30
             periodSeconds: 10
             failureThreshold: 30
+      volumes:
+        - { name: tmp, emptyDir: {} }
 ---
 apiVersion: v1
 kind: Service
@@ -171,19 +186,24 @@ spec:
         - name: control-plane-service
           image: miguelperezcolom/mateu-demo-control-plane:0.1.0
           imagePullPolicy: IfNotPresent
-          ports:
-            - { containerPort: 8103 }
           securityContext:
             allowPrivilegeEscalation: false
-            capabilities: { drop: [\"ALL\"] }
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          ports:
+            - { containerPort: 8103 }
           resources:
             requests: { memory: "448Mi", cpu: "150m" }
             limits:   { memory: "1Gi", cpu: "1" }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
           readinessProbe:
             tcpSocket: { port: 8103 }
             initialDelaySeconds: 30
             periodSeconds: 10
             failureThreshold: 30
+      volumes:
+        - { name: tmp, emptyDir: {} }
 ---
 apiVersion: v1
 kind: Service
@@ -218,19 +238,24 @@ spec:
         - name: content-service
           image: miguelperezcolom/mateu-demo-content:0.1.0
           imagePullPolicy: IfNotPresent
-          ports:
-            - { containerPort: 8104 }
           securityContext:
             allowPrivilegeEscalation: false
-            capabilities: { drop: [\"ALL\"] }
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          ports:
+            - { containerPort: 8104 }
           resources:
             requests: { memory: "448Mi", cpu: "150m" }
             limits:   { memory: "1Gi", cpu: "1" }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
           readinessProbe:
             tcpSocket: { port: 8104 }
             initialDelaySeconds: 30
             periodSeconds: 10
             failureThreshold: 30
+      volumes:
+        - { name: tmp, emptyDir: {} }
 ---
 apiVersion: v1
 kind: Service
@@ -265,19 +290,24 @@ spec:
         - name: booking-service
           image: miguelperezcolom/mateu-demo-booking:0.1.0
           imagePullPolicy: IfNotPresent
-          ports:
-            - { containerPort: 8108 }
           securityContext:
             allowPrivilegeEscalation: false
-            capabilities: { drop: [\"ALL\"] }
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          ports:
+            - { containerPort: 8108 }
           resources:
             requests: { memory: "448Mi", cpu: "150m" }
             limits:   { memory: "1Gi", cpu: "1" }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
           readinessProbe:
             tcpSocket: { port: 8108 }
             initialDelaySeconds: 30
             periodSeconds: 10
             failureThreshold: 30
+      volumes:
+        - { name: tmp, emptyDir: {} }
 ---
 apiVersion: v1
 kind: Service
@@ -312,11 +342,12 @@ spec:
         - name: ia-agent-service
           image: miguelperezcolom/mateu-demo-ia-agent:0.1.0
           imagePullPolicy: IfNotPresent
-          ports:
-            - { containerPort: 8095 }
           securityContext:
             allowPrivilegeEscalation: false
-            capabilities: { drop: [\"ALL\"] }
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          ports:
+            - { containerPort: 8095 }
           env:
             - { name: WORKFLOW_URL, value: "http://orchestrator.eventconductor.svc.cluster.local:8105" }
             - { name: FORMS_URL, value: "http://forms.eventconductor.svc.cluster.local:8106" }
@@ -324,11 +355,15 @@ spec:
           resources:
             requests: { memory: "448Mi", cpu: "150m" }
             limits:   { memory: "1Gi", cpu: "1" }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
           readinessProbe:
             tcpSocket: { port: 8095 }
             initialDelaySeconds: 30
             periodSeconds: 10
             failureThreshold: 30
+      volumes:
+        - { name: tmp, emptyDir: {} }
 ---
 apiVersion: v1
 kind: Service
@@ -363,19 +398,24 @@ spec:
         - name: static-content-server
           image: miguelperezcolom/mateu-demo-static:0.1.0
           imagePullPolicy: IfNotPresent
-          ports:
-            - { containerPort: 8107 }
           securityContext:
             allowPrivilegeEscalation: false
-            capabilities: { drop: [\"ALL\"] }
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          ports:
+            - { containerPort: 8107 }
           resources:
             requests: { memory: "448Mi", cpu: "150m" }
             limits:   { memory: "1Gi", cpu: "1" }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
           readinessProbe:
             tcpSocket: { port: 8107 }
             initialDelaySeconds: 30
             periodSeconds: 10
             failureThreshold: 30
+      volumes:
+        - { name: tmp, emptyDir: {} }
 ---
 apiVersion: v1
 kind: Service

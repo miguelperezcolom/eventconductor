@@ -21,12 +21,17 @@ spec:
           ports: [ { containerPort: 8091 } ]
           securityContext:
             allowPrivilegeEscalation: false
-            capabilities: { drop: [\"ALL\"] }
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
           resources:
             requests: { memory: "448Mi", cpu: "150m" }
             limits:   { memory: "1Gi", cpu: "1" }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
           readinessProbe:
             tcpSocket: { port: 8091 }
             initialDelaySeconds: 20
             periodSeconds: 10
             failureThreshold: 30
+      volumes:
+        - { name: tmp, emptyDir: {} }

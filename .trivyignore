@@ -1,0 +1,6 @@
+# readOnlyRootFilesystem is set on the stateless demo services (see demo/.devops), but the
+# stateful demo containers can't run with a read-only root filesystem: Keycloak (start-dev)
+# rebuilds Quarkus at boot and PostgreSQL needs writable runtime dirs. These are demo assets,
+# not production workloads, so KSV-0014 is accepted for them.
+AVD-KSV-0014
+KSV0014
