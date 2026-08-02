@@ -1726,6 +1726,13 @@ export class MateuWorkflowElk extends LitElement {
                 <text text-anchor="middle" dy="3.6">${count > 99 ? "99+" : count}</text>
             </g>` : nothing;
 
+        // A big green check on executed (COMPLETED) steps, bottom-right corner — reads clearly.
+        const done = ov?.state === "COMPLETED" ? svg`
+            <g class="ov-done" transform="translate(${w - 6}, ${h - 6})">
+                <circle r="12"/>
+                <path class="ov-check" d="M -6 0.5 L -1.5 5 L 6 -4.5"/>
+            </g>` : nothing;
+
         const linkCls = `${this.linkHoverId === step.id ? "link-target" : ""} ${this.linkingFrom === step.id ? "link-source" : ""}`;
         const monDim = this.isMonitoring() && !this.isVisited(step.id) ? "mon-dim" : "";
         return svg`
@@ -1735,6 +1742,7 @@ export class MateuWorkflowElk extends LitElement {
                 ${pulse}
                 <g class="node-inner" data-inner="${step.id}">${shape}</g>
                 ${badge}
+                ${done}
             </g>
         `;
     }
@@ -1994,6 +2002,8 @@ export class MateuWorkflowElk extends LitElement {
         @keyframes ec-active-pulse {0%,100% {opacity: 1;} 50% {opacity: .72;}}
         .ov-count circle {fill: var(--ec-primary); stroke: var(--ec-surface); stroke-width: 1.5;}
         .ov-count text {fill: #fff; font-size: 11px; font-weight: 700;}
+        .ov-done circle {fill: #16a34a; stroke: var(--ec-surface); stroke-width: 2;}
+        .ov-done .ov-check {fill: none; stroke: #fff; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round;}
         /* parts the process hasn't reached yet fade back */
         .node.mon-dim {opacity: .3;}
         .edge.mon-dim, .comp-edge.mon-dim {opacity: .18;}
