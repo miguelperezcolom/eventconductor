@@ -11,7 +11,10 @@ metadata:
   name: driver
   namespace: ec-bench
 spec:
-  backoffLimit: 0
+  # Retries, because a driver that lands on a freshly provisioned node can start before CoreDNS
+  # is reachable there and die resolving the database. That is the cluster warming up, not a
+  # failed measurement.
+  backoffLimit: 3
   template:
     metadata:
       labels: { app: driver, bench-role: driver, bench-node-exclusive: "true" }
@@ -23,6 +26,8 @@ spec:
             - labelSelector:
                 matchExpressions: [{ key: bench-node-exclusive, operator: Exists }]
               topologyKey: kubernetes.io/hostname
+      # The benchmark image is private; the secret is created by the runbook.
+      imagePullSecrets: [{ name: regcred }]
       containers:
         - name: driver
           image: BENCH_IMAGE

@@ -9,6 +9,9 @@ metadata:
   namespace: ec-bench
 spec:
   replicas: 2
+  # Recreate, not rolling: with one role per node and no spare nodes, a rolling update deadlocks —
+  # the outgoing pods hold the only nodes their replacements are allowed to use.
+  strategy: { type: Recreate }
   selector: { matchLabels: { app: pods } }
   template:
     metadata:
@@ -20,6 +23,8 @@ spec:
             - labelSelector:
                 matchExpressions: [{ key: bench-node-exclusive, operator: Exists }]
               topologyKey: kubernetes.io/hostname
+      # The benchmark image is private; the secret is created by the runbook.
+      imagePullSecrets: [{ name: regcred }]
       containers:
         - name: pod
           image: BENCH_IMAGE
@@ -43,6 +48,7 @@ metadata:
   namespace: ec-bench
 spec:
   replicas: 1
+  strategy: { type: Recreate }
   selector: { matchLabels: { app: worker } }
   template:
     metadata:
@@ -54,6 +60,8 @@ spec:
             - labelSelector:
                 matchExpressions: [{ key: bench-node-exclusive, operator: Exists }]
               topologyKey: kubernetes.io/hostname
+      # The benchmark image is private; the secret is created by the runbook.
+      imagePullSecrets: [{ name: regcred }]
       containers:
         - name: worker
           image: BENCH_IMAGE

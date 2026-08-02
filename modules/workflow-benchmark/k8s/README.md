@@ -46,9 +46,12 @@ for processes that never start.
 # 1. Publish the image for the commit you are measuring
 gh workflow run publish-benchmark-image.yml -f ref=<branch> -f tag=<tag>
 
-# 2. Substitute the tag — never :latest, or the report cannot say what it measured
-sed "s|BENCH_IMAGE|<dockerhub-user>/eventconductor-bench:<tag>|g" \
-  modules/workflow-benchmark/k8s/*.yaml | kubectl apply -f -
+# 2. Substitute the tag — never :latest, or the report cannot say what it measured.
+#    One file at a time: sed over several concatenates them without a --- between the last
+#    document of one and the first of the next, and a manifest silently disappears.
+for f in modules/workflow-benchmark/k8s/*.yaml; do
+  sed "s|BENCH_IMAGE|<dockerhub-user>/eventconductor-bench:<tag>|g" "$f" | kubectl apply -f -
+done
 
 # 3. Wait for the infrastructure and the pods, then check placement
 kubectl -n ec-bench get pods -o wide -w

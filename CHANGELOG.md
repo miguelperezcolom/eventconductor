@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **A consumer group per binding. Sharing one left Kafka partitions with no consumer at all.**
+  The orchestrator's two bindings — `upstream` and `outbox` — used the same group, so its members
+  had different topic subscriptions. The default range assignor handles that badly: observed on a
+  cluster, 12 members held 7 of 12 partitions between them, and the 5 unassigned ones were simply
+  never read. Every process whose next event landed there stopped, and the pods sat near idle
+  while work piled up.
+
+  It was never visible locally because the suite is short and a rebalance eventually reshuffles
+  the gap onto a consumer. It was costing throughput the whole time: DIST-05 goes from ~60 to
+  **78–91 PI/s** with nothing changed but the group names.
+
+  Fixed in the standalone app, the distributed harness and the benchmark. Anyone running their own
+  orchestrator wiring should check the same thing: a consumer group's members must subscribe to
+  the same topics.
+
+- **Indexes are declared on the entities, not only in the migrations.** They only ever existed in
+  Flyway, so a schema built by `ddl-auto` had primary keys and nothing else, and every deadline
+  scan, outbox claim and correlation lookup became a sequential scan. On a cluster with ~9k live
+  step rows that pinned PostgreSQL at 750m of CPU.
+
+  **`ddl-auto=update` still will not create them** — Hibernate's update path emits no index DDL,
+  which is worth knowing before relying on it. `create` and `create-drop` do, so the test
+  harnesses now exercise the same plan as production. For a real deployment the migrations remain
+  the answer, and `spring.jpa.hibernate.ddl-auto=update` is not a substitute for running them.
+
 ### Changed
 - **The relay is woken by the write instead of finding out on its next poll.** A pod that commits
   an outbox row raises a signal its own relay is waiting on; the poll interval stays as the

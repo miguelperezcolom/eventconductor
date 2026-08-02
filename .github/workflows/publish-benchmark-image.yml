@@ -28,6 +28,18 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
 
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+
+      # Built here rather than inside the image: Maven caching works, and the jar is bytecode, so
+      # the same one serves whatever architecture the image targets.
+      - name: Build the benchmark jar
+        run: mvn -q -B -Pbenchmark -pl modules/workflow-benchmark -am -DskipTests -Djacoco.skip=true package
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -42,6 +54,7 @@ jobs:
         with:
           context: .
           file: modules/workflow-benchmark/Dockerfile
+          platforms: linux/amd64
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/eventconductor-bench:${{ inputs.tag }}
           cache-from: type=gha
