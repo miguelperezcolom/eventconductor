@@ -52,7 +52,15 @@ modes** (embedded + memory, embedded + jpa, kafka + jpa).
 | `eventconductor.step.retries` | Counter | `workflowDefinitionId`, `trigger` | Retries performed (`auto` = retry policy, `manual` = user-initiated) |
 | `eventconductor.step.compensations` | Counter | `workflowDefinitionId` | Compensation steps triggered after retries were exhausted |
 | `eventconductor.process.running` | Gauge | — | Processes currently in `RUNNING` status |
-| `eventconductor.outbox.pending` | Gauge | — | Outbox messages waiting to be relayed (only with `workflow.persistence=jpa`; the in-memory mode has no outbox) |
+| `eventconductor.outbox.pending` | Gauge | — | Outbox messages waiting to be relayed (only with `workflow.persistence=jpa`; the in-memory mode has no outbox). Rises during a broker outage and must return to zero |
+| `eventconductor.steps.stalled` | Gauge | — | Live steps with **no deadline** that have been waiting longer than `workflow.stalled-step-after-ms`. The one gauge to alert on — see below |
+
+**Alert on `eventconductor.steps.stalled`.** Every other metric here counts something happening;
+this counts work that has stopped happening where nothing in the engine will notice. A step that
+declares no timeout has no deadline, and the timeout scan is an index range over the deadline — so
+if that step's dispatch or its worker's reply is lost, the process stops permanently and silently.
+Any sustained non-zero value is work that will never finish. Give those steps a timeout, or set
+`workflow.default-step-timeout-ms`. See [Reliability](/guides/reliability/).
 
 ### Forms engine
 

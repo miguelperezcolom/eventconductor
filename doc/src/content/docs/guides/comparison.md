@@ -102,9 +102,16 @@ what it mostly demonstrates is that nothing is lost or stuck under concurrency. 
 Zeebe's published thousands would be comparing a laptop to a cluster.
 
 The number that *is* comparable is what the engine adds per transition — the gap between one step
-finishing and the next starting, which contains no worker time: **~10 ms p50, ~17 ms p95** at 40
+finishing and the next starting, which contains no worker time: **7.7 ms p50, 11.7 ms p95** at 40
 instances/second. See [Performance](/guides/performance/) for how that is measured, the two ways it
 is easy to measure wrongly, and a harness that reproduces it on your own hardware.
+
+Throughput on a real cluster is a different and much smaller number, for a reason that has nothing
+to do with the engine: a transition costs a handful of database commits, and every commit costs an
+`fsync`. On network block storage doing ~350 `fsync`/s the ceiling is single-digit process
+instances per second while the orchestrator pods sit at a fraction of their CPU limit. Storage
+latency, not the engine, is what a deployment should be sized against — see
+[Reliability](/guides/reliability/) for the measurements.
 
 Perspective still matters, though: one process instance per second is ~86,400 a day, and 100 PI/s —
 comfortably within a single decent PostgreSQL — is ~8.6M a day. The published headroom of Zeebe and

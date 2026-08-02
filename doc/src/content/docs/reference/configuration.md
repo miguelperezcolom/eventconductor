@@ -175,10 +175,12 @@ GRANT EXECUTE ON DBMS_LOCK TO <your_schema_user>;
 ```
 :::
 
-The schema is created/updated automatically by Hibernate on startup (`ddl-auto=update`). For production, the standalone apps ship **Flyway migrations** (disabled by default): set `FLYWAY_ENABLED=true` (`spring.flyway.enabled`) together with `DDL_AUTO=validate` so Flyway manages the schema and Hibernate only validates it.
+The standalone apps ship **Flyway migrations and run them by default** (`FLYWAY_ENABLED=true`). In production also set `DDL_AUTO=validate`, so Flyway owns the schema and Hibernate only checks it.
+
+Do not turn Flyway off. The migrations are the only place the engine's indexes come from: `ddl-auto=update` emits no index DDL at all, so a schema built without them has primary keys and nothing else, and every deadline scan, outbox claim and message correlation becomes a sequential scan. Measured on a cluster where they were missing, PostgreSQL pinned at 750m of CPU and throughput fell to a fraction.
 
 ```properties
-spring.flyway.enabled=${FLYWAY_ENABLED:false}
+spring.flyway.enabled=${FLYWAY_ENABLED:true}
 spring.flyway.locations=classpath:db/migration/workflow   # forms app: db/migration/forms, rule app: db/migration/rules
 spring.flyway.baseline-on-migrate=true
 spring.flyway.baseline-version=1
@@ -335,10 +337,14 @@ The standalone images are fully configured via environment variables. All variab
 | `DB_DRIVER` | `org.postgresql.Driver` | `spring.datasource.driver-class-name` |
 | `JPA_DIALECT` | `org.hibernate.dialect.PostgreSQLDialect` | `spring.jpa.database-platform` |
 | `DDL_AUTO` | `update` | `spring.jpa.hibernate.ddl-auto` |
-| `FLYWAY_ENABLED` | `false` | `spring.flyway.enabled` |
-| `DB_POOL_SIZE` | `10` | `spring.hikari.maximum-pool-size` |
+| `FLYWAY_ENABLED` | `true` | `spring.flyway.enabled` |
+| `DB_POOL_SIZE` | `16` | `spring.hikari.maximum-pool-size` |
 | `DB_CONNECTION_TIMEOUT` | `20000` | `spring.hikari.connection-timeout` (ms) |
 | `KAFKA_BROKERS` | `localhost:9092` | `spring.cloud.stream.kafka.binder.brokers` |
+| `KAFKA_CONCURRENCY` | `3` | Consumer threads per pod on each consumer binding |
+| `KAFKA_MIN_PARTITIONS` | `6` | `spring.cloud.stream.kafka.binder.min-partition-count` |
+| `DEFAULT_STEP_TIMEOUT_MS` | `0` (off) | `workflow.default-step-timeout-ms` — fallback deadline for ACTION and RULE steps that declare none |
+| `STALLED_STEP_AFTER_MS` | `900000` | `workflow.stalled-step-after-ms` — how long a live step with no deadline may wait before `eventconductor.steps.stalled` counts it |
 | `SECURITY_ENABLED` | `true` | `eventconductor.security.enabled` |
 | `SECURITY_USER` | `admin` | `eventconductor.security.user` |
 | `SECURITY_PASSWORD` | *(blank)* | `eventconductor.security.password` |
@@ -358,8 +364,8 @@ The standalone images are fully configured via environment variables. All variab
 | `DB_DRIVER` | `org.postgresql.Driver` | `spring.datasource.driver-class-name` |
 | `JPA_DIALECT` | `org.hibernate.dialect.PostgreSQLDialect` | `spring.jpa.database-platform` |
 | `DDL_AUTO` | `update` | `spring.jpa.hibernate.ddl-auto` |
-| `FLYWAY_ENABLED` | `false` | `spring.flyway.enabled` |
-| `DB_POOL_SIZE` | `10` | `spring.hikari.maximum-pool-size` |
+| `FLYWAY_ENABLED` | `true` | `spring.flyway.enabled` |
+| `DB_POOL_SIZE` | `16` | `spring.hikari.maximum-pool-size` |
 | `DB_CONNECTION_TIMEOUT` | `20000` | `spring.hikari.connection-timeout` (ms) |
 | `KAFKA_BROKERS` | `localhost:9092` | `spring.cloud.stream.kafka.binder.brokers` |
 | `SECURITY_ENABLED` | `true` | `eventconductor.security.enabled` |
