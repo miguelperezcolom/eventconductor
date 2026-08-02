@@ -24,6 +24,11 @@ import org.springframework.transaction.support.TransactionTemplate;
  * for. It also needed a watchdog to force-release locks held too long, which could take
  * exclusivity away from an operation that was still running.
  *
+ * <p>Only in {@code embedded} mode. In {@code kafka} mode a process has a single writer by
+ * construction — see {@link PartitionOwnedProcessLockService} — so there is nothing for a lock to
+ * arrange. Embedded pods share no partitioning, so the row lock is what keeps two of them off the
+ * same process.
+ *
  * <p>The row lock costs one connection — the one the work already uses — is released by the
  * commit rather than by remembering to, queues fairly in the database instead of sleeping and
  * retrying, and is reentrant within a transaction. Waiting is bounded by a statement timeout,
@@ -32,6 +37,7 @@ import org.springframework.transaction.support.TransactionTemplate;
  */
 @Service
 @ConditionalOnProperty(name = "workflow.persistence", havingValue = "jpa")
+@ConditionalOnProperty(name = "workflow.mode", havingValue = "embedded", matchIfMissing = true)
 @RequiredArgsConstructor
 @Slf4j
 public class JdbcProcessLockService implements ProcessLockService {

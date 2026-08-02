@@ -20,6 +20,9 @@ class TaskStatusChangedEventHandlerTest {
 
     @Mock UpdateStepExecutionUseCase updateStepExecutionUseCase;
 
+    @Mock io.mateu.workflow.infra.in.async.processupstreamevent.UnkeyedEventRouter unkeyedEventRouter;
+
+
     @InjectMocks TaskStatusChangedEventHandler handler;
 
     @Test

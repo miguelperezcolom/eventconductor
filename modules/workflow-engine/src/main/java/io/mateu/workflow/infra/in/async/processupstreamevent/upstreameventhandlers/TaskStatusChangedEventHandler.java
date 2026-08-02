@@ -18,6 +18,7 @@ import java.util.stream.Collectors;
 public class TaskStatusChangedEventHandler implements DomainEventHandler<TaskStatusChanged> {
 
     final UpdateStepExecutionUseCase updateStepExecutionUseCase;
+    final io.mateu.workflow.infra.in.async.processupstreamevent.UnkeyedEventRouter unkeyedEventRouter;
 
     @Override
     public Class<? extends DomainEvent> eventClass() {
@@ -26,6 +27,12 @@ public class TaskStatusChangedEventHandler implements DomainEventHandler<TaskSta
 
     @Override
     public void handle(TaskStatusChanged e) {
+        // A worker that did not echo the process leaves the event unkeyed, so it can land on a
+        // pod that does not own the process — the one remaining way two pods reach the same one
+        // now that kafka mode has no lock. Send it back out keyed instead of handling it here.
+        if (unkeyedEventRouter.rerouted(e)) {
+            return;
+        }
         updateStepExecutionUseCase.handle(new UpdateStepExecutionCommand(e.taskExecutionId(),
                 e.variables().stream()
                         .map(variable -> new Variable(variable.name(), variable.value())).toList(),

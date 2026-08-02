@@ -8,6 +8,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **No per-process lock in `kafka` mode: exclusivity is inherited from the partition.** Events are
+  keyed by process and a consumer group gives each partition to exactly one consumer, so a process
+  already has a single writer. `PartitionOwnedProcessLockService` therefore only opens the
+  transaction the work commits in; the optimistic version is what guards the rebalance window.
+
+  Measured on DIST-05, three runs each: **44,0 / 46,1 / 50,7 PI/s with the row lock against
+  50,8 / 51,0 / 53,7 without** — about 10% on the mean, and a visibly tighter spread, since the
+  lock was the part that could wait. The lowest run without it beat the highest run with it.
+
+  **`embedded` mode keeps the row lock**, deliberately: nothing partitions processes across pods
+  there, so two of them can still reach the same process, and a version guards a *row* rather than
+  a *decision* — two step-overs that read the same state and then write different rows collide on
+  no version and would dispatch a step twice.
+
+  That same reasoning left one hole in kafka mode, and it is closed rather than documented away:
+  a worker on an older shared module reports back **unkeyed**, so its event can land on a pod that
+  does not own the process. `UnkeyedEventRouter` now sends such an event back out with the process
+  it belongs to instead of handling it where it landed — one indexed lookup and one extra hop,
+  paid only by workers that do not echo the process, and inert outside kafka mode.
 - **Operator actions travel as events, so they run on the pod that owns the process.** Pausing,
   resuming, cancelling and retrying (a whole process or one step) used to execute wherever the UI
   click or the MCP call landed — which, under partition ownership, is not the pod that owns the
