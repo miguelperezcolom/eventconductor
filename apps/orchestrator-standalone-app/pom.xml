@@ -82,6 +82,13 @@
             <artifactId>logstash-logback-encoder</artifactId>
             <version>8.0</version>
         </dependency>
+        <!-- Spring Boot 4 moved FlywayAutoConfiguration out of spring-boot-autoconfigure into this
+             module. Without it, flyway-core is on the classpath but Flyway is never wired to run at
+             startup (so spring.flyway.enabled has no effect and no migrations/indexes are applied). -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-flyway</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.flywaydb</groupId>
             <artifactId>flyway-core</artifactId>
