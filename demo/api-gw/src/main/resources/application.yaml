@@ -25,6 +25,12 @@
             uri: ${STATIC_URL:http://localhost:8107}
             predicates:
               - Path=/static/**
+          # EventConductor serves the workflow-graph web component at an absolute path;
+          # route it to the orchestrator so it loads when the shell embeds that UI.
+          - id: eventconductor_assets_route
+            uri: ${WORKFLOW_URL:http://localhost:8105}
+            predicates:
+              - Path=/eventconductor/**
           - id: forms_route
             uri: ${FORMS_URL:http://localhost:8106}
             predicates:
