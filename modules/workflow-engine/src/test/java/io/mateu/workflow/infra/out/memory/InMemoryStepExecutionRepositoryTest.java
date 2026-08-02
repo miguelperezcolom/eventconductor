@@ -137,20 +137,43 @@ class InMemoryStepExecutionRepositoryTest {
         assertThat(repo.findDue(now)).hasSize(1);
     }
 
-    @Test
-    void findLiveWithoutDeadlineFindsStepsArmedBeforeTheColumnExisted() {
-        var now = LocalDateTime.now();
-        // A step persisted by an older version: started, live, no deadline materialised.
-        repo.save(StepExecution.builder()
-                .id("legacy").processId("p-1")
-                .status(StepExecutionStatus.PENDING)
-                .startedAt(now.minusDays(1))
-                .build());
-        repo.save(started("armed", StepExecutionStatus.PENDING, now, 60_000));
-        repo.save(se("neverStarted", "p-1", StepExecutionStatus.PENDING, 0));
+    private StepExecution waitingForMessage(String id, String messageName, String businessKey) {
+        var step = new Step("s1", "wd-1", StepType.WAIT_FOR_MESSAGE, "Wait", null, null, null, null, false, null, null, null, null, null, 0, null, messageName, "businessKey", null, 0, 0, false, null, 0, null);
+        var process = Process.builder().id("p-" + id).businessKey(businessKey).variables(List.of()).build();
+        return StepExecution.create(step, process.id(), 0).start(process).withId(id);
+    }
 
-        assertThat(repo.findLiveWithoutDeadline())
+    @Test
+    void findWaitingForMessageMatchesOnNameAndKey() {
+        repo.save(waitingForMessage("wanted", "paymentConfirmed", "booking-1"));
+        repo.save(waitingForMessage("otherKey", "paymentConfirmed", "booking-2"));
+        repo.save(waitingForMessage("otherMessage", "checkInOpened", "booking-1"));
+
+        assertThat(repo.findWaitingForMessage("paymentConfirmed", "booking-1"))
                 .extracting(StepExecution::id)
-                .containsExactly("legacy");
+                .containsExactly("wanted");
+    }
+
+    @Test
+    void findWaitingForMessageIgnoresStepsThatAreNoLongerWaiting() {
+        var completed = waitingForMessage("done", "paymentConfirmed", "booking-1");
+        completed.updateStatus(StepExecutionStatus.COMPLETED);
+        repo.save(completed);
+
+        assertThat(repo.findWaitingForMessage("paymentConfirmed", "booking-1")).isEmpty();
+    }
+
+    @Test
+    void findWaitingForMessageNeverMatchesAStepWithNoKey() {
+        // A correlation expression that cannot be evaluated leaves a null key. Fail-closed
+        // means it matches nothing — including a message that carries no key either.
+        var step = new Step("s1", "wd-1", StepType.WAIT_FOR_MESSAGE, "Wait", null, null, null, null, false, null, null, null, null, null, 0, null, "paymentConfirmed", "no.such.thing", null, 0, 0, false, null, 0, null);
+        var process = Process.builder().id("p-1").variables(List.of()).build();
+        var unarmed = StepExecution.create(step, "p-1", 0).start(process);
+        assertThat(unarmed.getAwaitingCorrelationKey()).isNull();
+        repo.save(unarmed);
+
+        assertThat(repo.findWaitingForMessage("paymentConfirmed", null)).isEmpty();
+        assertThat(repo.findWaitingForMessage("paymentConfirmed", "anything")).isEmpty();
     }
 }

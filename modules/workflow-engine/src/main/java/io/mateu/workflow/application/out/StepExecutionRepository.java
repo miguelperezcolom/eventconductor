@@ -31,11 +31,10 @@ public interface StepExecutionRepository extends CrudStore<StepExecution> {
     List<StepExecution> findDue(LocalDateTime now);
 
     /**
-     * Live step executions that started before the deadline was materialised and therefore carry
-     * none. Empty on any engine that has only ever run this version; non-empty exactly once,
-     * right after the upgrade, for the steps that were already in flight. See
-     * {@code StepDeadlineBackfillRunner}.
+     * The WAIT_FOR_MESSAGE steps subscribed to this message under this correlation key. A null
+     * key matches nothing, which is how the fail-closed contract of an unevaluable correlation
+     * expression survives being indexed.
      */
-    List<StepExecution> findLiveWithoutDeadline();
+    List<StepExecution> findWaitingForMessage(String messageName, String correlationKey);
 
 }

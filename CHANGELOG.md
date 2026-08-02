@@ -8,6 +8,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **An arriving message finds its waiting steps by index.** A live `WAIT_FOR_MESSAGE` step now
+  stores the subscription it represents — `awaiting_message_name` and `awaiting_correlation_key`
+  — so correlating a `MessageReceived` is a lookup on those two columns instead of a walk over
+  every step waiting anywhere in the engine, loading each one's process and evaluating its JEXL
+  expression. Indexing the message name alone would not have helped: the case that hurts is many
+  processes parked on the *same* message, where the key is the only selective part.
+
+  **The correlation contract is unchanged**, and that is what most of the work went into. The key
+  derives from process variables, and those move while a step waits — a parallel branch can write
+  the very variable the expression reads. Evaluating on arrival made that free; storing it does
+  not, so both paths that update process variables now rearm the subscriptions of that one
+  process (`MessageSubscriptionService`), writing only the keys that actually moved. A message
+  still correlates against the process as it is *now*. Spec `E2E-MSG-06` covers it. Fail-closed
+  survives too: an expression that will not evaluate stores a null key, and null matches nothing.
+  `CompleteMessageStepHandler` still re-checks the correlation against the live process under the
+  process lock — the query is the filter, that check remains the decision.
+
+  Steps already waiting when this version is deployed are armed at the next boot by
+  `InFlightStepRearmRunner` (which also covers the deadline below). Migration `V9` adds the
+  columns and `idx_step_exec_awaiting_message`.
 - **The scheduler no longer walks every live step to find the due ones.** Each step execution now
   carries a **materialised deadline** (`deadline_at`) — a `TIMER`'s due moment or a step's timeout
   — armed when the step starts, from the `startedAt`, variables and step JSON that are frozen at
@@ -20,7 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   The deadline is derived state, so it is recomputed by every path that moves the clock;
   `withDeadlineAt` is suppressed on the aggregate so it cannot be set on its own, and pause/resume
   (which shifts `startedAt` by the pause duration) moves both together. Steps already in flight
-  when this version is deployed are armed at the next boot by `StepDeadlineBackfillRunner`, which
+  when this version is deployed are armed at the next boot by `InFlightStepRearmRunner`, which
   recomputes them from the state they already carry — one query at startup, idempotent, a no-op
   from then on. Migration `V8` adds the column and `idx_step_exec_deadline`.
 

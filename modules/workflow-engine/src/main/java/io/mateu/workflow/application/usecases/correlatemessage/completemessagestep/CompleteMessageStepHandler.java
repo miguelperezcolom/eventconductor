@@ -5,6 +5,7 @@ import io.mateu.workflow.application.out.ProcessLockService;
 import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.out.WorkflowMetrics;
+import io.mateu.workflow.application.services.MessageSubscriptionService;
 import io.mateu.workflow.domain.services.MessageCorrelation;
 import io.mateu.workflow.domain.aggregates.LogMessage;
 import io.mateu.workflow.domain.aggregates.Step;
@@ -29,6 +30,7 @@ public class CompleteMessageStepHandler {
     final ProcessRepository processRepository;
     final LogMessageRepository logMessageRepository;
     final ProcessLockService processLockService;
+    final MessageSubscriptionService messageSubscriptionService;
     final WorkflowMetrics workflowMetrics;
 
     public void handle(CompleteMessageStepCommand command) {
@@ -67,6 +69,11 @@ public class CompleteMessageStepHandler {
 
             stepExecution.updateStatus(StepExecutionStatus.COMPLETED);
             stepExecutionRepository.save(stepExecution);
+
+            // The message payload became process state above; a sibling WAIT_FOR_MESSAGE may
+            // correlate on one of those variables. Rearm after saving this step, so the one
+            // just completed is already out of the waiting set.
+            messageSubscriptionService.rearm(process);
 
             workflowMetrics.stepExecutionFinished(stepExecution.getWorkflowDefinitionId(),
                     StepExecutionStatus.COMPLETED,

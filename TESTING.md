@@ -60,6 +60,7 @@ repositories for assertions. No engine internals are mocked.
 | E2E-MSG-03 | **Timeout on a waiting MESSAGE step.** A `MESSAGE` step with `timeout` that receives no message transitions to `TIMEOUT` via the timeout scheduler and the normal retry/failure semantics engage (retries: 0 → process ERROR). |
 | E2E-MSG-04 | **Correlation by JEXL expression.** A step with `correlationExpression` correlates by the expression's value over process variables instead of the businessKey (which no longer matches); fail-closed like preconditions. |
 | E2E-MSG-05 | **Messages are ignored, not buffered.** A message arriving when no step is waiting for it is dropped: a process created afterwards still waits, and only a redelivery resumes it. This is the documented delivery contract (at-least-once upstream: the sender retries). |
+| E2E-MSG-06 | **A correlation key that moves while the step waits.** The key is materialised on the step execution so an arriving message can be matched by index. A parallel branch that writes the very variable the `correlationExpression` reads moves it: the key armed at start stops matching and the new one correlates. Correlation reads the process as it is now, not as it was when the wait began. |
 | E2E-CRON-01 | **Cron-scheduled process starts.** An ACTIVE definition with a `cronExpression` gets process instances created automatically at each occurrence; business keys are derived deterministically from the occurrence time (no duplicate instances per occurrence) and the instances run to COMPLETED. |
 
 ## 4. Idempotency, consistency, security

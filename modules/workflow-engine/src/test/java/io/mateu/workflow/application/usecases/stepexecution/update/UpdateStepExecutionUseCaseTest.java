@@ -1,5 +1,6 @@
 package io.mateu.workflow.application.usecases.stepexecution.update;
 
+import io.mateu.workflow.application.services.MessageSubscriptionService;
 import io.mateu.workflow.application.out.LogMessageRepository;
 import io.mateu.workflow.application.out.ProcessLockService;
 import io.mateu.workflow.application.out.ProcessRepository;
@@ -28,6 +29,9 @@ class UpdateStepExecutionUseCaseTest {
     @Mock ProcessLockService processLockService;
     @Mock WorkflowMetrics workflowMetrics;
 
+    @Mock MessageSubscriptionService messageSubscriptionService;
+
+
     @InjectMocks UpdateStepExecutionUseCase useCase;
 
     private StepExecution stepExecution(String id, String processId) {
@@ -55,6 +59,9 @@ class UpdateStepExecutionUseCaseTest {
         verify(processRepository).save(any(Process.class));
         verify(logMessageRepository).save(any());
         verify(workflowMetrics).stepExecutionFinished(any(), eq(StepExecutionStatus.COMPLETED), any());
+        // The variables just written may be what a sibling WAIT_FOR_MESSAGE correlates on;
+        // its stored key only follows them if this call is here.
+        verify(messageSubscriptionService).rearm(proc);
         verify(processLockService).unlock("p-1");
     }
 

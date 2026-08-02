@@ -1,28 +1,26 @@
 package io.mateu.workflow.application.usecases.correlatemessage;
 
-import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.usecases.correlatemessage.completemessagestep.CompleteMessageStepCommand;
 import io.mateu.workflow.application.usecases.correlatemessage.completemessagestep.CompleteMessageStepHandler;
-import io.mateu.workflow.domain.aggregates.Step;
-import io.mateu.workflow.domain.aggregates.StepExecution;
-import io.mateu.workflow.domain.aggregates.StepExecutionStatus;
-import io.mateu.workflow.domain.aggregates.StepType;
-import io.mateu.workflow.domain.services.MessageCorrelation;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import static io.mateu.core.infra.JsonSerializer.pojoFromJson;
-
 /**
  * Correlates an incoming {@code MessageReceived} against WAIT_FOR_MESSAGE steps waiting for
- * it. A step matches when it is PENDING on the same messageName and the process correlation
- * key (the step's correlationExpression; businessKey only for pre-rename persisted steps)
- * equals the message's correlation key. Matches are completed by {@link CompleteMessageStepHandler} under the
- * process lock. A message that matches no waiting step is ignored (logged, not buffered):
- * upstream delivery is at-least-once, so the sender simply retries once the process is
- * waiting.
+ * it. A step matches when it is PENDING on the same messageName and its correlation key (from
+ * the step's correlationExpression; businessKey only for pre-rename persisted steps) equals the
+ * message's. Both are materialised on the step execution and kept current as the process
+ * changes, so this is an indexed lookup rather than a walk over every step waiting anywhere in
+ * the engine — with many processes parked on the same message name, that walk was the cost of
+ * every single message.
+ *
+ * <p>Matches are completed by {@link CompleteMessageStepHandler} under the process lock, which
+ * re-evaluates the correlation from the live process before acting: this query is the filter,
+ * that check is the decision. A message that matches no waiting step is ignored (logged, not
+ * buffered): upstream delivery is at-least-once, so the sender simply retries once the process
+ * is waiting.
  */
 @Service
 @RequiredArgsConstructor
@@ -30,15 +28,11 @@ import static io.mateu.core.infra.JsonSerializer.pojoFromJson;
 public class CorrelateMessageUseCase {
 
     final StepExecutionRepository stepExecutionRepository;
-    final ProcessRepository processRepository;
     final CompleteMessageStepHandler completeMessageStepHandler;
 
     public void handle(CorrelateMessageCommand command) {
-        var matched = stepExecutionRepository.findPendingOrRunning().stream()
-                .filter(se -> StepExecutionStatus.PENDING.equals(se.getStatus()))
-                .filter(se -> se.getStartedAt() != null)
-                .filter(se -> isWaitingFor(se, command))
-                .toList();
+        var matched = stepExecutionRepository.findWaitingForMessage(
+                command.messageName(), command.correlationKey());
         if (matched.isEmpty()) {
             log.warn("Message '{}' with correlation key '{}' matched no waiting step — ignored (messages are not buffered)",
                     command.messageName(), command.correlationKey());
@@ -46,16 +40,6 @@ public class CorrelateMessageUseCase {
         }
         matched.forEach(se -> completeMessageStepHandler.handle(new CompleteMessageStepCommand(
                 se.id(), command.messageName(), command.correlationKey(), command.variables())));
-    }
-
-    private boolean isWaitingFor(StepExecution stepExecution, CorrelateMessageCommand command) {
-        var step = pojoFromJson(stepExecution.getStepJson(), Step.class);
-        if (!StepType.WAIT_FOR_MESSAGE.equals(step.type()) || !command.messageName().equals(step.messageName())) {
-            return false;
-        }
-        return processRepository.findById(stepExecution.getProcessId())
-                .map(process -> MessageCorrelation.matches(step, process, command.correlationKey()))
-                .orElse(false);
     }
 
 }

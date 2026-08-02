@@ -1,0 +1,49 @@
+{
+  "id": "message-expr-moving-key",
+  "name": "Message wait whose correlation key is changed by a parallel branch",
+  "version": 1,
+  "status": "ACTIVE",
+  "steps": [
+    {
+      "id": "start",
+      "type": "START",
+      "name": "Start"
+    },
+    {
+      "id": "fork",
+      "type": "FORK",
+      "name": "Fork",
+      "preconditionStepId": "start"
+    },
+    {
+      "id": "wait",
+      "type": "WAIT_FOR_MESSAGE",
+      "name": "Wait for payment",
+      "messageName": "payment-received",
+      "correlationExpression": "orderId",
+      "preconditionStepId": "fork"
+    },
+    {
+      "id": "renumber",
+      "type": "ACTION",
+      "name": "Reassign the order id while the other branch waits",
+      "topic": "work",
+      "preconditionStepId": "fork"
+    },
+    {
+      "id": "join",
+      "type": "JOIN",
+      "name": "Join",
+      "preconditionStepIds": [
+        "wait",
+        "renumber"
+      ]
+    },
+    {
+      "id": "end",
+      "type": "END",
+      "name": "End",
+      "preconditionStepId": "join"
+    }
+  ]
+}

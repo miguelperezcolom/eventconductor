@@ -81,10 +81,14 @@ public class InMemoryStepExecutionRepository implements StepExecutionRepository 
     }
 
     @Override
-    public List<StepExecution> findLiveWithoutDeadline() {
+    public List<StepExecution> findWaitingForMessage(String messageName, String correlationKey) {
         return store.values().stream()
-                .filter(InMemoryStepExecutionRepository::isLive)
-                .filter(se -> se.getStartedAt() != null && se.getDeadlineAt() == null)
+                .filter(se -> se.getStatus() == StepExecutionStatus.PENDING)
+                .filter(se -> messageName.equals(se.getAwaitingMessageName()))
+                // A null stored key matches nothing, mirroring the SQL equality the JPA
+                // adapter relies on — an unevaluable correlation expression stays fail-closed.
+                .filter(se -> se.getAwaitingCorrelationKey() != null
+                        && se.getAwaitingCorrelationKey().equals(correlationKey))
                 .toList();
     }
 

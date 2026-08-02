@@ -44,7 +44,9 @@ public class StepExecutionDBRepository implements StepExecutionRepository {
                 entity.getStartedAt(),
                 entity.getFinishedAt(),
                 entity.getAttemptCount(),
-                entity.getDeadlineAt()
+                entity.getDeadlineAt(),
+                entity.getAwaitingMessageName(),
+                entity.getAwaitingCorrelationKey()
         );
     }
 
@@ -63,7 +65,9 @@ public class StepExecutionDBRepository implements StepExecutionRepository {
                 stepExecution.getStartedAt(),
                 stepExecution.getFinishedAt(),
                 stepExecution.getAttemptCount(),
-                stepExecution.getDeadlineAt()
+                stepExecution.getDeadlineAt(),
+                stepExecution.getAwaitingMessageName(),
+                stepExecution.getAwaitingCorrelationKey()
         ));
 
         stepExecution.popEvents().stream()
@@ -111,9 +115,15 @@ public class StepExecutionDBRepository implements StepExecutionRepository {
     }
 
     @Override
-    public List<StepExecution> findLiveWithoutDeadline() {
+    public List<StepExecution> findWaitingForMessage(String messageName, String correlationKey) {
+        if (correlationKey == null) {
+            // SQL equality never matches null; short-circuit rather than issue a query that
+            // cannot return anything.
+            return List.of();
+        }
         return stepExecutionEntityRepository
-                .findAllByStatusInAndStartedAtIsNotNullAndDeadlineAtIsNull(List.of(PENDING.name(), RUNNING.name()))
+                .findAllByStatusAndAwaitingMessageNameAndAwaitingCorrelationKey(
+                        PENDING.name(), messageName, correlationKey)
                 .stream().map(this::map).toList();
     }
 }

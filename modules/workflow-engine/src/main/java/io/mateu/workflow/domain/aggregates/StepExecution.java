@@ -21,6 +21,7 @@ import lombok.With;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 import static io.mateu.core.infra.JsonSerializer.pojoFromJson;
@@ -65,6 +66,27 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
      */
     @With(AccessLevel.NONE)
     private LocalDateTime deadlineAt;
+    /**
+     * The message this step is waiting for, or null when it is not a live WAIT_FOR_MESSAGE.
+     * Materialised at start, together with {@link #awaitingCorrelationKey}, so an arriving
+     * message finds its subscribers with an indexed lookup instead of a walk over every step
+     * waiting anywhere in the engine.
+     */
+    @With(AccessLevel.NONE)
+    private String awaitingMessageName;
+    /**
+     * The correlation key an arriving message must carry to wake this step, or null when it has
+     * none — including a correlation expression that cannot be evaluated, which is how the
+     * fail-closed contract survives being indexed: a null key equals nothing, so it matches
+     * nothing.
+     *
+     * <p>Kept current rather than frozen: {@link #rearmedFor(Process)} recomputes it whenever the
+     * process variables it derives from change, so a message correlates against the process as it
+     * is now — the same contract as evaluating the expression on arrival, which is what this
+     * replaced.
+     */
+    @With(AccessLevel.NONE)
+    private String awaitingCorrelationKey;
 
 
     public static StepExecution create(Step step, String processId, int position) {
@@ -97,6 +119,40 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
         var shifted = toBuilder().startedAt(startedAt).build();
         shifted.deadlineAt = shifted.computeDeadline();
         return shifted;
+    }
+
+    /**
+     * Recomputes every derived lookup field — the deadline and the message subscription — from
+     * the state this step already carries, returning {@code this} untouched when nothing moved.
+     *
+     * <p>Two callers, for two reasons. Process variables change while a step waits (a parallel
+     * branch completing can change the very variable a correlation expression reads), and before
+     * the key was stored that was free: it was evaluated on arrival, against whatever the process
+     * held then. Storing it means every path that updates process variables has to come through
+     * here. And a step that started under a version without these fields carries none, so the
+     * boot-time rearm brings it up to date the same way.
+     */
+    public StepExecution rearmedFor(Process process) {
+        if (startedAt == null) {
+            return this;
+        }
+        var step = pojoFromJson(stepJson, Step.class);
+        var deadline = computeDeadline();
+        var waiting = StepExecutionStatus.PENDING.equals(status)
+                && StepType.WAIT_FOR_MESSAGE.equals(step.type())
+                && step.messageName() != null && !step.messageName().isBlank();
+        var messageName = waiting ? step.messageName() : null;
+        var correlationKey = waiting ? MessageCorrelation.expectedKey(step, process) : null;
+        if (Objects.equals(deadline, deadlineAt)
+                && Objects.equals(messageName, awaitingMessageName)
+                && Objects.equals(correlationKey, awaitingCorrelationKey)) {
+            return this;
+        }
+        var rearmed = toBuilder().build();
+        rearmed.deadlineAt = deadline;
+        rearmed.awaitingMessageName = messageName;
+        rearmed.awaitingCorrelationKey = correlationKey;
+        return rearmed;
     }
 
     /**
@@ -161,6 +217,11 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
                 updateStatus(StepExecutionStatus.ERROR);
                 return this;
             }
+            // Materialise what this step is waiting for, so an arriving message can find it by
+            // index. A correlation expression that will not evaluate yields a null key, which
+            // matches nothing — the same fail-closed outcome as evaluating it on arrival.
+            this.awaitingMessageName = step.messageName();
+            this.awaitingCorrelationKey = MessageCorrelation.expectedKey(step, process);
             send(new TaskLogEmitted(id, MessageType.Info,
                     "Waiting for message '" + step.messageName() + "' on step " + step.name() + "."));
         } else if (StepType.SEND_MESSAGE.equals(step.type())) {

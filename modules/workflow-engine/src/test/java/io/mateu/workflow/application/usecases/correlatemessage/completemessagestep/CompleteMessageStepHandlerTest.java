@@ -1,6 +1,7 @@
 package io.mateu.workflow.application.usecases.correlatemessage.completemessagestep;
 
 import io.mateu.core.infra.JsonSerializer;
+import io.mateu.workflow.application.services.MessageSubscriptionService;
 import io.mateu.workflow.application.out.LogMessageRepository;
 import io.mateu.workflow.application.out.ProcessLockService;
 import io.mateu.workflow.application.out.ProcessRepository;
@@ -32,6 +33,9 @@ class CompleteMessageStepHandlerTest {
     @Mock LogMessageRepository logMessageRepository;
     @Mock ProcessLockService processLockService;
     @Mock WorkflowMetrics workflowMetrics;
+
+    @Mock MessageSubscriptionService messageSubscriptionService;
+
 
     @InjectMocks CompleteMessageStepHandler handler;
 
@@ -71,6 +75,9 @@ class CompleteMessageStepHandlerTest {
 
         verify(logMessageRepository).save(any());
         verify(workflowMetrics).stepExecutionFinished(any(), eq(StepExecutionStatus.COMPLETED), any());
+        // The message payload became process state; a sibling WAIT_FOR_MESSAGE correlating on
+        // one of those variables only sees it if the subscriptions are rearmed here.
+        verify(messageSubscriptionService).rearm(any());
         verify(processLockService).unlock("p-1");
     }
 

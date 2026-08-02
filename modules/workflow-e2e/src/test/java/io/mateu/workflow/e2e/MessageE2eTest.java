@@ -126,4 +126,28 @@ class MessageE2eTest extends AbstractE2eTest {
         assertThat(process("msg-6").getStatus()).isEqualTo(ProcessStatus.COMPLETED);
         assertThat(worker.invocationsOf("after")).isEqualTo(1);
     }
+
+    /**
+     * E2E-MSG-06 — a correlation key that moves while the step waits. The key is materialised on
+     * the step execution so an arriving message can be matched by index, and a parallel branch
+     * writing the very variable the expression reads must move it: correlation reads the process
+     * as it is now, not as it was when the wait began.
+     */
+    @Test
+    void correlationFollowsAKeyChangedByAParallelBranchWhileWaiting() {
+        worker.on("renumber", TestWorker.succeed(TestWorker.var("orderId", "O-99")));
+
+        createProcess("message-expr-moving-key", "msg-7", new Variable("orderId", "O-77"));
+
+        // The parallel branch has already reassigned orderId; the wait is still open.
+        assertThat(step("msg-7", "wait").getStatus()).isEqualTo(StepExecutionStatus.PENDING);
+
+        // The key the step was armed with at start is stale and must no longer match.
+        sendMessage("payment-received", "O-77");
+        assertThat(step("msg-7", "wait").getStatus()).isEqualTo(StepExecutionStatus.PENDING);
+
+        sendMessage("payment-received", "O-99");
+        assertThat(step("msg-7", "wait").getStatus()).isEqualTo(StepExecutionStatus.COMPLETED);
+        assertThat(process("msg-7").getStatus()).isEqualTo(ProcessStatus.COMPLETED);
+    }
 }

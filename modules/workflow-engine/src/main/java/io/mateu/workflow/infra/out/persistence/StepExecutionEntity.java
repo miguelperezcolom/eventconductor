@@ -44,4 +44,8 @@ public class StepExecutionEntity {
 
     LocalDateTime deadlineAt;
 
+    String awaitingMessageName;
+
+    String awaitingCorrelationKey;
+
 }
