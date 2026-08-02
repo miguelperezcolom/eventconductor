@@ -50,6 +50,21 @@
 
     <build>
         <plugins>
+            <!-- One executable jar for all three roles: the same artifact runs the pods, the
+                 workers and the driver, so a multi-host run cannot accidentally compare builds. -->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <mainClass>io.mateu.workflowbench.Benchmark</mainClass>
+                    <classifier>runnable</classifier>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals><goal>repackage</goal></goals>
+                    </execution>
+                </executions>
+            </plugin>
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>

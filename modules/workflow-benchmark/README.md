@@ -50,6 +50,60 @@ But in any real deployment this is bounded by what the workers can do, not by th
 engine cost per transition does not move. That is the point. A throughput figure mostly describes
 the load generator, which is why the report puts it second.
 
+## Across hosts
+
+Everything above runs the pods, the workers and the load in one JVM, which measures a machine.
+For a figure worth putting next to somebody else's, split the roles with `-Dbench.role` and put
+them on separate hosts:
+
+| role | what it does |
+|---|---|
+| `all` (default) | pods, workers and driver in this JVM — comparing builds on one box |
+| `pods` | orchestrators only; stays up until stopped |
+| `worker` | workers only; stays up until stopped |
+| `drive` | publishes the load and measures, against pods running elsewhere |
+
+The driver talks to the broker directly and never starts an engine, so it adds nothing to the
+host under test. It waits for a pod to have imported the definition before starting, so **start
+the pods first**.
+
+One image runs all three, which matters more than it sounds: the same artifact everywhere is what
+stops a multi-host run from quietly comparing two different builds.
+
+```bash
+docker build -f modules/workflow-benchmark/Dockerfile -t eventconductor-bench .
+
+# on the pods host
+docker run -e BENCH_OPTS="-Dbench.role=pods -Dbench.pods=4 \
+  -Dbench.jdbc.url=jdbc:postgresql://db-host:5432/eventconductor \
+  -Dbench.kafka.brokers=kafka-host:9092" eventconductor-bench
+
+# on the workers host
+docker run -e BENCH_OPTS="-Dbench.role=worker -Dbench.worker.think-ms=25 \
+  -Dbench.kafka.brokers=kafka-host:9092" eventconductor-bench
+
+# on the driver host
+docker run -e BENCH_OPTS="-Dbench.role=drive -Dbench.processes=20000 -Dbench.rate=200 \
+  -Dbench.jdbc.url=jdbc:postgresql://db-host:5432/eventconductor \
+  -Dbench.kafka.brokers=kafka-host:9092" eventconductor-bench
+```
+
+`docker-compose.dist.yml` wires the same three services for a single machine, which is worth
+running once to check the plumbing before booking hardware. It is not a measurement.
+
+### What to record alongside the number
+
+The report prints its own tuning line; publish it verbatim. Add what it cannot know:
+
+- the host for each role — CPU, memory, and whether any two shared a machine
+- the PostgreSQL and Kafka versions and any non-default settings
+- network between the hosts, since two of the ~10 ms are broker round trips
+- the arrival rate **and** the saturation throughput, so a reader can see the utilisation the
+  latency was measured at
+
+A latency figure without its utilisation is not comparable to anyone else's, and that is the most
+common way these numbers get quoted wrongly — including by us, before this module existed.
+
 ## What a measurement here can and cannot support
 
 It supports: *this change made a transition cheaper than that change*, on one machine, and *the

@@ -11,7 +11,7 @@ record BenchmarkConfig(
         String kafkaBrokers,
         int pods, int processes, int workerThinkMillis, int workerConcurrency,
         int consumerConcurrency, long outboxPollMillis, int outboxBatchSize, int poolSize,
-        int ratePerSecond, boolean podsAreLocal) {
+        int ratePerSecond, String role) {
 
     static BenchmarkConfig fromSystemProperties() {
         return new BenchmarkConfig(
@@ -36,7 +36,13 @@ record BenchmarkConfig(
                 // not what a transition costs. Pace the load and it says the second thing.
                 // 0 means unpaced: measure maximum throughput and disbelieve the latencies.
                 intProp("bench.rate", 100),
-                Boolean.parseBoolean(prop("bench.pods.local", "true")));
+                // all   — pods, worker and driver in this JVM. Convenient, and the only honest
+                //         reading of it is "this build against that build, on this box".
+                // pods  — orchestrators only, to run on their own host.
+                // worker— workers only, likewise.
+                // drive — load and measurement only, against pods running elsewhere. This is the
+                //         one that produces a figure worth publishing.
+                prop("bench.role", "all"));
     }
 
     private static String prop(String name, String fallback) {
@@ -47,8 +53,25 @@ record BenchmarkConfig(
         return Integer.getInteger(name, fallback);
     }
 
+    boolean startsPods() {
+        return "all".equals(role) || "pods".equals(role);
+    }
+
+    boolean startsWorker() {
+        return "all".equals(role) || "worker".equals(role);
+    }
+
+    boolean drivesLoad() {
+        return "all".equals(role) || "drive".equals(role);
+    }
+
+    /** Everything in one JVM, which is the only case whose numbers describe a single machine. */
+    boolean everythingIsLocal() {
+        return "all".equals(role);
+    }
+
     String describe() {
-        return "pods=" + pods + (podsAreLocal ? " (in this JVM)" : " (external)")
+        return "role=" + role + " pods=" + pods
                 + " processes=" + processes
                 + " worker.think-ms=" + workerThinkMillis
                 + " worker.concurrency=" + workerConcurrency

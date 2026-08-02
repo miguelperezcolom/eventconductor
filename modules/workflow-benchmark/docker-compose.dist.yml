@@ -1,0 +1,45 @@
+# The roles as separate services, which is the shape a publishable figure has to come from.
+#
+# As written it still runs them on one machine — useful for checking the wiring before booking
+# hardware, and NOT a basis for any claim. To spread it out, run each service on its own host and
+# point the others at it with BENCH_OPTS (-Dbench.kafka.brokers, -Dbench.jdbc.url).
+#
+#   docker build -f modules/workflow-benchmark/Dockerfile -t eventconductor-bench .
+#   docker compose -f modules/workflow-benchmark/docker-compose.yml up -d          # infra
+#   docker compose -f modules/workflow-benchmark/docker-compose.dist.yml up -d pods worker
+#   docker compose -f modules/workflow-benchmark/docker-compose.dist.yml run --rm driver
+#
+# Start order matters: a pod imports the workflow definition at startup, and the driver waits for
+# it to appear rather than assuming it is there.
+services:
+  pods:
+    image: eventconductor-bench
+    environment:
+      BENCH_OPTS: >-
+        -Dbench.role=pods
+        -Dbench.pods=${BENCH_PODS:-2}
+        -Dbench.jdbc.url=${BENCH_JDBC_URL:-jdbc:postgresql://host.docker.internal:55432/eventconductor}
+        -Dbench.kafka.brokers=${BENCH_KAFKA:-host.docker.internal:59092}
+        -Dbench.consumer.concurrency=${BENCH_CONSUMER_CONCURRENCY:-3}
+        -Dbench.outbox.poll-ms=${BENCH_OUTBOX_POLL_MS:-500}
+        -Dbench.pool-size=${BENCH_POOL_SIZE:-20}
+
+  worker:
+    image: eventconductor-bench
+    environment:
+      BENCH_OPTS: >-
+        -Dbench.role=worker
+        -Dbench.worker.concurrency=${BENCH_WORKER_CONCURRENCY:-16}
+        -Dbench.worker.think-ms=${BENCH_WORKER_THINK_MS:-0}
+        -Dbench.jdbc.url=${BENCH_JDBC_URL:-jdbc:postgresql://host.docker.internal:55432/eventconductor}
+        -Dbench.kafka.brokers=${BENCH_KAFKA:-host.docker.internal:59092}
+
+  driver:
+    image: eventconductor-bench
+    environment:
+      BENCH_OPTS: >-
+        -Dbench.role=drive
+        -Dbench.processes=${BENCH_PROCESSES:-2000}
+        -Dbench.rate=${BENCH_RATE:-40}
+        -Dbench.jdbc.url=${BENCH_JDBC_URL:-jdbc:postgresql://host.docker.internal:55432/eventconductor}
+        -Dbench.kafka.brokers=${BENCH_KAFKA:-host.docker.internal:59092}
