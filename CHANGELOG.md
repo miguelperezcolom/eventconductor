@@ -5,7 +5,74 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.0-beta.015] - 2026-08-03
+
+### Fixed
+- **The transactional outbox was not transactional: 71 messages in 642 912 were marked `Sent` and
+  never reached the broker.** The relay delivers before marking the row, which is the right order
+  and bought nothing, because the send was asynchronous — `StreamBridge.send` returns `true` the
+  moment the record is buffered, so a broker that was down still produced a row marked `Sent` and
+  a process that never moved again. Producer sends are now synchronous by default, contributed by
+  the engine itself (`SynchronousProducerDefaults`) rather than left to each application's YAML,
+  and a refused send throws so the row stays `Pending`. Measured cost: **0.6 ms per transition and
+  4.4% of peak throughput**. Set `spring.cloud.stream.kafka.default.producer.sync=false` to opt
+  out, deliberately.
+
+- **Workers were dropping replies, in the pattern this project teaches.** Every worker here called
+  `streamBridge.send(...)` and discarded the `false` it returns on refusal, so a reply the broker
+  would not take vanished, the consumer committed the offset anyway, and the task was never
+  reported as done. During a 90-second broker outage that lost **3 352 replies and left 3 356
+  processes permanently stuck, with no error logged anywhere**. New `WorkerReply` retries and then
+  throws, so Kafka redelivers the task — worker handlers must be idempotent, as at-least-once
+  delivery always required.
+
+- **A step with no timeout was invisible, not merely un-timed-out.** The deadline scan is an index
+  range over the deadline column, so a step without one was never looked at again: if its dispatch
+  or its reply was lost, the process stopped forever and nothing reported it. Two changes — the
+  `eventconductor.steps.stalled` gauge counts live steps with no deadline that have waited past
+  `workflow.stalled-step-after-ms`, and `workflow.default-step-timeout-ms` gives ACTION and RULE
+  steps a fallback deadline that hands them to the existing retry path. Off by default; never
+  applied to USER_TASK, PROCESS or WAIT_FOR_MESSAGE, whose waiting is unbounded by design.
+
+- **A rollback the database made impossible was treated as a defective event.** Stopping
+  PostgreSQL mid-transaction produced `JpaSystemException: Unable to rollback against JDBC
+  Connection`, which the classifier did not recognise as retryable, and two process creations were
+  dead-lettered for it. Connection-level `SQLException`s are now matched on SQLState — class `08`,
+  class `53`, PostgreSQL `57P01`–`57P03` — as well as by type. A constraint violation stays
+  non-retryable: retrying that forever is a poison pill.
+
+- **`forms` and `rules` still shipped with Flyway off.** Only the orchestrator had been fixed, so
+  both ran the schema `ddl-auto` builds, which has no indexes. Both now default `FLYWAY_ENABLED`
+  to `true`. `DB_POOL_SIZE` defaults to 16 across the three apps.
+
+- **One consumer thread per pod meant a deployment could never use more partitions than replicas.**
+  `KAFKA_CONCURRENCY` now defaults to 3. Measured on a three-pod cluster with six partitions: four
+  consumed, two unread, and no pod anywhere near CPU-bound.
+
+- **PostgreSQL and Redpanda declared no resource requests**, which makes them BestEffort and the
+  first pods the kubelet evicts. Scaling the orchestrator from 3 to 6 replicas evicted the broker
+  and stopped the engine completely. Both now have requests and limits in the chart.
+
+- **Redpanda's shard count is pinned (`--smp`).** It is written into the data directory as an
+  invariant, so a broker rescheduled onto a smaller node refuses to start — permanently — with
+  "Decreasing redpanda core count is not allowed". On any cluster with a node autoprovisioner that
+  turns a routine reschedule into an outage.
+
+- **Two migrations shared version 11**, which makes Flyway refuse to start and the app die at boot
+  with no schema. Both branches had merged green because nothing on the build path reads these
+  filenames. A test does now.
+
+### Added
+- **A reliability harness** (`modules/workflow-benchmark/k8s/reliability`): a soak driver, seven
+  chaos scenarios — pod kill, whole-tier kill, rolling redeploy, broker outage, database outage,
+  node drain, and replacing the workflow definition mid-flight — and the invariants that decide
+  whether anything was lost. The verdict is computed from the engine's own tables against a count
+  the driver writes to the database, because the harness is inside the blast radius.
+
+  Results after the fixes: **zero stuck processes** (3 356 before), a full drain in 144 s (it never
+  drained before), zero duplicate step executions across 230 417 dispatches including 44 genuine
+  redeliveries, and the definition swap producing exactly two shapes and no hybrids. See the new
+  [Reliability guide](https://eventconductor.io/guides/reliability/).
 
 ### Fixed
 - **Flyway runs by default.** `FLYWAY_ENABLED` defaulted to `false` while `DDL_AUTO` defaulted to
