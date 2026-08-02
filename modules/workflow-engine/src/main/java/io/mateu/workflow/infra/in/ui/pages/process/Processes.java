@@ -3,6 +3,8 @@ package io.mateu.workflow.infra.in.ui.pages.process;
 import io.mateu.core.infra.declarative.orchestrators.crud.Crud;
 import io.mateu.uidl.annotations.ListToolbarButton;
 import io.mateu.uidl.data.ListingData;
+import io.mateu.uidl.annotations.PageWidth;
+import io.mateu.uidl.annotations.PageWidthStyle;
 import io.mateu.uidl.data.SearchRequest;
 import io.mateu.uidl.fluent.GridLayout;
 import io.mateu.uidl.interfaces.CrudStore;
@@ -27,6 +29,8 @@ import java.util.List;
 @Service
 @Scope("prototype")
 @RequiredArgsConstructor
+// Full width (uncapped) so the process table and the wide monitoring graph use the whole screen.
+@PageWidth(PageWidthStyle.FULL_WIDTH)
 public class Processes extends Crud<Object, Object, Object, ProcessFilters, ProcessRow, String> {
 
     final SimpleProcessCrudAdapter processCrudAdapter;

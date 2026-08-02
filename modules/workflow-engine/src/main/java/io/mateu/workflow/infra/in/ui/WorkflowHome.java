@@ -22,6 +22,10 @@ import java.util.List;
 @Logo("/images/riu.svg")
 @Title("")
 @Style(HomeStyles.PAGE)
+// Uncap the whole workflow app (this is its root @UI): otherwise every page nested inside it —
+// including the full-width definition/process detail — is trapped in this root's 1408px column.
+// The dashboard content stays centred at a readable width via HomeStyles' inner rows.
+@PageWidth(PageWidthStyle.FULL_WIDTH)
 @RequiredArgsConstructor
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 @Service

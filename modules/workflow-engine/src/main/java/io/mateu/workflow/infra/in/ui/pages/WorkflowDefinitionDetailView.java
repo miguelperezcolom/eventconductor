@@ -3,8 +3,12 @@ package io.mateu.workflow.infra.in.ui.pages;
 import io.mateu.uidl.StyleConstants;
 import io.mateu.uidl.annotations.Hidden;
 import io.mateu.uidl.annotations.Label;
+import io.mateu.uidl.annotations.PageWidth;
+import io.mateu.uidl.annotations.PageWidthStyle;
 import io.mateu.uidl.annotations.Section;
 import io.mateu.uidl.annotations.Style;
+import io.mateu.uidl.annotations.Zone;
+import io.mateu.uidl.annotations.Zones;
 import io.mateu.uidl.annotations.Toolbar;
 import io.mateu.uidl.data.Element;
 import io.mateu.uidl.data.Status;
@@ -35,15 +39,24 @@ import static io.mateu.core.infra.JsonSerializer.toJson;
  * Read-only detail view shown when a workflow definition is selected in the CRUD (the {@code view}
  * action). Definitions are authored as {@code .ec} files (edited with the IDE plugins), so this view
  * never edits them — the only actions are the runtime toggles pause/resume and disable/enable. The
- * name is the view title and a header badge shows the runtime state; the read-only ELK graph sits
- * full-width on top (it already carries the step list visually) with a compact property summary
- * below it.
+ * name is the view title and a header badge shows the runtime state; the read-only ELK graph takes
+ * the whole left column (it already carries the step list visually) and a compact property summary
+ * sits in a narrow column on the right.
  */
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 @Service
 @Scope("prototype")
 @RequiredArgsConstructor
 @Style(StyleConstants.FULL_WIDTH_WITH_PADDING)
+// Use the whole screen width (uncapped) — the graph is a wide canvas, so the default 1408px content
+// cap wastes horizontal room.
+@PageWidth(PageWidthStyle.FULL_WIDTH)
+@Zones({
+        // Graph left, taking all the width the summary leaves (an empty width does not reliably
+        // grow the zone, so size it explicitly); summary in a fixed narrow column on the right.
+        @Zone(name = "graph", width = "calc(100% - 23rem)"),
+        @Zone(name = "info", width = "22rem")
+})
 public class WorkflowDefinitionDetailView implements VisibilitySupplier {
 
     /** Custom element that renders the workflow as an ELK graph. Shipped by this module. */
@@ -76,14 +89,14 @@ public class WorkflowDefinitionDetailView implements VisibilitySupplier {
     /** A field of type {@link Status} is promoted to a header badge (never rendered in the body). */
     Status status;
 
-    // ── Top: full-width read-only ELK graph (its own toolbar/panel hidden in read-only). It shows
-    //    every step and how they connect, so a separate step list below would be redundant. ───────
-    @Section(value = "Diagram")
+    // ── Left column: read-only ELK graph (its own toolbar/panel hidden in read-only). It shows
+    //    every step and how they connect, so a separate step list would be redundant. ─────────────
+    @Section(value = "Diagram", zone = "graph")
     @Label("")
     Element workflow;
 
-    // ── Below the graph: a compact property list (label/value rows) ────────────────
-    @Section(value = "Summary", propertyList = true)
+    // ── Right column: a compact property list (label/value rows) ───────────────────
+    @Section(value = "Summary", zone = "info", propertyList = true)
     @Label("Version")
     String version;
 
@@ -140,7 +153,7 @@ public class WorkflowDefinitionDetailView implements VisibilitySupplier {
                 .name(GRAPH_TAG)
                 .attributes(attrs)
                 .content("")
-                .style("display: block; height: 68vh; min-height: 460px;")
+                .style("display: block; width: 100%; height: 68vh; min-height: 460px;")
                 .build();
         return this;
     }

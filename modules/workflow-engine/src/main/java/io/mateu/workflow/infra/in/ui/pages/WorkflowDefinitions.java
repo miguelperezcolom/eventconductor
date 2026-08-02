@@ -3,6 +3,8 @@ package io.mateu.workflow.infra.in.ui.pages;
 import io.mateu.core.infra.declarative.orchestrators.crud.Crud;
 import io.mateu.uidl.StyleConstants;
 import io.mateu.uidl.annotations.ListToolbarButton;
+import io.mateu.uidl.annotations.PageWidth;
+import io.mateu.uidl.annotations.PageWidthStyle;
 import io.mateu.uidl.data.ListingData;
 import io.mateu.uidl.data.NoFilters;
 import io.mateu.uidl.data.Page;
@@ -29,6 +31,8 @@ import java.util.List;
 @Service
 @Scope("prototype")
 @RequiredArgsConstructor
+// Full width (uncapped) so the hosted table and the wide graph detail use the whole screen.
+@PageWidth(PageWidthStyle.FULL_WIDTH)
 public class WorkflowDefinitions extends Crud<Object, WorkflowDefinition, WorkflowDefinition, NoFilters, WorkflowDefinition, String> {
 
     final WorkflowDefinitionDetailView detailView;
