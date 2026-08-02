@@ -3,6 +3,7 @@ package io.mateu.workflowbench;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.mateu.workflow.ddd.DomainEvent;
 import io.mateu.workflow.dtos.events.integration.ProcessCreationRequested;
+import org.apache.kafka.clients.producer.Callback;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
@@ -25,12 +26,22 @@ import java.util.Properties;
  * distributed across partitions the same way they would be in production rather than piling onto
  * one.
  */
-final class LoadDriver implements AutoCloseable {
+public final class LoadDriver implements AutoCloseable {
 
     private final ObjectMapper json = new ObjectMapper();
     private final KafkaProducer<byte[], String> producer;
 
     LoadDriver(BenchmarkConfig config) {
+        this(config, false);
+    }
+
+    /**
+     * @param durable when true, configure the producer for a run that has to outlive a broker
+     *                outage rather than for the sharpest possible arrival rate. The benchmark
+     *                wants the second; the reliability soak needs the first, and mixing them
+     *                would quietly change every published number.
+     */
+    public LoadDriver(BenchmarkConfig config, boolean durable) {
         var props = new Properties();
         props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, config.kafkaBrokers());
         props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, ByteArraySerializer.class);
@@ -38,15 +49,31 @@ final class LoadDriver implements AutoCloseable {
         // Nothing here should batch on the driver's side: the arrival rate is the experiment,
         // and a producer holding messages back to fill a batch would flatten it.
         props.put(ProducerConfig.LINGER_MS_CONFIG, "0");
+        if (durable) {
+            // Idempotence, so a send retried across a broker restart cannot become two processes
+            // and turn a survived outage into a conservation failure that never happened.
+            props.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, "true");
+            props.put(ProducerConfig.ACKS_CONFIG, "all");
+            props.put(ProducerConfig.RETRIES_CONFIG, String.valueOf(Integer.MAX_VALUE));
+            // Long enough to ride out the outages the chaos scripts inject. During one, send()
+            // blocks and the driver falls behind — which is the correct reading of backpressure,
+            // and visible in the attempted-vs-acked gap.
+            props.put(ProducerConfig.MAX_BLOCK_MS_CONFIG, "600000");
+            props.put(ProducerConfig.DELIVERY_TIMEOUT_MS_CONFIG, "600000");
+        }
         producer = new KafkaProducer<>(props);
     }
 
     void createProcess(String businessKey) {
-        var event = new ProcessCreationRequested("bench-3-steps", businessKey, List.of(), null);
-        producer.send(new ProducerRecord<>("upstream", key(event), serialize(event)));
+        createProcess(businessKey, null);
     }
 
-    void flush() {
+    public void createProcess(String businessKey, Callback callback) {
+        var event = new ProcessCreationRequested("bench-3-steps", businessKey, List.of(), null);
+        producer.send(new ProducerRecord<>("upstream", key(event), serialize(event)), callback);
+    }
+
+    public void flush() {
         producer.flush();
     }
 

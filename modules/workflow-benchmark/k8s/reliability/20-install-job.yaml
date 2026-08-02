@@ -1,0 +1,52 @@
+# Replaces the workflow definition while the soak is running.
+#
+# A Job rather than a `kubectl exec … psql`, because the column it writes holds a polymorphic
+# serialization of the engine's own Step type. Hand-writing that literal would create a second
+# copy of a format nobody maintains, and it would rot the first time a field is added.
+#
+# The definition it installs keeps the same id and bumps the version, adding a fourth action step.
+# Processes already running were given a copy of the old definition when they were created, so
+# they must finish with three; anything created after this Job must finish with four. The shape
+# breakdown in invariants.sql is where that shows up.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: soak-install-v2
+  namespace: ec-rel
+  labels: { part-of: soak }
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels: { part-of: soak }
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: install
+          image: BENCH_IMAGE
+          env:
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef: { name: ec-eventconductor-postgres, key: POSTGRES_PASSWORD }
+            - name: BENCH_OPTS
+              value: >-
+                -Dbench.role=install
+                -Dbench.definition=/soak/bench-3-steps-v2.json
+                -Dbench.jdbc.url=jdbc:postgresql://postgres.ec-rel.svc.cluster.local:5432/workflow
+                -Dbench.jdbc.user=workflow
+          command: ["sh", "-c"]
+          args:
+            - exec java $BENCH_OPTS -Dbench.jdbc.password="$PGPASSWORD" -jar app.jar
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 1000
+            capabilities: { drop: ["ALL"] }
+            seccompProfile: { type: RuntimeDefault }
+            readOnlyRootFilesystem: true
+          volumeMounts: [{ name: tmp, mountPath: /tmp }]
+          resources:
+            requests: { cpu: "200m", memory: "512Mi" }
+            limits: { memory: "768Mi" }
+      volumes: [{ name: tmp, emptyDir: {} }]
