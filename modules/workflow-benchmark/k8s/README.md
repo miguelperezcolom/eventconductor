@@ -66,6 +66,19 @@ Tear it down when finished — the nodes are billed while they exist:
 kubectl delete namespace ec-bench
 ```
 
+## Hardening
+
+The pods run non-root with a read-only root filesystem, dropped capabilities and no privilege
+escalation — the repository's Trivy gate applies to these manifests like any others.
+
+Two of those were not free. PostgreSQL needs writable mounts for its socket directory and scratch
+space once the root is read-only. Kafka needs more: the image renders `server.properties` from the
+environment at startup, so a read-only root kills it with `config/ file not writable` before it
+reaches any Kafka code. An init container seeds that directory from the image, because mounting an
+empty volume over it would hide the defaults the broker still reads.
+
+Both were found by deploying, not by reading — Trivy went quiet well before the broker would start.
+
 ## Storage
 
 PostgreSQL runs on an `emptyDir`. A network volume would make this measure Hetzner block storage

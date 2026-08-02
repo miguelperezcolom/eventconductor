@@ -27,6 +27,9 @@ spec:
                 matchExpressions: [{ key: bench-node-exclusive, operator: Exists }]
               topologyKey: kubernetes.io/hostname
       # The benchmark image is private; the secret is created by the runbook.
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
       imagePullSecrets: [{ name: regcred }]
       containers:
         - name: driver
@@ -40,5 +43,13 @@ spec:
                 -Dbench.jdbc.url=jdbc:postgresql://postgres.ec-bench.svc.cluster.local:5432/eventconductor
                 -Dbench.kafka.brokers=kafka.ec-bench.svc.cluster.local:9092
                 -XX:MaxRAMPercentage=70
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities: { drop: ["ALL"] }
+            seccompProfile: { type: RuntimeDefault }
+            readOnlyRootFilesystem: true
+          volumeMounts: [{ name: tmp, mountPath: /tmp }]
           resources:
             requests: { cpu: "1000m", memory: "1Gi" }
+      volumes: [{ name: tmp, emptyDir: {} }]

@@ -33,6 +33,10 @@ spec:
             - labelSelector:
                 matchExpressions: [{ key: bench-node-exclusive, operator: Exists }]
               topologyKey: kubernetes.io/hostname
+      securityContext:
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
       containers:
         - name: postgres
           image: postgres:16
@@ -49,14 +53,29 @@ spec:
             - max_connections=300
             - -c
             - synchronous_commit=off
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities: { drop: ["ALL"] }
+            seccompProfile: { type: RuntimeDefault }
+            readOnlyRootFilesystem: true
           ports: [{ containerPort: 5432 }]
           resources:
             requests: { cpu: "1500m", memory: "2Gi" }
-          volumeMounts: [{ name: data, mountPath: /var/lib/postgresql/data }]
+          volumeMounts:
+            - { name: data, mountPath: /var/lib/postgresql/data }
+            # With a read-only root these have to be writable somewhere: the unix socket
+            # directory and the scratch space the server uses for sorts and temp files.
+            - { name: run, mountPath: /var/run/postgresql }
+            - { name: tmp, mountPath: /tmp }
       volumes:
         # emptyDir on purpose: a network volume would make this measure Hetzner's block storage
         # latency rather than the engine. Nothing here outlives the run.
         - name: data
+          emptyDir: {}
+        - name: run
+          emptyDir: {}
+        - name: tmp
           emptyDir: {}
 ---
 apiVersion: v1
@@ -86,6 +105,9 @@ spec:
             - labelSelector:
                 matchExpressions: [{ key: bench-node-exclusive, operator: Exists }]
               topologyKey: kubernetes.io/hostname
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
       containers:
         - name: kafka
           image: apache/kafka:3.9.0
@@ -105,6 +127,39 @@ spec:
             - { name: KAFKA_NUM_PARTITIONS, value: "6" }
             - { name: KAFKA_AUTO_CREATE_TOPICS_ENABLE, value: "true" }
             - { name: CLUSTER_ID, value: "benchmark-cluster-00001" }
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities: { drop: ["ALL"] }
+            seccompProfile: { type: RuntimeDefault }
+            readOnlyRootFilesystem: true
           ports: [{ containerPort: 9092 }]
           resources:
             requests: { cpu: "1500m", memory: "1500Mi" }
+          volumeMounts:
+            # The KRaft log lives under /tmp by default and the broker writes its own logs.
+            - { name: tmp, mountPath: /tmp }
+            - { name: logs, mountPath: /opt/kafka/logs }
+            # And this one is not obvious: the image renders server.properties from the
+            # environment at startup, so with a read-only root it dies on "config/ file not
+            # writable" before it ever reaches Kafka. Seeded from the image's own config by the
+            # init container below, because an empty mount here hides the defaults it needs.
+            - { name: config, mountPath: /opt/kafka/config }
+      initContainers:
+        - name: seed-config
+          image: apache/kafka:3.9.0
+          command: ["sh", "-c", "cp -r /opt/kafka/config/. /seed/"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities: { drop: ["ALL"] }
+            seccompProfile: { type: RuntimeDefault }
+            readOnlyRootFilesystem: true
+          volumeMounts: [{ name: config, mountPath: /seed }]
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: logs
+          emptyDir: {}
+        - name: config
+          emptyDir: {}
