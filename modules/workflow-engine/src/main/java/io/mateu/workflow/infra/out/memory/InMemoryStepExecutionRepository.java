@@ -60,8 +60,20 @@ public class InMemoryStepExecutionRepository implements StepExecutionRepository 
     @Override
     public List<StepExecution> findPendingOrRunning() {
         return store.values().stream()
-                .filter(se -> se.getStatus() == StepExecutionStatus.PENDING
-                        || se.getStatus() == StepExecutionStatus.RUNNING)
+                .filter(InMemoryStepExecutionRepository::isLive)
                 .toList();
+    }
+
+    @Override
+    public List<StepExecution> findPendingOrRunningByProcessId(String processId) {
+        return store.values().stream()
+                .filter(se -> processId.equals(se.getProcessId()))
+                .filter(InMemoryStepExecutionRepository::isLive)
+                .toList();
+    }
+
+    private static boolean isLive(StepExecution stepExecution) {
+        return stepExecution.getStatus() == StepExecutionStatus.PENDING
+                || stepExecution.getStatus() == StepExecutionStatus.RUNNING;
     }
 }

@@ -24,8 +24,7 @@ public class CheckTimeoutUseCase {
 
     public void handle(CheckTimeoutCommand command) {
         var now = LocalDateTime.now();
-        var expired = stepExecutionRepository.findPendingOrRunning().stream()
-                .filter(se -> se.getProcessId().equals(command.processId()))
+        var expired = stepExecutionRepository.findPendingOrRunningByProcessId(command.processId()).stream()
                 .filter(se -> se.getStartedAt() != null)
                 .filter(se -> {
                     var step = pojoFromJson(se.getStepJson(), Step.class);

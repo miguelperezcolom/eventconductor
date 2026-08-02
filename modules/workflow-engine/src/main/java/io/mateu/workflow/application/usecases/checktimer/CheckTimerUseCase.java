@@ -27,8 +27,7 @@ public class CheckTimerUseCase {
 
     public void handle(CheckTimerCommand command) {
         var now = LocalDateTime.now();
-        var due = stepExecutionRepository.findPendingOrRunning().stream()
-                .filter(se -> se.getProcessId().equals(command.processId()))
+        var due = stepExecutionRepository.findPendingOrRunningByProcessId(command.processId()).stream()
                 .filter(se -> se.getStartedAt() != null)
                 .filter(se -> isDue(se, now))
                 .toList();

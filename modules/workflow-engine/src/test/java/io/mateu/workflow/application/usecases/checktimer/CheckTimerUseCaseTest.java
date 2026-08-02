@@ -45,7 +45,7 @@ class CheckTimerUseCaseTest {
     @Test
     void triggersCompletionForDueTimer() {
         var due = pendingSe(timerStep(100, null), LocalDateTime.now().minusSeconds(10));
-        when(stepExecutionRepository.findPendingOrRunning()).thenReturn(List.of(due));
+        when(stepExecutionRepository.findPendingOrRunningByProcessId("p-1")).thenReturn(List.of(due));
 
         useCase.handle(new CheckTimerCommand("p-1"));
 
@@ -56,7 +56,7 @@ class CheckTimerUseCaseTest {
     void triggersCompletionForDueDateVariableTimer() {
         var due = pendingSe(timerStep(0, "resumeAt"), LocalDateTime.now().minusSeconds(10),
                 new Variable("resumeAt", LocalDateTime.now().minusSeconds(1).toString()));
-        when(stepExecutionRepository.findPendingOrRunning()).thenReturn(List.of(due));
+        when(stepExecutionRepository.findPendingOrRunningByProcessId("p-1")).thenReturn(List.of(due));
 
         useCase.handle(new CheckTimerCommand("p-1"));
 
@@ -66,7 +66,7 @@ class CheckTimerUseCaseTest {
     @Test
     void doesNotTriggerCompletionForTimerNotYetDue() {
         var notDue = pendingSe(timerStep(Long.MAX_VALUE, null), LocalDateTime.now());
-        when(stepExecutionRepository.findPendingOrRunning()).thenReturn(List.of(notDue));
+        when(stepExecutionRepository.findPendingOrRunningByProcessId("p-1")).thenReturn(List.of(notDue));
 
         useCase.handle(new CheckTimerCommand("p-1"));
 
@@ -77,7 +77,7 @@ class CheckTimerUseCaseTest {
     void doesNotTriggerCompletionForNonTimerStep() {
         var action = new Step("s1", "wd-1", StepType.ACTION, "Step", null, null, null, null, false, "t", null, null, null, null, 0, null, null, null, null, 0, 0, false, null, 0, null);
         var se = pendingSe(action, LocalDateTime.now().minusSeconds(10));
-        when(stepExecutionRepository.findPendingOrRunning()).thenReturn(List.of(se));
+        when(stepExecutionRepository.findPendingOrRunningByProcessId("p-1")).thenReturn(List.of(se));
 
         useCase.handle(new CheckTimerCommand("p-1"));
 
@@ -85,12 +85,14 @@ class CheckTimerUseCaseTest {
     }
 
     @Test
-    void doesNotTriggerCompletionForTimerFromDifferentProcess() {
-        var due = pendingSe(timerStep(100, null), LocalDateTime.now().minusSeconds(10));
-        when(stepExecutionRepository.findPendingOrRunning()).thenReturn(List.of(due));
-
+    void looksUpOnlyTheStepsOfTheCommandedProcess() {
+        // The scoping is the query, not an in-memory filter: loading every live step in the
+        // system and filtering by process turns one scheduler tick into a full table load per
+        // due process.
         useCase.handle(new CheckTimerCommand("other-process"));
 
+        verify(stepExecutionRepository).findPendingOrRunningByProcessId("other-process");
+        verify(stepExecutionRepository, never()).findPendingOrRunning();
         verify(completeTimerStepHandler, never()).handle(any());
     }
 
@@ -98,7 +100,7 @@ class CheckTimerUseCaseTest {
     void doesNotTriggerCompletionForMisconfiguredTimer() {
         // The date variable is missing: start() already failed such steps; the scan skips them.
         var due = pendingSe(timerStep(0, "resumeAt"), LocalDateTime.now().minusSeconds(10));
-        when(stepExecutionRepository.findPendingOrRunning()).thenReturn(List.of(due));
+        when(stepExecutionRepository.findPendingOrRunningByProcessId("p-1")).thenReturn(List.of(due));
 
         useCase.handle(new CheckTimerCommand("p-1"));
 
@@ -108,7 +110,7 @@ class CheckTimerUseCaseTest {
     @Test
     void doesNotTriggerCompletionForTimerWithNullStartedAt() {
         var se = pendingSe(timerStep(100, null), null);
-        when(stepExecutionRepository.findPendingOrRunning()).thenReturn(List.of(se));
+        when(stepExecutionRepository.findPendingOrRunningByProcessId("p-1")).thenReturn(List.of(se));
 
         useCase.handle(new CheckTimerCommand("p-1"));
 
@@ -118,7 +120,7 @@ class CheckTimerUseCaseTest {
     @Test
     void doesNotTriggerCompletionForDueTimerOfPausedProcess() {
         var due = pendingSe(timerStep(100, null), LocalDateTime.now().minusSeconds(10));
-        when(stepExecutionRepository.findPendingOrRunning()).thenReturn(List.of(due));
+        when(stepExecutionRepository.findPendingOrRunningByProcessId("p-1")).thenReturn(List.of(due));
         when(processRepository.findById("p-1")).thenReturn(Optional.of(
                 Process.builder().id("p-1").status(ProcessStatus.PAUSED).build()));
 
@@ -131,7 +133,7 @@ class CheckTimerUseCaseTest {
     @Test
     void onlyLooksUpTheProcessWhenATimerWouldFire() {
         var notDue = pendingSe(timerStep(Long.MAX_VALUE, null), LocalDateTime.now());
-        when(stepExecutionRepository.findPendingOrRunning()).thenReturn(List.of(notDue));
+        when(stepExecutionRepository.findPendingOrRunningByProcessId("p-1")).thenReturn(List.of(notDue));
 
         useCase.handle(new CheckTimerCommand("p-1"));
 

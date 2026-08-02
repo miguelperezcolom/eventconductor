@@ -82,4 +82,23 @@ class InMemoryStepExecutionRepositoryTest {
                 se.getStatus() == StepExecutionStatus.PENDING ||
                 se.getStatus() == StepExecutionStatus.RUNNING);
     }
+
+    @Test
+    void findPendingOrRunningByProcessIdFiltersByProcessAndStatus() {
+        repo.save(se("1", "p-1", StepExecutionStatus.PENDING, 0));
+        repo.save(se("2", "p-1", StepExecutionStatus.RUNNING, 0));
+        repo.save(se("3", "p-1", StepExecutionStatus.COMPLETED, 0));
+        repo.save(se("4", "p-2", StepExecutionStatus.PENDING, 0));
+
+        assertThat(repo.findPendingOrRunningByProcessId("p-1"))
+                .extracting(StepExecution::id)
+                .containsExactlyInAnyOrder("1", "2");
+    }
+
+    @Test
+    void findPendingOrRunningByProcessIdReturnsEmptyForUnknownProcess() {
+        repo.save(se("1", "p-1", StepExecutionStatus.PENDING, 0));
+
+        assertThat(repo.findPendingOrRunningByProcessId("p-unknown")).isEmpty();
+    }
 }

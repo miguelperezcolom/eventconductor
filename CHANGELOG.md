@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Timer and timeout checks no longer load every live step in the system.** `CheckTimerUseCase`
+  and `CheckTimeoutUseCase` listed *all* PENDING/RUNNING step executions and filtered them by
+  process in memory. Because the scheduler scan fans out one check event per due process, a
+  single scan tick that found N due processes triggered N full loads of the live-step table, on
+  top of its own. Both now query only the process they were commanded for, through a new
+  `StepExecutionRepository.findPendingOrRunningByProcessId(processId)`. The cost matters most on
+  the workloads the engine is built for — long waits, where tens of thousands of `TIMER` steps
+  sit PENDING for weeks. New composite index `idx_step_exec_process_status` on
+  `step_execution_entity (process_id, status)` replaces the process-only index it subsumes
+  (migration `V7`). No behaviour change.
+
 ## [1.0-beta.014] - 2026-08-01
 
 ### Added

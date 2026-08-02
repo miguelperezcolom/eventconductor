@@ -92,4 +92,11 @@ public class StepExecutionDBRepository implements StepExecutionRepository {
                 .findAllByStatusIn(List.of(PENDING.name(), RUNNING.name()))
                 .stream().map(this::map).toList();
     }
+
+    @Override
+    public List<StepExecution> findPendingOrRunningByProcessId(String processId) {
+        return stepExecutionEntityRepository
+                .findAllByProcessIdAndStatusIn(processId, List.of(PENDING.name(), RUNNING.name()))
+                .stream().map(this::map).toList();
+    }
 }
