@@ -18,7 +18,7 @@ spec:
       nodeSelector: { kubernetes.io/arch: amd64 }
       containers:
         - name: api-gw
-          image: miguelperezcolom/mateu-demo-api-gw:0.1.0
+          image: miguelperezcolom/mateu-demo-api-gw:0.1.1
           imagePullPolicy: IfNotPresent
           securityContext:
             allowPrivilegeEscalation: false
