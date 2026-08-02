@@ -42,4 +42,10 @@ public class StepExecutionEntity {
 
     int attemptCount;
 
+    LocalDateTime deadlineAt;
+
+    String awaitingMessageName;
+
+    String awaitingCorrelationKey;
+
 }

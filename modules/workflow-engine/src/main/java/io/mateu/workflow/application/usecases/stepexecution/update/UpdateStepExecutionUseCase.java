@@ -5,6 +5,7 @@ import io.mateu.workflow.application.out.ProcessLockService;
 import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.out.WorkflowMetrics;
+import io.mateu.workflow.application.services.MessageSubscriptionService;
 import io.mateu.workflow.application.services.ProcessLocks;
 import io.mateu.workflow.domain.aggregates.LogMessage;
 import io.mateu.workflow.domain.aggregates.StepExecutionStatus;
@@ -39,6 +40,7 @@ public class UpdateStepExecutionUseCase {
     final LogMessageRepository logMessageRepository;
     final ProcessRepository processRepository;
     final ProcessLockService processLockService;
+    final MessageSubscriptionService messageSubscriptionService;
     final WorkflowMetrics workflowMetrics;
 
     // Optional: present in jpa mode, absent in memory mode.
@@ -83,6 +85,10 @@ public class UpdateStepExecutionUseCase {
 
             execution.updateStatus(command.status());
             repository.save(execution);
+
+            // The variables just written may be the ones a sibling WAIT_FOR_MESSAGE correlates
+            // on, and its stored key has to follow them.
+            messageSubscriptionService.rearm(process);
 
             // The terminal-status guard above makes this idempotent under redelivery.
             if (METERED_OUTCOMES.contains(command.status())) {

@@ -60,8 +60,40 @@ public class InMemoryStepExecutionRepository implements StepExecutionRepository 
     @Override
     public List<StepExecution> findPendingOrRunning() {
         return store.values().stream()
-                .filter(se -> se.getStatus() == StepExecutionStatus.PENDING
-                        || se.getStatus() == StepExecutionStatus.RUNNING)
+                .filter(InMemoryStepExecutionRepository::isLive)
                 .toList();
+    }
+
+    @Override
+    public List<StepExecution> findPendingOrRunningByProcessId(String processId) {
+        return store.values().stream()
+                .filter(se -> processId.equals(se.getProcessId()))
+                .filter(InMemoryStepExecutionRepository::isLive)
+                .toList();
+    }
+
+    @Override
+    public List<StepExecution> findDue(java.time.LocalDateTime now) {
+        return store.values().stream()
+                .filter(InMemoryStepExecutionRepository::isLive)
+                .filter(se -> se.getDeadlineAt() != null && !se.getDeadlineAt().isAfter(now))
+                .toList();
+    }
+
+    @Override
+    public List<StepExecution> findWaitingForMessage(String messageName, String correlationKey) {
+        return store.values().stream()
+                .filter(se -> se.getStatus() == StepExecutionStatus.PENDING)
+                .filter(se -> messageName.equals(se.getAwaitingMessageName()))
+                // A null stored key matches nothing, mirroring the SQL equality the JPA
+                // adapter relies on — an unevaluable correlation expression stays fail-closed.
+                .filter(se -> se.getAwaitingCorrelationKey() != null
+                        && se.getAwaitingCorrelationKey().equals(correlationKey))
+                .toList();
+    }
+
+    private static boolean isLive(StepExecution stepExecution) {
+        return stepExecution.getStatus() == StepExecutionStatus.PENDING
+                || stepExecution.getStatus() == StepExecutionStatus.RUNNING;
     }
 }

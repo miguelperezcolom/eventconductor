@@ -10,7 +10,7 @@ description: Complete reference for all EventConductor configuration properties.
 | `workflow.mode` | `kafka` \| `embedded` | `embedded` | Event dispatch mode |
 | `workflow.persistence` | `jpa` \| `memory` | `memory` | Workflow state persistence mode |
 | `forms.persistence` | `jpa` \| `memory` | `memory` | Forms state persistence mode |
-| `workflow.timeout-scan-interval-ms` | ms | `10000` | How often the scheduler scans for expired step timeouts and due `TIMER` steps |
+| `workflow.timeout-scan-interval-ms` | ms | `10000` | How often the scheduler looks for expired step timeouts and due `TIMER` steps. The lookup is an indexed query on the step's materialised deadline, so its cost tracks the work that is due — normally none — and not how many steps are waiting; lowering it tightens firing latency without a scan penalty |
 | `workflow.cron-scan-interval-ms` | ms | `10000` | How often the scheduler checks `cronExpression` schedules on ACTIVE definitions |
 | `workflow.cron-enabled` | `true` \| `false` | `true` | Master switch for cron-scheduled process starts |
 | `workflow.outbox-poll-interval-ms` | ms | `5000` | How often the outbox relay polls the outbox table for pending events |

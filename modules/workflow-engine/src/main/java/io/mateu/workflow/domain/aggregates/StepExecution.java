@@ -11,6 +11,7 @@ import io.mateu.workflow.dtos.events.integration.ProcessCreationRequested;
 import io.mateu.workflow.dtos.events.integration.TaskExecutionRequested;
 import io.mateu.workflow.dtos.events.integration.TaskLogEmitted;
 import io.mateu.workflow.dtos.events.integration.TaskStatus;
+import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -20,12 +21,13 @@ import lombok.With;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 import static io.mateu.core.infra.JsonSerializer.pojoFromJson;
 import static io.mateu.core.infra.JsonSerializer.toJson;
 
-@Builder
+@Builder(toBuilder = true)
 @With
 @NoArgsConstructor
 @AllArgsConstructor
@@ -50,6 +52,41 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
     private LocalDateTime finishedAt;
     /** Number of execution attempts already made (0 = first attempt, 1 = first retry, …). */
     private int attemptCount;
+    /**
+     * The moment this step needs the engine's attention — a TIMER's due moment or a step's
+     * timeout deadline — or null when it needs none (no timeout configured, not started yet, or
+     * a TIMER whose date could not be resolved, which fails at start instead).
+     *
+     * <p>Derived state, materialised so the scheduler can find due work with an indexed range
+     * scan instead of evaluating every live step on every tick. It is a pure function of
+     * {@code startedAt}, {@code variables} and {@code stepJson}, all frozen at start, and every
+     * path that moves the clock recomputes it. {@code withDeadlineAt} is deliberately suppressed
+     * so it cannot be set on its own — the builder and the all-args constructor still carry it,
+     * because rehydrating a persisted step has to restore the value it was stored with.
+     */
+    @With(AccessLevel.NONE)
+    private LocalDateTime deadlineAt;
+    /**
+     * The message this step is waiting for, or null when it is not a live WAIT_FOR_MESSAGE.
+     * Materialised at start, together with {@link #awaitingCorrelationKey}, so an arriving
+     * message finds its subscribers with an indexed lookup instead of a walk over every step
+     * waiting anywhere in the engine.
+     */
+    @With(AccessLevel.NONE)
+    private String awaitingMessageName;
+    /**
+     * The correlation key an arriving message must carry to wake this step, or null when it has
+     * none — including a correlation expression that cannot be evaluated, which is how the
+     * fail-closed contract survives being indexed: a null key equals nothing, so it matches
+     * nothing.
+     *
+     * <p>Kept current rather than frozen: {@link #rearmedFor(Process)} recomputes it whenever the
+     * process variables it derives from change, so a message correlates against the process as it
+     * is now — the same contract as evaluating the expression on arrival, which is what this
+     * replaced.
+     */
+    @With(AccessLevel.NONE)
+    private String awaitingCorrelationKey;
 
 
     public static StepExecution create(Step step, String processId, int position) {
@@ -71,11 +108,79 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
         return id;
     }
 
+    /**
+     * Moves this step's clock, recomputing {@link #deadlineAt} so the two cannot drift apart.
+     * Hand-written on purpose: Lombok's generated {@code withStartedAt} would copy the old
+     * deadline, silently freezing a timer at its pre-shift moment. Pause/resume shifts the clock
+     * of every in-flight step by the pause duration, and that is the only caller today — but the
+     * invariant belongs here, not in the caller.
+     */
+    public StepExecution withStartedAt(LocalDateTime startedAt) {
+        var shifted = toBuilder().startedAt(startedAt).build();
+        shifted.deadlineAt = shifted.computeDeadline();
+        return shifted;
+    }
+
+    /**
+     * Recomputes every derived lookup field — the deadline and the message subscription — from
+     * the state this step already carries, returning {@code this} untouched when nothing moved.
+     *
+     * <p>Two callers, for two reasons. Process variables change while a step waits (a parallel
+     * branch completing can change the very variable a correlation expression reads), and before
+     * the key was stored that was free: it was evaluated on arrival, against whatever the process
+     * held then. Storing it means every path that updates process variables has to come through
+     * here. And a step that started under a version without these fields carries none, so the
+     * boot-time rearm brings it up to date the same way.
+     */
+    public StepExecution rearmedFor(Process process) {
+        if (startedAt == null) {
+            return this;
+        }
+        var step = pojoFromJson(stepJson, Step.class);
+        var deadline = computeDeadline();
+        var waiting = StepExecutionStatus.PENDING.equals(status)
+                && StepType.WAIT_FOR_MESSAGE.equals(step.type())
+                && step.messageName() != null && !step.messageName().isBlank();
+        var messageName = waiting ? step.messageName() : null;
+        var correlationKey = waiting ? MessageCorrelation.expectedKey(step, process) : null;
+        if (Objects.equals(deadline, deadlineAt)
+                && Objects.equals(messageName, awaitingMessageName)
+                && Objects.equals(correlationKey, awaitingCorrelationKey)) {
+            return this;
+        }
+        var rearmed = toBuilder().build();
+        rearmed.deadlineAt = deadline;
+        rearmed.awaitingMessageName = messageName;
+        rearmed.awaitingCorrelationKey = correlationKey;
+        return rearmed;
+    }
+
+    /**
+     * The deadline implied by the current {@code startedAt}, {@code variables} and step, or null
+     * when this step has none or has not started. A TIMER whose date cannot be resolved yields
+     * null rather than throwing: {@link #start(Process)} already fails such a step, so there is
+     * nothing left for the scheduler to fire.
+     */
+    private LocalDateTime computeDeadline() {
+        if (startedAt == null) {
+            return null;
+        }
+        try {
+            return pojoFromJson(stepJson, Step.class).deadlineAt(startedAt, variables);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
     public StepExecution start(Process process) {
         var variables = process.getVariables() == null ? List.<Variable>of() : process.getVariables();
         this.variables = variables;
         this.startedAt = LocalDateTime.now();
         var step = pojoFromJson(stepJson, Step.class);
+        // Materialise the deadline now, while everything it derives from is being frozen. A
+        // misconfigured TIMER leaves it null and errors below, so nothing is ever left armed
+        // without a moment to fire at.
+        this.deadlineAt = computeDeadline();
         if (StepType.START.equals(step.type()) || StepType.FORK.equals(step.type())
                 || StepType.JOIN.equals(step.type())) {
             // Pure control-flow nodes involve no worker: START marks the entry point, FORK's
@@ -112,6 +217,11 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
                 updateStatus(StepExecutionStatus.ERROR);
                 return this;
             }
+            // Materialise what this step is waiting for, so an arriving message can find it by
+            // index. A correlation expression that will not evaluate yields a null key, which
+            // matches nothing — the same fail-closed outcome as evaluating it on arrival.
+            this.awaitingMessageName = step.messageName();
+            this.awaitingCorrelationKey = MessageCorrelation.expectedKey(step, process);
             send(new TaskLogEmitted(id, MessageType.Info,
                     "Waiting for message '" + step.messageName() + "' on step " + step.name() + "."));
         } else if (StepType.SEND_MESSAGE.equals(step.type())) {
@@ -228,6 +338,8 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
         this.attemptCount++;
         this.status = StepExecutionStatus.CREATED;
         this.finishedAt = null;
+        // The previous attempt's deadline is meaningless now; start() arms a fresh one.
+        this.deadlineAt = null;
         send(new TaskLogEmitted(id, MessageType.Info,
                 "Auto-retry attempt " + attemptCount + " scheduled for step " + stepId));
     }

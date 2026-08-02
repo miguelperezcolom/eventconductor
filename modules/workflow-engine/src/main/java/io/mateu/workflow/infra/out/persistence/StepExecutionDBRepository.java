@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -42,7 +43,10 @@ public class StepExecutionDBRepository implements StepExecutionRepository {
                 entity.getOrder(),
                 entity.getStartedAt(),
                 entity.getFinishedAt(),
-                entity.getAttemptCount()
+                entity.getAttemptCount(),
+                entity.getDeadlineAt(),
+                entity.getAwaitingMessageName(),
+                entity.getAwaitingCorrelationKey()
         );
     }
 
@@ -60,7 +64,10 @@ public class StepExecutionDBRepository implements StepExecutionRepository {
                 stepExecution.getOrder(),
                 stepExecution.getStartedAt(),
                 stepExecution.getFinishedAt(),
-                stepExecution.getAttemptCount()
+                stepExecution.getAttemptCount(),
+                stepExecution.getDeadlineAt(),
+                stepExecution.getAwaitingMessageName(),
+                stepExecution.getAwaitingCorrelationKey()
         ));
 
         stepExecution.popEvents().stream()
@@ -90,6 +97,33 @@ public class StepExecutionDBRepository implements StepExecutionRepository {
     public List<StepExecution> findPendingOrRunning() {
         return stepExecutionEntityRepository
                 .findAllByStatusIn(List.of(PENDING.name(), RUNNING.name()))
+                .stream().map(this::map).toList();
+    }
+
+    @Override
+    public List<StepExecution> findPendingOrRunningByProcessId(String processId) {
+        return stepExecutionEntityRepository
+                .findAllByProcessIdAndStatusIn(processId, List.of(PENDING.name(), RUNNING.name()))
+                .stream().map(this::map).toList();
+    }
+
+    @Override
+    public List<StepExecution> findDue(LocalDateTime now) {
+        return stepExecutionEntityRepository
+                .findAllByStatusInAndDeadlineAtLessThanEqual(List.of(PENDING.name(), RUNNING.name()), now)
+                .stream().map(this::map).toList();
+    }
+
+    @Override
+    public List<StepExecution> findWaitingForMessage(String messageName, String correlationKey) {
+        if (correlationKey == null) {
+            // SQL equality never matches null; short-circuit rather than issue a query that
+            // cannot return anything.
+            return List.of();
+        }
+        return stepExecutionEntityRepository
+                .findAllByStatusAndAwaitingMessageNameAndAwaitingCorrelationKey(
+                        PENDING.name(), messageName, correlationKey)
                 .stream().map(this::map).toList();
     }
 }

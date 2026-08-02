@@ -1,144 +1,70 @@
 package io.mateu.workflow.application.usecases.correlatemessage;
 
-import io.mateu.core.infra.JsonSerializer;
-import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.usecases.correlatemessage.completemessagestep.CompleteMessageStepCommand;
 import io.mateu.workflow.application.usecases.correlatemessage.completemessagestep.CompleteMessageStepHandler;
-import io.mateu.workflow.domain.aggregates.Process;
-import io.mateu.workflow.domain.aggregates.*;
+import io.mateu.workflow.domain.aggregates.StepExecution;
+import io.mateu.workflow.domain.aggregates.StepExecutionStatus;
+import io.mateu.workflow.domain.aggregates.Variable;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
+/**
+ * What matching <em>means</em> now lives on the step execution (which arms its subscription) and
+ * in the repository query (which resolves it) — see {@code StepExecutionMessageSubscriptionTest}
+ * and {@code InMemoryStepExecutionRepositoryTest}. What is left here is the use case's own job:
+ * ask for the subscribers of this exact message and hand each one to the completion handler.
+ */
 @ExtendWith(MockitoExtension.class)
 class CorrelateMessageUseCaseTest {
 
     @Mock StepExecutionRepository stepExecutionRepository;
-    @Mock ProcessRepository processRepository;
     @Mock CompleteMessageStepHandler completeMessageStepHandler;
 
     @InjectMocks CorrelateMessageUseCase useCase;
 
-    private Step messageStep(String messageName, String correlationExpression) {
-        return new Step("s1", "wd-1", StepType.WAIT_FOR_MESSAGE, "Wait for message", null, null, null, null, false, null, null, null, null, null, 0, null, messageName, correlationExpression, null, 0, 0, false, null, 0, null);
-    }
-
-    private StepExecution pendingSe(Step step) {
+    private StepExecution pending(String id) {
         return StepExecution.builder()
-                .id("se-1").processId("p-1")
-                .stepJson(JsonSerializer.toJson(step))
+                .id(id).processId("p-1")
                 .status(StepExecutionStatus.PENDING)
-                .startedAt(LocalDateTime.now())
-                .variables(List.of())
                 .build();
     }
 
-    private Process process(String businessKey, Variable... variables) {
-        return Process.builder().id("p-1").businessKey(businessKey).variables(List.of(variables)).build();
+    @Test
+    void asksForTheSubscribersOfTheIncomingMessage() {
+        // The lookup must carry both halves of the subscription: resolving it in the query is
+        // the whole point — a walk over every waiting step is what this replaced.
+        useCase.handle(new CorrelateMessageCommand("payment-received", "bk-1", List.of()));
+
+        verify(stepExecutionRepository).findWaitingForMessage("payment-received", "bk-1");
+        verify(stepExecutionRepository, never()).findPendingOrRunning();
     }
 
     @Test
-    void correlatesByBusinessKeyByDefault() {
-        var se = pendingSe(messageStep("payment-received", null));
-        when(stepExecutionRepository.findPendingOrRunning()).thenReturn(List.of(se));
-        when(processRepository.findById("p-1")).thenReturn(Optional.of(process("bk-1")));
+    void handsEveryMatchedStepToTheCompletionHandler() {
+        var variables = List.of(new Variable("amount", "42"));
+        when(stepExecutionRepository.findWaitingForMessage("payment-received", "bk-1"))
+                .thenReturn(List.of(pending("se-1"), pending("se-2")));
 
-        useCase.handle(new CorrelateMessageCommand("payment-received", "bk-1", List.of()));
+        useCase.handle(new CorrelateMessageCommand("payment-received", "bk-1", variables));
 
         verify(completeMessageStepHandler).handle(
-                new CompleteMessageStepCommand("se-1", "payment-received", "bk-1", List.of()));
+                new CompleteMessageStepCommand("se-1", "payment-received", "bk-1", variables));
+        verify(completeMessageStepHandler).handle(
+                new CompleteMessageStepCommand("se-2", "payment-received", "bk-1", variables));
     }
 
     @Test
-    void correlatesByExpressionOverProcessVariables() {
-        var se = pendingSe(messageStep("payment-received", "orderId"));
-        when(stepExecutionRepository.findPendingOrRunning()).thenReturn(List.of(se));
-        when(processRepository.findById("p-1")).thenReturn(Optional.of(
-                process("bk-1", new Variable("orderId", "O-77"))));
-
-        useCase.handle(new CorrelateMessageCommand("payment-received", "O-77", List.of()));
-
-        verify(completeMessageStepHandler).handle(any());
-    }
-
-    @Test
-    void ignoresMessageWithMismatchedCorrelationKey() {
-        var se = pendingSe(messageStep("payment-received", null));
-        when(stepExecutionRepository.findPendingOrRunning()).thenReturn(List.of(se));
-        when(processRepository.findById("p-1")).thenReturn(Optional.of(process("bk-1")));
-
-        useCase.handle(new CorrelateMessageCommand("payment-received", "other-key", List.of()));
-
-        verify(completeMessageStepHandler, never()).handle(any());
-    }
-
-    @Test
-    void ignoresMessageWithDifferentName() {
-        var se = pendingSe(messageStep("payment-received", null));
-        when(stepExecutionRepository.findPendingOrRunning()).thenReturn(List.of(se));
-
-        useCase.handle(new CorrelateMessageCommand("something-else", "bk-1", List.of()));
-
-        verify(completeMessageStepHandler, never()).handle(any());
-    }
-
-    @Test
-    void ignoresNonMessageSteps() {
-        var action = new Step("s1", "wd-1", StepType.ACTION, "Step", null, null, null, null, false, "t", null, null, null, null, 0, null, null, null, null, 0, 0, false, null, 0, null);
-        when(stepExecutionRepository.findPendingOrRunning()).thenReturn(List.of(pendingSe(action)));
-
-        useCase.handle(new CorrelateMessageCommand("payment-received", "bk-1", List.of()));
-
-        verify(completeMessageStepHandler, never()).handle(any());
-    }
-
-    @Test
-    void ignoresMessageWhenNoStepIsWaiting() {
-        when(stepExecutionRepository.findPendingOrRunning()).thenReturn(List.of());
-
-        useCase.handle(new CorrelateMessageCommand("payment-received", "bk-1", List.of()));
-
-        verify(completeMessageStepHandler, never()).handle(any());
-    }
-
-    @Test
-    void failsClosedWhenCorrelationExpressionCannotBeEvaluated() {
-        // The referenced variable is missing: the key cannot be computed, so nothing matches.
-        var se = pendingSe(messageStep("payment-received", "orderId"));
-        when(stepExecutionRepository.findPendingOrRunning()).thenReturn(List.of(se));
-        when(processRepository.findById("p-1")).thenReturn(Optional.of(process("bk-1")));
-
-        useCase.handle(new CorrelateMessageCommand("payment-received", "O-77", List.of()));
-
-        verify(completeMessageStepHandler, never()).handle(any());
-    }
-
-    @Test
-    void ignoresStepsNotYetStarted() {
-        var se = pendingSe(messageStep("payment-received", null)).withStartedAt(null);
-        when(stepExecutionRepository.findPendingOrRunning()).thenReturn(List.of(se));
-
-        useCase.handle(new CorrelateMessageCommand("payment-received", "bk-1", List.of()));
-
-        verify(completeMessageStepHandler, never()).handle(any());
-    }
-
-    @Test
-    void ignoresStepsWhoseProcessIsGone() {
-        var se = pendingSe(messageStep("payment-received", null));
-        when(stepExecutionRepository.findPendingOrRunning()).thenReturn(List.of(se));
-        when(processRepository.findById("p-1")).thenReturn(Optional.empty());
-
+    void ignoresMessageWhenNoStepIsSubscribed() {
+        // Messages are not buffered: an unmatched one is dropped, not held for a later waiter.
         useCase.handle(new CorrelateMessageCommand("payment-received", "bk-1", List.of()));
 
         verify(completeMessageStepHandler, never()).handle(any());

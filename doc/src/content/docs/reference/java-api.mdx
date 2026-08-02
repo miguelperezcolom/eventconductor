@@ -125,7 +125,7 @@ long running = processRepository.countByStatus(ProcessStatus.RUNNING);
 
 ### `StepExecutionRepository`
 
-Extends `CrudStore<StepExecution>` and adds two query methods:
+Extends `CrudStore<StepExecution>` and adds a few query methods:
 
 ```java
 @Autowired
@@ -134,8 +134,22 @@ StepExecutionRepository stepExecutionRepository;
 // Find by process (takes the aggregate, not an id)
 List<StepExecution> steps = stepExecutionRepository.findByProcess(process);
 
-// Steps awaiting or in execution
+// Steps awaiting or in execution, system-wide
 List<StepExecution> active = stepExecutionRepository.findPendingOrRunning();
+
+// …or of a single process. Prefer this whenever you know the process: the
+// system-wide query grows with every step waiting anywhere in the engine.
+List<StepExecution> live = stepExecutionRepository.findPendingOrRunningByProcessId(processId);
+
+// Live steps whose deadline (a TIMER's due moment, or a step timeout) has passed.
+// This is what the scheduler uses; it is an indexed lookup on the deadline, so it
+// costs what is due rather than what is waiting.
+List<StepExecution> due = stepExecutionRepository.findDue(LocalDateTime.now());
+
+// The WAIT_FOR_MESSAGE steps subscribed to a message under a correlation key.
+// A null key matches nothing — an unevaluable correlation expression fails closed.
+List<StepExecution> subscribed =
+        stepExecutionRepository.findWaitingForMessage("payment-received", "booking-42");
 ```
 
 ### `WorkflowDefinitionRepository`

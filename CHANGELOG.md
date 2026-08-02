@@ -7,6 +7,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **An arriving message finds its waiting steps by index.** A live `WAIT_FOR_MESSAGE` step now
+  stores the subscription it represents — `awaiting_message_name` and `awaiting_correlation_key`
+  — so correlating a `MessageReceived` is a lookup on those two columns instead of a walk over
+  every step waiting anywhere in the engine, loading each one's process and evaluating its JEXL
+  expression. Indexing the message name alone would not have helped: the case that hurts is many
+  processes parked on the *same* message, where the key is the only selective part.
+
+  **The correlation contract is unchanged**, and that is what most of the work went into. The key
+  derives from process variables, and those move while a step waits — a parallel branch can write
+  the very variable the expression reads. Evaluating on arrival made that free; storing it does
+  not, so both paths that update process variables now rearm the subscriptions of that one
+  process (`MessageSubscriptionService`), writing only the keys that actually moved. A message
+  still correlates against the process as it is *now*. Spec `E2E-MSG-06` covers it. Fail-closed
+  survives too: an expression that will not evaluate stores a null key, and null matches nothing.
+  `CompleteMessageStepHandler` still re-checks the correlation against the live process under the
+  process lock — the query is the filter, that check remains the decision.
+
+  Steps already waiting when this version is deployed are armed at the next boot by
+  `InFlightStepRearmRunner` (which also covers the deadline below). Migration `V9` adds the
+  columns and `idx_step_exec_awaiting_message`.
+- **The scheduler no longer walks every live step to find the due ones.** Each step execution now
+  carries a **materialised deadline** (`deadline_at`) — a `TIMER`'s due moment or a step's timeout
+  — armed when the step starts, from the `startedAt`, variables and step JSON that are frozen at
+  that instant. The scheduler asks for `deadline_at <= now` over a new index instead of loading
+  every PENDING/RUNNING step and re-evaluating each one on every tick. The cost of a tick now
+  tracks *what is due* — normally nothing — rather than *what is waiting*, which is what the
+  engine's own use case is made of: a check-in reminder is a `TIMER` sitting PENDING for weeks,
+  and it used to be re-examined every ten seconds for all of them.
+
+  The deadline is derived state, so it is recomputed by every path that moves the clock;
+  `withDeadlineAt` is suppressed on the aggregate so it cannot be set on its own, and pause/resume
+  (which shifts `startedAt` by the pause duration) moves both together. Steps already in flight
+  when this version is deployed are armed at the next boot by `InFlightStepRearmRunner`, which
+  recomputes them from the state they already carry — one query at startup, idempotent, a no-op
+  from then on. Migration `V8` adds the column and `idx_step_exec_deadline`.
+
+  No behaviour change, with one millisecond-scale exception: a step timeout falling exactly on the
+  tick now fires on that tick instead of the next, matching what `TIMER` already did.
+
+### Fixed
+- **Timer and timeout checks no longer load every live step in the system.** `CheckTimerUseCase`
+  and `CheckTimeoutUseCase` listed *all* PENDING/RUNNING step executions and filtered them by
+  process in memory. Because the scheduler scan fans out one check event per due process, a
+  single scan tick that found N due processes triggered N full loads of the live-step table, on
+  top of its own. Both now query only the process they were commanded for, through a new
+  `StepExecutionRepository.findPendingOrRunningByProcessId(processId)`. The cost matters most on
+  the workloads the engine is built for — long waits, where tens of thousands of `TIMER` steps
+  sit PENDING for weeks. New composite index `idx_step_exec_process_status` on
+  `step_execution_entity (process_id, status)` replaces the process-only index it subsumes
+  (migration `V7`). No behaviour change.
+
 ## [1.0-beta.014] - 2026-08-01
 
 ### Added
