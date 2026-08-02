@@ -91,13 +91,20 @@ spring:
             # Consumer threads on this pod: each owns a disjoint set of partitions, so one pod can
             # work several partitions in parallel. Keep <= partitions assigned to this pod; total
             # concurrency across pods is still capped by min-partition-count above.
-            concurrency: ${KAFKA_CONCURRENCY:1}
+            #
+            # Three rather than one, because one means a deployment can never use more partitions
+            # than it has replicas — the rest sit unassigned and the work keyed to them waits.
+            # Measured on a three-pod cluster against the six partitions above: four consumed,
+            # two unread, and no pod anywhere near CPU-bound. Both bindings run this many threads
+            # and each holds a connection while it works, so DB_POOL_SIZE has to stay above their
+            # sum plus the relay, the scanner and the UI.
+            concurrency: ${KAFKA_CONCURRENCY:3}
         consumeUpstream-in-0:
           destination: upstream
           group: orchestrator-upstream
           consumer:
             batch-mode: true
-            concurrency: ${KAFKA_CONCURRENCY:1}
+            concurrency: ${KAFKA_CONCURRENCY:3}
         consumeWorkerEvent-in-0:
           destination: downstream
           group: worker-group
@@ -121,7 +128,9 @@ spring:
   hikari:
     connection-timeout: ${DB_CONNECTION_TIMEOUT:20000}
     # A process update holds a connection for its critical section, so the pool caps how many
-    # in-flight processes this pod can advance at once. Size it to expected concurrency (and to the
+    # in-flight processes this pod can advance at once. It has to cover every thread that holds one
+    # at once: KAFKA_CONCURRENCY on each of the two consumer bindings, plus the outbox relay, the
+    # timeout scanner and any HTTP request in the UI. Size it to expected concurrency (and to the
     # database's max_connections across all pods); raise DB_POOL_SIZE to scale.
     maximum-pool-size: ${DB_POOL_SIZE:16}
 

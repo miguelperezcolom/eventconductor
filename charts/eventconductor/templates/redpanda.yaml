@@ -61,6 +61,8 @@ spec:
                 --advertise-pandaproxy-addr $(POD_IP):8082 \
                 --rpc-addr 0.0.0.0:33145 \
                 --advertise-rpc-addr redpanda:33145 \
+                --set redpanda.default_topic_partitions={{ .Values.redpanda.defaultTopicPartitions }} \
+                --smp {{ .Values.redpanda.cores }} \
                 --mode dev-container
           env:
             - name: POD_IP

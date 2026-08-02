@@ -1,0 +1,24 @@
+# Packages a jar built outside, from the Maven reactor.
+#
+# The main Dockerfile builds inside the image from this module alone, which resolves
+# workflow-engine from Maven Central — the last *released* engine, not the working tree. That is
+# right for releases and wrong for testing a branch: the reliability suite has to run the code
+# under test, not the code that shipped last month.
+#
+#   mvn -Pbenchmark -pl apps/orchestrator-standalone-app -am -DskipTests package
+#   docker buildx build --platform linux/amd64 -f apps/orchestrator-standalone-app/Dockerfile.prebuilt \
+#     -t <user>/orchestrator-standalone-app:<tag> --push .
+FROM eclipse-temurin:21-jre
+RUN groupadd -r app && useradd -r -g app -u 10001 app
+WORKDIR /opt/app
+COPY --chown=app:app apps/orchestrator-standalone-app/target/orchestrator-standalone-app-*.jar app.jar
+ENV SERVER_PORT=8080 \
+    WORKFLOW_MODE=kafka \
+    WORKFLOW_PERSISTENCE=jpa \
+    DB_DRIVER=org.postgresql.Driver \
+    JPA_DIALECT=org.hibernate.dialect.PostgreSQLDialect \
+    DDL_AUTO=validate \
+    FLYWAY_ENABLED=true
+USER app
+EXPOSE 8080
+ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar app.jar"]

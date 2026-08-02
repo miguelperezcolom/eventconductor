@@ -70,6 +70,10 @@ spec:
               value: {{ .Values.orchestrator.ddlAuto | quote }}
             - name: FLYWAY_ENABLED
               value: {{ .Values.orchestrator.flywayEnabled | quote }}
+            - name: KAFKA_CONCURRENCY
+              value: {{ .Values.orchestrator.consumerConcurrency | quote }}
+            - name: DB_POOL_SIZE
+              value: {{ .Values.orchestrator.dbPoolSize | quote }}
             - name: SECURITY_ENABLED
               value: {{ .Values.orchestrator.security.enabled | quote }}
             - name: SECURITY_USER

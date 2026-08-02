@@ -11,18 +11,46 @@ postgres:
   port: 5432
   storage: 8Gi
   storageClass: ""
-  # Recommended on autoscaled clusters so the node provisioner can size nodes.
-  resources: {}
+  # Not a sizing hint — a pod with no requests is BestEffort, and BestEffort is what the kubelet
+  # evicts first when a node runs short of memory. Left empty, the database and the broker are
+  # the two pods most likely to be killed to make room for another stateless replica of the
+  # thing that depends on them. Observed on a test cluster: scaling the orchestrator from 3 to 6
+  # evicted the broker, and the engine stopped completely.
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
 
 ## ── Redpanda ─────────────────────────────────────────────────────────────────
 redpanda:
   image: docker.redpanda.com/redpandadata/redpanda:v24.1.7
+  # Topics are auto-created, and Redpanda's own default is a single partition — which would make
+  # extra orchestrator replicas pure failover: one partition can only ever have one consumer, so
+  # the others would idle. The engine keys every event by process, so partitions are what spread
+  # the work. Keep this at or above the number of orchestrator replicas you intend to run.
+  defaultTopicPartitions: 6
+  # Shard count, pinned. Left to Redpanda it is taken from the cores it can see, and it is then
+  # written into the data directory as an invariant: a broker that comes back on a smaller node
+  # refuses to start at all — "Decreasing redpanda core count is not allowed" — and stays down
+  # until somebody notices. On any cluster with a node autoprovisioner, or simply with mixed
+  # instance types, that turns an ordinary reschedule into a full outage of the engine. Pinning
+  # it makes the broker portable across node sizes. Raise it deliberately, never implicitly, and
+  # never lower it on a broker that already has data.
+  cores: 2
   brokerInternal: redpanda:19092
   externalNodePort: 30092
   storage: 8Gi
   storageClass: ""
-  # Recommended on autoscaled clusters so the node provisioner can size nodes.
-  resources: {}
+  # See the note on postgres.resources: without requests this pod is BestEffort and is evicted
+  # before any orchestrator replica. Redpanda's own footprint is well over a gigabyte at rest.
+  resources:
+    requests:
+      memory: "2Gi"
+      cpu: "500m"
+    limits:
+      memory: "3Gi"
 
 ## ── Orchestrator ─────────────────────────────────────────────────────────────
 orchestrator:
@@ -35,6 +63,16 @@ orchestrator:
   # In production keep ddl-auto=validate so Flyway owns the schema.
   ddlAuto: validate
   flywayEnabled: true
+  # Consumer threads per pod, on each of the two consumer bindings. The useful ceiling is
+  # redpanda.defaultTopicPartitions / replicas — threads past the partition count are assigned
+  # nothing. Below that ceiling a deployment cannot use the partitions it created: measured on a
+  # three-pod cluster with six partitions, one thread per pod left four of them unconsumed while
+  # no pod was near CPU-bound.
+  consumerConcurrency: 3
+  # Must exceed 2 x consumerConcurrency plus the relay, the timeout scanner and the UI. The total
+  # across replicas also has to fit PostgreSQL's max_connections (100 by default): at these
+  # defaults that is 16 x replicas.
+  dbPoolSize: 16
   # Extra environment variables injected verbatim (e.g. git-import config via Spring
   # relaxed binding: WORKFLOW_GITIMPORT_REPOSITORIES_0_URL / _0_BRANCH).
   extraEnv: {}
