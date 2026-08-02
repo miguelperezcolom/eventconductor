@@ -29,7 +29,9 @@ redpanda:
 
 orchestrator:
   image: miguelperezcolom/orchestrator-standalone-app
-  imageTag: "1.0-beta.014"
+  # -restyle carries this session's engine work: graph dimming fix, N+1/KPI slowness fixes,
+  # and the WorkflowHome dashboard restyle (KPI + captioned chart cards).
+  imageTag: "1.0-beta.014-restyle"
   imagePullPolicy: IfNotPresent
   replicas: 2
   port: 8080

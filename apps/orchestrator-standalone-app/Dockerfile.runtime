@@ -1,0 +1,25 @@
+# Runtime-only image built from a pre-built jar (the reactor is built locally so uncommitted
+# workflow-engine changes are included; the in-container maven build in Dockerfile would instead
+# resolve a published workflow-engine SNAPSHOT). Mirrors the runtime stage of ./Dockerfile.
+FROM eclipse-temurin:21-jre-alpine
+RUN addgroup -S app && adduser -S -G app -u 10001 app
+WORKDIR /opt/app
+COPY --chown=app:app target/orchestrator-standalone-app-*.jar app.jar
+
+ENV SERVER_PORT=8080
+ENV WORKFLOW_MODE=kafka \
+    WORKFLOW_PERSISTENCE=jpa
+ENV DB_URL=jdbc:postgresql://localhost:5432/workflow \
+    DB_USERNAME=workflow \
+    DB_DRIVER=org.postgresql.Driver \
+    JPA_DIALECT=org.hibernate.dialect.PostgreSQLDialect \
+    DDL_AUTO=validate \
+    DB_POOL_SIZE=10 \
+    DB_CONNECTION_TIMEOUT=20000
+ENV KAFKA_BROKERS=localhost:9092
+
+USER app
+EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+  CMD wget -qO- http://127.0.0.1:${SERVER_PORT}/actuator/health || exit 1
+ENTRYPOINT ["java", "-jar", "app.jar"]

@@ -1,6 +1,5 @@
 package io.mateu.workflow.infra.in.ui;
 
-import io.mateu.uidl.StyleConstants;
 import io.mateu.uidl.annotations.*;
 import io.mateu.uidl.annotations.Menu;
 import io.mateu.uidl.data.*;
@@ -22,7 +21,7 @@ import java.util.List;
 @PageTitle("Workflow")
 @Logo("/images/riu.svg")
 @Title("")
-@Style(StyleConstants.CONTAINER)
+@Style(HomeStyles.PAGE)
 @RequiredArgsConstructor
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 @Service
@@ -47,15 +46,8 @@ public class WorkflowHome implements PostHydrationHandler {
         var data = adapter.fetch();
 
         charts = io.mateu.uidl.data.HorizontalLayout.builder()
-                .content(    List.of(
-                        Chart.builder()
-                                .chartType(ChartType.doughnut)
-                                .chartData(data.processesByDefinitionChartData())
-                                .chartOptions(ChartOptions.builder()
-                                        .maintainAspectRatio(false)
-                                        .build())
-                                .build(),
-                        Chart.builder()
+                .content(List.of(
+                        chartCard("Processes by status", Chart.builder()
                                 .chartType(ChartType.bar)
                                 .chartData(data.processesByStatusChartData())
                                 .chartOptions(ChartOptions.builder()
@@ -66,47 +58,47 @@ public class WorkflowHome implements PostHydrationHandler {
                                                         .build())
                                                 .build())
                                         .build())
-                                .build(),
-                        Chart.builder()
+                                .style(HomeStyles.CHART)
+                                .build()),
+                        chartCard("Processes by definition", Chart.builder()
                                 .chartType(ChartType.doughnut)
                                 .chartData(data.processesByDefinitionChartData())
                                 .chartOptions(ChartOptions.builder()
                                         .maintainAspectRatio(false)
                                         .build())
-                                .build()
+                                .style(HomeStyles.CHART)
+                                .build())
                 ))
-                .style("width: 100%;justify-content: space-around; margin-bottom: 2rem;align-items: center;")
+                .style(HomeStyles.CHART_ROW)
                 .build();
 
         kpis = io.mateu.uidl.data.HorizontalLayout.builder()
                 .content(List.of(
-                        Card.builder()
-                                .title(Text.builder().text("Process Definitions").build())
-                                .content(Text.builder().text("" + data.processDefinitionsCount()).style("text-align: center;").build())
-                                .style("flex-grow: 1;width: 12rem;")
-                                .build(),
-                        Card.builder()
-                                .title(Text.builder().text("Running Processes").build())
-                                .content(Text.builder().text("" + data.activeProcessesCount()).style("text-align: center;").build())
-                                .style("flex-grow: 1;width: 12rem;")
-                                .build(),
-                        Card.builder()
-                                .title(Text.builder().text("Completed Processes").build())
-                                .content(Text.builder().text("" + data.completedProcessesCount()).style("text-align: center;").build())
-                                .style("flex-grow: 1;width: 12rem;")
-                                .build(),
-                        Card.builder()
-                                .title(Text.builder().text("Form Definitions").build())
-                                .content(Text.builder().text("" + data.formDefinitionsCount()).style("text-align: center;").build())
-                                .style("flex-grow: 1;width: 12rem;")
-                                .build(),
-                        Card.builder()
-                                .title(Text.builder().text("User Tasks").build())
-                                .content(Text.builder().text("" + data.userTasksCount()).style("text-align: center;").build())
-                                .style("flex-grow: 1;width: 12rem;")
-                                .build()
+                        kpiCard("Process Definitions", data.processDefinitionsCount()),
+                        kpiCard("Running Processes", data.activeProcessesCount()),
+                        kpiCard("Completed Processes", data.completedProcessesCount()),
+                        kpiCard("Form Definitions", data.formDefinitionsCount()),
+                        kpiCard("User Tasks", data.userTasksCount())
                 ))
-                .spacing(true)
+                .style(HomeStyles.KPI_ROW)
+                .build();
+    }
+
+    /** A KPI card: a small uppercase label above a large, bold value. */
+    private static Card kpiCard(String label, Object value) {
+        return Card.builder()
+                .title(Text.builder().text(label).style(HomeStyles.KPI_LABEL).build())
+                .content(Text.builder().text(String.valueOf(value)).style(HomeStyles.KPI_VALUE).build())
+                .style(HomeStyles.KPI_CARD)
+                .build();
+    }
+
+    /** A chart card: an uppercase caption above a bounded chart. */
+    private static Card chartCard(String caption, Chart chart) {
+        return Card.builder()
+                .title(Text.builder().text(caption).style(HomeStyles.CHART_TITLE).build())
+                .content(chart)
+                .style(HomeStyles.CHART_CARD)
                 .build();
     }
 }
