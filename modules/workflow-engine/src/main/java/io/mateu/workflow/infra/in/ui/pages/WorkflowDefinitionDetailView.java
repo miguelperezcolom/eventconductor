@@ -5,10 +5,8 @@ import io.mateu.uidl.annotations.Hidden;
 import io.mateu.uidl.annotations.Label;
 import io.mateu.uidl.annotations.PageWidth;
 import io.mateu.uidl.annotations.PageWidthStyle;
-import io.mateu.uidl.annotations.Section;
 import io.mateu.uidl.annotations.Style;
-import io.mateu.uidl.annotations.Zone;
-import io.mateu.uidl.annotations.Zones;
+import io.mateu.uidl.annotations.Tab;
 import io.mateu.uidl.annotations.Toolbar;
 import io.mateu.uidl.data.Element;
 import io.mateu.uidl.data.Status;
@@ -39,9 +37,10 @@ import static io.mateu.core.infra.JsonSerializer.toJson;
  * Read-only detail view shown when a workflow definition is selected in the CRUD (the {@code view}
  * action). Definitions are authored as {@code .ec} files (edited with the IDE plugins), so this view
  * never edits them — the only actions are the runtime toggles pause/resume and disable/enable. The
- * name is the view title and a header badge shows the runtime state; the read-only ELK graph takes
- * the whole left column (it already carries the step list visually) and a compact property summary
- * sits in a narrow column on the right.
+ * name is the view title and a header badge shows the runtime state; the content is split into two
+ * tabs — a full-width read-only ELK graph (it already carries the step list visually) and a compact
+ * property summary. Tabs (rather than side-by-side zones) keep the graph full-width and avoid a
+ * first-render layout shift between the summary and the async-loaded graph.
  */
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 @Service
@@ -51,12 +50,6 @@ import static io.mateu.core.infra.JsonSerializer.toJson;
 // Use the whole screen width (uncapped) — the graph is a wide canvas, so the default 1408px content
 // cap wastes horizontal room.
 @PageWidth(PageWidthStyle.FULL_WIDTH)
-@Zones({
-        // Graph left, taking all the width the summary leaves (an empty width does not reliably
-        // grow the zone, so size it explicitly); summary in a fixed narrow column on the right.
-        @Zone(name = "graph", width = "calc(100% - 23rem)"),
-        @Zone(name = "info", width = "22rem")
-})
 public class WorkflowDefinitionDetailView implements VisibilitySupplier {
 
     /** Custom element that renders the workflow as an ELK graph. Shipped by this module. */
@@ -89,29 +82,36 @@ public class WorkflowDefinitionDetailView implements VisibilitySupplier {
     /** A field of type {@link Status} is promoted to a header badge (never rendered in the body). */
     Status status;
 
-    // ── Left column: read-only ELK graph (its own toolbar/panel hidden in read-only). It shows
-    //    every step and how they connect, so a separate step list would be redundant. ─────────────
-    @Section(value = "Diagram", zone = "graph")
+    // ── "Diagram" tab: full-width read-only ELK graph (its own toolbar/panel hidden in read-only).
+    //    It shows every step and how they connect, so a separate step list would be redundant. ─────
+    @Tab("Diagram")
     @Label("")
     Element workflow;
 
-    // ── Right column: a compact property list (label/value rows) ───────────────────
-    @Section(value = "Summary", zone = "info", propertyList = true)
+    // ── "Summary" tab: the definition's properties as label/value rows. Each field carries the
+    //    same @Tab so they merge into one tab strip alongside "Diagram" (a @Section here would
+    //    split the summary into its own separate strip). ──────────────────────────────────────────
+    @Tab("Summary")
     @Label("Version")
     String version;
 
+    @Tab("Summary")
     @Label("Description")
     String description;
 
+    @Tab("Summary")
     @Label("Concurrency")
     String concurrency;
 
+    @Tab("Summary")
     @Label("Cron")
     String cron;
 
+    @Tab("Summary")
     @Label("Max step executions")
     String maxStepExecutions;
 
+    @Tab("Summary")
     @Label("Paused")
     String paused;
 
