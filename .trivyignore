@@ -4,3 +4,8 @@
 # not production workloads, so KSV-0014 is accepted for them.
 AVD-KSV-0014
 KSV0014
+
+# The nginx-certbot reverse proxy (demo/.devops/nginx) runs as root by design: it binds
+# 80/443 and runs certbot + cron for TLS. A non-root USER would break it. Demo asset.
+AVD-DS-0002
+DS0002
