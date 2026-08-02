@@ -46,4 +46,25 @@ public interface StepExecutionRepository extends CrudStore<StepExecution> {
      */
     List<StepExecution> findWaitingForMessage(String messageName, String correlationKey);
 
+    /**
+     * How many live steps have been waiting since before {@code startedBefore} with no deadline
+     * to fire — work nothing in the engine will ever look at again.
+     *
+     * <p>This is the blind spot the deadline index creates. A step with a timeout is safe: the
+     * scheduler finds it and the retry path recovers it. A step without one is invisible by
+     * construction, so if its dispatch or its reply is lost the process stops, permanently, and
+     * no metric, log or query in the engine says anything. On a four-hour run with a broker
+     * outage in it, 3 356 processes ended that way and the only thing that noticed was a person
+     * wondering why the drain had stopped.
+     *
+     * <p>Counting them does not fix them — see {@code workflow.default-step-timeout-ms} for
+     * that — but a number that can be alerted on is the difference between a stuck process and a
+     * silently stuck process.
+     *
+     * @return zero from implementations that cannot answer cheaply; the caller only reports it
+     */
+    default long countStalled(LocalDateTime startedBefore) {
+        return 0;
+    }
+
 }

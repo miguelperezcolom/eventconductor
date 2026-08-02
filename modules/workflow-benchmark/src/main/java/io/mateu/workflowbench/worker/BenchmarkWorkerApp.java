@@ -2,8 +2,7 @@ package io.mateu.workflowbench.worker;
 
 import io.mateu.workflow.ddd.DomainEvent;
 import io.mateu.workflow.dtos.events.integration.TaskExecutionRequested;
-import io.mateu.workflow.dtos.events.integration.TaskStatus;
-import io.mateu.workflow.dtos.events.integration.TaskStatusChanged;
+import io.mateu.workflow.worker.WorkerReply;
 import org.springframework.boot.SpringBootConfiguration;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.data.jpa.autoconfigure.DataJpaRepositoriesAutoConfiguration;
@@ -23,8 +22,12 @@ import java.util.function.Consumer;
  * figure becomes what your workers can get through — which is the real ceiling in production, and
  * not the engine's to answer.
  *
- * <p>It echoes the process back on the reply so the event is routed to the pod that owns it,
- * which is what a worker on a current shared module does.
+ * <p>It replies through {@link WorkerReply}, which echoes the process back so the event routes to
+ * the pod that owns it — and, more to the point, refuses to let a reply be dropped. The first
+ * version of this class sent the reply and ignored the result, and during a ninety-second broker
+ * outage that quietly lost 3 352 of them: 3 356 processes left waiting forever for an answer that
+ * was never published. It was the harness's bug, not the engine's, but it was also the pattern
+ * every worker in this repository used.
  */
 @SpringBootConfiguration
 @EnableAutoConfiguration(exclude = {
@@ -49,8 +52,7 @@ public class BenchmarkWorkerApp {
                     return;
                 }
             }
-            streamBridge.send("upstream", new TaskStatusChanged(
-                    task.taskExecutionId(), TaskStatus.COMPLETED, task.variables(), task.processId()));
+            WorkerReply.completed(streamBridge, task, task.variables());
         };
     }
 }

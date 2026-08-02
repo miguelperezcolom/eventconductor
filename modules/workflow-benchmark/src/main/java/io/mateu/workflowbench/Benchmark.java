@@ -26,6 +26,30 @@ public final class Benchmark {
         var jdbc = new JdbcTemplate(new DriverManagerDataSource(
                 config.jdbcUrl(), config.jdbcUser(), config.jdbcPassword()));
 
+        if ("install".equals(config.role())) {
+            // Writes a definition into the engine's database and exits. Its own role because
+            // swapping a definition under running processes is a scenario, not a side effect of
+            // starting load.
+            var resource = System.getProperty("bench.definition", "/workflows/bench-3-steps.json");
+            System.out.println("installed workflow definition "
+                    + io.mateu.workflowbench.soak.WorkflowInstaller.install(jdbc, resource)
+                    + " from " + resource);
+            return;
+        }
+
+        if (config.soaks()) {
+            // A different question entirely — see SoakDriver. It shares the load path and nothing
+            // else, and in particular it never asserts a duration or a rate: the verdict comes
+            // from the verifier reading the database afterwards.
+            try (var driver = new LoadDriver(config, true)) {
+                new io.mateu.workflowbench.soak.SoakDriver(
+                        jdbc, config.soakPrefix(), config.ratePerSecond(),
+                        java.time.Duration.ofMinutes(config.soakMinutes()))
+                        .run(driver);
+            }
+            return;
+        }
+
         double wallClock;
         long commits;
         var contexts = new ArrayList<ConfigurableApplicationContext>();

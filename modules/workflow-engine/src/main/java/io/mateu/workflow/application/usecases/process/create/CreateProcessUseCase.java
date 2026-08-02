@@ -7,6 +7,7 @@ import io.mateu.workflow.application.out.WorkflowMetrics;
 import io.mateu.workflow.domain.aggregates.Process;
 import io.mateu.workflow.domain.aggregates.ProcessStatus;
 import io.mateu.workflow.domain.aggregates.StepExecution;
+import io.mateu.workflow.domain.services.StepTimeoutDefaults;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -24,6 +25,14 @@ public class CreateProcessUseCase {
     final WorkflowDefinitionRepository workflowDefinitionRepository;
     final StepExecutionRepository stepExecutionRepository;
     final WorkflowMetrics workflowMetrics;
+
+    /**
+     * Fallback timeout, in milliseconds, for ACTION and RULE steps that declare none. Zero — the
+     * default — leaves them with no deadline, which means a lost dispatch or a lost worker reply
+     * stops that process permanently and invisibly. See {@link StepTimeoutDefaults}.
+     */
+    @org.springframework.beans.factory.annotation.Value("${workflow.default-step-timeout-ms:0}")
+    long defaultStepTimeoutMillis;
 
     public void handle(CreateProcessCommand command) {
         // Idempotency: a redelivered creation event carries the same processId and/or
@@ -43,7 +52,14 @@ public class CreateProcessUseCase {
             }
         }
 
-        var workflowDefinition = workflowDefinitionRepository.findById(command.workflowDefinitionId()).orElseThrow();
+        // The fallback timeout is applied here, at the one moment a definition becomes a
+        // process, and nowhere else. Both copies this method freezes — the step's stepJson and
+        // the process's definition snapshot — then carry it, while the stored definition the UI
+        // reads and writes back stays exactly as its author wrote it. Applying it in the
+        // repository instead would let an editor round-trip bake the default in permanently.
+        var workflowDefinition = StepTimeoutDefaults.applyTo(
+                workflowDefinitionRepository.findById(command.workflowDefinitionId()).orElseThrow(),
+                defaultStepTimeoutMillis);
         AtomicInteger position = new AtomicInteger(1);
         var stepExecutions = workflowDefinition.steps().stream()
                 .map(step -> StepExecution.create(step, command.processId(), position.getAndIncrement())).toList();

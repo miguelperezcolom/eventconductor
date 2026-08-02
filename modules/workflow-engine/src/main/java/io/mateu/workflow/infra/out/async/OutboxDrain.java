@@ -27,6 +27,13 @@ import static io.mateu.core.infra.JsonSerializer.pojoFromJson;
  * between rolls the transaction back and releases the locks, so another pod redelivers — the
  * at-least-once contract the relay always had, unchanged. Marking first would lose messages.
  *
+ * <p>That ordering is necessary and was not sufficient. It only means anything if a delivery that
+ * fails <em>says so</em>, and for a long time it could not: the send was asynchronous and its
+ * return value discarded, so a broker that was down still produced a row marked Sent. During a
+ * ninety-second broker outage, 71 of 642 912 messages were lost that way. The publisher now
+ * throws when the broker refuses, which lands in the catch below and leaves the row Pending —
+ * and the applications configure the producer synchronously so that refusal is knowable at all.
+ *
  * <p>The batch is bounded for a reason beyond memory: the claim holds row locks for as long as
  * the transaction runs, so the batch size is really a bound on how long other pods can be kept
  * from those rows.

@@ -1,0 +1,121 @@
+# The load side of the reliability run: something to create processes forever, and something to
+# do their work.
+#
+# Neither of these is the system under test. They are deployed into the same namespace as the
+# engine so that a scenario which takes out a node takes them out too — a harness that is immune
+# to the failure it is injecting proves less than one that has to recover alongside the engine.
+#
+# The image tag is a placeholder the runbook substitutes, for the same reason as in the benchmark
+# manifests: a run has to be able to say which build it was.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: soak-worker
+  namespace: ec-rel
+  labels: { app: soak-worker, part-of: soak }
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: soak-worker } }
+  template:
+    metadata:
+      labels: { app: soak-worker, part-of: soak }
+    spec:
+      # Pod-level too, not just per container: a pod with none is flagged as running with the
+      # default (root-capable) context regardless of what its containers declare.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+      # Spread, so losing one node costs half the worker capacity rather than all of it, and the
+      # scenario measures recovery instead of a full stop.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector: { matchLabels: { app: soak-worker } }
+      containers:
+        - name: worker
+          image: BENCH_IMAGE
+          env:
+            # 2 replicas x 3 consumers = 6, one per partition of `downstream`.
+            - name: BENCH_OPTS
+              value: >-
+                -Dbench.role=worker
+                -Dbench.worker.concurrency=3
+                -Dbench.worker.think-ms=0
+                -Dbench.kafka.brokers=redpanda.ec-rel.svc.cluster.local:9092
+                -XX:MaxRAMPercentage=70
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 1000
+            capabilities: { drop: ["ALL"] }
+            seccompProfile: { type: RuntimeDefault }
+            readOnlyRootFilesystem: true
+          volumeMounts: [{ name: tmp, mountPath: /tmp }]
+          resources:
+            requests: { cpu: "500m", memory: "768Mi" }
+            limits: { memory: "1Gi" }
+      volumes: [{ name: tmp, emptyDir: {} }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: soak-driver
+  namespace: ec-rel
+  labels: { app: soak-driver, part-of: soak }
+spec:
+  # Exactly one. Two drivers would each keep their own acknowledged count under their own pod
+  # name, which the verifier sums correctly — but a single writer makes the log readable, and the
+  # arrival rate is meant to be a number somebody chose.
+  replicas: 1
+  strategy: { type: Recreate }
+  selector: { matchLabels: { app: soak-driver } }
+  template:
+    metadata:
+      labels: { app: soak-driver, part-of: soak }
+    spec:
+      # Pod-level too, not just per container: a pod with none is flagged as running with the
+      # default (root-capable) context regardless of what its containers declare.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+      # Long enough for the shutdown hook to write the final acknowledged count. Without it a
+      # rescheduled driver loses the last few seconds of its own evidence and the conservation
+      # check reports a loss the engine never caused.
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: driver
+          image: BENCH_IMAGE
+          env:
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef: { name: ec-eventconductor-postgres, key: POSTGRES_PASSWORD }
+            - name: BENCH_OPTS
+              value: >-
+                -Dbench.role=soak
+                -Dbench.rate=SOAK_RATE
+                -Dbench.soak.minutes=0
+                -Dbench.jdbc.url=jdbc:postgresql://postgres.ec-rel.svc.cluster.local:5432/workflow
+                -Dbench.jdbc.user=workflow
+                -Dbench.kafka.brokers=redpanda.ec-rel.svc.cluster.local:9092
+                -XX:MaxRAMPercentage=70
+          # The password is read from the environment rather than baked into BENCH_OPTS, where it
+          # would show up in `kubectl describe` and in every process listing.
+          command: ["sh", "-c"]
+          args:
+            - exec java $BENCH_OPTS -Dbench.jdbc.password="$PGPASSWORD" -jar app.jar
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 1000
+            capabilities: { drop: ["ALL"] }
+            seccompProfile: { type: RuntimeDefault }
+            readOnlyRootFilesystem: true
+          volumeMounts: [{ name: tmp, mountPath: /tmp }]
+          resources:
+            requests: { cpu: "500m", memory: "768Mi" }
+            limits: { memory: "1Gi" }
+      volumes: [{ name: tmp, emptyDir: {} }]

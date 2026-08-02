@@ -22,17 +22,49 @@ import java.nio.charset.StandardCharsets;
  *
  * <p>The key goes out as bytes rather than a String so it works under the binder's default
  * {@code ByteArraySerializer}, without every application having to configure a key serializer.
+ *
+ * <h2>Why this throws</h2>
+ *
+ * <p>{@code StreamBridge.send} reports failure by returning {@code false}, and every caller here
+ * used to discard it. That is what turned the transactional outbox into a lossy one: the relay
+ * delivers and then marks the row Sent, which is the right order only if "delivered" means the
+ * broker took it. Measured during a broker outage on a four-hour run: 71 of 642 912 messages were
+ * marked Sent having never reached the topic, and each one is a process that stops forever.
+ *
+ * <p>So a refused send is an exception now. In the relay it leaves the row Pending for the next
+ * pass; in the consumer-side publishers it fails the handler, so the offset is not committed and
+ * Kafka redelivers. Both are the at-least-once behaviour the design always claimed.
+ *
+ * <p>This only works if the producer binding is synchronous — an asynchronous send returns
+ * {@code true} as soon as the record is buffered and cannot know whether the broker will ever
+ * accept it. The applications set {@code spring.cloud.stream.kafka.default.producer.sync=true}
+ * for exactly this reason. Without it, the return value being checked here is not an answer to
+ * the question being asked.
  */
 final class PartitionedEvents {
 
-    static boolean send(StreamBridge streamBridge, String binding, DomainEvent event) {
+    static void send(StreamBridge streamBridge, String binding, DomainEvent event) {
         var key = event.partitionKey();
-        if (key == null || key.isBlank()) {
-            return streamBridge.send(binding, event);
+        var accepted = (key == null || key.isBlank())
+                ? streamBridge.send(binding, event)
+                : streamBridge.send(binding, MessageBuilder.withPayload(event)
+                        .setHeader(KafkaHeaders.KEY, key.getBytes(StandardCharsets.UTF_8))
+                        .build());
+        if (!accepted) {
+            throw new EventPublicationRefusedException(binding, event);
         }
-        return streamBridge.send(binding, MessageBuilder.withPayload(event)
-                .setHeader(KafkaHeaders.KEY, key.getBytes(StandardCharsets.UTF_8))
-                .build());
+    }
+
+    /**
+     * Thrown when the broker did not accept an event. Deliberately not a checked exception and
+     * deliberately not caught anywhere near here: the callers' existing failure paths — leave the
+     * outbox row Pending, do not commit the offset — are already the correct response.
+     */
+    static final class EventPublicationRefusedException extends RuntimeException {
+        EventPublicationRefusedException(String binding, DomainEvent event) {
+            super("The broker did not accept " + event.getClass().getSimpleName()
+                    + " on binding '" + binding + "'; it will be retried");
+        }
     }
 
     private PartitionedEvents() {

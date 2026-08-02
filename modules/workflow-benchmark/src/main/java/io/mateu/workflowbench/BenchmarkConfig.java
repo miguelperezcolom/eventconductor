@@ -11,7 +11,8 @@ record BenchmarkConfig(
         String kafkaBrokers,
         int pods, int processes, int workerThinkMillis, int workerConcurrency,
         int consumerConcurrency, long outboxPollMillis, int outboxBatchSize, int poolSize,
-        int ratePerSecond, String role) {
+        int ratePerSecond, String role,
+        int soakMinutes, String soakPrefix) {
 
     static BenchmarkConfig fromSystemProperties() {
         return new BenchmarkConfig(
@@ -42,7 +43,19 @@ record BenchmarkConfig(
                 // worker— workers only, likewise.
                 // drive — load and measurement only, against pods running elsewhere. This is the
                 //         one that produces a figure worth publishing.
-                prop("bench.role", "all"));
+                // soak  — load only, for hours, against an engine somebody else is breaking. It
+                //         measures nothing; it leaves evidence.
+                prop("bench.role", "all"),
+                intProp("bench.soak.minutes", 0),
+                // Namespaces the run's business keys. Defaulted to the hostname because in
+                // Kubernetes that is the pod name, so a driver that is rescheduled mid-run does
+                // not silently reuse the keys of the one that died.
+                prop("bench.soak.prefix", "soak-" + hostname()));
+    }
+
+    private static String hostname() {
+        var name = System.getenv("HOSTNAME");
+        return name == null || name.isBlank() ? "local" : name;
     }
 
     private static String prop(String name, String fallback) {
@@ -63,6 +76,10 @@ record BenchmarkConfig(
 
     boolean drivesLoad() {
         return "all".equals(role) || "drive".equals(role);
+    }
+
+    boolean soaks() {
+        return "soak".equals(role);
     }
 
     /** Everything in one JVM, which is the only case whose numbers describe a single machine. */

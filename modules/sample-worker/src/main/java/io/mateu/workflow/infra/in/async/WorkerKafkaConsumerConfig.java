@@ -2,8 +2,7 @@ package io.mateu.workflow.infra.in.async;
 
 import io.mateu.workflow.ddd.DomainEvent;
 import io.mateu.workflow.dtos.events.integration.TaskExecutionRequested;
-import io.mateu.workflow.dtos.events.integration.TaskStatus;
-import io.mateu.workflow.dtos.events.integration.TaskStatusChanged;
+import io.mateu.workflow.worker.WorkerReply;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.stream.function.StreamBridge;
@@ -15,6 +14,16 @@ import reactor.core.publisher.Mono;
 import java.time.Duration;
 import java.util.function.Function;
 
+/**
+ * The worker other workers get copied from, which is why it goes through {@link WorkerReply}
+ * rather than calling {@code streamBridge.send} directly.
+ *
+ * <p>The direct call returns {@code false} when the broker will not take the message, and this
+ * class used to discard that. The listener then completes normally, the offset is committed, and
+ * a task the worker actually did is never reported — leaving the engine's step in {@code PENDING}
+ * with nothing to time it out. Measured across a ninety-second broker outage: 3 352 replies lost
+ * and 3 356 processes stuck permanently, with no error logged anywhere.
+ */
 @Configuration
 @RequiredArgsConstructor
 @Slf4j
@@ -23,23 +32,21 @@ public class WorkerKafkaConsumerConfig {
     final StreamBridge streamBridge;
 
     @Bean
-    public Function<Flux<DomainEvent>, Mono<Void>> consumeWorkerEvent() { // Cambiado de Consumer a Function
-        return eventos -> eventos
+    public Function<Flux<DomainEvent>, Mono<Void>> consumeWorkerEvent() {
+        return events -> events
                 .filter(event -> event instanceof TaskExecutionRequested)
                 .cast(TaskExecutionRequested.class)
                 .flatMap(event -> {
-                    // 1. Primer envío
-                    TaskStatusChanged inProgress = new TaskStatusChanged(event.taskExecutionId(), TaskStatus.RUNNING, event.variables(), event.processId());
-                    streamBridge.send("upstream", inProgress);
-
-                    // 2. Delay y segundo envío
+                    WorkerReply.running(streamBridge, event);
                     return Mono.just(event)
                             .delayElement(Duration.ofSeconds(2))
-                            .map(e -> new TaskStatusChanged(e.taskExecutionId(), TaskStatus.COMPLETED, event.variables(), e.processId()))
-                            .doOnNext(completedEvent -> streamBridge.send("upstream", completedEvent))
-                            .then(); // Convertimos a Mono<Void> para este evento
+                            // A throw here fails the flux, so the offset is not committed and
+                            // Kafka redelivers the task. That is the intended outcome, and it is
+                            // why a worker handler has to be idempotent.
+                            .doOnNext(done -> WorkerReply.completed(streamBridge, done, done.variables()))
+                            .then();
                 })
-                .then(); // Retornamos un Mono<Void> que representa la finalización del flujo total
+                .then();
     }
 
 }

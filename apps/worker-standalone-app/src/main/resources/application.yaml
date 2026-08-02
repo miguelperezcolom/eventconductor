@@ -27,6 +27,17 @@ spring:
           configuration:
             default.api.timeout.ms: 15000
             request.timeout.ms: 10000
+        default:
+          producer:
+            # A worker's reply is the only record that a task was done. Asynchronously, send()
+            # returns true the moment the record is buffered, so a reply the broker never accepts
+            # is indistinguishable from one it did — the offset is committed and the engine waits
+            # for an answer that no longer exists. Synchronous, WorkerReply sees the refusal,
+            # retries, and finally throws so the task is redelivered instead of lost.
+            #
+            # An application that also embeds the engine gets this default from the engine
+            # (SynchronousProducerDefaults); a standalone worker has to declare it, as here.
+            sync: true
       bindings:
         # Consume TaskExecutionRequested published by the engine on `downstream`.
         consumeWorkerEvent-in-0:

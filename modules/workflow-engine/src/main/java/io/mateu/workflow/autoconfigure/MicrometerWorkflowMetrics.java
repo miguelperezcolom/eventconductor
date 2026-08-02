@@ -31,6 +31,8 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
     public static final String STEP_COMPENSATIONS = "eventconductor.step.compensations";
     public static final String CONCURRENT_WRITES_REJECTED = "eventconductor.process.concurrent.writes.rejected";
     public static final String EVENTS_DEAD_LETTERED = "eventconductor.events.dead.lettered";
+
+    public static final String STALLED_STEPS = "eventconductor.steps.stalled";
     public static final String PROCESSES_RUNNING = "eventconductor.process.running";
     public static final String OUTBOX_PENDING = "eventconductor.outbox.pending";
 
@@ -39,6 +41,8 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
     public static final String TAG_TRIGGER = "trigger";
 
     private static final String UNKNOWN = "unknown";
+
+    private final java.util.concurrent.atomic.AtomicLong stalledSteps = new java.util.concurrent.atomic.AtomicLong();
 
     private final MeterRegistry registry;
 
@@ -119,6 +123,24 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
                 .tag("source", tagValue(source))
                 .register(registry)
                 .increment();
+    }
+
+    @jakarta.annotation.PostConstruct
+    void registerGauges() {
+        io.micrometer.core.instrument.Gauge
+                .builder(STALLED_STEPS, stalledSteps, java.util.concurrent.atomic.AtomicLong::doubleValue)
+                .description("Live step executions with no deadline that nothing will ever time out")
+                .register(registry);
+    }
+
+    /**
+     * A gauge, not a counter: the question is how many steps are stuck right now, and a counter
+     * of observations would answer a question nobody asked. The registry holds the reference and
+     * reads it when scraped, so the scheduler's loop just writes the latest count.
+     */
+    @Override
+    public void stalledStepsObserved(long count) {
+        stalledSteps.set(count);
     }
 
     private void processFinished(String counterName, String description, String outcome,

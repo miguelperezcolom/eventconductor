@@ -55,6 +55,17 @@ public interface WorkflowMetrics {
      */
     default void eventDeadLettered(String source) {}
 
+    /**
+     * How many live steps are waiting with no deadline that could ever fire.
+     *
+     * <p>The one gauge to alert on. Everything else here counts things happening; this counts
+     * things that have stopped happening and that nothing in the engine will notice — a step
+     * whose dispatch or whose worker reply was lost, on a step that declares no timeout, waits
+     * forever and is invisible to the deadline scan by construction. Any sustained non-zero
+     * value is work that will never finish.
+     */
+    default void stalledStepsObserved(long count) {}
+
     enum RetryTrigger { AUTO, MANUAL }
 
     /**
