@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keycloak
+  namespace: demo
+  labels: { app: keycloak }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector:
+    matchLabels: { app: keycloak }
+  template:
+    metadata:
+      labels: { app: keycloak }
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: keycloak
+          image: quay.io/keycloak/keycloak:26.0
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+          args: ["start-dev", "--import-realm"]
+          env:
+            - name: KC_BOOTSTRAP_ADMIN_USERNAME
+              value: admin
+            - name: KC_BOOTSTRAP_ADMIN_PASSWORD
+              valueFrom: { secretKeyRef: { name: keycloak-admin, key: password } }
+            # Public URL (TLS terminated at nginx; Keycloak speaks HTTP behind it).
+            - name: KC_HOSTNAME
+              value: https://auth.mateu.io
+            - name: KC_HOSTNAME_STRICT
+              value: "false"
+            - name: KC_PROXY_HEADERS
+              value: xforwarded
+            - name: KC_HTTP_ENABLED
+              value: "true"
+            - name: KC_HEALTH_ENABLED
+              value: "true"
+          ports:
+            - { name: http, containerPort: 8080 }
+          volumeMounts:
+            - name: realm-import
+              mountPath: /opt/keycloak/data/import
+              readOnly: true
+          resources:
+            requests: { memory: "640Mi", cpu: "250m" }
+            limits:   { memory: "1Gi",   cpu: "1" }
+          readinessProbe:
+            httpGet: { path: /realms/mateu, port: 8080 }
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 30
+      volumes:
+        - name: realm-import
+          configMap: { name: keycloak-realm }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak
+  namespace: demo
+  labels: { app: keycloak }
+spec:
+  selector: { app: keycloak }
+  ports:
+    - { name: http, port: 8080, targetPort: 8080 }

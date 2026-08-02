@@ -1,0 +1,3 @@
+# Real secrets — never commit. Keep them locally / in your secret manager.
+CREDENTIALS.md
+*.secret

@@ -1,0 +1,105 @@
+# EventConductor — full HA topology on cloudfleet-hetzner
+# Deploy:  helm upgrade --install ec charts/eventconductor -n eventconductor --create-namespace -f values-hetzner.yaml
+# Karpenter (CloudFleet) autoscales to fit the Pending pods. Web exposed via the
+# nginx-certbot reverse proxy at https://ec.mateu.io (cross-namespace to orchestrator).
+
+# Pin amd64: the nodepool can also provision arm64, but the published images are amd64-only.
+nodeSelector:
+  kubernetes.io/arch: amd64
+
+postgres:
+  image: postgres:16
+  database: workflow
+  username: workflow
+  password: "CHANGE_ME"   # set before deploy (create the ec-postgres secret or fill here)
+  storage: 8Gi
+  storageClass: hcloud-volumes
+  resources:
+    requests: { memory: "256Mi", cpu: "100m" }
+    limits:   { memory: "512Mi", cpu: "500m" }
+
+redpanda:
+  image: docker.redpanda.com/redpandadata/redpanda:v24.1.7
+  brokerInternal: redpanda:19092
+  storage: 8Gi
+  storageClass: hcloud-volumes
+  resources:
+    requests: { memory: "1Gi",    cpu: "250m" }
+    limits:   { memory: "1536Mi", cpu: "1" }
+
+orchestrator:
+  image: miguelperezcolom/orchestrator-standalone-app
+  imageTag: "1.0-beta.014"
+  imagePullPolicy: IfNotPresent
+  replicas: 2
+  port: 8080
+  servicePort: 8105
+  ddlAuto: update
+  flywayEnabled: false
+  # Import .ec workflow definitions from a Git repo at startup (plugin -> git -> engine -> web).
+  # Spring relaxed binding for workflow.git-import.repositories[0].*
+  extraEnv:
+    WORKFLOW_GITIMPORT_REPOSITORIES_0_URL: "https://github.com/miguelperezcolom/eventconductor-demo-workflows.git"
+    WORKFLOW_GITIMPORT_REPOSITORIES_0_BRANCH: "main"
+    # Distributed tracing → Tempo (OTLP HTTP), sample everything for the demo.
+    OTLP_TRACING_ENDPOINT: "http://tempo.observability.svc.cluster.local:4318/v1/traces"
+    TRACING_SAMPLING: "1.0"
+  security:
+    enabled: false
+    user: admin
+    passwordSecret: ec-admin      # created at deploy time (key SECURITY_PASSWORD)
+  resources:
+    requests: { memory: "640Mi", cpu: "250m" }
+    limits:   { memory: "1Gi",   cpu: "1" }
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+
+forms:
+  image: miguelperezcolom/forms-standalone-app
+  imageTag: "1.0-beta.014"
+  imagePullPolicy: IfNotPresent
+  replicas: 2
+  port: 8080
+  servicePort: 8106
+  ddlAuto: update
+  flywayEnabled: false
+  security:
+    enabled: false
+    user: admin
+    passwordSecret: ec-admin
+  resources:
+    requests: { memory: "512Mi", cpu: "250m" }
+    limits:   { memory: "1Gi",   cpu: "1" }
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+
+rules:
+  image: miguelperezcolom/rule-standalone-app
+  imageTag: "1.0-beta.014"
+  imagePullPolicy: IfNotPresent
+  replicas: 2
+  port: 8080
+  servicePort: 8107
+  grpcEnabled: false     # gRPC generated code needs protobuf-java 4.x; BOM pins 3.25.x -> disabled for now
+  grpcPort: 9090
+  ddlAuto: update
+  flywayEnabled: false
+  security:
+    enabled: false
+    user: admin
+    passwordSecret: ec-admin
+  resources:
+    requests: { memory: "512Mi", cpu: "250m" }
+    limits:   { memory: "1Gi",   cpu: "1" }
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+
+# Ingress off — no ingress controller in the cluster. Exposed via NodePort instead.
+ingress:
+  enabled: false
+
+networkPolicy:
+  enabled: false

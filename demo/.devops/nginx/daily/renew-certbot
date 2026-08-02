@@ -1,0 +1,5 @@
+#!/bin/sh
+
+/usr/bin/certbot renew --quiet --deploy-hook "nginx -s reload"
+
+date >> /cron.log

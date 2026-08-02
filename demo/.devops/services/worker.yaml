@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: worker, namespace: eventconductor, labels: { app: worker } }
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: worker } }
+  template:
+    metadata: { labels: { app: worker } }
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: { type: RuntimeDefault }
+      nodeSelector: { kubernetes.io/arch: amd64 }
+      imagePullSecrets: [ { name: dockerhub } ]
+      containers:
+        - name: worker
+          image: miguelperezcolom/mateu-demo-worker:0.1.2
+          env:
+            - { name: KAFKA_BROKERS, value: "redpanda:19092" }
+            - { name: SPRING_APPLICATION_JSON, value: '{"workflow.mode":"kafka","workflow.persistence":"memory","spring.autoconfigure.exclude":"org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration"}' }
+          ports: [ { containerPort: 8091 } ]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          resources:
+            requests: { memory: "448Mi", cpu: "150m" }
+            limits:   { memory: "1Gi", cpu: "1" }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+          readinessProbe:
+            tcpSocket: { port: 8091 }
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            failureThreshold: 30
+      volumes:
+        - { name: tmp, emptyDir: {} }
