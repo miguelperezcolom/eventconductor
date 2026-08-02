@@ -18,11 +18,8 @@ import io.mateu.uidl.data.UICommand;
 import io.mateu.uidl.data.UICommandType;
 import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.uidl.interfaces.VisibilitySupplier;
-import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
-import io.mateu.workflow.domain.aggregates.ProcessStatus;
-import io.mateu.workflow.domain.aggregates.StepExecutionStatus;
 import io.mateu.workflow.application.usecases.export.ExportWorkflowDefinitionToYamlUseCase;
 import io.mateu.workflow.application.usecases.lifecycle.DisableWorkflowDefinitionUseCase;
 import io.mateu.workflow.application.usecases.lifecycle.EnableWorkflowDefinitionUseCase;
@@ -66,7 +63,6 @@ public class WorkflowDefinitionDetailView implements VisibilitySupplier {
     private static final String GRAPH_MODULE = "/eventconductor/workflow-graph.js";
 
     final WorkflowDefinitionRepository repository;
-    final ProcessRepository processRepository;
     final StepExecutionRepository stepExecutionRepository;
     final ExportWorkflowDefinitionToYamlUseCase exportWorkflowDefinitionToYamlUseCase;
     final DisableWorkflowDefinitionUseCase disableWorkflowDefinitionUseCase;
@@ -159,20 +155,20 @@ public class WorkflowDefinitionDetailView implements VisibilitySupplier {
     }
 
     /**
-     * How many live (running/pending/paused) process instances of this definition currently sit on
-     * each step — i.e. have a RUNNING or PENDING step execution there. Keyed by step id.
+     * How many live process instances of this definition currently sit on each step — i.e. have a
+     * RUNNING or PENDING step execution there. Keyed by step id.
+     *
+     * <p>Backed by a single indexed query for the whole system's live (PENDING/RUNNING) step
+     * executions, filtered in memory to this definition. The working set is bounded by the number
+     * of concurrently live steps, not by the total number of processes ever run — the earlier
+     * per-process fan-out ({@code findAll()} + one {@code findByProcess} per process) was an N+1
+     * that made opening a definition take seconds once thousands of processes had accumulated.
      */
     Map<String, Integer> liveProcessCountsByStep(String definitionId) {
         var counts = new java.util.HashMap<String, Integer>();
-        for (var process : processRepository.findAll()) {
-            if (!definitionId.equals(process.getWorkflowDefinitionId())) continue;
-            var st = process.getStatus();
-            if (st != ProcessStatus.RUNNING && st != ProcessStatus.PENDING && st != ProcessStatus.PAUSED) continue;
-            for (var se : stepExecutionRepository.findByProcess(process)) {
-                if (se.getStatus() == StepExecutionStatus.RUNNING || se.getStatus() == StepExecutionStatus.PENDING) {
-                    counts.merge(se.getStepId(), 1, Integer::sum);
-                }
-            }
+        for (var se : stepExecutionRepository.findPendingOrRunning()) {
+            if (!definitionId.equals(se.getWorkflowDefinitionId())) continue;
+            counts.merge(se.getStepId(), 1, Integer::sum);
         }
         return counts;
     }

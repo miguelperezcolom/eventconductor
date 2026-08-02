@@ -11,7 +11,6 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.stereotype.Service;
 
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -26,32 +25,35 @@ public class WorkflowHomeAdapter {
 
     public WorkflowHomeData fetch() {
 
-        Map<String, Double> processesByDefinition = processEntityRepository.findAll().stream()
-                .collect(LinkedHashMap::new, (m, p) ->
-                        m.put(processDefinitionName(p.getWorkflowDefinitionId()), m.getOrDefault(processDefinitionName(p.getWorkflowDefinitionId()), 0D) + 1L),
-                        HashMap::putAll);
-        Map<String, Double> processesByStatus = processEntityRepository.findAll().stream()
-                .collect(LinkedHashMap::new, (m, p) ->
-                        m.put(p.getStatus(), m.getOrDefault(p.getStatus(), 0D) + 1L), HashMap::putAll);
-        Map<String, Double> userTasksByStatus = processEntityRepository.findAll().stream()
-                .collect(LinkedHashMap::new, (m, p) ->
-                        m.put(p.getStatus(), m.getOrDefault(p.getStatus(), 0D) + 1L), HashMap::putAll);
+        // Two GROUP BY count queries (a handful of rows each) instead of loading every process row
+        // five times: opening the workflow home used to run five full scans of the process table.
+        var byStatus = processEntityRepository.countGroupedByStatus();
+        var byDefinition = processEntityRepository.countGroupedByDefinition();
+
+        Map<String, Double> processesByStatus = new LinkedHashMap<>();
+        byStatus.forEach(c -> processesByStatus.put(c.getKey(), (double) c.getCount()));
+        Map<String, Double> processesByDefinition = new LinkedHashMap<>();
+        byDefinition.forEach(c -> processesByDefinition.merge(
+                processDefinitionName(c.getKey()), (double) c.getCount(), Double::sum));
+
+        long activeProcesses = byStatus.stream()
+                .filter(c -> ProcessStatus.PENDING.name().equals(c.getKey())
+                        || ProcessStatus.RUNNING.name().equals(c.getKey()))
+                .mapToLong(ProcessEntityRepository.CountByKey::getCount).sum();
+        long completedProcesses = byStatus.stream()
+                .filter(c -> ProcessStatus.COMPLETED.name().equals(c.getKey())
+                        || ProcessStatus.ERROR.name().equals(c.getKey())
+                        || ProcessStatus.CANCELLED.name().equals(c.getKey())
+                        || ProcessStatus.COMPENSATED.name().equals(c.getKey()))
+                .mapToLong(ProcessEntityRepository.CountByKey::getCount).sum();
+        long totalProcesses = byStatus.stream()
+                .mapToLong(ProcessEntityRepository.CountByKey::getCount).sum();
 
         return WorkflowHomeData.builder()
                 .processDefinitionsCount(workflowDefinitionEntityRepository.count())
-                .activeProcessesCount(processEntityRepository.findAll().stream()
-                        .filter(process ->
-                                ProcessStatus.PENDING.name().equals(process.getStatus())
-                                || ProcessStatus.RUNNING.name().equals(process.getStatus()))
-                        .count())
-                .completedProcessesCount(processEntityRepository.findAll().stream()
-                        .filter(process ->
-                                ProcessStatus.COMPLETED.name().equals(process.getStatus())
-                                        || ProcessStatus.ERROR.name().equals(process.getStatus())
-                                        || ProcessStatus.CANCELLED.name().equals(process.getStatus())
-                                        || ProcessStatus.COMPENSATED.name().equals(process.getStatus()))
-                        .count())
-                .processesCount(processEntityRepository.count())
+                .activeProcessesCount(activeProcesses)
+                .completedProcessesCount(completedProcesses)
+                .processesCount(totalProcesses)
                 .processesByDefinitionChartData(ChartData.builder()
                         .labels(processesByDefinition.keySet().stream().toList())
                         .datasets(List.of(ChartDataset.builder()
