@@ -16,6 +16,6 @@ public class KafkaDownstreamEventPublisher implements DownstreamEventPublisher {
 
     @Override
     public void publish(DomainEvent event) {
-        streamBridge.send("downstream", event);
+        PartitionedEvents.send(streamBridge, "downstream", event);
     }
 }

@@ -71,7 +71,8 @@ public class OutboxRelay {
             try {
                 OutboxDrain.Result result;
                 do {
-                    result = outboxDrain.drain(batchSize, payload -> streamBridge.send("outbox", payload));
+                    result = outboxDrain.drain(batchSize, payload ->
+                            PartitionedEvents.send(streamBridge, "outbox", payload));
                 } while (result.claimed() >= batchSize && result.settled() > 0);
             } finally {
                 dbLockDialect.releaseRelayGate(con);

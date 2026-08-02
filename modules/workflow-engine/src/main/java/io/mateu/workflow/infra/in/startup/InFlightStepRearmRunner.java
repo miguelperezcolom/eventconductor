@@ -3,7 +3,6 @@ package io.mateu.workflow.infra.in.startup;
 import io.mateu.workflow.application.out.ProcessLockService;
 import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
-import io.mateu.workflow.application.services.ProcessLocks;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
@@ -89,27 +88,28 @@ public class InFlightStepRearmRunner implements ApplicationRunner {
     }
 
     private int rearm(String processId) {
-        if (!ProcessLocks.lockWithRetry(processLockService, processId)) {
+        var armed = new java.util.concurrent.atomic.AtomicInteger();
+        if (!processLockService.runExclusively(processId, () -> armed.set(armStepsOf(processId)))) {
             log.warn("Could not lock process {} to arm its step lookup state — the next start will retry",
                     processId);
             return 0;
         }
-        try {
-            var process = processRepository.findById(processId).orElse(null);
-            if (process == null) {
-                return 0;
-            }
-            var armed = 0;
-            for (var stepExecution : stepExecutionRepository.findPendingOrRunningByProcessId(processId)) {
-                var updated = stepExecution.rearmedFor(process);
-                if (updated != stepExecution) {
-                    stepExecutionRepository.save(updated);
-                    armed++;
-                }
-            }
-            return armed;
-        } finally {
-            processLockService.unlock(processId);
+        return armed.get();
+    }
+
+    private int armStepsOf(String processId) {
+        var process = processRepository.findById(processId).orElse(null);
+        if (process == null) {
+            return 0;
         }
+        var armed = 0;
+        for (var stepExecution : stepExecutionRepository.findPendingOrRunningByProcessId(processId)) {
+            var updated = stepExecution.rearmedFor(process);
+            if (updated != stepExecution) {
+                stepExecutionRepository.save(updated);
+                armed++;
+            }
+        }
+        return armed;
     }
 }

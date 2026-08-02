@@ -12,4 +12,9 @@ public record TaskExecutionRequested(
         String stepId,
         String taskId,
         List<Variable> variables) implements DomainEvent {
+
+    @Override
+    public String partitionKey() {
+        return processId;
+    }
 }

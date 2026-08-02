@@ -44,7 +44,8 @@ public class ProcessDBRepository implements ProcessRepository {
                 entity.getStarted(),
                 entity.getFinished(),
                 entity.getPausedAt(),
-                entity.getParentStepExecutionId()
+                entity.getParentStepExecutionId(),
+                entity.getVersion()
         );
     }
 
@@ -69,7 +70,8 @@ public class ProcessDBRepository implements ProcessRepository {
                 process.getStarted(),
                 process.getFinished(),
                 process.getPausedAt(),
-                process.getParentStepExecutionId()
+                process.getParentStepExecutionId(),
+                process.getVersion()
         ));
         process.popEvents().stream()
                 .map(OutboxMessageEntity::new)

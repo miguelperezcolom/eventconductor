@@ -46,7 +46,8 @@ public class StepExecutionDBRepository implements StepExecutionRepository {
                 entity.getAttemptCount(),
                 entity.getDeadlineAt(),
                 entity.getAwaitingMessageName(),
-                entity.getAwaitingCorrelationKey()
+                entity.getAwaitingCorrelationKey(),
+                entity.getVersion()
         );
     }
 
@@ -67,7 +68,8 @@ public class StepExecutionDBRepository implements StepExecutionRepository {
                 stepExecution.getAttemptCount(),
                 stepExecution.getDeadlineAt(),
                 stepExecution.getAwaitingMessageName(),
-                stepExecution.getAwaitingCorrelationKey()
+                stepExecution.getAwaitingCorrelationKey(),
+                stepExecution.getVersion()
         ));
 
         stepExecution.popEvents().stream()

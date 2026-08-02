@@ -8,6 +8,7 @@ import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.out.WorkflowMetrics;
 import io.mateu.workflow.domain.aggregates.*;
 import io.mateu.workflow.domain.aggregates.Process;
+import io.mateu.workflow.support.RunsTheAction;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -18,6 +19,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -50,7 +52,7 @@ class UpdateStepExecutionUseCaseTest {
         var proc = process("p-1");
         when(repository.findById("se-1")).thenReturn(Optional.of(se));
         when(processRepository.findById("p-1")).thenReturn(Optional.of(proc));
-        when(processLockService.tryLock("p-1")).thenReturn(true);
+        when(processLockService.runExclusively(eq("p-1"), any())).thenAnswer(RunsTheAction.granted());
 
         useCase.handle(new UpdateStepExecutionCommand("se-1", List.of(), "", StepExecutionStatus.COMPLETED));
 
@@ -62,14 +64,14 @@ class UpdateStepExecutionUseCaseTest {
         // The variables just written may be what a sibling WAIT_FOR_MESSAGE correlates on;
         // its stored key only follows them if this call is here.
         verify(messageSubscriptionService).rearm(proc);
-        verify(processLockService).unlock("p-1");
+        verify(processLockService).runExclusively(eq("p-1"), any());
     }
 
     @Test
     void doesNotUpdateWhenLockNotAcquired() {
         var se = stepExecution("se-1", "p-1");
         when(repository.findById("se-1")).thenReturn(Optional.of(se));
-        when(processLockService.tryLock("p-1")).thenReturn(false);
+        when(processLockService.runExclusively(eq("p-1"), any())).thenReturn(false);
 
         useCase.handle(new UpdateStepExecutionCommand("se-1", List.of(), "", StepExecutionStatus.COMPLETED));
 
@@ -83,7 +85,7 @@ class UpdateStepExecutionUseCaseTest {
         var proc = process("p-1");
         when(repository.findById("se-1")).thenReturn(Optional.of(se));
         when(processRepository.findById("p-1")).thenReturn(Optional.of(proc));
-        when(processLockService.tryLock("p-1")).thenReturn(true);
+        when(processLockService.runExclusively(eq("p-1"), any())).thenAnswer(RunsTheAction.granted());
 
         var newVars = List.of(new Variable("k", "v"));
         useCase.handle(new UpdateStepExecutionCommand("se-1", newVars, "", StepExecutionStatus.RUNNING));

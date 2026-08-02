@@ -29,13 +29,13 @@ public class WorkerKafkaConsumerConfig {
                 .cast(TaskExecutionRequested.class)
                 .flatMap(event -> {
                     // 1. Primer envío
-                    TaskStatusChanged inProgress = new TaskStatusChanged(event.taskExecutionId(), TaskStatus.RUNNING, event.variables());
+                    TaskStatusChanged inProgress = new TaskStatusChanged(event.taskExecutionId(), TaskStatus.RUNNING, event.variables(), event.processId());
                     streamBridge.send("upstream", inProgress);
 
                     // 2. Delay y segundo envío
                     return Mono.just(event)
                             .delayElement(Duration.ofSeconds(2))
-                            .map(e -> new TaskStatusChanged(e.taskExecutionId(), TaskStatus.COMPLETED, event.variables()))
+                            .map(e -> new TaskStatusChanged(e.taskExecutionId(), TaskStatus.COMPLETED, event.variables(), e.processId()))
                             .doOnNext(completedEvent -> streamBridge.send("upstream", completedEvent))
                             .then(); // Convertimos a Mono<Void> para este evento
                 })

@@ -6,6 +6,7 @@ import io.mateu.uidl.data.ListingData;
 import io.mateu.uidl.data.SearchRequest;
 import io.mateu.uidl.interfaces.CrudStore;
 import io.mateu.uidl.interfaces.HttpRequest;
+import io.mateu.workflow.dtos.events.integration.RetryProcessRequested;
 import io.mateu.workflow.application.usecases.process.retry.RetryProcessCommand;
 import io.mateu.workflow.application.usecases.process.retry.RetryProcessUseCase;
 import io.mateu.workflow.infra.in.ui.adapters.SimpleProcessCrudAdapter;
@@ -28,6 +29,7 @@ import java.util.List;
 public class Processes extends Crud<Object, Object, Object, ProcessFilters, ProcessRow, String> {
 
     final SimpleProcessCrudAdapter processCrudAdapter;
+    final io.mateu.workflow.application.out.UpstreamEventPublisher upstreamEventPublisher;
     final RetryProcessUseCase retryProcessUseCase;
 
     @Override
@@ -103,7 +105,9 @@ public class Processes extends Crud<Object, Object, Object, ProcessFilters, Proc
     @ListToolbarButton(rowsSelectedRequired = true)
     public void retry(List<ProcessRow> selectedRows) {
         selectedRows.forEach(row -> {
-            retryProcessUseCase.handle(new RetryProcessCommand(row.id()));
+            // Requested, not performed here — the process belongs to the pod holding its
+            // partition, and this is whichever pod served the click.
+            upstreamEventPublisher.publish(new RetryProcessRequested(row.id()));
         });
     }
 

@@ -87,6 +87,20 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
      */
     @With(AccessLevel.NONE)
     private String awaitingCorrelationKey;
+    /**
+     * Optimistic-locking version, or null for a step that has never been persisted.
+     *
+     * <p>The fence for the window Kafka's ownership guarantee does not cover. A consumer group
+     * gives a partition to exactly one consumer, but during a rebalance the outgoing pod can
+     * still be mid-flight on a record the incoming one has just been handed. This makes that
+     * harmless: the stale writer's update matches no row at its version and fails, instead of
+     * quietly overwriting the new owner's work.
+     *
+     * <p>Costs nothing when there is no conflict — no waiting, no lock to hold, no connection
+     * parked — which is why it can replace a pessimistic lock rather than sit next to one.
+     */
+    @With(AccessLevel.NONE)
+    private Integer version;
 
 
     public static StepExecution create(Step step, String processId, int position) {
@@ -326,7 +340,7 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
         } else {
             this.finishedAt = null;
         }
-        send(new StepExecutionStatusChanged(id, TaskStatus.valueOf(status.name()), List.of()));
+        send(new StepExecutionStatusChanged(id, TaskStatus.valueOf(status.name()), List.of(), processId));
     }
 
     /**

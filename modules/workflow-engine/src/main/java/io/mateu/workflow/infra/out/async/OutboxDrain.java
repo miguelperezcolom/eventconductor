@@ -1,5 +1,6 @@
 package io.mateu.workflow.infra.out.async;
 
+import io.mateu.workflow.ddd.DomainEvent;
 import io.mateu.workflow.infra.out.persistence.DbLockDialect;
 import io.mateu.workflow.infra.out.persistence.OutboxMessageEntity;
 import io.mateu.workflow.infra.out.persistence.OutboxMessageEntityRepository;
@@ -54,7 +55,7 @@ public class OutboxDrain {
      * deserialized can never succeed, so it is parked as Error rather than retried forever; one
      * whose delivery throws is left Pending for the next pass.
      */
-    public Result drain(int batchSize, Consumer<Object> deliver) {
+    public Result drain(int batchSize, Consumer<DomainEvent> deliver) {
         var result = transactionTemplate.execute(status -> {
             var ids = claim(batchSize);
             if (ids.isEmpty()) {
@@ -63,9 +64,9 @@ public class OutboxDrain {
             var sent = new ArrayList<OutboxMessageEntity>();
             var poisoned = new ArrayList<OutboxMessageEntity>();
             for (var message : outboxMessageEntityRepository.findAllById(ids)) {
-                Object payload;
+                DomainEvent payload;
                 try {
-                    payload = pojoFromJson(message.getPayload(),
+                    payload = (DomainEvent) pojoFromJson(message.getPayload(),
                             OutboxMessages.messageClass(message.getMessageType()));
                 } catch (Exception e) {
                     log.error("Outbox message {} cannot be deserialized, marking as Error",

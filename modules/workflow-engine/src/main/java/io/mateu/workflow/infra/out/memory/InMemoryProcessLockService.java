@@ -1,32 +1,50 @@
 package io.mateu.workflow.infra.out.memory;
 
 import io.mateu.workflow.application.out.ProcessLockService;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
- * In-memory per-process lock for embedded/memory mode (single JVM).
- * Uses a striped ReentrantLock map to prevent concurrent access from
- * multiple threads (e.g. TimeoutScheduler vs the event-processing thread).
+ * In-memory per-process lock for embedded/memory mode (single JVM). A striped map of reentrant
+ * locks keeps two threads — the timeout scheduler and the event-processing thread, say — off the
+ * same process at once.
+ *
+ * <p>Waits for the same bounded time as the JPA implementation so the two modes behave alike:
+ * a caller that gets false means someone else has the process, in both.
  */
 @Service
 @ConditionalOnProperty(name = "workflow.persistence", havingValue = "memory", matchIfMissing = true)
+@Slf4j
 public class InMemoryProcessLockService implements ProcessLockService {
 
     private final ConcurrentHashMap<String, ReentrantLock> locks = new ConcurrentHashMap<>();
 
-    @Override
-    public boolean tryLock(String processId) {
-        return locks.computeIfAbsent(processId, k -> new ReentrantLock()).tryLock();
-    }
+    @Value("${workflow.process-lock-timeout-seconds:10}")
+    int lockTimeoutSeconds;
 
     @Override
-    public void unlock(String processId) {
-        ReentrantLock lock = locks.get(processId);
-        if (lock != null && lock.isHeldByCurrentThread()) {
+    public boolean runExclusively(String processId, Runnable action) {
+        var lock = locks.computeIfAbsent(processId, key -> new ReentrantLock());
+        try {
+            if (!lock.tryLock(lockTimeoutSeconds, TimeUnit.SECONDS)) {
+                log.warn("Could not obtain exclusive access to process {} within {}s",
+                        processId, lockTimeoutSeconds);
+                return false;
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+        try {
+            action.run();
+            return true;
+        } finally {
             lock.unlock();
         }
     }

@@ -6,6 +6,7 @@ import io.mateu.workflow.application.out.ProcessLockService;
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.out.WorkflowMetrics;
 import io.mateu.workflow.domain.aggregates.*;
+import io.mateu.workflow.support.RunsTheAction;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -47,7 +48,7 @@ class CompleteTimerStepHandlerTest {
     void completesAndLogsWhenTimerIsDue() {
         var se = pendingTimerSe(100, null, LocalDateTime.now().minusSeconds(60));
         when(stepExecutionRepository.findById("se-1")).thenReturn(Optional.of(se));
-        when(processLockService.tryLock("p-1")).thenReturn(true);
+        when(processLockService.runExclusively(eq("p-1"), any())).thenAnswer(RunsTheAction.granted());
 
         handler.handle(new CompleteTimerStepCommand("se-1"));
 
@@ -56,7 +57,7 @@ class CompleteTimerStepHandlerTest {
         assertThat(captor.getValue().getStatus()).isEqualTo(StepExecutionStatus.COMPLETED);
         verify(logMessageRepository).save(any());
         verify(workflowMetrics).stepExecutionFinished(any(), eq(StepExecutionStatus.COMPLETED), any());
-        verify(processLockService).unlock("p-1");
+        verify(processLockService).runExclusively(eq("p-1"), any());
     }
 
     @Test
@@ -64,7 +65,7 @@ class CompleteTimerStepHandlerTest {
         var se = pendingTimerSe(0, "resumeAt", LocalDateTime.now().minusSeconds(60),
                 new Variable("resumeAt", LocalDateTime.now().minusSeconds(1).toString()));
         when(stepExecutionRepository.findById("se-1")).thenReturn(Optional.of(se));
-        when(processLockService.tryLock("p-1")).thenReturn(true);
+        when(processLockService.runExclusively(eq("p-1"), any())).thenAnswer(RunsTheAction.granted());
 
         handler.handle(new CompleteTimerStepCommand("se-1"));
 
@@ -77,7 +78,7 @@ class CompleteTimerStepHandlerTest {
     void skipsWhenLockNotAcquired() {
         var se = pendingTimerSe(100, null, LocalDateTime.now().minusSeconds(60));
         when(stepExecutionRepository.findById("se-1")).thenReturn(Optional.of(se));
-        when(processLockService.tryLock("p-1")).thenReturn(false);
+        when(processLockService.runExclusively(eq("p-1"), any())).thenReturn(false);
 
         handler.handle(new CompleteTimerStepCommand("se-1"));
 
@@ -89,24 +90,24 @@ class CompleteTimerStepHandlerTest {
         var se = pendingTimerSe(100, null, LocalDateTime.now().minusSeconds(60))
                 .withStatus(StepExecutionStatus.COMPLETED);
         when(stepExecutionRepository.findById("se-1")).thenReturn(Optional.of(se));
-        when(processLockService.tryLock("p-1")).thenReturn(true);
+        when(processLockService.runExclusively(eq("p-1"), any())).thenAnswer(RunsTheAction.granted());
 
         handler.handle(new CompleteTimerStepCommand("se-1"));
 
         verify(stepExecutionRepository, never()).save(any());
-        verify(processLockService).unlock("p-1");
+        verify(processLockService).runExclusively(eq("p-1"), any());
     }
 
     @Test
     void skipsWhenTimerNotYetDue() {
         var se = pendingTimerSe(Long.MAX_VALUE, null, LocalDateTime.now());
         when(stepExecutionRepository.findById("se-1")).thenReturn(Optional.of(se));
-        when(processLockService.tryLock("p-1")).thenReturn(true);
+        when(processLockService.runExclusively(eq("p-1"), any())).thenAnswer(RunsTheAction.granted());
 
         handler.handle(new CompleteTimerStepCommand("se-1"));
 
         verify(stepExecutionRepository, never()).save(any());
-        verify(processLockService).unlock("p-1");
+        verify(processLockService).runExclusively(eq("p-1"), any());
     }
 
     @Test
@@ -119,23 +120,23 @@ class CompleteTimerStepHandlerTest {
                 .startedAt(LocalDateTime.now().minusSeconds(60))
                 .build();
         when(stepExecutionRepository.findById("se-1")).thenReturn(Optional.of(se));
-        when(processLockService.tryLock("p-1")).thenReturn(true);
+        when(processLockService.runExclusively(eq("p-1"), any())).thenAnswer(RunsTheAction.granted());
 
         handler.handle(new CompleteTimerStepCommand("se-1"));
 
         verify(stepExecutionRepository, never()).save(any());
-        verify(processLockService).unlock("p-1");
+        verify(processLockService).runExclusively(eq("p-1"), any());
     }
 
     @Test
     void skipsWhenTimerIsMisconfigured() {
         var se = pendingTimerSe(0, "resumeAt", LocalDateTime.now().minusSeconds(60));
         when(stepExecutionRepository.findById("se-1")).thenReturn(Optional.of(se));
-        when(processLockService.tryLock("p-1")).thenReturn(true);
+        when(processLockService.runExclusively(eq("p-1"), any())).thenAnswer(RunsTheAction.granted());
 
         handler.handle(new CompleteTimerStepCommand("se-1"));
 
         verify(stepExecutionRepository, never()).save(any());
-        verify(processLockService).unlock("p-1");
+        verify(processLockService).runExclusively(eq("p-1"), any());
     }
 }

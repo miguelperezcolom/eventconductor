@@ -11,6 +11,7 @@ import io.mateu.workflow.domain.aggregates.*;
 import io.mateu.workflow.domain.aggregates.Process;
 import io.mateu.workflow.domain.services.WorkflowOrchestrationService;
 import org.junit.jupiter.api.BeforeEach;
+import io.mateu.workflow.support.RunsTheAction;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -41,7 +42,7 @@ class StepOverProcessUseCaseTest {
 
     @BeforeEach
     void allowLock() {
-        when(lockService.tryLock(any())).thenReturn(true);
+        when(lockService.runExclusively(any(), any())).thenAnswer(RunsTheAction.granted());
     }
 
     private Process process(String id) {

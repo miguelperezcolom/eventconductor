@@ -7,7 +7,145 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **An event that lost an optimistic race is now redelivered instead of disappearing.** The
+  rejection was caught, counted, logged as "the event will be redelivered" — and then the handler
+  returned normally, the consumer committed its offset, and the event was gone. Nothing redelivered
+  it. The log line was simply wrong. A rejection now propagates as
+  `ConcurrentProcessAccessException` all the way out of the consumer, which is what actually stops
+  the offset from advancing over work that never happened. It is deliberately the one failure that
+  is not swallowed: the event is not defective, it just lost a race, so retrying is the right
+  answer rather than a log line.
+
+### Known gap
+- **Failures other than that one are still logged and dropped, with no dead letter.** An event the
+  engine genuinely cannot process — a worker reporting a task id that no longer exists, say — is
+  logged and forgotten in every mode. It should go to a dead-letter topic where it can be
+  inspected and replayed. Doing it properly needs retry classification, a DLQ binding, and a
+  parking path for embedded mode (where propagating instead would turn a poison message into an
+  endless relay loop), so it is not bolted onto this change. `DIST-12` covers the part that must
+  hold in the meantime: one unprocessable event does not stall the traffic around it.
+
 ### Changed
+- **A Kafka poll batch is committed as one transaction per process, not one per event.** A busy
+  batch carries several events for the same process, and collapsing those into a single commit is
+  most of the write cost. Measured on DIST-05, three runs: **56,8 / 60,3 / 56,8 PI/s against
+  50,8 / 51,0 / 53,7** before — about 12% on wall clock and 20% on the engine-side window.
+  Consumers switch to batch mode (`batch-mode: true` on the two orchestrator bindings; turning it
+  off falls back to one transaction per event).
+
+  **Per process, not per batch — and that distinction is the whole design.** One transaction for
+  the entire batch is the obvious shape and it is a trap: an event that fails inside its own
+  participating transaction marks the shared one rollback-only *even when the failure is caught*,
+  so every other event in the batch loses the commit it believed it had. The failure that makes
+  this concrete is an optimistic conflict, which is precisely what a consumer-group rebalance
+  produces — the moment the engine is least settled would be the moment it threw away the most
+  work. Measured both ways: the two perform the same, so the batch-wide version buys nothing for
+  its blast radius. `BatchTransactionScopeTest` pins the trap; `DIST-12` covers the behaviour.
+
+  Events of a process keep their arrival order, and an event belonging to no process gets a
+  transaction of its own so it neither drags others down nor is dragged down by them.
+- **No per-process lock in `kafka` mode: exclusivity is inherited from the partition.** Events are
+  keyed by process and a consumer group gives each partition to exactly one consumer, so a process
+  already has a single writer. `PartitionOwnedProcessLockService` therefore only opens the
+  transaction the work commits in; the optimistic version is what guards the rebalance window.
+
+  Measured on DIST-05, three runs each: **44,0 / 46,1 / 50,7 PI/s with the row lock against
+  50,8 / 51,0 / 53,7 without** — about 10% on the mean, and a visibly tighter spread, since the
+  lock was the part that could wait. The lowest run without it beat the highest run with it.
+
+  **`embedded` mode keeps the row lock**, deliberately: nothing partitions processes across pods
+  there, so two of them can still reach the same process, and a version guards a *row* rather than
+  a *decision* — two step-overs that read the same state and then write different rows collide on
+  no version and would dispatch a step twice.
+
+  That same reasoning left one hole in kafka mode, and it is closed rather than documented away:
+  a worker on an older shared module reports back **unkeyed**, so its event can land on a pod that
+  does not own the process. `UnkeyedEventRouter` now sends such an event back out with the process
+  it belongs to instead of handling it where it landed — one indexed lookup and one extra hop,
+  paid only by workers that do not echo the process, and inert outside kafka mode.
+- **Operator actions travel as events, so they run on the pod that owns the process.** Pausing,
+  resuming, cancelling and retrying (a whole process or one step) used to execute wherever the UI
+  click or the MCP call landed — which, under partition ownership, is not the pod that owns the
+  process. They are now published keyed by the process: `PauseProcessRequested`,
+  `ResumeProcessRequested`, `RetryProcessRequested`, `RetryStepExecutionRequested`, and the
+  long-declared but never-used `ProcessCancellationRequested`, which gains a `processId` because a
+  process with no business key cannot be addressed by one. An operator action goes through the
+  same single writer as everything else instead of being the one path that needs a lock to be safe.
+
+  **In embedded mode nothing changes:** the upstream publisher dispatches in-process, so a UI
+  action is still carried out synchronously before the call returns. It is only in `kafka` mode
+  that these become routed — and there the MCP tools now answer "requested… query the process to
+  see the outcome" rather than claiming the work is done.
+
+  There are no REST endpoints for these operations; the entry points are the UI and MCP.
+  Specs `E2E-OPS-01..05`.
+- **Optimistic locking on `Process` and `StepExecution`.** Both aggregates now carry a `version`,
+  checked on every write (migration `V11`, existing rows backfilled to 0 — a null version is how
+  Spring Data recognises a row it has never persisted, so leaving them null would turn updates
+  into failed inserts).
+
+  This is the fence for the one hole in ownership. Keying events by process gives each process to
+  a single pod, but a consumer group guarantees which consumer is *assigned* a partition, not
+  which is still *in flight*: during a rebalance the outgoing pod can be finishing a record the
+  incoming one has just been handed. A stale writer's update now matches no row at its version
+  and is rejected, rather than quietly overwriting the new owner's work.
+
+  It costs nothing when there is no conflict — no waiting, no lock held, no connection parked —
+  which is what makes it able to replace the pessimistic lock rather than sit beside it.
+
+  **Rejections are counted, not just logged**: `eventconductor.process.concurrent.writes.rejected`.
+  That metric is the point of this change as much as the safety is. Outside a rebalance it must be
+  flat at zero; anything else means something is reaching a process from outside its partition —
+  exactly what has to be true before the pessimistic lock can be removed. Specs `E2E-LOCK-01..03`.
+- **Events are keyed by process, so a process belongs to one pod.** Every event that concerns a
+  process now carries it as the Kafka message key (`DomainEvent.partitionKey()`), so all of a
+  process's events hash to the same partition — and a consumer group gives each partition to
+  exactly one consumer. Per-process serialization stops being something the engine arranges after
+  the fact and becomes a property of how events are addressed.
+
+  **This also fixes ordering, which is a correctness matter rather than a performance one.** On an
+  unkeyed topic two events of the same process land on different partitions and are handled
+  concurrently by different pods, in whatever order they arrive; the per-process lock serialized
+  access but never ordered it. What made that survivable was the terminal-status guards and the
+  re-reads inside the lock. Keyed, the order is the order they were produced in.
+
+  Two events that mutate process state carried only a task id and now carry the process too:
+  `TaskStatusChanged` (a worker's reply, echoed from the `TaskExecutionRequested` it received) and
+  `StepExecutionStatusChanged`. Both keep their previous constructor, which leaves the key null —
+  so a third-party worker built against an older shared module still compiles, still deserializes,
+  and simply falls back to the unrouted behaviour it has today. Events that write only their own
+  independent row (`TaskLogEmitted`, `TaskResourceCreated`) stay unkeyed on purpose: pinning them
+  to a partition would cost balance and buy nothing.
+
+  Nothing is removed yet — the per-process lock stays as the safety net, since ownership is only
+  a Kafka *assignment* guarantee and a rebalance can still put two pods on one process briefly.
+  New spec `DIST-11` verifies the keys by reading the topics, not by trusting that `send` set one.
+- **BREAKING (SPI): per-process exclusion is a row lock, not an advisory lock.**
+  `ProcessLockService` loses `tryLock`/`unlock` and gains a single
+  `runExclusively(processId, action)`. In JPA mode the action now runs in a transaction that opens
+  by taking `SELECT … FOR UPDATE` on the process row, and the commit releases it. Anyone who
+  implemented this port has to follow; nothing else about the engine's concurrency semantics
+  changes.
+
+  The reason is not elegance. An advisory lock is session-scoped, so acquiring it took a
+  connection out of the pool and **held it for the whole critical section**, while the work inside
+  needed a second one. Two connections per in-flight process made the pool size — not the database
+  — the ceiling on concurrency, and past that point the failure was a **wedge, not a slowdown**:
+  lock holders waiting for a connection to do the work they held the lock for. New spec `DIST-10`
+  pins this down: 40 concurrent processes complete through a 3-connection pool, and restoring the
+  two-connection shape exhausts it and stalls the processes outright.
+
+  What else falls out: the stale-lock watchdog is gone, and with it the chance of force-releasing
+  exclusivity from an operation still running; `ProcessLocks.lockWithRetry` is gone, because
+  waiting is now the database's row-lock queue rather than a sleep-and-retry loop that reopened a
+  connection on every attempt; exclusivity is reentrant within a transaction; and the lock key is
+  the process id itself rather than a 64-bit fold of its UUID. Waiting is bounded by
+  `workflow.process-lock-timeout-seconds` (default 10), applied as a statement timeout, which is
+  portable in a way that per-vendor lock-timeout settings are not.
+
+  `UpdateStepExecutionUseCase` drops its own `TransactionTemplate`: exclusivity and the
+  transaction are now the same scope, so the inner one only joined the outer.
 - **Every pod relays the outbox now — it is no longer a leader-elected singleton.** In `kafka`
   mode one pod drained the whole outbox while the others idled, and since every state transition
   passes through the relay, that put a ceiling on the distributed topology that adding pods could

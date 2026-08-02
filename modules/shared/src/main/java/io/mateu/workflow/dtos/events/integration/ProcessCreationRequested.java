@@ -12,4 +12,9 @@ public record ProcessCreationRequested(String workflowDefinitionId, String busin
     public ProcessCreationRequested(String workflowDefinitionId, String businessKey, List<Variable> variables) {
         this(workflowDefinitionId, businessKey, variables, null);
     }
+
+    @Override
+    public String partitionKey() {
+        return businessKey;
+    }
 }
