@@ -81,14 +81,15 @@ record BenchmarkReport(
                     whatever throughput came out here).
                     """);
         }
-        if (config.podsAreLocal()) {
+        if (config.everythingIsLocal()) {
             text.append("""
-                    CAVEAT: the orchestrator pods ran inside this JVM, and unless you pointed the
-                    harness at remote infrastructure, PostgreSQL and Kafka are on this machine too.
-                    A number measured that way describes the machine. It is fine for comparing one
-                    change against another on the same box, which is what it is usually for, and it
-                    is not a scalability claim: for that, put the pods, the broker, the database and
-                    the load generator on separate hosts and say so alongside the figure.
+                    CAVEAT: this ran with -Dbench.role=all, so the pods, the worker and the load
+                    generator were all in this JVM, and unless you pointed the harness elsewhere
+                    the broker and the database are on this machine too. A number measured that
+                    way describes the machine. It is fine for comparing one build against another
+                    on the same box, which is what it is usually for, and it is not a scalability
+                    claim. For that, split the roles across hosts — see "Across hosts" in the
+                    README — and publish the tuning line above alongside the figure.
                     """);
         }
         return text.toString();

@@ -1,14 +1,10 @@
 package io.mateu.workflowbench;
 
-import io.mateu.workflow.application.out.UpstreamEventPublisher;
-import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
-import io.mateu.workflow.dtos.events.integration.ProcessCreationRequested;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 
 import java.util.ArrayList;
-import java.util.List;
 
 /**
  * Measures what the engine costs, against PostgreSQL and Kafka that you provide.
@@ -30,49 +26,68 @@ public final class Benchmark {
         var jdbc = new JdbcTemplate(new DriverManagerDataSource(
                 config.jdbcUrl(), config.jdbcUser(), config.jdbcPassword()));
 
+        double wallClock;
+        long commits;
         var contexts = new ArrayList<ConfigurableApplicationContext>();
         try {
-            contexts.add(BenchmarkApps.startWorker(config));
-            for (var i = 0; i < config.pods(); i++) {
+            if (config.startsWorker()) {
+                contexts.add(BenchmarkApps.startWorker(config));
+            }
+            for (var i = 0; config.startsPods() && i < config.pods(); i++) {
                 contexts.add(BenchmarkApps.startOrchestrator(config, i));
             }
-            var orchestrator = contexts.get(1);
-            awaitDefinition(orchestrator);
+            if (!config.drivesLoad()) {
+                // A pods-only or worker-only process exists to be driven by another one. It has
+                // nothing to measure; it just has to stay up.
+                System.out.println("Running as " + config.describe() + " — idle until stopped.");
+                Thread.currentThread().join();
+                return;
+            }
+            awaitDefinition(jdbc);
             clearPreviousRun(jdbc);
 
-            // Warm up: the first events pay for connection pools, Kafka metadata and JIT, and
-            // folding that into the measurement makes the first percentile buckets meaningless.
-            drive(orchestrator, "warmup", Math.min(200, config.processes()), config);
-            awaitCompletion(jdbc, "warmup", Math.min(200, config.processes()), 120);
-            clearPreviousRun(jdbc);
+            try (var driver = new LoadDriver(config)) {
+                // Warm up: the first events pay for connection pools, Kafka metadata and JIT, and
+                // folding that into the measurement makes the first percentile buckets
+                // meaningless.
+                var warmup = Math.min(200, config.processes());
+                drive(driver, "warmup", warmup, config);
+                awaitCompletion(jdbc, "warmup", warmup, 300);
+                clearPreviousRun(jdbc);
 
-            var commitsBefore = commits(jdbc);
-            var start = System.nanoTime();
-            drive(orchestrator, "bench", config.processes(), config);
-            awaitCompletion(jdbc, "bench", config.processes(), 900);
-            var wallClock = (System.nanoTime() - start) / 1_000_000_000.0;
+                var commitsBefore = commits(jdbc);
+                var start = System.nanoTime();
+                drive(driver, "bench", config.processes(), config);
+                awaitCompletion(jdbc, "bench", config.processes(), 900);
+                wallClock = (System.nanoTime() - start) / 1_000_000_000.0;
+                commits = commits(jdbc) - commitsBefore;
+            }
 
-            System.out.println(BenchmarkReport
-                    .collect(jdbc, config, wallClock, commits(jdbc) - commitsBefore)
-                    .render(config));
+            System.out.println(BenchmarkReport.collect(jdbc, config, wallClock, commits).render(config));
         } finally {
             contexts.forEach(ConfigurableApplicationContext::close);
         }
     }
 
-    /** The classpath importer runs as a startup runner, so give it a moment to have run. */
-    private static void awaitDefinition(ConfigurableApplicationContext orchestrator) throws InterruptedException {
-        var definitions = orchestrator.getBean(WorkflowDefinitionRepository.class);
-        var deadline = System.nanoTime() + 30_000_000_000L;
+    /**
+     * Waits for a pod to have imported the definition, asked of the database rather than of a
+     * bean — the pods may be on another host entirely, and the database is the one thing every
+     * role can see.
+     */
+    private static void awaitDefinition(JdbcTemplate jdbc) throws InterruptedException {
+        var deadline = System.nanoTime() + 60_000_000_000L;
         while (System.nanoTime() < deadline) {
-            if (definitions.findById("bench-3-steps").isPresent()) {
+            var found = jdbc.queryForObject(
+                    "SELECT count(*) FROM workflow_definition_entity WHERE id = 'bench-3-steps'",
+                    Integer.class);
+            if (found != null && found > 0) {
                 return;
             }
-            Thread.sleep(200);
+            Thread.sleep(500);
         }
         throw new IllegalStateException(
-                "bench-3-steps was never deployed. The engine imports definitions from "
-                        + "classpath:/workflows/ at startup; check src/main/resources/workflows.");
+                "bench-3-steps is not deployed. A pod imports it from classpath:/workflows/ at "
+                        + "startup — start the pods before the driver, and check they see this database.");
     }
 
     private static void clearPreviousRun(JdbcTemplate jdbc) {
@@ -90,14 +105,12 @@ public final class Benchmark {
      * next is time spent queueing behind everything else — a measure of how deep the backlog got,
      * not of what the engine costs to move a process forward.
      */
-    private static void drive(ConfigurableApplicationContext orchestrator, String prefix, int count,
+    private static void drive(LoadDriver driver, String prefix, int count,
                               BenchmarkConfig config) throws InterruptedException {
-        var publisher = orchestrator.getBean(UpstreamEventPublisher.class);
         var nanosBetween = config.ratePerSecond() == 0 ? 0L : 1_000_000_000L / config.ratePerSecond();
         var next = System.nanoTime();
         for (var i = 0; i < count; i++) {
-            publisher.publish(new ProcessCreationRequested(
-                    "bench-3-steps", prefix + "-" + i, List.of(), null));
+            driver.createProcess(prefix + "-" + i);
             if (nanosBetween > 0) {
                 next += nanosBetween;
                 var wait = next - System.nanoTime();
@@ -106,6 +119,7 @@ public final class Benchmark {
                 }
             }
         }
+        driver.flush();
     }
 
     private static void awaitCompletion(JdbcTemplate jdbc, String prefix, int expected, int timeoutSeconds)
