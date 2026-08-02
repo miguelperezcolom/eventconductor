@@ -5,11 +5,8 @@ import io.mateu.uidl.annotations.Hidden;
 import io.mateu.uidl.annotations.Label;
 import io.mateu.uidl.annotations.Section;
 import io.mateu.uidl.annotations.Style;
-import io.mateu.uidl.annotations.Zone;
-import io.mateu.uidl.annotations.Zones;
 import io.mateu.uidl.annotations.Toolbar;
 import io.mateu.uidl.data.Element;
-import io.mateu.uidl.data.FileDownload;
 import io.mateu.uidl.data.Status;
 import io.mateu.uidl.data.StatusType;
 import io.mateu.uidl.data.DispatchEventData;
@@ -20,21 +17,16 @@ import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.uidl.interfaces.VisibilitySupplier;
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
-import io.mateu.workflow.application.usecases.export.ExportWorkflowDefinitionToYamlUseCase;
 import io.mateu.workflow.application.usecases.lifecycle.DisableWorkflowDefinitionUseCase;
 import io.mateu.workflow.application.usecases.lifecycle.EnableWorkflowDefinitionUseCase;
 import io.mateu.workflow.application.usecases.lifecycle.PauseWorkflowUseCase;
 import io.mateu.workflow.application.usecases.lifecycle.ResumeWorkflowUseCase;
 import io.mateu.workflow.infra.in.ui.WorkflowHome;
-import io.mateu.workflow.domain.aggregates.Step;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Service;
 
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
-import java.util.List;
 import java.util.Map;
 
 import static io.mateu.core.infra.JsonSerializer.toJson;
@@ -43,18 +35,15 @@ import static io.mateu.core.infra.JsonSerializer.toJson;
  * Read-only detail view shown when a workflow definition is selected in the CRUD (the {@code view}
  * action). Definitions are authored as {@code .ec} files (edited with the IDE plugins), so this view
  * never edits them — the only actions are the runtime toggles pause/resume and disable/enable. The
- * name is the view title and a header badge shows the runtime state; the left zone is a compact
- * property list, the right zone a read-only ELK graph, and the steps a full-width band below.
+ * name is the view title and a header badge shows the runtime state; the read-only ELK graph sits
+ * full-width on top (it already carries the step list visually) with a compact property summary
+ * below it.
  */
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 @Service
 @Scope("prototype")
 @RequiredArgsConstructor
 @Style(StyleConstants.FULL_WIDTH_WITH_PADDING)
-@Zones({
-        @Zone(name = "info", width = "50%"),
-        @Zone(name = "graph", width = "50%")
-})
 public class WorkflowDefinitionDetailView implements VisibilitySupplier {
 
     /** Custom element that renders the workflow as an ELK graph. Shipped by this module. */
@@ -64,7 +53,6 @@ public class WorkflowDefinitionDetailView implements VisibilitySupplier {
 
     final WorkflowDefinitionRepository repository;
     final StepExecutionRepository stepExecutionRepository;
-    final ExportWorkflowDefinitionToYamlUseCase exportWorkflowDefinitionToYamlUseCase;
     final DisableWorkflowDefinitionUseCase disableWorkflowDefinitionUseCase;
     final EnableWorkflowDefinitionUseCase enableWorkflowDefinitionUseCase;
     final PauseWorkflowUseCase pauseWorkflowUseCase;
@@ -88,8 +76,14 @@ public class WorkflowDefinitionDetailView implements VisibilitySupplier {
     /** A field of type {@link Status} is promoted to a header badge (never rendered in the body). */
     Status status;
 
-    // ── Left zone: a compact property list (label/value rows) ──────────────────────
-    @Section(value = "Summary", zone = "info", propertyList = true)
+    // ── Top: full-width read-only ELK graph (its own toolbar/panel hidden in read-only). It shows
+    //    every step and how they connect, so a separate step list below would be redundant. ───────
+    @Section(value = "Diagram")
+    @Label("")
+    Element workflow;
+
+    // ── Below the graph: a compact property list (label/value rows) ────────────────
+    @Section(value = "Summary", propertyList = true)
     @Label("Version")
     String version;
 
@@ -107,15 +101,6 @@ public class WorkflowDefinitionDetailView implements VisibilitySupplier {
 
     @Label("Paused")
     String paused;
-
-    // ── Right zone: read-only ELK graph (its own toolbar/panel hidden in read-only) ─
-    @Section(value = "Diagram", zone = "graph")
-    Element workflow;
-
-    // ── Full-width band below both zones: the steps ────────────────────────────────
-    @Section(value = "Steps")
-    @Label("")
-    List<Step> steps;
 
     public WorkflowDefinitionDetailView load(String workflowId) {
         var def = repository.findById(workflowId).orElseThrow();
@@ -136,7 +121,6 @@ public class WorkflowDefinitionDetailView implements VisibilitySupplier {
         this.maxStepExecutions = def.defaultMaxStepExecutions() == 0
                 ? "unbounded" : String.valueOf(def.defaultMaxStepExecutions());
         this.paused = def.paused() ? "yes — processes are held" : "no";
-        this.steps = def.steps();
         // Rendered through mateu's Element/import mechanism: mateu dynamically imports the module the
         // first time the tag is used, and the custom element upgrades in place. When live processes
         // exist, an overlay badges each node with how many are currently sitting on it.
@@ -150,7 +134,14 @@ public class WorkflowDefinitionDetailView implements VisibilitySupplier {
             counts.forEach((stepId, c) -> overlay.put(stepId, Map.of("count", c)));
             attrs.put("overlay", toJson(overlay));
         }
-        this.workflow = new Element(GRAPH_TAG, attrs, "");
+        // Give the graph a tall, viewport-sized box: on its own the host falls back to a ~230px
+        // min-height, which is too short now that the graph is the primary content of this view.
+        this.workflow = Element.builder()
+                .name(GRAPH_TAG)
+                .attributes(attrs)
+                .content("")
+                .style("display: block; height: 68vh; min-height: 460px;")
+                .build();
         return this;
     }
 
@@ -199,11 +190,15 @@ public class WorkflowDefinitionDetailView implements VisibilitySupplier {
         return navigateToDefinition(id, httpRequest);
     }
 
-    /** Only the runtime toggles are shown; the built-in edit action is always hidden. */
+    /**
+     * Only the runtime toggles are shown. The built-in CRUD write actions are always hidden:
+     * definitions are authored as {@code .ec} files, so "edit" and "Add another" ({@code new}) make
+     * no sense here.
+     */
     @Override
     public boolean isHidden(String memberName, HttpRequest httpRequest) {
         return switch (memberName) {
-            case "edit" -> true;
+            case "edit", "new" -> true;
             case "disable" -> definitionDisabled;
             case "enable" -> !definitionDisabled;
             case "pause" -> definitionPaused;
@@ -224,20 +219,6 @@ public class WorkflowDefinitionDetailView implements VisibilitySupplier {
                                 .uriPrefix("")
                                 .serverSideType(WorkflowHome.class.getName())
                                 .build()))
-                .build();
-    }
-
-    @Toolbar
-    @Label("Export YAML")
-    public UICommand exportYaml() {
-        var export = exportWorkflowDefinitionToYamlUseCase.handle(id);
-        return UICommand.builder()
-                .type(UICommandType.DownloadFile)
-                .data(new FileDownload(
-                        export.fileName(),
-                        "application/yaml",
-                        Base64.getEncoder().encodeToString(
-                                export.content().getBytes(StandardCharsets.UTF_8))))
                 .build();
     }
 

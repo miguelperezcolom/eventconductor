@@ -4,6 +4,7 @@ import io.mateu.core.infra.declarative.orchestrators.crud.Crud;
 import io.mateu.uidl.annotations.ListToolbarButton;
 import io.mateu.uidl.data.ListingData;
 import io.mateu.uidl.data.SearchRequest;
+import io.mateu.uidl.fluent.GridLayout;
 import io.mateu.uidl.interfaces.CrudStore;
 import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.workflow.dtos.events.integration.RetryProcessRequested;
@@ -40,6 +41,13 @@ public class Processes extends Crud<Object, Object, Object, ProcessFilters, Proc
     @Override
     public Class<ProcessRow> rowClass() {
         return ProcessRow.class;
+    }
+
+    // Processes are a scannable, columnar listing — keep it a table rather than letting the auto
+    // weight-engine fall back to cards.
+    @Override
+    public GridLayout gridLayout() {
+        return GridLayout.table;
     }
 
     public CrudStore<ProcessRow> store() {

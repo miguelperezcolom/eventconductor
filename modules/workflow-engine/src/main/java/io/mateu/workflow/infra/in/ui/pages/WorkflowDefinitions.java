@@ -7,6 +7,7 @@ import io.mateu.uidl.data.ListingData;
 import io.mateu.uidl.data.NoFilters;
 import io.mateu.uidl.data.Page;
 import io.mateu.uidl.data.SearchRequest;
+import io.mateu.uidl.fluent.GridLayout;
 import io.mateu.uidl.interfaces.CrudStore;
 import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
@@ -71,6 +72,13 @@ public class WorkflowDefinitions extends Crud<Object, WorkflowDefinition, Workfl
     @Override
     public String getStyleForView() {
         return StyleConstants.FULL_WIDTH_WITH_PADDING;
+    }
+
+    // A definition is a scannable row of short fields; there is room for a real table, so pin it
+    // instead of letting the auto weight-engine fall back to cards.
+    @Override
+    public GridLayout gridLayout() {
+        return GridLayout.table;
     }
 
     @Override
