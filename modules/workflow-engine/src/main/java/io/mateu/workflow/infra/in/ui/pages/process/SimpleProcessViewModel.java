@@ -67,6 +67,8 @@ import static io.mateu.workflow.infra.in.ui.adapters.SimpleProcessCrudAdapter.ma
 @RequiredArgsConstructor
 @Getter
 @ReadOnly
+// Use the whole screen width (uncapped): the diagram tab is a wide monitoring canvas.
+@PageWidth(PageWidthStyle.FULL_WIDTH)
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 @Service
 @Scope("prototype")

@@ -12,13 +12,20 @@ public final class HomeStyles {
 
     private HomeStyles() {}
 
-    /** Page container: comfortably wide, centred, with a tighter row gap than the Lumo default. */
+    /**
+     * Page container: full width (so the app content area — and pages like the workflow-definition
+     * detail with its wide graph — can use the whole screen instead of being capped), with the
+     * dashboard's own content re-centred by the rows below at a comfortable reading width.
+     */
     public static final String PAGE =
-            "max-width: 1080px; margin: auto; display: block; --vaadin-form-layout-row-spacing: 1rem;";
+            "width: 100%; --vaadin-form-layout-row-spacing: 1rem;";
 
-    /** Row of KPI cards — wraps on narrow viewports, even gaps. */
+    /** Comfortable reading width for the dashboard content, centred within the full-width page. */
+    private static final String CONTENT = "max-width: 1080px; margin-left: auto; margin-right: auto;";
+
+    /** Row of KPI cards — wraps on narrow viewports, even gaps; centred at the reading width. */
     public static final String KPI_ROW =
-            "width: 100%; display: flex; flex-wrap: wrap; gap: 0.9rem; margin-bottom: 0.25rem;";
+            "display: flex; flex-wrap: wrap; gap: 0.9rem; margin-bottom: 0.25rem; " + CONTENT;
 
     /** A single KPI card. */
     public static final String KPI_CARD =
@@ -37,10 +44,10 @@ public final class HomeStyles {
             "display: block; font-size: 2rem; font-weight: 700; line-height: 1.15;"
             + " color: var(--lumo-body-text-color); margin-top: 0.35rem;";
 
-    /** Row of chart cards. */
+    /** Row of chart cards; centred at the reading width. */
     public static final String CHART_ROW =
-            "width: 100%; display: flex; flex-wrap: wrap; gap: 0.9rem;"
-            + " align-items: stretch; margin-bottom: 1.25rem;";
+            "display: flex; flex-wrap: wrap; gap: 0.9rem;"
+            + " align-items: stretch; margin-bottom: 1.25rem; " + CONTENT;
 
     /** A single chart card (caption + bounded chart). */
     public static final String CHART_CARD =
