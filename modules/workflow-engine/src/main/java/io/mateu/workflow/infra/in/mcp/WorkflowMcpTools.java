@@ -3,7 +3,6 @@ package io.mateu.workflow.infra.in.mcp;
 import io.mateu.workflow.application.out.LogMessageRepository;
 import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
-import io.mateu.workflow.application.out.UpstreamEventPublisher;
 import io.mateu.workflow.dtos.Variable;
 import io.mateu.workflow.dtos.events.integration.MessageReceived;
 import io.mateu.workflow.application.services.ProcessAnalyticsService;
@@ -15,6 +14,10 @@ import io.mateu.workflow.application.usecases.process.pause.PauseProcessUseCase;
 import io.mateu.workflow.application.usecases.process.resume.ResumeProcessCommand;
 import io.mateu.workflow.application.usecases.process.resume.ResumeProcessUseCase;
 import io.mateu.workflow.application.usecases.process.retry.RetryProcessCommand;
+import io.mateu.workflow.application.out.UpstreamEventPublisher;
+import io.mateu.workflow.dtos.events.integration.PauseProcessRequested;
+import io.mateu.workflow.dtos.events.integration.ResumeProcessRequested;
+import io.mateu.workflow.dtos.events.integration.RetryProcessRequested;
 import io.mateu.workflow.application.usecases.process.retry.RetryProcessUseCase;
 import io.mateu.workflow.domain.aggregates.Process;
 import io.mateu.workflow.mcp.McpSystemContext;
@@ -131,22 +134,25 @@ public class WorkflowMcpTools implements McpTools, McpSystemContext {
     @Tool(description = "Retry all failed (ERROR) step executions in a workflow process")
     public String retryProcess(String processId) {
         log.info("Retrying process " + processId);
-        retryProcessUseCase.handle(new RetryProcessCommand(processId));
-        return "Retry triggered for process " + processId;
+        upstreamEventPublisher.publish(new RetryProcessRequested(processId));
+        return "Retry requested for process " + processId
+                + ". It is carried out by the node that owns the process, so query the process to see the outcome.";
     }
 
     @Tool(description = "Pause a PENDING or RUNNING workflow process: no new steps start and timer/timeout clocks freeze until it is resumed. In-flight work is not cancelled — worker reports and messages are still accepted, only successors are held.")
     public String pauseProcess(String processId) {
         log.info("Pausing process " + processId);
-        pauseProcessUseCase.handle(new PauseProcessCommand(processId));
-        return "Pause triggered for process " + processId;
+        upstreamEventPublisher.publish(new PauseProcessRequested(processId));
+        return "Pause requested for process " + processId
+                + ". It is carried out by the node that owns the process, so query the process to see the outcome.";
     }
 
     @Tool(description = "Resume a PAUSED workflow process: timer/timeout clocks are shifted forward by the pause duration and the flow moves on.")
     public String resumeProcess(String processId) {
         log.info("Resuming process " + processId);
-        resumeProcessUseCase.handle(new ResumeProcessCommand(processId));
-        return "Resume triggered for process " + processId;
+        upstreamEventPublisher.publish(new ResumeProcessRequested(processId));
+        return "Resume requested for process " + processId
+                + ". It is carried out by the node that owns the process, so query the process to see the outcome.";
     }
 
     @Tool(description = "Pause a workflow definition: pauses all its PENDING/RUNNING processes, and new instances (cron included) are still created but born PAUSED until the definition is resumed.")

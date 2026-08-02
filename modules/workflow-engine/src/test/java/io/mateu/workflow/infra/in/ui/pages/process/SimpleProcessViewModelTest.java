@@ -23,7 +23,7 @@ class SimpleProcessViewModelTest {
 
     /** Only the workflow-definition repository is exercised by buildDiagram; the rest go unused. */
     private SimpleProcessViewModel view(WorkflowDefinitionRepository defs) {
-        return new SimpleProcessViewModel(null, null, defs, null, null, null, null, null, null);
+        return new SimpleProcessViewModel(null, null, null, defs, null, null, null, null, null, null);
     }
 
     private StepExecution se(String stepId, StepExecutionStatus status) {

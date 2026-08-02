@@ -8,6 +8,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **Operator actions travel as events, so they run on the pod that owns the process.** Pausing,
+  resuming, cancelling and retrying (a whole process or one step) used to execute wherever the UI
+  click or the MCP call landed — which, under partition ownership, is not the pod that owns the
+  process. They are now published keyed by the process: `PauseProcessRequested`,
+  `ResumeProcessRequested`, `RetryProcessRequested`, `RetryStepExecutionRequested`, and the
+  long-declared but never-used `ProcessCancellationRequested`, which gains a `processId` because a
+  process with no business key cannot be addressed by one. An operator action goes through the
+  same single writer as everything else instead of being the one path that needs a lock to be safe.
+
+  **In embedded mode nothing changes:** the upstream publisher dispatches in-process, so a UI
+  action is still carried out synchronously before the call returns. It is only in `kafka` mode
+  that these become routed — and there the MCP tools now answer "requested… query the process to
+  see the outcome" rather than claiming the work is done.
+
+  There are no REST endpoints for these operations; the entry points are the UI and MCP.
+  Specs `E2E-OPS-01..05`.
 - **Optimistic locking on `Process` and `StepExecution`.** Both aggregates now carry a `version`,
   checked on every write (migration `V11`, existing rows backfilled to 0 — a null version is how
   Spring Data recognises a row it has never persisted, so leaving them null would turn updates

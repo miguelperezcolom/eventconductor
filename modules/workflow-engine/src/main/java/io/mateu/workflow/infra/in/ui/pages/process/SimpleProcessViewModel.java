@@ -15,12 +15,16 @@ import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.uidl.interfaces.VisibilitySupplier;
 import io.mateu.uidl.data.Element;
 import io.mateu.workflow.application.out.LogMessageRepository;
+import io.mateu.workflow.application.out.UpstreamEventPublisher;
 import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.ResourceRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
 import io.mateu.workflow.domain.aggregates.StepExecution;
 import io.mateu.workflow.application.usecases.process.cancel.CancelProcessCommand;
+import io.mateu.workflow.dtos.events.domain.ProcessCancellationRequested;
+import io.mateu.workflow.dtos.events.integration.PauseProcessRequested;
+import io.mateu.workflow.dtos.events.integration.ResumeProcessRequested;
 import io.mateu.workflow.application.usecases.process.cancel.CancelProcessUseCase;
 import io.mateu.workflow.application.usecases.process.pause.PauseProcessCommand;
 import io.mateu.workflow.application.usecases.process.pause.PauseProcessUseCase;
@@ -72,6 +76,7 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
     private static final String GRAPH_TAG = "eventconductor-workflow-graph";
     private static final String GRAPH_MODULE = "/eventconductor/workflow-graph.js";
 
+    final UpstreamEventPublisher upstreamEventPublisher;
     final ProcessRepository processRepository;
     final StepExecutionRepository stepExecutionRepository;
     final WorkflowDefinitionRepository workflowDefinitionRepository;
@@ -234,19 +239,23 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
     @Action(confirmationRequired = true)
     //@Hidden("state.status.type == 'SUCCESS' || state.status.type == 'DANGER'")
     public void cancelProcess() {
-        cancelProcessUseCase.handle(new CancelProcessCommand(id));
+        // Requested, not performed here: this pod is whichever one served the click, and the
+        // process belongs to the pod holding its partition. The view polls, so the state shows
+        // up on the next refresh. Cancellation was always a notification anyway — whether a
+        // worker abandons what it is doing is the worker's business.
+        upstreamEventPublisher.publish(new ProcessCancellationRequested(null, id));
     }
 
     @Toolbar(buttonStyle = ButtonStyle.secondary)
     @Action
     public void pauseProcess() {
-        pauseProcessUseCase.handle(new PauseProcessCommand(id));
+        upstreamEventPublisher.publish(new PauseProcessRequested(id));
     }
 
     @Toolbar(buttonStyle = ButtonStyle.secondary)
     @Action
     public void resumeProcess() {
-        resumeProcessUseCase.handle(new ResumeProcessCommand(id));
+        upstreamEventPublisher.publish(new ResumeProcessRequested(id));
     }
 
 

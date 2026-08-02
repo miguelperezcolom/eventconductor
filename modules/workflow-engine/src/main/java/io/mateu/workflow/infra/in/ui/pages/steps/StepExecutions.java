@@ -7,6 +7,7 @@ import io.mateu.uidl.data.ListingData;
 import io.mateu.uidl.data.Pageable;
 import io.mateu.uidl.interfaces.CrudStore;
 import io.mateu.uidl.interfaces.HttpRequest;
+import io.mateu.workflow.dtos.events.integration.RetryStepExecutionRequested;
 import io.mateu.workflow.application.usecases.stepexecution.retry.RetryStepExecutionCommand;
 import io.mateu.workflow.application.usecases.stepexecution.retry.RetryStepExecutionUseCase;
 import io.mateu.workflow.infra.in.ui.adapters.StepExecutionsCrudAdapter;
@@ -24,6 +25,7 @@ import java.util.List;
 @ReadOnly
 public class StepExecutions extends FilteredAutoCrud<StepExecutionFilters, StepExecutionRow> {
 
+    final io.mateu.workflow.application.out.UpstreamEventPublisher upstreamEventPublisher;
     final StepExecutionsCrudAdapter stepExecutionsCrudAdapter;
     final RetryStepExecutionUseCase retryStepExecutionUseCase;
 
@@ -49,7 +51,9 @@ public class StepExecutions extends FilteredAutoCrud<StepExecutionFilters, StepE
 
     @ListToolbarButton(rowsSelectedRequired = true)
     public void retry(List<StepExecutionRow> selectedRows) {
-        selectedRows.forEach(row ->
-                retryStepExecutionUseCase.handle(new RetryStepExecutionCommand(row.id())));
+        // Requested, not performed here. The process id comes along so the event reaches the
+        // pod that owns it — a step id alone does not say which partition that is.
+        selectedRows.forEach(row -> upstreamEventPublisher.publish(
+                new RetryStepExecutionRequested(row.id(), row.processId())));
     }
 }
