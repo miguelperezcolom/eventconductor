@@ -2,7 +2,6 @@
   "id": "usertask-noform",
   "name": "User task without form",
   "version": 1,
-  "status": "ACTIVE",
   "steps": [
     {
       "id": "start",

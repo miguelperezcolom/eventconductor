@@ -36,7 +36,6 @@ Kafka/JPA autoconfiguration is excluded automatically in embedded/memory mode â€
   "id": "order-processing",
   "name": "Order Processing",
   "version": 1,
-  "status": "ACTIVE",
   "steps": [
     { "id": "start",    "type": "START",  "name": "Start" },
     { "id": "validate", "type": "ACTION", "name": "Validate", "topic": "order-validator",

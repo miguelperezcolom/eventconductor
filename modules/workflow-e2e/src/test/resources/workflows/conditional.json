@@ -2,7 +2,6 @@
   "id": "conditional",
   "name": "Conditional branch",
   "version": 1,
-  "status": "ACTIVE",
   "steps": [
     {
       "id": "start",

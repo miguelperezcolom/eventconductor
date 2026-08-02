@@ -6,7 +6,6 @@ import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
 import io.mateu.workflow.domain.aggregates.Step;
 import io.mateu.workflow.domain.aggregates.StepType;
 import io.mateu.workflow.domain.aggregates.WorkflowDefinition;
-import io.mateu.workflow.domain.aggregates.WorkflowDefinitionStatus;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -63,8 +62,7 @@ class ExportWorkflowDefinitionToYamlUseCaseTest {
                 null, null, null, false, "inventory", null, null, null, null,
                 0, null, null, null, null, 30000, 3, true, null, 0, null);
         return new WorkflowDefinition(
-                "wf-1", "Order fulfillment!", 3, "Ships orders",
-                WorkflowDefinitionStatus.ACTIVE, null,
+                "wf-1", "Order fulfillment!", 3, "Ships orders", 
                 true, 5, true, null, 0, List.of(step));
     }
 }

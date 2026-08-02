@@ -15,8 +15,7 @@ class WorkflowDefinitionTest {
     }
 
     private WorkflowDefinition definition(List<Step> steps) {
-        return new WorkflowDefinition("wd-1", "Test", 1, "desc",
-                WorkflowDefinitionStatus.ACTIVE, null, false, 0, false, null, 0, steps);
+        return new WorkflowDefinition("wd-1", "Test", 1, "desc",  false, 0, false, null, 0, steps);
     }
 
     @Test
@@ -27,8 +26,7 @@ class WorkflowDefinitionTest {
 
     @Test
     void toStringReturnsNewLabelWhenIdNull() {
-        var wd = new WorkflowDefinition(null, "Test", 1, "desc",
-                WorkflowDefinitionStatus.DRAFT, null, false, 0, false, null, 0, List.of());
+        var wd = new WorkflowDefinition(null, "Test", 1, "desc",  false, 0, false, null, 0, List.of());
         assertThat(wd.toString()).isEqualTo("New workflow definition");
     }
 
@@ -40,15 +38,13 @@ class WorkflowDefinitionTest {
 
     @Test
     void stepsReturnsEmptyListWhenNull() {
-        var wd = new WorkflowDefinition("wd-1", "Test", 1, "desc",
-                WorkflowDefinitionStatus.ACTIVE, null, false, 0, false, null, 0, null);
+        var wd = new WorkflowDefinition("wd-1", "Test", 1, "desc",  false, 0, false, null, 0, null);
         assertThat(wd.steps()).isEmpty();
     }
 
     @Test
     void maxConcurrentExecutionsReturnsConfiguredValueWhenLimitEnabled() {
-        var wd = new WorkflowDefinition("wd-1", "Test", 1, "desc",
-                WorkflowDefinitionStatus.ACTIVE, null, true, 5, false, null, 0, List.of());
+        var wd = new WorkflowDefinition("wd-1", "Test", 1, "desc",  true, 5, false, null, 0, List.of());
         assertThat(wd.maxConcurrentExecutions()).isEqualTo(5);
     }
 
@@ -60,8 +56,7 @@ class WorkflowDefinitionTest {
 
     @Test
     void checkInvariantsPassesWhenNullSteps() {
-        var wd = new WorkflowDefinition("wd-1", "Test", 1, "desc",
-                WorkflowDefinitionStatus.ACTIVE, null, false, 0, false, null, 0, null);
+        var wd = new WorkflowDefinition("wd-1", "Test", 1, "desc",  false, 0, false, null, 0, null);
         wd.checkInvariants();
     }
 

@@ -2,7 +2,6 @@
   "id": "dist-sequential-3",
   "name": "Distributed sequential 3 steps",
   "version": 1,
-  "status": "ACTIVE",
   "steps": [
     {
       "id": "start",

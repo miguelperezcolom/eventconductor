@@ -69,32 +69,20 @@ row showing whether the definition's runtime pause flag is set), a **Diagram**
 section rendering the workflow graph (read-only, with a full-screen expand button), and
 the list of steps below.
 
-The detail view's toolbar carries the lifecycle actions plus a YAML export. Each action
-is shown only when it makes sense for the definition's current status:
+Definitions are authored as `.ec` files (edited with the IDE plugins), not in the UI. The detail
+view is read-only; its toolbar carries only the runtime toggles plus a YAML export:
 
 | Button | Description |
 |--------|-------------|
-| **Promote to production** | Copy the working copy's content back to the original definition (incrementing its version), then delete the working copy. Only shown on `DRAFT` working copies (`draftOfId` is set). |
-| **Create working copy** | Clone the definition as a `DRAFT` working copy. Only shown on `ACTIVE` definitions; fails if a working copy already exists. |
 | **Disable** | Stop accepting new instances (`ACTIVE` → `DISABLED`); running ones continue |
-| **Enable** | Re-activate a `DISABLED` definition |
-| **Reactivate** | Bring an `ARCHIVED` definition back |
-| **Archive** | Retire a definition (not available while `ACTIVE`) |
+| **Enable** | Resume accepting new instances. Shown while disabled |
 | **Pause** | Set the runtime pause flag and pause all the definition's `PENDING`/`RUNNING` processes. New instances (cron included) are still created, born paused. Shown while the definition is not paused |
 | **Resume** | Clear the pause flag and resume all the definition's `PAUSED` processes, including the ones born paused. Shown only while the definition is paused |
 | **Export YAML** | Download the definition as a YAML file |
 
-**Pause**/**Resume** depend only on the runtime pause flag (the **Paused** row), not on
-the lifecycle status — pausing is orthogonal to `DRAFT`/`ACTIVE`/`DISABLED`/`ARCHIVED`.
+Pause/resume and disable/enable are all runtime toggles, orthogonal to each other.
 
-**Definition statuses** displayed in the Status column:
-
-| Status | Meaning |
-|--------|---------|
-| `ACTIVE` | Accepts new process instances |
-| `DRAFT` | Under construction, not executable. If created via **Create working copy**, the definition is linked to its original via `draftOfId`. |
-| `DISABLED` | No new instances; running ones continue |
-| `ARCHIVED` | Retired |
+The **Status** column/badge shows the runtime state: **Active**, **Paused**, **Disabled** or **Archived**.
 
 ### Processes
 

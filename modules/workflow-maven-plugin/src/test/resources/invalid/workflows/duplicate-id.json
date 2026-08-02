@@ -1,5 +1,4 @@
-{ "id": "dup", "name": "Dup", "version": 1, "status": "ACTIVE",
-  "steps": [
+{ "id": "dup", "name": "Dup", "version": 1,   "steps": [
     { "id": "s1", "type": "ACTION", "name": "A", "topic": "work" },
     { "id": "s1", "type": "ACTION", "name": "B", "topic": "work" },
     { "id": "end", "type": "END", "name": "End", "preconditionStepId": "s1" }

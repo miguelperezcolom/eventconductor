@@ -41,7 +41,6 @@ Both formats are fully equivalent — use whichever fits your team's conventions
   "name": "My Workflow",
   "version": 1,
   "description": "Optional description",
-  "status": "ACTIVE",
   "limitConcurrentExecutions": false,
   "maxConcurrentExecutions": 0,
   "enqueueOnLimit": false,
@@ -56,7 +55,6 @@ id: my-workflow
 name: My Workflow
 version: 1
 description: Optional description
-status: ACTIVE
 limitConcurrentExecutions: false
 maxConcurrentExecutions: 0
 enqueueOnLimit: false
@@ -71,81 +69,29 @@ steps: [...]
 | `name` | string | Human-readable name |
 | `version` | integer | Version number |
 | `description` | string | Optional description |
-| `status` | enum | `DRAFT` \| `ACTIVE` \| `DISABLED` \| `ARCHIVED` |
-| `paused` | boolean | Runtime pause flag, orthogonal to `status` — toggled at runtime (UI, `PauseWorkflowUseCase`/`ResumeWorkflowUseCase`, MCP), not an authoring decision. While `true`, all the definition's processes are held and new instances (cron included) are created born-`PAUSED`. Kept in the schema (default `false`) only so exported definitions round-trip |
-| `draftOfId` | string | ID of the production definition this is a working copy of. `null` for production definitions. Set automatically by the UI. |
+| `paused` | boolean | Runtime flag — **not authored in the `.ec`**. Toggled at runtime (UI, `PauseWorkflowUseCase`/`ResumeWorkflowUseCase`, MCP). While `true`, all the definition's processes are held and new instances (cron included) are created born-`PAUSED`. Kept in the schema (default `false`) only so exported definitions round-trip |
+| `disabled` | boolean | Runtime flag — **not authored in the `.ec`**. Toggled at runtime (disable/enable). While `true` the definition accepts no new instances (cron included); running ones continue. Default `false` |
+| `archived` | boolean | Runtime flag — **not authored in the `.ec`**. Set by the Git-import prune when a definition disappears from its repository, to hide it without deleting. Default `false` |
 | `limitConcurrentExecutions` | boolean | Cap concurrent running instances |
 | `maxConcurrentExecutions` | integer | Max instances (if limit enabled) |
 | `enqueueOnLimit` | boolean | Queue new instances when limit reached |
-| `cronExpression` | string | Spring cron expression (six fields, seconds first). While the definition is `ACTIVE`, the engine creates a process instance at each occurrence. `null` = no scheduled starts |
+| `cronExpression` | string | Spring cron expression (six fields, seconds first). Unless the definition is disabled or archived, the engine creates a process instance at each occurrence. `null` = no scheduled starts |
 | `defaultMaxStepExecutions` | integer | Default cap on how many times each step may successfully run within one process instance; a step's own `maxSuccessfulExecutions` overrides it. `0` or `null` = unbounded |
 
-### Definition statuses
+### Runtime state
 
-| Status | Description |
+Definitions are **authored as `.ec` files** (edited with the [IDE plugins](/guides/ide-plugins/))
+and imported — they are never edited in the management UI. The UI only toggles two orthogonal
+**runtime** flags (they live outside the `.ec`, in the engine's runtime state):
+
+| Action | Effect |
 |---|---|
-| `DRAFT` | Under construction, not executable |
-| `ACTIVE` | Ready to accept new process instances |
-| `DISABLED` | No new instances allowed; running ones continue |
-| `ARCHIVED` | Retired definition |
+| **Pause / Resume** | While paused, the definition's processes are held and new instances (cron included) are created born-`PAUSED`; resume moves everything on. |
+| **Disable / Enable** | While disabled, the definition accepts **no new instances** (cron included); already-running instances are unaffected. |
 
-## Lifecycle
-
-A definition moves through those four statuses over its life. The management UI offers exactly the transitions that are valid for the current status (see the [UI Manual](/guides/ui-manual/)) — every arrow below is one toolbar action.
-
-<svg viewBox="0 0 880 600" width="880" height="600" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Workflow definition lifecycle. A new definition starts as DRAFT. From ACTIVE you can create a working copy — a DRAFT linked to the live definition — and promote it back to ACTIVE, or disable it to DISABLED and enable it back. DRAFT and DISABLED definitions can be archived to ARCHIVED; an ACTIVE definition must be disabled before archiving. An ARCHIVED definition can be reactivated back to DRAFT. Edit is available in every status except ACTIVE." style="max-width:100%;height:auto;font-family:inherit">
-  <defs>
-    <marker id="lc-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-      <path d="M 0 1 L 9 5 L 0 9 z" fill="currentColor" opacity="0.65"/>
-    </marker>
-  </defs>
-  <g stroke="currentColor" fill="none" stroke-opacity="0.55" marker-end="url(#lc-arr)">
-    <path d="M 12 316 L 52 316"/>
-    <path d="M 412 286 L 412 172"/>
-    <path d="M 468 172 L 468 283"/>
-    <path d="M 517 308 L 672 308"/>
-    <path d="M 672 328 L 517 328"/>
-    <path d="M 748 348 Q 645 470 518 494"/>
-    <path d="M 168 348 Q 268 432 362 486"/>
-    <path d="M 372 514 Q 214 502 116 350"/>
-  </g>
-  <g stroke="none" fill="currentColor" font-size="11" opacity="0.85">
-    <text x="32" y="308" text-anchor="middle">New</text>
-    <text x="402" y="228" text-anchor="end">Create working copy</text>
-    <text x="480" y="228" text-anchor="start">Promote to production</text>
-    <text x="594" y="301" text-anchor="middle">Disable</text>
-    <text x="594" y="343" text-anchor="middle">Enable</text>
-    <text x="676" y="436" text-anchor="middle">Archive</text>
-    <text x="250" y="408" text-anchor="middle">Archive</text>
-    <text x="236" y="508" text-anchor="middle">Reactivate</text>
-  </g>
-  <g font-size="14" font-weight="600" text-anchor="middle">
-    <rect x="55" y="286" width="150" height="60" rx="10" stroke="currentColor" stroke-opacity="0.6" fill="currentColor" fill-opacity="0.03"/>
-    <text x="130" y="312" fill="currentColor">DRAFT</text>
-    <text x="130" y="330" fill="currentColor" font-size="10.5" font-weight="400" opacity="0.6">new · editable</text>
-    <rect x="365" y="286" width="150" height="60" rx="10" stroke="#C27D2C" stroke-width="2" fill="#C27D2C" fill-opacity="0.12"/>
-    <text x="440" y="312" fill="currentColor">ACTIVE</text>
-    <text x="440" y="330" fill="currentColor" font-size="10.5" font-weight="400" opacity="0.65">live</text>
-    <rect x="675" y="286" width="155" height="60" rx="10" stroke="currentColor" stroke-opacity="0.6" fill="currentColor" fill-opacity="0.03"/>
-    <text x="752" y="312" fill="currentColor">DISABLED</text>
-    <text x="752" y="330" fill="currentColor" font-size="10.5" font-weight="400" opacity="0.6">paused</text>
-    <rect x="335" y="110" width="210" height="60" rx="10" stroke="#C27D2C" stroke-opacity="0.6" stroke-dasharray="5 4" fill="#C27D2C" fill-opacity="0.05"/>
-    <text x="440" y="136" fill="currentColor">Working copy</text>
-    <text x="440" y="154" fill="currentColor" font-size="10.5" font-weight="400" opacity="0.65">DRAFT linked to a live def</text>
-    <rect x="365" y="478" width="150" height="60" rx="10" stroke="currentColor" stroke-opacity="0.6" fill="currentColor" fill-opacity="0.03"/>
-    <text x="440" y="504" fill="currentColor">ARCHIVED</text>
-    <text x="440" y="522" fill="currentColor" font-size="10.5" font-weight="400" opacity="0.6">retired</text>
-  </g>
-</svg>
-
-- **New → `DRAFT`** — a definition you create in the UI starts as a `DRAFT`. Definitions loaded from the classpath (`classpath:/workflows/`) or imported from Git come in as `ACTIVE`.
-- **Create working copy** (`ACTIVE` → *working copy*) — clones a live definition into a `DRAFT` linked back to it via `draftOfId`. Only one working copy may exist per definition.
-- **Promote to production** (`DRAFT` → `ACTIVE`) — offered on any `DRAFT`. A working copy (one with `draftOfId` set) is promoted by copying its content onto the original definition, bumping the original's version, and deleting the copy; a standalone draft is simply activated in place.
-- **Disable / Enable** (`ACTIVE` ⇄ `DISABLED`) — stop or resume accepting new process instances; already-running instances are unaffected.
-- **Archive** (`DRAFT` or `DISABLED` → `ARCHIVED`) — retire a definition. An `ACTIVE` definition must be **disabled first**; archive is not offered while it is live.
-- **Reactivate** (`ARCHIVED` → `DRAFT`) — bring a retired definition back as a `DRAFT`, so it re-enters the lifecycle from the start.
-
-The **Edit** action is available in every status **except `ACTIVE`**: a live definition is read-only and is changed through a working copy, never in place.
+A definition removed from its Git repository is **archived** by the import prune (hidden, not
+deleted) — see [Importing from Git](#importing-from-git). Archived and disabled definitions do not
+start new instances.
 
 ## Importing from Git
 
@@ -167,7 +113,7 @@ Multiple repositories are supported. Each repository is cloned into a temporary 
 
 ### Startup import
 
-Repositories are imported automatically on application startup by `WorkflowDefinitionGitImportRunner`. If a definition with the same ID already exists in the database it is overwritten (upsert). If a definition has no `id`, one is generated automatically.
+Repositories are imported automatically on application startup by `WorkflowDefinitionGitImportRunner`. If a definition with the same ID already exists in the database it is overwritten (upsert). If a definition has no `id`, one is generated automatically. (Definitions are imported ready to run — there is no draft/active lifecycle.)
 
 ### Git webhook
 
@@ -205,7 +151,7 @@ set the Payload URL to `https://your-server/workflow/webhooks/github`, Content t
   is acknowledged and ignored (`202`, "ignored"). If the payload can't be parsed, it falls
   back to reloading every configured repository (unchanged legacy behaviour).
 - **Removed definitions are pruned.** A definition that was previously imported from a repo
-  (and had an explicit `id`) but is no longer present is **archived** (moved to `ARCHIVED`);
+  (and had an explicit `id`) but is no longer present is **archived** (the runtime `archived` flag);
   running processes are unaffected. Only git-imported definitions are ever pruned — classpath
   and hand-authored ones are never touched. (Pruning is tracked per running instance and
   resets on restart, repopulating on the next import.)
@@ -226,33 +172,6 @@ The **Forms** and **Rules** engines expose the same webhook under `/forms/webhoo
 and `/rules/webhooks/{provider}` (configured via `forms.git-import.*` / `rules.git-import.*`).
 Because forms and rules have no lifecycle status, pruning **deletes** them rather than
 archiving.
-
-## Working copies
-
-A **working copy** is a `DRAFT` clone of an existing production definition. It lets you iterate on a workflow safely while the original continues to run in production.
-
-### Lifecycle
-
-```
-Production definition (ACTIVE)
-        │
-        │  Create working copy
-        ▼
-Working copy (DRAFT, draftOfId = <original id>)
-        │  edit / test / iterate
-        │
-        │  Promote to production
-        ▼
-Production definition updated (version + 1), working copy deleted
-```
-
-### Rules
-
-- Only one working copy per definition is allowed at a time.
-- The working copy has `status = DRAFT` and its `draftOfId` field points to the original definition's ID.
-- Promoting copies all content (steps, description, concurrency settings) onto the original, increments `version` by one, and deletes the working copy. The original's `status` is preserved.
-- The `[draft]` suffix is stripped from the name automatically on promotion.
-- Processes running against the original definition are unaffected until promotion.
 
 ## Step fields
 
@@ -344,7 +263,6 @@ explicit), and one with more than one outgoing flow should be a `FORK`. These ar
   "id": "order-processing",
   "name": "Order Processing",
   "version": 1,
-  "status": "ACTIVE",
   "steps": [
     {
       "id": "start",
@@ -390,7 +308,6 @@ explicit), and one with more than one outgoing flow should be a `FORK`. These ar
 id: order-processing
 name: Order Processing
 version: 1
-status: ACTIVE
 steps:
   - id: start
     type: START
@@ -429,7 +346,6 @@ steps:
   "id": "expense-approval",
   "name": "Expense Approval",
   "version": 1,
-  "status": "ACTIVE",
   "steps": [
     {
       "id": "start",
@@ -474,7 +390,6 @@ steps:
   "id": "order-with-review",
   "name": "Order with optional review",
   "version": 1,
-  "status": "ACTIVE",
   "steps": [
     {
       "id": "start",
@@ -520,7 +435,6 @@ steps:
   "id": "booking-saga",
   "name": "Booking Saga",
   "version": 1,
-  "status": "ACTIVE",
   "steps": [
     {
       "id": "start",

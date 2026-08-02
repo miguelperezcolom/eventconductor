@@ -3,7 +3,6 @@ package io.mateu.workflow.infra.in.scheduler;
 import io.mateu.workflow.application.out.UpstreamEventPublisher;
 import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
 import io.mateu.workflow.domain.aggregates.WorkflowDefinition;
-import io.mateu.workflow.domain.aggregates.WorkflowDefinitionStatus;
 import io.mateu.workflow.dtos.events.integration.ProcessCreationRequested;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.support.CronExpression;
@@ -60,8 +59,8 @@ class CronStarts {
     }
 
     private static boolean isScheduled(WorkflowDefinition definition) {
-        return WorkflowDefinitionStatus.ACTIVE.equals(definition.status())
-                && (definition.draftOfId() == null || definition.draftOfId().isBlank())
+        return !definition.disabled()
+                && !definition.archived()
                 && definition.cronExpression() != null
                 && !definition.cronExpression().isBlank();
     }

@@ -27,12 +27,6 @@
       "type": ["string", "null"],
       "description": "Optional free-text description of the workflow."
     },
-    "status": {
-      "type": ["string", "null"],
-      "description": "Lifecycle status of this definition.",
-      "enum": ["DRAFT", "ACTIVE", "DISABLED", "ARCHIVED", null],
-      "default": "DRAFT"
-    },
     "limitConcurrentExecutions": {
       "type": ["boolean", "null"],
       "description": "Whether to cap the number of concurrent process instances.",
@@ -60,6 +54,16 @@
     "paused": {
       "type": ["boolean", "null"],
       "description": "Runtime pause flag: while true, all this definition's processes are held and new instances are created already PAUSED. Toggled at runtime (pause/resume), kept here so exported definitions round-trip.",
+      "default": false
+    },
+    "disabled": {
+      "type": ["boolean", "null"],
+      "description": "Runtime disabled flag: while true the definition accepts no new instances (cron included). Toggled at runtime (disable/enable); not authored in the .ec.",
+      "default": false
+    },
+    "archived": {
+      "type": ["boolean", "null"],
+      "description": "Runtime archived flag: set by the git-import prune when a definition disappears from its repository, to hide it without deleting. Not authored in the .ec.",
       "default": false
     },
     "defaultMaxStepExecutions": {

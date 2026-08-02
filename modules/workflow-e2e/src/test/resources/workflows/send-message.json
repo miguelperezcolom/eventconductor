@@ -2,7 +2,6 @@
   "id": "send-message",
   "name": "Message sender",
   "version": 1,
-  "status": "ACTIVE",
   "steps": [
     {
       "id": "start",

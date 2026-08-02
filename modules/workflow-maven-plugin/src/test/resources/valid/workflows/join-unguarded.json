@@ -2,7 +2,6 @@
   "id": "join-unguarded",
   "name": "JOIN on unguarded branches",
   "version": 1,
-  "status": "ACTIVE",
   "steps": [
     {
       "id": "start",

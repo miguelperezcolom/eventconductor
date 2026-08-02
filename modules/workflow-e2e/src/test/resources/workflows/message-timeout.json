@@ -2,7 +2,6 @@
   "id": "message-timeout",
   "name": "Message wait with timeout",
   "version": 1,
-  "status": "ACTIVE",
   "steps": [
     {
       "id": "wait",

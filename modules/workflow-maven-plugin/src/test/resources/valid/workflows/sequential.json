@@ -2,7 +2,6 @@
   "id": "seq",
   "name": "Sequential",
   "version": 1,
-  "status": "ACTIVE",
   "steps": [
     {
       "id": "start",

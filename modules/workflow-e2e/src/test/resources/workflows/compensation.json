@@ -2,7 +2,6 @@
   "id": "compensation",
   "name": "Saga compensation",
   "version": 1,
-  "status": "ACTIVE",
   "steps": [
     {
       "id": "start",

@@ -2,7 +2,6 @@
   "id": "compensation-cascade",
   "name": "Saga compensation cascade",
   "version": 1,
-  "status": "ACTIVE",
   "steps": [
     {
       "id": "start",

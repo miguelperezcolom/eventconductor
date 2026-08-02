@@ -2,7 +2,6 @@
   "id": "message-expr-moving-key",
   "name": "Message wait whose correlation key is changed by a parallel branch",
   "version": 1,
-  "status": "ACTIVE",
   "steps": [
     {
       "id": "start",

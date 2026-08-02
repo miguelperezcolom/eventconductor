@@ -2,7 +2,6 @@
   "id": "child-flow",
   "name": "Child workflow",
   "version": 1,
-  "status": "ACTIVE",
   "steps": [
     {
       "id": "start",

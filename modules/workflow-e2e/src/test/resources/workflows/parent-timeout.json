@@ -2,7 +2,6 @@
   "id": "parent-timeout",
   "name": "Parent whose PROCESS step times out",
   "version": 1,
-  "status": "ACTIVE",
   "steps": [
     {
       "id": "start",

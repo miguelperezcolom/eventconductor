@@ -163,9 +163,9 @@ WorkflowDefinitionRepository workflowDefinitionRepository;
 // Find by ID
 Optional<WorkflowDefinition> def = workflowDefinitionRepository.findById("my-workflow");
 
-// List all active (no findByStatus — filter findAll())
+// List runnable definitions (not disabled, not archived)
 List<WorkflowDefinition> active = workflowDefinitionRepository.findAll().stream()
-    .filter(d -> d.status() == WorkflowDefinitionStatus.ACTIVE)
+    .filter(d -> !d.disabled() && !d.archived())
     .toList();
 
 // Save/update
@@ -252,9 +252,9 @@ matches the API you are calling — they are not interchangeable.
 | `name` | String | Human-readable name |
 | `description` | String | Optional description |
 | `version` | int | Version number |
-| `status` | WorkflowDefinitionStatus | DRAFT, ACTIVE, DISABLED, ARCHIVED |
-| `paused` | boolean | Runtime pause flag, orthogonal to `status`: while true, all the definition's processes are held and new instances are created born-`PAUSED` |
-| `draftOfId` | String | Set on working copies: the ID of the definition this drafts |
+| `paused` | boolean | Runtime flag (not in the .ec): while true, the definition's processes are held and new instances are created born-`PAUSED` |
+| `disabled` | boolean | Runtime flag (not in the .ec): while true, accepts no new instances |
+| `archived` | boolean | Runtime flag (not in the .ec): set by the git-import prune to hide a removed definition |
 | `cronExpression` | String | Optional Spring cron expression for scheduled starts |
 | `limitConcurrentExecutions` | boolean | Whether to cap concurrent processes |
 | `maxConcurrentExecutions` | int | The cap, when limited |

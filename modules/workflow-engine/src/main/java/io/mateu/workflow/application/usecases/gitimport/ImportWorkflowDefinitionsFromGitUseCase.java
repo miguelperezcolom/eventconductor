@@ -6,7 +6,6 @@ import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
 import io.mateu.workflow.application.services.DefinitionFileFormat;
 import io.mateu.workflow.application.services.WorkflowDefinitionValidator;
 import io.mateu.workflow.domain.aggregates.WorkflowDefinition;
-import io.mateu.workflow.domain.aggregates.WorkflowDefinitionStatus;
 import io.mateu.workflow.infra.config.GitImportProperties;
 import io.mateu.workflow.webhook.ImportedDefinitionsRegistry;
 import lombok.RequiredArgsConstructor;
@@ -142,8 +141,6 @@ public class ImportWorkflowDefinitionsFromGitUseCase {
                     definition.name(),
                     definition.version(),
                     definition.description(),
-                    definition.status(),
-                    null,
                     definition.limitConcurrentExecutions(),
                     definition.maxConcurrentExecutions(),
                     definition.enqueueOnLimit(),
@@ -179,8 +176,8 @@ public class ImportWorkflowDefinitionsFromGitUseCase {
                 continue;
             }
             workflowDefinitionRepository.findById(id).ifPresent(def -> {
-                if (def.status() != WorkflowDefinitionStatus.ARCHIVED) {
-                    workflowDefinitionRepository.save(def.withStatus(WorkflowDefinitionStatus.ARCHIVED));
+                if (!def.archived()) {
+                    workflowDefinitionRepository.save(def.withArchived(true));
                     log.info("Pruned (archived) workflow definition '{}' (id={}) — no longer in {}",
                             def.name(), id, repositoryUrl);
                     pruned.add(def.name() + " [" + id + "]");

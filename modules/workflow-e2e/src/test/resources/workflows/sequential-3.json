@@ -2,7 +2,6 @@
   "id": "sequential-3",
   "name": "Sequential 3 steps",
   "version": 1,
-  "status": "ACTIVE",
   "steps": [
     {
       "id": "start",

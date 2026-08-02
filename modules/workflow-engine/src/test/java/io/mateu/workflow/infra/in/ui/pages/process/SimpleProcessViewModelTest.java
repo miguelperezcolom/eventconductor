@@ -7,7 +7,6 @@ import io.mateu.workflow.domain.aggregates.Process;
 import io.mateu.workflow.domain.aggregates.StepExecution;
 import io.mateu.workflow.domain.aggregates.StepExecutionStatus;
 import io.mateu.workflow.domain.aggregates.WorkflowDefinition;
-import io.mateu.workflow.domain.aggregates.WorkflowDefinitionStatus;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -34,8 +33,7 @@ class SimpleProcessViewModelTest {
     }
 
     private WorkflowDefinition emptyDefinition() {
-        return new WorkflowDefinition("wd-1", "P", 1, null,
-                WorkflowDefinitionStatus.DRAFT, null, false, 0, false, null, 0, List.of());
+        return new WorkflowDefinition("wd-1", "P", 1, null,  false, 0, false, null, 0, List.of());
     }
 
     @Test

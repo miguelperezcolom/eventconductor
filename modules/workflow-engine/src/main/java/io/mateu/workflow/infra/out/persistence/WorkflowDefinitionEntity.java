@@ -24,10 +24,6 @@ public class WorkflowDefinitionEntity {
 
     String description;
 
-    String status;
-
-    String draftOfId;
-
     @Column(columnDefinition = "TEXT")
     String stepsJson;
 
@@ -45,5 +41,13 @@ public class WorkflowDefinitionEntity {
     /** Runtime pause flag: while true all this definition's processes are held. */
     @ColumnDefault("false")
     boolean paused;
+
+    /** Runtime disabled flag: while true the definition accepts no new instances. */
+    @ColumnDefault("false")
+    boolean disabled;
+
+    /** Runtime archived flag: set by the git-import prune to hide a removed definition. */
+    @ColumnDefault("false")
+    boolean archived;
 
 }

@@ -3,7 +3,6 @@
   "id": "hello-world",
   "name": "Hello World",
   "version": 1,
-  "status": "ACTIVE",
   "steps": [
     {
       "id": "start",

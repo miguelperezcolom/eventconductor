@@ -2,7 +2,6 @@
   "id": "join-on-guarded-branch",
   "name": "JOIN waiting on a guarded branch",
   "version": 1,
-  "status": "ACTIVE",
   "steps": [
     {
       "id": "start",

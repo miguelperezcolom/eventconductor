@@ -1,6 +1,5 @@
 name: Expense approval
 version: 1
-status: ACTIVE
 steps:
   - id: start
     type: START

@@ -34,10 +34,10 @@ class ImportEcFilesTest {
     @Test
     void importsEcFilesWhoseContentIsJsonOrYaml(@TempDir Path repo) throws Exception {
         write(repo, "json-flow.ec",
-                "{\"id\":\"ec-json\",\"name\":\"EC JSON\",\"status\":\"ACTIVE\","
+                "{\"id\":\"ec-json\",\"name\":\"EC JSON\","
                         + "\"steps\":[{\"id\":\"start\",\"type\":\"START\",\"name\":\"Start\"}]}");
         write(repo, "yaml-flow.ec",
-                "id: ec-yaml\nname: EC YAML\nstatus: ACTIVE\nsteps:\n  - id: start\n    type: START\n    name: Start\n");
+                "id: ec-yaml\nname: EC YAML\nsteps:\n  - id: start\n    type: START\n    name: Start\n");
 
         var imported = new ArrayList<String>();
         var errors = new ArrayList<String>();

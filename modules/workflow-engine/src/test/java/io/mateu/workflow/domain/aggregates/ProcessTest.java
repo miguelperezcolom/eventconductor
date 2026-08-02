@@ -11,8 +11,7 @@ class ProcessTest {
         // given
         String processId = "process-1";
         WorkflowDefinition workflowDefinition = new WorkflowDefinition(
-                "wd-1", "Test Workflow", 1, "Description", WorkflowDefinitionStatus.ACTIVE,
-                null, false, 0, false, null, 0, List.of()
+                "wd-1", "Test Workflow", 1, "Description",  false, 0, false, null, 0, List.of()
         );
         String businessKey = "BK-1";
         List<Variable> variables = List.of(new Variable("v1", "val1"));
