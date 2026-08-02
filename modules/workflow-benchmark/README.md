@@ -77,7 +77,7 @@ around 12 ms is the broker hops and the writes.
 That finding is what led to waking the relay on write instead of polling for it. Re-measured
 after that change, the poll interval barely registers:
 
-|  | before the signal | after |
+| `bench.outbox.poll-ms` | before the signal | after |
 |---|---|---|
 | 500 (the shipped default) | 508,8 ms | **10,1 ms** |
 | 20 | 28,6 ms | **10,7 ms** |
