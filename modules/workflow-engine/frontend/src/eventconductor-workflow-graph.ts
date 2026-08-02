@@ -669,6 +669,18 @@ export class MateuWorkflowElk extends LitElement {
             this.didInitialFit = true;
             this.fitToView();
         }
+
+        // Expanding/collapsing resizes the canvas to a whole new box; re-measure and auto-fit so the
+        // graph fills the new viewport instead of keeping its previous pan/zoom. rAF lets the
+        // fullscreen layout settle first; reading clientWidth/Height forces the reflow it needs.
+        if (changed.has("fullscreen") && this.layoutReady) {
+            requestAnimationFrame(() => {
+                const wrap = (this.renderRoot as ParentNode)
+                    .querySelector(".canvas-wrap") as HTMLElement | null;
+                if (wrap) { this.viewW = wrap.clientWidth; this.viewH = wrap.clientHeight; }
+                this.fitToView();
+            });
+        }
     }
 
     /** Attach the resize observer and wheel-zoom to the canvas once it is in the DOM (idempotent). */
@@ -993,7 +1005,11 @@ export class MateuWorkflowElk extends LitElement {
     private fitToView = () => {
         const b = this.graphBounds();
         if (!b || this.viewW === 0 || this.viewH === 0) return;
-        const k = this.clampZoom(Math.min(this.viewW / b.w, this.viewH / b.h));
+        const raw = Math.min(this.viewW / b.w, this.viewH / b.h);
+        // Embedded, start from the standard size (1:1) and only shrink to fit — never enlarge past
+        // natural size to fill an empty panel. Expanded (fullscreen), the point is to use the whole
+        // screen, so scale up to fill too. Either way, centre it in the viewport.
+        const k = this.clampZoom(this.fullscreen ? raw : Math.min(1, raw));
         this.zoomK = k;
         this.panX = (this.viewW - k * b.w) / 2 - k * b.minX;
         this.panY = (this.viewH - k * b.h) / 2 - k * b.minY;
