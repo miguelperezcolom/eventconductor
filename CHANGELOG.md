@@ -8,6 +8,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Flyway runs by default.** `FLYWAY_ENABLED` defaulted to `false` while `DDL_AUTO` defaulted to
+  `update`, so the out-of-the-box standalone app built its schema with Hibernate and never ran the
+  migrations — and the migrations are the only place the engine's indexes come from, since
+  `ddl-auto=update` emits no index DDL. The default deployment therefore ran every deadline scan,
+  outbox claim and message correlation as a sequential scan.
+
+  Enabling it is safe on a schema `ddl-auto` already created: it baselines at V1 and every later
+  migration is written with `IF NOT EXISTS`. **Existing installs that override
+  `flywayEnabled: false` should turn it back on** — the Helm chart already defaults it to true, so
+  this only bites deployments that overrode it or run the app without the chart. Turn Flyway on
+  first, confirm the indexes appear, and only then move `ddlAuto` to `validate`.
+
+- **The demo services had the shared-consumer-group defect too.** `content-service` and
+  `users-service` used one group for their `upstream` and `outbox` bindings, same as the
+  orchestrator did.
+
 - **A consumer group per binding. Sharing one left Kafka partitions with no consumer at all.**
   The orchestrator's two bindings — `upstream` and `outbox` — used the same group, so its members
   had different topic subscriptions. The default range assignor handles that badly: observed on a
