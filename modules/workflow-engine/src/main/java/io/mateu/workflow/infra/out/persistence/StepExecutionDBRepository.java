@@ -24,6 +24,7 @@ public class StepExecutionDBRepository implements StepExecutionRepository {
 
     final StepExecutionEntityRepository stepExecutionEntityRepository;
     final OutboxMessageEntityRepository outboxMessageEntityRepository;
+    final io.mateu.workflow.infra.out.async.OutboxSignal outboxSignal;
 
     @Override
     public Optional<StepExecution> findById(String id) {
@@ -72,9 +73,13 @@ public class StepExecutionDBRepository implements StepExecutionRepository {
                 stepExecution.getVersion()
         ));
 
-        stepExecution.popEvents().stream()
-                .map(OutboxMessageEntity::new)
-                .forEach(outboxMessageEntityRepository::save);
+        var outbox = stepExecution.popEvents().stream().map(OutboxMessageEntity::new).toList();
+        outbox.forEach(outboxMessageEntityRepository::save);
+        if (!outbox.isEmpty()) {
+            // Wake this pod's relay once the transaction commits, rather than leaving the row to
+            // be found on the next poll — which is latency added to every step.
+            outboxSignal.raise();
+        }
 
         return stepExecution.id();
     }

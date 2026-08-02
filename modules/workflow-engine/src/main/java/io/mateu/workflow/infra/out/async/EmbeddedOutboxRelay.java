@@ -44,6 +44,7 @@ public class EmbeddedOutboxRelay {
     final ProcessDomainEventUseCase processDomainEventUseCase;
     final JdbcTemplate jdbcTemplate;
     final DbLockDialect dbLockDialect;
+    final OutboxSignal outboxSignal;
 
     @org.springframework.beans.factory.annotation.Value("${workflow.outbox-poll-interval-ms:500}")
     long pollIntervalMs;
@@ -105,7 +106,9 @@ public class EmbeddedOutboxRelay {
                     } catch (Throwable e) {
                         log.error("Error processing embedded outbox messages", e);
                     }
-                    Thread.sleep(pollIntervalMs);
+                    // Same as the Kafka relay: woken by this pod's own writes, polling only as
+                    // the fallback for rows another pod wrote.
+                    outboxSignal.awaitWork(pollIntervalMs);
                 }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
