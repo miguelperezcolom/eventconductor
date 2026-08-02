@@ -22,6 +22,12 @@ spec:
       labels: { part-of: soak }
     spec:
       restartPolicy: Never
+      # Pod-level too, not just per container: a pod with none is flagged as running with the
+      # default (root-capable) context regardless of what its containers declare.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
       containers:
         - name: install
           image: BENCH_IMAGE

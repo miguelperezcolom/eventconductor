@@ -21,6 +21,12 @@ spec:
     metadata:
       labels: { app: soak-worker, part-of: soak }
     spec:
+      # Pod-level too, not just per container: a pod with none is flagged as running with the
+      # default (root-capable) context regardless of what its containers declare.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
       # Spread, so losing one node costs half the worker capacity rather than all of it, and the
       # scenario measures recovery instead of a full stop.
       topologySpreadConstraints:
@@ -70,6 +76,12 @@ spec:
     metadata:
       labels: { app: soak-driver, part-of: soak }
     spec:
+      # Pod-level too, not just per container: a pod with none is flagged as running with the
+      # default (root-capable) context regardless of what its containers declare.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
       # Long enough for the shutdown hook to write the final acknowledged count. Without it a
       # rescheduled driver loses the last few seconds of its own evidence and the conservation
       # check reports a loss the engine never caused.
