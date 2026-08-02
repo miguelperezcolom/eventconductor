@@ -73,6 +73,13 @@ orchestrator:
   # across replicas also has to fit PostgreSQL's max_connections (100 by default): at these
   # defaults that is 16 x replicas.
   dbPoolSize: 16
+  # Fallback timeout, in milliseconds, for ACTION and RULE steps whose definition declares none.
+  # 0 leaves them with no deadline at all, which is the default and is riskier than it sounds: the
+  # timeout scan is an index range over the deadline, so a step without one is never looked at
+  # again. If its dispatch or its worker's reply is lost the process stops permanently, and the
+  # only signal is the eventconductor.steps.stalled gauge. Set this above your slowest task and
+  # the engine retries those steps by itself.
+  defaultStepTimeoutMs: 0
   # Extra environment variables injected verbatim (e.g. git-import config via Spring
   # relaxed binding: WORKFLOW_GITIMPORT_REPOSITORIES_0_URL / _0_BRANCH).
   extraEnv: {}

@@ -31,8 +31,16 @@ EC="$HERE/ec-reliability.sh"
 
 banner() { printf '\n===== %s  (%s) =====\n' "$1" "$(date +%H:%M:%S)"; }
 
+# Prints the count, or nothing at all when the database cannot be reached. Never a zero: during
+# a scenario the database is one of the things that may be down or moving, and a zero would be
+# read as "the engine lost everything" by the very check that is supposed to detect that.
 completed() {
-    "$EC" psql "SELECT count(*) FROM process_entity WHERE business_key LIKE 'soak-%' AND status = 'COMPLETED'" 2>/dev/null || echo 0
+    local n
+    n=$("$EC" psql "SELECT count(*) FROM process_entity WHERE business_key LIKE 'soak-%' AND status = 'COMPLETED'" 2>/dev/null) || return 0
+    case "$n" in
+        ''|*[!0-9]*) return 0 ;;
+        *) printf '%s' "$n" ;;
+    esac
 }
 
 # The only honest definition of "recovered" for an engine whose job is to make progress: the
@@ -56,21 +64,28 @@ await_progress() {
         sleep 5
         now=$(completed)
         local elapsed=$(( $(date +%s) - start ))
-        if [ $(( ${now:-0} - ${before:-0} )) -ge "$MIN_DELTA" ] 2>/dev/null; then
+        if [ -z "$now" ]; then
+            # No reading. Not evidence of anything — hold the baseline and try again.
+            echo "  ${label}: t=${elapsed}s database unreachable"
+        elif [ -n "$before" ] && [ $(( now - before )) -ge "$MIN_DELTA" ]; then
             runs=$(( runs + 1 ))
             if [ "$runs" -ge 2 ]; then
                 echo "  ${label}: progress sustained after ${elapsed}s (completed -> ${now})"
+                RECOVERY_SECONDS="$elapsed"
                 return 0
             fi
+            echo "  ${label}: t=${elapsed}s completed=${now} (rising)"
+            before="$now"
         else
             runs=0
+            echo "  ${label}: t=${elapsed}s completed=${now}"
+            before="$now"
         fi
-        before=${now:-$before}
         if [ "$elapsed" -ge "$timeout" ]; then
-            echo "  ${label}: NO SUSTAINED PROGRESS after ${timeout}s — completed at ${now}"
+            echo "  ${label}: NO SUSTAINED PROGRESS after ${timeout}s — last reading ${now:-none}"
+            RECOVERY_SECONDS="none"
             return 1
         fi
-        echo "  ${label}: t=${elapsed}s completed=${now}"
     done
 }
 
@@ -165,11 +180,21 @@ case "${1:-}" in
     rolling-upgrade)   scenario_rolling_upgrade ;;
     definition-change) scenario_definition_change ;;
     all)
+        # A scenario that fails must not end the run. The whole point is to find out which ones
+        # the engine does not survive, and stopping at the first hides every one after it.
+        summary=""
         for s in pod-kill pod-kill-all rolling-upgrade kafka-stop db-stop node-drain definition-change; do
-            "$0" "$s"
+            if "$0" "$s"; then verdict="recovered"; else verdict="DID NOT RECOVER"; fi
+            summary="${summary}
+  ${s}: ${verdict}"
             echo "  settling for 60s before the next scenario"
             sleep 60
         done
+        banner "summary"
+        printf '%s\n' "$summary"
+        echo
+        echo "  Recovery here means the engine resumed making progress. Whether it LOST anything"
+        echo "  is a different question, answered by: ./ec-reliability.sh drain"
         ;;
     *) sed -n '3,22p' "${BASH_SOURCE[0]}"; exit 1 ;;
 esac

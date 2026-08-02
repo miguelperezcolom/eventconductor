@@ -49,5 +49,13 @@
         </dependency>
 
 
+        <dependency>
+            <!-- Optional so the DTOs stay usable without Spring on the classpath: only
+                 WorkerReply needs this, and only a worker calls it. Optional dependencies are
+                 not transitive, so nothing that merely reads the events picks up the binder. -->
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-stream</artifactId>
+            <optional>true</optional>
+        </dependency>
     </dependencies>
 </project>

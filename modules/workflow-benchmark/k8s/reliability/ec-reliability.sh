@@ -25,13 +25,20 @@ PG="${PG:-deploy/ec-eventconductor-postgres}"
 ORCH="${ORCH:-deploy/ec-eventconductor-orchestrator}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# Bounded on purpose. `kubectl exec deploy/...` resolves the deployment to a pod and then blocks
+# if that pod is being rescheduled — which is not a remote possibility here, it is a thing the
+# scenarios cause: killing the orchestrator tier churned the nodes enough that PostgreSQL itself
+# moved, and an unbounded exec sat there for seven minutes while the run's clock kept running.
+# A missing reading is a missing reading; it must not be reported as a zero.
+EXEC_TIMEOUT="${EXEC_TIMEOUT:-45}"
+
 psql_stdin() {
-    kubectl -n "$NS" exec -i "$PG" -- \
+    kubectl -n "$NS" exec -i --request-timeout="${EXEC_TIMEOUT}s" "$PG" -- \
         sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -f -'
 }
 
 psql_query() {
-    printf '%s\n' "$1" | kubectl -n "$NS" exec -i "$PG" -- \
+    printf '%s\n' "$1" | kubectl -n "$NS" exec -i --request-timeout="${EXEC_TIMEOUT}s" "$PG" -- \
         sh -c 'psql -tA -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -f -'
 }
 

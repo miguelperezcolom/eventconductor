@@ -141,4 +141,10 @@ public class StepExecutionDBRepository implements StepExecutionRepository {
                         PENDING.name(), messageName, correlationKey)
                 .stream().map(this::map).toList();
     }
+
+    @Override
+    public long countStalled(LocalDateTime startedBefore) {
+        return stepExecutionEntityRepository.countByStatusInAndDeadlineAtIsNullAndStartedAtLessThan(
+                List.of(PENDING.name(), RUNNING.name()), startedBefore);
+    }
 }

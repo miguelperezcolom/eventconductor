@@ -74,6 +74,8 @@ spec:
               value: {{ .Values.orchestrator.consumerConcurrency | quote }}
             - name: DB_POOL_SIZE
               value: {{ .Values.orchestrator.dbPoolSize | quote }}
+            - name: DEFAULT_STEP_TIMEOUT_MS
+              value: {{ .Values.orchestrator.defaultStepTimeoutMs | quote }}
             - name: SECURITY_ENABLED
               value: {{ .Values.orchestrator.security.enabled | quote }}
             - name: SECURITY_USER

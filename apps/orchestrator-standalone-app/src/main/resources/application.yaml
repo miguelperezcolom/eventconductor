@@ -72,6 +72,12 @@ spring:
           configuration:
             default.api.timeout.ms: 15000
             request.timeout.ms: 10000
+        # Note: producer sends are synchronous
+        # (spring.cloud.stream.kafka.default.producer.sync=true). That default is contributed by
+        # the engine itself, in SynchronousProducerDefaults, because it is what makes the
+        # transactional outbox transactional — asynchronously, a send to a broker that is down
+        # still reports success and the relay marks the row Sent. It is settable here, but
+        # turning it off trades correctness for a round-trip.
       bindings:
         consumeOutbox-in-0:
           destination: outbox
@@ -174,6 +180,18 @@ spring:
 workflow:
   mode: ${WORKFLOW_MODE:kafka}
   persistence: ${WORKFLOW_PERSISTENCE:jpa}
+  # Fallback timeout for ACTION and RULE steps that declare none. Off by default because the
+  # right value depends on the slowest task your workers legitimately perform, and too low a
+  # value turns healthy slow work into retries.
+  #
+  # Off is not free either. A step with no deadline is invisible to the timeout scan by
+  # construction, so if its dispatch or its worker's reply is lost the process stops there
+  # permanently and nothing reports it. Measured during a broker outage: 3 356 processes ended
+  # that way. Set this to comfortably more than your slowest task and the engine recovers them
+  # itself; leave it off and watch eventconductor.steps.stalled instead.
+  default-step-timeout-ms: ${DEFAULT_STEP_TIMEOUT_MS:0}
+  # How long a live step with no deadline may sit before it is counted as stalled.
+  stalled-step-after-ms: ${STALLED_STEP_AFTER_MS:900000}
   git-import:
     repositories:
       # Example: uncomment and fill in to import workflow definitions from a Git repo at startup
