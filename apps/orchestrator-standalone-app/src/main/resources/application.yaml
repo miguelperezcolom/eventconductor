@@ -69,7 +69,13 @@ spring:
       bindings:
         consumeOutbox-in-0:
           destination: outbox
-          group: orchestrator-group
+          # A consumer group per binding, not one shared between them. A group whose members
+          # subscribe to different topics is assigned by the default range assignor per topic,
+          # and with mixed subscriptions it leaves partitions with no consumer at all: those
+          # messages are never read and the processes waiting on them never move. Observed on a
+          # cluster — 12 members, 7 of 12 partitions assigned, throughput at a quarter of what
+          # the same pods managed once the groups were split.
+          group: orchestrator-outbox
           consumer:
             # A poll batch is committed as one transaction per process instead of one per event:
             # a busy batch carries several events for the same process, and collapsing those into
@@ -78,7 +84,7 @@ spring:
             batch-mode: true
         consumeUpstream-in-0:
           destination: upstream
-          group: orchestrator-group
+          group: orchestrator-upstream
           consumer:
             batch-mode: true
         consumeWorkerEvent-in-0:

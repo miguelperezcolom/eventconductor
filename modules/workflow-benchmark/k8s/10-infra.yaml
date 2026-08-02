@@ -1,0 +1,165 @@
+# PostgreSQL and Kafka, each pinned to a node of its own.
+#
+# The CPU requests are deliberately larger than the spare capacity on a busy 2-vCPU node. That is
+# how each of these lands somewhere fresh: Karpenter cannot fit them next to existing workloads,
+# so it provisions. Shrinking these requests to "make it schedule" would put the database on the
+# same core as the thing measuring it, and the number would describe the contention.
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: ec-bench
+spec:
+  selector: { app: postgres }
+  ports: [{ port: 5432, targetPort: 5432 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: ec-bench
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: postgres } }
+  template:
+    metadata:
+      labels: { app: postgres, bench-role: infra, bench-node-exclusive: "true" }
+    spec:
+      affinity:
+        podAntiAffinity:
+          # No two benchmark roles on one node. Without this the scheduler is free to stack them
+          # and we would be back to measuring a single machine, only with more ceremony.
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions: [{ key: bench-node-exclusive, operator: Exists }]
+              topologyKey: kubernetes.io/hostname
+      securityContext:
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+      containers:
+        - name: postgres
+          image: postgres:16
+          env:
+            - { name: POSTGRES_DB, value: eventconductor }
+            - { name: POSTGRES_USER, value: eventconductor }
+            - { name: POSTGRES_PASSWORD, value: eventconductor }
+            - { name: PGDATA, value: /var/lib/postgresql/data/pgdata }
+          args:
+            - postgres
+            - -c
+            - shared_buffers=512MB
+            - -c
+            - max_connections=300
+            - -c
+            - synchronous_commit=off
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities: { drop: ["ALL"] }
+            seccompProfile: { type: RuntimeDefault }
+            readOnlyRootFilesystem: true
+          ports: [{ containerPort: 5432 }]
+          resources:
+            requests: { cpu: "1500m", memory: "2Gi" }
+          volumeMounts:
+            - { name: data, mountPath: /var/lib/postgresql/data }
+            # With a read-only root these have to be writable somewhere: the unix socket
+            # directory and the scratch space the server uses for sorts and temp files.
+            - { name: run, mountPath: /var/run/postgresql }
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        # emptyDir on purpose: a network volume would make this measure Hetzner's block storage
+        # latency rather than the engine. Nothing here outlives the run.
+        - name: data
+          emptyDir: {}
+        - name: run
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka
+  namespace: ec-bench
+spec:
+  selector: { app: kafka }
+  ports: [{ port: 9092, targetPort: 9092 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kafka
+  namespace: ec-bench
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: kafka } }
+  template:
+    metadata:
+      labels: { app: kafka, bench-role: infra, bench-node-exclusive: "true" }
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions: [{ key: bench-node-exclusive, operator: Exists }]
+              topologyKey: kubernetes.io/hostname
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+      containers:
+        - name: kafka
+          image: apache/kafka:3.9.0
+          env:
+            - { name: KAFKA_NODE_ID, value: "1" }
+            - { name: KAFKA_PROCESS_ROLES, value: "broker,controller" }
+            - { name: KAFKA_LISTENERS, value: "PLAINTEXT://:9092,CONTROLLER://:9093" }
+            - { name: KAFKA_ADVERTISED_LISTENERS, value: "PLAINTEXT://kafka.ec-bench.svc.cluster.local:9092" }
+            - { name: KAFKA_LISTENER_SECURITY_PROTOCOL_MAP, value: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT" }
+            - { name: KAFKA_CONTROLLER_QUORUM_VOTERS, value: "1@localhost:9093" }
+            - { name: KAFKA_CONTROLLER_LISTENER_NAMES, value: "CONTROLLER" }
+            - { name: KAFKA_INTER_BROKER_LISTENER_NAME, value: "PLAINTEXT" }
+            - { name: KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR, value: "1" }
+            - { name: KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR, value: "1" }
+            - { name: KAFKA_TRANSACTION_STATE_LOG_MIN_ISR, value: "1" }
+            - { name: KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS, value: "0" }
+            - { name: KAFKA_NUM_PARTITIONS, value: "6" }
+            - { name: KAFKA_AUTO_CREATE_TOPICS_ENABLE, value: "true" }
+            - { name: CLUSTER_ID, value: "benchmark-cluster-00001" }
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities: { drop: ["ALL"] }
+            seccompProfile: { type: RuntimeDefault }
+            readOnlyRootFilesystem: true
+          ports: [{ containerPort: 9092 }]
+          resources:
+            requests: { cpu: "1500m", memory: "1500Mi" }
+          volumeMounts:
+            # The KRaft log lives under /tmp by default and the broker writes its own logs.
+            - { name: tmp, mountPath: /tmp }
+            - { name: logs, mountPath: /opt/kafka/logs }
+            # And this one is not obvious: the image renders server.properties from the
+            # environment at startup, so with a read-only root it dies on "config/ file not
+            # writable" before it ever reaches Kafka. Seeded from the image's own config by the
+            # init container below, because an empty mount here hides the defaults it needs.
+            - { name: config, mountPath: /opt/kafka/config }
+      initContainers:
+        - name: seed-config
+          image: apache/kafka:3.9.0
+          command: ["sh", "-c", "cp -r /opt/kafka/config/. /seed/"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities: { drop: ["ALL"] }
+            seccompProfile: { type: RuntimeDefault }
+            readOnlyRootFilesystem: true
+          volumeMounts: [{ name: config, mountPath: /seed }]
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: logs
+          emptyDir: {}
+        - name: config
+          emptyDir: {}

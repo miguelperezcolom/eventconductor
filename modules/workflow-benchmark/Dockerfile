@@ -2,17 +2,18 @@
 # driver, so a run spread over several hosts cannot accidentally compare different builds — which
 # is the easiest way to produce a benchmark figure that means nothing.
 #
-# Build from the repository root:
-#   docker build -f modules/workflow-benchmark/Dockerfile -t eventconductor-bench .
-FROM maven:3.9-eclipse-temurin-25 AS build
-WORKDIR /src
-COPY . .
-RUN mvn -q -Pbenchmark -pl modules/workflow-benchmark -am -DskipTests -Djacoco.skip=true package
-
-FROM eclipse-temurin:25-jre
+# It packages a jar built outside rather than building one in a stage of its own. The jar is
+# bytecode and cares nothing for the architecture it was produced on; only the JRE underneath
+# does. That matters when the cluster is amd64 and the machine driving this is not: cross-building
+# a Maven stage under emulation spends half an hour producing a jar identical to the one already
+# on disk.
+#
+#   mvn -q -Pbenchmark -pl modules/workflow-benchmark -am -DskipTests package
+#   docker buildx build --platform linux/amd64 -f modules/workflow-benchmark/Dockerfile \
+#     -t <user>/eventconductor-bench:<tag> --push .
+FROM eclipse-temurin:21-jre
 WORKDIR /app
-COPY --from=build /src/modules/workflow-benchmark/target/workflow-benchmark-*-runnable.jar app.jar
+COPY modules/workflow-benchmark/target/workflow-benchmark-*-runnable.jar app.jar
 # Every knob is a -Dbench.* property; pass them through BENCH_OPTS.
-#   docker run -e BENCH_OPTS="-Dbench.role=pods -Dbench.kafka.brokers=kafka-host:9092" ...
 ENV BENCH_OPTS=""
 ENTRYPOINT ["sh", "-c", "exec java $BENCH_OPTS -jar app.jar"]

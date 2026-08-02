@@ -26,12 +26,12 @@ final class BenchmarkApps {
         props.put("spring.jpa.hibernate.ddl-auto", "update");
         props.put("spring.jpa.open-in-view", "false");
         props.put("spring.cloud.stream.bindings.consumeOutbox-in-0.destination", "outbox");
-        props.put("spring.cloud.stream.bindings.consumeOutbox-in-0.group", "orchestrator-group");
+        props.put("spring.cloud.stream.bindings.consumeOutbox-in-0.group", "orchestrator-outbox");
         props.put("spring.cloud.stream.bindings.consumeOutbox-in-0.consumer.batch-mode", "true");
         props.put("spring.cloud.stream.bindings.consumeOutbox-in-0.consumer.concurrency",
                 String.valueOf(config.consumerConcurrency()));
         props.put("spring.cloud.stream.bindings.consumeUpstream-in-0.destination", "upstream");
-        props.put("spring.cloud.stream.bindings.consumeUpstream-in-0.group", "orchestrator-group");
+        props.put("spring.cloud.stream.bindings.consumeUpstream-in-0.group", "orchestrator-upstream");
         props.put("spring.cloud.stream.bindings.consumeUpstream-in-0.consumer.batch-mode", "true");
         props.put("spring.cloud.stream.bindings.consumeUpstream-in-0.consumer.concurrency",
                 String.valueOf(config.consumerConcurrency()));

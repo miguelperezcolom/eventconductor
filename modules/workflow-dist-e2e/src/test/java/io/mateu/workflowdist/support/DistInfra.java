@@ -118,10 +118,10 @@ public final class DistInfra {
         props.put("spring.cloud.function.definition", "consumeOutbox;consumeUpstream");
         props.put("spring.cloud.stream.kafka.binder.brokers", kafka.getBootstrapServers());
         props.put("spring.cloud.stream.bindings.consumeOutbox-in-0.destination", "outbox");
-        props.put("spring.cloud.stream.bindings.consumeOutbox-in-0.group", "orchestrator-group");
+        props.put("spring.cloud.stream.bindings.consumeOutbox-in-0.group", "orchestrator-outbox");
         props.put("spring.cloud.stream.bindings.consumeOutbox-in-0.consumer.concurrency", tune("consumer-concurrency", "3"));
         props.put("spring.cloud.stream.bindings.consumeUpstream-in-0.destination", "upstream");
-        props.put("spring.cloud.stream.bindings.consumeUpstream-in-0.group", "orchestrator-group");
+        props.put("spring.cloud.stream.bindings.consumeUpstream-in-0.group", "orchestrator-upstream");
         props.put("spring.cloud.stream.bindings.consumeUpstream-in-0.consumer.concurrency", tune("consumer-concurrency", "3"));
         props.put("spring.cloud.stream.kafka.binder.configuration.linger.ms", tune("producer-linger-ms", "0"));
         props.put("spring.cloud.stream.kafka.binder.configuration.fetch.min.bytes", tune("fetch-min-bytes", "1"));
