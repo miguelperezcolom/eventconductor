@@ -1,0 +1,69 @@
+# The three roles, one per node.
+#
+# Image tag is a placeholder the runbook substitutes, so a run always states which build it
+# measured rather than trusting :latest to be what you think it is.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pods
+  namespace: ec-bench
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: pods } }
+  template:
+    metadata:
+      labels: { app: pods, bench-role: pods, bench-node-exclusive: "true" }
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions: [{ key: bench-node-exclusive, operator: Exists }]
+              topologyKey: kubernetes.io/hostname
+      containers:
+        - name: pod
+          image: BENCH_IMAGE
+          env:
+            - name: BENCH_OPTS
+              value: >-
+                -Dbench.role=pods
+                -Dbench.pods=1
+                -Dbench.jdbc.url=jdbc:postgresql://postgres.ec-bench.svc.cluster.local:5432/eventconductor
+                -Dbench.kafka.brokers=kafka.ec-bench.svc.cluster.local:9092
+                -Dbench.consumer.concurrency=3
+                -Dbench.pool-size=20
+                -XX:MaxRAMPercentage=70
+          resources:
+            requests: { cpu: "1500m", memory: "1500Mi" }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker
+  namespace: ec-bench
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: worker } }
+  template:
+    metadata:
+      labels: { app: worker, bench-role: worker, bench-node-exclusive: "true" }
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions: [{ key: bench-node-exclusive, operator: Exists }]
+              topologyKey: kubernetes.io/hostname
+      containers:
+        - name: worker
+          image: BENCH_IMAGE
+          env:
+            - name: BENCH_OPTS
+              value: >-
+                -Dbench.role=worker
+                -Dbench.worker.concurrency=16
+                -Dbench.worker.think-ms=0
+                -Dbench.kafka.brokers=kafka.ec-bench.svc.cluster.local:9092
+                -XX:MaxRAMPercentage=70
+          resources:
+            requests: { cpu: "1000m", memory: "1Gi" }

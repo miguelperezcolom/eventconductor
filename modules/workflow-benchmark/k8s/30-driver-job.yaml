@@ -1,0 +1,39 @@
+# The measurement. A Job, not a Deployment: it runs once, prints the report, and is done.
+#
+# Shares a node with nothing else that matters — it publishes and reads timestamps, and the metric
+# it computes comes from the database, so its own CPU does not enter the figure. It still gets its
+# own node, because a driver competing with a pod for cores would distort the arrival rate it is
+# supposed to be holding steady — and the request is sized above the spare capacity of the
+# existing nodes so it cannot land on one of them either.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: driver
+  namespace: ec-bench
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      labels: { app: driver, bench-role: driver, bench-node-exclusive: "true" }
+    spec:
+      restartPolicy: Never
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions: [{ key: bench-node-exclusive, operator: Exists }]
+              topologyKey: kubernetes.io/hostname
+      containers:
+        - name: driver
+          image: BENCH_IMAGE
+          env:
+            - name: BENCH_OPTS
+              value: >-
+                -Dbench.role=drive
+                -Dbench.processes=2000
+                -Dbench.rate=40
+                -Dbench.jdbc.url=jdbc:postgresql://postgres.ec-bench.svc.cluster.local:5432/eventconductor
+                -Dbench.kafka.brokers=kafka.ec-bench.svc.cluster.local:9092
+                -XX:MaxRAMPercentage=70
+          resources:
+            requests: { cpu: "1000m", memory: "1Gi" }
