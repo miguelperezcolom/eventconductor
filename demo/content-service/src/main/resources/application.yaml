@@ -26,10 +26,13 @@ spring:
         # INPUTS
         consumeOutbox-in-0:
           destination: outbox
-          group: orchestrator-group
+          # A group per binding. One shared between bindings with different destinations is
+          # assigned badly by the default range assignor, which leaves partitions with no
+          # consumer at all — see the orchestrator's own config.
+          group: orchestrator-outbox
         consumeUpstream-in-0:
           destination: upstream
-          group: orchestrator-group
+          group: orchestrator-upstream
         consumeWorkerEvent-in-0:
           destination: downstream
           group: worker-group # A�ade un grupo para persistir el offset

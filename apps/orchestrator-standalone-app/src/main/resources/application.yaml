@@ -124,7 +124,16 @@ spring:
         format_sql: true
 
   flyway:
-    enabled: ${FLYWAY_ENABLED:false}
+    # On by default: the migrations are the schema of record, and they are the only place the
+    # engine's indexes come from. Running without them — which used to be the default — leaves a
+    # schema with primary keys and nothing else, because Hibernate's ddl-auto=update path emits no
+    # index DDL. Every deadline scan, outbox claim and message correlation then becomes a
+    # sequential scan; measured on a cluster, that pinned PostgreSQL at 750m of CPU and cut
+    # throughput to a fraction.
+    #
+    # Safe to enable on a schema that ddl-auto already created: it baselines at V1 and every later
+    # migration is written with IF NOT EXISTS.
+    enabled: ${FLYWAY_ENABLED:true}
     locations: classpath:db/migration/workflow
     baseline-on-migrate: true
     baseline-version: 1
