@@ -276,6 +276,19 @@
     </profile>
 
     <!--
+      Benchmark harness. Excluded from the default build: it is not a test, it produces
+      measurements, and it needs PostgreSQL and Kafka that you provide.
+      Run with: mvn -Pbenchmark -pl modules/workflow-benchmark -am compile exec:java
+      See modules/workflow-benchmark/README.md.
+    -->
+    <profile>
+      <id>benchmark</id>
+      <modules>
+        <module>modules/workflow-benchmark</module>
+      </modules>
+    </profile>
+
+    <!--
       GPG signing only kicks in when the "release" profile is active, which is
       what the build-and-publish workflow does. CI builds (mvn verify) don't
       have a GPG key and would otherwise fail on the sign goal.

@@ -1,0 +1,12 @@
+{
+  "id": "bench-3-steps",
+  "name": "Benchmark: three sequential worker steps",
+  "version": 1,
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "s1", "type": "ACTION", "name": "Step 1", "topic": "bench", "preconditionStepId": "start" },
+    { "id": "s2", "type": "ACTION", "name": "Step 2", "topic": "bench", "preconditionStepId": "s1" },
+    { "id": "s3", "type": "ACTION", "name": "Step 3", "topic": "bench", "preconditionStepId": "s2" },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "s3" }
+  ]
+}
