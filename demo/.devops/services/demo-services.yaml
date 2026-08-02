@@ -12,6 +12,9 @@ spec:
     metadata:
       labels: { app: api-gw }
     spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: { type: RuntimeDefault }
       nodeSelector: { kubernetes.io/arch: amd64 }
       containers:
         - name: api-gw
@@ -19,6 +22,9 @@ spec:
           imagePullPolicy: IfNotPresent
           ports:
             - { containerPort: 8191 }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: [\"ALL\"] }
           env:
             - { name: SHELL_URL, value: "http://shell:8101" }
             - { name: USERS_URL, value: "http://users-service:8102" }
@@ -63,6 +69,9 @@ spec:
     metadata:
       labels: { app: shell }
     spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: { type: RuntimeDefault }
       nodeSelector: { kubernetes.io/arch: amd64 }
       containers:
         - name: shell
@@ -70,6 +79,9 @@ spec:
           imagePullPolicy: IfNotPresent
           ports:
             - { containerPort: 8101 }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: [\"ALL\"] }
           resources:
             requests: { memory: "448Mi", cpu: "150m" }
             limits:   { memory: "1Gi", cpu: "1" }
@@ -104,6 +116,9 @@ spec:
     metadata:
       labels: { app: users-service }
     spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: { type: RuntimeDefault }
       nodeSelector: { kubernetes.io/arch: amd64 }
       containers:
         - name: users-service
@@ -111,6 +126,9 @@ spec:
           imagePullPolicy: IfNotPresent
           ports:
             - { containerPort: 8102 }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: [\"ALL\"] }
           resources:
             requests: { memory: "448Mi", cpu: "150m" }
             limits:   { memory: "1Gi", cpu: "1" }
@@ -145,6 +163,9 @@ spec:
     metadata:
       labels: { app: control-plane-service }
     spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: { type: RuntimeDefault }
       nodeSelector: { kubernetes.io/arch: amd64 }
       containers:
         - name: control-plane-service
@@ -152,6 +173,9 @@ spec:
           imagePullPolicy: IfNotPresent
           ports:
             - { containerPort: 8103 }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: [\"ALL\"] }
           resources:
             requests: { memory: "448Mi", cpu: "150m" }
             limits:   { memory: "1Gi", cpu: "1" }
@@ -186,6 +210,9 @@ spec:
     metadata:
       labels: { app: content-service }
     spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: { type: RuntimeDefault }
       nodeSelector: { kubernetes.io/arch: amd64 }
       containers:
         - name: content-service
@@ -193,6 +220,9 @@ spec:
           imagePullPolicy: IfNotPresent
           ports:
             - { containerPort: 8104 }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: [\"ALL\"] }
           resources:
             requests: { memory: "448Mi", cpu: "150m" }
             limits:   { memory: "1Gi", cpu: "1" }
@@ -227,6 +257,9 @@ spec:
     metadata:
       labels: { app: booking-service }
     spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: { type: RuntimeDefault }
       nodeSelector: { kubernetes.io/arch: amd64 }
       containers:
         - name: booking-service
@@ -234,6 +267,9 @@ spec:
           imagePullPolicy: IfNotPresent
           ports:
             - { containerPort: 8108 }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: [\"ALL\"] }
           resources:
             requests: { memory: "448Mi", cpu: "150m" }
             limits:   { memory: "1Gi", cpu: "1" }
@@ -268,6 +304,9 @@ spec:
     metadata:
       labels: { app: ia-agent-service }
     spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: { type: RuntimeDefault }
       nodeSelector: { kubernetes.io/arch: amd64 }
       containers:
         - name: ia-agent-service
@@ -275,6 +314,9 @@ spec:
           imagePullPolicy: IfNotPresent
           ports:
             - { containerPort: 8095 }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: [\"ALL\"] }
           env:
             - { name: WORKFLOW_URL, value: "http://orchestrator.eventconductor.svc.cluster.local:8105" }
             - { name: FORMS_URL, value: "http://forms.eventconductor.svc.cluster.local:8106" }
@@ -313,6 +355,9 @@ spec:
     metadata:
       labels: { app: static-content-server }
     spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: { type: RuntimeDefault }
       nodeSelector: { kubernetes.io/arch: amd64 }
       containers:
         - name: static-content-server
@@ -320,6 +365,9 @@ spec:
           imagePullPolicy: IfNotPresent
           ports:
             - { containerPort: 8107 }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: [\"ALL\"] }
           resources:
             requests: { memory: "448Mi", cpu: "150m" }
             limits:   { memory: "1Gi", cpu: "1" }

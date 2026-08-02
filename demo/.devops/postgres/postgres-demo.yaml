@@ -26,10 +26,13 @@ spec:
     metadata: { labels: { app: postgres-demo } }
     spec:
       nodeSelector: { kubernetes.io/arch: amd64 }
-      securityContext: { runAsNonRoot: true, runAsUser: 70, fsGroup: 70 }
+      securityContext: { runAsNonRoot: true, runAsUser: 70, fsGroup: 70, seccompProfile: { type: RuntimeDefault } }
       containers:
         - name: postgres
           image: postgres:16
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
           env:
             - { name: PGDATA, value: /var/lib/postgresql/data/pgdata }
           envFrom:

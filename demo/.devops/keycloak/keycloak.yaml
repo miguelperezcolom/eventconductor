@@ -13,9 +13,15 @@ spec:
     metadata:
       labels: { app: keycloak }
     spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: { type: RuntimeDefault }
       containers:
         - name: keycloak
           image: quay.io/keycloak/keycloak:26.0
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
           args: ["start-dev", "--import-realm"]
           env:
             - name: KC_BOOTSTRAP_ADMIN_USERNAME

@@ -7,6 +7,9 @@ spec:
   template:
     metadata: { labels: { app: worker } }
     spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: { type: RuntimeDefault }
       nodeSelector: { kubernetes.io/arch: amd64 }
       imagePullSecrets: [ { name: dockerhub } ]
       containers:
@@ -16,6 +19,9 @@ spec:
             - { name: KAFKA_BROKERS, value: "redpanda:19092" }
             - { name: SPRING_APPLICATION_JSON, value: '{"workflow.mode":"kafka","workflow.persistence":"memory","spring.autoconfigure.exclude":"org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration"}' }
           ports: [ { containerPort: 8091 } ]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: [\"ALL\"] }
           resources:
             requests: { memory: "448Mi", cpu: "150m" }
             limits:   { memory: "1Gi", cpu: "1" }
