@@ -80,7 +80,7 @@ spec:
       nodeSelector: { kubernetes.io/arch: amd64 }
       containers:
         - name: shell
-          image: miguelperezcolom/mateu-demo-shell:0.1.0
+          image: miguelperezcolom/mateu-demo-shell:0.1.1-edge
           imagePullPolicy: IfNotPresent
           securityContext:
             allowPrivilegeEscalation: false
