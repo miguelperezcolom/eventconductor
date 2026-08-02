@@ -121,6 +121,7 @@ public final class DistInfra {
         props.put("spring.cloud.stream.bindings.upstream.destination", "upstream");
         props.put("spring.cloud.stream.bindings.downstream.destination", "downstream");
         props.put("spring.cloud.stream.bindings.outbox.destination", "outbox");
+        props.put("spring.cloud.stream.bindings.deadLetter.destination", "dead-letter");
         // No actuator/MeterRegistry in the test classpath.
         props.put("spring.autoconfigure.exclude",
                 "io.mateu.workflow.autoconfigure.WorkflowMetricsAutoConfiguration");

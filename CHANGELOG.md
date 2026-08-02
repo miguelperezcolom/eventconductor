@@ -17,14 +17,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   is not swallowed: the event is not defective, it just lost a race, so retrying is the right
   answer rather than a log line.
 
-### Known gap
-- **Failures other than that one are still logged and dropped, with no dead letter.** An event the
-  engine genuinely cannot process — a worker reporting a task id that no longer exists, say — is
-  logged and forgotten in every mode. It should go to a dead-letter topic where it can be
-  inspected and replayed. Doing it properly needs retry classification, a DLQ binding, and a
-  parking path for embedded mode (where propagating instead would turn a poison message into an
-  endless relay loop), so it is not bolted onto this change. `DIST-12` covers the part that must
-  hold in the meantime: one unprocessable event does not stall the traffic around it.
+- **An event the engine cannot process is parked instead of vanishing into a log line.** It used
+  to be caught inside the event use cases, logged once, and forgotten: never retried, never
+  visible, and invisible to anyone not reading that log. Those catches are gone. A failure now
+  reaches whoever delivered the event, which is the only place that can decide what to do with it,
+  because the answer depends on how it arrived.
+
+  **The policy is retry forever, or park at once — never "retry N times, then give up".** N
+  attempts is a guess about how long an outage lasts, and getting the guess wrong drops events
+  that would have worked. `EventFailures` decides: only failures known to be about the
+  environment — database unreachable, lock not obtained, a lost race — are retryable, and the
+  classification is deliberately narrow because being wrong towards parking is the safer
+  direction. A parked event can be replayed once someone understands it; an event retried for
+  ever is a loop nobody reads.
+
+  Where it parks depends on the topology, because the two have different queues. In `kafka` mode
+  it goes to a **dead-letter topic** (`deadLetter` binding), payload untouched so replaying is
+  just republishing it on the destination its `x-dead-letter-source` header names, with the
+  failure in headers and the process still as the key. In `embedded` mode the outbox table *is*
+  the queue, so the resting place is its existing `Error` status — visible in the table, replayed
+  by setting the row back to `Pending`. That path also fixes a quieter bug: a failed message was
+  left `Pending`, so an event that could never succeed was retried every cycle for ever.
+
+  New counter `eventconductor.events.dead.lettered` — the one that should make somebody look, since
+  a retry is the engine coping and a dead letter is the engine giving up. Specs `DIST-12` and
+  `E2E-DLQ-01`.
 
 ### Changed
 - **A Kafka poll batch is committed as one transaction per process, not one per event.** A busy

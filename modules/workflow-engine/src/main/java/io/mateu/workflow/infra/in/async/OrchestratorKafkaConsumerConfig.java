@@ -27,17 +27,18 @@ public class OrchestratorKafkaConsumerConfig {
     final ProcessDomainEventUseCase processDomainEventUseCase;
     final ProcessUpstreamEventUseCase processUpstreamEventUseCase;
     final TransactionTemplate transactionTemplate;
+    final io.mateu.workflow.application.out.DeadLetterPublisher deadLetterPublisher;
 
     @Bean
     public Consumer<Message<List<DomainEvent>>> consumeOutbox() {
         return message -> perProcess(message.getPayload(), event ->
-                processDomainEventUseCase.handle(new ProcessDomainEventCommand(event)));
+                processDomainEventUseCase.handle(new ProcessDomainEventCommand(event)), "outbox");
     }
 
     @Bean
     public Consumer<List<DomainEvent>> consumeUpstream() {
         return events -> perProcess(events, event ->
-                processUpstreamEventUseCase.handle(new ProcessUpstreamEventCommand(event)));
+                processUpstreamEventUseCase.handle(new ProcessUpstreamEventCommand(event)), "upstream");
     }
 
     /**
@@ -57,6 +58,10 @@ public class OrchestratorKafkaConsumerConfig {
      * each get their own transaction.
      */
     private void perProcess(List<DomainEvent> events, Consumer<DomainEvent> handle) {
+        perProcess(events, handle, "unknown");
+    }
+
+    private void perProcess(List<DomainEvent> events, Consumer<DomainEvent> handle, String source) {
         var byProcess = new LinkedHashMap<String, List<DomainEvent>>();
         for (var event : events) {
             var key = event.partitionKey() == null
@@ -73,16 +78,17 @@ public class OrchestratorKafkaConsumerConfig {
                             log.debug("Processing {}", event);
                             handle.accept(event);
                         }));
-            } catch (io.mateu.workflow.application.out.ConcurrentProcessAccessException e) {
-                // Lost a race rather than failed: let it out so the binder redelivers the batch
-                // instead of committing over work that never happened. Handlers are idempotent,
-                // so the slices that did commit are harmless to repeat.
-                throw e;
             } catch (Exception e) {
-                // One process's slice failed and rolled back; the others in this batch are
-                // unaffected. Today that failure is logged and the events are dropped — see the
-                // dead-letter gap noted in the changelog.
-                log.error("Batch slice for process {} failed and was rolled back", group.getKey(), e);
+                if (io.mateu.workflow.application.services.EventFailures.isRetryable(e)) {
+                    // The environment, not the event: let it out so the binder redelivers the
+                    // batch rather than committing over work that never happened. Handlers are
+                    // idempotent, so repeating the slices that did commit is harmless.
+                    throw e;
+                }
+                // This slice will fail the same way forever. Park its events where someone can
+                // look at them and replay them, and let the rest of the batch through — the
+                // alternative is a poison event stalling a partition for good.
+                group.getValue().forEach(event -> deadLetterPublisher.park(event, e, source));
             }
         }
     }

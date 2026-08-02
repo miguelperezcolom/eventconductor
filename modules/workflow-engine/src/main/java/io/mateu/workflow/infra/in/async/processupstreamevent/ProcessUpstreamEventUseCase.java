@@ -18,18 +18,13 @@ public class ProcessUpstreamEventUseCase {
         log.info("Processing domain event: " + command.event());
         handlers.stream()
                 .filter(h -> h.canHandle(command.event()))
-                .forEach(h -> {
-                    try {
-                        h.handle(command.event());
-                    } catch (io.mateu.workflow.application.out.ConcurrentProcessAccessException e) {
-                        // Not a bad event, just one that lost a race. It has to reach the
-                        // consumer so the offset is not committed over work that never
-                        // happened — swallowing it here is how such an event disappears.
-                        throw e;
-                    } catch (Throwable e) {
-                        log.error("Error processing domain event", e);
-                    }
-                });
+                // Failures are not caught here. Swallowing them was how an event the engine
+                // could not process disappeared: logged once, never retried, never parked,
+                // invisible to anyone not reading that log. Whoever delivered the event decides
+                // what to do with the failure — retry it if the environment was at fault, park
+                // it on the dead-letter destination if the event itself is defective — and that
+                // decision cannot be made here, because it depends on how the event arrived.
+                .forEach(h -> h.handle(command.event()));
     }
 
 }

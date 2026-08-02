@@ -30,6 +30,7 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
     public static final String STEP_RETRIES = "eventconductor.step.retries";
     public static final String STEP_COMPENSATIONS = "eventconductor.step.compensations";
     public static final String CONCURRENT_WRITES_REJECTED = "eventconductor.process.concurrent.writes.rejected";
+    public static final String EVENTS_DEAD_LETTERED = "eventconductor.events.dead.lettered";
     public static final String PROCESSES_RUNNING = "eventconductor.process.running";
     public static final String OUTBOX_PENDING = "eventconductor.outbox.pending";
 
@@ -107,6 +108,15 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
     public void concurrentWriteRejected(String processId) {
         Counter.builder(CONCURRENT_WRITES_REJECTED)
                 .description("Writes rejected by optimistic locking because another writer had the process")
+                .register(registry)
+                .increment();
+    }
+
+    @Override
+    public void eventDeadLettered(String source) {
+        Counter.builder(EVENTS_DEAD_LETTERED)
+                .description("Events parked on the dead-letter destination as unprocessable")
+                .tag("source", tagValue(source))
                 .register(registry)
                 .increment();
     }

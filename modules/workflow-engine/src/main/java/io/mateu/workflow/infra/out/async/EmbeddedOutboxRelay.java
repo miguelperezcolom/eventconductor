@@ -82,7 +82,19 @@ public class EmbeddedOutboxRelay {
                                         m.setStatus(OutboxMessageStatus.Sent.name());
                                         outboxMessageEntityRepository.save(m);
                                     } catch (Exception e) {
-                                        log.error("Failed to process embedded outbox message {}, will retry next cycle", m.getId(), e);
+                                        if (io.mateu.workflow.application.services.EventFailures.isRetryable(e)) {
+                                            log.error("Failed to process embedded outbox message {}, will retry next cycle", m.getId(), e);
+                                        } else {
+                                            // Never going to succeed. Park it as Error — the same
+                                            // resting place an undeserializable message gets, and
+                                            // the embedded equivalent of a dead-letter topic:
+                                            // visible in the table, replayable by putting it back
+                                            // to Pending. Left Pending it would be retried every
+                                            // cycle, for ever.
+                                            log.error("Embedded outbox message {} cannot be processed, marking as Error", m.getId(), e);
+                                            m.setStatus(OutboxMessageStatus.Error.name());
+                                            outboxMessageEntityRepository.save(m);
+                                        }
                                     }
                                 });
                             } finally {
