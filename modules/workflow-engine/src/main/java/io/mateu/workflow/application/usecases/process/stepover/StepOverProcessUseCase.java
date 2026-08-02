@@ -4,7 +4,6 @@ import io.mateu.workflow.application.out.ProcessLockService;
 import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.out.WorkflowMetrics;
-import io.mateu.workflow.application.services.ProcessLocks;
 import io.mateu.workflow.application.usecases.process.childcancel.CancelChildProcessService;
 import io.mateu.workflow.application.usecases.process.parentnotify.NotifyParentStepService;
 import io.mateu.workflow.domain.services.WorkflowOrchestrationService;
@@ -29,15 +28,9 @@ public class StepOverProcessUseCase {
         // Serialize per process: two concurrent step-overs (e.g. two parallel steps
         // completing at once, or two pods handling events for the same process) would
         // both see the next step as CREATED and dispatch it twice.
-        if (!ProcessLocks.lockWithRetry(processLockService, command.processId())) {
+        if (!processLockService.runExclusively(command.processId(), () -> doHandle(command))) {
             log.error("Could not acquire lock for process {}, skipping step-over (another node is working on it)",
                     command.processId());
-            return;
-        }
-        try {
-            doHandle(command);
-        } finally {
-            processLockService.unlock(command.processId());
         }
     }
 

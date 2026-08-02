@@ -30,54 +30,52 @@ public class CheckStepTimeoutHandler {
     final WorkflowMetrics workflowMetrics;
 
     public void handle(CheckStepTimeoutCommand command) {
-        var stepExecution = stepExecutionRepository.findById(command.stepExecutionId()).orElseThrow();
-        var processId = stepExecution.getProcessId();
+        var processId = stepExecutionRepository.findById(command.stepExecutionId())
+                .orElseThrow().getProcessId();
 
-        if (!processLockService.tryLock(processId)) {
+        if (!processLockService.runExclusively(processId, () -> doHandle(command))) {
             log.debug("Could not acquire lock for process {}, skipping timeout check", processId);
+        }
+    }
+
+    private void doHandle(CheckStepTimeoutCommand command) {
+        // Re-read inside the lock to avoid TOCTOU: another pod may have already updated the status
+        var stepExecution = stepExecutionRepository.findById(command.stepExecutionId()).orElseThrow();
+
+        if (!StepExecutionStatus.PENDING.equals(stepExecution.getStatus())
+                && !StepExecutionStatus.RUNNING.equals(stepExecution.getStatus())) {
             return;
         }
-        try {
-            // Re-read inside the lock to avoid TOCTOU: another pod may have already updated the status
-            stepExecution = stepExecutionRepository.findById(command.stepExecutionId()).orElseThrow();
 
-            if (!StepExecutionStatus.PENDING.equals(stepExecution.getStatus())
-                    && !StepExecutionStatus.RUNNING.equals(stepExecution.getStatus())) {
-                return;
-            }
+        var step = pojoFromJson(stepExecution.getStepJson(), Step.class);
 
-            var step = pojoFromJson(stepExecution.getStepJson(), Step.class);
-
-            if (step.timeout() <= 0 || stepExecution.getStartedAt() == null) {
-                return;
-            }
-
-            var timeoutAt = stepExecution.getStartedAt().plus(step.timeout(), ChronoUnit.MILLIS);
-            if (LocalDateTime.now().isBefore(timeoutAt)) {
-                return;
-            }
-
-            stepExecution.updateStatus(StepExecutionStatus.TIMEOUT);
-            stepExecutionRepository.save(stepExecution);
-
-            workflowMetrics.stepExecutionFinished(stepExecution.getWorkflowDefinitionId(),
-                    StepExecutionStatus.TIMEOUT,
-                    Duration.between(stepExecution.getStartedAt(), LocalDateTime.now()));
-
-            logMessageRepository.save(new LogMessage(
-                    UUID.randomUUID().toString(),
-                    LocalDateTime.now(),
-                    stepExecution.getProcessId(),
-                    stepExecution.id(),
-                    MessageType.Error.name(),
-                    "Step timed out after " + Duration.ofMillis(step.timeout()),
-                    "system"
-            ));
-            // Compensation (and retry) is handled centrally by StepExecutionStatusUpdatedEventHandler
-            // when it receives the TIMEOUT status change event.
-        } finally {
-            processLockService.unlock(processId);
+        if (step.timeout() <= 0 || stepExecution.getStartedAt() == null) {
+            return;
         }
+
+        var timeoutAt = stepExecution.getStartedAt().plus(step.timeout(), ChronoUnit.MILLIS);
+        if (LocalDateTime.now().isBefore(timeoutAt)) {
+            return;
+        }
+
+        stepExecution.updateStatus(StepExecutionStatus.TIMEOUT);
+        stepExecutionRepository.save(stepExecution);
+
+        workflowMetrics.stepExecutionFinished(stepExecution.getWorkflowDefinitionId(),
+                StepExecutionStatus.TIMEOUT,
+                Duration.between(stepExecution.getStartedAt(), LocalDateTime.now()));
+
+        logMessageRepository.save(new LogMessage(
+                UUID.randomUUID().toString(),
+                LocalDateTime.now(),
+                stepExecution.getProcessId(),
+                stepExecution.id(),
+                MessageType.Error.name(),
+                "Step timed out after " + Duration.ofMillis(step.timeout()),
+                "system"
+        ));
+        // Compensation (and retry) is handled centrally by StepExecutionStatusUpdatedEventHandler
+        // when it receives the TIMEOUT status change event.
     }
 
 }

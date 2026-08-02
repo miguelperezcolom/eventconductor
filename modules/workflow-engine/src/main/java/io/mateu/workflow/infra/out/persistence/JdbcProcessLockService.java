@@ -1,30 +1,33 @@
 package io.mateu.workflow.infra.out.persistence;
 
 import io.mateu.workflow.application.out.ProcessLockService;
-import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.jdbc.core.ConnectionCallback;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
-
-import javax.sql.DataSource;
-import java.sql.Connection;
-import java.time.Instant;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * Database-agnostic advisory-lock implementation of ProcessLockService.
- * The actual locking SQL is delegated to DbLockDialect, which is auto-detected
- * from the JDBC connection metadata (PostgreSQL, MariaDB/MySQL, Oracle).
+ * Per-process exclusion as a row lock on the process itself: the action runs in a transaction
+ * that opens by taking {@code SELECT … FOR UPDATE} on its row, and the commit releases it.
  *
- * The connection that acquires the lock is held in a map until unlock() is called,
- * guaranteeing that both operations run on the same session (advisory locks are
- * session-scoped in all supported databases).
+ * <p>This replaced an advisory lock, and the reason was not elegance. That implementation took a
+ * connection out of the pool and <b>held it for the whole critical section</b> — advisory locks
+ * are session-scoped, so lock and unlock had to run on the same session — while the work inside
+ * needed a second connection of its own. Two connections per in-flight process meant the pool
+ * size, not the database, capped concurrency, and past that point the failure mode was not
+ * slowness but a wedge: lock holders waiting for a connection to do the work they hold the lock
+ * for. It also needed a watchdog to force-release locks held too long, which could take
+ * exclusivity away from an operation that was still running.
  *
- * A watchdog thread runs every 60 s and force-releases any lock held for longer
- * than STALE_LOCK_THRESHOLD_SECONDS. Lock-protected operations are expected to
- * complete in well under a second, so a 60 s threshold is a safe safety net.
+ * <p>The row lock costs one connection — the one the work already uses — is released by the
+ * commit rather than by remembering to, queues fairly in the database instead of sleeping and
+ * retrying, and is reentrant within a transaction. Waiting is bounded by a statement timeout,
+ * which is portable across the supported databases in a way that per-vendor lock-timeout
+ * settings are not.
  */
 @Service
 @ConditionalOnProperty(name = "workflow.persistence", havingValue = "jpa")
@@ -32,83 +35,44 @@ import java.util.concurrent.ConcurrentHashMap;
 @Slf4j
 public class JdbcProcessLockService implements ProcessLockService {
 
-    private static final long STALE_LOCK_THRESHOLD_SECONDS = 60;
-    private static final long WATCHDOG_INTERVAL_MS = 60_000;
+    final JdbcTemplate jdbcTemplate;
+    final TransactionTemplate transactionTemplate;
 
-    private record LockEntry(Connection connection, Instant acquiredAt) {}
-
-    private final DataSource dataSource;
-    private final DbLockDialect dialect;
-    private final ConcurrentHashMap<Long, LockEntry> heldLocks = new ConcurrentHashMap<>();
-
-    @PostConstruct
-    public void startWatchdog() {
-        Thread t = new Thread(() -> {
-            while (!Thread.currentThread().isInterrupted()) {
-                try {
-                    Thread.sleep(WATCHDOG_INTERVAL_MS);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    break;
-                }
-                Instant cutoff = Instant.now().minusSeconds(STALE_LOCK_THRESHOLD_SECONDS);
-                heldLocks.forEach((key, entry) -> {
-                    if (entry.acquiredAt().isBefore(cutoff)) {
-                        log.warn("Releasing stale lock {} held since {} (exceeded {}s threshold)",
-                                key, entry.acquiredAt(), STALE_LOCK_THRESHOLD_SECONDS);
-                        forceRelease(key, entry);
-                    }
-                });
-            }
-        }, "process-lock-watchdog");
-        t.setDaemon(true);
-        t.start();
-    }
+    @Value("${workflow.process-lock-timeout-seconds:10}")
+    int lockTimeoutSeconds;
 
     @Override
-    public boolean tryLock(String processId) {
-        long key = toLockKey(processId);
+    public boolean runExclusively(String processId, Runnable action) {
         try {
-            Connection con = dataSource.getConnection();
-            if (dialect.tryLock(con, key)) {
-                heldLocks.put(key, new LockEntry(con, Instant.now()));
+            return Boolean.TRUE.equals(transactionTemplate.execute(status -> {
+                lockRow(processId);
+                action.run();
                 return true;
-            }
-            con.close();
+            }));
+        } catch (Exception e) {
+            // A statement timeout waiting for the row, or a deadlock the database broke. Either
+            // way another node has this process; the caller decides whether that deserves a log
+            // line or whether the event that triggered it will simply come round again.
+            log.warn("Could not obtain exclusive access to process {} ({})", processId, e.getMessage());
             return false;
-        } catch (Exception e) {
-            throw new RuntimeException("Error acquiring lock for process " + processId, e);
         }
     }
 
-    @Override
-    public void unlock(String processId) {
-        long key = toLockKey(processId);
-        LockEntry entry = heldLocks.remove(key);
-        if (entry == null) return;
-        try {
-            dialect.unlock(entry.connection(), key);
-        } catch (Exception e) {
-            throw new RuntimeException("Error releasing lock for process " + processId, e);
-        } finally {
-            try { entry.connection().close(); } catch (Exception ignored) {}
-        }
-    }
-
-    private void forceRelease(long key, LockEntry entry) {
-        if (heldLocks.remove(key, entry)) {
-            try {
-                dialect.unlock(entry.connection(), key);
-            } catch (Exception e) {
-                log.error("Error force-releasing stale lock {}", key, e);
-            } finally {
-                try { entry.connection().close(); } catch (Exception ignored) {}
+    private void lockRow(String processId) {
+        jdbcTemplate.execute((ConnectionCallback<Void>) con -> {
+            try (var ps = con.prepareStatement("SELECT id FROM process_entity WHERE id = ? FOR UPDATE")) {
+                ps.setQueryTimeout(lockTimeoutSeconds);
+                ps.setString(1, processId);
+                try (var rs = ps.executeQuery()) {
+                    if (!rs.next()) {
+                        // Nothing can be concurrently modifying a process that does not exist,
+                        // so let the action run and fail on its own lookup with an error that
+                        // says so, rather than reporting this as a lock problem.
+                        log.debug("No process row {} to lock", processId);
+                    }
+                }
             }
-        }
-    }
-
-    static long toLockKey(String processId) {
-        UUID uuid = UUID.fromString(processId);
-        return uuid.getMostSignificantBits() ^ uuid.getLeastSignificantBits();
+            return null;
+        });
     }
 }

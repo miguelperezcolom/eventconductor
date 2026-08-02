@@ -6,6 +6,7 @@ import io.mateu.workflow.application.out.ProcessLockService;
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.out.WorkflowMetrics;
 import io.mateu.workflow.domain.aggregates.*;
+import io.mateu.workflow.support.RunsTheAction;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -18,6 +19,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -44,7 +46,7 @@ class CheckStepTimeoutHandlerTest {
     void setsTimeoutStatusAndLogsWhenTimedOut() {
         var se = pendingSeWithTimeout(100, LocalDateTime.now().minusSeconds(60));
         when(stepExecutionRepository.findById("se-1")).thenReturn(Optional.of(se));
-        when(processLockService.tryLock("p-1")).thenReturn(true);
+        when(processLockService.runExclusively(eq("p-1"), any())).thenAnswer(RunsTheAction.granted());
 
         handler.handle(new CheckStepTimeoutCommand("se-1"));
 
@@ -53,14 +55,14 @@ class CheckStepTimeoutHandlerTest {
         assertThat(captor.getValue().getStatus()).isEqualTo(StepExecutionStatus.TIMEOUT);
         verify(logMessageRepository).save(any());
         verify(workflowMetrics).stepExecutionFinished(any(), eq(StepExecutionStatus.TIMEOUT), any());
-        verify(processLockService).unlock("p-1");
+        verify(processLockService).runExclusively(eq("p-1"), any());
     }
 
     @Test
     void skipsWhenLockNotAcquired() {
         var se = pendingSeWithTimeout(100, LocalDateTime.now().minusSeconds(60));
         when(stepExecutionRepository.findById("se-1")).thenReturn(Optional.of(se));
-        when(processLockService.tryLock("p-1")).thenReturn(false);
+        when(processLockService.runExclusively(eq("p-1"), any())).thenReturn(false);
 
         handler.handle(new CheckStepTimeoutCommand("se-1"));
 
@@ -72,35 +74,35 @@ class CheckStepTimeoutHandlerTest {
         var se = pendingSeWithTimeout(100, LocalDateTime.now().minusSeconds(60))
                 .withStatus(StepExecutionStatus.COMPLETED);
         when(stepExecutionRepository.findById("se-1")).thenReturn(Optional.of(se));
-        when(processLockService.tryLock("p-1")).thenReturn(true);
+        when(processLockService.runExclusively(eq("p-1"), any())).thenAnswer(RunsTheAction.granted());
 
         handler.handle(new CheckStepTimeoutCommand("se-1"));
 
         verify(stepExecutionRepository, never()).save(any());
-        verify(processLockService).unlock("p-1");
+        verify(processLockService).runExclusively(eq("p-1"), any());
     }
 
     @Test
     void skipsWhenNotYetTimedOut() {
         var se = pendingSeWithTimeout(Long.MAX_VALUE, LocalDateTime.now());
         when(stepExecutionRepository.findById("se-1")).thenReturn(Optional.of(se));
-        when(processLockService.tryLock("p-1")).thenReturn(true);
+        when(processLockService.runExclusively(eq("p-1"), any())).thenAnswer(RunsTheAction.granted());
 
         handler.handle(new CheckStepTimeoutCommand("se-1"));
 
         verify(stepExecutionRepository, never()).save(any());
-        verify(processLockService).unlock("p-1");
+        verify(processLockService).runExclusively(eq("p-1"), any());
     }
 
     @Test
     void skipsWhenTimeoutIsZero() {
         var se = pendingSeWithTimeout(0, LocalDateTime.now().minusSeconds(60));
         when(stepExecutionRepository.findById("se-1")).thenReturn(Optional.of(se));
-        when(processLockService.tryLock("p-1")).thenReturn(true);
+        when(processLockService.runExclusively(eq("p-1"), any())).thenAnswer(RunsTheAction.granted());
 
         handler.handle(new CheckStepTimeoutCommand("se-1"));
 
         verify(stepExecutionRepository, never()).save(any());
-        verify(processLockService).unlock("p-1");
+        verify(processLockService).runExclusively(eq("p-1"), any());
     }
 }

@@ -15,6 +15,7 @@ description: Complete reference for all EventConductor configuration properties.
 | `workflow.cron-enabled` | `true` \| `false` | `true` | Master switch for cron-scheduled process starts |
 | `workflow.outbox-poll-interval-ms` | ms | `500` | How long a relay waits after finding the outbox empty. It drains until empty before waiting, so this is idle latency, not a throughput cap: the delay a message sees when the outbox was quiet, added to every step hop in `kafka` mode. The poll itself is an indexed lookup that normally returns nothing. Was `5000` before 1.0-beta.015 |
 | `workflow.outbox.relay-enabled` | `true` \| `false` | `true` | Enables the outbox relay (set to `false` to disable event relaying entirely) |
+| `workflow.process-lock-timeout-seconds` | s | `10` | How long to wait for exclusive access to a process before giving up. Exclusivity is a row lock on the process, so this is a statement timeout on the wait, not a spin: the caller queues in the database and is woken in turn |
 | `workflow.outbox.batch-size` | int | `100` | How many messages a relay claims per batch. In `kafka` mode the claim holds a row lock on each until the batch is published, so this also bounds how long one pod can keep another from those rows; raising it trades that for fewer round trips |
 | `workflow.message-api.api-key` | string | — | Optional API key required in the `X-Api-Key` header of `POST /workflow/api/messages`. Blank = unauthenticated |
 | `rules.persistence` | `jpa` \| `memory` | `memory` | Rule catalog persistence mode |

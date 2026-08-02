@@ -9,6 +9,7 @@ import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.out.WorkflowMetrics;
 import io.mateu.workflow.domain.aggregates.Process;
 import io.mateu.workflow.domain.aggregates.*;
+import io.mateu.workflow.support.RunsTheAction;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -58,7 +59,7 @@ class CompleteMessageStepHandlerTest {
     void completesMergesMessageVariablesAndLogs() {
         var se = pendingMessageSe("payment-received");
         when(stepExecutionRepository.findById("se-1")).thenReturn(Optional.of(se));
-        when(processLockService.tryLock("p-1")).thenReturn(true);
+        when(processLockService.runExclusively(eq("p-1"), any())).thenAnswer(RunsTheAction.granted());
         when(processRepository.findById("p-1")).thenReturn(Optional.of(process("bk-1")));
 
         handler.handle(new CompleteMessageStepCommand("se-1", "payment-received", "bk-1",
@@ -78,14 +79,14 @@ class CompleteMessageStepHandlerTest {
         // The message payload became process state; a sibling WAIT_FOR_MESSAGE correlating on
         // one of those variables only sees it if the subscriptions are rearmed here.
         verify(messageSubscriptionService).rearm(any());
-        verify(processLockService).unlock("p-1");
+        verify(processLockService).runExclusively(eq("p-1"), any());
     }
 
     @Test
     void skipsWhenLockNotAcquired() {
         var se = pendingMessageSe("payment-received");
         when(stepExecutionRepository.findById("se-1")).thenReturn(Optional.of(se));
-        when(processLockService.tryLock("p-1")).thenReturn(false);
+        when(processLockService.runExclusively(eq("p-1"), any())).thenReturn(false);
 
         handler.handle(new CompleteMessageStepCommand("se-1", "payment-received", "bk-1", List.of()));
 
@@ -96,13 +97,13 @@ class CompleteMessageStepHandlerTest {
     void skipsDuplicateDeliveryOnceStepIsCompleted() {
         var se = pendingMessageSe("payment-received").withStatus(StepExecutionStatus.COMPLETED);
         when(stepExecutionRepository.findById("se-1")).thenReturn(Optional.of(se));
-        when(processLockService.tryLock("p-1")).thenReturn(true);
+        when(processLockService.runExclusively(eq("p-1"), any())).thenAnswer(RunsTheAction.granted());
 
         handler.handle(new CompleteMessageStepCommand("se-1", "payment-received", "bk-1", List.of()));
 
         verify(stepExecutionRepository, never()).save(any());
         verify(processRepository, never()).save(any());
-        verify(processLockService).unlock("p-1");
+        verify(processLockService).runExclusively(eq("p-1"), any());
     }
 
     @Test
@@ -115,37 +116,37 @@ class CompleteMessageStepHandlerTest {
                 .startedAt(LocalDateTime.now().minusSeconds(60))
                 .build();
         when(stepExecutionRepository.findById("se-1")).thenReturn(Optional.of(se));
-        when(processLockService.tryLock("p-1")).thenReturn(true);
+        when(processLockService.runExclusively(eq("p-1"), any())).thenAnswer(RunsTheAction.granted());
 
         handler.handle(new CompleteMessageStepCommand("se-1", "payment-received", "bk-1", List.of()));
 
         verify(stepExecutionRepository, never()).save(any());
-        verify(processLockService).unlock("p-1");
+        verify(processLockService).runExclusively(eq("p-1"), any());
     }
 
     @Test
     void skipsWhenMessageNameDiffers() {
         var se = pendingMessageSe("payment-received");
         when(stepExecutionRepository.findById("se-1")).thenReturn(Optional.of(se));
-        when(processLockService.tryLock("p-1")).thenReturn(true);
+        when(processLockService.runExclusively(eq("p-1"), any())).thenAnswer(RunsTheAction.granted());
 
         handler.handle(new CompleteMessageStepCommand("se-1", "something-else", "bk-1", List.of()));
 
         verify(stepExecutionRepository, never()).save(any());
-        verify(processLockService).unlock("p-1");
+        verify(processLockService).runExclusively(eq("p-1"), any());
     }
 
     @Test
     void skipsWhenCorrelationNoLongerMatchesInsideTheLock() {
         var se = pendingMessageSe("payment-received");
         when(stepExecutionRepository.findById("se-1")).thenReturn(Optional.of(se));
-        when(processLockService.tryLock("p-1")).thenReturn(true);
+        when(processLockService.runExclusively(eq("p-1"), any())).thenAnswer(RunsTheAction.granted());
         when(processRepository.findById("p-1")).thenReturn(Optional.of(process("other-key")));
 
         handler.handle(new CompleteMessageStepCommand("se-1", "payment-received", "bk-1", List.of()));
 
         verify(stepExecutionRepository, never()).save(any());
         verify(processRepository, never()).save(any());
-        verify(processLockService).unlock("p-1");
+        verify(processLockService).runExclusively(eq("p-1"), any());
     }
 }

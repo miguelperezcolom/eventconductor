@@ -8,6 +8,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **BREAKING (SPI): per-process exclusion is a row lock, not an advisory lock.**
+  `ProcessLockService` loses `tryLock`/`unlock` and gains a single
+  `runExclusively(processId, action)`. In JPA mode the action now runs in a transaction that opens
+  by taking `SELECT … FOR UPDATE` on the process row, and the commit releases it. Anyone who
+  implemented this port has to follow; nothing else about the engine's concurrency semantics
+  changes.
+
+  The reason is not elegance. An advisory lock is session-scoped, so acquiring it took a
+  connection out of the pool and **held it for the whole critical section**, while the work inside
+  needed a second one. Two connections per in-flight process made the pool size — not the database
+  — the ceiling on concurrency, and past that point the failure was a **wedge, not a slowdown**:
+  lock holders waiting for a connection to do the work they held the lock for. New spec `DIST-10`
+  pins this down: 40 concurrent processes complete through a 3-connection pool, and restoring the
+  two-connection shape exhausts it and stalls the processes outright.
+
+  What else falls out: the stale-lock watchdog is gone, and with it the chance of force-releasing
+  exclusivity from an operation still running; `ProcessLocks.lockWithRetry` is gone, because
+  waiting is now the database's row-lock queue rather than a sleep-and-retry loop that reopened a
+  connection on every attempt; exclusivity is reentrant within a transaction; and the lock key is
+  the process id itself rather than a 64-bit fold of its UUID. Waiting is bounded by
+  `workflow.process-lock-timeout-seconds` (default 10), applied as a statement timeout, which is
+  portable in a way that per-vendor lock-timeout settings are not.
+
+  `UpdateStepExecutionUseCase` drops its own `TransactionTemplate`: exclusivity and the
+  transaction are now the same scope, so the inner one only joined the outer.
 - **Every pod relays the outbox now — it is no longer a leader-elected singleton.** In `kafka`
   mode one pod drained the whole outbox while the others idled, and since every state transition
   passes through the relay, that put a ceiling on the distributed topology that adding pods could
