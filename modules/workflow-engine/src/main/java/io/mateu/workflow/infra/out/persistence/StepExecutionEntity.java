@@ -48,4 +48,12 @@ public class StepExecutionEntity {
 
     String awaitingCorrelationKey;
 
+    /**
+     * Optimistic-locking version. Boxed on purpose: Spring Data reads a null version as "never
+     * persisted" and inserts, which is what keeps assigned ids working without a separate
+     * existence check.
+     */
+    @jakarta.persistence.Version
+    Integer version;
+
 }

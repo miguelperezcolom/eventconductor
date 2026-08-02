@@ -29,6 +29,7 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
     public static final String STEP_DURATION = "eventconductor.step.duration";
     public static final String STEP_RETRIES = "eventconductor.step.retries";
     public static final String STEP_COMPENSATIONS = "eventconductor.step.compensations";
+    public static final String CONCURRENT_WRITES_REJECTED = "eventconductor.process.concurrent.writes.rejected";
     public static final String PROCESSES_RUNNING = "eventconductor.process.running";
     public static final String OUTBOX_PENDING = "eventconductor.outbox.pending";
 
@@ -98,6 +99,14 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
         Counter.builder(STEP_COMPENSATIONS)
                 .description("Compensation steps triggered after retries were exhausted")
                 .tag(TAG_WORKFLOW_DEFINITION_ID, tagValue(workflowDefinitionId))
+                .register(registry)
+                .increment();
+    }
+
+    @Override
+    public void concurrentWriteRejected(String processId) {
+        Counter.builder(CONCURRENT_WRITES_REJECTED)
+                .description("Writes rejected by optimistic locking because another writer had the process")
                 .register(registry)
                 .increment();
     }

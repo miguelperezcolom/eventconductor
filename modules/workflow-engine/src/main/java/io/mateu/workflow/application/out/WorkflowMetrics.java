@@ -35,6 +35,18 @@ public interface WorkflowMetrics {
 
     default void compensationTriggered(String workflowDefinitionId) {}
 
+    /**
+     * A write lost an optimistic-locking race: two writers touched the same process.
+     *
+     * <p>Worth watching rather than merely logging. Events are keyed by process and a consumer
+     * group gives each partition to one consumer, so in steady state this must be flat at zero;
+     * the only expected source is the brief window of a rebalance, when the outgoing pod may
+     * still be finishing a record the incoming one now owns. A non-zero rate outside rebalances
+     * means something is reaching a process from outside its partition — which is exactly what
+     * has to be true before the pessimistic lock can go.
+     */
+    default void concurrentWriteRejected(String processId) {}
+
     enum RetryTrigger { AUTO, MANUAL }
 
     /**

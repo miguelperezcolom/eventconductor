@@ -8,6 +8,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **Optimistic locking on `Process` and `StepExecution`.** Both aggregates now carry a `version`,
+  checked on every write (migration `V11`, existing rows backfilled to 0 — a null version is how
+  Spring Data recognises a row it has never persisted, so leaving them null would turn updates
+  into failed inserts).
+
+  This is the fence for the one hole in ownership. Keying events by process gives each process to
+  a single pod, but a consumer group guarantees which consumer is *assigned* a partition, not
+  which is still *in flight*: during a rebalance the outgoing pod can be finishing a record the
+  incoming one has just been handed. A stale writer's update now matches no row at its version
+  and is rejected, rather than quietly overwriting the new owner's work.
+
+  It costs nothing when there is no conflict — no waiting, no lock held, no connection parked —
+  which is what makes it able to replace the pessimistic lock rather than sit beside it.
+
+  **Rejections are counted, not just logged**: `eventconductor.process.concurrent.writes.rejected`.
+  That metric is the point of this change as much as the safety is. Outside a rebalance it must be
+  flat at zero; anything else means something is reaching a process from outside its partition —
+  exactly what has to be true before the pessimistic lock can be removed. Specs `E2E-LOCK-01..03`.
 - **Events are keyed by process, so a process belongs to one pod.** Every event that concerns a
   process now carries it as the Kafka message key (`DomainEvent.partitionKey()`), so all of a
   process's events hash to the same partition — and a consumer group gives each partition to

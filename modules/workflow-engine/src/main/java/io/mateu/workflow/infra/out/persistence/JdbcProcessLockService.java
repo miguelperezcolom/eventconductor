@@ -1,6 +1,7 @@
 package io.mateu.workflow.infra.out.persistence;
 
 import io.mateu.workflow.application.out.ProcessLockService;
+import io.mateu.workflow.application.out.WorkflowMetrics;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -37,6 +38,7 @@ public class JdbcProcessLockService implements ProcessLockService {
 
     final JdbcTemplate jdbcTemplate;
     final TransactionTemplate transactionTemplate;
+    final WorkflowMetrics workflowMetrics;
 
     @Value("${workflow.process-lock-timeout-seconds:10}")
     int lockTimeoutSeconds;
@@ -49,6 +51,15 @@ public class JdbcProcessLockService implements ProcessLockService {
                 action.run();
                 return true;
             }));
+        } catch (org.springframework.dao.OptimisticLockingFailureException e) {
+            // Two writers reached the same process: the other one committed first and this
+            // transaction rolled back whole. Counted rather than only logged — events are keyed
+            // by process and a partition has one consumer, so outside a rebalance this must be
+            // flat at zero, and it is the measurement that says whether ownership is real.
+            workflowMetrics.concurrentWriteRejected(processId);
+            log.warn("Concurrent write to process {} was rejected; the event will be redelivered",
+                    processId);
+            return false;
         } catch (Exception e) {
             // A statement timeout waiting for the row, or a deadlock the database broke. Either
             // way another node has this process; the caller decides whether that deserves a log

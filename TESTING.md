@@ -70,6 +70,9 @@ repositories for assertions. No engine internals are mocked.
 | E2E-IDEM-01 | **Duplicate creation events.** Two `ProcessCreationRequested` deliveries with the same `businessKey` produce exactly one process. |
 | E2E-IDEM-02 | **Duplicate dispatch.** A duplicate `TaskExecutionRequested` for a step already past PENDING is ignored (worker executes once). |
 | E2E-IDEM-03 | **Duplicate message delivery.** Two identical `MessageReceived` deliveries complete the waiting `MESSAGE` step exactly once (terminal-state guard under the process lock); the successor executes once and the process completes normally. |
+| E2E-LOCK-01 | **Stale process write rejected.** A writer holding a copy read before another committed is rejected with an optimistic-locking failure instead of silently overwriting. This is the fence for the one hole in Kafka's ownership guarantee: a consumer group assigns a partition to one consumer, but during a rebalance the outgoing pod can still be in flight on a record the incoming one now owns. |
+| E2E-LOCK-02 | **Stale step-execution write rejected.** The same for the other aggregate a running process mutates. |
+| E2E-LOCK-03 | **A never-persisted aggregate still inserts.** The version doubles as Spring Data's "never persisted" signal, so getting it wrong turns every creation into an update of a row that is not there. |
 | UNIT-VAL-01 | **Definition validation.** Definitions with duplicate step ids, dangling `preconditionStepId` or dangling `compensationStepId` are rejected by `checkInvariants`. |
 | E2E-SEC-01 | **JEXL sandbox.** A precondition attempting `''.getClass().forName('java.lang.Runtime')…` (or any reflection/System access) does not execute code and — being an evaluation error — the guarded step does not run. |
 | UNIT-SEC-02 | **Webhook signature.** Malformed HMAC hex in `X-Hub-Signature-256` yields 401 (not 500); missing signature when a secret is configured yields 401. |

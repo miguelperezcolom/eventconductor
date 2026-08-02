@@ -46,4 +46,12 @@ public class ProcessEntity {
 
     /** Parent PROCESS step execution that spawned this process; null for top-level processes. */
     private String parentStepExecutionId;
+
+    /**
+     * Optimistic-locking version. Boxed on purpose: Spring Data reads a null version as "never
+     * persisted" and inserts, which is what keeps assigned ids working without a separate
+     * existence check.
+     */
+    @jakarta.persistence.Version
+    private Integer version;
 }
