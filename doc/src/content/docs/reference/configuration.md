@@ -184,7 +184,7 @@ spring.flyway.baseline-on-migrate=true
 spring.flyway.baseline-version=1
 ```
 
-The orchestrator ships migrations `V1__baseline.sql` through `V4__workflow_definition_default_max_step_executions.sql`; `baseline-on-migrate` lets Flyway adopt an existing Hibernate-created schema.
+The orchestrator ships migrations `V1__baseline.sql` through `V12__optimistic_version.sql`; `baseline-on-migrate` lets Flyway adopt an existing Hibernate-created schema.
 
 ### Distributed locking
 
