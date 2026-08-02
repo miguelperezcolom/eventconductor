@@ -113,6 +113,7 @@ profile and a dedicated CI job.
 | DIST-06 | **Kafka broker outage mid-flight.** With consumers already bound, the broker container is stopped while a process is held mid-flight; events park in the transactional outbox and, once the broker returns, the process reaches COMPLETED with the outbox fully drained. | ✅ `Dist06KafkaOutageRecoveryTest` |
 | DIST-07 | **Kafka down at startup.** With bounded binder admin/request timeouts and binding retry (the config now in the standalone apps), the orchestrator boots promptly while the broker is paused; once the broker resumes the consumers bind and a process created through the upstream topic completes. | ✅ `Dist07KafkaDownAtStartupTest` |
 | DIST-08 | **PostgreSQL down at startup.** With DB-resilient settings (lazy pool, `ddl-auto: none`, explicit dialect), the pod boots without a database; once PostgreSQL is reachable it drives a process parked mid-flight (Pending outbox row — the DIST-02 crash window) to completion and runs brand-new processes end to end. | ✅ `Dist08PostgresDownAtStartupTest` |
+| DIST-09 | **Concurrent outbox claim.** Two sessions claim batches of pending outbox messages at the same time: both get a full batch, the batches do not overlap, neither waits on the other, and a third finds nothing left to claim. The relay is no longer a leader-elected singleton, so relay throughput grows with the cluster; this must run on real PostgreSQL, since H2 locks every row the claim matches rather than only those it returns and a second claimer there comes back empty. |
 
 ## How to run
 

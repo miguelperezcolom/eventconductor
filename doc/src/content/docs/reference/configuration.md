@@ -13,8 +13,9 @@ description: Complete reference for all EventConductor configuration properties.
 | `workflow.timeout-scan-interval-ms` | ms | `10000` | How often the scheduler looks for expired step timeouts and due `TIMER` steps. The lookup is an indexed query on the step's materialised deadline, so its cost tracks the work that is due — normally none — and not how many steps are waiting; lowering it tightens firing latency without a scan penalty |
 | `workflow.cron-scan-interval-ms` | ms | `10000` | How often the scheduler checks `cronExpression` schedules on ACTIVE definitions |
 | `workflow.cron-enabled` | `true` \| `false` | `true` | Master switch for cron-scheduled process starts |
-| `workflow.outbox-poll-interval-ms` | ms | `5000` | How often the outbox relay polls the outbox table for pending events |
+| `workflow.outbox-poll-interval-ms` | ms | `500` | How long a relay waits after finding the outbox empty. It drains until empty before waiting, so this is idle latency, not a throughput cap: the delay a message sees when the outbox was quiet, added to every step hop in `kafka` mode. The poll itself is an indexed lookup that normally returns nothing. Was `5000` before 1.0-beta.015 |
 | `workflow.outbox.relay-enabled` | `true` \| `false` | `true` | Enables the outbox relay (set to `false` to disable event relaying entirely) |
+| `workflow.outbox.batch-size` | int | `100` | How many messages a relay claims per batch. In `kafka` mode the claim holds a row lock on each until the batch is published, so this also bounds how long one pod can keep another from those rows; raising it trades that for fewer round trips |
 | `workflow.message-api.api-key` | string | — | Optional API key required in the `X-Api-Key` header of `POST /workflow/api/messages`. Blank = unauthenticated |
 | `rules.persistence` | `jpa` \| `memory` | `memory` | Rule catalog persistence mode |
 | `rules.source` | `local` \| `classpath` \| `rest` \| `grpc` | `local` | Where the rule runtime reads rules from |

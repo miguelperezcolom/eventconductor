@@ -15,6 +15,19 @@ import org.springframework.stereotype.Service;
 
 import static io.mateu.core.infra.JsonSerializer.pojoFromJson;
 
+/**
+ * Dispatches committed outbox messages back into the engine, in embedded mode.
+ *
+ * <p>Unlike the Kafka {@link OutboxRelay}, this one keeps its leader lock on purpose. "Delivery"
+ * here is {@code processDomainEventUseCase.handle} — the engine running a step synchronously,
+ * taking the process lock and its own connections. Claiming rows with {@code FOR UPDATE SKIP
+ * LOCKED} would hold those row locks, and a database transaction, across all of that: long
+ * transactions and a plausible deadlock against the work being dispatched. Making embedded
+ * dispatch concurrent is a separate change with a different risk profile.
+ *
+ * <p>What it does take from that work is the bounded fetch: it used to load the entire pending
+ * outbox on every cycle.
+ */
 @Service
 @ConditionalOnProperty(name = "workflow.mode", havingValue = "embedded", matchIfMissing = true)
 @ConditionalOnProperty(name = "workflow.persistence", havingValue = "jpa")
@@ -23,7 +36,8 @@ import static io.mateu.core.infra.JsonSerializer.pojoFromJson;
 @Slf4j
 public class EmbeddedOutboxRelay {
 
-    // Must differ from WorkflowOrchestrator.LOCK_ID (123456789L) and OutboxRelay.LOCK_ID (111222333L)
+    // Advisory lock ids in use: 222333444 (CronStartScheduler), 444555666 (here),
+    // 777888999 (TimeoutScheduler). Keep them distinct.
     private static final long LOCK_ID = 444555666L;
 
     final OutboxMessageEntityRepository outboxMessageEntityRepository;
@@ -31,8 +45,11 @@ public class EmbeddedOutboxRelay {
     final JdbcTemplate jdbcTemplate;
     final DbLockDialect dbLockDialect;
 
-    @org.springframework.beans.factory.annotation.Value("${workflow.outbox-poll-interval-ms:5000}")
+    @org.springframework.beans.factory.annotation.Value("${workflow.outbox-poll-interval-ms:500}")
     long pollIntervalMs;
+
+    @org.springframework.beans.factory.annotation.Value("${workflow.outbox.batch-size:100}")
+    int batchSize;
 
     @PostConstruct
     public void iterate() {
@@ -43,8 +60,10 @@ public class EmbeddedOutboxRelay {
                         jdbcTemplate.execute((org.springframework.jdbc.core.ConnectionCallback<Void>) con -> {
                             if (!dbLockDialect.tryLock(con, LOCK_ID)) return null;
                             try {
-                                outboxMessageEntityRepository.findByStatus(OutboxMessageStatus.Pending.name()).forEach(m -> {
-                                    log.info("Processing embedded outbox message {}", m.getId());
+                                outboxMessageEntityRepository.findByStatusOrderByTimestamp(
+                                        OutboxMessageStatus.Pending.name(),
+                                        org.springframework.data.domain.PageRequest.of(0, batchSize)).forEach(m -> {
+                                    log.debug("Processing embedded outbox message {}", m.getId());
                                     DomainEvent event;
                                     try {
                                         event = (DomainEvent) pojoFromJson(m.getPayload(), OutboxMessages.messageClass(m.getMessageType()));

@@ -8,6 +8,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **Every pod relays the outbox now — it is no longer a leader-elected singleton.** In `kafka`
+  mode one pod drained the whole outbox while the others idled, and since every state transition
+  passes through the relay, that put a ceiling on the distributed topology that adding pods could
+  not lift. Relays now claim bounded batches with `FOR UPDATE SKIP LOCKED`, so N orchestrators
+  drain N disjoint slices with no leader between them. New spec `DIST-09` proves the claims are
+  disjoint, non-blocking and complete, against real PostgreSQL.
+
+  The at-least-once contract is unchanged: a batch is claimed, published and marked `Sent` in one
+  transaction, publishing still happens *before* the rows are marked, and a crash anywhere in
+  between rolls back and releases the locks so another pod redelivers.
+
+  Three related fixes in the same path: the relay **no longer loads the entire pending outbox**
+  on every cycle (bounded batch, new `workflow.outbox.batch-size`, default 100) but keeps draining
+  until it is empty so a backlog is not paced by the poll interval; per-message logging drops from
+  `INFO` to `DEBUG`; and `workflow.outbox-poll-interval-ms` **defaults to 500 ms instead of
+  5000** — it used to add up to five seconds of idle latency to every step hop in `kafka` mode,
+  and the published DIST-05 throughput baseline was only ever reachable by overriding it.
+  Migration `V10` indexes `(status, timestamp)`, which the claim's ordering needs.
+
+  The **embedded** relay deliberately keeps its leader lock: its "delivery" is the engine running
+  a step synchronously, taking the process lock and its own connections, and holding row locks and
+  a transaction across all of that would mean long transactions and a plausible deadlock against
+  the very work being dispatched. It does take the bounded fetch and the log-level fix.
+
+  The relay's old advisory lock survives as a **shared** gate that every relay holds while
+  draining: shared holders do not block each other, so this costs nothing, but a single exclusive
+  holder still freezes every relay at once — the deterministic crash window DIST-02 and DIST-08
+  are built on.
 - **An arriving message finds its waiting steps by index.** A live `WAIT_FOR_MESSAGE` step now
   stores the subscription it represents — `awaiting_message_name` and `awaiting_correlation_key`
   — so correlating a `MessageReceived` is a lookup on those two columns instead of a walk over

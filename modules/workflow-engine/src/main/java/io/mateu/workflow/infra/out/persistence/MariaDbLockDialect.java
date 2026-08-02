@@ -28,4 +28,10 @@ public class MariaDbLockDialect implements DbLockDialect {
             ps.execute();
         }
     }
+
+    @Override
+    public String claimPendingOutboxSql() {
+        return "SELECT id FROM outbox_message_entity WHERE status = 'Pending' "
+                + "ORDER BY timestamp LIMIT ? FOR UPDATE SKIP LOCKED";
+    }
 }
