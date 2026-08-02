@@ -47,6 +47,14 @@ public interface WorkflowMetrics {
      */
     default void concurrentWriteRejected(String processId) {}
 
+    /**
+     * An event was parked because the engine will never be able to process it.
+     *
+     * <p>The one counter here that should trigger someone looking: a retry is the engine coping,
+     * a dead letter is the engine giving up on a specific event and saying so.
+     */
+    default void eventDeadLettered(String source) {}
+
     enum RetryTrigger { AUTO, MANUAL }
 
     /**

@@ -90,6 +90,10 @@ spring:
           destination: downstream
         outbox:
           destination: outbox
+        # Where events the engine can never process are parked, unchanged, so they can be
+        # inspected and replayed onto the destination named in their x-dead-letter-source header.
+        deadLetter:
+          destination: dead-letter
 
   datasource:
     url: ${DB_URL:jdbc:postgresql://127.0.0.1:5432/workflow}

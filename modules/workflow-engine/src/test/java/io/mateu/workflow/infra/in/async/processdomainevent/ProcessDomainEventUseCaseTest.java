@@ -11,6 +11,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -45,15 +46,20 @@ class ProcessDomainEventUseCaseTest {
         verify(handler, never()).handle(any());
     }
 
+    /**
+     * The contract changed here, on purpose — see the sibling test on the upstream use case.
+     * Swallowing a handler failure is how an unprocessable event vanished; the caller decides
+     * whether to redeliver it or park it, and only the caller can tell which.
+     */
     @Test
-    void continuesProcessingWhenHandlerThrows() {
+    void letsAHandlerFailureOutToWhoeverDeliveredTheEvent() {
         var event = new ProcessCreated("p-1", List.of());
         when(handler.canHandle(event)).thenReturn(true);
         doThrow(new RuntimeException("boom")).when(handler).handle(event);
 
-        useCase.handle(new ProcessDomainEventCommand(event));
-
-        verify(handler).handle(event);
+        assertThatThrownBy(() -> useCase.handle(new ProcessDomainEventCommand(event)))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessage("boom");
     }
 
     @Test

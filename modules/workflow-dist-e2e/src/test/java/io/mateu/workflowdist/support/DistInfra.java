@@ -39,7 +39,7 @@ public final class DistInfra {
     /** Advisory lock id used by the engine's OutboxRelay (see OutboxRelay.LOCK_ID). */
     public static final long OUTBOX_RELAY_LOCK_ID = 111222333L;
 
-    private static final int PARTITIONS = 6;
+    static final int PARTITIONS = Integer.getInteger("tune.partitions", 6);
 
     private static PostgreSQLContainer<?> postgres;
     private static KafkaContainer kafka;
@@ -102,25 +102,34 @@ public final class DistInfra {
         props.put("workflow.persistence", "jpa");
         props.put("spring.cloud.stream.bindings.consumeUpstream-in-0.consumer.batch-mode", "true");
         props.put("spring.cloud.stream.bindings.consumeOutbox-in-0.consumer.batch-mode", "true");
-        props.put("workflow.outbox-poll-interval-ms", "200");
-        props.put("workflow.timeout-scan-interval-ms", "250");
+        // Tunables, not constants. These numbers were picked to make the suite run quickly and
+        // never measured; overriding them from the command line is how we find out which of them
+        // the throughput actually depends on:
+        //   mvn -Pdist-e2e ... -Dtune.outbox-poll-ms=20 -Dtune.consumer-concurrency=6
+        props.put("workflow.outbox-poll-interval-ms", tune("outbox-poll-ms", "200"));
+        props.put("workflow.timeout-scan-interval-ms", tune("timeout-scan-ms", "250"));
+        props.put("workflow.outbox.batch-size", tune("outbox-batch-size", "100"));
         props.put("spring.datasource.url", postgres.getJdbcUrl());
         props.put("spring.datasource.username", postgres.getUsername());
         props.put("spring.datasource.password", postgres.getPassword());
-        props.put("spring.datasource.hikari.maximum-pool-size", "10");
+        props.put("spring.datasource.hikari.maximum-pool-size", tune("pool-size", "10"));
         props.put("spring.jpa.hibernate.ddl-auto", "update");
         props.put("spring.jpa.open-in-view", "false");
         props.put("spring.cloud.function.definition", "consumeOutbox;consumeUpstream");
         props.put("spring.cloud.stream.kafka.binder.brokers", kafka.getBootstrapServers());
         props.put("spring.cloud.stream.bindings.consumeOutbox-in-0.destination", "outbox");
         props.put("spring.cloud.stream.bindings.consumeOutbox-in-0.group", "orchestrator-group");
-        props.put("spring.cloud.stream.bindings.consumeOutbox-in-0.consumer.concurrency", "3");
+        props.put("spring.cloud.stream.bindings.consumeOutbox-in-0.consumer.concurrency", tune("consumer-concurrency", "3"));
         props.put("spring.cloud.stream.bindings.consumeUpstream-in-0.destination", "upstream");
         props.put("spring.cloud.stream.bindings.consumeUpstream-in-0.group", "orchestrator-group");
-        props.put("spring.cloud.stream.bindings.consumeUpstream-in-0.consumer.concurrency", "3");
+        props.put("spring.cloud.stream.bindings.consumeUpstream-in-0.consumer.concurrency", tune("consumer-concurrency", "3"));
+        props.put("spring.cloud.stream.kafka.binder.configuration.linger.ms", tune("producer-linger-ms", "0"));
+        props.put("spring.cloud.stream.kafka.binder.configuration.fetch.min.bytes", tune("fetch-min-bytes", "1"));
+        props.put("spring.cloud.stream.kafka.binder.configuration.max.poll.records", tune("max-poll-records", "500"));
         props.put("spring.cloud.stream.bindings.upstream.destination", "upstream");
         props.put("spring.cloud.stream.bindings.downstream.destination", "downstream");
         props.put("spring.cloud.stream.bindings.outbox.destination", "outbox");
+        props.put("spring.cloud.stream.bindings.deadLetter.destination", "dead-letter");
         // No actuator/MeterRegistry in the test classpath.
         props.put("spring.autoconfigure.exclude",
                 "io.mateu.workflow.autoconfigure.WorkflowMetricsAutoConfiguration");
@@ -203,6 +212,22 @@ public final class DistInfra {
     public static String kafkaBootstrapServers() {
         ensureStarted();
         return kafka.getBootstrapServers();
+    }
+
+    /** A harness knob, overridable with -Dtune.&lt;name&gt; so a sweep needs no recompile. */
+    private static String tune(String name, String fallback) {
+        return System.getProperty("tune." + name, fallback);
+    }
+
+    /** The names and values actually in force, so a measurement can say what produced it. */
+    public static String tuning() {
+        return "outbox-poll-ms=" + tune("outbox-poll-ms", "200")
+                + " outbox-batch-size=" + tune("outbox-batch-size", "100")
+                + " consumer-concurrency=" + tune("consumer-concurrency", "3")
+                + " max-poll-records=" + tune("max-poll-records", "500")
+                + " producer-linger-ms=" + tune("producer-linger-ms", "0")
+                + " pool-size=" + tune("pool-size", "10")
+                + " partitions=" + tune("partitions", "6");
     }
 
     public static JdbcTemplate jdbc() {
