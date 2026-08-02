@@ -57,7 +57,25 @@ spring.datasource.url=jdbc:postgresql://localhost:5432/workflow
 spring.datasource.username=workflow
 spring.datasource.password=secret
 spring.jpa.hibernate.ddl-auto=update
+spring.flyway.enabled=true
 ```
+
+:::caution[Run the migrations, or the engine has no indexes]
+`ddl-auto=update` builds tables and columns and **emits no index DDL at all** — that is a
+limitation of Hibernate's update path, not a configuration mistake. The engine's indexes live in
+the Flyway migrations, so a schema built by `ddl-auto` alone has primary keys and nothing else, and
+every deadline scan, outbox claim and message correlation degrades into a sequential scan. Measured
+on a cluster with ~9,000 live step rows, that pinned PostgreSQL at 75% of a core and cut throughput
+to a fraction.
+
+Enable Flyway (`spring.flyway.enabled=true`), which the standalone app and the Helm chart now do by
+default. It is safe over a schema `ddl-auto` already created: it baselines at V1 and every later
+migration is written with `IF NOT EXISTS`. Once the indexes are in place, move to
+`ddl-auto=validate` and let the migrations own the schema.
+
+`ddl-auto=update` on its own is fine for a throwaway database and for tests. It is not a way to run
+this engine in production.
+:::
 
 > Kafka autoconfiguration classes are excluded **automatically** by `workflow-engine` when `workflow.mode=embedded`.
 
@@ -75,7 +93,7 @@ public class MyApplication {
 ```
 
 **Characteristics:**
-- Events dispatched in-process via `EmbeddedOutboxRelay` (polls the outbox table every 5 s)
+- Events dispatched in-process via `EmbeddedOutboxRelay`. It is woken by the pod's own writes; the poll interval is a fallback, not the latency of a step
 - All state persisted via JPA/Hibernate — survives restarts
 - Workflow definitions placed in `classpath:/workflows/` are automatically imported into the database at startup by `ClasspathWorkflowDefinitionImporter` (idempotent — skips definitions already present)
 
@@ -90,7 +108,8 @@ workflow.persistence=jpa
 spring.datasource.url=jdbc:postgresql://localhost:5432/workflow
 spring.datasource.username=workflow
 spring.datasource.password=secret
-spring.jpa.hibernate.ddl-auto=update
+spring.jpa.hibernate.ddl-auto=validate
+spring.flyway.enabled=true
 
 spring.kafka.bootstrap-servers=localhost:9092
 ```
@@ -98,12 +117,35 @@ spring.kafka.bootstrap-servers=localhost:9092
 **Characteristics:**
 - Domain events flow through Kafka topics (`outbox`, `upstream`, `downstream`)
 - State persisted in the configured database
-- Multiple orchestrator instances coordinate via **distributed advisory locks** (dialect auto-detected from the JDBC connection at startup)
+- **One pod owns each process.** Every event carries its process as the Kafka message key, so all
+  of a process's events land on one partition and a consumer group gives that partition to exactly
+  one consumer. Nothing coordinates; an optimistic version on the process fences the brief window
+  of a rebalance
 - Horizontally scalable — add more orchestrator pods at any time
+
+:::caution[One consumer group per binding]
+If you wire the bindings yourself, give `consumeUpstream-in-0` and `consumeOutbox-in-0`
+**different** groups. A group whose members subscribe to different topics is assigned by Kafka's
+default range assignor per topic, and with mixed subscriptions it leaves partitions with **no
+consumer at all** — those events are never read and the processes waiting on them never move.
+Observed on a live cluster: 12 members holding 7 of 12 partitions, throughput at a quarter of what
+the same pods managed once the groups were split. The shipped configuration uses
+`orchestrator-upstream` and `orchestrator-outbox`.
+:::
 
 ## Supported databases (`workflow.persistence=jpa`)
 
-The locking mechanism is automatically selected based on the JDBC driver in use. No extra configuration is required.
+Two things need coordinating across pods, and they are not the same thing.
+
+**Per-process exclusion.** In `kafka` mode nothing does it: the partition already guarantees a
+single writer, and an optimistic version on the process and its steps rejects the stale write a
+rebalance can produce. In `embedded` mode there are no partitions, so a row lock on the process
+(`SELECT … FOR UPDATE`, held by the transaction the work already runs in) keeps two pods apart.
+Neither needs configuration.
+
+**Singleton background jobs** — the timeout scan, cron-scheduled starts and the embedded relay —
+still take a database advisory lock so only one pod runs each. That is what the table below
+selects, automatically, from the JDBC driver in use.
 
 | Database | Lock mechanism | Notes |
 |---|---|---|
@@ -112,11 +154,17 @@ The locking mechanism is automatically selected based on the JDBC driver in use.
 | Oracle | `DBMS_LOCK.REQUEST` / `DBMS_LOCK.RELEASE` | Requires `GRANT EXECUTE ON DBMS_LOCK TO <user>` — see below |
 | H2 | In-process `AtomicBoolean` per lock ID | For testing and demos only — single JVM, not distributed |
 
-A background **watchdog thread** runs every 60 s and force-releases any per-process lock held longer than 60 s, preventing connection leaks if a lock is never explicitly released. A `WARN` log entry is emitted when this happens. Each pod's watchdog only operates on locks that pod itself acquired — it cannot affect locks held by other pods. If a pod crashes, the database releases its locks automatically when the JDBC connection closes.
+These locks are held only for the length of one scan, and a crashed pod's locks are released by the
+database when its connection closes.
+
+Earlier versions also took an advisory lock per process, which required a watchdog to force-release
+locks held too long — and a watchdog that yanks exclusivity from an operation still running is a
+hazard of its own. Neither exists now: exclusion is either the partition or the transaction, and
+both end on their own.
 
 ### Oracle prerequisite
 
-Oracle advisory locks are implemented via the `DBMS_LOCK` package, which is not granted by default. A DBA must run the following once per schema user before starting the application:
+The singleton job locks above are implemented on Oracle via the `DBMS_LOCK` package, which is not granted by default. A DBA must run the following once per schema user before starting the application:
 
 ```sql
 GRANT EXECUTE ON DBMS_LOCK TO <your_schema_user>;

@@ -1,13 +1,13 @@
 ---
 title: Architecture
-description: How EventConductor works inside — hexagonal core, transactional outbox, advisory locks, and horizontally scalable workers.
+description: How EventConductor works inside — hexagonal core, transactional outbox, ownership by partition, and horizontally scalable workers.
 ---
 
 EventConductor's architecture can be summarized in one sentence: **a hexagonal engine embedded in your application, whose every state transition is an immutable event written in the same ACID transaction as the state itself**. Everything else — distribution, scaling, recovery — falls out of that decision.
 
 ## The big picture
 
-<svg viewBox="0 0 960 660" width="960" height="660" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="EventConductor architecture: actors on top (operators, AI agents, other services), your Spring Boot application containing inbound adapters, the hexagonal engine core and outbound adapters, a database with state, outbox table and advisory locks below, and Kafka topics with horizontally scaled workers on the right." style="max-width:100%;height:auto;font-family:inherit">
+<svg viewBox="0 0 960 660" width="960" height="660" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="EventConductor architecture: actors on top (operators, AI agents, other services), your Spring Boot application containing inbound adapters, the hexagonal engine core and outbound adapters, a database with state and outbox table below, and Kafka topics with horizontally scaled workers on the right." style="max-width:100%;height:auto;font-family:inherit">
   <defs>
     <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M 0 1 L 9 5 L 0 9 z" fill="currentColor" opacity="0.65"/>
@@ -95,7 +95,7 @@ EventConductor's architecture can be summarized in one sentence: **a hexagonal e
     <g stroke="none" fill="currentColor" text-anchor="middle">
       <text x="295" y="548" font-size="12.5" font-weight="700">PostgreSQL / Oracle / H2</text>
       <text x="295" y="567" font-size="11" opacity="0.75">process state + outbox table — same ACID transaction</text>
-      <text x="295" y="584" font-size="11" opacity="0.75">advisory locks: one dispatcher per process across pods</text>
+      <text x="295" y="584" font-size="11" opacity="0.75">events keyed by process: one owning pod per process</text>
     </g>
     <!-- kafka -->
     <rect x="640" y="150" width="280" height="180" rx="12" stroke-opacity="0.6" stroke-width="1.5"/>
@@ -170,7 +170,7 @@ The engine is strictly hexagonal — the diagram above is not marketing geometry
 | **Domain** | `domain/aggregates` | `Process`, `StepExecution`, `WorkflowDefinition` — pure state machine, no framework code. Each `Process` carries an immutable JSON snapshot of its definition. |
 | **Application** | `application/usecases`, `application/services` | One use case per operation (create process, update step, correlate message, retry, cancel, check timers…), plus services like `ProcessAnalyticsService`. Ports to the outside live in `application/out`. |
 | **Inbound adapters** | `infra/in` | `async` (event consumers), `rest` (Git import webhook), `ui` (the Mateu-built management UI), `mcp` (the MCP server and its `@Tool`s), `scheduler` (cron starts, timer & timeout scans), `startup` (classpath importers). |
-| **Outbound adapters** | `infra/out` | `persistence` (JPA repositories, outbox writer, advisory-lock dialects for PostgreSQL/Oracle/H2), `async` (Kafka producers / embedded relay), `memory` (in-memory repositories for the zero-infrastructure mode), `classpath` (definition loading). |
+| **Outbound adapters** | `infra/out` | `persistence` (JPA repositories, outbox writer, per-vendor SQL for PostgreSQL/Oracle/MariaDB/H2), `async` (Kafka producers / embedded relay), `memory` (in-memory repositories for the zero-infrastructure mode), `classpath` (definition loading). |
 
 Because business logic is banned from the definition *and* from the engine, the domain stays small enough to reason about — and to pin down exhaustively in [TESTING.md](https://github.com/miguelperezcolom/eventconductor/blob/main/TESTING.md).
 
@@ -194,19 +194,43 @@ sequenceDiagram
     W->>W: business logic
     W-->>U: TaskStatusChanged (+ output variables)
     U->>O: worker report
-    O->>DB: advance state machine (advisory lock per process)
+    O->>DB: advance state machine (this pod owns the process)
 ```
 
 Duplicates are expected and absorbed by design: a second `ProcessCreationRequested` with the same business key creates nothing, a duplicate dispatch for a step already past `PENDING` is ignored, and a late worker report on a terminal step is discarded. Idempotency lives in the engine so your workers only need to be idempotent about their own side effects.
 
 ## Distributed coordination without a coordinator
 
-There is no leader election, no consensus protocol and no engine cluster to operate. Two well-understood database primitives do all the work:
+There is no leader election, no consensus protocol and no engine cluster to operate.
 
-- **Transactional outbox** — state change and event are atomic; the relay re-delivers after any crash (at-least-once).
-- **Advisory locks** — every pod may consume every event, but only one pod at a time advances a given process. Locks are *per process*, which is also why sharding the database by process id scales cleanly: shards never coordinate.
+**Every event carries its process as the Kafka message key.** All the events of a process therefore
+hash to the same partition, and a consumer group hands each partition to exactly one consumer — so
+exactly one pod is ever working a given process. Serialization is not something the engine arranges
+after the fact; it is a property of how the events are addressed. The same key gives per-process
+**ordering**, which an unkeyed topic does not provide at all.
 
-The corollary is the engine's performance model: **it orchestrates, it doesn't execute** — workers do the heavy lifting and scale horizontally on Kafka, so the only resource that grows with orchestration throughput is database write capacity. See the [comparison guide](/guides/comparison/) for measured figures.
+That leaves three pieces doing the work:
+
+- **Transactional outbox** — state change and event are atomic, and the relay re-delivers after any
+  crash (at-least-once). The pod that writes a row wakes its own relay, so the poll interval is a
+  fallback for other pods' rows rather than latency on every step.
+- **Ownership by partition** — described above. It is also why sharding the database by process id
+  would scale cleanly: shards never coordinate.
+- **An optimistic version** on the process and its steps, fencing the one gap ownership leaves. A
+  consumer group guarantees which consumer is *assigned* a partition, not which is still *in
+  flight*: during a rebalance the outgoing pod can be finishing a record the incoming one now owns.
+  A stale write is rejected instead of overwriting, and rejections are counted
+  (`eventconductor.process.concurrent.writes.rejected`) so the assumption can be watched rather
+  than trusted.
+
+In `embedded` mode there are no partitions to own, so a row lock on the process takes their place.
+The engine used to work that way everywhere, with a per-process advisory lock; ownership replaced
+it in `kafka` mode because a lock that arranges what the log already guarantees is pure cost.
+
+The corollary is the engine's performance model: **it orchestrates, it doesn't execute** — workers
+do the heavy lifting and scale horizontally on Kafka, so the only resource that grows with
+orchestration throughput is database write capacity. See [Performance](/guides/performance/) for
+what the engine costs per transition and how to measure it yourself.
 
 ## Time, messages and rules
 
@@ -224,6 +248,6 @@ The same code runs in three modes selected purely by configuration — the adapt
 |---|---|---|
 | `embedded` + `memory` | in-memory repositories, synchronous event dispatch | none |
 | `embedded` + `jpa` | JPA repositories, in-process outbox relay | a database |
-| `kafka` + `jpa` | Kafka topics between orchestrator and workers, multi-pod locks | database + Kafka |
+| `kafka` + `jpa` | Kafka topics between orchestrator and workers, one owning pod per process | database + Kafka |
 
 Details and configuration in [Deployment Modes](/guides/deployment-modes/).

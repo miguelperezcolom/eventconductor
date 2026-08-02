@@ -85,19 +85,32 @@ The honest framing: Temporal's replay model gives the strongest workflow-state d
 **EventConductor** scales along the same two axes as any event-driven system:
 
 - **Workers** are stateless Kafka consumers — add instances to a consumer group to scale task execution linearly. The engine dispatches work and drives the state machine; it never executes business logic itself, so it does not become a bottleneck as business logic grows heavier.
-- **Orchestrator instances** scale horizontally behind advisory locks; state lives in PostgreSQL, so orchestration throughput ultimately follows your database's write capacity — a well-understood scaling model (connection pooling, partitioning, read replicas) rather than a new one.
+- **Orchestrator instances** scale horizontally, each owning the processes whose partitions it holds; state lives in PostgreSQL, so orchestration throughput ultimately follows your database's write capacity — a well-understood scaling model (connection pooling, partitioning, read replicas) rather than a new one.
 
 EventConductor's published baseline comes from the distributed test suite (DIST-05 in [the test plan](https://github.com/miguelperezcolom/eventconductor/blob/main/TESTING.md), reproducible with `mvn -Pdist-e2e`). It creates **500 concurrent process instances** — three worker-executed steps each, i.e. 1,500 task executions — and asserts they all complete with **no lost or stuck instances**. The most recent run:
 
 | DIST-05 metric | Measured |
 |---|---|
 | Process instances | 500 (3 ACTION steps each → 1,500 task executions) |
-| Wall clock (submit → all completed) | **11.3 s** |
-| End-to-end throughput | **44.1 process instances/second** |
-| Engine-side window (first creation → last completion) | 8.4 s → **59.7 PI/s** |
+| Wall clock (submit → all completed) | **5.5–6.4 s** |
+| End-to-end throughput | **78–91 process instances/second** |
 | Lost or stuck instances | **0** |
 
-The setup is deliberately modest: laptop-class hardware (Apple M3 Max), a single PostgreSQL and a single Kafka broker in Docker, two orchestrator instances and one worker JVM, default engine settings (200 ms outbox poll). That is a smoke baseline, not a tuned ceiling — but even it amounts to ~3.8M three-step instances/day, and it is measured with the full durability path engaged (every event through the transactional outbox, every dispatch behind advisory locks). Perspective matters here: a process instance per second is ~86,400 instances/day, and 100 PI/s — comfortably within reach of a single decent PostgreSQL instance — is ~8.6M instances/day. The published headroom of Zeebe and Temporal is genuinely necessary for hyperscale event processing; for typical business-process workloads (bookings, approvals, onboarding, back-office flows), all three engines are far from their limits, and the deciding factors are operational complexity and fit, not throughput.
+**Read that as a smoke test, not as a scalability figure.** It runs on laptop-class hardware (Apple
+M3 Max) with the pods, the broker, the database and the load generator all on the same machine, so
+what it mostly demonstrates is that nothing is lost or stuck under concurrency. Setting it beside
+Zeebe's published thousands would be comparing a laptop to a cluster.
+
+The number that *is* comparable is what the engine adds per transition — the gap between one step
+finishing and the next starting, which contains no worker time: **~10 ms p50, ~17 ms p95** at 40
+instances/second. See [Performance](/guides/performance/) for how that is measured, the two ways it
+is easy to measure wrongly, and a harness that reproduces it on your own hardware.
+
+Perspective still matters, though: one process instance per second is ~86,400 a day, and 100 PI/s —
+comfortably within a single decent PostgreSQL — is ~8.6M a day. The published headroom of Zeebe and
+Temporal is genuinely necessary for hyperscale event processing; for typical business-process
+workloads (bookings, approvals, onboarding, back-office flows) all three engines are far from their
+limits, and the deciding factors are operational complexity and fit, not throughput.
 
 ## Licensing & cost
 
@@ -179,7 +192,7 @@ A detailed capability-by-capability view. ✅ built-in · 🟡 possible with ext
 | Embeddable in your application | ✅ core design | ❌ | ❌ (dev server only for tests) |
 | Zero-infrastructure test mode | ✅ in-memory, in-process | 🟡 Testcontainers | 🟡 local dev server / test framework |
 
-The gaps are as informative as the checkmarks: if you need DMN decisions or multi-tenancy **today**, Camunda and Temporal have them and EventConductor does not (yet). Conversely, if you want the engine *inside* your application, workflows as reviewable data, forms included, and MIT licensing in production, only EventConductor offers that combination.
+The gaps are as informative as the checkmarks: if you need multi-tenancy **today**, Camunda and Temporal have it and EventConductor does not (yet). Conversely, if you want the engine *inside* your application, workflows as reviewable data, forms included, and MIT licensing in production, only EventConductor offers that combination.
 
 ## When to choose which
 
