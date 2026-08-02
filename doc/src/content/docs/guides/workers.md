@@ -39,6 +39,9 @@ record TaskStatusChanged(
 
 ### Example (Spring Cloud Stream)
 
+Reply through `WorkerReply`, not through `StreamBridge` directly — see
+[Do not drop the reply](#do-not-drop-the-reply) below.
+
 ```java
 @Component
 public class MyWorker {
@@ -49,23 +52,48 @@ public class MyWorker {
         return request -> {
             try {
                 String result = doBusinessLogic(request.variables());
-                streamBridge.send("upstream", new TaskStatusChanged(
-                    request.taskExecutionId(),
-                    TaskStatus.COMPLETED,
-                    List.of(new Variable("result", result)),
-                    null
-                ));
+                WorkerReply.completed(streamBridge, request,
+                    List.of(new Variable("result", result)));
             } catch (Exception e) {
-                streamBridge.send("upstream", new TaskStatusChanged(
-                    request.taskExecutionId(),
-                    TaskStatus.ERROR,
-                    List.of(),
-                    e.getMessage()
-                ));
+                WorkerReply.failed(streamBridge, request, List.of());
             }
         };
     }
 }
+```
+
+### Do not drop the reply
+
+`StreamBridge.send` reports failure by **returning `false`**, and the obvious one-liner throws that
+away:
+
+```java
+// Wrong, and it is the version everyone writes first.
+streamBridge.send("upstream", new TaskStatusChanged(...));
+```
+
+When the broker refuses the message the listener still returns normally, the consumer commits the
+offset, and the task your worker actually performed is never reported. The engine's step stays in
+`PENDING` waiting for an answer that was never published, and if that step declares no timeout it
+waits forever. This is not hypothetical: during a ninety-second broker outage on a test cluster,
+workers written this way lost 3,352 replies and left 3,356 processes permanently stuck, with no
+error logged anywhere. See [Reliability](/guides/reliability/).
+
+`WorkerReply` retries a refused send and then **throws**, which is the point: the offset is not
+committed, so Kafka redelivers the task and your worker does it again. **Worker handlers must be
+idempotent** — they always had to be, because at-least-once delivery was always the contract.
+
+It needs one setting, which applications that also embed the engine get automatically and
+standalone workers must declare:
+
+```yaml
+spring:
+  cloud:
+    stream:
+      kafka:
+        default:
+          producer:
+            sync: true      # without it, send() returns true before the broker has seen anything
 ```
 
 ## Embedded worker (mode: embedded)
@@ -125,12 +153,7 @@ Workers can report `RUNNING` status to indicate they are still working. This res
 
 ```java
 // Kafka mode
-streamBridge.send("upstream", new TaskStatusChanged(
-    request.taskExecutionId(),
-    TaskStatus.RUNNING,
-    List.of(),
-    "Processing batch 3 of 10..."
-));
+WorkerReply.running(streamBridge, request);
 
 // Embedded mode
 updateStepExecution.handle(new UpdateStepExecutionCommand(

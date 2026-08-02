@@ -1,4 +1,4 @@
-# Reliability run — 2 August 2026
+# Reliability run — 2–3 August 2026
 
 Four hours of continuous load against a three-node Kubernetes cluster (Hetzner, managed by
 Cloudfleet), with seven failure scenarios injected while it ran.
@@ -11,7 +11,35 @@ Cloudfleet), with seven failure scenarios injected while it ran.
 | Total | 61 835 processes, 642 912 outbox messages, 230 417 task dispatches |
 | Harness | `ec-reliability.sh`, `chaos.sh`, `invariants.sql` in this directory |
 
-## Verdict
+## Verification run (3 August, on the fixed build)
+
+The whole battery was repeated on a **wiped cluster**, installed from merged `main` with no manual
+intervention — Flyway ran by itself, topics were auto-created with six partitions, nothing needed
+patching by hand.
+
+| | First run | After the fixes |
+|---|---|---|
+| Processes stuck forever | **3 356** | **0** |
+| Drained after the load stopped | never | **144 s**, fully |
+| Outbox rows `Sent` but absent from the topic | **71** | **0** (one *more* on the topic — at-least-once) |
+| Duplicate step executions | 0 | 0 |
+| Conservation | −5 | **−2** |
+| Steady-state backlog at 4 PI/s | ~1 150 live | ~140 live |
+
+The two remaining were dead-lettered, not lost, with the reason attached:
+`JpaSystemException: Unable to rollback against JDBC Connection` — the database was stopped
+mid-transaction and the rollback failed because the connection had gone. The classifier did not
+treat that as retryable; it does now, matching connection-level `SQLException`s on SQLState
+(class `08`, class `53`, PostgreSQL `57P01`–`57P03`) as well as by type. **That last fix has unit
+tests and has not been re-verified on the cluster.**
+
+Recovery times moved, mostly upward — one pod killed went from 12 s to 54 s. The likely reason is
+that the measurement got stricter rather than the system slower: the first run carried a permanent
+backlog of ~1 150 live processes, so after any outage there was queued work that completed
+immediately and the counter rose at once. With ~140 live there is nothing to coast on and
+"sustained progress" requires new work to actually flow. Consistent with the data, not isolated.
+
+## Verdict (first run, 2 August)
 
 **Not yet production-ready for enterprise**, and the reason is specific: a single lost message
 leaves a process stopped forever with nothing anywhere reporting it. Everything else held up

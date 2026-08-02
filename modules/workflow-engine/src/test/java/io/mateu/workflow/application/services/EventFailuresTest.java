@@ -43,6 +43,45 @@ class EventFailuresTest {
     }
 
     @Test
+    void aRollbackThatFailedBecauseTheDatabaseWentAwayIsWorthRetrying() {
+        // The exact shape observed when PostgreSQL was stopped mid-transaction: Spring reports a
+        // JpaSystemException that its translator files as neither transient nor a resource
+        // failure, and two process creations were dead-lettered for it. SQLState class 08 is
+        // "connection exception" — the database was simply gone.
+        var connectionGone = new java.sql.SQLException("This connection has been closed.", "08003");
+
+        assertThat(EventFailures.isRetryable(new org.springframework.orm.jpa.JpaSystemException(
+                new RuntimeException("Unable to rollback against JDBC Connection", connectionGone))))
+                .isTrue();
+    }
+
+    @Test
+    void recognisesConnectionFailuresByStateAndByType() {
+        assertThat(EventFailures.isRetryable(
+                new java.sql.SQLException("terminating connection due to administrator command", "57P01")))
+                .isTrue();
+        assertThat(EventFailures.isRetryable(
+                new java.sql.SQLException("out of memory", "53200"))).isTrue();
+        // Drivers that set no state at all still say it in the type.
+        assertThat(EventFailures.isRetryable(
+                new java.sql.SQLRecoverableException("socket closed"))).isTrue();
+        assertThat(EventFailures.isRetryable(
+                new java.sql.SQLNonTransientConnectionException("connection refused"))).isTrue();
+    }
+
+    @Test
+    void aStatementLevelSqlErrorIsStillDefective() {
+        // Class 23 is integrity constraint violation: retrying it forever is a poison pill, and
+        // widening the connection check must not swallow it.
+        assertThat(EventFailures.isRetryable(
+                new java.sql.SQLException("duplicate key value violates unique constraint", "23505")))
+                .isFalse();
+        assertThat(EventFailures.isRetryable(
+                new java.sql.SQLException("syntax error", "42601"))).isFalse();
+        assertThat(EventFailures.isRetryable(new java.sql.SQLException("no state at all"))).isFalse();
+    }
+
+    @Test
     void survivesACycleInTheCauseChain() {
         // Java forbids a throwable causing itself, but nothing stops two from causing each other.
         var a = new RuntimeException("a");

@@ -93,7 +93,7 @@ spring:
 
   hikari:
     connection-timeout: ${DB_CONNECTION_TIMEOUT:20000}
-    maximum-pool-size: ${DB_POOL_SIZE:10}
+    maximum-pool-size: ${DB_POOL_SIZE:16}
 
   jpa:
     database-platform: ${JPA_DIALECT:org.hibernate.dialect.PostgreSQLDialect}
@@ -108,7 +108,11 @@ spring:
         format_sql: true
 
   flyway:
-    enabled: ${FLYWAY_ENABLED:false}
+    # On by default, for the same reason as in the orchestrator: the migrations are the schema of
+    # record and the only place this app's indexes come from. Hibernate's ddl-auto=update path
+    # emits no index DDL, so running without them leaves a schema with primary keys and nothing
+    # else. Safe to enable on a schema ddl-auto already created — it baselines at V1.
+    enabled: ${FLYWAY_ENABLED:true}
     locations: classpath:db/migration/rules
     baseline-on-migrate: true
     baseline-version: 1

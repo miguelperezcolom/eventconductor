@@ -6,6 +6,11 @@ import org.springframework.dao.RecoverableDataAccessException;
 import org.springframework.dao.TransientDataAccessException;
 import org.springframework.transaction.CannotCreateTransactionException;
 
+import java.sql.SQLException;
+import java.sql.SQLNonTransientConnectionException;
+import java.sql.SQLRecoverableException;
+import java.sql.SQLTransientException;
+
 /**
  * Whether a failed event is worth trying again, or is never going to succeed.
  *
@@ -38,8 +43,42 @@ public final class EventFailures {
                     || cause instanceof CannotCreateTransactionException) {
                 return true;
             }
+            if (cause instanceof SQLException sql && isConnectionFailure(sql)) {
+                return true;
+            }
         }
         return false;
+    }
+
+    /**
+     * Whether a {@link SQLException} says the connection failed rather than the statement.
+     *
+     * <p>Spring's exception hierarchy does not always reach these. Stopping the database mid-flight
+     * produced {@code JpaSystemException: Unable to rollback against JDBC Connection}, which is
+     * neither transient nor a resource failure as far as the translator is concerned, so two
+     * process creations were dead-lettered during a ninety-second outage — parked as defective
+     * when the only thing wrong was that the database had gone away. Failing to roll back because
+     * the connection is gone is the single most retryable thing that can happen to this engine.
+     *
+     * <p>Matched on SQLState rather than on type, because drivers are inconsistent about which
+     * {@code SQLException} subclass they throw but consistent about the state: class {@code 08} is
+     * "connection exception" in the SQL standard, class {@code 53} is "insufficient resources",
+     * and {@code 57P01}-{@code 57P03} are PostgreSQL shutting down, crashing and refusing
+     * connections. The subclass checks stay as a second net for drivers that set no state at all.
+     */
+    private static boolean isConnectionFailure(SQLException sql) {
+        if (sql instanceof SQLTransientException
+                || sql instanceof SQLRecoverableException
+                || sql instanceof SQLNonTransientConnectionException) {
+            return true;
+        }
+        var state = sql.getSQLState();
+        if (state == null || state.length() < 2) {
+            return false;
+        }
+        return state.startsWith("08")
+                || state.startsWith("53")
+                || state.equals("57P01") || state.equals("57P02") || state.equals("57P03");
     }
 
     private EventFailures() {

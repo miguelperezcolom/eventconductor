@@ -17,25 +17,51 @@ engine work — writing the transition, publishing it, routing it, dispatching t
 none of it is worker time, so unlike throughput it does not move when the workers get faster or
 slower.
 
-On a developer machine, PostgreSQL and Kafka in containers, two orchestrator pods, at 40 process
-instances per second:
+On a developer machine (Apple M3 Max), PostgreSQL and Kafka in containers, two orchestrator pods,
+at 40 process instances per second, over 6,000 transitions:
 
 | | per transition |
 |---|---|
-| p50 | ~10 ms |
-| p95 | ~17 ms |
-| p99 | ~21 ms |
+| p50 | 7.7 ms |
+| p95 | 11.7 ms |
+| p99 | 14.1 ms |
+| max | 23.5 ms |
 
 Roughly a couple of milliseconds of that is broker round trips; the rest is the write and the
 dispatch. Reproduce it with the harness in `modules/workflow-benchmark` — see its README — and read
 the caveats there before quoting any number from it.
 
+### What synchronous producer sends cost
+
+The engine waits for the broker to acknowledge each publish before treating it as delivered,
+because the transactional outbox is only transactional if a failed delivery can be detected — see
+[Reliability](/guides/reliability/). That is a round trip per message on the relay thread, so it is
+fair to ask what it costs. Measured both ways on the same machine:
+
+| | p50 | p95 | p99 | max throughput |
+|---|---|---|---|---|
+| Synchronous (the default) | 7.7 ms | 11.7 ms | 14.1 ms | 93.2 PI/s |
+| Asynchronous | 7.1 ms | 11.1 ms | 13.4 ms | 97.5 PI/s |
+
+**0.6 ms per transition and 4.4% of peak throughput**, to stop silently losing messages whenever
+the broker blinks. Turning it off is `spring.cloud.stream.kafka.default.producer.sync=false`, and
+it should be a considered decision rather than a tuning reflex.
+
+One oddity worth recording rather than explaining away: the synchronous run reports *fewer*
+database commits per step (7.0 against 11.0 at 40 PI/s), and the gap nearly vanishes under
+saturation (5.0 against 5.5). The likely reason is that `xact_commit` counts implicit transactions,
+so it is measuring the relay's empty polls: a slower pass means fewer of them, and under saturation
+there are no empty passes either way. That is a hypothesis consistent with both measurements, not a
+verified finding.
+
 ## Two ways to measure this wrong
 
 **Unpaced load.** Fire everything at once and the pipeline saturates; from then on the gap between
-steps is time spent queueing behind the backlog. The same setup that reports 27 ms paced reports
-**1,284 ms** unpaced. That is a measure of how deep the queue got, not of what a transition costs.
-Pace the load below saturation, or report the number as what it is.
+steps is time spent queueing behind the backlog. The same setup that reports **7.7 ms** paced at 40
+PI/s reports **1,828 ms** unpaced — and 99.6 ms merely at 100 PI/s, which is close enough to
+saturation on this machine to be mostly queueing already. That is a measure of how deep the queue
+got, not of what a transition costs. Pace the load below saturation, or report the number as what
+it is.
 
 **Everything on one machine.** Pods, broker, database and load generator sharing a laptop measure
 the laptop. That is fine for comparing one build against another and it is not a scalability claim.

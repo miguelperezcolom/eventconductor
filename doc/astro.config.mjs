@@ -58,6 +58,7 @@ export default defineConfig({
 						{ label: 'Deployment Modes', slug: 'guides/deployment-modes' },
 						{ label: 'Architecture', slug: 'guides/architecture' },
 						{ label: 'Performance', slug: 'guides/performance' },
+						{ label: 'Reliability', slug: 'guides/reliability' },
 						{ label: 'Demo Applications', slug: 'guides/demos' },
 						{ label: 'UI Manual', slug: 'guides/ui-manual' },
 					],
