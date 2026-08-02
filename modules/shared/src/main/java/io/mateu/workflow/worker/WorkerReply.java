@@ -4,7 +4,7 @@ import io.mateu.workflow.dtos.Variable;
 import io.mateu.workflow.dtos.events.integration.TaskExecutionRequested;
 import io.mateu.workflow.dtos.events.integration.TaskStatus;
 import io.mateu.workflow.dtos.events.integration.TaskStatusChanged;
-import org.springframework.cloud.stream.function.StreamBridge;
+import org.springframework.cloud.stream.function.StreamOperations;
 
 import java.util.List;
 
@@ -38,6 +38,11 @@ import java.util.List;
  *
  * <p>Applications that also run the engine get that default from the engine itself. A standalone
  * worker has to set it, and without it this class is decoration.
+ *
+ * <p>The parameter is {@link StreamOperations} rather than {@code StreamBridge} — the interface
+ * the bridge implements. Callers pass their {@code StreamBridge} unchanged; the reason for the
+ * wider type is that {@code StreamBridge} is final, and a retry policy nobody can write a test
+ * for is not a retry policy anyone should trust.
  */
 public final class WorkerReply {
 
@@ -46,18 +51,18 @@ public final class WorkerReply {
 
     private static final long BASE_BACKOFF_MILLIS = 200;
 
-    public static void completed(StreamBridge streamBridge, TaskExecutionRequested task,
+    public static void completed(StreamOperations streamBridge, TaskExecutionRequested task,
                                  List<Variable> variables) {
         send(streamBridge, new TaskStatusChanged(
                 task.taskExecutionId(), TaskStatus.COMPLETED, variables, task.processId()));
     }
 
-    public static void running(StreamBridge streamBridge, TaskExecutionRequested task) {
+    public static void running(StreamOperations streamBridge, TaskExecutionRequested task) {
         send(streamBridge, new TaskStatusChanged(
                 task.taskExecutionId(), TaskStatus.RUNNING, List.of(), task.processId()));
     }
 
-    public static void failed(StreamBridge streamBridge, TaskExecutionRequested task,
+    public static void failed(StreamOperations streamBridge, TaskExecutionRequested task,
                               List<Variable> variables) {
         send(streamBridge, new TaskStatusChanged(
                 task.taskExecutionId(), TaskStatus.ERROR, variables, task.processId()));
@@ -70,7 +75,7 @@ public final class WorkerReply {
      *                                   committed. Do not catch it to "keep going" — that is the
      *                                   bug this class exists to prevent.
      */
-    public static void send(StreamBridge streamBridge, TaskStatusChanged reply) {
+    public static void send(StreamOperations streamBridge, TaskStatusChanged reply) {
         RuntimeException lastFailure = null;
         for (var attempt = 1; attempt <= ATTEMPTS; attempt++) {
             try {
