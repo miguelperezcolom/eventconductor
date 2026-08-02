@@ -25,6 +25,7 @@ import io.mateu.workflow.application.usecases.process.cancel.CancelProcessComman
 import io.mateu.workflow.dtos.events.domain.ProcessCancellationRequested;
 import io.mateu.workflow.dtos.events.integration.PauseProcessRequested;
 import io.mateu.workflow.dtos.events.integration.ResumeProcessRequested;
+import io.mateu.workflow.dtos.events.integration.RetryProcessRequested;
 import io.mateu.workflow.application.usecases.process.cancel.CancelProcessUseCase;
 import io.mateu.workflow.application.usecases.process.pause.PauseProcessCommand;
 import io.mateu.workflow.application.usecases.process.pause.PauseProcessUseCase;
@@ -35,6 +36,7 @@ import io.mateu.workflow.domain.aggregates.LogMessage;
 import io.mateu.workflow.domain.aggregates.Process;
 import io.mateu.workflow.domain.aggregates.ProcessStatus;
 import io.mateu.workflow.domain.aggregates.StepExecutionStatus;
+import io.mateu.workflow.domain.aggregates.StepType;
 import io.mateu.workflow.dtos.Variable;
 import io.mateu.workflow.infra.in.ui.pages.process.childcruds.Errors;
 import io.mateu.workflow.infra.in.ui.pages.process.childcruds.Message;
@@ -53,6 +55,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplicat
 import org.springframework.stereotype.Service;
 
 import java.net.URI;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -60,6 +63,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
 
+import static io.mateu.core.infra.JsonSerializer.pojoFromJson;
 import static io.mateu.core.infra.JsonSerializer.toJson;
 import static io.mateu.uidl.Humanizer.toUpperCaseFirst;
 import static io.mateu.workflow.infra.in.ui.adapters.SimpleProcessCrudAdapter.mapProcessStatus;
@@ -140,14 +144,15 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
         this.steps = stepExecutions.stream()
                 .map(se -> new Step(id, se.id(), se.getStepId(), mapStepStatus(se.getStatus().name())))
                 .toList();
-        this.diagram = buildDiagram(process, stepExecutions);
-        this.messages = logMessageRepository.findByProcessId(id).stream()
+        var logs = logMessageRepository.findByProcessId(id);
+        this.diagram = buildDiagram(process, stepExecutions, logs);
+        this.messages = logs.stream()
                 .filter(msg -> !"error".equals(msg.getMessageType()))
                 .sorted(Comparator.comparing(LogMessage::getTimestamp).reversed())
                 .limit(10)
                 .map(msg -> new Message(id, msg.id(), msg.getTimestamp(), msg.getMessage()))
                 .toList();
-        this.errors = logMessageRepository.findByProcessId(id).stream()
+        this.errors = logs.stream()
                 .filter(msg -> "error".equals(msg.getMessageType()))
                 .sorted(Comparator.comparing(LogMessage::getTimestamp).reversed())
                 .limit(10)
@@ -177,22 +182,22 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
      * The read-only graph for this process, overlaid with each step's live state and an "active"
      * highlight on the running step(s) — so the diagram shows where the process currently is.
      */
-    Element buildDiagram(Process process, List<StepExecution> stepExecutions) {
+    Element buildDiagram(Process process, List<StepExecution> stepExecutions, List<LogMessage> logs) {
         var def = workflowDefinitionRepository.findById(process.getWorkflowDefinitionId()).orElse(null);
         if (def == null) return null;
-        // Collapse retries: keep the most telling status per step (running/error over completed).
-        var byStep = new HashMap<String, StepExecutionStatus>();
+        // Collapse retries: keep the most telling execution per step (running/error over completed,
+        // and the latest attempt when equally telling) so the overlay reads the current situation.
+        var byStep = new HashMap<String, StepExecution>();
         for (var se : stepExecutions) {
-            byStep.merge(se.getStepId(), se.getStatus(),
-                    (a, b) -> statusRank(b) > statusRank(a) ? b : a);
+            byStep.merge(se.getStepId(), se, (a, b) -> {
+                int ra = statusRank(a.getStatus()), rb = statusRank(b.getStatus());
+                if (rb != ra) return rb > ra ? b : a;
+                return b.getAttemptCount() >= a.getAttemptCount() ? b : a;
+            });
         }
+        var latestErrorByExec = latestErrorByStepExecution(logs);
         var overlay = new HashMap<String, Object>();
-        byStep.forEach((stepId, status) -> {
-            var entry = new HashMap<String, Object>();
-            entry.put("state", overlayState(status));
-            if (status == StepExecutionStatus.RUNNING) entry.put("active", true);
-            overlay.put(stepId, entry);
-        });
+        byStep.forEach((stepId, se) -> overlay.put(stepId, overlayEntry(se, latestErrorByExec.get(se.id()))));
         var attrs = new HashMap<String, String>();
         attrs.put("import", GRAPH_MODULE);
         attrs.put("value", toJson(def));
@@ -231,6 +236,90 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
         };
     }
 
+    /**
+     * The overlay entry the graph hover reads: the step's state plus the consolidated "why it is
+     * here" and the detail an operator needs to answer it without opening the code — the parked
+     * reason, the last error, retry count, what it awaits, deadlines and its variable snapshot.
+     */
+    static Map<String, Object> overlayEntry(StepExecution se, String error) {
+        var step = safeStep(se.getStepJson());
+        var status = se.getStatus();
+        var entry = new HashMap<String, Object>();
+        entry.put("state", overlayState(status));
+        entry.put("reason", reasonFor(se, step, error));
+        if (status == StepExecutionStatus.RUNNING) entry.put("active", true);
+        if (error != null) entry.put("error", error);
+        if (se.getAttemptCount() > 0) entry.put("attempt", se.getAttemptCount());
+        if (step != null && step.retries() > 0) entry.put("maxRetries", step.retries());
+        if (se.getAwaitingMessageName() != null) entry.put("awaitingMessage", se.getAwaitingMessageName());
+        if (se.getAwaitingCorrelationKey() != null) entry.put("correlationKey", se.getAwaitingCorrelationKey());
+        if (se.getDeadlineAt() != null) entry.put("deadlineAt", se.getDeadlineAt().toString());
+        if (se.getStartedAt() != null) entry.put("startedAt", se.getStartedAt().toString());
+        if (se.getWorkerId() != null) entry.put("worker", se.getWorkerId());
+        var vars = se.getVariables();
+        if (vars != null && !vars.isEmpty()) {
+            entry.put("variables", vars.stream()
+                    .limit(12)
+                    .map(v -> Map.of("name", v.name() == null ? "" : v.name(),
+                            "value", v.value() == null ? "" : v.value()))
+                    .toList());
+        }
+        return entry;
+    }
+
+    /** Latest error message per step execution id, so a failed step can show its own cause. */
+    static Map<String, String> latestErrorByStepExecution(List<LogMessage> logs) {
+        var latest = new HashMap<String, String>();
+        var when = new HashMap<String, LocalDateTime>();
+        for (var lm : logs) {
+            if (!"error".equals(lm.getMessageType())) continue;
+            var eid = lm.getStepExecutionId();
+            if (eid == null) continue;
+            var ts = lm.getTimestamp();
+            if (!when.containsKey(eid) || (ts != null && ts.isAfter(when.get(eid)))) {
+                when.put(eid, ts);
+                latest.put(eid, lm.getMessage());
+            }
+        }
+        return latest;
+    }
+
+    /** Human-legible answer to "why is this step here?", read straight from the DSL vocabulary. */
+    static String reasonFor(StepExecution se, io.mateu.workflow.domain.aggregates.Step step, String error) {
+        var type = step != null ? step.type() : null;
+        return switch (se.getStatus()) {
+            case RUNNING -> "Running" + (se.getWorkerId() != null ? " on worker " + se.getWorkerId() : "");
+            case CREATED -> se.getAttemptCount() > 0 ? "Queued for retry" : "Queued, not started yet";
+            case PENDING -> pendingReason(se, type);
+            case ERROR -> (se.getAttemptCount() > 0 ? "Failed on attempt " + (se.getAttemptCount() + 1) : "Failed")
+                    + (error != null ? ": " + error : "");
+            case TIMEOUT -> "Timed out" + (se.getDeadlineAt() != null ? " (deadline " + se.getDeadlineAt() + ")" : "");
+            case COMPLETED -> "Completed";
+            case CANCELLED -> "Cancelled";
+        };
+    }
+
+    private static String pendingReason(StepExecution se, StepType type) {
+        if (se.getAwaitingMessageName() != null) {
+            return "Waiting for message '" + se.getAwaitingMessageName() + "'"
+                    + (se.getAwaitingCorrelationKey() != null ? " with key '" + se.getAwaitingCorrelationKey() + "'" : "");
+        }
+        if (type == StepType.TIMER && se.getDeadlineAt() != null) return "Waiting for timer until " + se.getDeadlineAt();
+        if (type == StepType.USER_TASK) return "Waiting for a human task";
+        if (type == StepType.PROCESS) return "Waiting for a child process to finish";
+        if (se.getDeadlineAt() != null) return "Waiting (times out at " + se.getDeadlineAt() + ")";
+        return "Waiting for its preconditions";
+    }
+
+    /** Deserialize the frozen step definition an execution ran with; null if it cannot be read. */
+    private static io.mateu.workflow.domain.aggregates.Step safeStep(String stepJson) {
+        try {
+            return stepJson == null ? null : pojoFromJson(stepJson, io.mateu.workflow.domain.aggregates.Step.class);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     @Override
     public String toString() {
         return "Process " + (id != null && id.length() > 5?"..." + id.substring(id.length() - 5):id);
@@ -265,6 +354,15 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
     @Action
     public void resumeProcess() {
         upstreamEventPublisher.publish(new ResumeProcessRequested(id));
+    }
+
+    @Toolbar(buttonStyle = ButtonStyle.secondary)
+    @Action
+    public void retryProcess() {
+        // Requested, not performed here: like cancel/pause/resume, the retry runs on the pod that
+        // owns the process, so an operator can re-drive a failed process from its detail view
+        // without dropping to the cross-process Steps page. Retries every errored step.
+        upstreamEventPublisher.publish(new RetryProcessRequested(id));
     }
 
 
@@ -304,6 +402,9 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
         }
         if ("resumeProcess".equals(memberName)) {
             return processStatus != ProcessStatus.PAUSED;
+        }
+        if ("retryProcess".equals(memberName)) {
+            return processStatus != ProcessStatus.ERROR;
         }
         return false;
     }

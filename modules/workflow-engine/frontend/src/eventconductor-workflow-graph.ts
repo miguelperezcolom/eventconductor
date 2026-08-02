@@ -45,8 +45,27 @@ interface WorkflowDefinition {
 }
 
 type StepState = "PENDING" | "RUNNING" | "COMPLETED" | "ERROR" | "CANCELLED" | "COMPENSATED";
-/** Per-step monitoring overlay entry (read-only views): a live process count and/or a state. */
-interface StepOverlay { count?: number; state?: StepState; active?: boolean; }
+/**
+ * Per-step monitoring overlay entry (read-only views): a live process count and/or a state, plus
+ * the diagnostic detail the hover shows so an operator can answer "why is it here?" without opening
+ * the code — the consolidated reason, the last error, retries, what it awaits, deadlines, the
+ * worker and a snapshot of the step's variables.
+ */
+interface StepOverlay {
+    count?: number;
+    state?: StepState;
+    active?: boolean;
+    reason?: string;
+    error?: string;
+    attempt?: number;
+    maxRetries?: number;
+    awaitingMessage?: string;
+    correlationKey?: string;
+    deadlineAt?: string;
+    startedAt?: string;
+    worker?: string;
+    variables?: { name: string; value: string }[];
+}
 
 interface NodePos { x: number; y: number; }
 interface Pt { x: number; y: number; }
@@ -543,6 +562,8 @@ export class MateuWorkflowElk extends LitElement {
     @state() private positions: Record<string, NodePos> = {};
     @state() private layoutReady = false;
     @state() private selectedId: string | null = null;
+    /** Node the pointer is over in monitoring view — drives the diagnostic hover tooltip. */
+    @state() private hoverId: string | null = null;
     @state() private showMeta = false;
     @state() private layoutError: string | null = null;
     /** When true, the graph overlays the whole viewport (expand button). */
@@ -1569,6 +1590,7 @@ export class MateuWorkflowElk extends LitElement {
                             </g>
                         </svg>
                         ${this.renderMinimap()}
+                        ${this.renderOverlayTooltip()}
                     </div>
                     ${this.selectedId && !this.readOnly ? this.renderPanel() : ""}
                 </div>
@@ -1764,13 +1786,63 @@ export class MateuWorkflowElk extends LitElement {
         return svg`
             <g class="node ${sel} ${ovCls} ${linkCls} ${monDim}" data-node="${step.id}" transform="translate(${pos.x},${pos.y})"
                @mousedown="${(e: MouseEvent) => this.onNodeMouseDown(e, step.id)}"
-               @click="${(e: MouseEvent) => this.onNodeClick(e, step.id)}">
+               @click="${(e: MouseEvent) => this.onNodeClick(e, step.id)}"
+               @mouseenter="${() => this.onNodeHover(step.id)}"
+               @mouseleave="${() => this.onNodeHover(null)}">
                 ${pulse}
                 <g class="node-inner" data-inner="${step.id}">${shape}</g>
                 ${badge}
                 ${done}
             </g>
         `;
+    }
+
+    /** Hover detail only makes sense in monitoring view; ignore hovers on the plain editor. */
+    private onNodeHover(id: string | null) {
+        if (id !== null && !this.hasStateOverlay()) return;
+        this.hoverId = id;
+    }
+
+    /**
+     * The diagnostic hover card for a monitored step: the consolidated "why it is here", the last
+     * error, and the detail (retries, awaited message/key, deadlines, worker, variables) an operator
+     * needs to answer it without opening the code. Positioned in screen space so it stays legible at
+     * any zoom, and pointer-transparent so it never eats the pan/hover it floats over.
+     */
+    private renderOverlayTooltip() {
+        const id = this.hoverId;
+        if (!id || !this.hasStateOverlay()) return nothing;
+        const ov = this.overlayData[id];
+        const step = this.wf.steps.find(s => s.id === id);
+        const pos = this.positions[id];
+        if (!ov || !pos) return nothing;
+        const {h} = sizeOf(step?.type ?? "ACTION");
+        const left = this.panX + pos.x * this.zoomK;
+        const top = this.panY + (pos.y + h) * this.zoomK + 8;
+        const fmt = (s?: string) => s ? s.replace("T", " ").slice(0, 16) : "";
+        const chip = ov.state
+            ? html`<span class="tip-chip tip-${ov.state.toLowerCase()}">${ov.state}</span>` : nothing;
+        const row = (k: string, v?: string | null) => v == null || v === ""
+            ? nothing : html`<div class="tip-row"><span class="tip-k">${k}</span><span class="tip-v">${v}</span></div>`;
+        const attempt = ov.attempt != null
+            ? (ov.maxRetries ? `${ov.attempt}/${ov.maxRetries}` : `${ov.attempt}`) : null;
+        return html`
+            <div class="ov-tip" style="left:${left}px; top:${top}px;">
+                <div class="tip-head"><span class="tip-name">${step?.name ?? id}</span>${chip}</div>
+                ${ov.reason ? html`<div class="tip-reason">${ov.reason}</div>` : nothing}
+                ${ov.error ? html`<div class="tip-errmsg">${ov.error}</div>` : nothing}
+                ${row("Attempt", attempt)}
+                ${row("Awaiting", ov.awaitingMessage)}
+                ${row("Key", ov.correlationKey)}
+                ${row("Due", fmt(ov.deadlineAt))}
+                ${row("Started", fmt(ov.startedAt))}
+                ${row("Worker", ov.worker)}
+                ${ov.variables && ov.variables.length ? html`
+                    <div class="tip-vars">
+                        ${ov.variables.map(v => html`
+                            <div class="tip-row"><span class="tip-k">${v.name}</span><span class="tip-v">${v.value}</span></div>`)}
+                    </div>` : nothing}
+            </div>`;
     }
 
     private renderPanel() {
@@ -2033,6 +2105,37 @@ export class MateuWorkflowElk extends LitElement {
         /* parts the process hasn't reached yet fade back */
         .node.mon-dim {opacity: .3;}
         .edge.mon-dim, .comp-edge.mon-dim {opacity: .18;}
+
+        /* diagnostic hover card (monitoring view): "why is this step here?" without opening code */
+        .ov-tip {
+            position: absolute; z-index: 30; pointer-events: none;
+            min-width: 200px; max-width: 300px;
+            background: var(--ec-surface, #fff); color: var(--ec-text, #1e293b);
+            border: 1px solid var(--ec-border, #e2e8f0); border-radius: 8px;
+            box-shadow: 0 6px 20px rgba(15, 23, 42, .18);
+            padding: 8px 10px; font-size: 12px; line-height: 1.45;
+        }
+        .tip-head {display: flex; align-items: center; gap: 6px; margin-bottom: 4px;}
+        .tip-name {font-weight: 700; font-size: 12.5px;}
+        .tip-chip {
+            margin-left: auto; font-size: 9.5px; font-weight: 700; text-transform: uppercase;
+            letter-spacing: .04em; padding: 1px 6px; border-radius: 9px; color: #fff;
+        }
+        .tip-running {background: #d97706;}
+        .tip-pending {background: #64748b;}
+        .tip-completed {background: #16a34a;}
+        .tip-error {background: #dc2626;}
+        .tip-cancelled {background: #94a3b8;}
+        .tip-compensated {background: #dc2626;}
+        .tip-reason {font-weight: 600; margin-bottom: 4px;}
+        .tip-errmsg {color: #dc2626; margin-bottom: 4px; white-space: pre-wrap; word-break: break-word;}
+        .tip-row {display: flex; gap: 8px; justify-content: space-between;}
+        .tip-k {color: var(--ec-text-dim, #64748b);}
+        .tip-v {font-weight: 600; text-align: right; word-break: break-word;}
+        .tip-vars {
+            margin-top: 5px; padding-top: 5px; border-top: 1px solid var(--ec-border, #e2e8f0);
+            max-height: 140px; overflow: auto;
+        }
 
         /* a failing node shakes like an earthquake while its red ping is fresh */
         .node-inner {transform-box: fill-box; transform-origin: center;}

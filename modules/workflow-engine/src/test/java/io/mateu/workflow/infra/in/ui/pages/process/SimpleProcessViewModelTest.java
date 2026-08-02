@@ -2,18 +2,24 @@ package io.mateu.workflow.infra.in.ui.pages.process;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.mateu.workflow.application.out.UpstreamEventPublisher;
 import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
+import io.mateu.workflow.domain.aggregates.LogMessage;
 import io.mateu.workflow.domain.aggregates.Process;
+import io.mateu.workflow.domain.aggregates.ProcessStatus;
 import io.mateu.workflow.domain.aggregates.StepExecution;
 import io.mateu.workflow.domain.aggregates.StepExecutionStatus;
 import io.mateu.workflow.domain.aggregates.WorkflowDefinition;
+import io.mateu.workflow.dtos.events.integration.RetryProcessRequested;
 import org.junit.jupiter.api.Test;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class SimpleProcessViewModelTest {
@@ -46,7 +52,7 @@ class SimpleProcessViewModelTest {
         var element = view(defs).buildDiagram(process, List.of(
                 se("start", StepExecutionStatus.COMPLETED),
                 se("charge", StepExecutionStatus.RUNNING),
-                se("ship", StepExecutionStatus.PENDING)));
+                se("ship", StepExecutionStatus.PENDING)), List.of());
 
         assertThat(element).isNotNull();
         assertThat(element.name()).isEqualTo("eventconductor-workflow-graph");
@@ -68,7 +74,7 @@ class SimpleProcessViewModelTest {
 
         var element = view(defs).buildDiagram(process, List.of(
                 se("charge", StepExecutionStatus.COMPLETED),
-                se("charge", StepExecutionStatus.RUNNING))); // a retry is still running
+                se("charge", StepExecutionStatus.RUNNING)), List.of()); // a retry is still running
 
         JsonNode overlay = mapper.readTree(element.attributes().get("overlay"));
         assertThat(overlay.get("charge").get("state").asText()).isEqualTo("RUNNING");
@@ -81,7 +87,7 @@ class SimpleProcessViewModelTest {
         var process = mock(Process.class);
         when(process.getWorkflowDefinitionId()).thenReturn("wd-1");
 
-        assertThat(view(defs).buildDiagram(process, List.of())).isNull();
+        assertThat(view(defs).buildDiagram(process, List.of(), List.of())).isNull();
     }
 
     @Test
@@ -93,6 +99,70 @@ class SimpleProcessViewModelTest {
         assertThat(SimpleProcessViewModel.overlayState(StepExecutionStatus.CANCELLED)).isEqualTo("CANCELLED");
         assertThat(SimpleProcessViewModel.overlayState(StepExecutionStatus.CREATED)).isEqualTo("PENDING");
         assertThat(SimpleProcessViewModel.overlayState(StepExecutionStatus.PENDING)).isEqualTo("PENDING");
+    }
+
+    @Test
+    void overlayEntryConsolidatesTheReasonForAMessageWait() {
+        var se = mock(StepExecution.class);
+        when(se.getStatus()).thenReturn(StepExecutionStatus.PENDING);
+        when(se.getAwaitingMessageName()).thenReturn("PaymentConfirmed");
+        when(se.getAwaitingCorrelationKey()).thenReturn("order-42");
+
+        var entry = SimpleProcessViewModel.overlayEntry(se, null);
+
+        assertThat(entry.get("state")).isEqualTo("PENDING");
+        assertThat(entry.get("reason"))
+                .isEqualTo("Waiting for message 'PaymentConfirmed' with key 'order-42'");
+        assertThat(entry.get("awaitingMessage")).isEqualTo("PaymentConfirmed");
+        assertThat(entry.get("correlationKey")).isEqualTo("order-42");
+    }
+
+    @Test
+    void overlayEntrySurfacesTheStepErrorAndRetryCount() {
+        var se = mock(StepExecution.class);
+        when(se.getStatus()).thenReturn(StepExecutionStatus.ERROR);
+        when(se.getAttemptCount()).thenReturn(2);
+
+        var entry = SimpleProcessViewModel.overlayEntry(se, "payment declined");
+
+        assertThat(entry.get("reason")).isEqualTo("Failed on attempt 3: payment declined");
+        assertThat(entry.get("error")).isEqualTo("payment declined");
+        assertThat(entry.get("attempt")).isEqualTo(2);
+    }
+
+    @Test
+    void keepsTheNewestErrorPerStepExecutionAndIgnoresNonErrors() {
+        var older = LogMessage.builder().stepExecutionId("x").messageType("error")
+                .message("first").timestamp(LocalDateTime.parse("2026-08-02T10:00")).build();
+        var newer = LogMessage.builder().stepExecutionId("x").messageType("error")
+                .message("second").timestamp(LocalDateTime.parse("2026-08-02T11:00")).build();
+        var noise = LogMessage.builder().stepExecutionId("x").messageType("info")
+                .message("noise").timestamp(LocalDateTime.parse("2026-08-02T12:00")).build();
+
+        var latest = SimpleProcessViewModel.latestErrorByStepExecution(List.of(older, newer, noise));
+
+        assertThat(latest.get("x")).isEqualTo("second");
+    }
+
+    @Test
+    void offersRetryOnlyWhileTheProcessIsFailed() {
+        var view = view(null);
+        view.processStatus = ProcessStatus.ERROR;
+        assertThat(view.isHidden("retryProcess", null)).isFalse();
+        view.processStatus = ProcessStatus.RUNNING;
+        assertThat(view.isHidden("retryProcess", null)).isTrue();
+    }
+
+    @Test
+    void retryPublishesARetryRequestForThisProcessOnTheOwningPod() {
+        var publisher = mock(UpstreamEventPublisher.class);
+        var view = new SimpleProcessViewModel(
+                publisher, null, null, null, null, null, null, null, null, null);
+        view.id = "p-1";
+
+        view.retryProcess();
+
+        verify(publisher).publish(new RetryProcessRequested("p-1"));
     }
 
     @Test
