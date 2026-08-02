@@ -2,7 +2,6 @@
   "id": "fork-join",
   "name": "Fork and join with a step after the barrier",
   "version": 1,
-  "status": "ACTIVE",
   "steps": [
     {
       "id": "start",

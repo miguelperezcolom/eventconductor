@@ -41,7 +41,7 @@ use the `eventconductor-scaffold` skill. Running/verifying a change: `eventcondu
 `classpath:/workflows/order.json`:
 ```json
 {
-  "id": "order-processing", "name": "Order Processing", "version": 1, "status": "ACTIVE",
+  "id": "order-processing", "name": "Order Processing", "version": 1,
   "steps": [
     { "id": "start",    "type": "START",  "name": "Start" },
     { "id": "validate", "type": "ACTION", "name": "Validate", "topic": "order-validator",

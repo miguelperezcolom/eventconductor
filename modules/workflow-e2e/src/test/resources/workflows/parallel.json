@@ -2,7 +2,6 @@
   "id": "parallel",
   "name": "Parallel fan-out (fork/join)",
   "version": 1,
-  "status": "ACTIVE",
   "steps": [
     {
       "id": "start",

@@ -2,7 +2,6 @@
   "id": "dist-worker-crash",
   "name": "Distributed worker crash / timeout / retry",
   "version": 1,
-  "status": "ACTIVE",
   "steps": [
     {
       "id": "start",

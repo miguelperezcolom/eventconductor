@@ -32,15 +32,15 @@ public class WorkflowDefinitionDBRepository implements WorkflowDefinitionReposit
                 entity.getName(),
                 entity.getVersion(),
                 entity.getDescription(),
-                WorkflowDefinitionStatus.valueOf(entity.getStatus()),
-                entity.getDraftOfId(),
                 entity.isLimitConcurrentExecutions(),
                 entity.getMaxConcurrentExecutions(),
                 entity.isEnqueueOnLimit(),
                 entity.getCronExpression(),
                 entity.getDefaultMaxStepExecutions(),
                 listFromJson(entity.getStepsJson(), Step.class),
-                entity.isPaused()
+                entity.isPaused(),
+                entity.isDisabled(),
+                entity.isArchived()
         );
     }
 
@@ -52,15 +52,15 @@ public class WorkflowDefinitionDBRepository implements WorkflowDefinitionReposit
                 workflowDefinition.name(),
                 workflowDefinition.version(),
                 workflowDefinition.description(),
-                workflowDefinition.status().name(),
-                workflowDefinition.draftOfId(),
                 toJson(workflowDefinition.steps().stream().map(step -> step.withWorkflowDefinitionId(workflowDefinition.id())).toList()),
                 workflowDefinition.limitConcurrentExecutions(),
                 workflowDefinition.maxConcurrentExecutions(),
                 workflowDefinition.enqueueOnLimit(),
                 workflowDefinition.cronExpression(),
                 workflowDefinition.defaultMaxStepExecutions(),
-                workflowDefinition.paused()
+                workflowDefinition.paused(),
+                workflowDefinition.disabled(),
+                workflowDefinition.archived()
         ));
         return workflowDefinition.id();
     }
@@ -74,10 +74,10 @@ public class WorkflowDefinitionDBRepository implements WorkflowDefinitionReposit
     public void deleteAllById(List<String> selectedIds) {
         selectedIds.stream().map(workflowDefinitionEntityRepository::findById)
                 .map(Optional::orElseThrow)
-                .filter(entity -> WorkflowDefinitionStatus.ACTIVE.name().equals(entity.status))
+                .filter(entity -> !entity.isDisabled() && !entity.isArchived())
                 .findAny()
                 .ifPresent(entity -> {
-                    throw new RuntimeException("Cannot delete active workflow definition (" + entity.getName() + ")");
+                    throw new RuntimeException("Cannot delete an active workflow definition (disable or archive it first): " + entity.getName());
                 });
         workflowDefinitionEntityRepository.deleteAllById(selectedIds);
     }

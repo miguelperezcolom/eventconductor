@@ -2,7 +2,6 @@ package io.mateu.workflow.application.usecases.lifecycle;
 
 import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
 import io.mateu.workflow.domain.aggregates.WorkflowDefinition;
-import io.mateu.workflow.domain.aggregates.WorkflowDefinitionStatus;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -23,23 +22,24 @@ class DisableWorkflowDefinitionUseCaseTest {
     @Mock WorkflowDefinitionRepository repository;
     @InjectMocks DisableWorkflowDefinitionUseCase useCase;
 
-    private WorkflowDefinition def(WorkflowDefinitionStatus status) {
-        return new WorkflowDefinition("wd-1", "Test", 1, "desc", status, null, false, 0, false, null, 0, List.of());
+    private WorkflowDefinition def(boolean disabled) {
+        return new WorkflowDefinition("wd-1", "Test", 1, "desc", false, 0, false, null, 0,
+                List.of(), false, disabled, false);
     }
 
     @Test
-    void disablesAnActiveDefinition() {
-        when(repository.findById("wd-1")).thenReturn(Optional.of(def(WorkflowDefinitionStatus.ACTIVE)));
+    void disablesAnEnabledDefinition() {
+        when(repository.findById("wd-1")).thenReturn(Optional.of(def(false)));
         useCase.handle("wd-1");
         var captor = ArgumentCaptor.forClass(WorkflowDefinition.class);
         verify(repository).save(captor.capture());
-        assertThat(captor.getValue().status()).isEqualTo(WorkflowDefinitionStatus.DISABLED);
+        assertThat(captor.getValue().disabled()).isTrue();
     }
 
     @Test
-    void rejectsNonActive() {
-        when(repository.findById("wd-1")).thenReturn(Optional.of(def(WorkflowDefinitionStatus.DRAFT)));
-        assertThatThrownBy(() -> useCase.handle("wd-1")).isInstanceOf(IllegalStateException.class);
+    void idempotentWhenAlreadyDisabled() {
+        when(repository.findById("wd-1")).thenReturn(Optional.of(def(true)));
+        useCase.handle("wd-1");
         verify(repository, never()).save(any());
     }
 

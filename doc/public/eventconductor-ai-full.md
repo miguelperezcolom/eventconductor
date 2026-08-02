@@ -101,9 +101,9 @@ Written in JSON or YAML (`.json`, `.yaml`, `.yml`); version-controlled and PR-re
 | `name` | string | Human-readable name |
 | `version` | integer | Version number |
 | `description` | string | Optional |
-| `status` | enum | `DRAFT` \| `ACTIVE` \| `DISABLED` \| `ARCHIVED` |
-| `paused` | boolean | Runtime pause flag, orthogonal to `status` — toggled at runtime, not authored. While `true` all the definition's processes are held and new instances (cron included) are created born-`PAUSED`. In the schema (default `false`) only so exports round-trip |
-| `draftOfId` | string | ID of the production definition this is a working copy of; `null` otherwise |
+| `paused` | boolean | Runtime flag (not authored in the .ec) — pause/resume. While true all processes are held and new instances (cron included) are born-`PAUSED` |
+| `disabled` | boolean | Runtime flag (not authored in the .ec) — disable/enable. While true, no new instances (cron included); running ones continue |
+| `archived` | boolean | Runtime flag (not authored in the .ec) — set by the git-import prune to hide a removed definition |
 | `limitConcurrentExecutions` | boolean | Cap concurrent running instances |
 | `maxConcurrentExecutions` | integer | Max instances (when limit enabled) |
 | `enqueueOnLimit` | boolean | Queue new instances when the limit is reached |
@@ -111,14 +111,9 @@ Written in JSON or YAML (`.json`, `.yaml`, `.yml`); version-controlled and PR-re
 | `defaultMaxStepExecutions` | integer | Default cap on executions per step (validated metadata; not enforced at runtime today) |
 | `steps` | array | The step definitions |
 
-### Definition statuses
+### Runtime state
 
-| Status | Meaning |
-|---|---|
-| `DRAFT` | Under construction, not executable |
-| `ACTIVE` | Accepts new process instances |
-| `DISABLED` | No new instances; running ones continue |
-| `ARCHIVED` | Retired |
+Definitions are authored as `.ec` files and imported — never edited in the UI. Two orthogonal runtime flags (outside the `.ec`): pause/resume (processes held; new instances born paused) and disable/enable (no new instances). A definition removed from its repo is archived by the import prune. Disabled and archived definitions start no new instances.
 
 ### Editor autocomplete
 
@@ -431,7 +426,7 @@ Worker outputs are **merged into process variables** (overwriting same-named one
 
 ```json
 {
-  "id": "booking-saga", "name": "Booking Saga", "version": 1, "status": "ACTIVE",
+  "id": "booking-saga", "name": "Booking Saga", "version": 1,
   "steps": [
     { "id": "start", "type": "START", "name": "Start" },
     { "id": "reserve-hotel",  "type": "ACTION", "topic": "hotel-service",
@@ -534,7 +529,7 @@ record Variable(String name, String value) {}
 ### Domain model (selected fields)
 - `Process`: `id`, `name`, `workflowDefinitionId`, `workflowDefinitionVersion`, `workflowDefinitionJson`, `businessKey`, `variables`, `status`, `completionPercentage`, `created`, `started`, `finished`, `pausedAt` (set while `PAUSED`; used to shift step clocks on resume), `parentStepExecutionId` (set on child processes started by a parent `PROCESS` step; `null` otherwise).
 - `StepExecution`: `id`, `processId`, `workflowDefinitionId`, `stepId`, `stepJson`, `variables`, `status`, `workerId`, `startedAt`, `finishedAt`, `attemptCount`. The step-execution `id` **is** the `taskExecutionId` used in events; there is no separate field, no `retryCount`/`completedAt`/`log`.
-- `WorkflowDefinition`: `id`, `name`, `version`, `description`, `status`, `paused` (runtime pause flag), `draftOfId`, `limitConcurrentExecutions`, `maxConcurrentExecutions`, `enqueueOnLimit`, `cronExpression`, `defaultMaxStepExecutions`, `steps`.
+- `WorkflowDefinition`: `id`, `name`, `version`, `description`, `paused`, `disabled`, `archived` (runtime flags), `limitConcurrentExecutions`, `maxConcurrentExecutions`, `enqueueOnLimit`, `cronExpression`, `defaultMaxStepExecutions`, `steps`.
 
 ---
 
@@ -553,7 +548,6 @@ workflow:
 ```
 Also triggerable via the MCP tool `importWorkflowDefinitionsFromGit`, or a git webhook to `POST /workflow/webhooks/{provider}` (`github`/`gitlab`/`bitbucket`/`generic`; responds 202, imports in background). The webhook reloads **only the repository and branch named in the push** (payload parsed; unmatched pushes are acknowledged and ignored; an unparseable payload reloads everything). Definitions removed from a repo are **pruned** — workflow definitions are archived, forms/rules deleted (git-imported only; classpath/hand-authored never touched; tracked per instance, resets on restart). Verification per provider using `webhook-secret`: GitHub/Bitbucket HMAC-SHA256 (`X-Hub-Signature-256`/`X-Hub-Signature`), GitLab token (`X-Gitlab-Token`), generic token (`X-Webhook-Token`); blank secret disables it. Forms and rules expose the same at `/forms/webhooks/{provider}` and `/rules/webhooks/{provider}`.
 
-**Working copies** — a `DRAFT` clone of a production definition (`draftOfId` = original). Edit safely, then **promote**. Any `DRAFT` is promotable: if it has a `draftOfId`, its content is copied onto the original, `version`+1, working copy deleted, running processes unaffected; a standalone draft (`draftOfId == null`) is simply activated in place. One working copy per definition.
 
 ---
 
@@ -578,7 +572,7 @@ workflow.persistence=memory
 ```
 `src/main/resources/workflows/hello.json`:
 ```json
-{ "id": "hello", "name": "Hello", "version": 1, "status": "ACTIVE",
+{ "id": "hello", "name": "Hello", "version": 1,
   "steps": [
     { "id": "start", "type": "START",  "name": "Start" },
     { "id": "greet", "type": "ACTION", "name": "Greet", "preconditionStepId": "start" },

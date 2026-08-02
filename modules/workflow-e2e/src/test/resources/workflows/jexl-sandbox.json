@@ -2,7 +2,6 @@
   "id": "jexl-sandbox",
   "name": "JEXL sandbox probe",
   "version": 1,
-  "status": "ACTIVE",
   "steps": [
     {
       "id": "start",

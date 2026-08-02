@@ -2,7 +2,6 @@
   "id": "cancel",
   "name": "Cancellation",
   "version": 1,
-  "status": "ACTIVE",
   "steps": [
     {
       "id": "start",

@@ -1,5 +1,4 @@
-{ "id": "bad-correlation", "name": "Bad correlation JEXL", "version": 1, "status": "ACTIVE",
-  "steps": [
+{ "id": "bad-correlation", "name": "Bad correlation JEXL", "version": 1,   "steps": [
     { "id": "wait", "type": "WAIT_FOR_MESSAGE", "name": "Wait", "messageName": "payment-received", "correlationExpression": "orderId ==" },
     { "id": "send", "type": "SEND_MESSAGE", "name": "Send", "messageName": "payment-received", "correlationExpression": "orderId", "messageVariables": ["orderId"], "preconditionStepId": "wait" },
     { "id": "end", "type": "END", "name": "End", "preconditionStepId": "send" }

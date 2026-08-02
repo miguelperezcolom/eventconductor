@@ -7,7 +7,6 @@ import io.mateu.workflow.application.usecases.process.pause.PauseProcessUseCase;
 import io.mateu.workflow.domain.aggregates.Process;
 import io.mateu.workflow.domain.aggregates.ProcessStatus;
 import io.mateu.workflow.domain.aggregates.WorkflowDefinition;
-import io.mateu.workflow.domain.aggregates.WorkflowDefinitionStatus;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -35,8 +34,7 @@ class PauseWorkflowUseCaseTest {
     @InjectMocks PauseWorkflowUseCase useCase;
 
     private WorkflowDefinition definition(boolean paused) {
-        return new WorkflowDefinition("wd-1", "Test", 1, null, WorkflowDefinitionStatus.ACTIVE,
-                null, false, 0, false, null, 0, List.of(), paused);
+        return new WorkflowDefinition("wd-1", "Test", 1, null,  false, 0, false, null, 0, List.of(), paused, false, false);
     }
 
     private Process process(String id, String definitionId, ProcessStatus status) {

@@ -2,7 +2,6 @@
   "id": "cron",
   "name": "Cron started process",
   "version": 1,
-  "status": "ACTIVE",
   "cronExpression": "* * * * * *",
   "steps": [
     {

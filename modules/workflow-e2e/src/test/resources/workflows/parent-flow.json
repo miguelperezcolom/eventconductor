@@ -2,7 +2,6 @@
   "id": "parent-flow",
   "name": "Parent workflow with a child PROCESS step",
   "version": 1,
-  "status": "ACTIVE",
   "steps": [
     {
       "id": "start",

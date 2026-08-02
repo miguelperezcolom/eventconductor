@@ -12,12 +12,8 @@ import io.mateu.uidl.interfaces.Identifiable;
 import io.mateu.uidl.interfaces.LookupOptionsSupplier;
 import io.mateu.uidl.interfaces.SearchableText;
 import io.mateu.uidl.interfaces.VisibilitySupplier;
-import io.mateu.workflow.application.usecases.lifecycle.ArchiveWorkflowDefinitionUseCase;
 import io.mateu.workflow.application.usecases.lifecycle.DisableWorkflowDefinitionUseCase;
 import io.mateu.workflow.application.usecases.lifecycle.EnableWorkflowDefinitionUseCase;
-import io.mateu.workflow.application.usecases.lifecycle.ReactivateWorkflowDefinitionUseCase;
-import io.mateu.workflow.application.usecases.workingcopy.CreateWorkingCopyUseCase;
-import io.mateu.workflow.application.usecases.workingcopy.PromoteWorkingCopyUseCase;
 import io.mateu.workflow.infra.in.ui.WorkflowHome;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotEmpty;
@@ -37,21 +33,6 @@ public record WorkflowDefinition(
         @Colspan(2)
         @Stereotype(FieldStereotype.textarea)
         String description,
-        // Read-only lifecycle status: shown in list/detail, never in the create or edit
-        // forms. New definitions are created as DRAFT (see the canonical constructor below),
-        // so it is never null despite not being editable.
-        @HiddenInCreate
-        @HiddenInEditor
-        @Status(defaultStatus = StatusType.NONE, mappings = {
-                @StatusMapping(from = "", to = StatusType.NONE),
-                @StatusMapping(from = "DISABLED", to = StatusType.DANGER),
-                @StatusMapping(from = "ARCHIVED", to = StatusType.NONE),
-                @StatusMapping(from = "DRAFT", to = StatusType.WARNING),
-                @StatusMapping(from = "ACTIVE", to = StatusType.SUCCESS),
-        })
-        WorkflowDefinitionStatus status,
-        @Hidden
-        String draftOfId,
         boolean limitConcurrentExecutions,
         @Min(0)
         @Hidden("!state.limitConcurrentExecutions")
@@ -64,77 +45,67 @@ public record WorkflowDefinition(
         @Colspan(5)
         @DetailFormCustomisation(position = FormPosition.modalRight, style = "display: block; min-width: 70rem;")
         List<Step> steps,
-        // Runtime pause flag, orthogonal to the lifecycle status: while true, all this
-        // definition's processes are held and new instances are created already PAUSED
-        // (creation itself is still accepted, cron included). Never edited in a form —
-        // toggled through Pause/ResumeWorkflowUseCase.
+        // Runtime pause flag: while true, all this definition's processes are held and new
+        // instances are created already PAUSED (creation itself is still accepted, cron
+        // included). Never in the .ec — toggled through Pause/ResumeWorkflowUseCase.
         @Hidden
-        boolean paused
+        boolean paused,
+        // Runtime disabled flag: while true the definition accepts no new instances (cron
+        // included). Never in the .ec — toggled through Disable/EnableWorkflowDefinitionUseCase.
+        @Hidden
+        boolean disabled,
+        // Runtime archived flag: set by the git-import prune when a definition disappears from
+        // its repository, to hide it without deleting. Never in the .ec.
+        @Hidden
+        boolean archived
 ) implements Identifiable, SearchableText, LookupOptionsSupplier, VisibilitySupplier {
 
-    /** New definitions (status not set in the editor) start their lifecycle as DRAFT. */
-    public WorkflowDefinition {
-        if (status == null) {
-            status = WorkflowDefinitionStatus.DRAFT;
-        }
-    }
-
-    /** Creation without the runtime pause flag: definitions start unpaused. */
+    /** Creation without the runtime flags: definitions start unpaused, enabled and not archived. */
     public WorkflowDefinition(String id, String name, int version, String description,
-                              WorkflowDefinitionStatus status, String draftOfId,
                               boolean limitConcurrentExecutions, int maxConcurrentExecutions,
                               boolean enqueueOnLimit, String cronExpression,
                               int defaultMaxStepExecutions, List<Step> steps) {
-        this(id, name, version, description, status, draftOfId, limitConcurrentExecutions,
+        this(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
-                steps, false);
+                steps, false, false, false);
     }
 
-    /** Returns a copy of this definition with a different lifecycle status. */
-    public WorkflowDefinition withStatus(WorkflowDefinitionStatus newStatus) {
-        return new WorkflowDefinition(id, name, version, description, newStatus, draftOfId,
-                limitConcurrentExecutions, maxConcurrentExecutions, enqueueOnLimit, cronExpression,
-                defaultMaxStepExecutions, steps, paused);
-    }
-
-    /** Returns a copy of this definition with a different runtime pause flag. */
+    /** Returns a copy with a different runtime pause flag. */
     public WorkflowDefinition withPaused(boolean newPaused) {
-        return new WorkflowDefinition(id, name, version, description, status, draftOfId,
-                limitConcurrentExecutions, maxConcurrentExecutions, enqueueOnLimit, cronExpression,
-                defaultMaxStepExecutions, steps, newPaused);
+        return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
+                maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
+                steps, newPaused, disabled, archived);
+    }
+
+    /** Returns a copy with a different runtime disabled flag. */
+    public WorkflowDefinition withDisabled(boolean newDisabled) {
+        return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
+                maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
+                steps, paused, newDisabled, archived);
+    }
+
+    /** Returns a copy with a different runtime archived flag. */
+    public WorkflowDefinition withArchived(boolean newArchived) {
+        return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
+                maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
+                steps, paused, disabled, newArchived);
     }
 
     // ── Detail-view lifecycle buttons (conditional on state via VisibilitySupplier) ──
 
-    /** Hides the built-in {@code edit} action and the lifecycle buttons per current status. */
+    /**
+     * Definitions are authored as {@code .ec} files (edited with the IDE plugins), not in the UI:
+     * the built-in {@code edit} action is always hidden. Only the runtime toggles remain —
+     * {@code disable} when enabled, {@code enable} when disabled.
+     */
     @Override
     public boolean isHidden(String memberName, HttpRequest httpRequest) {
         return switch (memberName) {
-            case "edit" -> status == WorkflowDefinitionStatus.ACTIVE;
-            // Any DRAFT can be promoted: a working copy replaces its original, a standalone
-            // draft is activated in place (see PromoteWorkingCopyUseCase).
-            case "promoteToProduction" -> status != WorkflowDefinitionStatus.DRAFT;
-            case "createWorkingCopy" -> status != WorkflowDefinitionStatus.ACTIVE;
-            case "disable" -> status != WorkflowDefinitionStatus.ACTIVE;
-            case "enable" -> status != WorkflowDefinitionStatus.DISABLED;
-            case "reactivate" -> status != WorkflowDefinitionStatus.ARCHIVED;
-            // An ACTIVE workflow must be disabled before it can be archived.
-            case "archive" -> status == WorkflowDefinitionStatus.ACTIVE
-                    || status == WorkflowDefinitionStatus.ARCHIVED;
+            case "edit" -> true;
+            case "disable" -> disabled;
+            case "enable" -> !disabled;
             default -> false;
         };
-    }
-
-    @Toolbar
-    public UICommand promoteToProduction(HttpRequest httpRequest) {
-        var promotedId = MateuBeanProvider.getBean(PromoteWorkingCopyUseCase.class).handle(id);
-        return navigateToDefinition(promotedId, httpRequest);
-    }
-
-    @Toolbar
-    public UICommand createWorkingCopy(HttpRequest httpRequest) {
-        var copyId = MateuBeanProvider.getBean(CreateWorkingCopyUseCase.class).handle(id);
-        return navigateToDefinition(copyId, httpRequest);
     }
 
     @Toolbar
@@ -146,18 +117,6 @@ public record WorkflowDefinition(
     @Toolbar
     public UICommand enable(HttpRequest httpRequest) {
         MateuBeanProvider.getBean(EnableWorkflowDefinitionUseCase.class).handle(id);
-        return navigateToDefinition(id, httpRequest);
-    }
-
-    @Toolbar
-    public UICommand reactivate(HttpRequest httpRequest) {
-        MateuBeanProvider.getBean(ReactivateWorkflowDefinitionUseCase.class).handle(id);
-        return navigateToDefinition(id, httpRequest);
-    }
-
-    @Toolbar
-    public UICommand archive(HttpRequest httpRequest) {
-        MateuBeanProvider.getBean(ArchiveWorkflowDefinitionUseCase.class).handle(id);
         return navigateToDefinition(id, httpRequest);
     }
 

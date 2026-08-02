@@ -2,7 +2,6 @@
   "id": "message",
   "name": "Message wait",
   "version": 1,
-  "status": "ACTIVE",
   "steps": [
     {
       "id": "wait",

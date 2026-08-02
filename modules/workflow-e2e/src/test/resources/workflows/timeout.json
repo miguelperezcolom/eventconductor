@@ -2,7 +2,6 @@
   "id": "timeout",
   "name": "Step timeout",
   "version": 1,
-  "status": "ACTIVE",
   "steps": [
     {
       "id": "start",

@@ -53,7 +53,6 @@ Declare a `cronExpression` on the workflow definition and the engine creates a p
 {
   "id": "daily-checkin-reminders",
   "name": "Daily check-in reminders",
-  "status": "ACTIVE",
   "cronExpression": "0 0 9 * * *",
   "steps": [ ... ]
 }
@@ -135,7 +134,7 @@ resumeWorkflowUseCase.handle(workflowDefinitionId);
 
 Also available as **Pause** / **Resume** on the definition detail in the UI and as the `pauseWorkflow` / `resumeWorkflow` MCP tools.
 
-While a definition is paused, **new instances are still accepted — they are created born-`PAUSED`**: the process and its steps exist, but nothing runs until the definition is resumed. This includes cron: a paused `ACTIVE` definition keeps creating an instance at each occurrence, born paused. Inputs are never rejected — pausing a definition parks the work, it does not drop it. The `paused` flag is orthogonal to the `DRAFT`/`ACTIVE`/`DISABLED`/`ARCHIVED` lifecycle status.
+While a definition is paused, **new instances are still accepted — they are created born-`PAUSED`**: the process and its steps exist, but nothing runs until the definition is resumed. This includes cron: a paused definition keeps creating an instance at each occurrence, born paused. Inputs are never rejected — pausing a definition parks the work, it does not drop it. The `paused` flag is a runtime toggle, orthogonal to the runtime `disabled`/`archived` flags.
 
 ## Cancelling a process
 
