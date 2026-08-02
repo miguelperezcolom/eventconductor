@@ -1,0 +1,341 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gw
+  namespace: demo
+  labels: { app: api-gw }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: api-gw }
+  template:
+    metadata:
+      labels: { app: api-gw }
+    spec:
+      nodeSelector: { kubernetes.io/arch: amd64 }
+      containers:
+        - name: api-gw
+          image: miguelperezcolom/mateu-demo-api-gw:0.1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - { containerPort: 8191 }
+          env:
+            - { name: SHELL_URL, value: "http://shell:8101" }
+            - { name: USERS_URL, value: "http://users-service:8102" }
+            - { name: CONTROL_PLANE_URL, value: "http://control-plane-service:8103" }
+            - { name: CONTENT_URL, value: "http://content-service:8104" }
+            - { name: BOOKING_URL, value: "http://booking-service:8108" }
+            - { name: AI_URL, value: "http://ia-agent-service:8095" }
+            - { name: STATIC_URL, value: "http://static-content-server:8107" }
+            - { name: WORKFLOW_URL, value: "http://orchestrator.eventconductor.svc.cluster.local:8105" }
+            - { name: FORMS_URL, value: "http://forms.eventconductor.svc.cluster.local:8106" }
+          resources:
+            requests: { memory: "448Mi", cpu: "150m" }
+            limits:   { memory: "1Gi", cpu: "1" }
+          readinessProbe:
+            tcpSocket: { port: 8191 }
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-gw
+  namespace: demo
+  labels: { app: api-gw }
+spec:
+  selector: { app: api-gw }
+  ports:
+    - { port: 8191, targetPort: 8191 }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shell
+  namespace: demo
+  labels: { app: shell }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: shell }
+  template:
+    metadata:
+      labels: { app: shell }
+    spec:
+      nodeSelector: { kubernetes.io/arch: amd64 }
+      containers:
+        - name: shell
+          image: miguelperezcolom/mateu-demo-shell:0.1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - { containerPort: 8101 }
+          resources:
+            requests: { memory: "448Mi", cpu: "150m" }
+            limits:   { memory: "1Gi", cpu: "1" }
+          readinessProbe:
+            tcpSocket: { port: 8101 }
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: shell
+  namespace: demo
+  labels: { app: shell }
+spec:
+  selector: { app: shell }
+  ports:
+    - { port: 8101, targetPort: 8101 }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: users-service
+  namespace: demo
+  labels: { app: users-service }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: users-service }
+  template:
+    metadata:
+      labels: { app: users-service }
+    spec:
+      nodeSelector: { kubernetes.io/arch: amd64 }
+      containers:
+        - name: users-service
+          image: miguelperezcolom/mateu-demo-users:0.1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - { containerPort: 8102 }
+          resources:
+            requests: { memory: "448Mi", cpu: "150m" }
+            limits:   { memory: "1Gi", cpu: "1" }
+          readinessProbe:
+            tcpSocket: { port: 8102 }
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: users-service
+  namespace: demo
+  labels: { app: users-service }
+spec:
+  selector: { app: users-service }
+  ports:
+    - { port: 8102, targetPort: 8102 }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: control-plane-service
+  namespace: demo
+  labels: { app: control-plane-service }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: control-plane-service }
+  template:
+    metadata:
+      labels: { app: control-plane-service }
+    spec:
+      nodeSelector: { kubernetes.io/arch: amd64 }
+      containers:
+        - name: control-plane-service
+          image: miguelperezcolom/mateu-demo-control-plane:0.1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - { containerPort: 8103 }
+          resources:
+            requests: { memory: "448Mi", cpu: "150m" }
+            limits:   { memory: "1Gi", cpu: "1" }
+          readinessProbe:
+            tcpSocket: { port: 8103 }
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: control-plane-service
+  namespace: demo
+  labels: { app: control-plane-service }
+spec:
+  selector: { app: control-plane-service }
+  ports:
+    - { port: 8103, targetPort: 8103 }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: content-service
+  namespace: demo
+  labels: { app: content-service }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: content-service }
+  template:
+    metadata:
+      labels: { app: content-service }
+    spec:
+      nodeSelector: { kubernetes.io/arch: amd64 }
+      containers:
+        - name: content-service
+          image: miguelperezcolom/mateu-demo-content:0.1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - { containerPort: 8104 }
+          resources:
+            requests: { memory: "448Mi", cpu: "150m" }
+            limits:   { memory: "1Gi", cpu: "1" }
+          readinessProbe:
+            tcpSocket: { port: 8104 }
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: content-service
+  namespace: demo
+  labels: { app: content-service }
+spec:
+  selector: { app: content-service }
+  ports:
+    - { port: 8104, targetPort: 8104 }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: booking-service
+  namespace: demo
+  labels: { app: booking-service }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: booking-service }
+  template:
+    metadata:
+      labels: { app: booking-service }
+    spec:
+      nodeSelector: { kubernetes.io/arch: amd64 }
+      containers:
+        - name: booking-service
+          image: miguelperezcolom/mateu-demo-booking:0.1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - { containerPort: 8108 }
+          resources:
+            requests: { memory: "448Mi", cpu: "150m" }
+            limits:   { memory: "1Gi", cpu: "1" }
+          readinessProbe:
+            tcpSocket: { port: 8108 }
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: booking-service
+  namespace: demo
+  labels: { app: booking-service }
+spec:
+  selector: { app: booking-service }
+  ports:
+    - { port: 8108, targetPort: 8108 }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ia-agent-service
+  namespace: demo
+  labels: { app: ia-agent-service }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: ia-agent-service }
+  template:
+    metadata:
+      labels: { app: ia-agent-service }
+    spec:
+      nodeSelector: { kubernetes.io/arch: amd64 }
+      containers:
+        - name: ia-agent-service
+          image: miguelperezcolom/mateu-demo-ia-agent:0.1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - { containerPort: 8095 }
+          env:
+            - { name: WORKFLOW_URL, value: "http://orchestrator.eventconductor.svc.cluster.local:8105" }
+            - { name: FORMS_URL, value: "http://forms.eventconductor.svc.cluster.local:8106" }
+            - { name: BOOKING_URL, value: "http://booking-service:8108" }
+          resources:
+            requests: { memory: "448Mi", cpu: "150m" }
+            limits:   { memory: "1Gi", cpu: "1" }
+          readinessProbe:
+            tcpSocket: { port: 8095 }
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ia-agent-service
+  namespace: demo
+  labels: { app: ia-agent-service }
+spec:
+  selector: { app: ia-agent-service }
+  ports:
+    - { port: 8095, targetPort: 8095 }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: static-content-server
+  namespace: demo
+  labels: { app: static-content-server }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: static-content-server }
+  template:
+    metadata:
+      labels: { app: static-content-server }
+    spec:
+      nodeSelector: { kubernetes.io/arch: amd64 }
+      containers:
+        - name: static-content-server
+          image: miguelperezcolom/mateu-demo-static:0.1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - { containerPort: 8107 }
+          resources:
+            requests: { memory: "448Mi", cpu: "150m" }
+            limits:   { memory: "1Gi", cpu: "1" }
+          readinessProbe:
+            tcpSocket: { port: 8107 }
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: static-content-server
+  namespace: demo
+  labels: { app: static-content-server }
+spec:
+  selector: { app: static-content-server }
+  ports:
+    - { port: 8107, targetPort: 8107 }

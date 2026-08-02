@@ -1,0 +1,70 @@
+# kube-prometheus-stack — lightweight for the Hetzner demo cluster.
+alertmanager:
+  enabled: false
+nodeExporter:
+  enabled: true
+kubeStateMetrics:
+  enabled: true
+prometheus-node-exporter:
+  nodeSelector: { kubernetes.io/arch: amd64 }
+kube-state-metrics:
+  nodeSelector: { kubernetes.io/arch: amd64 }
+prometheusOperator:
+  nodeSelector: { kubernetes.io/arch: amd64 }
+  resources:
+    requests: { memory: "128Mi", cpu: "50m" }
+    limits: { memory: "256Mi", cpu: "500m" }
+prometheus:
+  prometheusSpec:
+    nodeSelector: { kubernetes.io/arch: amd64 }
+    retention: 24h
+    scrapeInterval: 30s
+    # Discover any ServiceMonitor/PodMonitor in the cluster (not only chart-labelled ones).
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    resources:
+      requests: { memory: "640Mi", cpu: "250m" }
+      limits: { memory: "1536Mi", cpu: "1" }
+    # Scrape pods annotated with prometheus.io/scrape: "true".
+    additionalScrapeConfigs:
+      - job_name: 'annotated-pods'
+        kubernetes_sd_configs: [ { role: pod } ]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+            action: keep
+            regex: "true"
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+            action: replace
+            target_label: __metrics_path__
+            regex: (.+)
+          - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+            action: replace
+            regex: ([^:]+)(?::\d+)?;(\d+)
+            replacement: $1:$2
+            target_label: __address__
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+grafana:
+  nodeSelector: { kubernetes.io/arch: amd64 }
+  adminPassword: "CHANGE_ME"
+  resources:
+    requests: { memory: "192Mi", cpu: "100m" }
+    limits: { memory: "512Mi", cpu: "500m" }
+  # Serve behind nginx at grafana.mateu.io (subpath not needed — dedicated host).
+  grafana.ini:
+    server:
+      root_url: https://grafana.mateu.io
+  additionalDataSources:
+    - name: Loki
+      type: loki
+      url: http://loki.observability.svc.cluster.local:3100
+      access: proxy
+    - name: Tempo
+      type: tempo
+      url: http://tempo.observability.svc.cluster.local:3100
+      access: proxy
+      jsonData:
+        tracesToLogsV2:
+          datasourceUid: loki
