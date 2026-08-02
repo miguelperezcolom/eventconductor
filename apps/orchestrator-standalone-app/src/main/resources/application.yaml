@@ -70,9 +70,17 @@ spring:
         consumeOutbox-in-0:
           destination: outbox
           group: orchestrator-group
+          consumer:
+            # A poll batch is committed as one transaction per process instead of one per event:
+            # a busy batch carries several events for the same process, and collapsing those into
+            # a single commit is most of the write cost. Turning this off falls back to one
+            # transaction per event.
+            batch-mode: true
         consumeUpstream-in-0:
           destination: upstream
           group: orchestrator-group
+          consumer:
+            batch-mode: true
         consumeWorkerEvent-in-0:
           destination: downstream
           group: worker-group

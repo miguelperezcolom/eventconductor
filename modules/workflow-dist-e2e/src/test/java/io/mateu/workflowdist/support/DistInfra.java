@@ -100,6 +100,8 @@ public final class DistInfra {
         props.put("spring.main.banner-mode", "off");
         props.put("workflow.mode", "kafka");
         props.put("workflow.persistence", "jpa");
+        props.put("spring.cloud.stream.bindings.consumeUpstream-in-0.consumer.batch-mode", "true");
+        props.put("spring.cloud.stream.bindings.consumeOutbox-in-0.consumer.batch-mode", "true");
         props.put("workflow.outbox-poll-interval-ms", "200");
         props.put("workflow.timeout-scan-interval-ms", "250");
         props.put("spring.datasource.url", postgres.getJdbcUrl());

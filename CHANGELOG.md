@@ -8,6 +8,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **A Kafka poll batch is committed as one transaction per process, not one per event.** A busy
+  batch carries several events for the same process, and collapsing those into a single commit is
+  most of the write cost. Measured on DIST-05, three runs: **56,8 / 60,3 / 56,8 PI/s against
+  50,8 / 51,0 / 53,7** before — about 12% on wall clock and 20% on the engine-side window.
+  Consumers switch to batch mode (`batch-mode: true` on the two orchestrator bindings; turning it
+  off falls back to one transaction per event).
+
+  **Per process, not per batch — and that distinction is the whole design.** One transaction for
+  the entire batch is the obvious shape and it is a trap: an event that fails inside its own
+  participating transaction marks the shared one rollback-only *even when the failure is caught*,
+  so every other event in the batch loses the commit it believed it had. The failure that makes
+  this concrete is an optimistic conflict, which is precisely what a consumer-group rebalance
+  produces — the moment the engine is least settled would be the moment it threw away the most
+  work. Measured both ways: the two perform the same, so the batch-wide version buys nothing for
+  its blast radius. `BatchTransactionScopeTest` pins the trap; `DIST-12` covers the behaviour.
+
+  Events of a process keep their arrival order, and an event belonging to no process gets a
+  transaction of its own so it neither drags others down nor is dragged down by them.
 - **No per-process lock in `kafka` mode: exclusivity is inherited from the partition.** Events are
   keyed by process and a consumer group gives each partition to exactly one consumer, so a process
   already has a single writer. `PartitionOwnedProcessLockService` therefore only opens the
