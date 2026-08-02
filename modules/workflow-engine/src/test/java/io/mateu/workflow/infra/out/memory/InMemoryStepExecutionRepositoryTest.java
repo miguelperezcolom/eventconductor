@@ -10,6 +10,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import io.mateu.core.infra.JsonSerializer;
+
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -100,5 +103,54 @@ class InMemoryStepExecutionRepositoryTest {
         repo.save(se("1", "p-1", StepExecutionStatus.PENDING, 0));
 
         assertThat(repo.findPendingOrRunningByProcessId("p-unknown")).isEmpty();
+    }
+
+    private StepExecution started(String id, StepExecutionStatus status, LocalDateTime startedAt, long timeoutMillis) {
+        var step = new Step("s1", "wd-1", StepType.ACTION, "Step", null, null, null, null, false, "t", null, null, null, null, 0, null, null, null, null, timeoutMillis, 0, false, null, 0, null);
+        var stepExecution = StepExecution.builder()
+                .id(id).processId("p-1")
+                .stepJson(JsonSerializer.toJson(step))
+                .status(status)
+                .build();
+        // withStartedAt arms the deadline, which is exactly what findDue filters on.
+        return stepExecution.withStartedAt(startedAt);
+    }
+
+    @Test
+    void findDueReturnsOnlyLiveStepsWhoseDeadlineHasPassed() {
+        var now = LocalDateTime.now();
+        repo.save(started("due", StepExecutionStatus.PENDING, now.minusMinutes(10), 60_000));
+        repo.save(started("notDue", StepExecutionStatus.PENDING, now, 3_600_000));
+        repo.save(started("noDeadline", StepExecutionStatus.PENDING, now.minusMinutes(10), 0));
+        repo.save(started("terminal", StepExecutionStatus.COMPLETED, now.minusMinutes(10), 60_000));
+
+        assertThat(repo.findDue(now))
+                .extracting(StepExecution::id)
+                .containsExactly("due");
+    }
+
+    @Test
+    void findDueIncludesADeadlineFallingExactlyNow() {
+        var now = LocalDateTime.now();
+        repo.save(started("exact", StepExecutionStatus.PENDING, now.minusSeconds(60), 60_000));
+
+        assertThat(repo.findDue(now)).hasSize(1);
+    }
+
+    @Test
+    void findLiveWithoutDeadlineFindsStepsArmedBeforeTheColumnExisted() {
+        var now = LocalDateTime.now();
+        // A step persisted by an older version: started, live, no deadline materialised.
+        repo.save(StepExecution.builder()
+                .id("legacy").processId("p-1")
+                .status(StepExecutionStatus.PENDING)
+                .startedAt(now.minusDays(1))
+                .build());
+        repo.save(started("armed", StepExecutionStatus.PENDING, now, 60_000));
+        repo.save(se("neverStarted", "p-1", StepExecutionStatus.PENDING, 0));
+
+        assertThat(repo.findLiveWithoutDeadline())
+                .extracting(StepExecution::id)
+                .containsExactly("legacy");
     }
 }

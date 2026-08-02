@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **The scheduler no longer walks every live step to find the due ones.** Each step execution now
+  carries a **materialised deadline** (`deadline_at`) — a `TIMER`'s due moment or a step's timeout
+  — armed when the step starts, from the `startedAt`, variables and step JSON that are frozen at
+  that instant. The scheduler asks for `deadline_at <= now` over a new index instead of loading
+  every PENDING/RUNNING step and re-evaluating each one on every tick. The cost of a tick now
+  tracks *what is due* — normally nothing — rather than *what is waiting*, which is what the
+  engine's own use case is made of: a check-in reminder is a `TIMER` sitting PENDING for weeks,
+  and it used to be re-examined every ten seconds for all of them.
+
+  The deadline is derived state, so it is recomputed by every path that moves the clock;
+  `withDeadlineAt` is suppressed on the aggregate so it cannot be set on its own, and pause/resume
+  (which shifts `startedAt` by the pause duration) moves both together. Steps already in flight
+  when this version is deployed are armed at the next boot by `StepDeadlineBackfillRunner`, which
+  recomputes them from the state they already carry — one query at startup, idempotent, a no-op
+  from then on. Migration `V8` adds the column and `idx_step_exec_deadline`.
+
+  No behaviour change, with one millisecond-scale exception: a step timeout falling exactly on the
+  tick now fires on that tick instead of the next, matching what `TIMER` already did.
+
 ### Fixed
 - **Timer and timeout checks no longer load every live step in the system.** `CheckTimerUseCase`
   and `CheckTimeoutUseCase` listed *all* PENDING/RUNNING step executions and filtered them by

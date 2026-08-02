@@ -153,6 +153,23 @@ public record Step(
      * @throws IllegalArgumentException if the timer is misconfigured, the referenced
      *         variable is absent or its value cannot be parsed.
      */
+    /**
+     * The moment this step needs the engine's attention once started, or null when it needs none:
+     * for a TIMER, its due moment; for anything else, its timeout deadline when one is configured.
+     * Materialised on the step execution at start so the scheduler can find due work with an
+     * indexed range scan instead of evaluating every live step on every tick.
+     *
+     * @throws IllegalArgumentException for a TIMER that defines neither a duration nor a
+     *                                  resolvable date variable — same contract as
+     *                                  {@link #timerDueAt(LocalDateTime, List)}.
+     */
+    public LocalDateTime deadlineAt(LocalDateTime startedAt, List<Variable> variables) {
+        if (StepType.TIMER.equals(type)) {
+            return timerDueAt(startedAt, variables);
+        }
+        return timeout > 0 ? startedAt.plus(timeout, ChronoUnit.MILLIS) : null;
+    }
+
     public LocalDateTime timerDueAt(LocalDateTime startedAt, List<Variable> variables) {
         if (untilVariable != null && !untilVariable.isBlank()) {
             var value = variables == null ? null : variables.stream()

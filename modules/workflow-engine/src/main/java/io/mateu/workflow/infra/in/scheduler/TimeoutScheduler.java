@@ -13,10 +13,15 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 /**
- * Periodically scans running step executions and emits TimeoutCheckRequested events for
- * expired step timeouts and TimerCheckRequested events for due TIMER steps.
- * Only active in JPA mode (requires JdbcTemplate for the advisory lock).
- * The advisory lock (777888999L) ensures only one pod runs the scan at a time.
+ * Periodically asks the repository for the step executions whose deadline has passed and emits
+ * TimeoutCheckRequested events for expired step timeouts and TimerCheckRequested events for due
+ * TIMER steps. Only active in JPA mode (requires JdbcTemplate for the advisory lock).
+ * The advisory lock (777888999L) ensures only one pod runs the query at a time.
+ *
+ * <p>The query is an indexed range scan over the materialised deadline, so its cost tracks the
+ * work that is due — normally none — and not the number of steps waiting. That is what keeps the
+ * engine's own workload (long waits: a TIMER pending for weeks) free between tick and due moment,
+ * and it is why the single-pod lock is not a bottleneck: there is almost nothing to hold it for.
  */
 @Service
 @ConditionalOnProperty(name = "workflow.persistence", havingValue = "jpa")
@@ -47,7 +52,7 @@ public class TimeoutScheduler {
                             if (!dbLockDialect.tryLock(con, LOCK_ID)) return null;
                             try {
                                 var now = java.time.LocalDateTime.now();
-                                var deadlines = StepDeadlines.scan(stepExecutionRepository.findPendingOrRunning(), now);
+                                var deadlines = StepDeadlines.classify(stepExecutionRepository.findDue(now));
                                 deadlines.timedOutProcessIds().forEach(processId ->
                                         upstreamEventPublisher.publish(new TimeoutCheckRequested(processId)));
                                 deadlines.dueTimerProcessIds().forEach(processId ->

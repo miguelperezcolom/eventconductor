@@ -42,4 +42,6 @@ public class StepExecutionEntity {
 
     int attemptCount;
 
+    LocalDateTime deadlineAt;
+
 }

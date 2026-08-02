@@ -11,6 +11,7 @@ import io.mateu.workflow.dtos.events.integration.ProcessCreationRequested;
 import io.mateu.workflow.dtos.events.integration.TaskExecutionRequested;
 import io.mateu.workflow.dtos.events.integration.TaskLogEmitted;
 import io.mateu.workflow.dtos.events.integration.TaskStatus;
+import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -25,7 +26,7 @@ import java.util.UUID;
 import static io.mateu.core.infra.JsonSerializer.pojoFromJson;
 import static io.mateu.core.infra.JsonSerializer.toJson;
 
-@Builder
+@Builder(toBuilder = true)
 @With
 @NoArgsConstructor
 @AllArgsConstructor
@@ -50,6 +51,20 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
     private LocalDateTime finishedAt;
     /** Number of execution attempts already made (0 = first attempt, 1 = first retry, …). */
     private int attemptCount;
+    /**
+     * The moment this step needs the engine's attention — a TIMER's due moment or a step's
+     * timeout deadline — or null when it needs none (no timeout configured, not started yet, or
+     * a TIMER whose date could not be resolved, which fails at start instead).
+     *
+     * <p>Derived state, materialised so the scheduler can find due work with an indexed range
+     * scan instead of evaluating every live step on every tick. It is a pure function of
+     * {@code startedAt}, {@code variables} and {@code stepJson}, all frozen at start, and every
+     * path that moves the clock recomputes it. {@code withDeadlineAt} is deliberately suppressed
+     * so it cannot be set on its own — the builder and the all-args constructor still carry it,
+     * because rehydrating a persisted step has to restore the value it was stored with.
+     */
+    @With(AccessLevel.NONE)
+    private LocalDateTime deadlineAt;
 
 
     public static StepExecution create(Step step, String processId, int position) {
@@ -71,11 +86,45 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
         return id;
     }
 
+    /**
+     * Moves this step's clock, recomputing {@link #deadlineAt} so the two cannot drift apart.
+     * Hand-written on purpose: Lombok's generated {@code withStartedAt} would copy the old
+     * deadline, silently freezing a timer at its pre-shift moment. Pause/resume shifts the clock
+     * of every in-flight step by the pause duration, and that is the only caller today — but the
+     * invariant belongs here, not in the caller.
+     */
+    public StepExecution withStartedAt(LocalDateTime startedAt) {
+        var shifted = toBuilder().startedAt(startedAt).build();
+        shifted.deadlineAt = shifted.computeDeadline();
+        return shifted;
+    }
+
+    /**
+     * The deadline implied by the current {@code startedAt}, {@code variables} and step, or null
+     * when this step has none or has not started. A TIMER whose date cannot be resolved yields
+     * null rather than throwing: {@link #start(Process)} already fails such a step, so there is
+     * nothing left for the scheduler to fire.
+     */
+    private LocalDateTime computeDeadline() {
+        if (startedAt == null) {
+            return null;
+        }
+        try {
+            return pojoFromJson(stepJson, Step.class).deadlineAt(startedAt, variables);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
     public StepExecution start(Process process) {
         var variables = process.getVariables() == null ? List.<Variable>of() : process.getVariables();
         this.variables = variables;
         this.startedAt = LocalDateTime.now();
         var step = pojoFromJson(stepJson, Step.class);
+        // Materialise the deadline now, while everything it derives from is being frozen. A
+        // misconfigured TIMER leaves it null and errors below, so nothing is ever left armed
+        // without a moment to fire at.
+        this.deadlineAt = computeDeadline();
         if (StepType.START.equals(step.type()) || StepType.FORK.equals(step.type())
                 || StepType.JOIN.equals(step.type())) {
             // Pure control-flow nodes involve no worker: START marks the entry point, FORK's
@@ -228,6 +277,8 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
         this.attemptCount++;
         this.status = StepExecutionStatus.CREATED;
         this.finishedAt = null;
+        // The previous attempt's deadline is meaningless now; start() arms a fresh one.
+        this.deadlineAt = null;
         send(new TaskLogEmitted(id, MessageType.Info,
                 "Auto-retry attempt " + attemptCount + " scheduled for step " + stepId));
     }

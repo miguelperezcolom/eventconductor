@@ -72,6 +72,22 @@ public class InMemoryStepExecutionRepository implements StepExecutionRepository 
                 .toList();
     }
 
+    @Override
+    public List<StepExecution> findDue(java.time.LocalDateTime now) {
+        return store.values().stream()
+                .filter(InMemoryStepExecutionRepository::isLive)
+                .filter(se -> se.getDeadlineAt() != null && !se.getDeadlineAt().isAfter(now))
+                .toList();
+    }
+
+    @Override
+    public List<StepExecution> findLiveWithoutDeadline() {
+        return store.values().stream()
+                .filter(InMemoryStepExecutionRepository::isLive)
+                .filter(se -> se.getStartedAt() != null && se.getDeadlineAt() == null)
+                .toList();
+    }
+
     private static boolean isLive(StepExecution stepExecution) {
         return stepExecution.getStatus() == StepExecutionStatus.PENDING
                 || stepExecution.getStatus() == StepExecutionStatus.RUNNING;

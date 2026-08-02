@@ -4,6 +4,7 @@ import io.mateu.uidl.interfaces.CrudStore;
 import io.mateu.workflow.domain.aggregates.Process;
 import io.mateu.workflow.domain.aggregates.StepExecution;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 public interface StepExecutionRepository extends CrudStore<StepExecution> {
@@ -20,5 +21,21 @@ public interface StepExecutionRepository extends CrudStore<StepExecution> {
      * tick into one full table load per process it finds.
      */
     List<StepExecution> findPendingOrRunningByProcessId(String processId);
+
+    /**
+     * The live step executions whose materialised deadline has passed — the scheduler's whole
+     * working set. Backed by an index on the deadline, so the cost tracks the work that is
+     * actually due rather than the number of steps waiting, which is what makes long waits
+     * (a TIMER pending for weeks) free between their start and their due moment.
+     */
+    List<StepExecution> findDue(LocalDateTime now);
+
+    /**
+     * Live step executions that started before the deadline was materialised and therefore carry
+     * none. Empty on any engine that has only ever run this version; non-empty exactly once,
+     * right after the upgrade, for the steps that were already in flight. See
+     * {@code StepDeadlineBackfillRunner}.
+     */
+    List<StepExecution> findLiveWithoutDeadline();
 
 }

@@ -53,7 +53,7 @@ public class InMemoryTimeoutScheduler {
     private void scan() {
         try {
             var now = LocalDateTime.now();
-            var deadlines = StepDeadlines.scan(stepExecutionRepository.findPendingOrRunning(), now);
+            var deadlines = StepDeadlines.classify(stepExecutionRepository.findDue(now));
             deadlines.timedOutProcessIds().forEach(processId ->
                     upstreamEventPublisher.publish(new TimeoutCheckRequested(processId)));
             deadlines.dueTimerProcessIds().forEach(processId ->
