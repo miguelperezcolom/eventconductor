@@ -196,7 +196,14 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
         attrs.put("value", toJson(def));
         attrs.put("readonly", "true");
         if (!overlay.isEmpty()) attrs.put("overlay", toJson(overlay));
-        return new Element(GRAPH_TAG, attrs, "");
+        // Give the graph a tall, viewport-sized box. Inside a tab the host has no height context and
+        // falls back to its ~230px min-height, which is far too short for monitoring a live process.
+        return Element.builder()
+                .name(GRAPH_TAG)
+                .attributes(attrs)
+                .content("")
+                .style("display: block; height: 68vh; min-height: 460px;")
+                .build();
     }
 
     /** Overlay state token understood by the graph component. */

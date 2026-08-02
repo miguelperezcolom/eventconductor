@@ -23,7 +23,7 @@ class WorkflowDefinitionDetailViewTest {
 
     /** Only the step-execution repository is exercised; the rest go unused. */
     private WorkflowDefinitionDetailView view(StepExecutionRepository stepExecutions) {
-        return new WorkflowDefinitionDetailView(null, stepExecutions, null, null, null, null, null);
+        return new WorkflowDefinitionDetailView(null, stepExecutions, null, null, null, null);
     }
 
     @Test

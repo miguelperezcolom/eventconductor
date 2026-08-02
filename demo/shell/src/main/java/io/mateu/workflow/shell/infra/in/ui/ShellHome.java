@@ -24,7 +24,9 @@ import static io.mateu.core.infra.JsonSerializer.fromJson;
 @FavIcon("/images/riu.svg")
 @PageTitle("Home")
 //@Logo("/images/riu.svg")
-@Style(StyleConstants.CONTAINER)
+// Edge-to-edge: the shell hosts full-width listings and graphs, so it must not cap its content at
+// the ~900px CONTAINER width (which also squeezed listings into cards for lack of horizontal room).
+@Style(StyleConstants.FULL_WIDTH)
 @AI(sse = "/ai/api/agent/stream")
 public class ShellHome implements WidgetSupplier
 {
