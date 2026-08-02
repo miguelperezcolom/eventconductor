@@ -326,7 +326,7 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
         } else {
             this.finishedAt = null;
         }
-        send(new StepExecutionStatusChanged(id, TaskStatus.valueOf(status.name()), List.of()));
+        send(new StepExecutionStatusChanged(id, TaskStatus.valueOf(status.name()), List.of(), processId));
     }
 
     /**

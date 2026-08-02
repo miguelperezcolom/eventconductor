@@ -6,4 +6,9 @@ import io.mateu.workflow.dtos.Variable;
 import java.util.List;
 
 public record ProcessCreated(String processId, List<Variable> variables) implements DomainEvent {
+
+    @Override
+    public String partitionKey() {
+        return processId;
+    }
 }

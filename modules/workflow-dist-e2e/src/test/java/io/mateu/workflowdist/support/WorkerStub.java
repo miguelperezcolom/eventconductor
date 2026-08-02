@@ -69,12 +69,22 @@ public final class WorkerStub {
     public static void complete(TaskExecutionRequested request, Variable... extraVariables) {
         var variables = new java.util.ArrayList<>(request.variables());
         variables.addAll(List.of(extraVariables));
-        sendStatus(request.taskExecutionId(), TaskStatus.COMPLETED, variables);
+        sendStatus(request.taskExecutionId(), TaskStatus.COMPLETED, variables, request.processId());
     }
 
     /** Sends a raw status report on the upstream topic, exactly like a real worker. */
     public static void sendStatus(String taskExecutionId, TaskStatus status, List<Variable> variables) {
-        streamBridge.send("upstream", new TaskStatusChanged(taskExecutionId, status, variables));
+        sendStatus(taskExecutionId, status, variables, null);
+    }
+
+    /**
+     * As above, echoing back the process so the reply is routed to the pod that owns it — what a
+     * worker built against the current shared module does. Passing null exercises the fallback
+     * for workers that do not.
+     */
+    public static void sendStatus(String taskExecutionId, TaskStatus status, List<Variable> variables,
+                                  String processId) {
+        streamBridge.send("upstream", new TaskStatusChanged(taskExecutionId, status, variables, processId));
     }
 
     /** How many times the worker executed the given step of the given process. */

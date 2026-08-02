@@ -79,10 +79,13 @@ class Dist08PostgresDownAtStartupTest extends AbstractDistTest {
                     .until(() -> pendingOutboxMessages() > 0);
             orchestrator.close();
             orchestrator = null;
+            // Assert while the gate is still held. Every pod relays now and drains until empty,
+            // so releasing first leaves a window in which the parked message is gone before the
+            // assertion reads it — the state under test is "parked", not "parked a moment ago".
+            assertThat(pendingOutboxMessages()).isGreaterThan(0);
         } finally {
             DistInfra.unblockOutboxRelay(relayLock);
         }
-        assertThat(pendingOutboxMessages()).isGreaterThan(0);
 
         // ── Phase 1: PostgreSQL down, a fresh pod boots anyway. ──
         DistInfra.pausePostgres();

@@ -197,6 +197,12 @@ public final class DistInfra {
         }
     }
 
+    /** Bootstrap servers of the shared Kafka container, for tests that inspect the topics. */
+    public static String kafkaBootstrapServers() {
+        ensureStarted();
+        return kafka.getBootstrapServers();
+    }
+
     public static JdbcTemplate jdbc() {
         ensureStarted();
         return jdbc;

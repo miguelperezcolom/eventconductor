@@ -8,6 +8,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **Events are keyed by process, so a process belongs to one pod.** Every event that concerns a
+  process now carries it as the Kafka message key (`DomainEvent.partitionKey()`), so all of a
+  process's events hash to the same partition — and a consumer group gives each partition to
+  exactly one consumer. Per-process serialization stops being something the engine arranges after
+  the fact and becomes a property of how events are addressed.
+
+  **This also fixes ordering, which is a correctness matter rather than a performance one.** On an
+  unkeyed topic two events of the same process land on different partitions and are handled
+  concurrently by different pods, in whatever order they arrive; the per-process lock serialized
+  access but never ordered it. What made that survivable was the terminal-status guards and the
+  re-reads inside the lock. Keyed, the order is the order they were produced in.
+
+  Two events that mutate process state carried only a task id and now carry the process too:
+  `TaskStatusChanged` (a worker's reply, echoed from the `TaskExecutionRequested` it received) and
+  `StepExecutionStatusChanged`. Both keep their previous constructor, which leaves the key null —
+  so a third-party worker built against an older shared module still compiles, still deserializes,
+  and simply falls back to the unrouted behaviour it has today. Events that write only their own
+  independent row (`TaskLogEmitted`, `TaskResourceCreated`) stay unkeyed on purpose: pinning them
+  to a partition would cost balance and buy nothing.
+
+  Nothing is removed yet — the per-process lock stays as the safety net, since ownership is only
+  a Kafka *assignment* guarantee and a rebalance can still put two pods on one process briefly.
+  New spec `DIST-11` verifies the keys by reading the topics, not by trusting that `send` set one.
 - **BREAKING (SPI): per-process exclusion is a row lock, not an advisory lock.**
   `ProcessLockService` loses `tryLock`/`unlock` and gains a single
   `runExclusively(processId, action)`. In JPA mode the action now runs in a transaction that opens
