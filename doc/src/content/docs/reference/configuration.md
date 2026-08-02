@@ -188,31 +188,21 @@ The orchestrator ships migrations `V1__baseline.sql` through `V4__workflow_defin
 
 ### Distributed locking
 
-When `workflow.persistence=jpa`, the engine uses database-level advisory locks to guarantee that only one pod processes a given workflow instance at a time. The lock mechanism is chosen automatically:
+How the engine keeps two pods off the same process depends on the mode:
 
-| Database | SQL used |
+- **`workflow.mode=kafka`** — no per-process lock. Events are keyed by process, so a consumer group hands each process's partition to exactly one orchestrator: a process has a single writer by construction. An optimistic-locking `version` on the `process_entity` and `step_execution_entity` aggregates fences the brief window a Kafka rebalance leaves uncovered (the outgoing pod finishing a record the incoming one now owns) and worker replies that arrive unkeyed — a stale write is rejected instead of overwriting the new owner's work.
+- **`workflow.mode=embedded` + `workflow.persistence=jpa`** — a **row lock**. The action runs in a transaction that opens with `SELECT … FOR UPDATE` on the process row and releases on commit; waiting is bounded by `workflow.process-lock-timeout-seconds` (default `10`). Embedded pods share no partitioning, so this is what keeps two of them off the same process. No separate connection and no watchdog are involved.
+- **`workflow.mode=embedded` + `workflow.persistence=memory`** — an in-JVM lock (single process only).
+
+Separately, the **singleton background jobs** — the timeout/timer scan, cron-scheduled starts, and the embedded outbox relay — take a short-lived **database advisory lock** so only one pod runs each. The lock dialect is auto-detected from the JDBC connection:
+
+| Database | Lock mechanism |
 |---|---|
 | PostgreSQL | `pg_try_advisory_lock(bigint)` / `pg_advisory_unlock(bigint)` |
 | MariaDB / MySQL | `GET_LOCK(name, 0)` / `RELEASE_LOCK(name)` |
 | Oracle | `DBMS_LOCK.REQUEST` / `DBMS_LOCK.RELEASE` (via PL/SQL) |
 
-#### Stale lock watchdog
-
-A background daemon thread (`process-lock-watchdog`) runs every **60 seconds** and force-releases any per-process lock that has been held longer than **60 seconds**. Lock-protected operations are expected to complete in milliseconds; the watchdog is a safety net for cases where `unlock()` is never reached (e.g. an unhandled exception or a bug in calling code).
-
-When a stale lock is released the following warning is logged:
-
-```
-WARN  JdbcProcessLockService - Releasing stale lock <key> held since <instant> (exceeded 60s threshold)
-```
-
-If you see this warning in production, investigate the process that held the lock — it likely indicates an unexpected error in the orchestration flow.
-
-#### Multi-pod safety
-
-The watchdog is safe in multi-pod (Kubernetes) deployments. `heldLocks` is an in-memory map local to each JVM, so each pod's watchdog only sees and releases locks that **the same pod** acquired. It has no visibility into locks held by other pods and cannot interfere with them.
-
-If a pod crashes, no watchdog intervention is needed: advisory locks are session-scoped in all supported databases, so the database releases them automatically as soon as the JDBC connection closes.
+These locks are held only for the length of one scan and are session-scoped, so a crashed pod's locks are released automatically by the database when its JDBC connection closes — no watchdog needed.
 
 ## Kafka (when `workflow.mode=kafka`)
 

@@ -32,7 +32,7 @@ import { Card, CardGrid } from '@astrojs/starlight/components';
 
 <CardGrid stagger>
   <Card title="Distributed by design" icon="rocket">
-    Multiple orchestrator instances coordinate safely using PostgreSQL advisory locks and the outbox pattern. Scale from a single JVM to a multi-pod Kubernetes cluster without changing a line of business code.
+    Multiple orchestrator instances coordinate safely: events are keyed by process onto Kafka partitions, so each process has a single owner, and state is reconciled through the transactional outbox pattern. Scale from a single JVM to a multi-pod Kubernetes cluster without changing a line of business code.
   </Card>
   <Card title="Event-driven, not polling" icon="approve-check-circle">
     Every state transition is triggered by a domain event — stored in the outbox table and relayed to the appropriate handler. No polling loops that grow with your data.

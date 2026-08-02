@@ -23,7 +23,7 @@ EventConductor is an event-driven **workflow / saga orchestration engine** for J
 
 - **`embedded` + `memory`** (default): everything in-process, no external deps. Ideal for tests, local dev, embedding. State lost on restart.
 - **`embedded` + `jpa`**: in-process dispatch, state in a DB (PostgreSQL/MariaDB/Oracle/H2). Survives restarts.
-- **`kafka` + `jpa`**: full distributed. Events flow through Kafka topics; multiple orchestrators coordinate via PostgreSQL advisory locks.
+- **`kafka` + `jpa`**: full distributed. Events flow through Kafka topics, keyed by process so each process is owned by exactly one orchestrator (partition ownership), fenced by an optimistic-locking version. (`embedded` mode has no partitions, so it uses a per-process row lock — `SELECT … FOR UPDATE` — instead.)
 
 Kafka/JPA autoconfiguration is excluded automatically in embedded/memory mode — no manual `spring.autoconfigure.exclude` needed.
 

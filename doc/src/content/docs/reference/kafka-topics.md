@@ -131,4 +131,4 @@ Workers consume this topic, perform their work, and publish a `task-status-chang
 | Orchestrator upstream handler | `orchestrator-group` | `upstream` |
 | Workers | `worker-group` | `downstream` |
 
-Multiple orchestrator instances in the same group will share the load and coordinate via database advisory locks — the lock dialect is auto-detected from the JDBC connection (PostgreSQL, MariaDB/MySQL, or Oracle; see the [configuration reference](/reference/configuration/#distributed-locking)).
+Multiple orchestrator instances in the same group share the load: events are keyed by process, so the consumer group gives each process's partition to exactly one instance (a single writer per process), fenced by an optimistic-locking version on the aggregates. The singleton background jobs (timeout scan, cron) still coordinate through a short-lived database advisory lock; see the [configuration reference](/reference/configuration/#distributed-locking).

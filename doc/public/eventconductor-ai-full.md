@@ -2,7 +2,7 @@
 
 EventConductor is a production-grade, event-driven **workflow / saga orchestration engine** for the Java/Spring ecosystem. You describe a business process as a **workflow definition** (JSON or YAML) composed of **steps**. The engine drives the state machine — scheduling steps, enforcing preconditions, retries, timeouts, and compensation — and delegates all business logic to **workers** (stateless microservices in Kafka mode, or in-process beans in embedded mode).
 
-It scales from a single JVM with no external dependencies up to a multi-pod Kubernetes cluster (Kafka + PostgreSQL, coordinating via advisory locks and the outbox pattern) **without changing business code** — only two configuration properties.
+It scales from a single JVM with no external dependencies up to a multi-pod Kubernetes cluster (Kafka + PostgreSQL, coordinating via Kafka partition ownership and the outbox pattern) **without changing business code** — only two configuration properties.
 
 ---
 
@@ -82,7 +82,7 @@ spring.datasource.url=jdbc:postgresql://localhost:5432/workflow
 ```
 
 - Domain events flow through Kafka topics (`outbox`, `upstream`, `downstream`).
-- Multiple orchestrator instances coordinate via PostgreSQL advisory locks.
+- Multiple orchestrator instances coordinate via Kafka partition ownership: events are keyed by process, so each process is owned by exactly one instance, fenced by an optimistic-locking version on the aggregates for the rebalance window. (Embedded mode, with no partitions, falls back to a per-process row lock — `SELECT … FOR UPDATE`.)
 - Use a normal `@SpringBootApplication`.
 
 The philosophy: **start fully embedded, grow into JPA and then Kafka** as scale demands.

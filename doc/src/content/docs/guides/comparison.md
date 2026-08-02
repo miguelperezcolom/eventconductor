@@ -55,7 +55,7 @@ None of the three is universally "better" — they optimize for different teams 
 | `embedded` + `jpa` | PostgreSQL / MariaDB / Oracle / H2 | Single-node production, local dev |
 | `kafka` + `jpa` | PostgreSQL + Kafka | Multi-pod distributed production |
 
-In distributed mode, multiple orchestrator instances coordinate through PostgreSQL advisory locks and the transactional outbox pattern, and stateless workers scale horizontally as Kafka consumers. The honest trade-off: EventConductor has not been benchmarked at the extreme throughputs Zeebe and Temporal publish. If you need millions of process instances per day, the dedicated-cluster architectures have proven headroom; for the vast majority of business workloads (thousands to hundreds of thousands of instances per day), an embedded engine on PostgreSQL + Kafka is simpler to operate and more than sufficient.
+In distributed mode, orchestrator instances coordinate through Kafka partition ownership (events are keyed by process, so each process is owned by exactly one instance) and the transactional outbox pattern, and stateless workers scale horizontally as Kafka consumers. The honest trade-off: EventConductor has not been benchmarked at the extreme throughputs Zeebe and Temporal publish. If you need millions of process instances per day, the dedicated-cluster architectures have proven headroom; for the vast majority of business workloads (thousands to hundreds of thousands of instances per day), an embedded engine on PostgreSQL + Kafka is simpler to operate and more than sufficient.
 
 ## Robustness & correctness guarantees
 
@@ -65,16 +65,16 @@ For a production evaluation, the delivery and consistency semantics matter more 
 
 **Temporal** takes durability further than any other engine: the **full event history** of every workflow is persisted, and after any crash the workflow *function* is replayed deterministically against that history — workflow state is effectively **exactly-once**, even across process, pod, and datacenter failures. Activities are **at-least-once** (retried per policy), so activity code should be idempotent. This "durable execution" model is Temporal's core innovation and its strongest robustness argument.
 
-**EventConductor** builds its guarantees on two well-understood primitives — the **transactional outbox pattern** and **database advisory locks** — rather than a custom replicated log:
+**EventConductor** builds its guarantees on two well-understood primitives — the **transactional outbox pattern** and **Kafka partition ownership** — rather than a custom replicated log:
 
 - Every state transition is an immutable domain event written **in the same database transaction** as the state change, then relayed (publish-then-mark, so delivery is **at-least-once**; a crashed relay re-delivers, never loses).
 - **Idempotency guards** absorb the resulting duplicates: duplicate `ProcessCreationRequested` events with the same business key create exactly one process; a duplicate task dispatch for a step already past `PENDING` is ignored; worker reports arriving for steps in a terminal state (e.g. after cancellation) are discarded.
-- In multi-pod deployments, orchestrator instances coordinate through **PostgreSQL advisory locks**, so each step is dispatched exactly once even when several pods consume the same events.
+- In multi-pod deployments, events are **keyed by process**, so every event for a process lands on one Kafka partition and the consumer group hands that partition to exactly one orchestrator — each process has a **single writer by construction**, so each step is dispatched exactly once. An **optimistic-locking version** on the aggregates fences the brief rebalance window (and worker replies that arrive unkeyed), rejecting a stale writer instead of overwriting. *(Embedded single-DB mode, where nothing partitions processes across pods, falls back to a per-process row lock — `SELECT … FOR UPDATE` on the process row.)*
 - A **timeout scheduler** detects hung tasks (workers that never respond) and drives them through the same retry/error/compensation pipeline; condition expressions are **fail-closed** (an evaluation error means the guarded step does not run) and evaluated in a **sandboxed JEXL** environment that blocks reflection and system access.
 
 These guarantees are not just claimed — they are pinned down as an explicit, public test specification ([TESTING.md](https://github.com/miguelperezcolom/eventconductor/blob/main/TESTING.md)) covering orchestration semantics, failure handling, idempotency, durability through the real outbox, and security, run in CI on every commit. A distributed chaos suite (orchestrator crash recovery, two-pod dispatch exclusivity, worker crash redelivery) is specified in the same document.
 
-The honest framing: Temporal's replay model gives the strongest workflow-state durability of the three; Zeebe's replicated log is proven at very high scale. EventConductor deliberately chooses **boring, auditable technology** — ACID transactions, an outbox table you can inspect with SQL, and database locks — which an operations team can reason about and debug without learning a new distributed system.
+The honest framing: Temporal's replay model gives the strongest workflow-state durability of the three; Zeebe's replicated log is proven at very high scale. EventConductor deliberately chooses **boring, auditable technology** — ACID transactions, an outbox table you can inspect with SQL, and Kafka's own partition-ownership guarantee — which an operations team can reason about and debug without learning a new distributed system.
 
 ## Scalability & performance
 
