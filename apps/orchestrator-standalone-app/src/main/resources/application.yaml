@@ -130,15 +130,14 @@ spring:
     username: ${DB_USERNAME:user_app}
     password: ${DB_PASSWORD:user_password}
     driver-class-name: ${DB_DRIVER:org.postgresql.Driver}
-
-  hikari:
-    connection-timeout: ${DB_CONNECTION_TIMEOUT:20000}
-    # A process update holds a connection for its critical section, so the pool caps how many
-    # in-flight processes this pod can advance at once. It has to cover every thread that holds one
-    # at once: KAFKA_CONCURRENCY on each of the two consumer bindings, plus the outbox relay, the
-    # timeout scanner and any HTTP request in the UI. Size it to expected concurrency (and to the
-    # database's max_connections across all pods); raise DB_POOL_SIZE to scale.
-    maximum-pool-size: ${DB_POOL_SIZE:16}
+    hikari:
+      connection-timeout: ${DB_CONNECTION_TIMEOUT:20000}
+      # A process update holds a connection for its critical section, so the pool caps how many
+      # in-flight processes this pod can advance at once. It has to cover every thread that holds one
+      # at once: KAFKA_CONCURRENCY on each of the two consumer bindings, plus the outbox relay, the
+      # timeout scanner and any HTTP request in the UI. Size it to expected concurrency (and to the
+      # database's max_connections across all pods); raise DB_POOL_SIZE to scale.
+      maximum-pool-size: ${DB_POOL_SIZE:16}
 
   jpa:
     database-platform: ${JPA_DIALECT:org.hibernate.dialect.PostgreSQLDialect}

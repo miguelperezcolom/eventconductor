@@ -90,10 +90,9 @@ spring:
     username: ${DB_USERNAME:user_app}
     password: ${DB_PASSWORD:user_password}
     driver-class-name: ${DB_DRIVER:org.postgresql.Driver}
-
-  hikari:
-    connection-timeout: ${DB_CONNECTION_TIMEOUT:20000}
-    maximum-pool-size: ${DB_POOL_SIZE:16}
+    hikari:
+      connection-timeout: ${DB_CONNECTION_TIMEOUT:20000}
+      maximum-pool-size: ${DB_POOL_SIZE:16}
 
   jpa:
     database-platform: ${JPA_DIALECT:org.hibernate.dialect.PostgreSQLDialect}
