@@ -10,8 +10,11 @@ import io.mateu.workflow.domain.aggregates.ProcessStatus;
 import io.mateu.workflow.domain.aggregates.StepExecution;
 import io.mateu.workflow.domain.aggregates.StepExecutionStatus;
 import io.mateu.workflow.domain.aggregates.WorkflowDefinition;
+import io.mateu.workflow.dtos.events.integration.RestartProcessRequested;
 import io.mateu.workflow.dtos.events.integration.RetryProcessRequested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -144,13 +147,31 @@ class SimpleProcessViewModelTest {
         assertThat(latest.get("x")).isEqualTo("second");
     }
 
-    @Test
-    void offersRetryOnlyWhileTheProcessIsFailed() {
+    /**
+     * Both ways of running a process again are offered for a process that stopped — failed or
+     * cancelled — and for nothing else. A cancelled process is not finished, and picking it up is
+     * a normal operator move; a running one is not the operator's to re-drive, and a completed one
+     * is done.
+     */
+    @ParameterizedTest
+    @EnumSource(value = ProcessStatus.class, names = {"ERROR", "CANCELLED"})
+    void offersBothWaysToRunAStoppedProcessAgain(ProcessStatus stopped) {
         var view = view(null);
-        view.processStatus = ProcessStatus.ERROR;
+        view.processStatus = stopped;
+
         assertThat(view.isHidden("retryProcess", null)).isFalse();
-        view.processStatus = ProcessStatus.RUNNING;
+        assertThat(view.isHidden("restartProcess", null)).isFalse();
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = ProcessStatus.class,
+            names = {"PENDING", "RUNNING", "PAUSED", "COMPLETED", "COMPENSATED"})
+    void offersNeitherWhileTheProcessIsLiveOrFinished(ProcessStatus notStopped) {
+        var view = view(null);
+        view.processStatus = notStopped;
+
         assertThat(view.isHidden("retryProcess", null)).isTrue();
+        assertThat(view.isHidden("restartProcess", null)).isTrue();
     }
 
     @Test
@@ -163,6 +184,18 @@ class SimpleProcessViewModelTest {
         view.retryProcess();
 
         verify(publisher).publish(new RetryProcessRequested("p-1"));
+    }
+
+    @Test
+    void restartPublishesARestartRequestForThisProcessOnTheOwningPod() {
+        var publisher = mock(UpstreamEventPublisher.class);
+        var view = new SimpleProcessViewModel(
+                publisher, null, null, null, null, null, null, null, null, null);
+        view.id = "p-1";
+
+        view.restartProcess();
+
+        verify(publisher).publish(new RestartProcessRequested("p-1"));
     }
 
     @Test

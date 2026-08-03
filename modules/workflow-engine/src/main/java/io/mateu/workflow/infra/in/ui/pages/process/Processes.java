@@ -1,6 +1,7 @@
 package io.mateu.workflow.infra.in.ui.pages.process;
 
 import io.mateu.core.infra.declarative.orchestrators.crud.Crud;
+import io.mateu.uidl.annotations.Label;
 import io.mateu.uidl.annotations.ListToolbarButton;
 import io.mateu.uidl.data.ListingData;
 import io.mateu.uidl.annotations.PageWidth;
@@ -9,6 +10,7 @@ import io.mateu.uidl.data.SearchRequest;
 import io.mateu.uidl.fluent.GridLayout;
 import io.mateu.uidl.interfaces.CrudStore;
 import io.mateu.uidl.interfaces.HttpRequest;
+import io.mateu.workflow.dtos.events.integration.RestartProcessRequested;
 import io.mateu.workflow.dtos.events.integration.RetryProcessRequested;
 import io.mateu.workflow.application.usecases.process.retry.RetryProcessCommand;
 import io.mateu.workflow.application.usecases.process.retry.RetryProcessUseCase;
@@ -114,13 +116,34 @@ public class Processes extends Crud<Object, Object, Object, ProcessFilters, Proc
         return "Create";
     }
 
+    /**
+     * Picks the selected processes up where they stopped: the steps that failed or were cancelled
+     * run again, the ones that succeeded are left alone.
+     *
+     * <p>Applied to a selection, so it is applied to whatever the operator ticked — including
+     * processes it makes no sense for. The engine is what decides: a process that is not ERROR or
+     * CANCELLED is left alone and says so in the log, rather than this page trying to guess which
+     * rows qualify from a list that may already be out of date by the time the click lands.
+     */
     @ListToolbarButton(rowsSelectedRequired = true)
+    @Label("Retry from failure")
     public void retry(List<ProcessRow> selectedRows) {
         selectedRows.forEach(row -> {
             // Requested, not performed here — the process belongs to the pod holding its
             // partition, and this is whichever pod served the click.
             upstreamEventPublisher.publish(new RetryProcessRequested(row.id()));
         });
+    }
+
+    /**
+     * Runs the selected processes again from the top, including the steps that already succeeded.
+     * Asks first: in bulk, this is the more expensive of the two by some margin.
+     */
+    @ListToolbarButton(rowsSelectedRequired = true, confirmationRequired = true)
+    @Label("Restart from the beginning")
+    public void restart(List<ProcessRow> selectedRows) {
+        selectedRows.forEach(row ->
+                upstreamEventPublisher.publish(new RestartProcessRequested(row.id())));
     }
 
 }
