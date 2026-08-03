@@ -47,6 +47,16 @@ public class StepExecutionEntity {
     @Column(columnDefinition = "TEXT")
     String stepJson;
 
+    /**
+     * The step's type, lifted out of {@link #stepJson} so it can be queried.
+     *
+     * <p>Only the stalled-step count needs it, and needs it for a reason worth the column: whether
+     * a live step with no deadline is a problem or the entire point depends on what kind of step
+     * it is, and asking that question of a JSON blob is not a query any database can serve. Null
+     * on rows written before this column existed — see the count query for what that means.
+     */
+    String stepType;
+
     @Column(columnDefinition = "TEXT")
     String  variables;
 

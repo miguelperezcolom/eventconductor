@@ -60,6 +60,7 @@ public class StepExecutionDBRepository implements StepExecutionRepository {
                 stepExecution.getWorkflowDefinitionId(),
                 stepExecution.getStepId(),
                 stepExecution.getStepJson(),
+                stepExecution.stepTypeName(),
                 toJson(stepExecution.getVariables()),
                 stepExecution.getStatus().name(),
                 stepExecution.getWorkerId(),
@@ -142,9 +143,17 @@ public class StepExecutionDBRepository implements StepExecutionRepository {
                 .stream().map(this::map).toList();
     }
 
+    /**
+     * The step types whose waiting is machine work: a request went out to a worker and an answer
+     * is owed. The same two the fallback deadline is applied to (see {@code StepTimeoutDefaults}),
+     * because it is the same question — everything else waits without a deadline on purpose.
+     */
+    private static final List<String> AWAITING_A_WORKER =
+            List.of(StepType.ACTION.name(), StepType.RULE.name());
+
     @Override
     public long countStalled(LocalDateTime startedBefore) {
-        return stepExecutionEntityRepository.countByStatusInAndDeadlineAtIsNullAndStartedAtLessThan(
-                List.of(PENDING.name(), RUNNING.name()), startedBefore);
+        return stepExecutionEntityRepository.countStalled(
+                List.of(PENDING.name(), RUNNING.name()), startedBefore, AWAITING_A_WORKER);
     }
 }

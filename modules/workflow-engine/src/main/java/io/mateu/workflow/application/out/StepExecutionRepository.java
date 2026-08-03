@@ -47,8 +47,14 @@ public interface StepExecutionRepository extends CrudStore<StepExecution> {
     List<StepExecution> findWaitingForMessage(String messageName, String correlationKey);
 
     /**
-     * How many live steps have been waiting since before {@code startedBefore} with no deadline
-     * to fire — work nothing in the engine will ever look at again.
+     * How many live steps are waiting on a worker, since before {@code startedBefore}, with no
+     * deadline to fire — work nothing in the engine will ever look at again.
+     *
+     * <p>Steps whose waiting is unbounded by design are not counted: a USER_TASK waits for a
+     * person, a WAIT_FOR_MESSAGE waits for a message that may never come, a PROCESS waits for its
+     * child. Those have no deadline for the same reason the fallback timeout refuses to give them
+     * one, and counting them turned this into a number that was never zero anywhere a human ever
+     * approved anything.
      *
      * <p>This is the blind spot the deadline index creates. A step with a timeout is safe: the
      * scheduler finds it and the retry path recovers it. A step without one is invisible by

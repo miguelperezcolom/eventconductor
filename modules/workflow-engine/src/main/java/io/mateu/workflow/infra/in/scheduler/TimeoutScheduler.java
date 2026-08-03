@@ -98,10 +98,19 @@ public class TimeoutScheduler {
      * reason to look at it again. That is how a broker outage left 3 356 processes permanently
      * stopped with not one line in a log to show for it.
      *
+     * <p>Only ACTION and RULE steps are counted — the ones a worker owes an answer for. Everything
+     * else that waits without a deadline does so on purpose, and counting those made the number
+     * useless: any deployment with human tasks reported permanent stalled work, once a minute, on
+     * every pod.
+     *
      * <p>Reporting only. The fix for a stalled step is to give it a timeout, either on the step
      * or through {@code workflow.default-step-timeout-ms}; this exists so that not having done
      * so is visible rather than silent. Runs on its own slower loop and takes no lock — a count
-     * costs the same on every pod, and the gauge is per-pod anyway.
+     * costs the same on every pod.
+     *
+     * <p><b>The number is cluster-wide, and every pod reports it.</b> It counts rows in a shared
+     * table, not this pod's share of anything, so N pods publish the same figure: alert on the
+     * maximum across replicas, never the sum, which would multiply it by the replica count.
      */
     private void startStalledStepWatch() {
         var thread = new Thread(() -> {
@@ -112,9 +121,10 @@ public class TimeoutScheduler {
                             java.time.LocalDateTime.now().minusNanos(stalledAfterMs * 1_000_000));
                     workflowMetrics.stalledStepsObserved(stalled);
                     if (stalled > 0) {
-                        log.warn("{} step executions have been waiting more than {} ms with no "
-                                        + "deadline: nothing will ever time them out. Give those steps a "
-                                        + "timeout, or set workflow.default-step-timeout-ms.",
+                        log.warn("{} ACTION/RULE step execution(s) have been waiting more than {} ms "
+                                        + "for a worker with no deadline: nothing will ever time them "
+                                        + "out. Give those steps a timeout, or set "
+                                        + "workflow.default-step-timeout-ms.",
                                 stalled, stalledAfterMs);
                     }
                 } catch (InterruptedException e) {

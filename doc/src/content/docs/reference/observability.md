@@ -53,7 +53,7 @@ modes** (embedded + memory, embedded + jpa, kafka + jpa).
 | `eventconductor.step.compensations` | Counter | `workflowDefinitionId` | Compensation steps triggered after retries were exhausted |
 | `eventconductor.process.running` | Gauge | — | Processes currently in `RUNNING` status |
 | `eventconductor.outbox.pending` | Gauge | — | Outbox messages waiting to be relayed (only with `workflow.persistence=jpa`; the in-memory mode has no outbox). Rises during a broker outage and must return to zero |
-| `eventconductor.steps.stalled` | Gauge | — | Live steps with **no deadline** that have been waiting longer than `workflow.stalled-step-after-ms`. The one gauge to alert on — see below |
+| `eventconductor.steps.stalled` | Gauge | — | ACTION and RULE steps with **no deadline** that have been waiting on a worker longer than `workflow.stalled-step-after-ms`. The one gauge to alert on — see below |
 
 **Alert on `eventconductor.steps.stalled`.** Every other metric here counts something happening;
 this counts work that has stopped happening where nothing in the engine will notice. A step that
@@ -61,6 +61,16 @@ declares no timeout has no deadline, and the timeout scan is an index range over
 if that step's dispatch or its worker's reply is lost, the process stops permanently and silently.
 Any sustained non-zero value is work that will never finish. Give those steps a timeout, or set
 `workflow.default-step-timeout-ms`. See [Reliability](/guides/reliability/).
+
+Only ACTION and RULE steps count, because only they are owed an answer by a worker. A `USER_TASK`
+waits for a person, a `WAIT_FOR_MESSAGE` waits for a message that may never arrive, and a `PROCESS`
+waits for its child — none of them has a deadline, and none of them is stalled. Counting those made
+the gauge permanently non-zero in every deployment with human tasks.
+
+The number is **cluster-wide and reported by every pod**: it counts rows in a shared table rather
+than one pod's share of the work. Alert on `max()` across replicas, not `sum()`, which multiplies
+it by the replica count. It reads zero in `workflow.persistence=memory`, which keeps no such
+table — there it means "not measured", not "nothing stalled".
 
 ### Forms engine
 
