@@ -56,13 +56,18 @@ public interface WorkflowMetrics {
     default void eventDeadLettered(String source) {}
 
     /**
-     * How many live steps are waiting with no deadline that could ever fire.
+     * How many live steps are waiting on a worker with no deadline that could ever fire.
      *
      * <p>The one gauge to alert on. Everything else here counts things happening; this counts
      * things that have stopped happening and that nothing in the engine will notice — a step
      * whose dispatch or whose worker reply was lost, on a step that declares no timeout, waits
      * forever and is invisible to the deadline scan by construction. Any sustained non-zero
      * value is work that will never finish.
+     *
+     * <p>Steps that wait without a deadline by design — human tasks, message catches, child
+     * processes — are not in this number, or "work that will never finish" would describe every
+     * approval anyone has ever been asked for. The count is cluster-wide and reported by every
+     * pod: alert on the maximum across replicas, not the sum.
      */
     default void stalledStepsObserved(long count) {}
 

@@ -170,6 +170,22 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
     }
 
     /**
+     * This step's type as a plain name, for persistence to store in a column of its own.
+     *
+     * <p>Null when the step JSON cannot be read, which is the same answer a row written before
+     * that column existed gives — and both are handled the same way where it is queried: as
+     * "unknown", not as "not the type you are looking for".
+     */
+    public String stepTypeName() {
+        try {
+            var type = pojoFromJson(stepJson, Step.class).type();
+            return type == null ? null : type.name();
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    /**
      * The deadline implied by the current {@code startedAt}, {@code variables} and step, or null
      * when this step has none or has not started. A TIMER whose date cannot be resolved yields
      * null rather than throwing: {@link #start(Process)} already fails such a step, so there is
