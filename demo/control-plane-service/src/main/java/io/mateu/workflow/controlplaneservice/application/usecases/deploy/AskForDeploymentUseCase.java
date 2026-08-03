@@ -27,7 +27,7 @@ public class AskForDeploymentUseCase {
 
         var deploymentId = UUID.randomUUID().toString();
 
-        setPlannedReleaseUseCase.handle(new DeployCommand("", command.routeIds(), command.releaseId(), deploymentId));
+        setPlannedReleaseUseCase.handle(new DeployCommand("", command.routeIds(), command.releaseId(), deploymentId, null));
 
         streamBridge.send("upstream", new ProcessCreationRequested(
                 "37632b1d-e294-4174-a5d2-e71f41e70579",

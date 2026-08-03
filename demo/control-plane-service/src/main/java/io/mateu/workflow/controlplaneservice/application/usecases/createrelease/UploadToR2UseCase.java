@@ -10,6 +10,7 @@ import io.mateu.workflow.dtos.Variable;
 import io.mateu.workflow.dtos.events.domain.StepExecutionStatusChanged;
 import io.mateu.workflow.dtos.events.integration.TaskStatus;
 import io.mateu.workflow.dtos.events.integration.TaskStatusChanged;
+import io.mateu.workflow.worker.WorkerReply;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -54,10 +55,11 @@ public class UploadToR2UseCase {
         release.updateStatus(ReleaseStatus.Green);
         releaseRepository.save(release);
 
-        streamBridge.send("upstream", new TaskStatusChanged(
+        WorkerReply.send(streamBridge, new TaskStatusChanged(
                 command.taskExecutionId(),
                 TaskStatus.COMPLETED,
-                List.of()));
+                List.of(),
+                command.processId()));
     }
 
 }

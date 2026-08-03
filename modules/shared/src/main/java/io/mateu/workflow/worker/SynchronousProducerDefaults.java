@@ -31,10 +31,13 @@ import java.util.Map;
  * wins. It should be a considered decision though, because it is the difference between a
  * transactional outbox and a hopeful one.
  *
- * <p>Only applies in {@code kafka} mode: embedded mode has no broker and the engine excludes the
- * binder entirely there. An application that replies over Kafka therefore has to say so with
- * {@code workflow.mode=kafka} — which every distributed deployment already does, because it is
- * the same switch that turns the binder on.
+ * <p>Contributed unconditionally, deliberately. It used to apply only when
+ * {@code workflow.mode=kafka}, which is fine for an application that runs the engine and wrong
+ * for one that only answers it: a worker turns the binder on by having it on the classpath, not
+ * by declaring a mode, so the property quietly did not arrive and {@code WorkerReply} had nothing
+ * to check. Where no Kafka producer exists the property is inert — it names a Kafka binding, and
+ * embedded mode excludes the binder outright — so there is nothing to be gained by guessing which
+ * applications need it.
  */
 public class SynchronousProducerDefaults implements EnvironmentPostProcessor, Ordered {
 
@@ -44,9 +47,6 @@ public class SynchronousProducerDefaults implements EnvironmentPostProcessor, Or
 
     @Override
     public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {
-        if (!"kafka".equals(environment.getProperty("workflow.mode", "embedded"))) {
-            return;
-        }
         var sources = environment.getPropertySources();
         if (sources.contains(NAME)) {
             return;

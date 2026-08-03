@@ -10,7 +10,9 @@ import io.mateu.workflow.controlplaneservice.application.usecases.scrape.Downloa
 import io.mateu.workflow.controlplaneservice.application.usecases.scrape.ScrapeCommand;
 import io.mateu.workflow.controlplaneservice.application.usecases.scrape.ScrapeUseCase;
 import io.mateu.workflow.ddd.DomainEvent;
+import io.mateu.workflow.dtos.Variable;
 import io.mateu.workflow.dtos.events.integration.TaskExecutionRequested;
+import io.mateu.workflow.worker.WorkerReply;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
@@ -20,8 +22,16 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
 
-import static io.mateu.core.infra.JsonSerializer.listFromJson;
-
+/**
+ * The worker side of the control plane: it picks up the ACTION steps of the release workflow and
+ * answers the engine through {@link WorkerReply}.
+ *
+ * <p>Each task is handled on the consumer thread, deliberately. Handing it to a thread of its own
+ * — which this used to do — returns from the listener immediately and commits the offset, so when
+ * the reply cannot be published there is nothing left for Kafka to redeliver and the step waits
+ * forever. A task that legitimately runs for minutes belongs in a worker with a raised
+ * {@code max.poll.interval.ms}, not in a detached thread.
+ */
 @Configuration
 @RequiredArgsConstructor
 @Slf4j
@@ -37,96 +47,63 @@ public class WorkerKafkaConsumerConfig {
     final UpdateRoutesUseCase updateRoutesUseCase;
 
     @Bean
-    public Consumer<DomainEvent> consumeWorkerEvent() { // Cambiado de Consumer a Function
+    public Consumer<DomainEvent> consumeWorkerEvent() {
         return event -> {
-          log.info("Received event: " + event);
-          if (event instanceof TaskExecutionRequested taskExecutionRequested) {
+            log.info("Received event: " + event);
+            if (!(event instanceof TaskExecutionRequested task)) {
+                return;
+            }
 
-              if (taskExecutionRequested.stepId().equals("capturar")) {
-                  new Thread(() -> scrapeUseCase.handle(new ScrapeCommand(taskExecutionRequested.variables().stream()
-                          .filter(variable -> "siteId".equals(variable.name()))
-                          .findAny().orElseThrow().value(),
-                          taskExecutionRequested.taskExecutionId()))).start();
-              }
+            switch (task.stepId()) {
+                case "capturar" -> scrapeUseCase.handle(new ScrapeCommand(
+                        variable(task, "siteId"), task.taskExecutionId(), task.processId()));
 
-              if (taskExecutionRequested.stepId().equals("download")) {
-                  new Thread(() -> downloadAssetsUseCase.handle(new DownloadAssetsCommand(taskExecutionRequested.variables().stream()
-                          .filter(variable -> "siteId".equals(variable.name()))
-                          .findAny().orElseThrow().value(),
-                          taskExecutionRequested.taskExecutionId()))).start();
-              }
+                case "download" -> downloadAssetsUseCase.handle(new DownloadAssetsCommand(
+                        variable(task, "siteId"), task.taskExecutionId(), task.processId()));
 
-              if (taskExecutionRequested.stepId().equals("create-content")) {
-                  new Thread(() -> createReleaseUseCase.handle(new CreateReleaseCommand(taskExecutionRequested.variables().stream()
-                          .filter(variable -> "name".equals(variable.name()))
-                          .findAny().orElseThrow().value(),
-                          taskExecutionRequested.variables().stream()
-                                  .filter(variable -> "siteId".equals(variable.name()))
-                                  .findAny().orElseThrow().value(),
-                          taskExecutionRequested.variables().stream()
-                                  .filter(variable -> "userId".equals(variable.name()))
-                                  .findAny().orElseThrow().value(),
-                          taskExecutionRequested.taskExecutionId()))).start();
-              }
+                case "create-content" -> createReleaseUseCase.handle(new CreateReleaseCommand(
+                        variable(task, "name"),
+                        variable(task, "siteId"),
+                        variable(task, "userId"),
+                        task.taskExecutionId(),
+                        task.processId()));
 
-              if (taskExecutionRequested.stepId().equals("upload")) {
-                  new Thread(() -> uploadToR2UseCase.handle(new UploadToR2Command(taskExecutionRequested.variables().stream()
-                          .filter(variable -> "name".equals(variable.name()))
-                          .findAny().orElseThrow().value(),
-                          taskExecutionRequested.variables().stream()
-                                  .filter(variable -> "siteId".equals(variable.name()))
-                                  .findAny().orElseThrow().value(),
-                          taskExecutionRequested.variables().stream()
-                                  .filter(variable -> "userId".equals(variable.name()))
-                                  .findAny().orElseThrow().value(),
-                          taskExecutionRequested.taskExecutionId(),
-                          taskExecutionRequested.variables().stream()
-                                  .filter(variable -> "releaseId".equals(variable.name()))
-                                  .findAny().orElseThrow().value()))).start();
-              }
+                case "upload" -> uploadToR2UseCase.handle(new UploadToR2Command(
+                        variable(task, "name"),
+                        variable(task, "siteId"),
+                        variable(task, "userId"),
+                        task.taskExecutionId(),
+                        variable(task, "releaseId"),
+                        task.processId()));
 
-              if (taskExecutionRequested.stepId().equals("update-script")) {
-                  new Thread(() -> deployUseCase.handle(new DeployCommand(
-                        taskExecutionRequested.taskExecutionId(),
-                        List.of(),
-                        taskExecutionRequested.variables().stream()
-                                .filter(variable -> "releaseId".equals(variable.name()))
-                                .findAny().orElseThrow().value(),
-                        taskExecutionRequested.variables().stream()
-                                .filter(variable -> "deploymentId".equals(variable.name()))
-                                .findAny().orElseThrow().value()
-                        ))).start();
-              }
+                case "update-script" -> deployUseCase.handle(deployCommand(task, List.of()));
 
-              if (taskExecutionRequested.stepId().equals("verify")) {
-                  new Thread(() -> verifyDeploymentUseCase.handle(new DeployCommand(taskExecutionRequested.taskExecutionId(),
-                            List.of(),
-                            taskExecutionRequested.variables().stream()
-                                    .filter(variable -> "releaseId".equals(variable.name()))
-                                    .findAny().orElseThrow().value(),
-                            taskExecutionRequested.variables().stream()
-                                    .filter(variable -> "deploymentId".equals(variable.name()))
-                                    .findAny().orElseThrow().value()))).start();
-              }
+                case "verify" -> verifyDeploymentUseCase.handle(deployCommand(task, List.of()));
 
+                case "update-releases" -> updateRoutesUseCase.handle(deployCommand(task,
+                        Arrays.stream(variable(task, "routeIds").split(",")).toList()));
 
-              if (taskExecutionRequested.stepId().equals("update-releases")) {
-                  new Thread(() -> updateRoutesUseCase.handle(new DeployCommand(taskExecutionRequested.taskExecutionId(),
-                          Arrays.stream(taskExecutionRequested.variables().stream()
-                                  .filter(variable -> "routeIds".equals(variable.name()))
-                                  .findAny().orElseThrow().value().split(",")).toList(),
-                          taskExecutionRequested.variables().stream()
-                                  .filter(variable -> "releaseId".equals(variable.name()))
-                                  .findAny().orElseThrow().value(),
-                          taskExecutionRequested.variables().stream()
-                                  .filter(variable -> "deploymentId".equals(variable.name()))
-                                  .findAny().orElseThrow().value()))).start();
-              }
-
-          }
-
-
+                default -> log.debug("No handler for step {}", task.stepId());
+            }
         };
+    }
+
+    private DeployCommand deployCommand(TaskExecutionRequested task, List<String> routeIds) {
+        return new DeployCommand(
+                task.taskExecutionId(),
+                routeIds,
+                variable(task, "releaseId"),
+                variable(task, "deploymentId"),
+                task.processId());
+    }
+
+    private String variable(TaskExecutionRequested task, String name) {
+        return task.variables().stream()
+                .filter(variable -> name.equals(variable.name()))
+                .findAny()
+                .map(Variable::value)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Step " + task.stepId() + " needs a '" + name + "' variable"));
     }
 
 }

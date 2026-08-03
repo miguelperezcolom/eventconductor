@@ -28,22 +28,25 @@ class SynchronousProducerDefaultsTest {
     }
 
     @Test
-    void leavesEmbeddedModeAlone() {
-        // No broker there, and the binder is excluded outright.
-        var environment = new MockEnvironment().withProperty("workflow.mode", "embedded");
-
-        postProcessor.postProcessEnvironment(environment, null);
-
-        assertThat(environment.getProperty(SYNC)).isNull();
-    }
-
-    @Test
-    void defaultsToEmbeddedWhenTheModeIsNotSet() {
+    void appliesToAWorkerThatNeverDeclaresAMode() {
+        // A worker turns the binder on by having it on the classpath, not by declaring a mode.
+        // Guarding this on workflow.mode=kafka is what left the demo workers without it.
         var environment = new MockEnvironment();
 
         postProcessor.postProcessEnvironment(environment, null);
 
-        assertThat(environment.getProperty(SYNC)).isNull();
+        assertThat(environment.getProperty(SYNC)).isEqualTo("true");
+    }
+
+    @Test
+    void isHarmlessInEmbeddedMode() {
+        // There is no Kafka producer there — the binder is excluded outright — so the property
+        // names nothing and costs nothing.
+        var environment = new MockEnvironment().withProperty("workflow.mode", "embedded");
+
+        postProcessor.postProcessEnvironment(environment, null);
+
+        assertThat(environment.getProperty(SYNC)).isEqualTo("true");
     }
 
     @Test

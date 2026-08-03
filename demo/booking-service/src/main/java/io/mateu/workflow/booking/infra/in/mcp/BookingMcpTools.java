@@ -72,7 +72,7 @@ public class BookingMcpTools implements McpSystemContext {
         log.info("MCP changeBookingStatus {} -> {}", id, status);
         try {
             changeBookingStatusUseCase.handle(
-                    new ChangeBookingStatusCommand(id, BookingStatus.valueOf(status), ""));
+                    new ChangeBookingStatusCommand(id, BookingStatus.valueOf(status), "", null));
             return "Booking %s status changed to %s".formatted(id, status);
         } catch (IllegalArgumentException e) {
             return "Invalid status '%s'. Valid values: Pending, Confirmed, Cancelled".formatted(status);

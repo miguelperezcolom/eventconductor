@@ -97,9 +97,9 @@ spring:
 ```
 
 You do not have to declare it. It ships with the `shared` module — the one every worker already
-depends on to build a `TaskStatusChanged` — and applies whenever `workflow.mode` is `kafka`, which
-is the same switch that turns the binder on. Set it yourself only if you want the opposite, and
-know why: it is contributed at the lowest precedence, so an explicit value always wins.
+depends on to build a `TaskStatusChanged` — and applies wherever a Kafka producer exists. Set it
+yourself only if you want the opposite, and know why: it is contributed at the lowest precedence,
+so an explicit value always wins.
 
 ## Embedded worker (mode: embedded)
 

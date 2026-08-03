@@ -4,6 +4,7 @@ import io.mateu.workflow.controlplaneservice.application.out.RouteRepository;
 import io.mateu.workflow.controlplaneservice.domain.aggregates.release.vo.ReleaseId;
 import io.mateu.workflow.dtos.events.integration.TaskStatus;
 import io.mateu.workflow.dtos.events.integration.TaskStatusChanged;
+import io.mateu.workflow.worker.WorkerReply;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -34,10 +35,11 @@ public class SetPlannedReleaseUseCase {
                     routeRepository.save(route);
                 });
 
-        streamBridge.send("upstream", new TaskStatusChanged(
+        WorkerReply.send(streamBridge, new TaskStatusChanged(
                 command.taskExecutionId(),
                 TaskStatus.COMPLETED,
-                List.of()));
+                List.of(),
+                command.processId()));
     }
 
 }
