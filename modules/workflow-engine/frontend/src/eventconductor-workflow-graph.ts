@@ -590,14 +590,17 @@ export class MateuWorkflowElk extends LitElement {
 
     // ── Focus interaction ───────────────────────────────────────────────────────
     /**
-     * 'auto' cycles every path; 'reachable' (shift+click a node) keeps that node's
-     * ancestors + descendants and dims the rest; 'path' (alt+click) shows a single path through
-     * the node and cycles to the next on each further alt+click.
+     * 'auto' cycles every path; 'reachable' (click a node) keeps that node's ancestors +
+     * descendants and dims the rest; 'path' (alt+click) shows a single path through the node and
+     * cycles to the next on each further alt+click. Both hold in a monitoring (process) view,
+     * where the token animation is off — see focusSets().
      */
     private focusMode: "auto" | "reachable" | "path" = "auto";
     private focusNodeId: string | null = null;
     /** The paths currently animated — all of them, or the ones passing through the focus node. */
     private activePaths: string[][] = [];
+    /** The focused sub-graph to keep lit, recomputed each render (null = nothing dims). */
+    private focusPaint: {nodes: Set<string>; edges: Set<string>} | null = null;
 
     /** Distributed edge routes ("from->to" → polyline), set by renderEdges and reused by the
      * token (pathGeometry) and guard chips so they follow the exact painted lines. */
@@ -1233,6 +1236,7 @@ export class MateuWorkflowElk extends LitElement {
         this.focusNodeId = id;
         this.activePaths = this.pathsThrough(id);
         if (!this.isMonitoring()) { this.restartFlow(); this.flowOn = true; } // don't wake the sim in a monitor
+        this.requestUpdate();
     }
 
     private focusNextPath(id: string) {
@@ -1245,9 +1249,12 @@ export class MateuWorkflowElk extends LitElement {
             this.flowPathIndex = 0;
         }
         this.activePaths = through;
-        this.flowStartTs = performance.now(); // restart the token from this path's beginning
         this.pulsedThisPath = new Set();
-        this.flowOn = true;
+        if (!this.isMonitoring()) {
+            this.flowStartTs = performance.now(); // restart the token from this path's beginning
+            this.flowOn = true;
+        }
+        this.requestUpdate();
     }
 
     private clearFocus() {
@@ -1255,6 +1262,29 @@ export class MateuWorkflowElk extends LitElement {
         this.focusNodeId = null;
         this.activePaths = this.flowPaths;
         this.restartFlow();
+        this.requestUpdate();
+    }
+
+    /**
+     * The focused sub-graph — the nodes and edge keys to keep lit — or null in 'auto' focus, where
+     * nothing is dimmed. 'reachable' (plain click) keeps every path through the clicked node,
+     * 'path' (alt+click) only the one currently selected. Computed at render time and painted as a
+     * class, so the dimming also holds in a process (monitoring) view, where the token animation —
+     * which dims the same way while it runs — is switched off.
+     */
+    private focusSets(): {nodes: Set<string>; edges: Set<string>} | null {
+        if (this.focusMode === "auto") return null;
+        const paths = this.activePaths.length ? this.activePaths : this.flowPaths;
+        if (paths.length === 0) return null;
+        const universe = this.focusMode === "path" ? [paths[this.flowPathIndex % paths.length]] : paths;
+        const nodes = new Set<string>(), edges = new Set<string>();
+        for (const p of universe) {
+            for (let i = 0; i < p.length; i++) {
+                nodes.add(p[i]);
+                if (i > 0) edges.add(`${p[i - 1]}->${p[i]}`);
+            }
+        }
+        return {nodes, edges};
     }
 
     /** Restart the animation at the first active path (used when the focus set changes). */
@@ -1560,6 +1590,7 @@ export class MateuWorkflowElk extends LitElement {
         }
 
         const steps = this.wf.steps ?? [];
+        this.focusPaint = this.focusSets(); // read by renderEdges / renderNode / renderGuard below
 
         return html`
             <div class="root ${this.fullscreen ? "fullscreen" : ""}">
@@ -1677,10 +1708,11 @@ export class MateuWorkflowElk extends LitElement {
             const d = bridgedPath(e.pts, prior);
             // In a process (state) view, dim edges the process hasn't traversed (either end unvisited).
             const monDim = mon && !(this.isVisited(e.from) && this.isVisited(e.to)) ? "mon-dim" : "";
+            const focusDim = this.focusPaint && !this.focusPaint.edges.has(e.key) ? "focus-dim" : "";
             out.push(e.comp
-                ? svg`<path class="comp-edge ${monDim}" data-comp="${e.from}" data-edge="${e.key}"
+                ? svg`<path class="comp-edge ${monDim} ${focusDim}" data-comp="${e.from}" data-edge="${e.key}"
                              d="${d}" marker-end="url(#ec-arrow)"/>`
-                : svg`<path class="edge ${monDim}" data-edge="${e.key}"
+                : svg`<path class="edge ${monDim} ${focusDim}" data-edge="${e.key}"
                              d="${d}" marker-end="url(#ec-arrow)"/>`);
             for (let i = 0; i < e.pts.length - 1; i++) prior.push([e.pts[i], e.pts[i + 1]]);
         }
@@ -1706,8 +1738,10 @@ export class MateuWorkflowElk extends LitElement {
         const text = expr.length > 30 ? expr.slice(0, 29) + "…" : expr;
         const w = Math.max(30, text.length * 6.3 + 22);
         const h = 19;
+        const edgeKey = `${preconditions[0]}->${step.id}`;
+        const focusDim = this.focusPaint && !this.focusPaint.edges.has(edgeKey) ? "focus-dim" : "";
         return svg`
-            <g class="guard" data-guard="${step.id}" data-edge="${preconditions[0]}->${step.id}" transform="translate(${mid.x}, ${mid.y})">
+            <g class="guard ${focusDim}" data-guard="${step.id}" data-edge="${edgeKey}" transform="translate(${mid.x}, ${mid.y})">
                 <rect class="guard-halo" x="${-w / 2 - 4}" y="${-h / 2 - 4}" width="${w + 8}" height="${h + 8}" rx="12"/>
                 <g class="guard-chip">
                     <rect x="${-w / 2}" y="${-h / 2}" width="${w}" height="${h}" rx="9.5"/>
@@ -1783,8 +1817,9 @@ export class MateuWorkflowElk extends LitElement {
 
         const linkCls = `${this.linkHoverId === step.id ? "link-target" : ""} ${this.linkingFrom === step.id ? "link-source" : ""}`;
         const monDim = this.hasStateOverlay() && !this.isVisited(step.id) ? "mon-dim" : "";
+        const focusDim = this.focusPaint && !this.focusPaint.nodes.has(step.id) ? "focus-dim" : "";
         return svg`
-            <g class="node ${sel} ${ovCls} ${linkCls} ${monDim}" data-node="${step.id}" transform="translate(${pos.x},${pos.y})"
+            <g class="node ${sel} ${ovCls} ${linkCls} ${monDim} ${focusDim}" data-node="${step.id}" transform="translate(${pos.x},${pos.y})"
                @mousedown="${(e: MouseEvent) => this.onNodeMouseDown(e, step.id)}"
                @click="${(e: MouseEvent) => this.onNodeClick(e, step.id)}"
                @mouseenter="${() => this.onNodeHover(step.id)}"
@@ -2073,7 +2108,10 @@ export class MateuWorkflowElk extends LitElement {
 
         /* nodes */
         .node {cursor: grab; transition: opacity .2s;}
-        .node.dim {opacity: .2;}   /* not reachable from the focused node (shift/alt click) */
+        .node.dim {opacity: .2;}   /* transient: not on the path the token is walking right now */
+        /* sticky: outside the focused sub-graph (click / alt+click). Kept apart from .dim because
+           the animation loop owns .dim and clears it whenever it stops (e.g. in a process view). */
+        .node.focus-dim {opacity: .2;}
         .node-shape {filter: url(#ec-shadow); stroke-width: 1.6; transition: stroke .12s, stroke-width .12s;}
         .node-shape.ev-start {stroke-width: 1.8;}
         .node-shape.ev-end {stroke-width: 3;}
@@ -2153,11 +2191,11 @@ export class MateuWorkflowElk extends LitElement {
 
         /* edges */
         .edge {fill: none; stroke: var(--ec-edge); stroke-width: 1.6; stroke-linejoin: round; transition: opacity .2s, stroke .2s, stroke-width .2s;}
-        .edge.dim {opacity: .22;}                                    /* not on the active path */
+        .edge.dim, .edge.focus-dim {opacity: .22;}                   /* not on the active path */
         .edge.active {stroke: var(--ec-primary); stroke-width: 2.4;} /* the path being animated */
         /* compensation associations (BPMN): red dashed */
         .comp-edge {fill: none; stroke: #dc2626; stroke-width: 1.6; stroke-dasharray: 6 5; stroke-linejoin: round; transition: opacity .2s, stroke-width .2s;}
-        .comp-edge.dim {opacity: .18;}
+        .comp-edge.dim, .comp-edge.focus-dim {opacity: .18;}
         .comp-edge.active {stroke-width: 2.6;}  /* the error path — stays red, just bolder */
         /* the single animated token walking the current path */
         .flow-token {fill: var(--ec-primary); pointer-events: none; filter: drop-shadow(0 0 3px var(--ec-primary));}
@@ -2173,7 +2211,7 @@ export class MateuWorkflowElk extends LitElement {
 
         /* precondition guard chips on edges */
         .guard {pointer-events: none; transition: opacity .2s;}
-        .guard.dim {opacity: .15;}   /* its edge is not in the focus */
+        .guard.dim, .guard.focus-dim {opacity: .15;}   /* its edge is not in the focus */
         .guard-chip {transform-box: fill-box; transform-origin: center; transition: transform .2s;}
         .guard rect {fill: var(--ec-surface); stroke: var(--ec-border); stroke-width: 1; transition: stroke .2s, stroke-width .2s;}
         .guard text {
