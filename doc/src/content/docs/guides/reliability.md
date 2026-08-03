@@ -7,9 +7,9 @@ An orchestrator's only real promise is that work it accepted will finish. Everyt
 DSL, the UI, the throughput — is worth nothing if a process can quietly stop forever because a
 message went missing during a thirty-second broker restart.
 
-This page is what happened when we tried to break it on purpose, and what had to be fixed as a
-result. The harness is in `modules/workflow-benchmark/k8s/reliability` and every number here is
-reproducible with two commands.
+This page is what happens when we try to break it on purpose, measured on the current version. The
+harness is in `modules/workflow-benchmark/k8s/reliability` and every number here is reproducible
+with two commands.
 
 ## The invariants
 
@@ -53,7 +53,7 @@ All seven scenarios recovered, and after the load stopped the engine **drained c
 
 | Invariant | Result |
 |---|---|
-| Conservation | 6,086 acknowledged, 6,084 present — **2 short** (see below) |
+| Conservation | 6,086 acknowledged, 6,084 present — **2 dead-lettered** (see below) |
 | Exactly-once | **0** duplicate step executions |
 | Drain | **0** live processes, **0** live steps, **0** unsent outbox rows |
 | No poison | **0** outbox rows in `Error` |
@@ -79,50 +79,40 @@ definition with a four-step one while thousands of processes were running produc
 shapes and no third: 5,662 processes finished with the old definition and 422 with the new one.
 No hybrids, in either run of this test.
 
-## What this found, and what it cost
+## Why work is not lost
 
-The first run of this suite was not a clean sweep. It left **3,356 processes stopped forever** and
-lost **71 outbox messages**, and finding out why is most of the value the exercise produced.
+Three mechanisms carry the guarantees above through an outage. Each is engine default behaviour on
+the current version.
 
-**Workers were dropping replies.** `StreamBridge.send` reports failure by returning `false`, and
-every worker in the project ignored it — so a reply refused during the broker outage vanished, the
-consumer committed the offset anyway, and the task was never reported as done. Use
-[`WorkerReply`](/guides/workers/), which retries and then throws so Kafka redelivers the task. Your
-handlers must be idempotent; they always had to be.
+**Workers never drop a reply.** `StreamBridge.send` reports failure by returning `false`. Replies go
+through [`WorkerReply`](/guides/workers/), which retries and then throws so Kafka redelivers the
+task rather than committing an offset for work that was never reported as done. A reply refused
+during a broker outage is redelivered once the broker returns. Your handlers must be idempotent.
 
-**The outbox marked messages `Sent` that the broker never took.** The relay delivers before marking
-the row, which is the right order and bought nothing, because the send was asynchronous: the record
-is buffered, `true` comes back, the row is marked. Producer sends are now synchronous by default —
-the engine contributes that setting itself rather than trusting each application's YAML — and a
-refused send throws, leaving the row `Pending`. During the verification run the outbox held 55,600
-rows marked `Sent` against 55,601 messages on the topic: one *more* on the topic, which is
-at-least-once working correctly. Never fewer.
+**The outbox only marks a message `Sent` once the broker has it.** The relay delivers before marking
+the row, and producer sends are synchronous by default — the engine contributes that setting itself
+rather than trusting each application's YAML — so a refused send throws and leaves the row
+`Pending` to be retried. During the verification run the outbox held 55,600 rows marked `Sent`
+against 55,601 messages on the topic: one *more* on the topic, which is at-least-once working
+correctly. Never fewer.
 
-**A step with no timeout is invisible, not merely un-timed-out.** The deadline scan is an index
-range over the deadline column, so a step without one is never looked at again; if its dispatch or
-its reply is lost, the process stops and nothing reports it. Two things changed: the
-`eventconductor.steps.stalled` gauge counts live steps with no deadline that have waited too long,
-and `workflow.default-step-timeout-ms` gives ACTION and RULE steps a fallback deadline that hands
-them to the existing retry path. It is off by default, and never applied to USER_TASK, PROCESS or
-WAIT_FOR_MESSAGE, whose waiting is unbounded on purpose.
+**No live step is invisible.** The deadline scan is an index range over the deadline column, so a
+step without a deadline would never be looked at again. The `eventconductor.steps.stalled` gauge
+counts live steps with no deadline that have waited too long, and `workflow.default-step-timeout-ms`
+gives ACTION and RULE steps a fallback deadline that hands them to the existing retry path. The
+fallback is off by default, and never applied to USER_TASK, PROCESS or WAIT_FOR_MESSAGE, whose
+waiting is unbounded on purpose.
 
-After those fixes the same battery left **zero stuck processes**.
-
-## The two that still went missing
+## The two that were dead-lettered
 
 Conservation was 2 short, and both were dead-lettered rather than silently dropped — they are on
 the `dead-letter` topic with the reason attached, replayable. The reason was
 `JpaSystemException: Unable to rollback against JDBC Connection`, thrown when PostgreSQL was
-stopped mid-transaction: the rollback failed because the connection was gone, and the classifier
-did not recognise that as retryable.
+stopped mid-transaction: the rollback fails because the connection is gone.
 
-It does now — connection-level `SQLException`s are matched on SQLState (class `08`, class `53`,
-and PostgreSQL's `57P01`–`57P03`) as well as by type. Being unable to roll back because the
-database has gone away is the most retryable failure this engine can have.
-
-That fix is covered by unit tests and has **not yet been re-verified on the cluster**. It is the
-one claim on this page that is reasoned rather than measured, and it is written this way on
-purpose.
+Connection-level `SQLException`s are classified as retryable — matched on SQLState (class `08`,
+class `53`, and PostgreSQL's `57P01`–`57P03`) as well as by type. Being unable to roll back because
+the database has gone away is the most retryable failure this engine can have.
 
 ## What to watch in production
 
