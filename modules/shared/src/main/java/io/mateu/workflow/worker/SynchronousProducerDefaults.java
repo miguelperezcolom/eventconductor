@@ -1,4 +1,4 @@
-package io.mateu.workflow.autoconfigure;
+package io.mateu.workflow.worker;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.env.EnvironmentPostProcessor;
@@ -19,13 +19,22 @@ import java.util.Map;
  * broker outage in it: 71 of 642 912 messages marked Sent and absent from the topic. Each one is
  * a process that stops, permanently and silently.
  *
+ * <p>It is also the prerequisite of {@link WorkerReply}, which is why this lives here, beside it,
+ * rather than in the engine. A worker — the forms engine answering a USER_TASK, the rule runtime
+ * answering a RULE step, or anyone else's — checks a {@code false} that an asynchronous binding
+ * never returns, so without this the retry-and-throw in {@code WorkerReply} is decoration. Every
+ * module that can reply to the engine depends on {@code shared}, so putting it here means no
+ * application has to remember.
+ *
  * <p>An application that has some reason to want asynchronous sends can still set the property
  * itself — this is registered as the <em>lowest</em>-precedence source, so anything explicit
  * wins. It should be a considered decision though, because it is the difference between a
  * transactional outbox and a hopeful one.
  *
- * <p>Only applies in {@code kafka} mode; embedded mode has no broker and excludes the binder
- * entirely (see {@link EmbeddedModeAutoConfigurationExcluder}).
+ * <p>Only applies in {@code kafka} mode: embedded mode has no broker and the engine excludes the
+ * binder entirely there. An application that replies over Kafka therefore has to say so with
+ * {@code workflow.mode=kafka} — which every distributed deployment already does, because it is
+ * the same switch that turns the binder on.
  */
 public class SynchronousProducerDefaults implements EnvironmentPostProcessor, Ordered {
 
