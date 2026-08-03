@@ -82,10 +82,60 @@ The honest framing: all three **persist workflow state durably and resume where 
 
 **Temporal** is horizontally scalable until the persistence layer becomes the bottleneck; with Cassandra that ceiling is very high. Temporal states the platform supports [millions of concurrent workflow executions](https://docs.temporal.io/workflow-execution), and organizations publicly report workloads on the order of 200M workflows/month. Temporal measures capacity in *state transitions per second* rather than workflows per second, since workflow cost varies enormously — worth keeping in mind when comparing numbers.
 
-**EventConductor** scales along the same two axes as any event-driven system:
+### Why the published numbers differ
+
+None of the three engines avoids the cost of making state durable — all three must commit before
+they can safely proceed. What separates them is *how they pay for it*, and there are only two
+levers:
+
+- **Durability by replication.** Zeebe considers state committed once it reaches a Raft quorum of
+  replicas; the local disk flush is configurable precisely because it is not the primary durability
+  mechanism. Temporal on Cassandra is similar — quorum replication plus a commitlog that is periodic
+  by default. A datacenter round-trip is cheaper than an `fsync` on network storage, but you are
+  operating a quorum cluster to get it.
+- **Amortising writes.** Temporal persists the entire outcome of a workflow task — every command the
+  workflow function produced — in a single write, and tracks delivery with a per-shard ack watermark
+  instead of marking each message individually. Five activities scheduled in parallel cost one
+  write, not five. This is the same idea as PostgreSQL group commit, but provoked by design rather
+  than left to load.
+
+EventConductor uses neither. It makes **one durable write per transition** against the PostgreSQL
+WAL, and gets amortisation only incidentally, from group commit when concurrency happens to be
+high. That is a direct consequence of the value proposition — the engine lives inside your
+application, on the database you already operate — and it is what sets the ceiling described below.
+
+|  | Durability by replication | Durability by local disk |
+|---|---|---|
+| **Amortises writes** | Zeebe · Temporal/Cassandra | Temporal/PostgreSQL |
+| **Does not amortise** | — | **EventConductor** |
+
+Two things follow that are easy to get wrong. First, for a like-for-like comparison: **Temporal on
+PostgreSQL pays `fsync` per commit exactly as EventConductor does.** Its advantage in that
+configuration is arithmetic — batching and sync match — not a different durability architecture. The
+architectural gap only opens when Temporal runs on Cassandra. Second, amortisation buys *throughput,
+not latency*: batching adds delay to the first transition in a batch, and all three engines report
+per-transition latency in the same order of magnitude. If what matters to you is the cycle time of
+one business process rather than the aggregate rate, this axis may not decide anything.
+
+### How EventConductor scales
 
 - **Workers** are stateless Kafka consumers — add instances to a consumer group to scale task execution linearly. The engine dispatches work and drives the state machine; it never executes business logic itself, so it does not become a bottleneck as business logic grows heavier.
-- **Orchestrator instances** scale horizontally, each owning the processes whose partitions it holds; state lives in PostgreSQL, so orchestration throughput ultimately follows your database's write capacity — a well-understood scaling model (connection pooling, partitioning, read replicas) rather than a new one.
+- **Orchestrator instances** scale horizontally in the sense that each owns the processes whose partitions it holds — but **adding pods does not raise the write ceiling**, because they all commit against the same WAL. What extra pods buy is concurrency, which makes group commit more effective; the gain is real but sublinear and load-dependent. The bottleneck is the single serialised resource they share, not their CPU.
+
+### Where the ceiling actually is
+
+A transition costs a handful of database commits, and every commit costs an `fsync`. On network
+block storage doing ~350 `fsync`/s that puts the ceiling in the **order of tens of process instances
+per second**, with the orchestrator pods sitting at a fraction of their CPU limit; on local NVMe it
+is considerably higher. Storage latency, not the engine, is what a deployment should be sized
+against — see [Reliability](/guides/reliability/) for the measurements.
+
+That is not thousands per second and should not be read as such. It is, however, roughly 900,000
+process instances a day at 10/s and 4M a day at 50/s. Reaching *thousands* per second means
+thousands of bookings, invoices or payments per second — a regime that exists (hyperscale event
+processing, high-frequency fintech) but that most business-process workloads never approach. If
+yours does, Zeebe and Temporal have paid the operational complexity to give you the headroom and are
+the right choice.
 
 EventConductor's published baseline comes from the distributed test suite (DIST-05 in [the test plan](https://github.com/miguelperezcolom/eventconductor/blob/main/TESTING.md), reproducible with `mvn -Pdist-e2e`). It creates **500 concurrent process instances** — three worker-executed steps each, i.e. 1,500 task executions — and asserts they all complete with **no lost or stuck instances**. The most recent run:
 
@@ -106,18 +156,33 @@ finishing and the next starting, which contains no worker time: **7.7 ms p50, 11
 instances/second. See [Performance](/guides/performance/) for how that is measured, the two ways it
 is easy to measure wrongly, and a harness that reproduces it on your own hardware.
 
-Throughput on a real cluster is a different and much smaller number, for a reason that has nothing
-to do with the engine: a transition costs a handful of database commits, and every commit costs an
-`fsync`. On network block storage doing ~350 `fsync`/s the ceiling is single-digit process
-instances per second while the orchestrator pods sit at a fraction of their CPU limit. Storage
-latency, not the engine, is what a deployment should be sized against — see
-[Reliability](/guides/reliability/) for the measurements.
+### The axis that does scale: one engine per bounded context
 
-Perspective still matters, though: one process instance per second is ~86,400 a day, and 100 PI/s —
-comfortably within a single decent PostgreSQL — is ~8.6M a day. The published headroom of Zeebe and
-Temporal is genuinely necessary for hyperscale event processing; for typical business-process
-workloads (bookings, approvals, onboarding, back-office flows) all three engines are far from their
-limits, and the deciding factors are operational complexity and fit, not throughput.
+Because the ceiling is a property of a database rather than of the engine, the way to raise it is
+not to add orchestrator pods — it is to **stop sharing the database**. EventConductor is embedded,
+so its natural unit of deployment is the service: one engine in billing with its own PostgreSQL, one
+in booking with its own, one in fulfilment. Separate WALs, separate ceilings, and total capacity
+that grows linearly with the number of contexts.
+
+This is the same reasoning that produced database-per-service, applied to orchestration. It is also
+why the comparison looks different from the other direction: running one Zeebe or Temporal cluster
+per domain is not something teams do, so a shared cluster with **multi-tenancy** is how those
+platforms partition workloads. EventConductor partitions by deployment instead. That is why
+multi-tenancy is absent from the feature matrix — the isolation boundary is the service, not a
+tenant inside a shared cluster.
+
+Two honest limits on this:
+
+- **It does not help with concentration.** Partitioning raises the ceiling on the *sum* of your
+  load, not on a peak inside one context. If booking alone needs 40 instances/second on Black
+  Friday, booking still has to clear 40 instances/second. The number to size against is the peak in
+  the busiest single context.
+- **There is no orchestrator of orchestrators.** A process that spans contexts — a booking that
+  triggers invoicing that triggers payment — is choreography between engines over events, not one
+  process. That is usually the right DDD answer, and the outbox already supports it, but end-to-end
+  visibility of the business flow then comes from your distributed tracing rather than from the
+  engine. Camunda call activities would give you that single unified view; this is a real
+  trade-off, not a technicality.
 
 ## Licensing & cost
 
@@ -199,7 +264,7 @@ A detailed capability-by-capability view. ✅ built-in · 🟡 possible with ext
 | Embeddable in your application | ✅ core design | ❌ | ❌ (dev server only for tests) |
 | Zero-infrastructure test mode | ✅ in-memory, in-process | 🟡 Testcontainers | 🟡 local dev server / test framework |
 
-The gaps are as informative as the checkmarks: if you need multi-tenancy **today**, Camunda and Temporal have it and EventConductor does not (yet). Conversely, if you want the engine *inside* your application, workflows as reviewable data, forms included, and MIT licensing in production, only EventConductor offers that combination.
+The gaps are as informative as the checkmarks: if you need multi-tenancy **inside a single engine** — one deployment serving isolated tenants — Camunda and Temporal have it and EventConductor does not. Note, though, that this follows from the architecture rather than being a missing feature: an embedded engine partitions by deployment, so the isolation boundary is the service (see [one engine per bounded context](#the-axis-that-does-scale-one-engine-per-bounded-context)). If your tenants are genuinely a runtime dimension of one shared deployment, that distinction will not help you and the platforms are the better fit. Conversely, if you want the engine *inside* your application, workflows as reviewable data, forms included, and MIT licensing in production, only EventConductor offers that combination.
 
 ## When to choose which
 
