@@ -143,8 +143,14 @@ public class WorkflowDefinitionDetailView implements VisibilitySupplier {
         attrs.put("readonly", "true");
         var counts = liveProcessCountsByStep(def.id());
         if (!counts.isEmpty()) {
+            // Per-step "stopped/waiting" heat histogram (index = days ago) so the viewer's heatmap
+            // toggle + last-N-days slider can recolor and filter entirely client-side, with no round
+            // trip: sum the buckets within the chosen window. The total over the whole window equals
+            // the live count badge above.
+            var heat = stoppedTaskHeatByStep(def.id());
             var overlay = new java.util.HashMap<String, Object>();
-            counts.forEach((stepId, c) -> overlay.put(stepId, Map.of("count", c)));
+            counts.forEach((stepId, c) -> overlay.put(stepId,
+                    Map.of("count", c, "heat", heat.getOrDefault(stepId, new int[HEAT_WINDOW_DAYS]))));
             attrs.put("overlay", toJson(overlay));
         }
         // Give the graph a tall, viewport-sized box: on its own the host falls back to a ~230px
@@ -175,6 +181,36 @@ public class WorkflowDefinitionDetailView implements VisibilitySupplier {
             counts.merge(se.getStepId(), 1, Integer::sum);
         }
         return counts;
+    }
+
+    /** Longest window the heatmap slider can reach, in days. Tasks older than this fold into the
+     *  last bucket, so they still show at the widest setting without unbounding the array. */
+    static final int HEAT_WINDOW_DAYS = 90;
+
+    /**
+     * Per-step histogram of the currently stopped/waiting (live PENDING/RUNNING) step executions of
+     * this definition, bucketed by how many days ago each one started ({@code heat[0]} = started
+     * today). Same source as {@link #liveProcessCountsByStep} — so summing a step's buckets over the
+     * full window reproduces its live count — but keyed by age so the viewer can filter to the last N
+     * days on the client. Keyed by step id; steps with no live task are absent.
+     */
+    Map<String, int[]> stoppedTaskHeatByStep(String definitionId) {
+        var now = java.time.LocalDateTime.now();
+        var heat = new java.util.HashMap<String, int[]>();
+        for (var se : stepExecutionRepository.findPendingOrRunning()) {
+            if (!definitionId.equals(se.getWorkflowDefinitionId())) continue;
+            heat.computeIfAbsent(se.getStepId(), k -> new int[HEAT_WINDOW_DAYS])[bucketOf(se.getStartedAt(), now)]++;
+        }
+        return heat;
+    }
+
+    /** Day bucket for a task's start time: 0 = today, clamped into [0, HEAT_WINDOW_DAYS - 1]. A null
+     *  start (not yet stamped) counts as today. */
+    private static int bucketOf(java.time.LocalDateTime startedAt, java.time.LocalDateTime now) {
+        if (startedAt == null) return 0;
+        long daysAgo = java.time.Duration.between(startedAt, now).toDays();
+        if (daysAgo < 0) return 0;
+        return (int) Math.min(daysAgo, HEAT_WINDOW_DAYS - 1);
     }
 
     // ── Runtime toolbar: pause/resume and disable/enable. No editing (definitions are .ec files).

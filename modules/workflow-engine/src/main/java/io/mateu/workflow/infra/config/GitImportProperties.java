@@ -28,6 +28,11 @@ public class GitImportProperties {
         private String url;
         /** Branch to check out. Defaults to "main". */
         private String branch = "main";
+        /**
+         * Optional subdirectory (relative to the repo root) to scan for definitions.
+         * When set, only files under this directory are imported; leave blank to scan the whole repo.
+         */
+        private String directory;
         /** Optional username for HTTPS authentication. */
         private String username;
         /** Optional password / token for HTTPS authentication. */

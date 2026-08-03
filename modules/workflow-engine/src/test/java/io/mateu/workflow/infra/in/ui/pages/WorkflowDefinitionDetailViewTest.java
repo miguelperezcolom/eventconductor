@@ -21,6 +21,13 @@ class WorkflowDefinitionDetailViewTest {
         return se;
     }
 
+    /** Same, but with a start time so it lands in a specific heatmap day-bucket. */
+    private StepExecution se(String definitionId, String stepId, java.time.LocalDateTime startedAt) {
+        var se = se(definitionId, stepId);
+        when(se.getStartedAt()).thenReturn(startedAt);
+        return se;
+    }
+
     /** Only the step-execution repository is exercised; the rest go unused. */
     private WorkflowDefinitionDetailView view(StepExecutionRepository stepExecutions) {
         return new WorkflowDefinitionDetailView(null, stepExecutions, null, null, null, null);
@@ -51,5 +58,27 @@ class WorkflowDefinitionDetailViewTest {
         when(stepExecutions.findPendingOrRunning()).thenReturn(other);
 
         assertThat(view(stepExecutions).liveProcessCountsByStep("wd-1")).isEmpty();
+    }
+
+    @Test
+    void bucketsStoppedTasksByDaysAgoAndFoldsThisDefinitionOnly() {
+        var stepExecutions = mock(StepExecutionRepository.class);
+        var now = java.time.LocalDateTime.now();
+        var live = List.of(
+                se("wd-1", "charge", now),                 // today   -> bucket 0
+                se("wd-1", "charge", now.minusDays(5)),    // 5d ago  -> bucket 5
+                se("wd-1", "charge", now.minusDays(1000)), // ancient -> folded into last bucket
+                se("wd-2", "charge", now));                // excluded: other definition
+        when(stepExecutions.findPendingOrRunning()).thenReturn(live);
+
+        var heat = view(stepExecutions).stoppedTaskHeatByStep("wd-1");
+
+        assertThat(heat).containsOnlyKeys("charge");
+        var buckets = heat.get("charge");
+        assertThat(buckets[0]).isEqualTo(1);
+        assertThat(buckets[5]).isEqualTo(1);
+        assertThat(buckets[WorkflowDefinitionDetailView.HEAT_WINDOW_DAYS - 1]).isEqualTo(1);
+        // Summed over the whole window, the histogram reproduces this step's live count.
+        assertThat(java.util.Arrays.stream(buckets).sum()).isEqualTo(3);
     }
 }

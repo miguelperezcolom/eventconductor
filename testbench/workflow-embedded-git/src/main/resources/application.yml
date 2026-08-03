@@ -23,6 +23,12 @@ workflow:
   git-import:
     # Optional: set this to the same secret you configure in GitHub repo settings
     # webhook-secret: mysecret
+    # One entry per repository. Each repository may set its own branch and, optionally, a
+    # subdirectory to scan (only definition files under it are imported; omit to scan the whole repo).
     repositories:
       - url: https://github.com/miguelperezcolom/sample-workflows.git
         branch: main
+        # directory: workflows        # optional: only import from this subdirectory
+      # - url: https://github.com/acme/more-workflows.git
+      #   branch: develop
+      #   directory: flows/billing

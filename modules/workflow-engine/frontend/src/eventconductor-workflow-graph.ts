@@ -1,7 +1,7 @@
 import {customElement, property, state} from "lit/decorators.js";
 import {css, html, LitElement, nothing, svg} from "lit";
 import type {ELK, ElkNode, ElkExtendedEdge} from "elkjs/lib/elk.bundled.js";
-import {neutralButtonStyles, iconCog, iconPlus, iconDownload, iconSitemap, iconFit} from "./neutralChrome";
+import {neutralButtonStyles, iconCog, iconPlus, iconSitemap, iconFit} from "./neutralChrome";
 
 // ── Domain types ─────────────────────────────────────────────────────────────
 
@@ -53,6 +53,12 @@ type StepState = "PENDING" | "RUNNING" | "COMPLETED" | "ERROR" | "CANCELLED" | "
  */
 interface StepOverlay {
     count?: number;
+    /**
+     * Definition view only: per-day histogram of the step's currently stopped/waiting tasks, index =
+     * days ago (`heat[0]` = started today). Drives the heatmap toggle + last-N-days slider entirely
+     * client-side — the windowed heat is the sum of buckets `[0, days)`.
+     */
+    heat?: number[];
     state?: StepState;
     active?: boolean;
     reason?: string;
@@ -572,6 +578,12 @@ export class MateuWorkflowElk extends LitElement {
     @state() private flowOn = true;
     /** Token speed in px/second, adjustable via the viewbar slider. */
     @state() private flowSpeed = 260;
+    /** Definition view: when on, nodes are tinted by their stopped/waiting task count (heatmap). */
+    @state() private heatmapOn = false;
+    /** Heatmap window: only tasks started within the last N days are counted. */
+    @state() private heatDays = 30;
+    /** Max windowed heat across nodes, recomputed each render so the tint scale is relative. */
+    private heatMax = 0;
 
     // ── Token-flow animation state (driven by requestAnimationFrame, off the render path) ──
     private flowRaf = 0;
@@ -1566,6 +1578,31 @@ export class MateuWorkflowElk extends LitElement {
         return !!st && st !== "PENDING";
     }
 
+    /** True when the overlay carries per-step heat histograms — i.e. this is a definition view that
+     *  can offer the stopped/waiting heatmap. The single-process monitoring view ships no heat. */
+    private hasHeatData() {
+        return Object.values(this.overlayData).some(o => Array.isArray(o?.heat));
+    }
+
+    /** A step's stopped/waiting task count within the last `heatDays` days: the sum of the histogram
+     *  buckets `[0, heatDays)`. */
+    private heatValue(id: string): number {
+        const heat = this.overlayData[id]?.heat;
+        if (!heat) return 0;
+        let sum = 0;
+        const n = Math.min(this.heatDays, heat.length);
+        for (let i = 0; i < n; i++) sum += heat[i] ?? 0;
+        return sum;
+    }
+
+    /** Tint intensity (0–100) for a node's heat, relative to the hottest node in the current window.
+     *  A mild gamma + a floor keep any non-zero step visibly warm rather than washed out. */
+    private heatIntensity(id: string): number {
+        const v = this.heatValue(id);
+        if (v <= 0 || this.heatMax <= 0) return 0;
+        return Math.round(18 + 82 * Math.pow(v / this.heatMax, 0.7));
+    }
+
     /** Floating view/animation controls (bottom-left, clear of the toolbar and the minimap). */
     private renderViewbar() {
         // In a monitoring view the token simulation is off, so only the zoom controls are shown.
@@ -1575,9 +1612,22 @@ export class MateuWorkflowElk extends LitElement {
             <input class="vspeed" type="range" min="80" max="520" step="10"
                    title="Animation speed" .value="${String(this.flowSpeed)}"
                    @input="${(e: Event) => { this.flowSpeed = Number((e.target as HTMLInputElement).value); }}"/>`;
+        // Definition view: a heatmap of where stopped/waiting tasks pile up, with a last-N-days
+        // window. Both operate client-side on the per-step heat histograms already in the overlay.
+        const heat = !this.hasHeatData() ? nothing : html`
+            <button class="vbtn ${this.heatmapOn ? "on" : ""}" title="Toggle stopped/waiting heatmap"
+                    @click="${() => { this.heatmapOn = !this.heatmapOn; }}">🔥</button>
+            ${this.heatmapOn ? html`
+                <input class="vspeed" type="range" min="1" max="90" step="1"
+                       title="Show tasks from the last ${this.heatDays} day(s)"
+                       .value="${String(this.heatDays)}"
+                       @input="${(e: Event) => { this.heatDays = Number((e.target as HTMLInputElement).value); }}"/>
+                <span class="vlabel" title="Heatmap window">${this.heatDays}d</span>
+            ` : nothing}`;
         return html`
             <div class="viewbar" @mousedown="${(e: MouseEvent) => e.stopPropagation()}">
                 ${sim}
+                ${heat}
                 <button class="vbtn" title="Fit graph to view" @click="${() => this.fitToView()}">${iconFit}</button>
                 <button class="vbtn" title="${this.fullscreen ? "Collapse" : "Expand"}"
                         @click="${() => { this.fullscreen = !this.fullscreen; }}">${this.fullscreen ? "✕" : "⤢"}</button>
@@ -1591,6 +1641,10 @@ export class MateuWorkflowElk extends LitElement {
 
         const steps = this.wf.steps ?? [];
         this.focusPaint = this.focusSets(); // read by renderEdges / renderNode / renderGuard below
+        // Relative tint scale for the heatmap: the hottest node in the current window is the max.
+        this.heatMax = this.heatmapOn && this.hasHeatData()
+            ? steps.reduce((m, s) => Math.max(m, this.heatValue(s.id)), 0)
+            : 0;
 
         return html`
             <div class="root ${this.fullscreen ? "fullscreen" : ""}">
@@ -1651,10 +1705,6 @@ export class MateuWorkflowElk extends LitElement {
                         Add Step
                     </button>
                 ` : nothing}
-                <button class="nbtn" @click="${() => this.exportJson()}">
-                    ${iconDownload}
-                    Export
-                </button>
             </div>
         `;
     }
@@ -1800,8 +1850,11 @@ export class MateuWorkflowElk extends LitElement {
 
         // Read-only monitoring overlay: state tint / active highlight + a live process-count badge.
         const ov = this.overlayData[step.id];
+        const heatOn = this.heatmapOn && this.hasHeatData();
+        const heatPct = heatOn ? this.heatIntensity(step.id) : 0;
         const ovCls = ov ? `${ov.active ? "ov-active" : ""} ${ov.state ? "ov-" + ov.state.toLowerCase() : ""}` : "";
-        const count = ov?.count ?? 0;
+        // With the heatmap on the badge narrows to the tasks inside the chosen last-N-days window.
+        const count = heatOn ? this.heatValue(step.id) : (ov?.count ?? 0);
         const badge = count > 0 ? svg`
             <g class="ov-count" transform="translate(${w - 5}, 5)">
                 <circle r="10"/>
@@ -1819,7 +1872,8 @@ export class MateuWorkflowElk extends LitElement {
         const monDim = this.hasStateOverlay() && !this.isVisited(step.id) ? "mon-dim" : "";
         const focusDim = this.focusPaint && !this.focusPaint.nodes.has(step.id) ? "focus-dim" : "";
         return svg`
-            <g class="node ${sel} ${ovCls} ${linkCls} ${monDim} ${focusDim}" data-node="${step.id}" transform="translate(${pos.x},${pos.y})"
+            <g class="node ${sel} ${ovCls} ${linkCls} ${monDim} ${focusDim} ${heatOn ? "heat-on" : ""}"
+               style="${heatOn ? `--heat:${heatPct}` : ""}" data-node="${step.id}" transform="translate(${pos.x},${pos.y})"
                @mousedown="${(e: MouseEvent) => this.onNodeMouseDown(e, step.id)}"
                @click="${(e: MouseEvent) => this.onNodeClick(e, step.id)}"
                @mouseenter="${() => this.onNodeHover(step.id)}"
@@ -1979,19 +2033,6 @@ export class MateuWorkflowElk extends LitElement {
         `;
     }
 
-    // ── Export ────────────────────────────────────────────────────────────────
-
-    private exportJson() {
-        const json = JSON.stringify(this.wf, null, 2);
-        const blob = new Blob([json], {type: "application/json"});
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = (this.wf.name ?? "workflow").replace(/\s+/g, "-").toLowerCase() + ".json";
-        a.click();
-        URL.revokeObjectURL(url);
-    }
-
     // ── Styles ────────────────────────────────────────────────────────────────
 
     static styles = [neutralButtonStyles, css`
@@ -2049,6 +2090,11 @@ export class MateuWorkflowElk extends LitElement {
         .viewbar .vbtn svg {width: 16px; height: 16px;}
         .viewbar .vspeed {
             width: 92px; height: 4px; margin: 0 2px; cursor: pointer; accent-color: var(--ec-primary);
+        }
+        .viewbar .vbtn.on {background: color-mix(in srgb, #dc2626 20%, transparent); color: #dc2626;}
+        .viewbar .vlabel {
+            font-size: 11px; color: var(--ec-text-dim); min-width: 26px; text-align: right;
+            font-variant-numeric: tabular-nums;
         }
 
         .loading {
@@ -2143,6 +2189,16 @@ export class MateuWorkflowElk extends LitElement {
         /* parts the process hasn't reached yet fade back */
         .node.mon-dim {opacity: .3;}
         .edge.mon-dim, .comp-edge.mon-dim {opacity: .18;}
+
+        /* stopped/waiting heatmap (definition view): --heat is 0–100, set per node. The fill mix is
+           capped so even the hottest card keeps its dark title/id legible; the stroke goes fully warm
+           to draw the eye to the hot spots. Cold (0) nodes fall back to the plain surface. */
+        .node.heat-on .node-shape {
+            fill: color-mix(in srgb, #ef4444 calc(var(--heat, 0) * 0.55%), var(--ec-surface)) !important;
+            stroke: color-mix(in srgb, #b91c1c calc(var(--heat, 0) * 1%), var(--ec-border)) !important;
+            stroke-width: calc(1.4px + var(--heat, 0) * 0.012px) !important;
+        }
+        .node.heat-on .ov-count circle {fill: #b91c1c;}
 
         /* diagnostic hover card (monitoring view): "why is this step here?" without opening code */
         .ov-tip {
