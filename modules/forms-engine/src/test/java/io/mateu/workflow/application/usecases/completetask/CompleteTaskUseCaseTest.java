@@ -5,8 +5,10 @@ import io.mateu.workflow.application.out.FormsMetrics;
 import io.mateu.workflow.domain.FormExecution;
 import io.mateu.workflow.domain.FormExecutionStatus;
 import io.mateu.workflow.domain.Value;
+import io.mateu.workflow.dtos.events.integration.TaskLogEmitted;
 import io.mateu.workflow.dtos.events.integration.TaskStatus;
 import io.mateu.workflow.dtos.events.integration.TaskStatusChanged;
+import io.mateu.workflow.worker.WorkerReply;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -38,9 +40,15 @@ class CompleteTaskUseCaseTest {
                 .variables(List.of()).values(List.of()).build();
     }
 
+    /** The broker takes everything it is offered. */
+    private void brokerAccepts() {
+        when(streamBridge.send(eq("upstream"), any())).thenReturn(true);
+    }
+
     @Test
     void completesTheTaskWithTheSubmittedValues() {
         when(formExecutionRepository.findById("fe-1")).thenReturn(Optional.of(formExecution("fe-1")));
+        brokerAccepts();
 
         useCase.handle(new CompleteTaskCommand("fe-1", List.of(new Value("name", "John"))));
 
@@ -53,20 +61,68 @@ class CompleteTaskUseCaseTest {
     @Test
     void emitsTaskStatusChangedWithTheValuesAsVariables() {
         when(formExecutionRepository.findById("fe-1")).thenReturn(Optional.of(formExecution("fe-1")));
+        brokerAccepts();
 
         useCase.handle(new CompleteTaskCommand("fe-1", List.of(new Value("name", "John"))));
 
-        ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
-        verify(streamBridge, times(2)).send(eq("upstream"), captor.capture());
-        var statusChanged = captor.getAllValues().stream()
-                .filter(TaskStatusChanged.class::isInstance)
-                .map(TaskStatusChanged.class::cast)
-                .findFirst().orElseThrow();
+        var statusChanged = capturedReply();
         assertThat(statusChanged.taskExecutionId()).isEqualTo("se-1");
         assertThat(statusChanged.status()).isEqualTo(TaskStatus.COMPLETED);
         assertThat(statusChanged.variables()).hasSize(1);
         assertThat(statusChanged.variables().getFirst().name()).isEqualTo("name");
         assertThat(statusChanged.variables().getFirst().value()).isEqualTo("John");
+    }
+
+    @Test
+    void echoesTheProcessSoTheReplyReachesItsOwner() {
+        // Without the key the reply lands wherever the partitioner puts it, and the pod that owns
+        // the process has to be told about it second-hand.
+        when(formExecutionRepository.findById("fe-1")).thenReturn(Optional.of(formExecution("fe-1")));
+        brokerAccepts();
+
+        useCase.handle(new CompleteTaskCommand("fe-1", List.of()));
+
+        assertThat(capturedReply().partitionKey()).isEqualTo("p-1");
+    }
+
+    @Test
+    void retriesAReplyTheBrokerRefuses() {
+        when(formExecutionRepository.findById("fe-1")).thenReturn(Optional.of(formExecution("fe-1")));
+        when(streamBridge.send(eq("upstream"), any(TaskLogEmitted.class))).thenReturn(true);
+        when(streamBridge.send(eq("upstream"), any(TaskStatusChanged.class)))
+                .thenReturn(false).thenReturn(true);
+
+        useCase.handle(new CompleteTaskCommand("fe-1", List.of()));
+
+        verify(streamBridge, times(2)).send(eq("upstream"), any(TaskStatusChanged.class));
+        verify(formExecutionRepository).save(any());
+    }
+
+    @Test
+    void leavesTheTaskOpenWhenTheReplyCannotBePublished() {
+        // A form is submitted over HTTP: no offset to leave uncommitted, nothing redelivers it,
+        // and a USER_TASK gets no fallback deadline. So a dropped reply would strand the process
+        // for good. The task must stay open instead, for the user to submit again.
+        when(formExecutionRepository.findById("fe-1")).thenReturn(Optional.of(formExecution("fe-1")));
+        when(streamBridge.send(eq("upstream"), any())).thenReturn(false);
+
+        assertThatThrownBy(() -> useCase.handle(new CompleteTaskCommand("fe-1", List.of())))
+                .isInstanceOf(WorkerReply.ReplyNotAcceptedException.class);
+
+        verify(formExecutionRepository, never()).save(any());
+        verify(formsMetrics, never()).taskCompleted(any(), any());
+    }
+
+    @Test
+    void aLostLogLineDoesNotStopTheReply() {
+        when(formExecutionRepository.findById("fe-1")).thenReturn(Optional.of(formExecution("fe-1")));
+        when(streamBridge.send(eq("upstream"), any(TaskLogEmitted.class)))
+                .thenThrow(new IllegalStateException("broker refused the log line"));
+        when(streamBridge.send(eq("upstream"), any(TaskStatusChanged.class))).thenReturn(true);
+
+        useCase.handle(new CompleteTaskCommand("fe-1", List.of()));
+
+        verify(formExecutionRepository).save(any());
     }
 
     @Test
@@ -77,5 +133,14 @@ class CompleteTaskUseCaseTest {
                 .isInstanceOf(Exception.class);
         verify(formExecutionRepository, never()).save(any());
         verify(streamBridge, never()).send(any(), any());
+    }
+
+    private TaskStatusChanged capturedReply() {
+        ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
+        verify(streamBridge, times(2)).send(eq("upstream"), captor.capture());
+        return captor.getAllValues().stream()
+                .filter(TaskStatusChanged.class::isInstance)
+                .map(TaskStatusChanged.class::cast)
+                .findFirst().orElseThrow();
     }
 }

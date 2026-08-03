@@ -83,8 +83,8 @@ error logged anywhere. See [Reliability](/guides/reliability/).
 committed, so Kafka redelivers the task and your worker does it again. **Worker handlers must be
 idempotent** — they always had to be, because at-least-once delivery was always the contract.
 
-It needs one setting, which applications that also embed the engine get automatically and
-standalone workers must declare:
+It rests on one setting — an asynchronous producer returns `true` the moment the record is
+buffered, so the refusal `WorkerReply` checks for never arrives:
 
 ```yaml
 spring:
@@ -95,6 +95,11 @@ spring:
           producer:
             sync: true      # without it, send() returns true before the broker has seen anything
 ```
+
+You do not have to declare it. It ships with the `shared` module — the one every worker already
+depends on to build a `TaskStatusChanged` — and applies wherever a Kafka producer exists. Set it
+yourself only if you want the opposite, and know why: it is contributed at the lowest precedence,
+so an explicit value always wins.
 
 ## Embedded worker (mode: embedded)
 

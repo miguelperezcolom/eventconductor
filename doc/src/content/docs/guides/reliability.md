@@ -88,10 +88,15 @@ the current version.
 through [`WorkerReply`](/guides/workers/), which retries and then throws so Kafka redelivers the
 task rather than committing an offset for work that was never reported as done. A reply refused
 during a broker outage is redelivered once the broker returns. Your handlers must be idempotent.
+That covers the engine's own workers too — the rule runtime answering a RULE step, and the forms
+engine answering a USER_TASK. The human task is the one that can least afford a lost reply: it
+arrives over HTTP, so no offset redelivers it, and a USER_TASK is deliberately given no fallback
+deadline. There the reply goes out *before* the task is marked complete, so a refused one leaves
+the task open for the person to submit again rather than stranding the process.
 
 **The outbox only marks a message `Sent` once the broker has it.** The relay delivers before marking
-the row, and producer sends are synchronous by default — the engine contributes that setting itself
-rather than trusting each application's YAML — so a refused send throws and leaves the row
+the row, and producer sends are synchronous by default — the framework contributes that setting
+itself, to every module that can publish, rather than trusting each application's YAML — so a refused send throws and leaves the row
 `Pending` to be retried. During the verification run the outbox held 55,600 rows marked `Sent`
 against 55,601 messages on the topic: one *more* on the topic, which is at-least-once working
 correctly. Never fewer.

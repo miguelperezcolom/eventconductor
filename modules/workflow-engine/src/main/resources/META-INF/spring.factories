@@ -1,3 +1,2 @@
 org.springframework.boot.env.EnvironmentPostProcessor=\
-  io.mateu.workflow.autoconfigure.EmbeddedModeAutoConfigurationExcluder,\
-  io.mateu.workflow.autoconfigure.SynchronousProducerDefaults
+  io.mateu.workflow.autoconfigure.EmbeddedModeAutoConfigurationExcluder

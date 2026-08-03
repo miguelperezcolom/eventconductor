@@ -38,6 +38,12 @@
             <scope>test</scope>
         </dependency>
         <dependency>
+            <!-- MockEnvironment, to test the producer default without booting an application. -->
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-annotations</artifactId>
         </dependency>
@@ -55,6 +61,13 @@
                  not transitive, so nothing that merely reads the events picks up the binder. -->
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-stream</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <!-- Optional for the same reason: only SynchronousProducerDefaults needs it, and it
+                 is an EnvironmentPostProcessor, so it is loaded by Boot or not at all. -->
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot</artifactId>
             <optional>true</optional>
         </dependency>
     </dependencies>

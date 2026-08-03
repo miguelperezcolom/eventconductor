@@ -10,6 +10,7 @@ import io.mateu.workflow.controlplaneservice.domain.aggregates.site.vo.SiteId;
 import io.mateu.workflow.dtos.Variable;
 import io.mateu.workflow.dtos.events.integration.TaskStatus;
 import io.mateu.workflow.dtos.events.integration.TaskStatusChanged;
+import io.mateu.workflow.worker.WorkerReply;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -41,12 +42,13 @@ public class CreateReleaseUseCase {
                 ReleaseStatus.New
         ));
 
-        streamBridge.send("upstream", new TaskStatusChanged(
+        WorkerReply.send(streamBridge, new TaskStatusChanged(
                 command.taskExecutionId(),
                 TaskStatus.COMPLETED,
                 List.of(
                         new Variable("releaseId", releaseId.id().toString())
-                )));
+                ),
+                command.processId()));
     }
 
 }

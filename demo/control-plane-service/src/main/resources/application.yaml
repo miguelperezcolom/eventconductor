@@ -11,7 +11,10 @@ spring:
   # --- Configuración de Spring Cloud Stream ---
   cloud:
     function:
-      definition: consumeOutbox;consumeUpstream;consumeWorkerEvent
+      # Este servicio es solo un worker: consume tareas y responde. El motor corre en el
+      # orquestador, así que aquí no existen consumeOutbox ni consumeUpstream — nombrarlos
+      # dejaba dos bindings fantasma, uno de ellos compartiendo grupo con el worker real.
+      definition: consumeWorkerEvent
     stream:
       kafka:
         binder:
@@ -19,23 +22,19 @@ spring:
           brokers: localhost:9192
           auto-create-topics: true
       bindings:
-        # INPUTS
-        consumeOutbox-in-0:
-          destination: outbox
-          group: control-plane-group
+        # INPUT: las tareas que el motor despacha para este worker.
+        # Un grupo por binding, nunca uno compartido entre bindings distintos: un grupo cuyos
+        # miembros se suscriben a topics distintos deja particiones sin ningún consumidor, y esos
+        # mensajes no se leen nunca. Ver la configuración del orquestador.
         consumeWorkerEvent-in-0:
           destination: downstream
-          group: control-plane-group # A�ade un grupo para persistir el offset
+          group: control-plane-group
 
-        # OUTPUTS (Para StreamBridge)
+        # OUTPUT (para StreamBridge): las respuestas al motor. Es el único al que se publica.
         upstream: # Nombre usado en streamBridge.send("upstream", ...)
           destination: upstream
-        downstream: # Nombre usado en streamBridge.send("downstream", ...)
-          destination: downstream
-        outbox:
-          destination: outbox
 
-  # --- Configuraci�n de Base de Datos (PostgreSQL) ---
+  # --- Configuración de Base de Datos (PostgreSQL) ---
   datasource:
     url: jdbc:postgresql://127.0.0.1:5432/workflow
     username: user_app
@@ -55,7 +54,7 @@ spring:
       hibernate:
         format_sql: true
 
-  # --- Configuraci�n de Kafka Nativo ---
+  # --- Configuración de Kafka Nativo ---
   kafka:
     bootstrap-servers: localhost:9192
     consumer:

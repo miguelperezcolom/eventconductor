@@ -16,6 +16,7 @@ import io.mateu.workflow.dtos.MessageType;
 import io.mateu.workflow.dtos.events.integration.TaskLogEmitted;
 import io.mateu.workflow.dtos.events.integration.TaskStatus;
 import io.mateu.workflow.dtos.events.integration.TaskStatusChanged;
+import io.mateu.workflow.worker.WorkerReply;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.stream.function.StreamBridge;
@@ -39,7 +40,8 @@ public class ScrapeUseCase {
     public void handle(ScrapeCommand command) {
         log.info("Scraping site with code {}", command.siteId());
 
-        streamBridge.send("upstream", new TaskStatusChanged(command.taskExecutionId(), TaskStatus.RUNNING, List.of()));
+        WorkerReply.send(streamBridge, new TaskStatusChanged(
+                command.taskExecutionId(), TaskStatus.RUNNING, List.of(), command.processId()));
 
         var site = siteRepository.findById(new SiteId(command.siteId())).orElseThrow(() -> new IllegalArgumentException("Site not found"));
         var pages = pageRepository.findBySiteId(new SiteId(command.siteId()));
@@ -79,7 +81,8 @@ public class ScrapeUseCase {
                     saveRoute(command, languageCode, country.getCode(), page, routeUrl, site, "/" + languageCode.code() + path);
                 })));
 
-        streamBridge.send("upstream", new TaskStatusChanged(command.taskExecutionId(), TaskStatus.COMPLETED, List.of()));
+        WorkerReply.send(streamBridge, new TaskStatusChanged(
+                command.taskExecutionId(), TaskStatus.COMPLETED, List.of(), command.processId()));
     }
 
     private void saveRoute(ScrapeCommand command, LanguageCode languageCode, CountryCode countryCode, Page page, String routeUrl, Site site, String path) {

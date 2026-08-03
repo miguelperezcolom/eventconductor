@@ -36,8 +36,11 @@ import java.util.List;
  *
  * <pre>{@code spring.cloud.stream.kafka.default.producer.sync: true}</pre>
  *
- * <p>Applications that also run the engine get that default from the engine itself. A standalone
- * worker has to set it, and without it this class is decoration.
+ * <p>Nobody has to set it: {@link SynchronousProducerDefaults} ships beside this class, in the
+ * module every worker already depends on, and contributes it whenever {@code workflow.mode} is
+ * {@code kafka}. It used to live in the engine, which meant a module that only replies — the forms
+ * engine answering a USER_TASK, the rule runtime answering a RULE step — silently did not get it,
+ * and without it this class is decoration.
  *
  * <p>The parameter is {@link StreamOperations} rather than {@code StreamBridge} — the interface
  * the bridge implements. Callers pass their {@code StreamBridge} unchanged; the reason for the

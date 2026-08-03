@@ -1,4 +1,4 @@
-package io.mateu.workflow.autoconfigure;
+package io.mateu.workflow.worker;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.env.EnvironmentPostProcessor;
@@ -19,13 +19,25 @@ import java.util.Map;
  * broker outage in it: 71 of 642 912 messages marked Sent and absent from the topic. Each one is
  * a process that stops, permanently and silently.
  *
+ * <p>It is also the prerequisite of {@link WorkerReply}, which is why this lives here, beside it,
+ * rather than in the engine. A worker — the forms engine answering a USER_TASK, the rule runtime
+ * answering a RULE step, or anyone else's — checks a {@code false} that an asynchronous binding
+ * never returns, so without this the retry-and-throw in {@code WorkerReply} is decoration. Every
+ * module that can reply to the engine depends on {@code shared}, so putting it here means no
+ * application has to remember.
+ *
  * <p>An application that has some reason to want asynchronous sends can still set the property
  * itself — this is registered as the <em>lowest</em>-precedence source, so anything explicit
  * wins. It should be a considered decision though, because it is the difference between a
  * transactional outbox and a hopeful one.
  *
- * <p>Only applies in {@code kafka} mode; embedded mode has no broker and excludes the binder
- * entirely (see {@link EmbeddedModeAutoConfigurationExcluder}).
+ * <p>Contributed unconditionally, deliberately. It used to apply only when
+ * {@code workflow.mode=kafka}, which is fine for an application that runs the engine and wrong
+ * for one that only answers it: a worker turns the binder on by having it on the classpath, not
+ * by declaring a mode, so the property quietly did not arrive and {@code WorkerReply} had nothing
+ * to check. Where no Kafka producer exists the property is inert — it names a Kafka binding, and
+ * embedded mode excludes the binder outright — so there is nothing to be gained by guessing which
+ * applications need it.
  */
 public class SynchronousProducerDefaults implements EnvironmentPostProcessor, Ordered {
 
@@ -35,9 +47,6 @@ public class SynchronousProducerDefaults implements EnvironmentPostProcessor, Or
 
     @Override
     public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {
-        if (!"kafka".equals(environment.getProperty("workflow.mode", "embedded"))) {
-            return;
-        }
         var sources = environment.getPropertySources();
         if (sources.contains(NAME)) {
             return;

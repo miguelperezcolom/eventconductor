@@ -5,6 +5,7 @@ import io.mateu.workflow.booking.domain.aggregates.booking.vo.BookingId;
 import io.mateu.workflow.booking.domain.aggregates.shared.vo.Name;
 import io.mateu.workflow.dtos.events.integration.TaskStatus;
 import io.mateu.workflow.dtos.events.integration.TaskStatusChanged;
+import io.mateu.workflow.worker.WorkerReply;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cloud.stream.function.StreamBridge;
 import org.springframework.stereotype.Service;
@@ -25,10 +26,11 @@ public class ChangeBookingStatusUseCase {
         resource.changeStatus(command.status());
         repository.save(resource);
 
-        streamBridge.send("upstream", new TaskStatusChanged(
+        WorkerReply.send(streamBridge, new TaskStatusChanged(
                 command.taskExecutionId(),
                 TaskStatus.COMPLETED,
-                List.of()));
+                List.of(),
+                command.processId()));
     }
 
 }

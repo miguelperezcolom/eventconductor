@@ -5,6 +5,7 @@ import io.mateu.workflow.controlplaneservice.domain.aggregates.release.vo.Releas
 import io.mateu.workflow.controlplaneservice.infra.out.github.GitHubReleaseSettingPublisherService;
 import io.mateu.workflow.dtos.events.integration.TaskStatus;
 import io.mateu.workflow.dtos.events.integration.TaskStatusChanged;
+import io.mateu.workflow.worker.WorkerReply;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -41,10 +42,11 @@ public class UpdateRoutesUseCase {
                 .peek(route -> route.updateRelease(new ReleaseId(Long.valueOf(command.releaseId()))))
                 .forEach(routeRepository::save);
 
-        streamBridge.send("upstream", new TaskStatusChanged(
+        WorkerReply.send(streamBridge, new TaskStatusChanged(
                 command.taskExecutionId(),
                 TaskStatus.COMPLETED,
-                List.of()));
+                List.of(),
+                command.processId()));
     }
 
 }
