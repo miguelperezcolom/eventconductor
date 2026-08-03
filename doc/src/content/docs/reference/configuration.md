@@ -35,6 +35,7 @@ Clones Git repositories at startup and imports workflow definition files (`.ec`,
 |---|---|---|
 | `workflow.git-import.repositories[].url` | — | Git clone URL (HTTPS or SSH) |
 | `workflow.git-import.repositories[].branch` | `main` | Branch to check out |
+| `workflow.git-import.repositories[].directory` | — | Subdirectory to scan for definitions (relative to the repo root). Leave blank to scan the whole repository. |
 | `workflow.git-import.repositories[].username` | — | Username for HTTPS authentication |
 | `workflow.git-import.repositories[].password` | — | Password or personal access token |
 | `workflow.git-import.webhook-secret` | — | HMAC-SHA256 secret for verifying GitHub webhook payloads (`X-Hub-Signature-256`). Leave blank to disable signature verification. |

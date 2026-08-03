@@ -73,11 +73,44 @@ public class ImportWorkflowDefinitionsFromGitUseCase {
             // Ids of the definitions that have an explicit, stable id in this repo — only these
             // can be reconciled across imports, so only these participate in pruning.
             var importedIds = new LinkedHashSet<String>();
-            scanAndImport(tempDir, imported, errors, importedIds);
-            pruneRemovedDefinitions(repo.getUrl(), importedIds, pruned);
+            scanAndImport(resolveScanRoot(repo, tempDir), imported, errors, importedIds);
+            pruneRemovedDefinitions(pruneKey(repo), importedIds, pruned);
         } finally {
             deleteDirectory(tempDir.toFile());
         }
+    }
+
+    /**
+     * Resolves the directory to scan: the repo root, or the configured subdirectory when set.
+     * The path is resolved and normalized against the clone root; a directory that escapes the
+     * repo (e.g. "../etc") or does not exist is rejected.
+     */
+    private Path resolveScanRoot(GitImportProperties.GitRepository repo, Path repoRoot) throws IOException {
+        String directory = repo.getDirectory();
+        if (directory == null || directory.isBlank()) {
+            return repoRoot;
+        }
+        Path scanRoot = repoRoot.resolve(directory).normalize();
+        if (!scanRoot.startsWith(repoRoot)) {
+            throw new IOException("directory '" + directory + "' escapes the repository root");
+        }
+        if (!Files.isDirectory(scanRoot)) {
+            throw new IOException("directory '" + directory + "' not found in repository");
+        }
+        return scanRoot;
+    }
+
+    /**
+     * Prune scope key. Two repository entries can share a URL but point at different
+     * subdirectories, so the directory is folded into the key to keep their provenance
+     * — and therefore pruning — independent.
+     */
+    private static String pruneKey(GitImportProperties.GitRepository repo) {
+        String directory = repo.getDirectory();
+        if (directory == null || directory.isBlank()) {
+            return repo.getUrl();
+        }
+        return repo.getUrl() + "#" + directory;
     }
 
     private void cloneRepository(GitImportProperties.GitRepository repo, Path targetDir)
