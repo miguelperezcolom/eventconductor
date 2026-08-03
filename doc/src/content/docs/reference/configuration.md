@@ -338,8 +338,8 @@ The standalone images are fully configured via environment variables. All variab
 | `JPA_DIALECT` | `org.hibernate.dialect.PostgreSQLDialect` | `spring.jpa.database-platform` |
 | `DDL_AUTO` | `update` | `spring.jpa.hibernate.ddl-auto` |
 | `FLYWAY_ENABLED` | `true` | `spring.flyway.enabled` |
-| `DB_POOL_SIZE` | `16` | `spring.hikari.maximum-pool-size` |
-| `DB_CONNECTION_TIMEOUT` | `20000` | `spring.hikari.connection-timeout` (ms) |
+| `DB_POOL_SIZE` | `16` | `spring.datasource.hikari.maximum-pool-size` |
+| `DB_CONNECTION_TIMEOUT` | `20000` | `spring.datasource.hikari.connection-timeout` (ms) |
 | `KAFKA_BROKERS` | `localhost:9092` | `spring.cloud.stream.kafka.binder.brokers` |
 | `KAFKA_CONCURRENCY` | `3` | Consumer threads per pod on each consumer binding |
 | `KAFKA_MIN_PARTITIONS` | `6` | `spring.cloud.stream.kafka.binder.min-partition-count` |
@@ -365,8 +365,8 @@ The standalone images are fully configured via environment variables. All variab
 | `JPA_DIALECT` | `org.hibernate.dialect.PostgreSQLDialect` | `spring.jpa.database-platform` |
 | `DDL_AUTO` | `update` | `spring.jpa.hibernate.ddl-auto` |
 | `FLYWAY_ENABLED` | `true` | `spring.flyway.enabled` |
-| `DB_POOL_SIZE` | `16` | `spring.hikari.maximum-pool-size` |
-| `DB_CONNECTION_TIMEOUT` | `20000` | `spring.hikari.connection-timeout` (ms) |
+| `DB_POOL_SIZE` | `16` | `spring.datasource.hikari.maximum-pool-size` |
+| `DB_CONNECTION_TIMEOUT` | `20000` | `spring.datasource.hikari.connection-timeout` (ms) |
 | `KAFKA_BROKERS` | `localhost:9092` | `spring.cloud.stream.kafka.binder.brokers` |
 | `SECURITY_ENABLED` | `true` | `eventconductor.security.enabled` |
 | `SECURITY_USER` | `admin` | `eventconductor.security.user` |
