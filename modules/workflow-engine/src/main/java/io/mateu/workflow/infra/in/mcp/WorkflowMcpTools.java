@@ -17,6 +17,7 @@ import io.mateu.workflow.application.usecases.process.retry.RetryProcessCommand;
 import io.mateu.workflow.application.out.UpstreamEventPublisher;
 import io.mateu.workflow.dtos.events.integration.PauseProcessRequested;
 import io.mateu.workflow.dtos.events.integration.ResumeProcessRequested;
+import io.mateu.workflow.dtos.events.integration.RestartProcessRequested;
 import io.mateu.workflow.dtos.events.integration.RetryProcessRequested;
 import io.mateu.workflow.application.usecases.process.retry.RetryProcessUseCase;
 import io.mateu.workflow.domain.aggregates.Process;
@@ -41,7 +42,7 @@ public class WorkflowMcpTools implements McpTools, McpSystemContext {
                 Motor de orquestación de procesos (Sagas/Workflows):
                 - Puedes listar, consultar y diagnosticar procesos de negocio.
                 - Puedes consultar variables de proceso, pasos de ejecución y logs.
-                - Puedes reintentar los pasos fallidos de un proceso en estado ERROR.
+                - Puedes relanzar un proceso parado (ERROR o CANCELLED) de dos maneras: retryProcess lo retoma donde se quedó (reejecuta solo los pasos fallidos o cancelados) y restartProcess lo repite entero desde el principio (también los pasos que ya habían terminado bien, restaurando las variables iniciales). Los procesos COMPLETED y COMPENSATED son terminales y no admiten ninguna de las dos.
                 - Puedes pausar (pauseProcess) y reanudar (resumeProcess) procesos: en pausa no arrancan pasos nuevos y los relojes de timers/timeouts quedan congelados; al reanudar se desplazan por la duración de la pausa.
                 - Puedes pausar (pauseWorkflow) y reanudar (resumeWorkflow) una definición completa: pausa todos sus procesos y las instancias nuevas nacen pausadas.
                 - Puedes enviar mensajes externos (sendMessage) para reanudar procesos que esperan en un paso MESSAGE, correlacionando por businessKey o por la correlationExpression del paso.
@@ -131,11 +132,28 @@ public class WorkflowMcpTools implements McpTools, McpSystemContext {
                 .toList();
     }
 
-    @Tool(description = "Retry all failed (ERROR) step executions in a workflow process")
+    @Tool(description = "Pick a stopped workflow process up where it stopped: the steps that failed"
+            + " (or, in a CANCELLED process, that were cancelled) run again, while the steps that"
+            + " already succeeded are left alone. Works on a process in ERROR or CANCELLED; any"
+            + " other status is refused. Use this when the failure was the environment — a worker"
+            + " that was down, a downstream service that has since recovered.")
     public String retryProcess(String processId) {
         log.info("Retrying process " + processId);
         upstreamEventPublisher.publish(new RetryProcessRequested(processId));
         return "Retry requested for process " + processId
+                + ". It is carried out by the node that owns the process, so query the process to see the outcome.";
+    }
+
+    @Tool(description = "Run a stopped workflow process again from the beginning: every step goes"
+            + " back to the state it was created in and runs again, including the ones that already"
+            + " succeeded, and the process variables are put back to the ones it was created with."
+            + " Works on a process in ERROR or CANCELLED; any other status is refused. Use this when"
+            + " the run itself was wrong rather than its surroundings — and prefer retryProcess when"
+            + " re-running successful steps would repeat work that has already had an effect.")
+    public String restartProcess(String processId) {
+        log.info("Restarting process " + processId + " from the beginning");
+        upstreamEventPublisher.publish(new RestartProcessRequested(processId));
+        return "Restart requested for process " + processId
                 + ". It is carried out by the node that owns the process, so query the process to see the outcome.";
     }
 

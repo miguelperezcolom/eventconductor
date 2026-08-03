@@ -145,14 +145,29 @@ If the expression evaluates to `false`, the step is **skipped** (transitions dir
 
 Available in JEXL expressions: all process variables by name.
 
-## Retrying a failed process manually
+## Running a stopped process again
 
-When a process is in `ERROR` state, you can retry all failed steps via the MCP tool `retryProcess` (natural language) or programmatically:
+A process that stopped — `ERROR`, or `CANCELLED` by an operator — can be put back to work in two
+ways, from the process list, from the process detail, or through the MCP tools `retryProcess` and
+`restartProcess`:
+
+**Retry from failure** re-dispatches the steps that failed (in a cancelled process, the ones that
+were cancelled) and leaves the ones that already succeeded alone. The right choice when the failure
+was the environment.
+
+**Restart from the beginning** puts every step back to the state it was created in and runs the
+whole process again, the successful steps included, with the variables the process was created
+with — re-running from the variables the failed run wrote would not be starting from the beginning.
+The right choice when the run itself was wrong. Both re-run the same process instance, keeping its
+id and business key, and both use the workflow definition as it was when that process was created.
+
+Programmatically, publish the request rather than calling the use case, so it is carried out by the
+node that owns the process:
 
 ```java
 processUpstreamEventUseCase.handle(new ProcessUpstreamEventCommand(
-    new ProcessRetryRequested(processId)
+    new RetryProcessRequested(processId)      // or: new RestartProcessRequested(processId)
 ));
 ```
 
-This re-dispatches all `ERROR` step executions as new `TaskExecutionRequested` events.
+Neither is accepted for a `COMPLETED` or `COMPENSATED` process, or for one still running.

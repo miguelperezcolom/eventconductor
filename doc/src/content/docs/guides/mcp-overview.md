@@ -30,7 +30,8 @@ ia-agent-service  (port 8095)
 | `getProcessDetails` | Full process detail: variables + all step executions |
 | `findProcessByBusinessKey` | Look up a process by its business key |
 | `getProcessLogs` | Audit trail and log messages for a process |
-| `retryProcess` | Re-trigger all failed (ERROR) steps in a process |
+| `retryProcess` | Pick a stopped process up where it stopped: the failed (or cancelled) steps run again, the ones that succeeded are left alone. `ERROR` or `CANCELLED` only |
+| `restartProcess` | Run a stopped process again from the beginning, the steps that already succeeded included, with the variables it was created with. `ERROR` or `CANCELLED` only |
 | `sendMessage` | Send an external message to resume processes waiting on a `WAIT_FOR_MESSAGE` step |
 | `getWorkflowAnalytics` | Per-definition analytics: counts by status, rates, throughput per day, avg/p95 durations, bottleneck step ([guide](/guides/analytics/)) |
 | `findBottleneck` | Where processes get stuck: slowest step, steps with waiting instances, steps with failures |
