@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- **The documented upgrade path did not run.** Adopting Flyway over a schema `ddl-auto` had
+  already built — recommended in the deployment guide, and what every existing deployment needs,
+  since Flyway used to be off by default and the indexes come only from the migrations — failed at
+  `V11`, which added columns the entity already declares and dropped columns Hibernate never
+  created. The application did not start. `V11` now runs over either shape of the table, and
+  `DdlAutoToFlywayUpgradeTest` runs the whole chain over a Hibernate-built schema so the claim is
+  checked rather than asserted.
+
+  :warning: **Action required on databases where `V11` already ran successfully.** Editing an
+  applied migration changes its checksum, and Flyway validates checksums at startup: those
+  databases need a one-off `flyway repair` (or `mvn flyway:repair`) before the application will
+  start. Databases that never got past `V11` — the broken path this fixes — need nothing.
+
 ## [1.0-beta.015] - 2026-08-03
 
 ### Fixed

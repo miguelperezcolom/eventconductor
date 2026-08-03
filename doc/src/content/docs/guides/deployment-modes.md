@@ -70,8 +70,13 @@ to a fraction.
 
 Enable Flyway (`spring.flyway.enabled=true`), which the standalone app and the Helm chart now do by
 default. It is safe over a schema `ddl-auto` already created: it baselines at V1 and every later
-migration is written with `IF NOT EXISTS`. Once the indexes are in place, move to
-`ddl-auto=validate` and let the migrations own the schema.
+migration is written to run over either shape of the schema — `DdlAutoToFlywayUpgradeTest` runs the
+whole chain over a Hibernate-built schema on every build, so this is checked rather than promised.
+Once the indexes are in place, move to `ddl-auto=validate` and let the migrations own the schema.
+
+If your database already ran the migrations under 1.0-beta.015 or earlier, `V11` was corrected
+after the fact and its checksum changed, so run `flyway repair` once before starting the new
+version. A database that never got past `V11` — it failed there — needs nothing.
 
 `ddl-auto=update` on its own is fine for a throwaway database and for tests. It is not a way to run
 this engine in production.
