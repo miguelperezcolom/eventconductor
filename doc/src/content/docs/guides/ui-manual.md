@@ -97,9 +97,14 @@ The processes list shows all process instances with their ID, workflow name, sta
 | Button | Description |
 |--------|-------------|
 | **Create** | Manually start a new process instance |
-| **Retry** | Re-trigger all selected ERROR processes |
+| **Retry from failure** | Pick the selected processes up where they stopped: the steps that failed or were cancelled run again, the ones that succeeded are left alone |
+| **Restart from the beginning** | Run the selected processes again from the top, the steps that already succeeded included. Asks for confirmation |
 | **Search** | Filter by ID or name |
 | **View** | Open the process detail |
+
+Both re-run buttons apply to whatever is ticked, and the engine decides: a process that is not
+`ERROR` or `CANCELLED` is left alone and says so in the log, rather than the list guessing which
+rows qualify from a page that may already be out of date.
 
 **Status badges:**
 
@@ -122,6 +127,29 @@ applies to the current status:
 | **Cancel process** | Cancel the process (hidden once it has finished — completed, error or cancelled) |
 | **Pause process** | Pause the process: in-flight work finishes and is accepted, but no successor starts and timer/timeout clocks freeze. Shown while the process is `PENDING` or `RUNNING` |
 | **Resume process** | Put the process back to `RUNNING`; frozen clocks are shifted by the pause duration and held successors start. Shown only while the process is `PAUSED` |
+| **Retry from failure** | Pick the process up where it stopped: the steps that failed (or were cancelled) run again, the ones that succeeded are left alone. Shown while the process is `ERROR` or `CANCELLED` |
+| **Restart from the beginning** | Run the whole process again from the top, the steps that already succeeded included. Same statuses, and it asks first |
+
+#### Which of the two to use
+
+A **retry from failure** is the right one when the failure was the surroundings: a worker that was
+down, a downstream service that has since recovered. It is also the cheaper one — the work that
+already succeeded is not done twice.
+
+A **restart from the beginning** is right when the run itself was wrong, or when a step that
+succeeded produced something the next run needs to produce again. It re-runs every step, so the
+workers behind them have to be idempotent — which they had to be anyway, since at-least-once
+delivery has always been the contract.
+
+Both re-run the same process instance, keeping its id and business key, and both re-run the
+workflow definition **as it was when that process was created** — the definition is snapshotted
+into the process at birth, so a restart is not affected by later edits. A restart also puts the
+process variables back to the ones it was created with, since re-running from variables a later
+step wrote would not be starting from the beginning.
+
+Neither is offered for a `COMPLETED` or `COMPENSATED` process. Both are terminal by design: a
+compensated process already rolled back, and running it again is a new process, not a repeat of
+this one.
 
 ### Analytics
 

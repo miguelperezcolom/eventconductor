@@ -360,6 +360,35 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
     }
 
     /**
+     * Returns this step to the state it was created in, so the process can run it again as if it
+     * never had: no attempt behind it, no start, no deadline and nothing subscribed.
+     *
+     * <p>Distinct from {@link #scheduleRetry()}, which is the automatic retry of a step that just
+     * failed and deliberately keeps counting attempts against the step's own retry budget. This is
+     * an operator restarting a whole process from the beginning, where a step that already
+     * succeeded is going to run a second time and its history of the first run is no longer the
+     * history of this attempt. The frozen {@code variables} are left alone because
+     * {@link #start(Process)} overwrites them with the process's, which is the only thing that
+     * could be right by then.
+     *
+     * <p>Does NOT emit a status change — the caller drives the next cycle — but does log, because
+     * a step going from COMPLETED back to CREATED is the kind of thing an operator reading the
+     * timeline later needs to see explained.
+     */
+    public void resetForRerun() {
+        this.status = StepExecutionStatus.CREATED;
+        this.startedAt = null;
+        this.finishedAt = null;
+        this.attemptCount = 0;
+        this.deadlineAt = null;
+        this.awaitingMessageName = null;
+        this.awaitingCorrelationKey = null;
+        this.workerId = null;
+        send(new TaskLogEmitted(id, MessageType.Info,
+                "Step " + stepId + " reset to run again from the start of the process"));
+    }
+
+    /**
      * Resets this step execution for a new attempt.
      * Increments {@code attemptCount}, sets status back to CREATED and logs the retry.
      * Does NOT emit a domain event — the caller is responsible for driving the next cycle.

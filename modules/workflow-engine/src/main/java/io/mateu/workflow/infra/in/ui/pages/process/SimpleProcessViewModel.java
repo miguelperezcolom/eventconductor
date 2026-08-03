@@ -25,6 +25,7 @@ import io.mateu.workflow.application.usecases.process.cancel.CancelProcessComman
 import io.mateu.workflow.dtos.events.domain.ProcessCancellationRequested;
 import io.mateu.workflow.dtos.events.integration.PauseProcessRequested;
 import io.mateu.workflow.dtos.events.integration.ResumeProcessRequested;
+import io.mateu.workflow.dtos.events.integration.RestartProcessRequested;
 import io.mateu.workflow.dtos.events.integration.RetryProcessRequested;
 import io.mateu.workflow.application.usecases.process.cancel.CancelProcessUseCase;
 import io.mateu.workflow.application.usecases.process.pause.PauseProcessCommand;
@@ -356,13 +357,33 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
         upstreamEventPublisher.publish(new ResumeProcessRequested(id));
     }
 
+    /**
+     * Picks the process up where it stopped: the steps that failed (or were cancelled) run again,
+     * the ones that succeeded are left alone. The usual choice when the failure was the
+     * environment and the environment has since recovered.
+     */
     @Toolbar(buttonStyle = ButtonStyle.secondary)
+    @Label("Retry from failure")
     @Action
     public void retryProcess() {
         // Requested, not performed here: like cancel/pause/resume, the retry runs on the pod that
         // owns the process, so an operator can re-drive a failed process from its detail view
-        // without dropping to the cross-process Steps page. Retries every errored step.
+        // without dropping to the cross-process Steps page.
         upstreamEventPublisher.publish(new RetryProcessRequested(id));
+    }
+
+    /**
+     * Runs the whole process again from the top, including the steps that already succeeded. The
+     * choice when the run itself was wrong rather than its surroundings — so it asks first, since
+     * re-running a step that already did its work is not always free.
+     */
+    @Toolbar(buttonStyle = ButtonStyle.secondary)
+    @Label("Restart from the beginning")
+    @Action(confirmationRequired = true,
+            confirmationMessage = "Every step runs again, including the ones that already "
+                    + "succeeded. Continue?")
+    public void restartProcess() {
+        upstreamEventPublisher.publish(new RestartProcessRequested(id));
     }
 
 
@@ -403,8 +424,12 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
         if ("resumeProcess".equals(memberName)) {
             return processStatus != ProcessStatus.PAUSED;
         }
-        if ("retryProcess".equals(memberName)) {
-            return processStatus != ProcessStatus.ERROR;
+        // Both ways of running a stopped process again — where it failed, or from the top — offered
+        // wherever the engine will accept them (see RetryProcessUseCase / RestartProcessUseCase).
+        // A cancelled process is stopped, not finished, and picking it up again is a normal
+        // operator move; COMPLETED and COMPENSATED are terminal by design and stay out of it.
+        if ("retryProcess".equals(memberName) || "restartProcess".equals(memberName)) {
+            return processStatus != ProcessStatus.ERROR && processStatus != ProcessStatus.CANCELLED;
         }
         return false;
     }
