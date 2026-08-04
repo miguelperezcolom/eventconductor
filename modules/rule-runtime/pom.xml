@@ -17,9 +17,16 @@
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <grpc.version>1.83.0</grpc.version>
-        <!-- protoc gencode and protobuf-java runtime aligned on the same major (4.x),
-             matching grpc-java 1.83.x own protobuf dependency -->
-        <protobuf.version>4.35.1</protobuf.version>
+        <!-- The protoc that generates the stubs, pinned to the protobuf-java that hosts actually
+             run: 4.32.0, which is what both grpc-java 1.83.x and the Spring Boot BOM resolve.
+             Generated code refuses to load on an older runtime than the one it was generated with
+             ("Detected incompatible Protobuf Gencode/Runtime versions"), and the runtime here is
+             not ours to choose — protobuf-java is declared optional below, so a host takes it
+             transitively from grpc-protobuf and Boot's dependency management. Generating with a
+             newer protoc than that is what broke the rule engine's gRPC server on startup: the
+             bean failed, and with it the whole application context. Raise this only together with
+             the version the BOM manages, never past it. -->
+        <protobuf.version>4.32.0</protobuf.version>
     </properties>
 
     <dependencyManagement>
