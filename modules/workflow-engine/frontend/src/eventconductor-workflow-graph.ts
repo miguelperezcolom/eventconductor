@@ -1899,25 +1899,17 @@ export class MateuWorkflowElk extends LitElement {
     }
 
     /**
-     * Declares the workflow disabled, or lifts it. Archiving implies it, so unticking Disabled
-     * clears both — a workflow cannot be archived and yet open for business.
+     * Declares the workflow active, disabled or archived — one of three, never two at once.
      *
-     * <p>Writing the flags always drops a legacy `status`: it is the field this editor used to
-     * write, the engine has no such property, and a file carrying it fails to import.
+     * <p>Each state writes exactly the flag it means and clears the other, so the file says one
+     * thing: `disabled: true`, or `archived: true`, or neither. Both at once would not be wrong to
+     * the engine, which refuses new instances on either, but it is two answers to one question.
      */
-    private setDeclaredDisabled(disabled: boolean) {
+    private setDeclaredState(state: "ACTIVE" | "DISABLED" | "ARCHIVED") {
         this.updateWf({
-            disabled: disabled || undefined,
-            archived: disabled ? this.wf.archived : undefined,
-            status: undefined,
-        });
-    }
-
-    private setDeclaredArchived(archived: boolean) {
-        this.updateWf({
-            archived: archived || undefined,
-            disabled: archived ? true : this.wf.disabled,
-            status: undefined,
+            disabled: state === "DISABLED" || undefined,
+            archived: state === "ARCHIVED" || undefined,
+            status: undefined,   // the field this editor used to write; the engine has no such thing
         });
     }
 
@@ -1966,18 +1958,22 @@ export class MateuWorkflowElk extends LitElement {
                     <textarea class="inp" rows="2" .value="${wf.description ?? ""}"
                               @change="${(e: Event) => this.updateWf({description: (e.target as HTMLTextAreaElement).value})}"></textarea>
                     <label>Status</label>
-                    <label title="No new instances, cron included. The runtime cannot enable a workflow its definition disables.">
-                        <input type="checkbox"
-                               ?checked="${this.declaredState() !== "ACTIVE"}"
-                               @change="${(e: Event) => this.setDeclaredDisabled((e.target as HTMLInputElement).checked)}"/>
-                        Disabled
-                    </label>
-                    <label title="Retired: as disabled, and hidden from the listing.">
-                        <input type="checkbox"
-                               ?checked="${this.declaredState() === "ARCHIVED"}"
-                               @change="${(e: Event) => this.setDeclaredArchived((e.target as HTMLInputElement).checked)}"/>
-                        Archived
-                    </label>
+                    <!-- One cell, or the two-column grid below it shifts by one and everything
+                         after this row lands under the wrong heading. Three states, not two
+                         independent flags: a workflow cannot be disabled and archived at once. -->
+                    <div class="meta-choice">
+                        ${([
+                            ["ACTIVE", "Active", "Accepts new instances."],
+                            ["DISABLED", "Disabled", "No new instances, cron included. The runtime cannot enable a workflow its definition disables."],
+                            ["ARCHIVED", "Archived", "Retired: as disabled, and hidden from the listing."],
+                        ] as const).map(([value, text, hint]) => html`
+                            <label title="${hint}">
+                                <input type="radio" name="declared-state" value="${value}"
+                                       ?checked="${this.declaredState() === value}"
+                                       @change="${() => this.setDeclaredState(value)}"/>
+                                <span>${text}</span>
+                            </label>`)}
+                    </div>
                     <label>Limit concurrent</label>
                     <input type="checkbox" ?checked="${wf.limitConcurrentExecutions}"
                            @change="${(e: Event) => this.updateWf({limitConcurrentExecutions: (e.target as HTMLInputElement).checked})}"/>
@@ -2421,6 +2417,12 @@ export class MateuWorkflowElk extends LitElement {
         }
         .meta-grid {display: grid; grid-template-columns: 120px 1fr; gap: .4rem .75rem; align-items: start;}
         .meta-grid label {font-size: .8rem; color: var(--ec-text-dim); padding-top: .3rem;}
+        /* the three declared states, on one row of the grid */
+        .meta-choice {display: flex; gap: 1rem; align-items: center; padding-top: .25rem;}
+        .meta-choice label {display: flex; align-items: center; gap: .3rem; padding-top: 0; cursor: pointer;}
+        .meta-choice input {margin: 0;}
+        /* a bare checkbox is its own cell: keep it on the baseline of the label beside it */
+        .meta-grid > input[type="checkbox"] {justify-self: start; margin: .45rem 0 0;}
 
         /* workspace */
         .workspace {display: flex; flex: 1; overflow: hidden;}
