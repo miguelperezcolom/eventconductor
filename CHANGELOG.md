@@ -8,6 +8,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **The workflow definition says whether it may run, and the runtime cannot overrule it.** A
+  definition can live in a repository without being live: `status: ACTIVE | DISABLED | ARCHIVED` in
+  the `.ec` is a floor, so an operator can take a workflow out of service but cannot put one into
+  service that its own definition closes. It replaces the `disabled`/`archived` booleans, which
+  said between them what one word says and were still read for compatibility. Process creation now
+  honours it — only the cron scheduler did, so anything creating a process directly walked past a
+  workflow that had been taken out of service.
+
+- **A precondition carries its own condition.** `preconditions: [{stepId, expression}]` puts a
+  guard on the link rather than on the step, so a step reached from two places can require
+  something different of each. A link whose condition is false is not satisfied, so the step waits
+  — deliberately, and documented, including that a condition which never becomes true is a process
+  that never finishes. The step-level `preconditionExpression` still skips rather than holds.
+
+### Plugins — IntelliJ 0.1.2, VS Code 0.1.1
+- **Delete removes the selected node or connection**, and deleting a node clears every reference
+  to it — preconditions in either spelling, and the compensation pointer that used to be left
+  dangling. Connections are selectable at all for the first time.
+- **The animation follows the graph you are editing.** Paths were derived only when the host
+  pushed a value in, so an edit made in the editor left the simulation walking the graph as it was
+  before it: new nodes on no path, deleted ones still on theirs. Selecting a node no longer
+  restarts a paused simulation, and a lone node is not animated as a path of its own.
+- Readable arrowheads, no expand button in an editor pane that is already the whole surface, a
+  Settings panel whose rows line up, and a new `.ec` written as YAML rather than JSON.
+
 - **The documented upgrade path did not run.** Adopting Flyway over a schema `ddl-auto` had
   already built — recommended in the deployment guide, and what every existing deployment needs,
   since Flyway used to be off by default and the indexes come only from the migrations — failed at

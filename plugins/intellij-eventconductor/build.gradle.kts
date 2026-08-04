@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "com.eventconductor"
-version = "0.1.1"
+version = "0.1.2"
 
 repositories {
     mavenCentral()
@@ -36,6 +36,12 @@ intellijPlatform {
     }
     // Pure-Kotlin plugin: skip the (Java NotNull) bytecode instrumentation step.
     instrumentCode = false
+
+    // This plugin contributes no settings pages, so the task finds nothing to index and says so
+    // ("No searchable options found") on every build. It also starts a headless IDE against the
+    // same sandbox, which fails outright while a runIde instance is open — building the plugin
+    // should not require closing the IDE you are testing it in.
+    buildSearchableOptions = false
 
     // `./gradlew publishPlugin` — reads secrets from the environment (set by CI).
     publishing {
