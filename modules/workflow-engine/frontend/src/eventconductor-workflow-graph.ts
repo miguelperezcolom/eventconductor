@@ -568,6 +568,12 @@ export class MateuWorkflowElk extends LitElement {
     @state() private positions: Record<string, NodePos> = {};
     @state() private layoutReady = false;
     @state() private selectedId: string | null = null;
+    /**
+     * The selected connection, when one is. A graph has two kinds of thing to delete and only one
+     * of them is a node; without this, removing a link meant finding the step, opening its panel
+     * and unticking a precondition.
+     */
+    @state() private selectedEdge: {from: string; to: string; comp: boolean} | null = null;
     /** Node the pointer is over in monitoring view — drives the diagnostic hover tooltip. */
     @state() private hoverId: string | null = null;
     @state() private showMeta = false;
@@ -863,6 +869,19 @@ export class MateuWorkflowElk extends LitElement {
         this.emit();
     }
 
+    /**
+     * Removes a step and every reference any other step held to it.
+     *
+     * <p>A step id is referenced from three places, and a leftover in any of them is a definition
+     * that no longer loads: {@code preconditionStepId}, {@code preconditionStepIds}, and the
+     * {@code compensationStepId} of a rollbackable step. The last one used to be missed, which
+     * left a step pointing its rollback at something that was not there any more.
+     *
+     * <p>An emptied precondition list drops the field rather than persisting as `[]`, so deleting
+     * the only input of a step leaves the same JSON as never having given it one. {@code
+     * rollbackable} is left alone: whether the step still means to roll back is the author's call,
+     * and the dangling half — the id — is what had to go.
+     */
     private deleteStep(id: string) {
         this.wf = {
             ...this.wf,
@@ -872,8 +891,10 @@ export class MateuWorkflowElk extends LitElement {
                     const next = {...s};
                     if (next.preconditionStepId === id) next.preconditionStepId = undefined;
                     if (next.preconditionStepIds) {
-                        next.preconditionStepIds = next.preconditionStepIds.filter(p => p !== id);
+                        const kept = next.preconditionStepIds.filter(p => p !== id);
+                        next.preconditionStepIds = kept.length ? kept : undefined;
                     }
+                    if (next.compensationStepId === id) next.compensationStepId = undefined;
                     return next;
                 }),
         };
@@ -881,8 +902,51 @@ export class MateuWorkflowElk extends LitElement {
         this.positions = rest;
         this.elkPositioned.delete(id);
         if (this.selectedId === id) this.selectedId = null;
+        this.selectedEdge = null;      // it may have been an edge of the step just removed
         this.runElkLayout();
         this.emit();
+    }
+
+    /**
+     * Removes one connection, leaving both steps in place: a sequence edge is one precondition of
+     * its target, a compensation edge is the rollback pointer of its source.
+     */
+    private deleteEdge(edge: {from: string; to: string; comp: boolean}) {
+        if (edge.comp) {
+            this.updateStep(edge.from, {compensationStepId: undefined});
+        } else {
+            const target = this.wf.steps.find(s => s.id === edge.to);
+            if (target) {
+                const kept = preconditionsOf(target).filter(p => p !== edge.from);
+                this.updateStep(edge.to, {
+                    preconditionStepIds: kept.length ? kept : undefined,
+                    preconditionStepId: undefined,
+                });
+            }
+        }
+        this.selectedEdge = null;
+    }
+
+    /**
+     * What the Delete key removes: the selected connection, or the selected step and every
+     * reference to it. Nothing at all in a read-only view, and nothing while the caret is in a
+     * field of the side panel — where Delete means delete a character, and taking the step out
+     * from under someone editing its name would be the worst possible reading of the key.
+     */
+    private onKeyDown(e: KeyboardEvent) {
+        if (this.readOnly || (e.key !== "Delete" && e.key !== "Backspace")) return;
+        const target = e.composedPath()[0] as HTMLElement | undefined;
+        const tag = target?.tagName?.toLowerCase();
+        if (tag === "input" || tag === "textarea" || tag === "select" || target?.isContentEditable) {
+            return;
+        }
+        if (this.selectedEdge) {
+            e.preventDefault();
+            this.deleteEdge(this.selectedEdge);
+        } else if (this.selectedId) {
+            e.preventDefault();
+            this.deleteStep(this.selectedId);
+        }
     }
 
     // ── Drag & drop ───────────────────────────────────────────────────────────
@@ -1064,6 +1128,11 @@ export class MateuWorkflowElk extends LitElement {
     };
 
     private onCanvasMouseDown = (e: MouseEvent) => {
+        // Any click in the canvas — on a node, on a link, on nothing — takes keyboard focus, which
+        // is what makes Delete work on whatever that click selects. Runs before the guards below
+        // because a click that starts a node drag has to focus too.
+        (this.renderRoot as unknown as ParentNode)
+            .querySelector<HTMLElement>(".root")?.focus({preventScroll: true});
         if (this.draggingId || this.linkingFrom || e.button !== 0 || e.shiftKey || e.altKey
                 || e.ctrlKey || e.metaKey) return; // node drag / link / focus click
         this.panning = true; this.panMoved = false;
@@ -1081,7 +1150,11 @@ export class MateuWorkflowElk extends LitElement {
         this.panning = false;
         window.removeEventListener("mousemove", this.onPanMove);
         window.removeEventListener("mouseup", this.onPanUp);
-        if (!this.panMoved) { this.selectedId = null; this.clearFocus(); } // a plain click clears selection
+        if (!this.panMoved) {                                 // a plain click clears the selection
+            this.selectedId = null;
+            this.selectedEdge = null;
+            this.clearFocus();
+        }
     };
 
     /** Recentre the viewport on a scene point (used by minimap click/drag). */
@@ -1227,8 +1300,24 @@ export class MateuWorkflowElk extends LitElement {
         return {pts, marks, hidden, segs};
     }
 
+    private isEdgeSelected(edge: {from: string; to: string; comp: boolean}) {
+        const s = this.selectedEdge;
+        return !!s && s.from === edge.from && s.to === edge.to && s.comp === edge.comp;
+    }
+
+    /** Selecting a connection deselects the step, and the other way round: one thing at a time. */
+    private onEdgeClick(e: MouseEvent, edge: {from: string; to: string; comp: boolean}) {
+        e.stopPropagation();
+        if (this.readOnly) return;
+        this.selectedId = null;
+        this.selectedEdge = this.isEdgeSelected(edge)
+            ? null
+            : {from: edge.from, to: edge.to, comp: edge.comp};
+    }
+
     private onNodeClick(e: MouseEvent, id: string) {
         e.stopPropagation();
+        this.selectedEdge = null;                              // one thing selected at a time
         if (e.shiftKey) return;                                // shift is line drawing, not focus
         if (e.altKey) { this.focusNextPath(id); return; }      // one path through the node, cycling
         // Plain click: select the node AND filter to what's connected to it (its ancestors +
@@ -1647,7 +1736,11 @@ export class MateuWorkflowElk extends LitElement {
             : 0;
 
         return html`
-            <div class="root ${this.fullscreen ? "fullscreen" : ""}">
+            <!-- tabindex so the graph can hold keyboard focus: Delete has to reach it, and inside
+                 an IDE webview nothing else is going to hand it the key. Focus is taken on a click
+                 in the canvas rather than on load, so opening a file never steals it. -->
+            <div class="root ${this.fullscreen ? "fullscreen" : ""}"
+                 tabindex="0" @keydown="${this.onKeyDown}">
                 ${this.readOnly ? nothing : this.renderToolbar()}
                 ${this.showMeta ? this.renderMeta() : ""}
                 ${this.layoutError ? html`<div class="error">⚠ ${this.layoutError}</div>` : ""}
@@ -1759,11 +1852,19 @@ export class MateuWorkflowElk extends LitElement {
             // In a process (state) view, dim edges the process hasn't traversed (either end unvisited).
             const monDim = mon && !(this.isVisited(e.from) && this.isVisited(e.to)) ? "mon-dim" : "";
             const focusDim = this.focusPaint && !this.focusPaint.edges.has(e.key) ? "focus-dim" : "";
+            const sel = this.isEdgeSelected(e) ? "sel" : "";
             out.push(e.comp
-                ? svg`<path class="comp-edge ${monDim} ${focusDim}" data-comp="${e.from}" data-edge="${e.key}"
+                ? svg`<path class="comp-edge ${monDim} ${focusDim} ${sel}" data-comp="${e.from}" data-edge="${e.key}"
                              d="${d}" marker-end="url(#ec-arrow)"/>`
-                : svg`<path class="edge ${monDim} ${focusDim}" data-edge="${e.key}"
+                : svg`<path class="edge ${monDim} ${focusDim} ${sel}" data-edge="${e.key}"
                              d="${d}" marker-end="url(#ec-arrow)"/>`);
+            // A 1.6px line is not a click target. This invisible one rides on top of the painted
+            // route and is the thing the pointer actually hits — drawn after, so it is never
+            // buried by the edges that come later.
+            if (!this.readOnly) {
+                out.push(svg`<path class="edge-hit" data-hit="${e.key}" d="${d}"
+                                   @click="${(ev: MouseEvent) => this.onEdgeClick(ev, e)}"/>`);
+            }
             for (let i = 0; i < e.pts.length - 1; i++) prior.push([e.pts[i], e.pts[i + 1]]);
         }
         return out;
@@ -2067,6 +2168,8 @@ export class MateuWorkflowElk extends LitElement {
         }
 
         .root {display: flex; flex-direction: column; height: 100%; position: relative; background: var(--ec-surface);}
+        /* focusable for the Delete key, but a focus ring around the whole editor is just noise */
+        .root:focus, .root:focus-visible {outline: none;}
 
         .root.fullscreen {
             position: fixed; inset: 0; height: 100vh; width: 100vw; z-index: 9999;
@@ -2249,6 +2352,16 @@ export class MateuWorkflowElk extends LitElement {
         .edge {fill: none; stroke: var(--ec-edge); stroke-width: 1.6; stroke-linejoin: round; transition: opacity .2s, stroke .2s, stroke-width .2s;}
         .edge.dim, .edge.focus-dim {opacity: .22;}                   /* not on the active path */
         .edge.active {stroke: var(--ec-primary); stroke-width: 2.4;} /* the path being animated */
+        /* the selected connection: thick enough to be obvious that Delete will take THIS */
+        .edge.sel, .comp-edge.sel {
+            stroke: var(--ec-primary); stroke-width: 3; opacity: 1;
+            filter: drop-shadow(0 0 4px color-mix(in srgb, var(--ec-primary) 60%, transparent));
+        }
+        /* invisible, wide, and the only thing on an edge that takes a pointer */
+        .edge-hit {
+            fill: none; stroke: transparent; stroke-width: 14; stroke-linejoin: round;
+            cursor: pointer; pointer-events: stroke;
+        }
         /* compensation associations (BPMN): red dashed */
         .comp-edge {fill: none; stroke: #dc2626; stroke-width: 1.6; stroke-dasharray: 6 5; stroke-linejoin: round; transition: opacity .2s, stroke-width .2s;}
         .comp-edge.dim, .comp-edge.focus-dim {opacity: .18;}

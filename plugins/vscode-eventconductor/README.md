@@ -8,6 +8,9 @@ plain **YAML/JSON** with schema validation — both views edit the same file.
 - **Graph editor** (default): opens any `.ec` file as the EventConductor workflow graph.
   Drag nodes, **Shift+drag** to draw precondition lines, click to filter, zoom/pan/fit,
   minimap, and the animated token simulation — the same component used inside the app.
+- **Delete** (or **Backspace**) removes the selected node or connection. Deleting a node
+  also clears every reference to it — preconditions and compensation pointers — so the
+  file it writes back is still a definition the engine will load.
 - **Dual mode**: the graph is backed by the text document, so graphical edits update the
   file and text edits update the graph. Use **EventConductor: Open as Text** (editor title
   or command palette) to edit the YAML/JSON directly, and **Open as Graph** to go back.
