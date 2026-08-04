@@ -7,7 +7,7 @@ EventConductor is an event-driven **workflow / saga orchestration engine** for J
 <dependency>
   <groupId>io.mateu.workflow</groupId>
   <artifactId>workflow-engine</artifactId>
-  <version>1.0-beta.015</version> <!-- check Maven Central / CHANGELOG.md for the newest release -->
+  <version>1.0-beta.017</version> <!-- check Maven Central / CHANGELOG.md for the newest release -->
 </dependency>
 <!-- add io.mateu.workflow:forms-engine only if you use USER_TASK / human forms -->
 ```

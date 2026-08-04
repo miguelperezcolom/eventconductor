@@ -7,44 +7,95 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
-- **The workflow definition says whether it may run, and the runtime cannot overrule it.** A
-  definition can live in a repository without being live: `status: ACTIVE | DISABLED | ARCHIVED` in
-  the `.ec` is a floor, so an operator can take a workflow out of service but cannot put one into
-  service that its own definition closes. It replaces the `disabled`/`archived` booleans, which
-  said between them what one word says and were still read for compatibility. Process creation now
-  honours it — only the cron scheduler did, so anything creating a process directly walked past a
-  workflow that had been taken out of service.
+## [1.0-beta.017] - 2026-08-04
 
+Two questions a definition could not answer before: which route into a step a condition belongs to,
+and whether the workflow is meant to be running at all.
+
+### Added
 - **A precondition carries its own condition.** `preconditions: [{stepId, expression}]` puts a
   guard on the link rather than on the step, so a step reached from two places can require
-  something different of each. A link whose condition is false is not satisfied, so the step waits
-  — deliberately, and documented, including that a condition which never becomes true is a process
-  that never finishes. The step-level `preconditionExpression` still skips rather than holds.
+  something different of each. A link whose condition is false is not satisfied, so the step
+  **waits** — the literal reading of "wait for all of them", chosen over quietly dropping the
+  branch, which would let a step run having waited for less than its author wrote. Documented
+  including the cost: a condition that never becomes true is a process that never finishes, and one
+  the stalled-step gauge cannot see. The step-level `preconditionExpression` is unchanged and still
+  skips rather than holds.
+
+### Changed
+- **A definition says whether it may run, and the runtime cannot overrule it.** `status: ACTIVE |
+  DISABLED | ARCHIVED` in the `.ec` is a floor: an operator can take a workflow out of service, but
+  cannot put one into service that its own definition closes — which is what lets a definition live
+  in a repository without being live. It replaces the `disabled`/`archived` booleans, which between
+  them said what one word says; both are still read, in files and in the database.
+
+### Fixed
+- **Process creation ignored a disabled workflow.** Only the cron scheduler checked, so anything
+  creating a process directly — the UI, an upstream event, an MCP call — walked straight past a
+  workflow that had been taken out of service.
+- **A git import silently put back into service anything an operator had disabled**, because the
+  file and the runtime wrote the same field and whoever wrote last won. They are stored apart now:
+  an import replaces the declaration and leaves the runtime decision alone.
+- **The graph editor wrote a field the engine could not read.** Its Status dropdown produced
+  `status: DRAFT|ACTIVE|DISABLED|ARCHIVED`, which the schema does not define and the importer's
+  parser rejects — so such a file did not merely fail to disable anything, it stopped importing
+  altogether. The editor now writes the real status, and the importer adopts the older spellings
+  rather than choking on them.
 
 ### Plugins — IntelliJ 0.1.2, VS Code 0.1.1
-- **Delete removes the selected node or connection**, and deleting a node clears every reference
-  to it — preconditions in either spelling, and the compensation pointer that used to be left
-  dangling. Connections are selectable at all for the first time.
-- **The animation follows the graph you are editing.** Paths were derived only when the host
-  pushed a value in, so an edit made in the editor left the simulation walking the graph as it was
-  before it: new nodes on no path, deleted ones still on theirs. Selecting a node no longer
-  restarts a paused simulation, and a lone node is not animated as a path of its own.
+- **Delete (or Backspace) removes the selected node or connection**, and deleting a node clears
+  every reference to it — preconditions in either spelling, and the compensation pointer that used
+  to be left dangling. Connections are selectable at all for the first time.
+- **The animation follows the graph you are editing.** Its paths were derived only when the host
+  pushed a value in, so an edit made in the editor left it walking the graph as it was before:
+  new nodes on no path, deleted ones still on theirs. Selecting a node no longer restarts a paused
+  simulation, and a node with nothing wired to it is not animated as a path of its own.
 - Readable arrowheads, no expand button in an editor pane that is already the whole surface, a
-  Settings panel whose rows line up, and a new `.ec` written as YAML rather than JSON.
+  Settings panel whose rows line up with their labels, and a new `.ec` written as YAML rather than
+  JSON.
 
-- **The documented upgrade path did not run.** Adopting Flyway over a schema `ddl-auto` had
-  already built — recommended in the deployment guide, and what every existing deployment needs,
-  since Flyway used to be off by default and the indexes come only from the migrations — failed at
-  `V11`, which added columns the entity already declares and dropped columns Hibernate never
-  created. The application did not start. `V11` now runs over either shape of the table, and
-  `DdlAutoToFlywayUpgradeTest` runs the whole chain over a Hibernate-built schema so the claim is
-  checked rather than asserted.
+### Migration
+- `V15` and `V16` add the definition status columns; both are idempotent and run over a `ddl-auto`
+  schema. No action beyond the `flyway repair` that 1.0-beta.016 already called for.
+
+## [1.0-beta.016] - 2026-08-04
+
+Tagged without release notes at the time; written down here after the fact.
+
+### Added
+- **Definition version history owned by the engine**, with per-version process statistics (#145),
+  and a per-repository git subdirectory plus a stopped/waiting heatmap in the definition viewer
+  (#144).
+- **Run a stopped process again, two ways.** *Retry from failure* picks it up where it stopped;
+  *restart from the beginning* re-runs every step, including the ones that succeeded, with the
+  variables the process was created with. Both from the process list, the process detail and MCP,
+  and both now accept a CANCELLED process and not only a failed one.
+
+### Fixed
+- **The engine's own workers were dropping replies.** The forms engine answering a USER_TASK and
+  the rule runtime answering a RULE step still called `streamBridge.send` and discarded the
+  boolean — the line that left 3 356 processes stuck. Both now reply through `WorkerReply`, and
+  the synchronous-producer default that makes a refusal detectable moved to `shared`, so it
+  reaches every module that can answer the engine rather than only those that embed it. The demo
+  workers too.
+- **`DB_POOL_SIZE` and `DB_CONNECTION_TIMEOUT` did nothing.** Every shipped configuration put the
+  Hikari settings under `spring.hikari.*`, a prefix Boot binds nothing from, so every deployment
+  ran HikariCP's default of 10 connections whatever the environment said. Moving them inside
+  `spring.datasource:` makes the documented values real — **the effective pool changes on deploy**.
+- **The stalled-step gauge counted people.** `eventconductor.steps.stalled` counted every live step
+  with no deadline, which is what a human task is by design, so any deployment with USER_TASK steps
+  reported permanent stalled work and warned about it every minute. Only ACTION and RULE steps —
+  the ones a worker owes an answer for — are counted now.
+- **The documented upgrade path did not run.** Adopting Flyway over a schema `ddl-auto` had already
+  built failed at `V11`, which added columns the entity already declares and dropped columns
+  Hibernate never created; the application did not start. Both shapes migrate now, and
+  `DdlAutoToFlywayUpgradeTest` runs the whole chain over a Hibernate-built schema.
 
   :warning: **Action required on databases where `V11` already ran successfully.** Editing an
   applied migration changes its checksum, and Flyway validates checksums at startup: those
-  databases need a one-off `flyway repair` (or `mvn flyway:repair`) before the application will
-  start. Databases that never got past `V11` — the broken path this fixes — need nothing.
+  databases need a one-off `flyway repair` before the application will start. Databases that never
+  got past `V11` — the broken path this fixes — need nothing.
+- Path focus (click and alt+click) works again in the process view of the workflow graph.
 
 ## [1.0-beta.015] - 2026-08-03
 
