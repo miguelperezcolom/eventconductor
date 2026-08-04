@@ -173,7 +173,7 @@ public record WorkflowDefinition(
                 throw new IllegalStateException(
                         "Duplicate step id '" + step.id() + "'.");
             }
-            if (step.preconditions().contains(step.id())) {
+            if (step.preconditionIds().contains(step.id())) {
                 throw new IllegalStateException(
                         "Step '" + step.id() + "' cannot have itself as a precondition.");
             }
@@ -181,12 +181,12 @@ public record WorkflowDefinition(
                 throw new IllegalStateException(
                         "Step '" + step.id() + "' cannot have itself as a compensation step.");
             }
-            if (StepType.START.equals(step.type()) && !step.preconditions().isEmpty()) {
+            if (StepType.START.equals(step.type()) && !step.preconditionIds().isEmpty()) {
                 throw new IllegalStateException(
                         "START step '" + step.id() + "' cannot have preconditions.");
             }
             if (!StepType.START.equals(step.type()) && !StepType.WAIT_FOR_MESSAGE.equals(step.type())
-                    && step.preconditions().isEmpty()) {
+                    && step.preconditionIds().isEmpty()) {
                 throw new IllegalStateException(
                         "Step '" + step.id() + "' has no preconditions but is not a START or"
                                 + " WAIT_FOR_MESSAGE — every flow must enter through one.");
@@ -219,7 +219,7 @@ public record WorkflowDefinition(
         }
         for (var step : steps) {
             if (step.id() == null) continue;
-            for (var preconditionStepId : step.preconditions()) {
+            for (var preconditionStepId : step.preconditionIds()) {
                 if (!stepIds.contains(preconditionStepId)) {
                     throw new IllegalStateException(
                             "Step '" + step.id() + "' references unknown precondition step '"
@@ -240,7 +240,7 @@ public record WorkflowDefinition(
         var preconditions = new java.util.HashMap<String, List<String>>();
         for (var step : steps) {
             if (step.id() != null) {
-                preconditions.put(step.id(), step.preconditions());
+                preconditions.put(step.id(), step.preconditionIds());
             }
         }
         var acyclic = new java.util.HashSet<String>();
@@ -267,7 +267,7 @@ public record WorkflowDefinition(
         // Real outgoing edges per node, excluding the anchor edges into compensation steps.
         var realOut = new java.util.LinkedHashMap<String, Integer>();
         for (var step : steps) {
-            for (var pre : step.preconditions()) {
+            for (var pre : step.preconditionIds()) {
                 if (compensationTargets.contains(step.id())) continue; // anchor edge — not real flow
                 realOut.merge(pre, 1, Integer::sum);
             }
@@ -275,7 +275,7 @@ public record WorkflowDefinition(
         var warnings = new java.util.ArrayList<String>();
         for (var step : steps) {
             if (step.id() == null) continue;
-            int in = step.preconditions().size();
+            int in = step.preconditionIds().size();
             if (in > 1 && step.type() != StepType.JOIN) {
                 warnings.add("Step '" + step.id() + "' has " + in + " incoming flows but is not a JOIN"
                         + " — merge branches through a JOIN so its semantics (all vs any) are explicit.");

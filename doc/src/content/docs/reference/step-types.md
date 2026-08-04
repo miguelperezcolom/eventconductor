@@ -9,9 +9,44 @@ Steps run by **data flow**, not by their position in the `steps` array. On every
 tick, a step starts when all three conditions hold:
 
 1. its execution is in `CREATED` status (it has not run yet),
-2. **all** of its preconditions — the steps named in `preconditionStepIds`, or the singular
-   `preconditionStepId` — have `COMPLETED`,
+2. **all** of its incoming links are satisfied — the links named in `preconditions`, or in
+   `preconditionStepIds`, or the singular `preconditionStepId`,
 3. its `preconditionExpression` (if any) evaluates truthy.
+
+A link is satisfied when the step it names has `COMPLETED` **and** its own condition, if it
+declares one, holds:
+
+```json
+{
+  "id": "ship",
+  "type": "ACTION",
+  "preconditions": [
+    { "stepId": "pack" },
+    { "stepId": "charge", "expression": "amount > 100" }
+  ]
+}
+```
+
+The condition belongs to the link, so it says when *arriving by that route* counts. A link whose
+condition is false is **not satisfied**, and a step that waits for all of its links waits — it is
+not skipped and the process does not finish around it. Conditions are re-evaluated against the
+process variables on every tick, so one that is false now holds the step until whatever it reads
+changes.
+
+:::caution[A guard that never becomes true is a process that never finishes]
+That is the literal reading of "wait for all of them", and it is deliberate: the alternative —
+quietly not requiring that branch — lets a step run having waited for less than its author wrote.
+But it means a workflow can be authored into a permanent wait, and with nothing else in flight
+there is nothing inside the engine left to change the variable. Such a process stays `RUNNING`
+with the step in `CREATED`, where the `eventconductor.steps.stalled` gauge will not see it — that
+gauge counts steps that started. Use `preconditionExpression`, which skips, when what you mean is
+"maybe not this step"; use a link condition when what you mean is "only by this route".
+:::
+
+`preconditionExpression` is the older and different thing: it gates the **step**, however it is
+reached, and a step it holds back is skipped so the process can finish (see
+[Conditional skipping](/guides/retries-timeouts-compensation/#conditional-skipping)). Both still
+work, and a definition may use either or both.
 
 Every eligible step starts **concurrently**. There is no ordering between steps beyond the
 precondition graph: an active step never blocks unrelated branches, and array order is

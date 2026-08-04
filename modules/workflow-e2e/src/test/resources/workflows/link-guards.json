@@ -1,0 +1,53 @@
+{
+  "id": "link-guards",
+  "name": "Guards that belong to the link, not to the step",
+  "version": 1,
+  "steps": [
+    {
+      "id": "start",
+      "type": "START",
+      "name": "Start"
+    },
+    {
+      "id": "fork",
+      "type": "FORK",
+      "name": "Fork",
+      "preconditionStepId": "start"
+    },
+    {
+      "id": "cheap",
+      "type": "ACTION",
+      "name": "Cheap route",
+      "topic": "work",
+      "preconditionStepId": "fork"
+    },
+    {
+      "id": "pricey",
+      "type": "ACTION",
+      "name": "Pricey route",
+      "topic": "work",
+      "preconditionStepId": "fork"
+    },
+    {
+      "id": "ship",
+      "type": "ACTION",
+      "name": "Ship",
+      "topic": "work",
+      "preconditions": [
+        {
+          "stepId": "cheap"
+        },
+        {
+          "stepId": "pricey",
+          "expression": "amount > 100"
+        }
+      ]
+    },
+    {
+      "id": "end",
+      "type": "END",
+      "name": "End",
+      "preconditionStepId": "ship"
+    }
+  ]
+}

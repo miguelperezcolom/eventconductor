@@ -219,7 +219,7 @@ public class SpecValidator {
     /**
      * The effective precondition ids of a step: the plural {@code preconditionStepIds} when
      * non-empty, else the singular {@code preconditionStepId}, else none — mirroring
-     * {@code Step.preconditions()} in the engine.
+     * {@code Step.preconditionIds()} in the engine.
      */
     private static List<String> preconditions(JsonNode step) {
         JsonNode plural = step.get("preconditionStepIds");

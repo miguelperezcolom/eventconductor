@@ -4,11 +4,17 @@
   "title": "WorkflowDefinition",
   "description": "Schema for an EventConductor workflow definition JSON file.",
   "type": "object",
-  "required": ["name", "steps"],
+  "required": [
+    "name",
+    "steps"
+  ],
   "additionalProperties": false,
   "properties": {
     "id": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "description": "Unique identifier. Auto-generated on import if omitted.",
       "minLength": 1
     },
@@ -18,56 +24,89 @@
       "minLength": 1
     },
     "version": {
-      "type": ["integer", "null"],
+      "type": [
+        "integer",
+        "null"
+      ],
       "description": "Schema/definition version number.",
       "minimum": 0,
       "default": 0
     },
     "description": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "description": "Optional free-text description of the workflow."
     },
     "limitConcurrentExecutions": {
-      "type": ["boolean", "null"],
+      "type": [
+        "boolean",
+        "null"
+      ],
       "description": "Whether to cap the number of concurrent process instances.",
       "default": false
     },
     "maxConcurrentExecutions": {
-      "type": ["integer", "null"],
+      "type": [
+        "integer",
+        "null"
+      ],
       "description": "Maximum allowed concurrent instances. Only relevant when limitConcurrentExecutions is true.",
       "minimum": 0,
       "default": 0
     },
     "enqueueOnLimit": {
-      "type": ["boolean", "null"],
+      "type": [
+        "boolean",
+        "null"
+      ],
       "description": "When the concurrency limit is reached, enqueue new requests instead of rejecting them.",
       "default": false
     },
     "draftOfId": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "description": "ID of the workflow definition this is a working copy of. Null for production definitions."
     },
     "cronExpression": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "description": "Spring cron expression (six fields, seconds first, e.g. \"0 0 9 * * MON-FRI\"). While the definition is ACTIVE, the engine automatically creates a process instance at each occurrence. Null means no scheduled starts."
     },
     "paused": {
-      "type": ["boolean", "null"],
+      "type": [
+        "boolean",
+        "null"
+      ],
       "description": "Runtime pause flag: while true, all this definition's processes are held and new instances are created already PAUSED. Toggled at runtime (pause/resume), kept here so exported definitions round-trip.",
       "default": false
     },
     "disabled": {
-      "type": ["boolean", "null"],
+      "type": [
+        "boolean",
+        "null"
+      ],
       "description": "Runtime disabled flag: while true the definition accepts no new instances (cron included). Toggled at runtime (disable/enable); not authored in the .ec.",
       "default": false
     },
     "archived": {
-      "type": ["boolean", "null"],
+      "type": [
+        "boolean",
+        "null"
+      ],
       "description": "Runtime archived flag: set by the git-import prune when a definition disappears from its repository, to hide it without deleting. Not authored in the .ec.",
       "default": false
     },
     "defaultMaxStepExecutions": {
-      "type": ["integer", "null"],
+      "type": [
+        "integer",
+        "null"
+      ],
       "description": "Default cap on how many times each step may successfully run within one process instance. A step's own maxSuccessfulExecutions overrides it. 0 or null means unbounded.",
       "minimum": 0,
       "default": 0
@@ -85,7 +124,11 @@
     "Step": {
       "title": "Step",
       "type": "object",
-      "required": ["id", "type", "name"],
+      "required": [
+        "id",
+        "type",
+        "name"
+      ],
       "additionalProperties": false,
       "properties": {
         "id": {
@@ -94,13 +137,28 @@
           "minLength": 1
         },
         "workflowDefinitionId": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "description": "Back-reference to the parent workflow definition. Set automatically on import."
         },
         "type": {
           "type": "string",
           "description": "Execution type of the step.",
-          "enum": ["START", "ACTION", "JOIN", "FORK", "END", "USER_TASK", "PROCESS", "TIMER", "WAIT_FOR_MESSAGE", "SEND_MESSAGE", "RULE"]
+          "enum": [
+            "START",
+            "ACTION",
+            "JOIN",
+            "FORK",
+            "END",
+            "USER_TASK",
+            "PROCESS",
+            "TIMER",
+            "WAIT_FOR_MESSAGE",
+            "SEND_MESSAGE",
+            "RULE"
+          ]
         },
         "name": {
           "type": "string",
@@ -108,175 +166,349 @@
           "minLength": 1
         },
         "description": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "description": "Optional description of what this step does."
         },
         "preconditionStepId": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "description": "ID of a previous step that must have completed before this one can start. For several preconditions use the plural preconditionStepIds instead."
         },
         "preconditionStepIds": {
-          "type": ["array", "null"],
-          "items": { "type": "string" },
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          },
           "description": "IDs of the steps that must ALL have completed before this one can start. Takes precedence over the singular preconditionStepId when non-empty."
         },
+        "preconditions": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "description": "The incoming links of this step, each with its own guard. Takes precedence over preconditionStepIds and preconditionStepId when non-empty. A link is satisfied when its step has completed AND its expression holds; a link whose guard is false is not satisfied, so a step waiting for all of its links waits until it becomes true.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "stepId"
+            ],
+            "properties": {
+              "stepId": {
+                "type": "string",
+                "description": "ID of the step that must have completed."
+              },
+              "expression": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "JEXL expression over the process variables, evaluated once that step has completed. Absent means the link has no condition."
+              }
+            }
+          }
+        },
         "preconditionExpression": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "description": "JEXL expression evaluated against process variables. Step is skipped if the expression returns false."
         },
         "parallel": {
-          "type": ["boolean", "null"],
+          "type": [
+            "boolean",
+            "null"
+          ],
           "description": "Deprecated and ignored: parallelism is expressed with FORK/JOIN and preconditions.",
           "default": false
         },
         "topic": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "description": "Kafka topic (or logical destination) to dispatch the task to. Required for ACTION steps."
         },
         "formId": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "description": "ID of the form to display. Required for USER_TASK steps."
         },
         "ruleId": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "description": "ID of the rule to evaluate. Required for RULE steps."
         },
         "childWorkflowDefinitionId": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "description": "ID of the child workflow definition to start as a sub-process. Required for PROCESS steps."
         },
         "outputVariables": {
-          "type": ["array", "null"],
-          "items": { "type": "string" },
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          },
           "description": "PROCESS only: names of the child process variables copied back into the parent when the child completes. Empty or absent means none."
         },
         "duration": {
-          "type": ["integer", "string", "null"],
+          "type": [
+            "integer",
+            "string",
+            "null"
+          ],
           "description": "TIMER only: how long to wait, counted from the moment the step starts. Use an ISO 8601 duration string (e.g. PT72H, P3D) or an integer in milliseconds.",
           "default": 0
         },
         "untilVariable": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "description": "TIMER only: name of a process variable holding an ISO 8601 date (2026-08-01) or date-time (2026-08-01T15:00); the timer fires when that moment passes. Takes precedence over duration."
         },
         "messageName": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "description": "WAIT_FOR_MESSAGE / SEND_MESSAGE only: name of the message. A WAIT_FOR_MESSAGE step waits for a MessageReceived event with this name; a SEND_MESSAGE step emits one. Required for both types."
         },
         "correlationExpression": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "description": "WAIT_FOR_MESSAGE / SEND_MESSAGE only: JEXL expression evaluated against process variables that yields the correlation key — the key an incoming message must carry (WAIT_FOR_MESSAGE), or the key stamped on the outgoing message (SEND_MESSAGE). Use 'businessKey' to correlate by business key. Required for both types."
         },
         "messageVariables": {
-          "type": ["array", "null"],
-          "items": { "type": "string" },
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          },
           "description": "SEND_MESSAGE only: names of the process variables to carry in the message. Empty or absent means the message carries no variables — process state is never sent implicitly."
         },
         "timeout": {
-          "type": ["integer", "string", "null"],
+          "type": [
+            "integer",
+            "string",
+            "null"
+          ],
           "description": "Maximum execution time. Use an ISO 8601 duration string (e.g. PT30S, PT5M, PT1H30M) or an integer in milliseconds. 0 or null means no timeout.",
           "default": 0
         },
         "retries": {
-          "type": ["integer", "null"],
+          "type": [
+            "integer",
+            "null"
+          ],
           "description": "Number of automatic retry attempts on ERROR or TIMEOUT before giving up.",
           "minimum": 0,
           "default": 0
         },
         "rollbackable": {
-          "type": ["boolean", "null"],
+          "type": [
+            "boolean",
+            "null"
+          ],
           "description": "Whether this step must be compensated (undone) when the process fails. When any step fails after exhausting its retries, the compensations of ALL executed rollbackable steps run sequentially in reverse execution order (saga rollback), and the process ends COMPENSATED.",
           "default": false
         },
         "compensationStepId": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "description": "ID of the step that undoes this step's effect. Run during saga rollback (in reverse execution order) when the process fails. Only relevant when rollbackable is true. Anchor the compensation step to a precondition and guard it with preconditionExpression 'false' so the normal flow never starts it."
         },
         "maxSuccessfulExecutions": {
-          "type": ["integer", "null"],
+          "type": [
+            "integer",
+            "null"
+          ],
           "description": "Cap on how many times this step may successfully run within one process instance (runtime backstop against runaway loops). 0 or null inherits the workflow's defaultMaxStepExecutions.",
           "minimum": 0,
           "default": 0
         },
         "joinType": {
-          "type": ["string", "null"],
-          "enum": ["AND", "XOR", null],
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "AND",
+            "XOR",
+            null
+          ],
           "description": "JOIN only: how the join merges its incoming branches. AND (default) is a parallel/synchronizing join that waits for ALL branches to complete; XOR is an exclusive join that proceeds as soon as ANY one branch completes. Null is treated as AND.",
           "default": "AND"
         }
       },
       "if": {
-        "properties": { "type": { "const": "ACTION" } },
-        "required": ["type"]
+        "properties": {
+          "type": {
+            "const": "ACTION"
+          }
+        },
+        "required": [
+          "type"
+        ]
       },
       "then": {
-        "required": ["topic"]
+        "required": [
+          "topic"
+        ]
       },
       "allOf": [
         {
           "if": {
-            "properties": { "type": { "const": "USER_TASK" } },
-            "required": ["type"]
+            "properties": {
+              "type": {
+                "const": "USER_TASK"
+              }
+            },
+            "required": [
+              "type"
+            ]
           },
           "then": {
-            "required": ["formId"]
-          }
-        },
-        {
-          "if": {
-            "properties": { "type": { "const": "PROCESS" } },
-            "required": ["type"]
-          },
-          "then": {
-            "required": ["childWorkflowDefinitionId"]
-          }
-        },
-        {
-          "if": {
-            "properties": { "type": { "const": "TIMER" } },
-            "required": ["type"]
-          },
-          "then": {
-            "anyOf": [
-              { "required": ["duration"] },
-              { "required": ["untilVariable"] }
+            "required": [
+              "formId"
             ]
           }
         },
         {
           "if": {
-            "properties": { "type": { "const": "WAIT_FOR_MESSAGE" } },
-            "required": ["type"]
+            "properties": {
+              "type": {
+                "const": "PROCESS"
+              }
+            },
+            "required": [
+              "type"
+            ]
           },
           "then": {
-            "required": ["messageName", "correlationExpression"]
+            "required": [
+              "childWorkflowDefinitionId"
+            ]
           }
         },
         {
           "if": {
-            "properties": { "type": { "const": "SEND_MESSAGE" } },
-            "required": ["type"]
+            "properties": {
+              "type": {
+                "const": "TIMER"
+              }
+            },
+            "required": [
+              "type"
+            ]
           },
           "then": {
-            "required": ["messageName", "correlationExpression"]
+            "anyOf": [
+              {
+                "required": [
+                  "duration"
+                ]
+              },
+              {
+                "required": [
+                  "untilVariable"
+                ]
+              }
+            ]
           }
         },
         {
           "if": {
-            "properties": { "type": { "const": "RULE" } },
-            "required": ["type"]
+            "properties": {
+              "type": {
+                "const": "WAIT_FOR_MESSAGE"
+              }
+            },
+            "required": [
+              "type"
+            ]
           },
           "then": {
-            "required": ["ruleId"]
+            "required": [
+              "messageName",
+              "correlationExpression"
+            ]
           }
         },
         {
           "if": {
-            "properties": { "rollbackable": { "const": true } },
-            "required": ["rollbackable"]
+            "properties": {
+              "type": {
+                "const": "SEND_MESSAGE"
+              }
+            },
+            "required": [
+              "type"
+            ]
           },
           "then": {
-            "required": ["compensationStepId"]
+            "required": [
+              "messageName",
+              "correlationExpression"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "RULE"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "required": [
+              "ruleId"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "rollbackable": {
+                "const": true
+              }
+            },
+            "required": [
+              "rollbackable"
+            ]
+          },
+          "then": {
+            "required": [
+              "compensationStepId"
+            ]
           }
         }
       ]

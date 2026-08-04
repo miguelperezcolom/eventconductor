@@ -17,6 +17,11 @@ interface WorkflowStep {
     description?: string;
     preconditionStepId?: string;
     preconditionStepIds?: string[];
+    /**
+     * The incoming links of this step, each with its own guard. Takes precedence over the two
+     * older spellings, which say which steps to wait for and nothing about the routes.
+     */
+    preconditions?: Precondition[];
     preconditionExpression?: string;
     parallel?: boolean;
     topic?: string;
@@ -30,6 +35,12 @@ interface WorkflowStep {
     compensationStepId?: string;
     /** JOIN only: "AND" (default, wait all) or "XOR" (proceed on any one). */
     joinType?: "AND" | "XOR";
+}
+
+/** One incoming link: the step to wait for, and the condition under which arriving by it counts. */
+interface Precondition {
+    stepId: string;
+    expression?: string;
 }
 
 interface WorkflowDefinition {
@@ -474,14 +485,31 @@ function newId(): string {
  * Mirrors the engine's `Step.preconditions()` so the graph draws exactly the edges the
  * orchestrator honours.
  */
-function preconditionsOf(step: WorkflowStep): string[] {
+/**
+ * This step's links, whichever way the definition spelled them. The older two carry no guard,
+ * which is what they have always meant.
+ */
+function linksOf(step: WorkflowStep): Precondition[] {
+    if (step.preconditions && step.preconditions.length > 0) {
+        return step.preconditions.filter(p => p && p.stepId);
+    }
     if (step.preconditionStepIds && step.preconditionStepIds.length > 0) {
-        return step.preconditionStepIds.filter(Boolean);
+        return step.preconditionStepIds.filter(Boolean).map(stepId => ({stepId}));
     }
     if (step.preconditionStepId) {
-        return [step.preconditionStepId];
+        return [{stepId: step.preconditionStepId}];
     }
     return [];
+}
+
+/** Guard of the link from `fromId` into `step`, if that link declares one. */
+function guardOf(step: WorkflowStep, fromId: string): string | undefined {
+    const expr = linksOf(step).find(l => l.stepId === fromId)?.expression?.trim();
+    return expr ? expr : undefined;
+}
+
+function preconditionsOf(step: WorkflowStep): string[] {
+    return linksOf(step).map(l => l.stepId);
 }
 
 /**
@@ -856,11 +884,27 @@ export class MateuWorkflowElk extends LitElement {
      * any number of inputs; an empty set drops the field entirely.
      */
     private togglePrecondition(step: WorkflowStep, otherId: string, checked: boolean) {
-        const current = new Set(preconditionsOf(step));
-        if (checked) current.add(otherId); else current.delete(otherId);
-        const list = [...current];
-        this.updateStep(step.id, {
-            preconditionStepIds: list.length ? list : undefined,
+        const links = linksOf(step).filter(l => l.stepId !== otherId);
+        if (checked) links.push({stepId: otherId});
+        this.writeLinks(step.id, links);
+    }
+
+    /** Sets the guard on one link, dropping the field when it is cleared. */
+    private setGuard(step: WorkflowStep, fromId: string, expression: string) {
+        const trimmed = expression.trim();
+        this.writeLinks(step.id, linksOf(step).map(l =>
+            l.stepId === fromId ? {stepId: l.stepId, expression: trimmed || undefined} : l));
+    }
+
+    /**
+     * Writes the links back in the one shape that can hold a guard, and clears the two older
+     * spellings so a definition never says the same thing twice in two places. A step left with no
+     * links drops the field entirely rather than carrying an empty array.
+     */
+    private writeLinks(stepId: string, links: Precondition[]) {
+        this.updateStep(stepId, {
+            preconditions: links.length ? links : undefined,
+            preconditionStepIds: undefined,
             preconditionStepId: undefined,
         });
     }
@@ -908,6 +952,10 @@ export class MateuWorkflowElk extends LitElement {
                         const kept = next.preconditionStepIds.filter(p => p !== id);
                         next.preconditionStepIds = kept.length ? kept : undefined;
                     }
+                    if (next.preconditions) {
+                        const kept = next.preconditions.filter(p => p.stepId !== id);
+                        next.preconditions = kept.length ? kept : undefined;
+                    }
                     if (next.compensationStepId === id) next.compensationStepId = undefined;
                     return next;
                 }),
@@ -931,11 +979,7 @@ export class MateuWorkflowElk extends LitElement {
         } else {
             const target = this.wf.steps.find(s => s.id === edge.to);
             if (target) {
-                const kept = preconditionsOf(target).filter(p => p !== edge.from);
-                this.updateStep(edge.to, {
-                    preconditionStepIds: kept.length ? kept : undefined,
-                    preconditionStepId: undefined,
-                });
+                this.writeLinks(edge.to, linksOf(target).filter(l => l.stepId !== edge.from));
             }
         }
         this.selectedEdge = null;
@@ -1918,28 +1962,48 @@ export class MateuWorkflowElk extends LitElement {
     }
 
     /**
-     * The step's precondition guard (JEXL) painted as a chip on its incoming edge — the guard
-     * gates entry to the step, so it is shown once, at the midpoint of the first precondition's
-     * route (not per-edge, which would duplicate it).
+     * The conditions on this step's incoming links, each painted on the link it belongs to — and
+     * the step's own condition, if it has one, painted on the step.
+     *
+     * <p>They used to be the same thing drawn the same way: one chip, on the first incoming edge,
+     * for an expression that actually gated the step however it was reached. On a step with two
+     * inputs that is a lie about which route it applies to. A condition on a link now sits on that
+     * link; a condition on the step sits above the step, where it cannot be read as belonging to
+     * one of its routes.
      */
     private renderGuard(step: WorkflowStep) {
-        const expr = step.preconditionExpression?.trim();
-        if (!expr) return svg``;
         const to = this.positions[step.id];
-        const preconditions = preconditionsOf(step);
-        if (!to || preconditions.length === 0) return svg``;
-        const route = this.edgeCache.get(`${preconditions[0]}->${step.id}`) ?? this.routeBetween(preconditions[0], step.id, 0);
-        if (!route) return svg``;
+        if (!to) return svg``;
+        const chips: unknown[] = [];
 
-        // Sit toward the source end of the edge, clear of the target node's badge.
-        const mid = polylinePointAt(route, 0.38);
+        for (const link of linksOf(step)) {
+            const expr = link.expression?.trim();
+            if (!expr) continue;
+            const edgeKey = `${link.stepId}->${step.id}`;
+            const route = this.edgeCache.get(edgeKey) ?? this.routeBetween(link.stepId, step.id, 0);
+            if (!route) continue;
+            // Sit toward the source end of the edge, clear of the target node's badge.
+            chips.push(this.renderGuardChip(polylinePointAt(route, 0.38), expr, step.id, edgeKey));
+        }
+
+        const stepExpr = step.preconditionExpression?.trim();
+        if (stepExpr) {
+            const {w} = sizeOf(step.type);
+            // Above the node, centred on it: this one is about the step, not about a way in.
+            chips.push(this.renderGuardChip({x: to.x + w / 2, y: to.y - 40}, stepExpr, step.id, ""));
+        }
+        return chips.length ? svg`${chips}` : svg``;
+    }
+
+    private renderGuardChip(at: Pt, expr: string, stepId: string, edgeKey: string) {
         const text = expr.length > 30 ? expr.slice(0, 29) + "…" : expr;
         const w = Math.max(30, text.length * 6.3 + 22);
         const h = 19;
-        const edgeKey = `${preconditions[0]}->${step.id}`;
-        const focusDim = this.focusPaint && !this.focusPaint.edges.has(edgeKey) ? "focus-dim" : "";
+        const focusDim = edgeKey && this.focusPaint && !this.focusPaint.edges.has(edgeKey)
+            ? "focus-dim" : "";
         return svg`
-            <g class="guard ${focusDim}" data-guard="${step.id}" data-edge="${edgeKey}" transform="translate(${mid.x}, ${mid.y})">
+            <g class="guard ${focusDim}" data-guard="${stepId}" data-edge="${edgeKey}"
+               transform="translate(${at.x}, ${at.y})">
                 <rect class="guard-halo" x="${-w / 2 - 4}" y="${-h / 2 - 4}" width="${w + 8}" height="${h + 8}" rx="12"/>
                 <g class="guard-chip">
                     <rect x="${-w / 2}" y="${-h / 2}" width="${w}" height="${h}" rx="9.5"/>
@@ -2132,9 +2196,18 @@ export class MateuWorkflowElk extends LitElement {
                                            ?checked="${preconditionsOf(step).includes(s.id)}"
                                            @change="${ro ? nothing : (e: Event) => this.togglePrecondition(step, s.id, (e.target as HTMLInputElement).checked)}"/>
                                     <span>${s.name} <em>(${s.id})</em></span>
-                                </label>`)}
+                                </label>
+                                ${preconditionsOf(step).includes(s.id) ? html`
+                                    <!-- The condition belongs to this link, not to the step: it
+                                         says when arriving from THIS step counts. -->
+                                    <input class="inp link-guard" ?readonly="${ro}"
+                                           placeholder="only when… (JEXL, optional)"
+                                           title="Condition on the link from ${s.name}"
+                                           .value="${guardOf(step, s.id) ?? ""}"
+                                           @change="${ro ? nothing : (e: Event) => this.setGuard(step, s.id, (e.target as HTMLInputElement).value)}"/>`
+                                    : nothing}`)}
                         </div>`)}
-                    ${field("Precondition expression", html`
+                    ${field("Step condition (gates the step however it is reached)", html`
                         <input class="inp" placeholder="JEXL expression" ?readonly="${ro}"
                                .value="${step.preconditionExpression ?? ""}"
                                @change="${ro ? nothing : (e: Event) => this.updateStep(step.id, {preconditionExpression: (e.target as HTMLInputElement).value || undefined})}"/>`)}
@@ -2457,6 +2530,7 @@ export class MateuWorkflowElk extends LitElement {
         .prop-header span {flex: 1;}
         /* Both were thin glyphs floating in the header and read as decoration; sized up and given
            a hover surface so they read as the buttons they are. */
+        .link-guard {margin: .1rem 0 .35rem 1.35rem; width: calc(100% - 1.35rem); font-size: .72rem;}
         .del-btn, .close-btn {
             background: none; border: none; cursor: pointer; color: var(--ec-text-dim);
             font-size: 1.05rem; padding: .15rem .4rem; border-radius: 5px; line-height: 1;

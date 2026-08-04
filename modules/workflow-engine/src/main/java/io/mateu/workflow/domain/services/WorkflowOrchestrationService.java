@@ -85,7 +85,7 @@ public class WorkflowOrchestrationService {
             return handleEndStepTransition(process, stepExecutions, executableSteps, stepCache);
         }
 
-        return handleStandardOrImplicitCompletionTransition(process, stepExecutions, executableSteps);
+        return handleStandardOrImplicitCompletionTransition(process, stepExecutions, executableSteps, stepCache);
     }
 
     private boolean isBlockingError(StepExecution stepExecution) {
@@ -104,27 +104,67 @@ public class WorkflowOrchestrationService {
 
     private boolean shouldRunStep(StepExecution stepExecution, Process process, List<StepExecution> stepExecutions, Map<String, Step> cache) {
         Step step = getStep(stepExecution, cache);
-        return checkPreconditionStep(step, stepExecutions) && evaluatePreconditionExpression(step, process);
+        return checkPreconditionStep(step, process, stepExecutions) && evaluatePreconditionExpression(step, process);
     }
 
-    private boolean checkPreconditionStep(Step step, List<StepExecution> stepExecutions) {
-        // A precondition is satisfied once it has a COMPLETED step execution. An XOR join proceeds
-        // as soon as ANY incoming branch has completed; every other step — including an AND join,
-        // the default barrier — needs them ALL.
-        java.util.function.Predicate<String> satisfied = preconditionStepId -> stepExecutions.stream()
-                .filter(se -> preconditionStepId.equals(se.getStepId()))
-                .anyMatch(se -> StepExecutionStatus.COMPLETED.equals(se.getStatus()));
+    private boolean checkPreconditionStep(Step step, Process process, List<StepExecution> stepExecutions) {
+        // A precondition is satisfied once its step has a COMPLETED execution AND its own guard,
+        // if it declares one, holds. An XOR join proceeds as soon as ANY incoming branch is
+        // satisfied; every other step — including an AND join, the default barrier — needs them ALL.
+        //
+        // A guard that is false leaves its link unsatisfied, which on an AND join means the step
+        // waits: "wait for all of them" is read literally, and a branch whose condition never comes
+        // true holds the step forever. That is a workflow that cannot proceed, and it is meant to
+        // be — the alternative, quietly dropping the branch, lets a step run having waited for less
+        // than its author wrote. A guard reads process variables, so one that is false now becomes
+        // true later if the variable changes, and the step is released then.
+        java.util.function.Predicate<Precondition> satisfied = precondition -> {
+            boolean completed = stepExecutions.stream()
+                    .filter(se -> precondition.stepId().equals(se.getStepId()))
+                    .anyMatch(se -> StepExecutionStatus.COMPLETED.equals(se.getStatus()));
+            return completed && evaluateGuard(precondition, step, process);
+        };
         boolean xorJoin = step.type() == StepType.JOIN && step.joinType() == JoinType.XOR;
         return xorJoin
-                ? step.preconditions().stream().anyMatch(satisfied)
-                : step.preconditions().stream().allMatch(satisfied);
+                ? step.resolvedPreconditions().stream().anyMatch(satisfied)
+                : step.resolvedPreconditions().stream().allMatch(satisfied);
     }
 
+    /** A link's own condition. Fail-closed, exactly like the step-level one. */
+    private boolean evaluateGuard(Precondition precondition, Step step, Process process) {
+        if (!precondition.hasGuard()) {
+            return true;
+        }
+        try {
+            return isTruthy(eval(precondition.expression(), expressionContext(step, process)));
+        } catch (Exception e) {
+            log.error("Error evaluating the guard '{}' on the link {} -> {}, the link will not be "
+                            + "satisfied", precondition.expression(), precondition.stepId(), step.id(), e);
+            return false;
+        }
+    }
+
+    /**
+     * The step-level gate, which is about the step rather than about any one route into it. Still
+     * evaluated when the links carry their own guards: the two ask different questions, and every
+     * definition written before links could carry guards says it here.
+     */
     private boolean evaluatePreconditionExpression(Step step, Process process) {
         if (step.preconditionExpression() == null || step.preconditionExpression().isEmpty()) {
             return true;
         }
+        try {
+            return isTruthy(eval(step.preconditionExpression(), expressionContext(step, process)));
+        } catch (Exception e) {
+            // Fail closed: a guard that cannot be evaluated must not let the step run.
+            log.error("Error evaluating precondition expression '{}' for step {}, step will not run",
+                    step.preconditionExpression(), step.id(), e);
+            return false;
+        }
+    }
 
+    /** The JEXL context both kinds of guard are evaluated in, so they read the same world. */
+    private Map<String, Object> expressionContext(Step step, Process process) {
         var variables = new HashMap<String, Object>();
         variables.put("process", process);
         variables.put("step", step);
@@ -133,17 +173,12 @@ public class WorkflowOrchestrationService {
         // RESTRICTED permissions (no introspection of domain classes), so businessKey must
         // be available as a plain context variable — `process.businessKey` cannot evaluate.
         variables.put("businessKey", process.getBusinessKey());
+        return variables;
+    }
 
-        try {
-            Object result = eval(step.preconditionExpression(), variables);
-            return result != null && (result instanceof Boolean b && b 
-                    || result instanceof String s && !s.isEmpty() && !"false".equals(s));
-        } catch (Exception e) {
-            // Fail closed: a guard that cannot be evaluated must not let the step run.
-            log.error("Error evaluating precondition expression '{}' for step {}, step will not run",
-                    step.preconditionExpression(), step.id(), e);
-            return false;
-        }
+    private boolean isTruthy(Object result) {
+        return result != null && (result instanceof Boolean b && b
+                || result instanceof String s && !s.isEmpty() && !"false".equals(s));
     }
 
     private TransitionResult handleEndStepTransition(Process process, List<StepExecution> stepExecutions, List<StepExecution> executableSteps, Map<String, Step> cache) {
@@ -174,7 +209,7 @@ public class WorkflowOrchestrationService {
         return new TransitionResult(updatedProcess, stepsToSave, processCompleted, false);
     }
 
-    private TransitionResult handleStandardOrImplicitCompletionTransition(Process process, List<StepExecution> stepExecutions, List<StepExecution> executableSteps) {
+    private TransitionResult handleStandardOrImplicitCompletionTransition(Process process, List<StepExecution> stepExecutions, List<StepExecution> executableSteps, Map<String, Step> cache) {
         List<StepExecution> stepsToSave = new ArrayList<>();
 
         // Start eligible steps
@@ -182,8 +217,16 @@ public class WorkflowOrchestrationService {
                 .map(stepExecution -> stepExecution.start(process))
                 .forEach(stepsToSave::add);
 
-        // Handle implicit completion if no executable steps are scheduled, and no active steps remain
-        if (executableSteps.isEmpty() && hasNoActiveStepsRemaining(stepExecutions)) {
+        // Handle implicit completion if no executable steps are scheduled, and no active steps
+        // remain — with one exception: a step held only by a link guard is waiting, not
+        // unreachable. Its guard reads process variables, and the variables can still change; a
+        // step whose links are all completed and one of whose guards is false is exactly the case
+        // the guard was written to hold. Wrapping the process up around it would turn "this link
+        // is not satisfied" into "this step is cancelled and the process is done", which is the
+        // opposite of what a guard on a link means.
+        var heldByAGuard = stepExecutions.stream()
+                .anyMatch(execution -> isWaitingOnALinkGuard(execution, process, stepExecutions, cache));
+        if (executableSteps.isEmpty() && hasNoActiveStepsRemaining(stepExecutions) && !heldByAGuard) {
             stepExecutions.stream()
                     .filter(execution -> StepExecutionStatus.CREATED.equals(execution.getStatus()))
                     .map(execution -> execution.withStatus(StepExecutionStatus.CANCELLED))
@@ -197,6 +240,32 @@ public class WorkflowOrchestrationService {
         }
 
         return new TransitionResult(process, stepsToSave, false, false);
+    }
+
+    /**
+     * True when this step has not run, every step it waits for has completed, and the only thing
+     * standing in its way is a guard on one of its links that is currently false.
+     *
+     * <p>That is a step being held, and it can be released: the guard reads process variables, so
+     * a worker reporting a new value, a message arriving or an operator retrying a branch changes
+     * the answer. A step that is instead waiting for something that never completed is a different
+     * thing and is not covered here — that one really is unreachable once nothing is left running.
+     */
+    private boolean isWaitingOnALinkGuard(StepExecution stepExecution, Process process,
+                                          List<StepExecution> stepExecutions, Map<String, Step> cache) {
+        if (!StepExecutionStatus.CREATED.equals(stepExecution.getStatus())) {
+            return false;
+        }
+        var step = getStep(stepExecution, cache);
+        var links = step.resolvedPreconditions();
+        if (links.isEmpty() || links.stream().noneMatch(Precondition::hasGuard)) {
+            return false;
+        }
+        boolean everyLinkStepCompleted = links.stream().allMatch(link -> stepExecutions.stream()
+                .filter(se -> link.stepId().equals(se.getStepId()))
+                .anyMatch(se -> StepExecutionStatus.COMPLETED.equals(se.getStatus())));
+        return everyLinkStepCompleted
+                && links.stream().anyMatch(link -> !evaluateGuard(link, step, process));
     }
 
     private boolean hasNoActiveStepsRemaining(List<StepExecution> stepExecutions) {

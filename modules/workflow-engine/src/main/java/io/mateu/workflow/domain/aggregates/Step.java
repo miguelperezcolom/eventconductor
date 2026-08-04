@@ -53,6 +53,18 @@ public record Step(
          */
         @HiddenInList
         List<String> preconditionStepIds,
+        /**
+         * The incoming links of this step, each with its own guard. The way to say "wait for this
+         * step, and only by this route if that holds"; the two older fields say which steps to
+         * wait for and nothing about the routes.
+         *
+         * <p>Takes precedence over {@code preconditionStepIds} and {@code preconditionStepId} when
+         * declared. Both remain valid — every definition written before this field existed uses
+         * them — and a step-level {@code preconditionExpression} still gates the step as a whole,
+         * on top of whatever the links say.
+         */
+        @HiddenInList
+        List<Precondition> preconditions,
         String preconditionExpression,
 
         /**
@@ -130,18 +142,53 @@ public record Step(
 ) implements Identifiable {
 
     /**
-     * The step ids that must ALL have completed before this step can start: the plural
-     * {@code preconditionStepIds} when declared, else the singular {@code preconditionStepId},
-     * else none.
+     * The shape this record had before links could carry their own guards, so that every caller
+     * written against it — and there are a great many, in this repository and outside it — keeps
+     * compiling and keeps meaning what it meant. Preconditions declared this way have no guards.
      */
-    public List<String> preconditions() {
+    public Step(String id, String workflowDefinitionId, StepType type, String name, String description,
+                String preconditionStepId, List<String> preconditionStepIds, String preconditionExpression,
+                boolean parallel, String topic, String formId, String ruleId,
+                String childWorkflowDefinitionId, List<String> outputVariables, long duration,
+                String untilVariable, String messageName, String correlationExpression,
+                List<String> messageVariables, long timeout, int retries, boolean rollbackable,
+                String compensationStepId, int maxSuccessfulExecutions, JoinType joinType) {
+        this(id, workflowDefinitionId, type, name, description, preconditionStepId, preconditionStepIds,
+                null, preconditionExpression, parallel, topic, formId, ruleId, childWorkflowDefinitionId,
+                outputVariables, duration, untilVariable, messageName, correlationExpression,
+                messageVariables, timeout, retries, rollbackable, compensationStepId,
+                maxSuccessfulExecutions, joinType);
+    }
+
+    /**
+     * This step's incoming links, whichever way the definition declared them: {@code
+     * preconditions} when present, else the plural {@code preconditionStepIds}, else the singular
+     * {@code preconditionStepId}, else none. The older two carry no guard, so their links get
+     * none — which is what they have always meant.
+     *
+     * <p>One accessor for three spellings, so everything downstream — eligibility, the topology
+     * warnings, the graph — asks the same question and gets the same answer.
+     */
+    public List<Precondition> resolvedPreconditions() {
+        if (preconditions != null && !preconditions.isEmpty()) {
+            return preconditions.stream().filter(p -> p != null && p.stepId() != null).toList();
+        }
         if (preconditionStepIds != null && !preconditionStepIds.isEmpty()) {
-            return preconditionStepIds;
+            return preconditionStepIds.stream().map(id -> new Precondition(id, null)).toList();
         }
         if (preconditionStepId != null && !preconditionStepId.isBlank()) {
-            return List.of(preconditionStepId);
+            return List.of(new Precondition(preconditionStepId, null));
         }
         return List.of();
+    }
+
+    /**
+     * The step ids that must have completed before this step can start, without their guards —
+     * the shape of the graph rather than its conditions. Used by the topology rules, which are
+     * about what connects to what.
+     */
+    public List<String> preconditionIds() {
+        return resolvedPreconditions().stream().map(Precondition::stepId).toList();
     }
 
     /**

@@ -141,7 +141,37 @@ Use `preconditionExpression` (a [JEXL](https://commons.apache.org/proper/commons
 }
 ```
 
-If the expression evaluates to `false`, the step is **skipped** (transitions directly to `COMPLETED`) and the workflow continues.
+If the expression evaluates to `false`, the step does not run and the workflow carries on without
+it: nothing else can start it, and the process finishes around it. (The step execution is left
+`CANCELLED` rather than `COMPLETED` — see [Statuses](/reference/statuses/).)
+
+### …and the other kind: a condition on one link
+
+`preconditionExpression` gates the step **however it is reached**. When what you mean is "only by
+this route", put the condition on the link instead:
+
+```json
+{
+  "id": "ship",
+  "type": "ACTION",
+  "preconditions": [
+    { "stepId": "pack" },
+    { "stepId": "charge", "expression": "amount > 100" }
+  ]
+}
+```
+
+The two behave differently on purpose, and the difference is the whole reason both exist:
+
+| | `preconditionExpression` (on the step) | `expression` (on a link) |
+|---|---|---|
+| Applies to | the step, by any route | that one incoming link |
+| When false | the step is skipped and the process finishes | the link is unsatisfied and the step **waits** |
+| Re-evaluated | every tick | every tick |
+
+A step waiting on a false link condition is released as soon as what the condition reads changes.
+If nothing ever changes it, the process waits indefinitely — see the caution in
+[Step types](/reference/step-types/).
 
 Available in JEXL expressions: all process variables by name.
 
