@@ -1332,11 +1332,16 @@ export class MateuWorkflowElk extends LitElement {
         return through.length ? through : this.flowPaths;
     }
 
+    /**
+     * Selecting a node changes what the simulation would animate; it does not decide whether it
+     * animates. A paused simulation stays paused — the pause is the operator's, and having a click
+     * on a node undo it made the play/pause button look broken.
+     */
     private focusReachable(id: string) {
         this.focusMode = "reachable";
         this.focusNodeId = id;
         this.activePaths = this.pathsThrough(id);
-        if (!this.isMonitoring()) { this.restartFlow(); this.flowOn = true; } // don't wake the sim in a monitor
+        if (this.flowOn && !this.isMonitoring()) this.restartFlow(); // never wakes it, only re-aims it
         this.requestUpdate();
     }
 
@@ -1351,9 +1356,8 @@ export class MateuWorkflowElk extends LitElement {
         }
         this.activePaths = through;
         this.pulsedThisPath = new Set();
-        if (!this.isMonitoring()) {
+        if (this.flowOn && !this.isMonitoring()) {
             this.flowStartTs = performance.now(); // restart the token from this path's beginning
-            this.flowOn = true;
         }
         this.requestUpdate();
     }
