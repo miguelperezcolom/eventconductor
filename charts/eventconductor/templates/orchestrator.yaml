@@ -70,6 +70,13 @@ spec:
               value: {{ .Values.orchestrator.ddlAuto | quote }}
             - name: FLYWAY_ENABLED
               value: {{ .Values.orchestrator.flywayEnabled | quote }}
+            - name: SPRING_FLYWAY_TABLE
+              value: {{ .Values.orchestrator.flywayTable | quote }}
+            # Baseline at 0 so V1 is applied even though the schema is not empty: the
+            # three apps share one database, so "not empty" means somebody else got
+            # here first, not that this app's tables exist. Every V1 is IF NOT EXISTS.
+            - name: SPRING_FLYWAY_BASELINE_VERSION
+              value: "0"
             - name: KAFKA_CONCURRENCY
               value: {{ .Values.orchestrator.consumerConcurrency | quote }}
             - name: DB_POOL_SIZE

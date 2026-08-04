@@ -178,7 +178,18 @@ spring:
     enabled: ${FLYWAY_ENABLED:true}
     locations: classpath:db/migration/workflow
     baseline-on-migrate: true
-    baseline-version: 1
+    # Baseline at 0, not at 1, so V1 is always applied. Flyway's baseline-on-migrate treats a
+    # non-empty schema as "my schema is already here" and skips V1 — a fair guess for one app per
+    # database, and wrong for the deployment the chart actually describes, where three apps share
+    # one. Whichever starts second finds tables (somebody else's), skips its own baseline and dies
+    # on the first migration that touches a table it never created. Every V1 here creates only
+    # IF NOT EXISTS, so applying it to a schema that already has those tables does nothing.
+    baseline-version: 0
+    # The engine keeps the default name — it owns the schema, and deployments that already ran it
+    # alone must not suddenly find an empty history. Forms and rules take suffixed tables instead:
+    # all three are routinely pointed at one database, and each carries a different set of
+    # migrations under the same version numbers.
+    table: ${FLYWAY_TABLE:flyway_schema_history}
     out-of-order: false
     validate-on-migrate: true
 
