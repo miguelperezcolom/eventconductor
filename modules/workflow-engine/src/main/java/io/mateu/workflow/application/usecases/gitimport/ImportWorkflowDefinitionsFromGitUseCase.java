@@ -1,6 +1,8 @@
 package io.mateu.workflow.application.usecases.gitimport;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
 import io.mateu.workflow.application.services.DefinitionFileFormat;
@@ -163,6 +165,8 @@ public class ImportWorkflowDefinitionsFromGitUseCase {
             return;
         }
 
+        adoptLegacyStatus(node, fileName);
+
         var definition = objectMapper.treeToValue(node, WorkflowDefinition.class);
 
         boolean hadExplicitId = definition.id() != null && !definition.id().isBlank();
@@ -205,6 +209,34 @@ public class ImportWorkflowDefinitionsFromGitUseCase {
         log.info("Imported workflow definition '{}' (id={}) from {}",
                 definition.name(), definition.id(), repoRoot.relativize(file));
         imported.add(definition.name() + " [" + definition.id() + "]");
+    }
+
+    /**
+     * Reads a legacy {@code status} — DRAFT / ACTIVE / DISABLED / ARCHIVED — and drops it.
+     *
+     * <p>The graph editor used to write that field, and the engine has never had it: it is not in
+     * the schema, and the parser rejects properties it does not know, so a file carrying one did
+     * not fail validation with a clear message — it failed to import at all, logged as a skipped
+     * file. Anyone who used the editor's old status dropdown to keep a workflow out of service got
+     * a definition the engine would not read.
+     *
+     * <p>DISABLED and ARCHIVED said something, and they say it in the flags now. DRAFT and ACTIVE
+     * meant nothing to the engine and are simply dropped.
+     */
+    static void adoptLegacyStatus(JsonNode node, String fileName) {
+        if (!(node instanceof ObjectNode object) || !object.has("status")) {
+            return;
+        }
+        var status = object.get("status").asText("");
+        object.remove("status");
+        if ("DISABLED".equalsIgnoreCase(status)) {
+            object.put("disabled", true);
+        } else if ("ARCHIVED".equalsIgnoreCase(status)) {
+            object.put("archived", true);
+        }
+        log.info("{} carries a legacy 'status: {}', which this engine has no such field for — read"
+                + " as the disabled/archived flags and dropped. Re-save it from the editor to write"
+                + " the flags directly.", fileName, status);
     }
 
     /**

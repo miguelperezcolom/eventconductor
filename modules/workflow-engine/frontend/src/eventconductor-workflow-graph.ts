@@ -8,7 +8,8 @@ import {neutralButtonStyles, iconCog, iconPlus, iconSitemap, iconFit} from "./ne
 type StepType =
     | "START" | "ACTION" | "USER_TASK" | "RULE" | "TIMER"
     | "WAIT_FOR_MESSAGE" | "SEND_MESSAGE" | "FORK" | "JOIN" | "PROCESS" | "END";
-type WorkflowStatus = "DRAFT" | "ACTIVE" | "DISABLED" | "ARCHIVED";
+/** Written by an older version of this editor into a field the engine has no such thing as. */
+type LegacyWorkflowStatus = "DRAFT" | "ACTIVE" | "DISABLED" | "ARCHIVED";
 
 interface WorkflowStep {
     id: string;
@@ -48,7 +49,20 @@ interface WorkflowDefinition {
     name: string;
     version?: number;
     description?: string;
-    status?: WorkflowStatus;
+    /**
+     * Declares that this workflow is not to run: no new instances, cron included. A floor the
+     * runtime cannot lift, which is what lets a definition live in the repository without being
+     * live.
+     */
+    disabled?: boolean;
+    /** Declares it retired: as disabled, and hidden from the listing. */
+    archived?: boolean;
+    /**
+     * What this editor used to write instead. The engine has no `status` — the field does not
+     * exist in the schema, and a file carrying it does not import at all — so it is read here to
+     * show the state such a file was meant to be in, and dropped the moment anything is saved.
+     */
+    status?: LegacyWorkflowStatus;
     limitConcurrentExecutions?: boolean;
     maxConcurrentExecutions?: number;
     enqueueOnLimit?: boolean;
@@ -1867,8 +1881,38 @@ export class MateuWorkflowElk extends LitElement {
         `;
     }
 
+    /**
+     * Declares the workflow disabled, or lifts it. Archiving implies it, so unticking Disabled
+     * clears both — a workflow cannot be archived and yet open for business.
+     *
+     * <p>Writing the flags always drops a legacy `status`: it is the field this editor used to
+     * write, the engine has no such property, and a file carrying it fails to import.
+     */
+    private setDeclaredDisabled(disabled: boolean) {
+        this.updateWf({
+            disabled: disabled || undefined,
+            archived: disabled ? this.wf.archived : undefined,
+            status: undefined,
+        });
+    }
+
+    private setDeclaredArchived(archived: boolean) {
+        this.updateWf({
+            archived: archived || undefined,
+            disabled: archived ? true : this.wf.disabled,
+            status: undefined,
+        });
+    }
+
+    /** What the definition declares about itself, for the badge. */
+    private declaredState(): "ACTIVE" | "DISABLED" | "ARCHIVED" {
+        if (this.wf.archived || this.wf.status === "ARCHIVED") return "ARCHIVED";
+        if (this.wf.disabled || this.wf.status === "DISABLED") return "DISABLED";
+        return "ACTIVE";
+    }
+
     private renderToolbar() {
-        const status = this.wf.status ?? "DRAFT";
+        const status = this.declaredState();
         return html`
             <div class="toolbar">
                 <span class="wf-name">${this.wf.name}</span>
@@ -1905,11 +1949,18 @@ export class MateuWorkflowElk extends LitElement {
                     <textarea class="inp" rows="2" .value="${wf.description ?? ""}"
                               @change="${(e: Event) => this.updateWf({description: (e.target as HTMLTextAreaElement).value})}"></textarea>
                     <label>Status</label>
-                    <select class="inp"
-                            @change="${(e: Event) => this.updateWf({status: (e.target as HTMLSelectElement).value as WorkflowStatus})}">
-                        ${(["DRAFT", "ACTIVE", "DISABLED", "ARCHIVED"] as WorkflowStatus[]).map(s => html`
-                            <option value="${s}" ?selected="${wf.status === s}">${s}</option>`)}
-                    </select>
+                    <label title="No new instances, cron included. The runtime cannot enable a workflow its definition disables.">
+                        <input type="checkbox"
+                               ?checked="${this.declaredState() !== "ACTIVE"}"
+                               @change="${(e: Event) => this.setDeclaredDisabled((e.target as HTMLInputElement).checked)}"/>
+                        Disabled
+                    </label>
+                    <label title="Retired: as disabled, and hidden from the listing.">
+                        <input type="checkbox"
+                               ?checked="${this.declaredState() === "ARCHIVED"}"
+                               @change="${(e: Event) => this.setDeclaredArchived((e.target as HTMLInputElement).checked)}"/>
+                        Archived
+                    </label>
                     <label>Limit concurrent</label>
                     <input type="checkbox" ?checked="${wf.limitConcurrentExecutions}"
                            @change="${(e: Event) => this.updateWf({limitConcurrentExecutions: (e.target as HTMLInputElement).checked})}"/>
