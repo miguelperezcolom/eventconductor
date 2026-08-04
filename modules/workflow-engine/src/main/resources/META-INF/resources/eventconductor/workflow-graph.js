@@ -1,23 +1,23 @@
-function IDn($, x) {
+function IDn(C, x) {
   for (var R = 0; R < x.length; R++) {
     const X = x[R];
     if (typeof X != "string" && !Array.isArray(X)) {
       for (const q in X)
-        if (q !== "default" && !(q in $)) {
+        if (q !== "default" && !(q in C)) {
           const Ae = Object.getOwnPropertyDescriptor(X, q);
-          Ae && Object.defineProperty($, q, Ae.get ? Ae : {
+          Ae && Object.defineProperty(C, q, Ae.get ? Ae : {
             enumerable: !0,
             get: () => X[q]
           });
         }
     }
   }
-  return Object.freeze(Object.defineProperty($, Symbol.toStringTag, { value: "Module" }));
+  return Object.freeze(Object.defineProperty(C, Symbol.toStringTag, { value: "Module" }));
 }
-const CDn = ($) => (x, R) => {
+const CDn = (C) => (x, R) => {
   R !== void 0 ? R.addInitializer(() => {
-    customElements.define($, x);
-  }) : customElements.define($, x);
+    customElements.define(C, x);
+  }) : customElements.define(C, x);
 };
 const EU = globalThis, Y0e = EU.ShadowRoot && (EU.ShadyCSS === void 0 || EU.ShadyCSS.nativeShadow) && "adoptedStyleSheets" in Document.prototype && "replace" in CSSStyleSheet.prototype, Z0e = /* @__PURE__ */ Symbol(), bfn = /* @__PURE__ */ new WeakMap();
 let Ofn = class {
@@ -38,53 +38,53 @@ let Ofn = class {
     return this.cssText;
   }
 };
-const $Dn = ($) => new Ofn(typeof $ == "string" ? $ : $ + "", void 0, Z0e), Dfn = ($, ...x) => {
-  const R = $.length === 1 ? $[0] : x.reduce((X, q, Ae) => X + ((k) => {
+const $Dn = (C) => new Ofn(typeof C == "string" ? C : C + "", void 0, Z0e), Dfn = (C, ...x) => {
+  const R = C.length === 1 ? C[0] : x.reduce((X, q, Ae) => X + ((k) => {
     if (k._$cssResult$ === !0) return k.cssText;
     if (typeof k == "number") return k;
     throw Error("Value passed to 'css' function must be a 'css' function result: " + k + ". Use 'unsafeCSS' to pass non-literal values, but take care to ensure page security.");
-  })(q) + $[Ae + 1], $[0]);
-  return new Ofn(R, $, Z0e);
-}, PDn = ($, x) => {
-  if (Y0e) $.adoptedStyleSheets = x.map((R) => R instanceof CSSStyleSheet ? R : R.styleSheet);
+  })(q) + C[Ae + 1], C[0]);
+  return new Ofn(R, C, Z0e);
+}, PDn = (C, x) => {
+  if (Y0e) C.adoptedStyleSheets = x.map((R) => R instanceof CSSStyleSheet ? R : R.styleSheet);
   else for (const R of x) {
     const X = document.createElement("style"), q = EU.litNonce;
-    q !== void 0 && X.setAttribute("nonce", q), X.textContent = R.cssText, $.appendChild(X);
+    q !== void 0 && X.setAttribute("nonce", q), X.textContent = R.cssText, C.appendChild(X);
   }
-}, wfn = Y0e ? ($) => $ : ($) => $ instanceof CSSStyleSheet ? ((x) => {
+}, wfn = Y0e ? (C) => C : (C) => C instanceof CSSStyleSheet ? ((x) => {
   let R = "";
   for (const X of x.cssRules) R += X.cssText;
   return $Dn(R);
-})($) : $;
-const { is: xDn, defineProperty: ODn, getOwnPropertyDescriptor: DDn, getOwnPropertyNames: LDn, getOwnPropertySymbols: NDn, getPrototypeOf: FDn } = Object, TU = globalThis, gfn = TU.trustedTypes, RDn = gfn ? gfn.emptyScript : "", BDn = TU.reactiveElementPolyfillSupport, rx = ($, x) => $, AU = { toAttribute($, x) {
+})(C) : C;
+const { is: xDn, defineProperty: ODn, getOwnPropertyDescriptor: DDn, getOwnPropertyNames: LDn, getOwnPropertySymbols: NDn, getPrototypeOf: FDn } = Object, TU = globalThis, gfn = TU.trustedTypes, RDn = gfn ? gfn.emptyScript : "", BDn = TU.reactiveElementPolyfillSupport, rx = (C, x) => C, AU = { toAttribute(C, x) {
   switch (x) {
     case Boolean:
-      $ = $ ? RDn : null;
+      C = C ? RDn : null;
       break;
     case Object:
     case Array:
-      $ = $ == null ? $ : JSON.stringify($);
+      C = C == null ? C : JSON.stringify(C);
   }
-  return $;
-}, fromAttribute($, x) {
-  let R = $;
+  return C;
+}, fromAttribute(C, x) {
+  let R = C;
   switch (x) {
     case Boolean:
-      R = $ !== null;
+      R = C !== null;
       break;
     case Number:
-      R = $ === null ? null : Number($);
+      R = C === null ? null : Number(C);
       break;
     case Object:
     case Array:
       try {
-        R = JSON.parse($);
+        R = JSON.parse(C);
       } catch {
         R = null;
       }
   }
   return R;
-} }, ebe = ($, x) => !xDn($, x), pfn = { attribute: !0, type: String, converter: AU, reflect: !1, useDefault: !1, hasChanged: ebe };
+} }, ebe = (C, x) => !xDn(C, x), pfn = { attribute: !0, type: String, converter: AU, reflect: !1, useDefault: !1, hasChanged: ebe };
 Symbol.metadata ??= /* @__PURE__ */ Symbol("metadata"), TU.litPropertyMetadata ??= /* @__PURE__ */ new WeakMap();
 let NE = class extends HTMLElement {
   static addInitializer(x) {
@@ -268,54 +268,54 @@ let NE = class extends HTMLElement {
   }
 };
 NE.elementStyles = [], NE.shadowRootOptions = { mode: "open" }, NE[rx("elementProperties")] = /* @__PURE__ */ new Map(), NE[rx("finalized")] = /* @__PURE__ */ new Map(), BDn?.({ ReactiveElement: NE }), (TU.reactiveElementVersions ??= []).push("2.1.2");
-const _Dn = { attribute: !0, type: String, converter: AU, reflect: !1, hasChanged: ebe }, JDn = ($ = _Dn, x, R) => {
+const _Dn = { attribute: !0, type: String, converter: AU, reflect: !1, hasChanged: ebe }, JDn = (C = _Dn, x, R) => {
   const { kind: X, metadata: q } = R;
   let Ae = globalThis.litPropertyMetadata.get(q);
-  if (Ae === void 0 && globalThis.litPropertyMetadata.set(q, Ae = /* @__PURE__ */ new Map()), X === "setter" && (($ = Object.create($)).wrapped = !0), Ae.set(R.name, $), X === "accessor") {
+  if (Ae === void 0 && globalThis.litPropertyMetadata.set(q, Ae = /* @__PURE__ */ new Map()), X === "setter" && ((C = Object.create(C)).wrapped = !0), Ae.set(R.name, C), X === "accessor") {
     const { name: k } = R;
     return { set(ln) {
       const Le = x.get.call(this);
-      x.set.call(this, ln), this.requestUpdate(k, Le, $, !0, ln);
+      x.set.call(this, ln), this.requestUpdate(k, Le, C, !0, ln);
     }, init(ln) {
-      return ln !== void 0 && this.C(k, void 0, $, ln), ln;
+      return ln !== void 0 && this.C(k, void 0, C, ln), ln;
     } };
   }
   if (X === "setter") {
     const { name: k } = R;
     return function(ln) {
       const Le = this[k];
-      x.call(this, ln), this.requestUpdate(k, Le, $, !0, ln);
+      x.call(this, ln), this.requestUpdate(k, Le, C, !0, ln);
     };
   }
   throw Error("Unsupported decorator location: " + X);
 };
-function _E($) {
-  return (x, R) => typeof R == "object" ? JDn($, x, R) : ((X, q, Ae) => {
+function _E(C) {
+  return (x, R) => typeof R == "object" ? JDn(C, x, R) : ((X, q, Ae) => {
     const k = q.hasOwnProperty(Ae);
     return q.constructor.createProperty(Ae, X), k ? Object.getOwnPropertyDescriptor(q, Ae) : void 0;
-  })($, x, R);
+  })(C, x, R);
 }
-function vf($) {
-  return _E({ ...$, state: !0, attribute: !1 });
+function vf(C) {
+  return _E({ ...C, state: !0, attribute: !1 });
 }
-const nbe = globalThis, mfn = ($) => $, MU = nbe.trustedTypes, vfn = MU ? MU.createPolicy("lit-html", { createHTML: ($) => $ }) : void 0, Lfn = "$lit$", t6 = `lit$${Math.random().toFixed(9).slice(2)}$`, Nfn = "?" + t6, GDn = `<${Nfn}>`, wk = document, sx = () => wk.createComment(""), ox = ($) => $ === null || typeof $ != "object" && typeof $ != "function", tbe = Array.isArray, qDn = ($) => tbe($) || typeof $?.[Symbol.iterator] == "function", X0e = `[ 	
+const nbe = globalThis, mfn = (C) => C, MU = nbe.trustedTypes, vfn = MU ? MU.createPolicy("lit-html", { createHTML: (C) => C }) : void 0, Lfn = "$lit$", t6 = `lit$${Math.random().toFixed(9).slice(2)}$`, Nfn = "?" + t6, GDn = `<${Nfn}>`, wk = document, sx = () => wk.createComment(""), ox = (C) => C === null || typeof C != "object" && typeof C != "function", tbe = Array.isArray, qDn = (C) => tbe(C) || typeof C?.[Symbol.iterator] == "function", X0e = `[ 	
 \f\r]`, ix = /<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g, kfn = /-->/g, yfn = />/g, dk = RegExp(`>|${X0e}(?:([^\\s"'>=/]+)(${X0e}*=${X0e}*(?:[^ 	
-\f\r"'\`<>=]|("|')|))|$)`, "g"), jfn = /'/g, Efn = /"/g, Ffn = /^(?:script|style|textarea|title)$/i, Rfn = ($) => (x, ...R) => ({ _$litType$: $, strings: x, values: R }), Ar = Rfn(1), jc = Rfn(2), RE = /* @__PURE__ */ Symbol.for("lit-noChange"), Mi = /* @__PURE__ */ Symbol.for("lit-nothing"), Afn = /* @__PURE__ */ new WeakMap(), bk = wk.createTreeWalker(wk, 129);
-function Bfn($, x) {
-  if (!tbe($) || !$.hasOwnProperty("raw")) throw Error("invalid template strings array");
+\f\r"'\`<>=]|("|')|))|$)`, "g"), jfn = /'/g, Efn = /"/g, Ffn = /^(?:script|style|textarea|title)$/i, Rfn = (C) => (x, ...R) => ({ _$litType$: C, strings: x, values: R }), Ar = Rfn(1), jc = Rfn(2), RE = /* @__PURE__ */ Symbol.for("lit-noChange"), Mi = /* @__PURE__ */ Symbol.for("lit-nothing"), Afn = /* @__PURE__ */ new WeakMap(), bk = wk.createTreeWalker(wk, 129);
+function Bfn(C, x) {
+  if (!tbe(C) || !C.hasOwnProperty("raw")) throw Error("invalid template strings array");
   return vfn !== void 0 ? vfn.createHTML(x) : x;
 }
-const HDn = ($, x) => {
-  const R = $.length - 1, X = [];
+const HDn = (C, x) => {
+  const R = C.length - 1, X = [];
   let q, Ae = x === 2 ? "<svg>" : x === 3 ? "<math>" : "", k = ix;
   for (let ln = 0; ln < R; ln++) {
-    const Le = $[ln];
+    const Le = C[ln];
     let Je, $n, Fn = -1, yn = 0;
     for (; yn < Le.length && (k.lastIndex = yn, $n = k.exec(Le), $n !== null); ) yn = k.lastIndex, k === ix ? $n[1] === "!--" ? k = kfn : $n[1] !== void 0 ? k = yfn : $n[2] !== void 0 ? (Ffn.test($n[2]) && (q = RegExp("</" + $n[2], "g")), k = dk) : $n[3] !== void 0 && (k = dk) : k === dk ? $n[0] === ">" ? (k = q ?? ix, Fn = -1) : $n[1] === void 0 ? Fn = -2 : (Fn = k.lastIndex - $n[2].length, Je = $n[1], k = $n[3] === void 0 ? dk : $n[3] === '"' ? Efn : jfn) : k === Efn || k === jfn ? k = dk : k === kfn || k === yfn ? k = ix : (k = dk, q = void 0);
-    const Xn = k === dk && $[ln + 1].startsWith("/>") ? " " : "";
+    const Xn = k === dk && C[ln + 1].startsWith("/>") ? " " : "";
     Ae += k === ix ? Le + GDn : Fn >= 0 ? (X.push(Je), Le.slice(0, Fn) + Lfn + Le.slice(Fn) + t6 + Xn) : Le + t6 + (Fn === -2 ? ln : Xn);
   }
-  return [Bfn($, Ae + ($[R] || "<?>") + (x === 2 ? "</svg>" : x === 3 ? "</math>" : "")), X];
+  return [Bfn(C, Ae + (C[R] || "<?>") + (x === 2 ? "</svg>" : x === 3 ? "</math>" : "")), X];
 };
 class fx {
   constructor({ strings: x, _$litType$: R }, X) {
@@ -354,11 +354,11 @@ class fx {
     return X.innerHTML = x, X;
   }
 }
-function BE($, x, R = $, X) {
+function BE(C, x, R = C, X) {
   if (x === RE) return x;
   let q = X !== void 0 ? R._$Co?.[X] : R._$Cl;
   const Ae = ox(x) ? void 0 : x._$litDirective$;
-  return q?.constructor !== Ae && (q?._$AO?.(!1), Ae === void 0 ? q = void 0 : (q = new Ae($), q._$AT($, R, X)), X !== void 0 ? (R._$Co ??= [])[X] = q : R._$Cl = q), q !== void 0 && (x = BE($, q._$AS($, x.values), q, X)), x;
+  return q?.constructor !== Ae && (q?._$AO?.(!1), Ae === void 0 ? q = void 0 : (q = new Ae(C), q._$AT(C, R, X)), X !== void 0 ? (R._$Co ??= [])[X] = q : R._$Cl = q), q !== void 0 && (x = BE(C, q._$AS(C, x.values), q, X)), x;
 }
 class UDn {
   constructor(x, R) {
@@ -514,14 +514,14 @@ class WDn {
 }
 const VDn = nbe.litHtmlPolyfillSupport;
 VDn?.(fx, hx), (nbe.litHtmlVersions ??= []).push("3.3.3");
-const QDn = ($, x, R) => {
+const QDn = (C, x, R) => {
   const X = R?.renderBefore ?? x;
   let q = X._$litPart$;
   if (q === void 0) {
     const Ae = R?.renderBefore ?? null;
     X._$litPart$ = q = new hx(x.insertBefore(sx(), Ae), Ae, void 0, R ?? {});
   }
-  return q._$AI($), q;
+  return q._$AI(C), q;
 };
 const ibe = globalThis;
 class cx extends NE {
@@ -579,9 +579,9 @@ const ZDn = Dfn`
     }
     .nbtn.primary:hover { background: var(--lumo-primary-color, #1676f3); filter: brightness(1.08); }
     .nbtn svg { width: 1em; height: 1em; flex-shrink: 0; }
-`, gk = ($) => jc`
+`, gk = (C) => jc`
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${$}</svg>`, eLn = gk(jc`
+         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${C}</svg>`, eLn = gk(jc`
     <circle cx="12" cy="12" r="3"></circle>
     <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>`), nLn = gk(jc`
     <line x1="12" y1="5" x2="12" y2="19"></line>
@@ -603,12 +603,17 @@ gk(jc`
 gk(jc`
     <line x1="18" y1="6" x2="6" y2="18"></line>
     <line x1="6" y1="6" x2="18" y2="18"></line>`);
-var rLn = Object.defineProperty, cLn = Object.getOwnPropertyDescriptor, ss = ($, x, R, X) => {
-  for (var q = X > 1 ? void 0 : X ? cLn(x, R) : x, Ae = $.length - 1, k; Ae >= 0; Ae--)
-    (k = $[Ae]) && (q = (X ? k(x, R, q) : k(q)) || q);
+var rLn = Object.defineProperty, cLn = Object.getOwnPropertyDescriptor, ss = (C, x, R, X) => {
+  for (var q = X > 1 ? void 0 : X ? cLn(x, R) : x, Ae = C.length - 1, k; Ae >= 0; Ae--)
+    (k = C[Ae]) && (q = (X ? k(x, R, q) : k(q)) || q);
   return X && q && rLn(x, R, q), q;
 };
-const _fn = 176, uLn = 60, e6 = 60, sLn = [
+function uLn(C) {
+  if (!C.status) return C;
+  const { status: x, ...R } = C;
+  return x === "ARCHIVED" ? { ...R, archived: !0, disabled: !0 } : x === "DISABLED" ? { ...R, disabled: !0 } : R;
+}
+const _fn = 176, sLn = 60, e6 = 60, oLn = [
   "START",
   "ACTION",
   "USER_TASK",
@@ -620,7 +625,7 @@ const _fn = 176, uLn = 60, e6 = 60, sLn = [
   "JOIN",
   "PROCESS",
   "END"
-], oLn = {
+], fLn = {
   // BPMN events: start = thin green circle, end = thick red circle.
   START: { fill: "#f0fdf4", stroke: "#16a34a", symbol: "flow" },
   ACTION: { fill: "#ffffff", stroke: "#6d28d9", symbol: "process" },
@@ -634,17 +639,17 @@ const _fn = 176, uLn = 60, e6 = 60, sLn = [
   JOIN: { fill: "#fffbeb", stroke: "#b45309", symbol: "flow" },
   PROCESS: { fill: "#eef2ff", stroke: "#4f46e5", symbol: "component" },
   END: { fill: "#fef2f2", stroke: "#dc2626", symbol: "event" }
-}, fLn = { fill: "#ffffff", stroke: "#94a3b8", symbol: "process" }, Mfn = ($) => oLn[$] ?? fLn, ux = 56;
-function rbe($) {
-  return $ === "START" || $ === "END";
+}, hLn = { fill: "#ffffff", stroke: "#94a3b8", symbol: "process" }, Mfn = (C) => fLn[C] ?? hLn, ux = 56;
+function rbe(C) {
+  return C === "START" || C === "END";
 }
-function cbe($) {
-  return $ === "FORK" || $ === "JOIN";
+function cbe(C) {
+  return C === "FORK" || C === "JOIN";
 }
-function ip($) {
-  return rbe($) || cbe($) ? { w: ux, h: ux } : { w: _fn, h: uLn };
+function ip(C) {
+  return rbe(C) || cbe(C) ? { w: ux, h: ux } : { w: _fn, h: sLn };
 }
-const hLn = {
+const lLn = {
   flow: jc`<path d="M0.5 6 H8"/><path d="M5.5 2.5 L9.5 6 L5.5 9.5"/>`,
   process: jc`<path d="M0.5 3 H7 V0.8 L11.5 6 L7 11.2 V9 H0.5 Z"/>`,
   person: jc`<circle cx="6" cy="3.2" r="2.4"/><path d="M1.5 11.5 C1.5 7.6, 10.5 7.6, 10.5 11.5"/>`,
@@ -653,59 +658,59 @@ const hLn = {
   event: jc`<circle cx="6" cy="6" r="5"/><circle cx="6" cy="6" r="2.6"/>`,
   component: jc`<rect x="3.5" y="0.5" width="8" height="11" rx="1"/><rect x="0.5" y="2.5" width="6" height="2.6"/><rect x="0.5" y="6.9" width="6" height="2.6"/>`
 };
-function lLn($) {
-  switch ($.type) {
+function aLn(C) {
+  switch (C.type) {
     case "ACTION":
-      return $.topic ? "→ " + $.topic : "ACTION";
+      return C.topic ? "→ " + C.topic : "ACTION";
     case "USER_TASK":
-      return "👤 " + ($.formId || "form");
+      return "👤 " + (C.formId || "form");
     case "RULE":
-      return "ƒ " + ($.ruleId || "rule");
+      return "ƒ " + (C.ruleId || "rule");
     case "WAIT_FOR_MESSAGE":
-      return "✉ " + ($.messageName || "message");
+      return "✉ " + (C.messageName || "message");
     case "SEND_MESSAGE":
-      return "✉→ " + ($.messageName || "message");
+      return "✉→ " + (C.messageName || "message");
     case "FORK":
       return "⑃ FORK";
     case "JOIN":
       return "⨝ JOIN";
     case "PROCESS":
-      return "⚙ " + ($.childWorkflowDefinitionId || "subprocess");
+      return "⚙ " + (C.childWorkflowDefinitionId || "subprocess");
     default:
-      return $.type;
+      return C.type;
   }
 }
-function Q0e($, x, R) {
-  const X = x - $.x, q = R - $.y;
-  if (X === 0 && q === 0) return { x: $.x, y: $.y };
-  const Ae = 1 / Math.max(Math.abs(X) / ($.w / 2), Math.abs(q) / ($.h / 2));
-  return { x: $.x + X * Ae, y: $.y + q * Ae };
+function Q0e(C, x, R) {
+  const X = x - C.x, q = R - C.y;
+  if (X === 0 && q === 0) return { x: C.x, y: C.y };
+  const Ae = 1 / Math.max(Math.abs(X) / (C.w / 2), Math.abs(q) / (C.h / 2));
+  return { x: C.x + X * Ae, y: C.y + q * Ae };
 }
-function Tfn($, x, R) {
-  let X = Q0e($, x.x, x.y), q = Q0e(x, $.x, $.y);
+function Tfn(C, x, R) {
+  let X = Q0e(C, x.x, x.y), q = Q0e(x, C.x, C.y);
   if (R !== 0) {
     const Ae = Math.hypot(q.x - X.x, q.y - X.y) || 1, k = -(q.y - X.y) / Ae * R, ln = (q.x - X.x) / Ae * R;
     X = { x: X.x + k, y: X.y + ln }, q = { x: q.x + k, y: q.y + ln };
   }
   return [X, q];
 }
-function aLn($, x, R = 0) {
-  const X = x.x - $.x, q = x.y - $.y, Ae = 0.5;
-  if (Math.abs(X) <= Ae || Math.abs(q) <= Ae) return Tfn($, x, R);
-  const k = X > 0 ? x.x - x.w / 2 - ($.x + $.w / 2) : $.x - $.w / 2 - (x.x + x.w / 2), ln = q > 0 ? x.y - x.h / 2 - ($.y + $.h / 2) : $.y - $.h / 2 - (x.y + x.h / 2), Le = Math.abs(X) >= Math.abs(q), Je = () => {
-    const Fn = { x: $.x + Math.sign(X) * $.w / 2, y: $.y + R }, yn = { x: x.x - Math.sign(X) * x.w / 2, y: x.y + R }, Xn = (Fn.x + yn.x) / 2 + R;
+function dLn(C, x, R = 0) {
+  const X = x.x - C.x, q = x.y - C.y, Ae = 0.5;
+  if (Math.abs(X) <= Ae || Math.abs(q) <= Ae) return Tfn(C, x, R);
+  const k = X > 0 ? x.x - x.w / 2 - (C.x + C.w / 2) : C.x - C.w / 2 - (x.x + x.w / 2), ln = q > 0 ? x.y - x.h / 2 - (C.y + C.h / 2) : C.y - C.h / 2 - (x.y + x.h / 2), Le = Math.abs(X) >= Math.abs(q), Je = () => {
+    const Fn = { x: C.x + Math.sign(X) * C.w / 2, y: C.y + R }, yn = { x: x.x - Math.sign(X) * x.w / 2, y: x.y + R }, Xn = (Fn.x + yn.x) / 2 + R;
     return [Fn, { x: Xn, y: Fn.y }, { x: Xn, y: yn.y }, yn];
   }, $n = () => {
-    const Fn = { x: $.x + R, y: $.y + Math.sign(q) * $.h / 2 }, yn = { x: x.x + R, y: x.y - Math.sign(q) * x.h / 2 }, Xn = (Fn.y + yn.y) / 2 + R;
+    const Fn = { x: C.x + R, y: C.y + Math.sign(q) * C.h / 2 }, yn = { x: x.x + R, y: x.y - Math.sign(q) * x.h / 2 }, Xn = (Fn.y + yn.y) / 2 + R;
     return [Fn, { x: Fn.x, y: Xn }, { x: yn.x, y: Xn }, yn];
   };
-  return k >= 0 && (Le || ln < 0) ? Je() : ln >= 0 ? $n() : k >= 0 ? Je() : Tfn($, x, R);
+  return k >= 0 && (Le || ln < 0) ? Je() : ln >= 0 ? $n() : k >= 0 ? Je() : Tfn(C, x, R);
 }
-function Jfn($, x, R) {
+function Jfn(C, x, R) {
   const X = R.x - R.w / 2, q = R.x + R.w / 2, Ae = R.y - R.h / 2, k = R.y + R.h / 2;
   let ln = 0, Le = 1;
-  const Je = x.x - $.x, $n = x.y - $.y;
-  for (const [Fn, yn] of [[-Je, $.x - X], [Je, q - $.x], [-$n, $.y - Ae], [$n, k - $.y]]) {
+  const Je = x.x - C.x, $n = x.y - C.y;
+  for (const [Fn, yn] of [[-Je, C.x - X], [Je, q - C.x], [-$n, C.y - Ae], [$n, k - C.y]]) {
     if (Fn === 0) {
       if (yn < 0) return !1;
       continue;
@@ -721,24 +726,24 @@ function Jfn($, x, R) {
   }
   return Le - ln > 0.02;
 }
-function Sfn($, x, R) {
-  const X = x - $.x, q = R - $.y, Ae = $.w / 2, k = $.h / 2;
-  if (Math.abs(X) >= Math.abs(q) && Math.abs(q) <= k) return { x: $.x + Math.sign(X) * Ae, y: R };
-  if (Math.abs(q) >= Math.abs(X) && Math.abs(X) <= Ae) return { x, y: $.y + Math.sign(q) * k };
-  if (X === 0 && q === 0) return { x: $.x, y: $.y };
+function Sfn(C, x, R) {
+  const X = x - C.x, q = R - C.y, Ae = C.w / 2, k = C.h / 2;
+  if (Math.abs(X) >= Math.abs(q) && Math.abs(q) <= k) return { x: C.x + Math.sign(X) * Ae, y: R };
+  if (Math.abs(q) >= Math.abs(X) && Math.abs(X) <= Ae) return { x, y: C.y + Math.sign(q) * k };
+  if (X === 0 && q === 0) return { x: C.x, y: C.y };
   const ln = 1 / Math.max(Math.abs(X) / Ae, Math.abs(q) / k);
-  return { x: $.x + X * ln, y: $.y + q * ln };
+  return { x: C.x + X * ln, y: C.y + q * ln };
 }
-function dLn($, x, R, X = 0, q = 22) {
+function bLn(C, x, R, X = 0, q = 22) {
   const Ae = (ct) => {
     let zn = 0;
     for (let Jt = 0; Jt < ct.length - 1; Jt++)
       for (const Mr of R)
         Jfn(ct[Jt], ct[Jt + 1], { x: Mr.x, y: Mr.y, w: Mr.w + 2 * q, h: Mr.h + 2 * q }) && zn++;
     return zn;
-  }, k = aLn($, x, X), ln = Ae(k);
+  }, k = dLn(C, x, X), ln = Ae(k);
   if (ln === 0) return k;
-  const Le = { x: $.x, y: $.y }, Je = { x: x.x, y: x.y }, $n = [[{ x: Je.x, y: Le.y }], [{ x: Le.x, y: Je.y }]];
+  const Le = { x: C.x, y: C.y }, Je = { x: x.x, y: x.y }, $n = [[{ x: Je.x, y: Le.y }], [{ x: Le.x, y: Je.y }]];
   for (const ct of [0.5, 0.38, 0.62, 0.26, 0.74]) {
     const zn = Le.x + (Je.x - Le.x) * ct, Jt = Le.y + (Je.y - Le.y) * ct;
     $n.push([{ x: zn, y: Le.y }, { x: zn, y: Je.y }]), $n.push([{ x: Le.x, y: Jt }, { x: Je.x, y: Jt }]);
@@ -753,35 +758,35 @@ function dLn($, x, R, X = 0, q = 22) {
     const zn = [Le, ...ct, Je], Jt = Ae(zn), Mr = Jt * 1e6 + n6(zn) + ct.length * 40;
     Mr < Ec && (Se = ct, Ec = Mr, wi = Jt);
   }
-  return Se && wi < ln ? [Sfn($, Se[0].x, Se[0].y), ...Se, Sfn(x, Se[Se.length - 1].x, Se[Se.length - 1].y)] : k;
+  return Se && wi < ln ? [Sfn(C, Se[0].x, Se[0].y), ...Se, Sfn(x, Se[Se.length - 1].x, Se[Se.length - 1].y)] : k;
 }
-function bLn($, x, R, X, q) {
+function wLn(C, x, R, X, q) {
   const Ae = q === "L" || q === "R", k = q === "R" || q === "B" ? 1 : -1, ln = (Le, Je) => Math.max(-Je, Math.min(Je, Le));
   if (rbe(R)) {
     const Le = ux / 2 - 3;
     if (Ae) {
       const $n = ln(X.y - x, Le - 1);
-      return { x: $ + k * Math.sqrt(Le * Le - $n * $n), y: x + $n };
+      return { x: C + k * Math.sqrt(Le * Le - $n * $n), y: x + $n };
     }
-    const Je = ln(X.x - $, Le - 1);
-    return { x: $ + Je, y: x + k * Math.sqrt(Le * Le - Je * Je) };
+    const Je = ln(X.x - C, Le - 1);
+    return { x: C + Je, y: x + k * Math.sqrt(Le * Le - Je * Je) };
   }
   if (cbe(R)) {
     const Le = ux / 2 - 2, Je = ux / 2 - 2;
     if (Ae) {
       const Fn = ln(X.y - x, Je - 1);
-      return { x: $ + k * Le * (1 - Math.abs(Fn) / Je), y: x + Fn };
+      return { x: C + k * Le * (1 - Math.abs(Fn) / Je), y: x + Fn };
     }
-    const $n = ln(X.x - $, Le - 1);
-    return { x: $ + $n, y: x + k * Je * (1 - Math.abs($n) / Le) };
+    const $n = ln(X.x - C, Le - 1);
+    return { x: C + $n, y: x + k * Je * (1 - Math.abs($n) / Le) };
   }
   return X;
 }
-function Ifn($, x, R) {
-  return x === "R" ? { x: $.x + R, y: $.y } : x === "L" ? { x: $.x - R, y: $.y } : x === "T" ? { x: $.x, y: $.y - R } : { x: $.x, y: $.y + R };
+function Ifn(C, x, R) {
+  return x === "R" ? { x: C.x + R, y: C.y } : x === "L" ? { x: C.x - R, y: C.y } : x === "T" ? { x: C.x, y: C.y - R } : { x: C.x, y: C.y + R };
 }
-function wLn($, x, R, X, q, Ae = [], k = 20) {
-  const Le = Ifn($, x, 16), Je = Ifn(R, X, 16), $n = (zn) => {
+function gLn(C, x, R, X, q, Ae = [], k = 20) {
+  const Le = Ifn(C, x, 16), Je = Ifn(R, X, 16), $n = (zn) => {
     let Jt = 0;
     for (let Mr = 0; Mr < zn.length - 1; Mr++)
       for (const Ku of q)
@@ -808,81 +813,81 @@ function wLn($, x, R, X, q, Ae = [], k = 20) {
   }
   let wi = yn[0], ct = 1 / 0;
   for (const zn of yn) {
-    const Jt = [$, Le, ...zn, Je, R], Mr = $n(Jt) * 1e6 + Fn(Jt) * 2e3 + n6(Jt) + zn.length * 40;
+    const Jt = [C, Le, ...zn, Je, R], Mr = $n(Jt) * 1e6 + Fn(Jt) * 2e3 + n6(Jt) + zn.length * 40;
     Mr < ct && (wi = zn, ct = Mr);
   }
-  return [$, Le, ...wi, Je, R];
+  return [C, Le, ...wi, Je, R];
 }
-function gLn($, x, R, X) {
-  const q = x.x - $.x, Ae = x.y - $.y, k = X.x - R.x, ln = X.y - R.y, Le = q * ln - Ae * k;
+function pLn(C, x, R, X) {
+  const q = x.x - C.x, Ae = x.y - C.y, k = X.x - R.x, ln = X.y - R.y, Le = q * ln - Ae * k;
   if (Math.abs(Le) < 1e-9) return null;
-  const Je = ((R.x - $.x) * ln - (R.y - $.y) * k) / Le, $n = ((R.x - $.x) * Ae - (R.y - $.y) * q) / Le;
-  return Je <= 0.02 || Je >= 0.98 || $n <= 0.02 || $n >= 0.98 ? null : { x: $.x + Je * q, y: $.y + Je * Ae, t: Je };
+  const Je = ((R.x - C.x) * ln - (R.y - C.y) * k) / Le, $n = ((R.x - C.x) * Ae - (R.y - C.y) * q) / Le;
+  return Je <= 0.02 || Je >= 0.98 || $n <= 0.02 || $n >= 0.98 ? null : { x: C.x + Je * q, y: C.y + Je * Ae, t: Je };
 }
-function Cfn($, x, R, X) {
-  const q = Math.hypot(x.x - $.x, x.y - $.y) || 1, Ae = (x.x - $.x) / q, k = (x.y - $.y) / q, ln = R.map(([$n, Fn]) => gLn($, x, $n, Fn)).filter(($n) => $n !== null).filter(($n) => $n.t * q > X + 2 && (1 - $n.t) * q > X + 2).sort(($n, Fn) => $n.t - Fn.t);
+function Cfn(C, x, R, X) {
+  const q = Math.hypot(x.x - C.x, x.y - C.y) || 1, Ae = (x.x - C.x) / q, k = (x.y - C.y) / q, ln = R.map(([$n, Fn]) => pLn(C, x, $n, Fn)).filter(($n) => $n !== null).filter(($n) => $n.t * q > X + 2 && (1 - $n.t) * q > X + 2).sort(($n, Fn) => $n.t - Fn.t);
   let Le = "", Je = -1 / 0;
   for (const $n of ln)
     $n.t * q - X <= Je + 2 || (Le += ` L ${$n.x - Ae * X} ${$n.y - k * X}`, Le += ` A ${X} ${X} 0 0 1 ${$n.x + Ae * X} ${$n.y + k * X}`, Je = $n.t * q + X);
   return Le + ` L ${x.x} ${x.y}`;
 }
-function pLn($, x, R = 9, X = 6) {
-  if ($.length < 2) return $.length ? `M ${$[0].x} ${$[0].y}` : "";
-  let q = `M ${$[0].x} ${$[0].y}`, Ae = $[0];
-  for (let k = 1; k < $.length - 1; k++) {
-    const ln = $[k], Le = $[k + 1], Je = Math.hypot(ln.x - Ae.x, ln.y - Ae.y) || 1, $n = Math.hypot(Le.x - ln.x, Le.y - ln.y) || 1, Fn = Math.min(R, Je / 2, $n / 2), yn = { x: ln.x + (Ae.x - ln.x) / Je * Fn, y: ln.y + (Ae.y - ln.y) / Je * Fn }, Xn = { x: ln.x + (Le.x - ln.x) / $n * Fn, y: ln.y + (Le.y - ln.y) / $n * Fn };
+function mLn(C, x, R = 9, X = 6) {
+  if (C.length < 2) return C.length ? `M ${C[0].x} ${C[0].y}` : "";
+  let q = `M ${C[0].x} ${C[0].y}`, Ae = C[0];
+  for (let k = 1; k < C.length - 1; k++) {
+    const ln = C[k], Le = C[k + 1], Je = Math.hypot(ln.x - Ae.x, ln.y - Ae.y) || 1, $n = Math.hypot(Le.x - ln.x, Le.y - ln.y) || 1, Fn = Math.min(R, Je / 2, $n / 2), yn = { x: ln.x + (Ae.x - ln.x) / Je * Fn, y: ln.y + (Ae.y - ln.y) / Je * Fn }, Xn = { x: ln.x + (Le.x - ln.x) / $n * Fn, y: ln.y + (Le.y - ln.y) / $n * Fn };
     q += Cfn(Ae, yn, x, X), q += ` Q ${ln.x} ${ln.y} ${Xn.x} ${Xn.y}`, Ae = Xn;
   }
-  return q + Cfn(Ae, $[$.length - 1], x, X);
+  return q + Cfn(Ae, C[C.length - 1], x, X);
 }
-function $fn($, x = 0.5) {
+function $fn(C, x = 0.5) {
   let R = 0;
-  for (let q = 0; q < $.length - 1; q++) R += Math.hypot($[q + 1].x - $[q].x, $[q + 1].y - $[q].y);
+  for (let q = 0; q < C.length - 1; q++) R += Math.hypot(C[q + 1].x - C[q].x, C[q + 1].y - C[q].y);
   let X = R * Math.min(Math.max(x, 0), 1);
-  for (let q = 0; q < $.length - 1; q++) {
-    const Ae = Math.hypot($[q + 1].x - $[q].x, $[q + 1].y - $[q].y);
+  for (let q = 0; q < C.length - 1; q++) {
+    const Ae = Math.hypot(C[q + 1].x - C[q].x, C[q + 1].y - C[q].y);
     if (Ae >= X && Ae > 0) {
       const k = X / Ae;
-      return { x: $[q].x + ($[q + 1].x - $[q].x) * k, y: $[q].y + ($[q + 1].y - $[q].y) * k };
+      return { x: C[q].x + (C[q + 1].x - C[q].x) * k, y: C[q].y + (C[q + 1].y - C[q].y) * k };
     }
     X -= Ae;
   }
-  return $[Math.floor($.length / 2)];
+  return C[Math.floor(C.length / 2)];
 }
-function n6($) {
+function n6(C) {
   let x = 0;
-  for (let R = 0; R < $.length - 1; R++) x += Math.hypot($[R + 1].x - $[R].x, $[R + 1].y - $[R].y);
+  for (let R = 0; R < C.length - 1; R++) x += Math.hypot(C[R + 1].x - C[R].x, C[R + 1].y - C[R].y);
   return x;
 }
 let W0e;
-const mLn = () => (W0e || (W0e = Promise.resolve().then(() => MLn).then(($) => new $.default())), W0e);
-function vLn() {
+const vLn = () => (W0e || (W0e = Promise.resolve().then(() => TLn).then((C) => new C.default())), W0e);
+function kLn() {
   return "step-" + Math.random().toString(36).slice(2, 8);
 }
-function FE($) {
-  return $.preconditions && $.preconditions.length > 0 ? $.preconditions.filter((x) => x && x.stepId) : $.preconditionStepIds && $.preconditionStepIds.length > 0 ? $.preconditionStepIds.filter(Boolean).map((x) => ({ stepId: x })) : $.preconditionStepId ? [{ stepId: $.preconditionStepId }] : [];
+function FE(C) {
+  return C.preconditions && C.preconditions.length > 0 ? C.preconditions.filter((x) => x && x.stepId) : C.preconditionStepIds && C.preconditionStepIds.length > 0 ? C.preconditionStepIds.filter(Boolean).map((x) => ({ stepId: x })) : C.preconditionStepId ? [{ stepId: C.preconditionStepId }] : [];
 }
-function kLn($, x) {
-  const R = FE($).find((X) => X.stepId === x)?.expression?.trim();
+function yLn(C, x) {
+  const R = FE(C).find((X) => X.stepId === x)?.expression?.trim();
   return R || void 0;
 }
-function q1($) {
-  return FE($).map((x) => x.stepId);
+function q1(C) {
+  return FE(C).map((x) => x.stepId);
 }
-function Gfn($) {
+function Gfn(C) {
   const x = /* @__PURE__ */ new Set();
-  for (const R of $) R.rollbackable && R.compensationStepId && x.add(R.compensationStepId);
+  for (const R of C) R.rollbackable && R.compensationStepId && x.add(R.compensationStepId);
   return x;
 }
-function yLn($) {
-  const x = new Set($.map((Je) => Je.id)), R = Gfn($), X = {}, q = /* @__PURE__ */ new Set();
-  for (const Je of $) {
+function jLn(C) {
+  const x = new Set(C.map((Je) => Je.id)), R = Gfn(C), X = {}, q = /* @__PURE__ */ new Set();
+  for (const Je of C) {
     if (!R.has(Je.id))
       for (const $n of q1(Je))
         x.has($n) && ((X[$n] ??= []).push(Je.id), q.add(Je.id));
     Je.rollbackable && Je.compensationStepId && x.has(Je.compensationStepId) && ((X[Je.id] ??= []).push(Je.compensationStepId), q.add(Je.compensationStepId));
   }
-  const Ae = $.map((Je) => Je.id).filter((Je) => !q.has(Je)), k = [], ln = 200, Le = (Je, $n, Fn) => {
+  const Ae = C.map((Je) => Je.id).filter((Je) => !q.has(Je)), k = [], ln = 200, Le = (Je, $n, Fn) => {
     if (k.length >= ln) return;
     $n.push(Je), Fn.add(Je);
     const yn = (X[Je] ?? []).filter((Xn) => !Fn.has(Xn));
@@ -897,9 +902,9 @@ function yLn($) {
 }
 let Lu = class extends cx {
   constructor() {
-    super(...arguments), this.value = '{"name":"New Workflow","steps":[]}', this.readOnly = !1, this.noExpand = !1, this.overlay = "", this.dark = !1, this.wf = { name: "New Workflow", steps: [] }, this.overlayData = {}, this.positions = {}, this.layoutReady = !1, this.selectedId = null, this.selectedEdge = null, this.hoverId = null, this.showMeta = !1, this.layoutError = null, this.fullscreen = !1, this.flowOn = !0, this.flowSpeed = 260, this.heatmapOn = !1, this.heatDays = 30, this.heatMax = 0, this.flowRaf = 0, this.flowStartTs = 0, this.flowPaths = [], this.flowPathIndex = 0, this.pulsedThisPath = /* @__PURE__ */ new Set(), this.pulseAt = {}, this.pulseColor = {}, this.flowPrevPosD = 0, this.focusMode = "auto", this.focusNodeId = null, this.activePaths = [], this.focusPaint = null, this.edgeCache = /* @__PURE__ */ new Map(), this.draggingId = null, this.dragOffset = { x: 0, y: 0 }, this.svgEl = null, this.elkPositioned = /* @__PURE__ */ new Set(), this.linkingFrom = null, this.linkCursor = null, this.linkHoverId = null, this.zoomK = 1, this.panX = 0, this.panY = 0, this.viewW = 0, this.viewH = 0, this.didInitialFit = !1, this.viewportSetup = !1, this.panning = !1, this.panMoved = !1, this.panStart = { x: 0, y: 0, panX: 0, panY: 0 }, this.miniDrag = !1, this.onMouseMove = ($) => {
+    super(...arguments), this.value = '{"name":"New Workflow","steps":[]}', this.readOnly = !1, this.noExpand = !1, this.overlay = "", this.dark = !1, this.wf = { name: "New Workflow", steps: [] }, this.overlayData = {}, this.positions = {}, this.layoutReady = !1, this.selectedId = null, this.selectedEdge = null, this.hoverId = null, this.showMeta = !1, this.layoutError = null, this.fullscreen = !1, this.flowOn = !0, this.flowSpeed = 260, this.heatmapOn = !1, this.heatDays = 30, this.heatMax = 0, this.flowRaf = 0, this.flowStartTs = 0, this.flowPaths = [], this.flowPathIndex = 0, this.pulsedThisPath = /* @__PURE__ */ new Set(), this.pulseAt = {}, this.pulseColor = {}, this.flowPrevPosD = 0, this.focusMode = "auto", this.focusNodeId = null, this.activePaths = [], this.focusPaint = null, this.edgeCache = /* @__PURE__ */ new Map(), this.draggingId = null, this.dragOffset = { x: 0, y: 0 }, this.svgEl = null, this.elkPositioned = /* @__PURE__ */ new Set(), this.linkingFrom = null, this.linkCursor = null, this.linkHoverId = null, this.zoomK = 1, this.panX = 0, this.panY = 0, this.viewW = 0, this.viewH = 0, this.didInitialFit = !1, this.viewportSetup = !1, this.panning = !1, this.panMoved = !1, this.panStart = { x: 0, y: 0, panX: 0, panY: 0 }, this.miniDrag = !1, this.onMouseMove = (C) => {
       if (!this.draggingId || !this.svgEl) return;
-      const x = this.toSvgPoint($);
+      const x = this.toSvgPoint(C);
       this.elkPositioned.add(this.draggingId), this.positions = {
         ...this.positions,
         [this.draggingId]: {
@@ -909,48 +914,48 @@ let Lu = class extends cx {
       };
     }, this.onMouseUp = () => {
       this.draggingId = null, window.removeEventListener("mousemove", this.onMouseMove), window.removeEventListener("mouseup", this.onMouseUp);
-    }, this.onLinkMove = ($) => {
-      this.linkingFrom && (this.linkCursor = this.toSvgPoint($), this.linkHoverId = this.nodeAt(this.linkCursor));
+    }, this.onLinkMove = (C) => {
+      this.linkingFrom && (this.linkCursor = this.toSvgPoint(C), this.linkHoverId = this.nodeAt(this.linkCursor));
     }, this.onLinkUp = () => {
-      const $ = this.linkingFrom, x = this.linkHoverId;
-      this.linkingFrom = null, this.linkCursor = null, this.linkHoverId = null, window.removeEventListener("mousemove", this.onLinkMove), window.removeEventListener("mouseup", this.onLinkUp), $ && x && $ !== x && this.createLink($, x);
+      const C = this.linkingFrom, x = this.linkHoverId;
+      this.linkingFrom = null, this.linkCursor = null, this.linkHoverId = null, window.removeEventListener("mousemove", this.onLinkMove), window.removeEventListener("mouseup", this.onLinkUp), C && x && C !== x && this.createLink(C, x);
     }, this.fitToView = () => {
-      const $ = this.graphBounds();
-      if (!$ || this.viewW === 0 || this.viewH === 0) return;
-      const x = Math.min(this.viewW / $.w, this.viewH / $.h), R = this.clampZoom(this.fullscreen ? x : Math.min(1, x));
-      this.zoomK = R, this.panX = (this.viewW - R * $.w) / 2 - R * $.minX, this.panY = (this.viewH - R * $.h) / 2 - R * $.minY;
-    }, this.onWheel = ($) => {
-      if ($.preventDefault(), !this.svgEl) return;
-      const x = this.svgEl.getBoundingClientRect(), R = $.clientX - x.left, X = $.clientY - x.top, q = this.clampZoom(this.zoomK * Math.exp(-$.deltaY * 15e-4)), Ae = (R - this.panX) / this.zoomK, k = (X - this.panY) / this.zoomK;
+      const C = this.graphBounds();
+      if (!C || this.viewW === 0 || this.viewH === 0) return;
+      const x = Math.min(this.viewW / C.w, this.viewH / C.h), R = this.clampZoom(this.fullscreen ? x : Math.min(1, x));
+      this.zoomK = R, this.panX = (this.viewW - R * C.w) / 2 - R * C.minX, this.panY = (this.viewH - R * C.h) / 2 - R * C.minY;
+    }, this.onWheel = (C) => {
+      if (C.preventDefault(), !this.svgEl) return;
+      const x = this.svgEl.getBoundingClientRect(), R = C.clientX - x.left, X = C.clientY - x.top, q = this.clampZoom(this.zoomK * Math.exp(-C.deltaY * 15e-4)), Ae = (R - this.panX) / this.zoomK, k = (X - this.panY) / this.zoomK;
       this.panX = R - Ae * q, this.panY = X - k * q, this.zoomK = q;
-    }, this.onCanvasMouseDown = ($) => {
-      this.renderRoot.querySelector(".root")?.focus({ preventScroll: !0 }), !(this.draggingId || this.linkingFrom || $.button !== 0 || $.shiftKey || $.altKey || $.ctrlKey || $.metaKey) && (this.panning = !0, this.panMoved = !1, this.panStart = { x: $.clientX, y: $.clientY, panX: this.panX, panY: this.panY }, window.addEventListener("mousemove", this.onPanMove), window.addEventListener("mouseup", this.onPanUp));
-    }, this.onPanMove = ($) => {
+    }, this.onCanvasMouseDown = (C) => {
+      this.renderRoot.querySelector(".root")?.focus({ preventScroll: !0 }), !(this.draggingId || this.linkingFrom || C.button !== 0 || C.shiftKey || C.altKey || C.ctrlKey || C.metaKey) && (this.panning = !0, this.panMoved = !1, this.panStart = { x: C.clientX, y: C.clientY, panX: this.panX, panY: this.panY }, window.addEventListener("mousemove", this.onPanMove), window.addEventListener("mouseup", this.onPanUp));
+    }, this.onPanMove = (C) => {
       if (!this.panning) return;
-      const x = $.clientX - this.panStart.x, R = $.clientY - this.panStart.y;
+      const x = C.clientX - this.panStart.x, R = C.clientY - this.panStart.y;
       Math.abs(x) + Math.abs(R) > 3 && (this.panMoved = !0), this.panX = this.panStart.panX + x, this.panY = this.panStart.panY + R;
     }, this.onPanUp = () => {
       this.panning = !1, window.removeEventListener("mousemove", this.onPanMove), window.removeEventListener("mouseup", this.onPanUp), this.panMoved || (this.selectedId = null, this.selectedEdge = null, this.clearFocus());
     };
   }
   // ── Lifecycle ─────────────────────────────────────────────────────────────
-  updated($) {
-    if ($.has("value"))
+  updated(C) {
+    if (C.has("value"))
       try {
         const x = JSON.parse(this.value), R = new Set((this.wf.steps ?? []).map((Ae) => Ae.id)), X = new Set((x.steps ?? []).map((Ae) => Ae.id)), q = R.size !== X.size || [...X].some((Ae) => !R.has(Ae)) || [...X].some((Ae) => {
           const k = (this.wf.steps ?? []).find((Le) => Le.id === Ae), ln = (x.steps ?? []).find((Le) => Le.id === Ae);
           return k && ln && q1(k).join(",") !== q1(ln).join(",");
         });
-        this.wf = x, (q || !this.layoutReady) && (this.didInitialFit = !1, this.runElkLayout());
+        this.wf = uLn(x), (q || !this.layoutReady) && (this.didInitialFit = !1, this.runElkLayout());
       } catch {
       }
-    if ($.has("wf") && this.refreshFlowPaths(), $.has("overlay"))
+    if (C.has("wf") && this.refreshFlowPaths(), C.has("overlay"))
       try {
         this.overlayData = this.overlay ? JSON.parse(this.overlay) : {};
       } catch {
         this.overlayData = {};
       }
-    this.flowOn && this.layoutReady && !this.isMonitoring() ? this.startFlow() : this.stopFlow(), this.ensureViewportSetup(), this.layoutReady && this.viewW > 0 && !this.didInitialFit && (this.didInitialFit = !0, this.fitToView()), $.has("fullscreen") && this.layoutReady && requestAnimationFrame(() => {
+    this.flowOn && this.layoutReady && !this.isMonitoring() ? this.startFlow() : this.stopFlow(), this.ensureViewportSetup(), this.layoutReady && this.viewW > 0 && !this.didInitialFit && (this.didInitialFit = !0, this.fitToView()), C.has("fullscreen") && this.layoutReady && requestAnimationFrame(() => {
       const x = this.renderRoot.querySelector(".canvas-wrap");
       x && (this.viewW = x.clientWidth, this.viewH = x.clientHeight), this.fitToView();
     });
@@ -958,7 +963,7 @@ let Lu = class extends cx {
   /** Attach the resize observer and wheel-zoom to the canvas once it is in the DOM (idempotent). */
   ensureViewportSetup() {
     if (this.viewportSetup) return;
-    const $ = this.renderRoot, x = $.querySelector("svg.canvas"), R = $.querySelector(".canvas-wrap");
+    const C = this.renderRoot, x = C.querySelector("svg.canvas"), R = C.querySelector(".canvas-wrap");
     if (!x || !R) return;
     this.viewportSetup = !0, this.svgEl = x;
     const X = () => {
@@ -971,8 +976,8 @@ let Lu = class extends cx {
   }
   // ── ELK layout ────────────────────────────────────────────────────────────
   async runElkLayout() {
-    const $ = this.wf.steps ?? [];
-    if ($.length === 0) {
+    const C = this.wf.steps ?? [];
+    if (C.length === 0) {
       this.positions = {}, this.layoutReady = !0;
       return;
     }
@@ -989,20 +994,20 @@ let Lu = class extends cx {
         "elk.edgeRouting": "ORTHOGONAL",
         "elk.layered.nodePlacement.strategy": "BRANDES_KOEPF"
       },
-      children: $.map((R) => {
+      children: C.map((R) => {
         const { w: X, h: q } = ip(R.type);
         return { id: R.id, width: X, height: q };
       }),
       // One edge per precondition: a step with several incoming preconditions
       // (preconditionStepIds) gets several edges into it.
-      edges: $.flatMap((R) => q1(R).map((X) => ({
+      edges: C.flatMap((R) => q1(R).map((X) => ({
         id: `${X}->${R.id}`,
         sources: [X],
         targets: [R.id]
       })))
     };
     try {
-      const X = await (await mLn()).layout(x), q = { ...this.positions };
+      const X = await (await vLn()).layout(x), q = { ...this.positions };
       for (const Ae of X.children ?? [])
         (!this.elkPositioned.has(Ae.id) || !q[Ae.id]) && (q[Ae.id] = {
           x: (Ae.x ?? 0) + e6,
@@ -1015,14 +1020,14 @@ let Lu = class extends cx {
   }
   // ── Mutation helpers ──────────────────────────────────────────────────────
   emit() {
-    const $ = JSON.stringify(this.wf, null, 2);
-    this.dispatchEvent(new CustomEvent("value-changed", { detail: { value: $ }, bubbles: !0, composed: !0 }));
+    const C = JSON.stringify(this.wf, null, 2);
+    this.dispatchEvent(new CustomEvent("value-changed", { detail: { value: C }, bubbles: !0, composed: !0 }));
   }
-  updateWf($) {
-    this.wf = { ...this.wf, ...$ }, this.emit();
+  updateWf(C) {
+    this.wf = { ...this.wf, ...C }, this.emit();
   }
-  updateStep($, x) {
-    const R = this.wf.steps.map((k) => k.id === $ ? { ...k, ...x } : k), X = this.wf.steps.find((k) => k.id === $), q = R.find((k) => k.id === $), Ae = !!X && !!q && q1(X).join(",") !== q1(q).join(",");
+  updateStep(C, x) {
+    const R = this.wf.steps.map((k) => k.id === C ? { ...k, ...x } : k), X = this.wf.steps.find((k) => k.id === C), q = R.find((k) => k.id === C), Ae = !!X && !!q && q1(X).join(",") !== q1(q).join(",");
     this.wf = { ...this.wf, steps: R }, Ae && (this.elkPositioned.clear(), this.runElkLayout()), this.emit();
   }
   /**
@@ -1030,35 +1035,35 @@ let Lu = class extends cx {
    * `preconditionStepIds` (and clears the singular `preconditionStepId`) so a step can have
    * any number of inputs; an empty set drops the field entirely.
    */
-  togglePrecondition($, x, R) {
-    const X = FE($).filter((q) => q.stepId !== x);
-    R && X.push({ stepId: x }), this.writeLinks($.id, X);
+  togglePrecondition(C, x, R) {
+    const X = FE(C).filter((q) => q.stepId !== x);
+    R && X.push({ stepId: x }), this.writeLinks(C.id, X);
   }
   /** Sets the guard on one link, dropping the field when it is cleared. */
-  setGuard($, x, R) {
+  setGuard(C, x, R) {
     const X = R.trim();
-    this.writeLinks($.id, FE($).map((q) => q.stepId === x ? { stepId: q.stepId, expression: X || void 0 } : q));
+    this.writeLinks(C.id, FE(C).map((q) => q.stepId === x ? { stepId: q.stepId, expression: X || void 0 } : q));
   }
   /**
    * Writes the links back in the one shape that can hold a guard, and clears the two older
    * spellings so a definition never says the same thing twice in two places. A step left with no
    * links drops the field entirely rather than carrying an empty array.
    */
-  writeLinks($, x) {
-    this.updateStep($, {
+  writeLinks(C, x) {
+    this.updateStep(C, {
       preconditions: x.length ? x : void 0,
       preconditionStepIds: void 0,
       preconditionStepId: void 0
     });
   }
   addStep() {
-    const $ = vLn(), x = { id: $, type: "ACTION", name: "New Step" };
+    const C = kLn(), x = { id: C, type: "ACTION", name: "New Step" };
     this.wf = { ...this.wf, steps: [...this.wf.steps ?? [], x] };
     const R = Object.values(this.positions).map((X) => X.x);
     this.positions = {
       ...this.positions,
-      [$]: { x: R.length ? Math.max(...R) + _fn + 80 : e6, y: e6 }
-    }, this.selectedId = $, this.elkPositioned.clear(), this.runElkLayout(), this.emit();
+      [C]: { x: R.length ? Math.max(...R) + _fn + 80 : e6, y: e6 }
+    }, this.selectedId = C, this.elkPositioned.clear(), this.runElkLayout(), this.emit();
   }
   /**
    * Removes a step and every reference any other step held to it.
@@ -1073,35 +1078,35 @@ let Lu = class extends cx {
    * rollbackable} is left alone: whether the step still means to roll back is the author's call,
    * and the dangling half — the id — is what had to go.
    */
-  deleteStep($) {
+  deleteStep(C) {
     this.wf = {
       ...this.wf,
-      steps: this.wf.steps.filter((X) => X.id !== $).map((X) => {
+      steps: this.wf.steps.filter((X) => X.id !== C).map((X) => {
         const q = { ...X };
-        if (q.preconditionStepId === $ && (q.preconditionStepId = void 0), q.preconditionStepIds) {
-          const Ae = q.preconditionStepIds.filter((k) => k !== $);
+        if (q.preconditionStepId === C && (q.preconditionStepId = void 0), q.preconditionStepIds) {
+          const Ae = q.preconditionStepIds.filter((k) => k !== C);
           q.preconditionStepIds = Ae.length ? Ae : void 0;
         }
         if (q.preconditions) {
-          const Ae = q.preconditions.filter((k) => k.stepId !== $);
+          const Ae = q.preconditions.filter((k) => k.stepId !== C);
           q.preconditions = Ae.length ? Ae : void 0;
         }
-        return q.compensationStepId === $ && (q.compensationStepId = void 0), q;
+        return q.compensationStepId === C && (q.compensationStepId = void 0), q;
       })
     };
-    const { [$]: x, ...R } = this.positions;
-    this.positions = R, this.elkPositioned.delete($), this.selectedId === $ && (this.selectedId = null), this.selectedEdge = null, this.runElkLayout(), this.emit();
+    const { [C]: x, ...R } = this.positions;
+    this.positions = R, this.elkPositioned.delete(C), this.selectedId === C && (this.selectedId = null), this.selectedEdge = null, this.runElkLayout(), this.emit();
   }
   /**
    * Removes one connection, leaving both steps in place: a sequence edge is one precondition of
    * its target, a compensation edge is the rollback pointer of its source.
    */
-  deleteEdge($) {
-    if ($.comp)
-      this.updateStep($.from, { compensationStepId: void 0 });
+  deleteEdge(C) {
+    if (C.comp)
+      this.updateStep(C.from, { compensationStepId: void 0 });
     else {
-      const x = this.wf.steps.find((R) => R.id === $.to);
-      x && this.writeLinks($.to, FE(x).filter((R) => R.stepId !== $.from));
+      const x = this.wf.steps.find((R) => R.id === C.to);
+      x && this.writeLinks(C.to, FE(x).filter((R) => R.stepId !== C.from));
     }
     this.selectedEdge = null;
   }
@@ -1111,32 +1116,32 @@ let Lu = class extends cx {
    * field of the side panel — where Delete means delete a character, and taking the step out
    * from under someone editing its name would be the worst possible reading of the key.
    */
-  onKeyDown($) {
-    if (this.readOnly || $.key !== "Delete" && $.key !== "Backspace") return;
-    const x = $.composedPath()[0], R = x?.tagName?.toLowerCase();
-    R === "input" || R === "textarea" || R === "select" || x?.isContentEditable || (this.selectedEdge ? ($.preventDefault(), this.deleteEdge(this.selectedEdge)) : this.selectedId && ($.preventDefault(), this.deleteStep(this.selectedId)));
+  onKeyDown(C) {
+    if (this.readOnly || C.key !== "Delete" && C.key !== "Backspace") return;
+    const x = C.composedPath()[0], R = x?.tagName?.toLowerCase();
+    R === "input" || R === "textarea" || R === "select" || x?.isContentEditable || (this.selectedEdge ? (C.preventDefault(), this.deleteEdge(this.selectedEdge)) : this.selectedId && (C.preventDefault(), this.deleteStep(this.selectedId)));
   }
   // ── Drag & drop ───────────────────────────────────────────────────────────
-  onNodeMouseDown($, x) {
-    if ($.shiftKey) {
-      this.readOnly || this.startLink($, x);
+  onNodeMouseDown(C, x) {
+    if (C.shiftKey) {
+      this.readOnly || this.startLink(C, x);
       return;
     }
-    if (this.readOnly || $.altKey) return;
-    $.preventDefault(), this.draggingId = x;
-    const R = this.positions[x] ?? { x: 0, y: 0 }, X = this.toSvgPoint($);
-    this.dragOffset = { x: X.x - R.x, y: X.y - R.y }, this.svgEl = $.currentTarget.closest("svg"), window.addEventListener("mousemove", this.onMouseMove), window.addEventListener("mouseup", this.onMouseUp);
+    if (this.readOnly || C.altKey) return;
+    C.preventDefault(), this.draggingId = x;
+    const R = this.positions[x] ?? { x: 0, y: 0 }, X = this.toSvgPoint(C);
+    this.dragOffset = { x: X.x - R.x, y: X.y - R.y }, this.svgEl = C.currentTarget.closest("svg"), window.addEventListener("mousemove", this.onMouseMove), window.addEventListener("mouseup", this.onMouseUp);
   }
   // ── Edge drawing ────────────────────────────────────────────────────────────
-  startLink($, x) {
-    $.preventDefault(), $.stopPropagation(), this.svgEl = $.currentTarget.closest("svg"), this.linkingFrom = x, this.linkCursor = this.toSvgPoint($), this.linkHoverId = null, window.addEventListener("mousemove", this.onLinkMove), window.addEventListener("mouseup", this.onLinkUp);
+  startLink(C, x) {
+    C.preventDefault(), C.stopPropagation(), this.svgEl = C.currentTarget.closest("svg"), this.linkingFrom = x, this.linkCursor = this.toSvgPoint(C), this.linkHoverId = null, window.addEventListener("mousemove", this.onLinkMove), window.addEventListener("mouseup", this.onLinkUp);
   }
   /** The step whose box contains the point (for the drop target), excluding the link source. */
-  nodeAt($) {
+  nodeAt(C) {
     for (const x of this.wf.steps ?? []) {
       if (x.id === this.linkingFrom) continue;
       const R = this.boxForId(x.id);
-      if (R && Math.abs($.x - R.x) <= R.w / 2 && Math.abs($.y - R.y) <= R.h / 2) return x.id;
+      if (R && Math.abs(C.x - R.x) <= R.w / 2 && Math.abs(C.y - R.y) <= R.h / 2) return x.id;
     }
     return null;
   }
@@ -1145,13 +1150,13 @@ let Lu = class extends cx {
    * one normal line may exist between two nodes: a duplicate, the reverse direction, or a line
    * that would close a cycle is rejected silently.
    */
-  createLink($, x) {
-    const R = this.wf.steps.find((q) => q.id === x), X = this.wf.steps.find((q) => q.id === $);
-    !R || !X || R.type !== "START" && (q1(R).includes($) || q1(X).includes(x) || this.ancestorsOf($).has(x) || this.togglePrecondition(R, $, !0));
+  createLink(C, x) {
+    const R = this.wf.steps.find((q) => q.id === x), X = this.wf.steps.find((q) => q.id === C);
+    !R || !X || R.type !== "START" && (q1(R).includes(C) || q1(X).includes(x) || this.ancestorsOf(C).has(x) || this.togglePrecondition(R, C, !0));
   }
   /** All transitive preconditions (ancestors) of a step. */
-  ancestorsOf($) {
-    const x = new Map((this.wf.steps ?? []).map((q) => [q.id, q])), R = /* @__PURE__ */ new Set(), X = [...q1(x.get($) ?? {})];
+  ancestorsOf(C) {
+    const x = new Map((this.wf.steps ?? []).map((q) => [q.id, q])), R = /* @__PURE__ */ new Set(), X = [...q1(x.get(C) ?? {})];
     for (; X.length; ) {
       const q = X.pop();
       if (R.has(q)) continue;
@@ -1161,12 +1166,12 @@ let Lu = class extends cx {
     }
     return R;
   }
-  toSvgPoint($) {
+  toSvgPoint(C) {
     if (!this.svgEl) return { x: 0, y: 0 };
     const x = this.svgEl.getBoundingClientRect();
     return {
-      x: ($.clientX - x.left - this.panX) / this.zoomK,
-      y: ($.clientY - x.top - this.panY) / this.zoomK
+      x: (C.clientX - x.left - this.panX) / this.zoomK,
+      y: (C.clientY - x.top - this.panY) / this.zoomK
     };
   }
   // ── Re-layout button ──────────────────────────────────────────────────────
@@ -1175,17 +1180,17 @@ let Lu = class extends cx {
   }
   // ── Canvas size ───────────────────────────────────────────────────────────
   canvasSize() {
-    let $ = 600, x = 400;
+    let C = 600, x = 400;
     for (const R of this.wf.steps ?? []) {
       const X = this.positions[R.id];
       if (!X) continue;
       const q = ip(R.type);
-      $ = Math.max($, X.x + q.w + e6), x = Math.max(x, X.y + q.h + e6);
+      C = Math.max(C, X.x + q.w + e6), x = Math.max(x, X.y + q.h + e6);
     }
-    return { w: $, h: x };
+    return { w: C, h: x };
   }
   /** Tight bounding box of all laid-out nodes (scene coords), padded. Null if empty. */
-  graphBounds($ = 60) {
+  graphBounds(C = 60) {
     const x = (this.wf.steps ?? []).filter((k) => this.positions[k.id]);
     if (x.length === 0) return null;
     let R = 1 / 0, X = 1 / 0, q = -1 / 0, Ae = -1 / 0;
@@ -1193,33 +1198,33 @@ let Lu = class extends cx {
       const ln = this.positions[k.id], Le = ip(k.type);
       R = Math.min(R, ln.x), X = Math.min(X, ln.y), q = Math.max(q, ln.x + Le.w), Ae = Math.max(Ae, ln.y + Le.h + 18);
     }
-    return { minX: R - $, minY: X - $, w: q - R + 2 * $, h: Ae - X + 2 * $ };
+    return { minX: R - C, minY: X - C, w: q - R + 2 * C, h: Ae - X + 2 * C };
   }
-  clampZoom($) {
-    return Math.max(0.1, Math.min(2.5, $));
+  clampZoom(C) {
+    return Math.max(0.1, Math.min(2.5, C));
   }
   /** Recentre the viewport on a scene point (used by minimap click/drag). */
-  centerOn($, x) {
-    this.panX = this.viewW / 2 - this.zoomK * $, this.panY = this.viewH / 2 - this.zoomK * x;
+  centerOn(C, x) {
+    this.panX = this.viewW / 2 - this.zoomK * C, this.panY = this.viewH / 2 - this.zoomK * x;
   }
   /** Center-plus-size box of a step (by id), honouring its per-type shape size. */
-  boxForId($) {
-    const x = this.positions[$], R = (this.wf.steps ?? []).find((Ae) => Ae.id === $);
+  boxForId(C) {
+    const x = this.positions[C], R = (this.wf.steps ?? []).find((Ae) => Ae.id === C);
     if (!x || !R) return null;
     const { w: X, h: q } = ip(R.type);
     return { x: x.x + X / 2, y: x.y + q / 2, w: X, h: q };
   }
   /** Orthogonal route between two steps that steers around every other node. */
-  routeBetween($, x, R = 0) {
-    const X = this.boxForId($), q = this.boxForId(x);
+  routeBetween(C, x, R = 0) {
+    const X = this.boxForId(C), q = this.boxForId(x);
     if (!X || !q) return null;
     const Ae = [];
     for (const k of this.wf.steps ?? []) {
-      if (k.id === $ || k.id === x) continue;
+      if (k.id === C || k.id === x) continue;
       const ln = this.boxForId(k.id);
       ln && Ae.push(ln);
     }
-    return dLn(X, q, Ae, R);
+    return bLn(X, q, Ae, R);
   }
   /**
    * All edges with node-avoiding routes AND distributed endpoints: edges sharing a side of a
@@ -1227,11 +1232,11 @@ let Lu = class extends cx {
    * edges first, compensation last. The routes are also cached (by "from->to") for the token.
    */
   computeEdges() {
-    const $ = this.wf.steps ?? [], x = Gfn($), R = [];
-    for (const Le of $)
+    const C = this.wf.steps ?? [], x = Gfn(C), R = [];
+    for (const Le of C)
       if (!x.has(Le.id))
         for (const Je of q1(Le)) this.boxForId(Je) && this.boxForId(Le.id) && R.push({ from: Je, to: Le.id, comp: !1 });
-    for (const Le of $)
+    for (const Le of C)
       Le.rollbackable && Le.compensationStepId && this.boxForId(Le.id) && this.boxForId(Le.compensationStepId) && R.push({ from: Le.id, to: Le.compensationStepId, comp: !0 });
     const X = (Le, Je, $n) => {
       const Fn = Je - Le.x, yn = $n - Le.y;
@@ -1251,18 +1256,18 @@ let Lu = class extends cx {
       const Nt = Je.length;
       Je.forEach((Se, Ec) => {
         const wi = Nt <= 1 ? 0.5 : 0.28 + 0.44 * (Ec / (Nt - 1)), ct = $n === "R" ? { x: yn.x + yn.w / 2, y: yn.y - yn.h / 2 + yn.h * wi } : $n === "L" ? { x: yn.x - yn.w / 2, y: yn.y - yn.h / 2 + yn.h * wi } : $n === "T" ? { x: yn.x - yn.w / 2 + yn.w * wi, y: yn.y - yn.h / 2 } : { x: yn.x - yn.w / 2 + yn.w * wi, y: yn.y + yn.h / 2 };
-        k[Se.edge][Se.role] = bLn(yn.x, yn.y, Xn, ct, $n);
+        k[Se.edge][Se.role] = wLn(yn.x, yn.y, Xn, ct, $n);
       });
     }
     const ln = [];
     return R.map((Le, Je) => {
       const [$n, Fn] = q[Je], yn = [];
-      for (const Nt of $) {
+      for (const Nt of C) {
         if (Nt.id === Le.from || Nt.id === Le.to) continue;
         const Se = this.boxForId(Nt.id);
         Se && yn.push(Se);
       }
-      const Xn = wLn(k[Je][0], $n, k[Je][1], Fn, yn, ln);
+      const Xn = gLn(k[Je][0], $n, k[Je][1], Fn, yn, ln);
       for (let Nt = 0; Nt < Xn.length - 1; Nt++) ln.push([Xn[Nt], Xn[Nt + 1]]);
       return { key: `${Le.from}->${Le.to}`, from: Le.from, to: Le.to, comp: Le.comp, pts: Xn };
     });
@@ -1274,37 +1279,37 @@ let Lu = class extends cx {
    * since the node's own ping already marks the passage. `marks` gives the distance at which
    * the token reaches each node (for the ping).
    */
-  pathGeometry($) {
-    const x = $.map((ln) => this.boxForId(ln));
+  pathGeometry(C) {
+    const x = C.map((ln) => this.boxForId(ln));
     if (x.some((ln) => !ln)) return null;
-    if ($.length < 2)
-      return { pts: [{ x: x[0].x, y: x[0].y }], marks: [{ id: $[0], d: 0 }], hidden: [], segs: [] };
+    if (C.length < 2)
+      return { pts: [{ x: x[0].x, y: x[0].y }], marks: [{ id: C[0], d: 0 }], hidden: [], segs: [] };
     const R = [];
-    for (let ln = 1; ln < $.length; ln++) {
-      const Le = this.edgeCache.get(`${$[ln - 1]}->${$[ln]}`) ?? this.routeBetween($[ln - 1], $[ln], 0);
+    for (let ln = 1; ln < C.length; ln++) {
+      const Le = this.edgeCache.get(`${C[ln - 1]}->${C[ln]}`) ?? this.routeBetween(C[ln - 1], C[ln], 0);
       if (!Le) return null;
       R.push(Le);
     }
-    const X = [...R[0]], q = [{ id: $[0], d: 0 }], Ae = [], k = [{ to: $[1], startD: 0, len: n6(R[0]) }];
+    const X = [...R[0]], q = [{ id: C[0], d: 0 }], Ae = [], k = [{ to: C[1], startD: 0, len: n6(R[0]) }];
     for (let ln = 1; ln < R.length; ln++) {
       const Le = n6(X);
       X.push(R[ln][0]);
       const Je = n6(X);
-      Ae.push({ from: Le, to: Je }), q.push({ id: $[ln], d: Le }), X.push(...R[ln].slice(1)), k.push({ to: $[ln + 1], startD: Je, len: n6(R[ln]) });
+      Ae.push({ from: Le, to: Je }), q.push({ id: C[ln], d: Le }), X.push(...R[ln].slice(1)), k.push({ to: C[ln + 1], startD: Je, len: n6(R[ln]) });
     }
-    return q.push({ id: $[$.length - 1], d: n6(X) }), { pts: X, marks: q, hidden: Ae, segs: k };
+    return q.push({ id: C[C.length - 1], d: n6(X) }), { pts: X, marks: q, hidden: Ae, segs: k };
   }
-  isEdgeSelected($) {
+  isEdgeSelected(C) {
     const x = this.selectedEdge;
-    return !!x && x.from === $.from && x.to === $.to && x.comp === $.comp;
+    return !!x && x.from === C.from && x.to === C.to && x.comp === C.comp;
   }
   /** Selecting a connection deselects the step, and the other way round: one thing at a time. */
-  onEdgeClick($, x) {
-    $.stopPropagation(), !this.readOnly && (this.selectedId = null, this.selectedEdge = this.isEdgeSelected(x) ? null : { from: x.from, to: x.to, comp: x.comp });
+  onEdgeClick(C, x) {
+    C.stopPropagation(), !this.readOnly && (this.selectedId = null, this.selectedEdge = this.isEdgeSelected(x) ? null : { from: x.from, to: x.to, comp: x.comp });
   }
-  onNodeClick($, x) {
-    if ($.stopPropagation(), this.selectedEdge = null, !$.shiftKey) {
-      if ($.altKey) {
+  onNodeClick(C, x) {
+    if (C.stopPropagation(), this.selectedEdge = null, !C.shiftKey) {
+      if (C.altKey) {
         this.focusNextPath(x);
         return;
       }
@@ -1312,8 +1317,8 @@ let Lu = class extends cx {
     }
   }
   /** Root→sink paths passing through a node (falls back to all paths if none). */
-  pathsThrough($) {
-    const x = this.flowPaths.filter((R) => R.includes($));
+  pathsThrough(C) {
+    const x = this.flowPaths.filter((R) => R.includes(C));
     return x.length ? x : this.flowPaths;
   }
   /**
@@ -1325,9 +1330,9 @@ let Lu = class extends cx {
    * carries on from a path that exists rather than pointing past the end of the list.
    */
   refreshFlowPaths() {
-    this.flowPaths = yLn(this.wf.steps ?? []);
-    const $ = this.focusNodeId != null && (this.wf.steps ?? []).some((R) => R.id === this.focusNodeId);
-    this.focusMode !== "auto" && $ ? this.activePaths = this.pathsThrough(this.focusNodeId) : (this.focusMode = "auto", this.focusNodeId = null, this.activePaths = this.flowPaths);
+    this.flowPaths = jLn(this.wf.steps ?? []);
+    const C = this.focusNodeId != null && (this.wf.steps ?? []).some((R) => R.id === this.focusNodeId);
+    this.focusMode !== "auto" && C ? this.activePaths = this.pathsThrough(this.focusNodeId) : (this.focusMode = "auto", this.focusNodeId = null, this.activePaths = this.flowPaths);
     const x = this.activePaths.length ? this.activePaths : this.flowPaths;
     this.flowPathIndex = x.length ? this.flowPathIndex % x.length : 0, this.pulsedThisPath = /* @__PURE__ */ new Set();
   }
@@ -1336,12 +1341,12 @@ let Lu = class extends cx {
    * animates. A paused simulation stays paused — the pause is the operator's, and having a click
    * on a node undo it made the play/pause button look broken.
    */
-  focusReachable($) {
-    this.focusMode = "reachable", this.focusNodeId = $, this.activePaths = this.pathsThrough($), this.flowOn && !this.isMonitoring() && this.restartFlow(), this.requestUpdate();
+  focusReachable(C) {
+    this.focusMode = "reachable", this.focusNodeId = C, this.activePaths = this.pathsThrough(C), this.flowOn && !this.isMonitoring() && this.restartFlow(), this.requestUpdate();
   }
-  focusNextPath($) {
-    const x = this.pathsThrough($);
-    this.focusMode === "path" && this.focusNodeId === $ ? this.flowPathIndex = (this.flowPathIndex + 1) % x.length : (this.focusMode = "path", this.focusNodeId = $, this.flowPathIndex = 0), this.activePaths = x, this.pulsedThisPath = /* @__PURE__ */ new Set(), this.flowOn && !this.isMonitoring() && (this.flowStartTs = performance.now()), this.requestUpdate();
+  focusNextPath(C) {
+    const x = this.pathsThrough(C);
+    this.focusMode === "path" && this.focusNodeId === C ? this.flowPathIndex = (this.flowPathIndex + 1) % x.length : (this.focusMode = "path", this.focusNodeId = C, this.flowPathIndex = 0), this.activePaths = x, this.pulsedThisPath = /* @__PURE__ */ new Set(), this.flowOn && !this.isMonitoring() && (this.flowStartTs = performance.now()), this.requestUpdate();
   }
   clearFocus() {
     this.focusMode = "auto", this.focusNodeId = null, this.activePaths = this.flowPaths, this.restartFlow(), this.requestUpdate();
@@ -1355,9 +1360,9 @@ let Lu = class extends cx {
    */
   focusSets() {
     if (this.focusMode === "auto") return null;
-    const $ = this.activePaths.length ? this.activePaths : this.flowPaths;
-    if ($.length === 0) return null;
-    const x = this.focusMode === "path" ? [$[this.flowPathIndex % $.length]] : $, R = /* @__PURE__ */ new Set(), X = /* @__PURE__ */ new Set();
+    const C = this.activePaths.length ? this.activePaths : this.flowPaths;
+    if (C.length === 0) return null;
+    const x = this.focusMode === "path" ? [C[this.flowPathIndex % C.length]] : C, R = /* @__PURE__ */ new Set(), X = /* @__PURE__ */ new Set();
     for (const q of x)
       for (let Ae = 0; Ae < q.length; Ae++)
         R.add(q[Ae]), Ae > 0 && X.add(`${q[Ae - 1]}->${q[Ae]}`);
@@ -1370,20 +1375,20 @@ let Lu = class extends cx {
   startFlow() {
     if (this.flowRaf) return;
     this.flowStartTs = performance.now(), this.pulsedThisPath = /* @__PURE__ */ new Set();
-    const $ = (x) => {
+    const C = (x) => {
       if (!this.flowOn) {
         this.flowRaf = 0;
         return;
       }
-      this.stepFlow(x), this.flowRaf = requestAnimationFrame($);
+      this.stepFlow(x), this.flowRaf = requestAnimationFrame(C);
     };
-    this.flowRaf = requestAnimationFrame($);
+    this.flowRaf = requestAnimationFrame(C);
   }
   stopFlow() {
     this.flowRaf && cancelAnimationFrame(this.flowRaf), this.flowRaf = 0, this.pulseAt = {}, this.pulseColor = {}, this.pulsedThisPath = /* @__PURE__ */ new Set();
-    const $ = this.renderRoot;
-    $.querySelectorAll?.("[data-pulse]").forEach((R) => R.setAttribute("opacity", "0")), $.querySelectorAll?.("[data-edge]").forEach((R) => R.classList.remove("dim", "active")), $.querySelectorAll?.(".node").forEach((R) => R.classList.remove("dim"));
-    const x = $.querySelector?.(".flow-token");
+    const C = this.renderRoot;
+    C.querySelectorAll?.("[data-pulse]").forEach((R) => R.setAttribute("opacity", "0")), C.querySelectorAll?.("[data-edge]").forEach((R) => R.classList.remove("dim", "active")), C.querySelectorAll?.(".node").forEach((R) => R.classList.remove("dim"));
+    const x = C.querySelector?.(".flow-token");
     x && (x.style.opacity = "0", x.style.fill = "");
   }
   /**
@@ -1391,7 +1396,7 @@ let Lu = class extends cx {
    * other edges dim, each node pings as the token reaches it, and when the path finishes the
    * next path takes over (looping). Runs off the Lit render path via direct SVG mutation.
    */
-  stepFlow($) {
+  stepFlow(C) {
     const x = this.renderRoot, R = x.querySelector?.(".flow-token"), X = this.activePaths.length ? this.activePaths : this.flowPaths;
     if (!R || X.length === 0) {
       R && (R.style.opacity = "0");
@@ -1408,9 +1413,9 @@ let Lu = class extends cx {
     }, wi = k.marks;
     let ct = ln / Le * 1e3;
     for (const Wt of wi) Ec(Wt.id) && (ct += $n);
-    const zn = Je / Le * 1e3, Jt = $ - this.flowStartTs;
+    const zn = Je / Le * 1e3, Jt = C - this.flowStartTs;
     if (Jt >= ct + zn) {
-      this.focusMode !== "path" && (this.flowPathIndex = (q + 1) % X.length), this.flowStartTs = $, this.pulsedThisPath = /* @__PURE__ */ new Set(), this.flowPrevPosD = 0;
+      this.focusMode !== "path" && (this.flowPathIndex = (q + 1) % X.length), this.flowStartTs = C, this.pulsedThisPath = /* @__PURE__ */ new Set(), this.flowPrevPosD = 0;
       return;
     }
     let Mr = 0, Ku = 0, Ys = ln, Jf = null;
@@ -1439,7 +1444,7 @@ let Lu = class extends cx {
       Cc && Cc.rollbackable && Cc.compensationStepId === Ae[Wt] && Qa.add(Ae[Wt - 1]);
     }
     for (const Wt of wi)
-      Ys >= Wt.d && !this.pulsedThisPath.has(Wt.id) && (this.pulseAt[Wt.id] = $, this.pulseColor[Wt.id] = Qa.has(Wt.id) ? "#dc2626" : "", this.pulsedThisPath.add(Wt.id));
+      Ys >= Wt.d && !this.pulsedThisPath.has(Wt.id) && (this.pulseAt[Wt.id] = C, this.pulseColor[Wt.id] = Qa.has(Wt.id) ? "#dc2626" : "", this.pulsedThisPath.add(Wt.id));
     for (const Wt of k.segs) {
       if (!Xn.get(Wt.to)?.preconditionExpression) continue;
       const Gf = Wt.startD + 0.38 * Wt.len;
@@ -1454,7 +1459,7 @@ let Lu = class extends cx {
         );
       }
     }
-    this.flowPrevPosD = Ys, Jf && $ - (this.pulseAt[Jf] ?? 0) >= Fn && (this.pulseAt[Jf] = $);
+    this.flowPrevPosD = Ys, Jf && C - (this.pulseAt[Jf] ?? 0) >= Fn && (this.pulseAt[Jf] = C);
     const _ = /* @__PURE__ */ new Set();
     for (let Wt = 1; Wt < Ae.length; Wt++) _.add(`${Ae[Wt - 1]}->${Ae[Wt]}`);
     const JE = /* @__PURE__ */ new Set();
@@ -1479,7 +1484,7 @@ let Lu = class extends cx {
       Cc && Cc.classList.toggle("dim", kg);
       const um = x.querySelector?.(`[data-pulse="${Wt.id}"]`);
       if (!um) continue;
-      const GE = this.pulseAt[Wt.id], pk = GE ? ($ - GE) / 1e3 : 1 / 0;
+      const GE = this.pulseAt[Wt.id], pk = GE ? (C - GE) / 1e3 : 1 / 0;
       if (Cc && Cc.classList.toggle("err", Qa.has(Wt.id) && pk < 0.5), pk > 0.6) {
         um.setAttribute("opacity", "0");
         continue;
@@ -1492,19 +1497,19 @@ let Lu = class extends cx {
   /** The rubber-band line drawn from the source node to the cursor while ctrl+dragging a link. */
   renderLinkDraft() {
     if (!this.linkingFrom || !this.linkCursor) return Mi;
-    const $ = this.boxForId(this.linkingFrom);
-    if (!$) return Mi;
-    const x = Q0e($, this.linkCursor.x, this.linkCursor.y);
+    const C = this.boxForId(this.linkingFrom);
+    if (!C) return Mi;
+    const x = Q0e(C, this.linkCursor.x, this.linkCursor.y);
     return jc`<line class="link-draft" x1="${x.x}" y1="${x.y}"
                          x2="${this.linkCursor.x}" y2="${this.linkCursor.y}"/>`;
   }
   /** A modux-style minimap: the whole graph in miniature with the current viewport framed. */
   renderMinimap() {
-    const $ = this.graphBounds();
-    if (!$ || (this.wf.steps ?? []).length < 2 || this.viewW === 0) return Mi;
-    const X = Math.min(168 / $.w, 116 / $.h), q = $.w * X, Ae = $.h * X, k = -this.panX / this.zoomK, ln = -this.panY / this.zoomK, Le = this.viewW / this.zoomK, Je = this.viewH / this.zoomK, $n = (Fn) => {
+    const C = this.graphBounds();
+    if (!C || (this.wf.steps ?? []).length < 2 || this.viewW === 0) return Mi;
+    const X = Math.min(168 / C.w, 116 / C.h), q = C.w * X, Ae = C.h * X, k = -this.panX / this.zoomK, ln = -this.panY / this.zoomK, Le = this.viewW / this.zoomK, Je = this.viewH / this.zoomK, $n = (Fn) => {
       const yn = Fn.currentTarget.getBoundingClientRect();
-      this.centerOn($.minX + (Fn.clientX - yn.left) / X, $.minY + (Fn.clientY - yn.top) / X);
+      this.centerOn(C.minX + (Fn.clientX - yn.left) / X, C.minY + (Fn.clientY - yn.top) / X);
     };
     return Ar`
             <div class="minimap" style="width:${q}px;height:${Ae}px"
@@ -1521,15 +1526,15 @@ let Lu = class extends cx {
                  @mouseleave="${() => {
       this.miniDrag = !1;
     }}">
-                <svg viewBox="0 0 ${$.w} ${$.h}" width="${q}" height="${Ae}">
+                <svg viewBox="0 0 ${C.w} ${C.h}" width="${q}" height="${Ae}">
                     ${(this.wf.steps ?? []).map((Fn) => {
       const yn = this.positions[Fn.id];
       if (!yn) return Mi;
       const Xn = ip(Fn.type), Nt = Mfn(Fn.type);
-      return jc`<rect x="${yn.x - $.minX}" y="${yn.y - $.minY}" width="${Xn.w}" height="${Xn.h}"
+      return jc`<rect x="${yn.x - C.minX}" y="${yn.y - C.minY}" width="${Xn.w}" height="${Xn.h}"
                                          rx="4" fill="${Nt.fill}" stroke="${Nt.stroke}" stroke-width="2"/>`;
     })}
-                    <rect class="mini-view" x="${k - $.minX}" y="${ln - $.minY}" width="${Le}" height="${Je}"/>
+                    <rect class="mini-view" x="${k - C.minX}" y="${ln - C.minY}" width="${Le}" height="${Je}"/>
                 </svg>
             </div>`;
   }
@@ -1544,23 +1549,23 @@ let Lu = class extends cx {
    * execution to trace, so nothing should be dimmed: the whole graph stays active by default.
    */
   hasStateOverlay() {
-    return Object.values(this.overlayData).some(($) => !!$?.state);
+    return Object.values(this.overlayData).some((C) => !!C?.state);
   }
   /** In a monitoring overlay, a step is "visited" once the process has reached it (any state
    *  other than not-yet-started PENDING). Used to dim the parts the process hasn't passed. */
-  isVisited($) {
-    const x = this.overlayData[$]?.state;
+  isVisited(C) {
+    const x = this.overlayData[C]?.state;
     return !!x && x !== "PENDING";
   }
   /** True when the overlay carries per-step heat histograms — i.e. this is a definition view that
    *  can offer the stopped/waiting heatmap. The single-process monitoring view ships no heat. */
   hasHeatData() {
-    return Object.values(this.overlayData).some(($) => Array.isArray($?.heat));
+    return Object.values(this.overlayData).some((C) => Array.isArray(C?.heat));
   }
   /** A step's stopped/waiting task count within the last `heatDays` days: the sum of the histogram
    *  buckets `[0, heatDays)`. */
-  heatValue($) {
-    const x = this.overlayData[$]?.heat;
+  heatValue(C) {
+    const x = this.overlayData[C]?.heat;
     if (!x) return 0;
     let R = 0;
     const X = Math.min(this.heatDays, x.length);
@@ -1569,13 +1574,13 @@ let Lu = class extends cx {
   }
   /** Tint intensity (0–100) for a node's heat, relative to the hottest node in the current window.
    *  A mild gamma + a floor keep any non-zero step visibly warm rather than washed out. */
-  heatIntensity($) {
-    const x = this.heatValue($);
+  heatIntensity(C) {
+    const x = this.heatValue(C);
     return x <= 0 || this.heatMax <= 0 ? 0 : Math.round(18 + 82 * Math.pow(x / this.heatMax, 0.7));
   }
   /** Floating view/animation controls (bottom-left, clear of the toolbar and the minimap). */
   renderViewbar() {
-    const $ = this.isMonitoring() ? Mi : Ar`
+    const C = this.isMonitoring() ? Mi : Ar`
             <button class="vbtn" title="${this.flowOn ? "Pause token flow" : "Play token flow"}"
                     @click="${() => {
       this.flowOn = !this.flowOn;
@@ -1600,7 +1605,7 @@ let Lu = class extends cx {
             ` : Mi}` : Mi;
     return Ar`
             <div class="viewbar" @mousedown="${(R) => R.stopPropagation()}">
-                ${$}
+                ${C}
                 ${x}
                 <button class="vbtn" title="Fit graph to view" @click="${() => this.fitToView()}">${iLn}</button>
                 ${this.noExpand ? Mi : Ar`
@@ -1613,8 +1618,8 @@ let Lu = class extends cx {
   render() {
     if (!this.layoutReady)
       return Ar`<div class="loading">Computing layout…</div>`;
-    const $ = this.wf.steps ?? [];
-    return this.focusPaint = this.focusSets(), this.heatMax = this.heatmapOn && this.hasHeatData() ? $.reduce((x, R) => Math.max(x, this.heatValue(R.id)), 0) : 0, Ar`
+    const C = this.wf.steps ?? [];
+    return this.focusPaint = this.focusSets(), this.heatMax = this.heatmapOn && this.hasHeatData() ? C.reduce((x, R) => Math.max(x, this.heatValue(R.id)), 0) : 0, Ar`
             <!-- tabindex so the graph can hold keyboard focus: Delete has to reach it, and inside
                  an IDE webview nothing else is going to hand it the key. Focus is taken on a click
                  in the canvas rather than on load, so opening a file never steals it. -->
@@ -1644,8 +1649,8 @@ let Lu = class extends cx {
                             </defs>
                             <g class="scene" transform="translate(${this.panX},${this.panY}) scale(${this.zoomK})">
                                 ${this.renderEdges()}
-                                ${$.map((x) => this.renderNode(x))}
-                                ${$.map((x) => this.renderGuard(x))}
+                                ${C.map((x) => this.renderNode(x))}
+                                ${C.map((x) => this.renderGuard(x))}
                                 ${this.renderLinkDraft()}
                                 ${this.flowOn ? jc`<circle class="flow-token" r="5.5" cx="-100" cy="-100"/>` : Mi}
                             </g>
@@ -1665,17 +1670,17 @@ let Lu = class extends cx {
    * <p>Writing the flags always drops a legacy `status`: it is the field this editor used to
    * write, the engine has no such property, and a file carrying it fails to import.
    */
-  setDeclaredDisabled($) {
+  setDeclaredDisabled(C) {
     this.updateWf({
-      disabled: $ || void 0,
-      archived: $ ? this.wf.archived : void 0,
+      disabled: C || void 0,
+      archived: C ? this.wf.archived : void 0,
       status: void 0
     });
   }
-  setDeclaredArchived($) {
+  setDeclaredArchived(C) {
     this.updateWf({
-      archived: $ || void 0,
-      disabled: $ ? !0 : this.wf.disabled,
+      archived: C || void 0,
+      disabled: C ? !0 : this.wf.disabled,
       status: void 0
     });
   }
@@ -1684,11 +1689,11 @@ let Lu = class extends cx {
     return this.wf.archived || this.wf.status === "ARCHIVED" ? "ARCHIVED" : this.wf.disabled || this.wf.status === "DISABLED" ? "DISABLED" : "ACTIVE";
   }
   renderToolbar() {
-    const $ = this.declaredState();
+    const C = this.declaredState();
     return Ar`
             <div class="toolbar">
                 <span class="wf-name">${this.wf.name}</span>
-                <span class="badge badge-${$.toLowerCase()}">${$}</span>
+                <span class="badge badge-${C.toLowerCase()}">${C}</span>
                 <div style="flex:1"></div>
                 <button class="nbtn" title="Re-run ELK layout"
                         @click="${() => this.relayout()}">
@@ -1709,15 +1714,15 @@ let Lu = class extends cx {
         `;
   }
   renderMeta() {
-    const $ = this.wf;
+    const C = this.wf;
     return Ar`
             <div class="meta-panel">
                 <div class="meta-grid">
                     <label>Name</label>
-                    <input class="inp" .value="${$.name}"
+                    <input class="inp" .value="${C.name}"
                            @change="${(x) => this.updateWf({ name: x.target.value })}"/>
                     <label>Description</label>
-                    <textarea class="inp" rows="2" .value="${$.description ?? ""}"
+                    <textarea class="inp" rows="2" .value="${C.description ?? ""}"
                               @change="${(x) => this.updateWf({ description: x.target.value })}"></textarea>
                     <label>Status</label>
                     <label title="No new instances, cron included. The runtime cannot enable a workflow its definition disables.">
@@ -1733,15 +1738,15 @@ let Lu = class extends cx {
                         Archived
                     </label>
                     <label>Limit concurrent</label>
-                    <input type="checkbox" ?checked="${$.limitConcurrentExecutions}"
+                    <input type="checkbox" ?checked="${C.limitConcurrentExecutions}"
                            @change="${(x) => this.updateWf({ limitConcurrentExecutions: x.target.checked })}"/>
-                    ${$.limitConcurrentExecutions ? Ar`
+                    ${C.limitConcurrentExecutions ? Ar`
                         <label>Max concurrent</label>
                         <input class="inp" type="number" min="0"
-                               .value="${String($.maxConcurrentExecutions ?? 0)}"
+                               .value="${String(C.maxConcurrentExecutions ?? 0)}"
                                @change="${(x) => this.updateWf({ maxConcurrentExecutions: Number(x.target.value) })}"/>
                         <label>Enqueue on limit</label>
-                        <input type="checkbox" ?checked="${$.enqueueOnLimit}"
+                        <input type="checkbox" ?checked="${C.enqueueOnLimit}"
                                @change="${(x) => this.updateWf({ enqueueOnLimit: x.target.checked })}"/>
                     ` : ""}
                 </div>
@@ -1754,11 +1759,11 @@ let Lu = class extends cx {
    * in modux. Compensation edges are drawn last so they hop over the sequence flow.
    */
   renderEdges() {
-    const $ = this.computeEdges();
-    this.edgeCache = new Map($.map((q) => [q.key, q.pts]));
+    const C = this.computeEdges();
+    this.edgeCache = new Map(C.map((q) => [q.key, q.pts]));
     const x = [], R = [], X = this.hasStateOverlay();
-    for (const q of $) {
-      const Ae = pLn(q.pts, x), k = X && !(this.isVisited(q.from) && this.isVisited(q.to)) ? "mon-dim" : "", ln = this.focusPaint && !this.focusPaint.edges.has(q.key) ? "focus-dim" : "", Le = this.isEdgeSelected(q) ? "sel" : "";
+    for (const q of C) {
+      const Ae = mLn(q.pts, x), k = X && !(this.isVisited(q.from) && this.isVisited(q.to)) ? "mon-dim" : "", ln = this.focusPaint && !this.focusPaint.edges.has(q.key) ? "focus-dim" : "", Le = this.isEdgeSelected(q) ? "sel" : "";
       R.push(q.comp ? jc`<path class="comp-edge ${k} ${ln} ${Le}" data-comp="${q.from}" data-edge="${q.key}"
                              d="${Ae}" marker-end="url(#ec-arrow)"/>` : jc`<path class="edge ${k} ${ln} ${Le}" data-edge="${q.key}"
                              d="${Ae}" marker-end="url(#ec-arrow)"/>`), this.readOnly || R.push(jc`<path class="edge-hit" data-hit="${q.key}" d="${Ae}"
@@ -1777,28 +1782,28 @@ let Lu = class extends cx {
    * link; a condition on the step sits above the step, where it cannot be read as belonging to
    * one of its routes.
    */
-  renderGuard($) {
-    const x = this.positions[$.id];
+  renderGuard(C) {
+    const x = this.positions[C.id];
     if (!x) return jc``;
     const R = [];
-    for (const q of FE($)) {
+    for (const q of FE(C)) {
       const Ae = q.expression?.trim();
       if (!Ae) continue;
-      const k = `${q.stepId}->${$.id}`, ln = this.edgeCache.get(k) ?? this.routeBetween(q.stepId, $.id, 0);
-      ln && R.push(this.renderGuardChip($fn(ln, 0.38), Ae, $.id, k));
+      const k = `${q.stepId}->${C.id}`, ln = this.edgeCache.get(k) ?? this.routeBetween(q.stepId, C.id, 0);
+      ln && R.push(this.renderGuardChip($fn(ln, 0.38), Ae, C.id, k));
     }
-    const X = $.preconditionExpression?.trim();
+    const X = C.preconditionExpression?.trim();
     if (X) {
-      const { w: q } = ip($.type);
-      R.push(this.renderGuardChip({ x: x.x + q / 2, y: x.y - 40 }, X, $.id, ""));
+      const { w: q } = ip(C.type);
+      R.push(this.renderGuardChip({ x: x.x + q / 2, y: x.y - 40 }, X, C.id, ""));
     }
     return R.length ? jc`${R}` : jc``;
   }
-  renderGuardChip($, x, R, X) {
+  renderGuardChip(C, x, R, X) {
     const q = x.length > 30 ? x.slice(0, 29) + "…" : x, Ae = Math.max(30, q.length * 6.3 + 22), k = 19, ln = X && this.focusPaint && !this.focusPaint.edges.has(X) ? "focus-dim" : "";
     return jc`
             <g class="guard ${ln}" data-guard="${R}" data-edge="${X}"
-               transform="translate(${$.x}, ${$.y})">
+               transform="translate(${C.x}, ${C.y})">
                 <rect class="guard-halo" x="${-Ae / 2 - 4}" y="${-k / 2 - 4}" width="${Ae + 8}" height="${k + 8}" rx="12"/>
                 <g class="guard-chip">
                     <rect x="${-Ae / 2}" y="${-k / 2}" width="${Ae}" height="${k}" rx="9.5"/>
@@ -1807,24 +1812,24 @@ let Lu = class extends cx {
             </g>
         `;
   }
-  renderNode($) {
-    const x = this.positions[$.id] ?? { x: e6, y: e6 }, R = Mfn($.type), { w: X, h: q } = ip($.type), Ae = this.selectedId === $.id ? "sel" : "", k = $.name.length > 22 ? $.name.slice(0, 21) + "…" : $.name, ln = jc`<circle class="flow-pulse" data-pulse="${$.id}"
+  renderNode(C) {
+    const x = this.positions[C.id] ?? { x: e6, y: e6 }, R = Mfn(C.type), { w: X, h: q } = ip(C.type), Ae = this.selectedId === C.id ? "sel" : "", k = C.name.length > 22 ? C.name.slice(0, 21) + "…" : C.name, ln = jc`<circle class="flow-pulse" data-pulse="${C.id}"
                                   cx="${X / 2}" cy="${q / 2}" r="${Math.max(X, q) / 2}" opacity="0"/>`;
     let Le = jc``;
-    if (rbe($.type)) {
-      const zn = $.type === "END" ? "ev-end" : "ev-start";
+    if (rbe(C.type)) {
+      const zn = C.type === "END" ? "ev-end" : "ev-start";
       Le = jc`
                 <circle class="node-shape ${zn}" cx="${X / 2}" cy="${q / 2}" r="${X / 2 - 3}"
                         fill="${R.fill}" stroke="${R.stroke}"/>
                 <text class="node-caption" x="${X / 2}" y="${q + 15}" text-anchor="middle">${k}</text>`;
-    } else if (cbe($.type)) {
-      const zn = X / 2, Jt = q / 2, Mr = `${zn},2 ${X - 2},${Jt} ${zn},${q - 2} 2,${Jt}`, Ys = $.type === "JOIN" && $.joinType === "XOR" ? jc`<path class="gw-plus" d="M${zn - 8},${Jt - 8} L${zn + 8},${Jt + 8} M${zn + 8},${Jt - 8} L${zn - 8},${Jt + 8}" stroke="${R.stroke}"/>` : jc`<path class="gw-plus" d="M${zn - 9},${Jt} H${zn + 9} M${zn},${Jt - 9} V${Jt + 9}" stroke="${R.stroke}"/>`;
+    } else if (cbe(C.type)) {
+      const zn = X / 2, Jt = q / 2, Mr = `${zn},2 ${X - 2},${Jt} ${zn},${q - 2} 2,${Jt}`, Ys = C.type === "JOIN" && C.joinType === "XOR" ? jc`<path class="gw-plus" d="M${zn - 8},${Jt - 8} L${zn + 8},${Jt + 8} M${zn + 8},${Jt - 8} L${zn - 8},${Jt + 8}" stroke="${R.stroke}"/>` : jc`<path class="gw-plus" d="M${zn - 9},${Jt} H${zn + 9} M${zn},${Jt - 9} V${Jt + 9}" stroke="${R.stroke}"/>`;
       Le = jc`
                 <polygon class="node-shape gateway" points="${Mr}" fill="${R.fill}" stroke="${R.stroke}"/>
                 ${Ys}
                 <text class="node-caption" x="${X / 2}" y="${q + 15}" text-anchor="middle">${k}</text>`;
     } else {
-      const zn = lLn($), Jt = zn.length > 26 ? zn.slice(0, 25) + "…" : zn;
+      const zn = aLn(C), Jt = zn.length > 26 ? zn.slice(0, 25) + "…" : zn;
       Le = jc`
                 <text class="node-badge" x="2" y="-7">${Jt}</text>
                 <rect class="node-shape" width="${X}" height="${q}" rx="10"
@@ -1832,11 +1837,11 @@ let Lu = class extends cx {
                       stroke-dasharray="${R.dashed ? "6 4" : "0"}"/>
                 <g class="node-symbol" transform="translate(${X - 23}, 9)"
                    fill="none" stroke="${R.stroke}" stroke-width="1.1"
-                   stroke-linejoin="round">${hLn[R.symbol] ?? jc``}</g>
+                   stroke-linejoin="round">${lLn[R.symbol] ?? jc``}</g>
                 <text class="node-title" x="14" y="${q / 2 - 2}">${k}</text>
-                <text class="node-id" x="14" y="${q / 2 + 14}">${$.id}</text>`;
+                <text class="node-id" x="14" y="${q / 2 + 14}">${C.id}</text>`;
     }
-    const Je = this.overlayData[$.id], $n = this.heatmapOn && this.hasHeatData(), Fn = $n ? this.heatIntensity($.id) : 0, yn = Je ? `${Je.active ? "ov-active" : ""} ${Je.state ? "ov-" + Je.state.toLowerCase() : ""}` : "", Xn = $n ? this.heatValue($.id) : Je?.count ?? 0, Nt = Xn > 0 ? jc`
+    const Je = this.overlayData[C.id], $n = this.heatmapOn && this.hasHeatData(), Fn = $n ? this.heatIntensity(C.id) : 0, yn = Je ? `${Je.active ? "ov-active" : ""} ${Je.state ? "ov-" + Je.state.toLowerCase() : ""}` : "", Xn = $n ? this.heatValue(C.id) : Je?.count ?? 0, Nt = Xn > 0 ? jc`
             <g class="ov-count" transform="translate(${X - 5}, 5)">
                 <circle r="10"/>
                 <text text-anchor="middle" dy="3.6">${Xn > 99 ? "99+" : Xn}</text>
@@ -1844,24 +1849,24 @@ let Lu = class extends cx {
             <g class="ov-done" transform="translate(${X - 6}, ${q - 6})">
                 <circle r="12"/>
                 <path class="ov-check" d="M -6 0.5 L -1.5 5 L 6 -4.5"/>
-            </g>` : Mi, Ec = `${this.linkHoverId === $.id ? "link-target" : ""} ${this.linkingFrom === $.id ? "link-source" : ""}`, wi = this.hasStateOverlay() && !this.isVisited($.id) ? "mon-dim" : "", ct = this.focusPaint && !this.focusPaint.nodes.has($.id) ? "focus-dim" : "";
+            </g>` : Mi, Ec = `${this.linkHoverId === C.id ? "link-target" : ""} ${this.linkingFrom === C.id ? "link-source" : ""}`, wi = this.hasStateOverlay() && !this.isVisited(C.id) ? "mon-dim" : "", ct = this.focusPaint && !this.focusPaint.nodes.has(C.id) ? "focus-dim" : "";
     return jc`
             <g class="node ${Ae} ${yn} ${Ec} ${wi} ${ct} ${$n ? "heat-on" : ""}"
-               style="${$n ? `--heat:${Fn}` : ""}" data-node="${$.id}" transform="translate(${x.x},${x.y})"
-               @mousedown="${(zn) => this.onNodeMouseDown(zn, $.id)}"
-               @click="${(zn) => this.onNodeClick(zn, $.id)}"
-               @mouseenter="${() => this.onNodeHover($.id)}"
+               style="${$n ? `--heat:${Fn}` : ""}" data-node="${C.id}" transform="translate(${x.x},${x.y})"
+               @mousedown="${(zn) => this.onNodeMouseDown(zn, C.id)}"
+               @click="${(zn) => this.onNodeClick(zn, C.id)}"
+               @mouseenter="${() => this.onNodeHover(C.id)}"
                @mouseleave="${() => this.onNodeHover(null)}">
                 ${ln}
-                <g class="node-inner" data-inner="${$.id}">${Le}</g>
+                <g class="node-inner" data-inner="${C.id}">${Le}</g>
                 ${Nt}
                 ${Se}
             </g>
         `;
   }
   /** Hover detail only makes sense in monitoring view; ignore hovers on the plain editor. */
-  onNodeHover($) {
-    $ !== null && !this.hasStateOverlay() || (this.hoverId = $);
+  onNodeHover(C) {
+    C !== null && !this.hasStateOverlay() || (this.hoverId = C);
   }
   /**
    * The diagnostic hover card for a monitored step: the consolidated "why it is here", the last
@@ -1870,14 +1875,14 @@ let Lu = class extends cx {
    * any zoom, and pointer-transparent so it never eats the pan/hover it floats over.
    */
   renderOverlayTooltip() {
-    const $ = this.hoverId;
-    if (!$ || !this.hasStateOverlay()) return Mi;
-    const x = this.overlayData[$], R = this.wf.steps.find((Fn) => Fn.id === $), X = this.positions[$];
+    const C = this.hoverId;
+    if (!C || !this.hasStateOverlay()) return Mi;
+    const x = this.overlayData[C], R = this.wf.steps.find((Fn) => Fn.id === C), X = this.positions[C];
     if (!x || !X) return Mi;
     const { h: q } = ip(R?.type ?? "ACTION"), Ae = this.panX + X.x * this.zoomK, k = this.panY + (X.y + q) * this.zoomK + 8, ln = (Fn) => Fn ? Fn.replace("T", " ").slice(0, 16) : "", Le = x.state ? Ar`<span class="tip-chip tip-${x.state.toLowerCase()}">${x.state}</span>` : Mi, Je = (Fn, yn) => yn == null || yn === "" ? Mi : Ar`<div class="tip-row"><span class="tip-k">${Fn}</span><span class="tip-v">${yn}</span></div>`, $n = x.attempt != null ? x.maxRetries ? `${x.attempt}/${x.maxRetries}` : `${x.attempt}` : null;
     return Ar`
             <div class="ov-tip" style="left:${Ae}px; top:${k}px;">
-                <div class="tip-head"><span class="tip-name">${R?.name ?? $}</span>${Le}</div>
+                <div class="tip-head"><span class="tip-name">${R?.name ?? C}</span>${Le}</div>
                 ${x.reason ? Ar`<div class="tip-reason">${x.reason}</div>` : Mi}
                 ${x.error ? Ar`<div class="tip-errmsg">${x.error}</div>` : Mi}
                 ${Je("Attempt", $n)}
@@ -1894,9 +1899,9 @@ let Lu = class extends cx {
             </div>`;
   }
   renderPanel() {
-    const $ = this.wf.steps.find((q) => q.id === this.selectedId);
-    if (!$) return "";
-    const x = this.wf.steps.filter((q) => q.id !== $.id), R = this.readOnly, X = (q, Ae) => Ar`
+    const C = this.wf.steps.find((q) => q.id === this.selectedId);
+    if (!C) return "";
+    const x = this.wf.steps.filter((q) => q.id !== C.id), R = this.readOnly, X = (q, Ae) => Ar`
             <div class="field">
                 <label class="field-label">${q}</label>
                 ${Ae}
@@ -1907,89 +1912,89 @@ let Lu = class extends cx {
                 <div class="prop-header">
                     <span>Step Properties</span>
                     ${R ? Mi : Ar`<button class="del-btn" title="Delete step"
-                            @click="${() => this.deleteStep($.id)}">🗑</button>`}
+                            @click="${() => this.deleteStep(C.id)}">🗑</button>`}
                     <button class="close-btn" title="Close properties"
                             @click="${() => this.selectedId = null}">✕</button>
                 </div>
                 <div class="prop-body">
-                    ${X("ID", Ar`<input class="inp" readonly .value="${$.id}"/>`)}
-                    ${X("Name", Ar`<input class="inp" ?readonly="${R}" .value="${$.name}"
-                        @change="${R ? Mi : (q) => this.updateStep($.id, { name: q.target.value })}"/>`)}
+                    ${X("ID", Ar`<input class="inp" readonly .value="${C.id}"/>`)}
+                    ${X("Name", Ar`<input class="inp" ?readonly="${R}" .value="${C.name}"
+                        @change="${R ? Mi : (q) => this.updateStep(C.id, { name: q.target.value })}"/>`)}
                     ${X("Type", Ar`
                         <select class="inp" ?disabled="${R}"
-                                @change="${R ? Mi : (q) => this.updateStep($.id, { type: q.target.value })}">
-                            ${sLn.map((q) => Ar`
-                                <option value="${q}" ?selected="${$.type === q}">${q}</option>`)}
+                                @change="${R ? Mi : (q) => this.updateStep(C.id, { type: q.target.value })}">
+                            ${oLn.map((q) => Ar`
+                                <option value="${q}" ?selected="${C.type === q}">${q}</option>`)}
                         </select>`)}
                     ${X("Description", Ar`<textarea class="inp" rows="2" ?readonly="${R}"
-                        .value="${$.description ?? ""}"
-                        @change="${R ? Mi : (q) => this.updateStep($.id, { description: q.target.value })}"></textarea>`)}
-                    ${$.type === "JOIN" ? X("Join type", Ar`
+                        .value="${C.description ?? ""}"
+                        @change="${R ? Mi : (q) => this.updateStep(C.id, { description: q.target.value })}"></textarea>`)}
+                    ${C.type === "JOIN" ? X("Join type", Ar`
                         <select class="inp" ?disabled="${R}"
-                                @change="${R ? Mi : (q) => this.updateStep($.id, { joinType: q.target.value })}">
-                            <option value="AND" ?selected="${($.joinType ?? "AND") === "AND"}">AND — wait for all</option>
-                            <option value="XOR" ?selected="${$.joinType === "XOR"}">XOR — any one</option>
+                                @change="${R ? Mi : (q) => this.updateStep(C.id, { joinType: q.target.value })}">
+                            <option value="AND" ?selected="${(C.joinType ?? "AND") === "AND"}">AND — wait for all</option>
+                            <option value="XOR" ?selected="${C.joinType === "XOR"}">XOR — any one</option>
                         </select>`) : Mi}
                     ${X("Preconditions (all must complete)", Ar`
                         <div class="checklist">
                             ${x.length === 0 ? Ar`<span class="check-empty">no other steps</span>` : x.map((q) => Ar`
                                 <label class="check">
                                     <input type="checkbox" ?disabled="${R}"
-                                           ?checked="${q1($).includes(q.id)}"
-                                           @change="${R ? Mi : (Ae) => this.togglePrecondition($, q.id, Ae.target.checked)}"/>
+                                           ?checked="${q1(C).includes(q.id)}"
+                                           @change="${R ? Mi : (Ae) => this.togglePrecondition(C, q.id, Ae.target.checked)}"/>
                                     <span>${q.name} <em>(${q.id})</em></span>
                                 </label>
-                                ${q1($).includes(q.id) ? Ar`
+                                ${q1(C).includes(q.id) ? Ar`
                                     <!-- The condition belongs to this link, not to the step: it
                                          says when arriving from THIS step counts. -->
                                     <input class="inp link-guard" ?readonly="${R}"
                                            placeholder="only when… (JEXL, optional)"
                                            title="Condition on the link from ${q.name}"
-                                           .value="${kLn($, q.id) ?? ""}"
-                                           @change="${R ? Mi : (Ae) => this.setGuard($, q.id, Ae.target.value)}"/>` : Mi}`)}
+                                           .value="${yLn(C, q.id) ?? ""}"
+                                           @change="${R ? Mi : (Ae) => this.setGuard(C, q.id, Ae.target.value)}"/>` : Mi}`)}
                         </div>`)}
                     ${X("Step condition (gates the step however it is reached)", Ar`
                         <input class="inp" placeholder="JEXL expression" ?readonly="${R}"
-                               .value="${$.preconditionExpression ?? ""}"
-                               @change="${R ? Mi : (q) => this.updateStep($.id, { preconditionExpression: q.target.value || void 0 })}"/>`)}
+                               .value="${C.preconditionExpression ?? ""}"
+                               @change="${R ? Mi : (q) => this.updateStep(C.id, { preconditionExpression: q.target.value || void 0 })}"/>`)}
                     ${X("Timeout (ms)", Ar`
                         <input class="inp" type="number" min="0" ?readonly="${R}"
-                               .value="${String($.timeout ?? 0)}"
-                               @change="${R ? Mi : (q) => this.updateStep($.id, { timeout: Number(q.target.value) })}"/>`)}
+                               .value="${String(C.timeout ?? 0)}"
+                               @change="${R ? Mi : (q) => this.updateStep(C.id, { timeout: Number(q.target.value) })}"/>`)}
                     ${X("Retries", Ar`
                         <input class="inp" type="number" min="0" ?readonly="${R}"
-                               .value="${String($.retries ?? 0)}"
-                               @change="${R ? Mi : (q) => this.updateStep($.id, { retries: Number(q.target.value) })}"/>`)}
+                               .value="${String(C.retries ?? 0)}"
+                               @change="${R ? Mi : (q) => this.updateStep(C.id, { retries: Number(q.target.value) })}"/>`)}
                     <div class="field row">
                         <label class="field-label">Rollbackable</label>
-                        <input type="checkbox" ?checked="${$.rollbackable}" ?disabled="${R}"
-                               @change="${R ? Mi : (q) => this.updateStep($.id, { rollbackable: q.target.checked })}"/>
+                        <input type="checkbox" ?checked="${C.rollbackable}" ?disabled="${R}"
+                               @change="${R ? Mi : (q) => this.updateStep(C.id, { rollbackable: q.target.checked })}"/>
                     </div>
-                    ${$.rollbackable ? X("Compensation step", Ar`
+                    ${C.rollbackable ? X("Compensation step", Ar`
                         <select class="inp" ?disabled="${R}"
-                                @change="${R ? Mi : (q) => this.updateStep($.id, { compensationStepId: q.target.value || void 0 })}">
+                                @change="${R ? Mi : (q) => this.updateStep(C.id, { compensationStepId: q.target.value || void 0 })}">
                             <option value="">— none —</option>
                             ${x.map((q) => Ar`
-                                <option value="${q.id}" ?selected="${$.compensationStepId === q.id}">
+                                <option value="${q.id}" ?selected="${C.compensationStepId === q.id}">
                                     ${q.name} (${q.id})
                                 </option>`)}
                         </select>`) : ""}
-                    ${$.type === "ACTION" ? X("Topic", Ar`
+                    ${C.type === "ACTION" ? X("Topic", Ar`
                         <input class="inp" placeholder="kafka.topic.name" ?readonly="${R}"
-                               .value="${$.topic ?? ""}"
-                               @change="${R ? Mi : (q) => this.updateStep($.id, { topic: q.target.value || void 0 })}"/>`) : ""}
-                    ${$.type === "USER_TASK" ? X("Form ID", Ar`
-                        <input class="inp" ?readonly="${R}" .value="${$.formId ?? ""}"
-                               @change="${R ? Mi : (q) => this.updateStep($.id, { formId: q.target.value || void 0 })}"/>`) : ""}
-                    ${$.type === "RULE" ? X("Rule ID", Ar`
-                        <input class="inp" ?readonly="${R}" .value="${$.ruleId ?? ""}"
-                               @change="${R ? Mi : (q) => this.updateStep($.id, { ruleId: q.target.value || void 0 })}"/>`) : ""}
-                    ${$.type === "WAIT_FOR_MESSAGE" || $.type === "SEND_MESSAGE" ? X("Message name", Ar`
-                        <input class="inp" ?readonly="${R}" .value="${$.messageName ?? ""}"
-                               @change="${R ? Mi : (q) => this.updateStep($.id, { messageName: q.target.value || void 0 })}"/>`) : ""}
-                    ${$.type === "PROCESS" ? X("Child workflow ID", Ar`
-                        <input class="inp" ?readonly="${R}" .value="${$.childWorkflowDefinitionId ?? ""}"
-                               @change="${R ? Mi : (q) => this.updateStep($.id, { childWorkflowDefinitionId: q.target.value || void 0 })}"/>`) : ""}
+                               .value="${C.topic ?? ""}"
+                               @change="${R ? Mi : (q) => this.updateStep(C.id, { topic: q.target.value || void 0 })}"/>`) : ""}
+                    ${C.type === "USER_TASK" ? X("Form ID", Ar`
+                        <input class="inp" ?readonly="${R}" .value="${C.formId ?? ""}"
+                               @change="${R ? Mi : (q) => this.updateStep(C.id, { formId: q.target.value || void 0 })}"/>`) : ""}
+                    ${C.type === "RULE" ? X("Rule ID", Ar`
+                        <input class="inp" ?readonly="${R}" .value="${C.ruleId ?? ""}"
+                               @change="${R ? Mi : (q) => this.updateStep(C.id, { ruleId: q.target.value || void 0 })}"/>`) : ""}
+                    ${C.type === "WAIT_FOR_MESSAGE" || C.type === "SEND_MESSAGE" ? X("Message name", Ar`
+                        <input class="inp" ?readonly="${R}" .value="${C.messageName ?? ""}"
+                               @change="${R ? Mi : (q) => this.updateStep(C.id, { messageName: q.target.value || void 0 })}"/>`) : ""}
+                    ${C.type === "PROCESS" ? X("Child workflow ID", Ar`
+                        <input class="inp" ?readonly="${R}" .value="${C.childWorkflowDefinitionId ?? ""}"
+                               @change="${R ? Mi : (q) => this.updateStep(C.id, { childWorkflowDefinitionId: q.target.value || void 0 })}"/>`) : ""}
                 </div>
             </div>
         `;
@@ -2388,17 +2393,17 @@ Lu = ss([
   CDn("eventconductor-workflow-graph")
 ], Lu);
 var Pfn = typeof globalThis < "u" ? globalThis : typeof window < "u" ? window : typeof global < "u" ? global : typeof self < "u" ? self : {};
-function jLn($) {
-  return $ && $.__esModule && Object.prototype.hasOwnProperty.call($, "default") ? $.default : $;
+function ELn(C) {
+  return C && C.__esModule && Object.prototype.hasOwnProperty.call(C, "default") ? C.default : C;
 }
-function jU($) {
-  throw new Error('Could not dynamically require "' + $ + '". Please configure the dynamicRequireTargets or/and ignoreDynamicRequires option of @rollup/plugin-commonjs appropriately for this require call to work.');
+function jU(C) {
+  throw new Error('Could not dynamically require "' + C + '". Please configure the dynamicRequireTargets or/and ignoreDynamicRequires option of @rollup/plugin-commonjs appropriately for this require call to work.');
 }
 var V0e = { exports: {} }, xfn;
-function ELn() {
-  return xfn || (xfn = 1, (function($, x) {
+function ALn() {
+  return xfn || (xfn = 1, (function(C, x) {
     (function(R) {
-      $.exports = R();
+      C.exports = R();
     })(function() {
       return (/* @__PURE__ */ (function() {
         function R(X, q, Ae) {
@@ -28276,7 +28281,7 @@ function ELn() {
               if (c = e.length, c == 0)
                 return "";
               for (h = H(yo, xh, 30, c, 15, 1), Vi(0, c, e.length), Vi(0, c, h.length), RCe(e, 0, c, h, 0), t = null, f = n, r = 0, s = 0; r < c; r++)
-                i = h[r], Bze(), i <= 32 && (C[i] & 2) != 0 ? f ? (!t && (t = new Mo(e)), Han(t, r - s++)) : (f = n, i != 32 && (!t && (t = new Mo(e)), pN(t, r - s, r - s + 1, " "))) : f = !1;
+                i = h[r], Bze(), i <= 32 && ($[i] & 2) != 0 ? f ? (!t && (t = new Mo(e)), Han(t, r - s++)) : (f = n, i != 32 && (!t && (t = new Mo(e)), pN(t, r - s, r - s + 1, " "))) : f = !1;
               return f ? t ? (c = t.a.length, c > 0 ? So(t.a, 0, c - 1) : "") : (Vi(0, c - 1, e.length), e.substr(0, c - 1)) : t ? t.a : e;
             }
             function VCn(e, n, t) {
@@ -34425,7 +34430,7 @@ function ELn() {
               e.r || (e.r = !0, su(e, "graph"), eS(e, "graph"), nS(e, f5), W7(e.o, "T"), In(Kr(e.a), e.p), In(Kr(e.f), e.a), In(Kr(e.n), e.f), In(Kr(e.g), e.n), In(Kr(e.c), e.n), In(Kr(e.i), e.c), In(Kr(e.j), e.c), In(Kr(e.d), e.f), In(Kr(e.e), e.a), dc(e.p, oDn, DKe, !0, !0, !1), m = Qg(e.p, e.p, "setProperty"), y = eFe(m), l = Al(e.o), a = (t = (i = new o0(), i), t), In((!l.d && (l.d = new ki(Or, l, 1)), l.d), a), d = sL(y), Tee(a, d), GS(m, l, uue), l = sL(y), GS(m, l, $9), m = Qg(e.p, null, "getProperty"), y = eFe(m), l = Al(e.o), a = sL(y), In((!l.d && (l.d = new ki(Or, l, 1)), l.d), a), GS(m, l, uue), l = sL(y), p = Zf(m, l, null), p && p.mj(), m = Qg(e.p, e.wb.e, "hasProperty"), l = Al(e.o), a = (r = (c = new o0(), c), r), In((!l.d && (l.d = new ki(Or, l, 1)), l.d), a), GS(m, l, uue), m = Qg(e.p, e.p, "copyProperties"), qr(m, e.p, U_), m = Qg(e.p, null, "getAllProperties"), l = Al(e.wb.P), a = Al(e.o), In((!l.d && (l.d = new ki(Or, l, 1)), l.d), a), d = (s = (f = new o0(), f), s), In((!a.d && (a.d = new ki(Or, a, 1)), a.d), d), a = Al(e.wb.M), In((!l.d && (l.d = new ki(Or, l, 1)), l.d), a), g = Zf(m, l, null), g && g.mj(), dc(e.a, V5, yWe, !0, !1, !0), Rt(u(D(W(e.a), 0), 19), e.k, null, OWe, 0, -1, V5, !1, !1, !0, !0, !1, !1, !1), dc(e.f, ME, EWe, !0, !1, !0), Rt(u(D(W(e.f), 0), 19), e.g, u(D(W(e.g), 0), 19), "labels", 0, -1, ME, !1, !1, !0, !0, !1, !1, !1), ui(u(D(W(e.f), 1), 38), e.wb._, DWe, null, 0, 1, ME, !1, !1, !0, !1, !0, !1), dc(e.n, TE, "ElkShape", !0, !1, !0), ui(u(D(W(e.n), 0), 38), e.wb.t, z_, Gv, 1, 1, TE, !1, !1, !0, !1, !0, !1), ui(u(D(W(e.n), 1), 38), e.wb.t, K_, Gv, 1, 1, TE, !1, !1, !0, !1, !0, !1), ui(u(D(W(e.n), 2), 38), e.wb.t, "x", Gv, 1, 1, TE, !1, !1, !0, !1, !0, !1), ui(u(D(W(e.n), 3), 38), e.wb.t, "y", Gv, 1, 1, TE, !1, !1, !0, !1, !0, !1), m = Qg(e.n, null, "setDimensions"), qr(m, e.wb.t, K_), qr(m, e.wb.t, z_), m = Qg(e.n, null, "setLocation"), qr(m, e.wb.t, "x"), qr(m, e.wb.t, "y"), dc(e.g, lc, iue, !1, !1, !0), Rt(u(D(W(e.g), 0), 19), e.f, u(D(W(e.f), 0), 19), X_, 0, 1, lc, !1, !1, !0, !1, !1, !1, !1), ui(u(D(W(e.g), 1), 38), e.wb._, W_, "", 0, 1, lc, !1, !1, !0, !1, !0, !1), dc(e.c, An, AWe, !0, !1, !0), Rt(u(D(W(e.c), 0), 19), e.d, u(D(W(e.d), 1), 19), "outgoingEdges", 0, -1, An, !1, !1, !0, !1, !0, !1, !1), Rt(u(D(W(e.c), 1), 19), e.d, u(D(W(e.d), 2), 19), "incomingEdges", 0, -1, An, !1, !1, !0, !1, !0, !1, !1), dc(e.i, Un, rue, !1, !1, !0), Rt(u(D(W(e.i), 0), 19), e.j, u(D(W(e.j), 0), 19), "ports", 0, -1, Un, !1, !1, !0, !0, !1, !1, !1), Rt(u(D(W(e.i), 1), 19), e.i, u(D(W(e.i), 2), 19), V_, 0, -1, Un, !1, !1, !0, !0, !1, !1, !1), Rt(u(D(W(e.i), 2), 19), e.i, u(D(W(e.i), 1), 19), X_, 0, 1, Un, !1, !1, !0, !1, !1, !1, !1), Rt(u(D(W(e.i), 3), 19), e.d, u(D(W(e.d), 0), 19), "containedEdges", 0, -1, Un, !1, !1, !0, !0, !1, !1, !1), ui(u(D(W(e.i), 4), 38), e.wb.e, LWe, null, 0, 1, Un, !0, !0, !1, !1, !0, !0), dc(e.j, ks, cue, !1, !1, !0), Rt(u(D(W(e.j), 0), 19), e.i, u(D(W(e.i), 0), 19), X_, 0, 1, ks, !1, !1, !0, !1, !1, !1, !1), dc(e.d, vi, tue, !1, !1, !0), Rt(u(D(W(e.d), 0), 19), e.i, u(D(W(e.i), 3), 19), "containingNode", 0, 1, vi, !1, !1, !0, !1, !1, !1, !1), Rt(u(D(W(e.d), 1), 19), e.c, u(D(W(e.c), 0), 19), sue, 0, -1, vi, !1, !1, !0, !1, !0, !1, !1), Rt(u(D(W(e.d), 2), 19), e.c, u(D(W(e.c), 1), 19), Q_, 0, -1, vi, !1, !1, !0, !1, !0, !1, !1), Rt(u(D(W(e.d), 3), 19), e.e, u(D(W(e.e), 5), 19), Y_, 0, -1, vi, !1, !1, !0, !0, !1, !1, !1), ui(u(D(W(e.d), 4), 38), e.wb.e, "hyperedge", null, 0, 1, vi, !0, !0, !1, !1, !0, !0), ui(u(D(W(e.d), 5), 38), e.wb.e, LWe, null, 0, 1, vi, !0, !0, !1, !1, !0, !0), ui(u(D(W(e.d), 6), 38), e.wb.e, "selfloop", null, 0, 1, vi, !0, !0, !1, !1, !0, !0), ui(u(D(W(e.d), 7), 38), e.wb.e, "connected", null, 0, 1, vi, !0, !0, !1, !1, !0, !0), dc(e.b, Vs, jWe, !1, !1, !0), ui(u(D(W(e.b), 0), 38), e.wb.t, "x", Gv, 1, 1, Vs, !1, !1, !0, !1, !0, !1), ui(u(D(W(e.b), 1), 38), e.wb.t, "y", Gv, 1, 1, Vs, !1, !1, !0, !1, !0, !1), m = Qg(e.b, null, "set"), qr(m, e.wb.t, "x"), qr(m, e.wb.t, "y"), dc(e.e, _t, MWe, !1, !1, !0), ui(u(D(W(e.e), 0), 38), e.wb.t, "startX", null, 0, 1, _t, !1, !1, !0, !1, !0, !1), ui(u(D(W(e.e), 1), 38), e.wb.t, "startY", null, 0, 1, _t, !1, !1, !0, !1, !0, !1), ui(u(D(W(e.e), 2), 38), e.wb.t, "endX", null, 0, 1, _t, !1, !1, !0, !1, !0, !1), ui(u(D(W(e.e), 3), 38), e.wb.t, "endY", null, 0, 1, _t, !1, !1, !0, !1, !0, !1), Rt(u(D(W(e.e), 4), 19), e.b, null, bC, 0, -1, _t, !1, !1, !0, !0, !1, !1, !1), Rt(u(D(W(e.e), 5), 19), e.d, u(D(W(e.d), 3), 19), X_, 0, 1, _t, !1, !1, !0, !1, !1, !1, !1), Rt(u(D(W(e.e), 6), 19), e.c, null, oue, 0, 1, _t, !1, !1, !0, !1, !0, !1, !1), Rt(u(D(W(e.e), 7), 19), e.c, null, fue, 0, 1, _t, !1, !1, !0, !1, !0, !1, !1), Rt(u(D(W(e.e), 8), 19), e.e, u(D(W(e.e), 9), 19), hue, 0, -1, _t, !1, !1, !0, !1, !0, !1, !1), Rt(u(D(W(e.e), 9), 19), e.e, u(D(W(e.e), 8), 19), lue, 0, -1, _t, !1, !1, !0, !1, !0, !1, !1), ui(u(D(W(e.e), 10), 38), e.wb._, DWe, null, 0, 1, _t, !1, !1, !0, !1, !0, !1), m = Qg(e.e, null, "setStartLocation"), qr(m, e.wb.t, "x"), qr(m, e.wb.t, "y"), m = Qg(e.e, null, "setEndLocation"), qr(m, e.wb.t, "x"), qr(m, e.wb.t, "y"), dc(e.k, Bd, "ElkPropertyToValueMapEntry", !1, !1, !1), l = Al(e.o), a = (h = (n = new o0(), n), h), In((!l.d && (l.d = new ki(Or, l, 1)), l.d), a), IGe(u(D(W(e.k), 0), 38), l, "key", Bd, !1, !1, !0, !1), ui(u(D(W(e.k), 1), 38), e.s, $9, null, 0, 1, Bd, !1, !1, !0, !1, !0, !1), ht(e.o, OH, "IProperty", !0), ht(e.s, Ci, "PropertyValue", !0), eZ(e, f5));
             }
             function Bze() {
-              Bze = _, C = H(zu, k2, 30, mr, 15, 1), C[9] = 35, C[10] = 19, C[13] = 19, C[32] = 51, C[33] = 49, C[34] = 33, J(C, 35, 38, 49), C[38] = 1, J(C, 39, 45, 49), J(C, 45, 47, -71), C[47] = 49, J(C, 48, 58, -71), C[58] = 61, C[59] = 49, C[60] = 1, C[61] = 49, C[62] = 33, J(C, 63, 65, 49), J(C, 65, 91, -3), J(C, 91, 93, 33), C[93] = 1, C[94] = 33, C[95] = -3, C[96] = 33, J(C, 97, 123, -3), J(C, 123, 183, 33), C[183] = -87, J(C, 184, 192, 33), J(C, 192, 215, -19), C[215] = 33, J(C, 216, 247, -19), C[247] = 33, J(C, 248, 306, -19), J(C, 306, 308, 33), J(C, 308, 319, -19), J(C, 319, 321, 33), J(C, 321, 329, -19), C[329] = 33, J(C, 330, 383, -19), C[383] = 33, J(C, 384, 452, -19), J(C, 452, 461, 33), J(C, 461, 497, -19), J(C, 497, 500, 33), J(C, 500, 502, -19), J(C, 502, 506, 33), J(C, 506, 536, -19), J(C, 536, 592, 33), J(C, 592, 681, -19), J(C, 681, 699, 33), J(C, 699, 706, -19), J(C, 706, 720, 33), J(C, 720, 722, -87), J(C, 722, 768, 33), J(C, 768, 838, -87), J(C, 838, 864, 33), J(C, 864, 866, -87), J(C, 866, 902, 33), C[902] = -19, C[903] = -87, J(C, 904, 907, -19), C[907] = 33, C[908] = -19, C[909] = 33, J(C, 910, 930, -19), C[930] = 33, J(C, 931, 975, -19), C[975] = 33, J(C, 976, 983, -19), J(C, 983, 986, 33), C[986] = -19, C[987] = 33, C[988] = -19, C[989] = 33, C[990] = -19, C[991] = 33, C[992] = -19, C[993] = 33, J(C, 994, 1012, -19), J(C, 1012, 1025, 33), J(C, 1025, 1037, -19), C[1037] = 33, J(C, 1038, 1104, -19), C[1104] = 33, J(C, 1105, 1117, -19), C[1117] = 33, J(C, 1118, 1154, -19), C[1154] = 33, J(C, 1155, 1159, -87), J(C, 1159, 1168, 33), J(C, 1168, 1221, -19), J(C, 1221, 1223, 33), J(C, 1223, 1225, -19), J(C, 1225, 1227, 33), J(C, 1227, 1229, -19), J(C, 1229, 1232, 33), J(C, 1232, 1260, -19), J(C, 1260, 1262, 33), J(C, 1262, 1270, -19), J(C, 1270, 1272, 33), J(C, 1272, 1274, -19), J(C, 1274, 1329, 33), J(C, 1329, 1367, -19), J(C, 1367, 1369, 33), C[1369] = -19, J(C, 1370, 1377, 33), J(C, 1377, 1415, -19), J(C, 1415, 1425, 33), J(C, 1425, 1442, -87), C[1442] = 33, J(C, 1443, 1466, -87), C[1466] = 33, J(C, 1467, 1470, -87), C[1470] = 33, C[1471] = -87, C[1472] = 33, J(C, 1473, 1475, -87), C[1475] = 33, C[1476] = -87, J(C, 1477, 1488, 33), J(C, 1488, 1515, -19), J(C, 1515, 1520, 33), J(C, 1520, 1523, -19), J(C, 1523, 1569, 33), J(C, 1569, 1595, -19), J(C, 1595, 1600, 33), C[1600] = -87, J(C, 1601, 1611, -19), J(C, 1611, 1619, -87), J(C, 1619, 1632, 33), J(C, 1632, 1642, -87), J(C, 1642, 1648, 33), C[1648] = -87, J(C, 1649, 1720, -19), J(C, 1720, 1722, 33), J(C, 1722, 1727, -19), C[1727] = 33, J(C, 1728, 1743, -19), C[1743] = 33, J(C, 1744, 1748, -19), C[1748] = 33, C[1749] = -19, J(C, 1750, 1765, -87), J(C, 1765, 1767, -19), J(C, 1767, 1769, -87), C[1769] = 33, J(C, 1770, 1774, -87), J(C, 1774, 1776, 33), J(C, 1776, 1786, -87), J(C, 1786, 2305, 33), J(C, 2305, 2308, -87), C[2308] = 33, J(C, 2309, 2362, -19), J(C, 2362, 2364, 33), C[2364] = -87, C[2365] = -19, J(C, 2366, 2382, -87), J(C, 2382, 2385, 33), J(C, 2385, 2389, -87), J(C, 2389, 2392, 33), J(C, 2392, 2402, -19), J(C, 2402, 2404, -87), J(C, 2404, 2406, 33), J(C, 2406, 2416, -87), J(C, 2416, 2433, 33), J(C, 2433, 2436, -87), C[2436] = 33, J(C, 2437, 2445, -19), J(C, 2445, 2447, 33), J(C, 2447, 2449, -19), J(C, 2449, 2451, 33), J(C, 2451, 2473, -19), C[2473] = 33, J(C, 2474, 2481, -19), C[2481] = 33, C[2482] = -19, J(C, 2483, 2486, 33), J(C, 2486, 2490, -19), J(C, 2490, 2492, 33), C[2492] = -87, C[2493] = 33, J(C, 2494, 2501, -87), J(C, 2501, 2503, 33), J(C, 2503, 2505, -87), J(C, 2505, 2507, 33), J(C, 2507, 2510, -87), J(C, 2510, 2519, 33), C[2519] = -87, J(C, 2520, 2524, 33), J(C, 2524, 2526, -19), C[2526] = 33, J(C, 2527, 2530, -19), J(C, 2530, 2532, -87), J(C, 2532, 2534, 33), J(C, 2534, 2544, -87), J(C, 2544, 2546, -19), J(C, 2546, 2562, 33), C[2562] = -87, J(C, 2563, 2565, 33), J(C, 2565, 2571, -19), J(C, 2571, 2575, 33), J(C, 2575, 2577, -19), J(C, 2577, 2579, 33), J(C, 2579, 2601, -19), C[2601] = 33, J(C, 2602, 2609, -19), C[2609] = 33, J(C, 2610, 2612, -19), C[2612] = 33, J(C, 2613, 2615, -19), C[2615] = 33, J(C, 2616, 2618, -19), J(C, 2618, 2620, 33), C[2620] = -87, C[2621] = 33, J(C, 2622, 2627, -87), J(C, 2627, 2631, 33), J(C, 2631, 2633, -87), J(C, 2633, 2635, 33), J(C, 2635, 2638, -87), J(C, 2638, 2649, 33), J(C, 2649, 2653, -19), C[2653] = 33, C[2654] = -19, J(C, 2655, 2662, 33), J(C, 2662, 2674, -87), J(C, 2674, 2677, -19), J(C, 2677, 2689, 33), J(C, 2689, 2692, -87), C[2692] = 33, J(C, 2693, 2700, -19), C[2700] = 33, C[2701] = -19, C[2702] = 33, J(C, 2703, 2706, -19), C[2706] = 33, J(C, 2707, 2729, -19), C[2729] = 33, J(C, 2730, 2737, -19), C[2737] = 33, J(C, 2738, 2740, -19), C[2740] = 33, J(C, 2741, 2746, -19), J(C, 2746, 2748, 33), C[2748] = -87, C[2749] = -19, J(C, 2750, 2758, -87), C[2758] = 33, J(C, 2759, 2762, -87), C[2762] = 33, J(C, 2763, 2766, -87), J(C, 2766, 2784, 33), C[2784] = -19, J(C, 2785, 2790, 33), J(C, 2790, 2800, -87), J(C, 2800, 2817, 33), J(C, 2817, 2820, -87), C[2820] = 33, J(C, 2821, 2829, -19), J(C, 2829, 2831, 33), J(C, 2831, 2833, -19), J(C, 2833, 2835, 33), J(C, 2835, 2857, -19), C[2857] = 33, J(C, 2858, 2865, -19), C[2865] = 33, J(C, 2866, 2868, -19), J(C, 2868, 2870, 33), J(C, 2870, 2874, -19), J(C, 2874, 2876, 33), C[2876] = -87, C[2877] = -19, J(C, 2878, 2884, -87), J(C, 2884, 2887, 33), J(C, 2887, 2889, -87), J(C, 2889, 2891, 33), J(C, 2891, 2894, -87), J(C, 2894, 2902, 33), J(C, 2902, 2904, -87), J(C, 2904, 2908, 33), J(C, 2908, 2910, -19), C[2910] = 33, J(C, 2911, 2914, -19), J(C, 2914, 2918, 33), J(C, 2918, 2928, -87), J(C, 2928, 2946, 33), J(C, 2946, 2948, -87), C[2948] = 33, J(C, 2949, 2955, -19), J(C, 2955, 2958, 33), J(C, 2958, 2961, -19), C[2961] = 33, J(C, 2962, 2966, -19), J(C, 2966, 2969, 33), J(C, 2969, 2971, -19), C[2971] = 33, C[2972] = -19, C[2973] = 33, J(C, 2974, 2976, -19), J(C, 2976, 2979, 33), J(C, 2979, 2981, -19), J(C, 2981, 2984, 33), J(C, 2984, 2987, -19), J(C, 2987, 2990, 33), J(C, 2990, 2998, -19), C[2998] = 33, J(C, 2999, 3002, -19), J(C, 3002, 3006, 33), J(C, 3006, 3011, -87), J(C, 3011, 3014, 33), J(C, 3014, 3017, -87), C[3017] = 33, J(C, 3018, 3022, -87), J(C, 3022, 3031, 33), C[3031] = -87, J(C, 3032, 3047, 33), J(C, 3047, 3056, -87), J(C, 3056, 3073, 33), J(C, 3073, 3076, -87), C[3076] = 33, J(C, 3077, 3085, -19), C[3085] = 33, J(C, 3086, 3089, -19), C[3089] = 33, J(C, 3090, 3113, -19), C[3113] = 33, J(C, 3114, 3124, -19), C[3124] = 33, J(C, 3125, 3130, -19), J(C, 3130, 3134, 33), J(C, 3134, 3141, -87), C[3141] = 33, J(C, 3142, 3145, -87), C[3145] = 33, J(C, 3146, 3150, -87), J(C, 3150, 3157, 33), J(C, 3157, 3159, -87), J(C, 3159, 3168, 33), J(C, 3168, 3170, -19), J(C, 3170, 3174, 33), J(C, 3174, 3184, -87), J(C, 3184, 3202, 33), J(C, 3202, 3204, -87), C[3204] = 33, J(C, 3205, 3213, -19), C[3213] = 33, J(C, 3214, 3217, -19), C[3217] = 33, J(C, 3218, 3241, -19), C[3241] = 33, J(C, 3242, 3252, -19), C[3252] = 33, J(C, 3253, 3258, -19), J(C, 3258, 3262, 33), J(C, 3262, 3269, -87), C[3269] = 33, J(C, 3270, 3273, -87), C[3273] = 33, J(C, 3274, 3278, -87), J(C, 3278, 3285, 33), J(C, 3285, 3287, -87), J(C, 3287, 3294, 33), C[3294] = -19, C[3295] = 33, J(C, 3296, 3298, -19), J(C, 3298, 3302, 33), J(C, 3302, 3312, -87), J(C, 3312, 3330, 33), J(C, 3330, 3332, -87), C[3332] = 33, J(C, 3333, 3341, -19), C[3341] = 33, J(C, 3342, 3345, -19), C[3345] = 33, J(C, 3346, 3369, -19), C[3369] = 33, J(C, 3370, 3386, -19), J(C, 3386, 3390, 33), J(C, 3390, 3396, -87), J(C, 3396, 3398, 33), J(C, 3398, 3401, -87), C[3401] = 33, J(C, 3402, 3406, -87), J(C, 3406, 3415, 33), C[3415] = -87, J(C, 3416, 3424, 33), J(C, 3424, 3426, -19), J(C, 3426, 3430, 33), J(C, 3430, 3440, -87), J(C, 3440, 3585, 33), J(C, 3585, 3631, -19), C[3631] = 33, C[3632] = -19, C[3633] = -87, J(C, 3634, 3636, -19), J(C, 3636, 3643, -87), J(C, 3643, 3648, 33), J(C, 3648, 3654, -19), J(C, 3654, 3663, -87), C[3663] = 33, J(C, 3664, 3674, -87), J(C, 3674, 3713, 33), J(C, 3713, 3715, -19), C[3715] = 33, C[3716] = -19, J(C, 3717, 3719, 33), J(C, 3719, 3721, -19), C[3721] = 33, C[3722] = -19, J(C, 3723, 3725, 33), C[3725] = -19, J(C, 3726, 3732, 33), J(C, 3732, 3736, -19), C[3736] = 33, J(C, 3737, 3744, -19), C[3744] = 33, J(C, 3745, 3748, -19), C[3748] = 33, C[3749] = -19, C[3750] = 33, C[3751] = -19, J(C, 3752, 3754, 33), J(C, 3754, 3756, -19), C[3756] = 33, J(C, 3757, 3759, -19), C[3759] = 33, C[3760] = -19, C[3761] = -87, J(C, 3762, 3764, -19), J(C, 3764, 3770, -87), C[3770] = 33, J(C, 3771, 3773, -87), C[3773] = -19, J(C, 3774, 3776, 33), J(C, 3776, 3781, -19), C[3781] = 33, C[3782] = -87, C[3783] = 33, J(C, 3784, 3790, -87), J(C, 3790, 3792, 33), J(C, 3792, 3802, -87), J(C, 3802, 3864, 33), J(C, 3864, 3866, -87), J(C, 3866, 3872, 33), J(C, 3872, 3882, -87), J(C, 3882, 3893, 33), C[3893] = -87, C[3894] = 33, C[3895] = -87, C[3896] = 33, C[3897] = -87, J(C, 3898, 3902, 33), J(C, 3902, 3904, -87), J(C, 3904, 3912, -19), C[3912] = 33, J(C, 3913, 3946, -19), J(C, 3946, 3953, 33), J(C, 3953, 3973, -87), C[3973] = 33, J(C, 3974, 3980, -87), J(C, 3980, 3984, 33), J(C, 3984, 3990, -87), C[3990] = 33, C[3991] = -87, C[3992] = 33, J(C, 3993, 4014, -87), J(C, 4014, 4017, 33), J(C, 4017, 4024, -87), C[4024] = 33, C[4025] = -87, J(C, 4026, 4256, 33), J(C, 4256, 4294, -19), J(C, 4294, 4304, 33), J(C, 4304, 4343, -19), J(C, 4343, 4352, 33), C[4352] = -19, C[4353] = 33, J(C, 4354, 4356, -19), C[4356] = 33, J(C, 4357, 4360, -19), C[4360] = 33, C[4361] = -19, C[4362] = 33, J(C, 4363, 4365, -19), C[4365] = 33, J(C, 4366, 4371, -19), J(C, 4371, 4412, 33), C[4412] = -19, C[4413] = 33, C[4414] = -19, C[4415] = 33, C[4416] = -19, J(C, 4417, 4428, 33), C[4428] = -19, C[4429] = 33, C[4430] = -19, C[4431] = 33, C[4432] = -19, J(C, 4433, 4436, 33), J(C, 4436, 4438, -19), J(C, 4438, 4441, 33), C[4441] = -19, J(C, 4442, 4447, 33), J(C, 4447, 4450, -19), C[4450] = 33, C[4451] = -19, C[4452] = 33, C[4453] = -19, C[4454] = 33, C[4455] = -19, C[4456] = 33, C[4457] = -19, J(C, 4458, 4461, 33), J(C, 4461, 4463, -19), J(C, 4463, 4466, 33), J(C, 4466, 4468, -19), C[4468] = 33, C[4469] = -19, J(C, 4470, 4510, 33), C[4510] = -19, J(C, 4511, 4520, 33), C[4520] = -19, J(C, 4521, 4523, 33), C[4523] = -19, J(C, 4524, 4526, 33), J(C, 4526, 4528, -19), J(C, 4528, 4535, 33), J(C, 4535, 4537, -19), C[4537] = 33, C[4538] = -19, C[4539] = 33, J(C, 4540, 4547, -19), J(C, 4547, 4587, 33), C[4587] = -19, J(C, 4588, 4592, 33), C[4592] = -19, J(C, 4593, 4601, 33), C[4601] = -19, J(C, 4602, 7680, 33), J(C, 7680, 7836, -19), J(C, 7836, 7840, 33), J(C, 7840, 7930, -19), J(C, 7930, 7936, 33), J(C, 7936, 7958, -19), J(C, 7958, 7960, 33), J(C, 7960, 7966, -19), J(C, 7966, 7968, 33), J(C, 7968, 8006, -19), J(C, 8006, 8008, 33), J(C, 8008, 8014, -19), J(C, 8014, 8016, 33), J(C, 8016, 8024, -19), C[8024] = 33, C[8025] = -19, C[8026] = 33, C[8027] = -19, C[8028] = 33, C[8029] = -19, C[8030] = 33, J(C, 8031, 8062, -19), J(C, 8062, 8064, 33), J(C, 8064, 8117, -19), C[8117] = 33, J(C, 8118, 8125, -19), C[8125] = 33, C[8126] = -19, J(C, 8127, 8130, 33), J(C, 8130, 8133, -19), C[8133] = 33, J(C, 8134, 8141, -19), J(C, 8141, 8144, 33), J(C, 8144, 8148, -19), J(C, 8148, 8150, 33), J(C, 8150, 8156, -19), J(C, 8156, 8160, 33), J(C, 8160, 8173, -19), J(C, 8173, 8178, 33), J(C, 8178, 8181, -19), C[8181] = 33, J(C, 8182, 8189, -19), J(C, 8189, 8400, 33), J(C, 8400, 8413, -87), J(C, 8413, 8417, 33), C[8417] = -87, J(C, 8418, 8486, 33), C[8486] = -19, J(C, 8487, 8490, 33), J(C, 8490, 8492, -19), J(C, 8492, 8494, 33), C[8494] = -19, J(C, 8495, 8576, 33), J(C, 8576, 8579, -19), J(C, 8579, 12293, 33), C[12293] = -87, C[12294] = 33, C[12295] = -19, J(C, 12296, 12321, 33), J(C, 12321, 12330, -19), J(C, 12330, 12336, -87), C[12336] = 33, J(C, 12337, 12342, -87), J(C, 12342, 12353, 33), J(C, 12353, 12437, -19), J(C, 12437, 12441, 33), J(C, 12441, 12443, -87), J(C, 12443, 12445, 33), J(C, 12445, 12447, -87), J(C, 12447, 12449, 33), J(C, 12449, 12539, -19), C[12539] = 33, J(C, 12540, 12543, -87), J(C, 12543, 12549, 33), J(C, 12549, 12589, -19), J(C, 12589, 19968, 33), J(C, 19968, 40870, -19), J(C, 40870, 44032, 33), J(C, 44032, 55204, -19), J(C, 55204, Ky, 33), J(C, 57344, 65534, 33);
+              Bze = _, $ = H(zu, k2, 30, mr, 15, 1), $[9] = 35, $[10] = 19, $[13] = 19, $[32] = 51, $[33] = 49, $[34] = 33, J($, 35, 38, 49), $[38] = 1, J($, 39, 45, 49), J($, 45, 47, -71), $[47] = 49, J($, 48, 58, -71), $[58] = 61, $[59] = 49, $[60] = 1, $[61] = 49, $[62] = 33, J($, 63, 65, 49), J($, 65, 91, -3), J($, 91, 93, 33), $[93] = 1, $[94] = 33, $[95] = -3, $[96] = 33, J($, 97, 123, -3), J($, 123, 183, 33), $[183] = -87, J($, 184, 192, 33), J($, 192, 215, -19), $[215] = 33, J($, 216, 247, -19), $[247] = 33, J($, 248, 306, -19), J($, 306, 308, 33), J($, 308, 319, -19), J($, 319, 321, 33), J($, 321, 329, -19), $[329] = 33, J($, 330, 383, -19), $[383] = 33, J($, 384, 452, -19), J($, 452, 461, 33), J($, 461, 497, -19), J($, 497, 500, 33), J($, 500, 502, -19), J($, 502, 506, 33), J($, 506, 536, -19), J($, 536, 592, 33), J($, 592, 681, -19), J($, 681, 699, 33), J($, 699, 706, -19), J($, 706, 720, 33), J($, 720, 722, -87), J($, 722, 768, 33), J($, 768, 838, -87), J($, 838, 864, 33), J($, 864, 866, -87), J($, 866, 902, 33), $[902] = -19, $[903] = -87, J($, 904, 907, -19), $[907] = 33, $[908] = -19, $[909] = 33, J($, 910, 930, -19), $[930] = 33, J($, 931, 975, -19), $[975] = 33, J($, 976, 983, -19), J($, 983, 986, 33), $[986] = -19, $[987] = 33, $[988] = -19, $[989] = 33, $[990] = -19, $[991] = 33, $[992] = -19, $[993] = 33, J($, 994, 1012, -19), J($, 1012, 1025, 33), J($, 1025, 1037, -19), $[1037] = 33, J($, 1038, 1104, -19), $[1104] = 33, J($, 1105, 1117, -19), $[1117] = 33, J($, 1118, 1154, -19), $[1154] = 33, J($, 1155, 1159, -87), J($, 1159, 1168, 33), J($, 1168, 1221, -19), J($, 1221, 1223, 33), J($, 1223, 1225, -19), J($, 1225, 1227, 33), J($, 1227, 1229, -19), J($, 1229, 1232, 33), J($, 1232, 1260, -19), J($, 1260, 1262, 33), J($, 1262, 1270, -19), J($, 1270, 1272, 33), J($, 1272, 1274, -19), J($, 1274, 1329, 33), J($, 1329, 1367, -19), J($, 1367, 1369, 33), $[1369] = -19, J($, 1370, 1377, 33), J($, 1377, 1415, -19), J($, 1415, 1425, 33), J($, 1425, 1442, -87), $[1442] = 33, J($, 1443, 1466, -87), $[1466] = 33, J($, 1467, 1470, -87), $[1470] = 33, $[1471] = -87, $[1472] = 33, J($, 1473, 1475, -87), $[1475] = 33, $[1476] = -87, J($, 1477, 1488, 33), J($, 1488, 1515, -19), J($, 1515, 1520, 33), J($, 1520, 1523, -19), J($, 1523, 1569, 33), J($, 1569, 1595, -19), J($, 1595, 1600, 33), $[1600] = -87, J($, 1601, 1611, -19), J($, 1611, 1619, -87), J($, 1619, 1632, 33), J($, 1632, 1642, -87), J($, 1642, 1648, 33), $[1648] = -87, J($, 1649, 1720, -19), J($, 1720, 1722, 33), J($, 1722, 1727, -19), $[1727] = 33, J($, 1728, 1743, -19), $[1743] = 33, J($, 1744, 1748, -19), $[1748] = 33, $[1749] = -19, J($, 1750, 1765, -87), J($, 1765, 1767, -19), J($, 1767, 1769, -87), $[1769] = 33, J($, 1770, 1774, -87), J($, 1774, 1776, 33), J($, 1776, 1786, -87), J($, 1786, 2305, 33), J($, 2305, 2308, -87), $[2308] = 33, J($, 2309, 2362, -19), J($, 2362, 2364, 33), $[2364] = -87, $[2365] = -19, J($, 2366, 2382, -87), J($, 2382, 2385, 33), J($, 2385, 2389, -87), J($, 2389, 2392, 33), J($, 2392, 2402, -19), J($, 2402, 2404, -87), J($, 2404, 2406, 33), J($, 2406, 2416, -87), J($, 2416, 2433, 33), J($, 2433, 2436, -87), $[2436] = 33, J($, 2437, 2445, -19), J($, 2445, 2447, 33), J($, 2447, 2449, -19), J($, 2449, 2451, 33), J($, 2451, 2473, -19), $[2473] = 33, J($, 2474, 2481, -19), $[2481] = 33, $[2482] = -19, J($, 2483, 2486, 33), J($, 2486, 2490, -19), J($, 2490, 2492, 33), $[2492] = -87, $[2493] = 33, J($, 2494, 2501, -87), J($, 2501, 2503, 33), J($, 2503, 2505, -87), J($, 2505, 2507, 33), J($, 2507, 2510, -87), J($, 2510, 2519, 33), $[2519] = -87, J($, 2520, 2524, 33), J($, 2524, 2526, -19), $[2526] = 33, J($, 2527, 2530, -19), J($, 2530, 2532, -87), J($, 2532, 2534, 33), J($, 2534, 2544, -87), J($, 2544, 2546, -19), J($, 2546, 2562, 33), $[2562] = -87, J($, 2563, 2565, 33), J($, 2565, 2571, -19), J($, 2571, 2575, 33), J($, 2575, 2577, -19), J($, 2577, 2579, 33), J($, 2579, 2601, -19), $[2601] = 33, J($, 2602, 2609, -19), $[2609] = 33, J($, 2610, 2612, -19), $[2612] = 33, J($, 2613, 2615, -19), $[2615] = 33, J($, 2616, 2618, -19), J($, 2618, 2620, 33), $[2620] = -87, $[2621] = 33, J($, 2622, 2627, -87), J($, 2627, 2631, 33), J($, 2631, 2633, -87), J($, 2633, 2635, 33), J($, 2635, 2638, -87), J($, 2638, 2649, 33), J($, 2649, 2653, -19), $[2653] = 33, $[2654] = -19, J($, 2655, 2662, 33), J($, 2662, 2674, -87), J($, 2674, 2677, -19), J($, 2677, 2689, 33), J($, 2689, 2692, -87), $[2692] = 33, J($, 2693, 2700, -19), $[2700] = 33, $[2701] = -19, $[2702] = 33, J($, 2703, 2706, -19), $[2706] = 33, J($, 2707, 2729, -19), $[2729] = 33, J($, 2730, 2737, -19), $[2737] = 33, J($, 2738, 2740, -19), $[2740] = 33, J($, 2741, 2746, -19), J($, 2746, 2748, 33), $[2748] = -87, $[2749] = -19, J($, 2750, 2758, -87), $[2758] = 33, J($, 2759, 2762, -87), $[2762] = 33, J($, 2763, 2766, -87), J($, 2766, 2784, 33), $[2784] = -19, J($, 2785, 2790, 33), J($, 2790, 2800, -87), J($, 2800, 2817, 33), J($, 2817, 2820, -87), $[2820] = 33, J($, 2821, 2829, -19), J($, 2829, 2831, 33), J($, 2831, 2833, -19), J($, 2833, 2835, 33), J($, 2835, 2857, -19), $[2857] = 33, J($, 2858, 2865, -19), $[2865] = 33, J($, 2866, 2868, -19), J($, 2868, 2870, 33), J($, 2870, 2874, -19), J($, 2874, 2876, 33), $[2876] = -87, $[2877] = -19, J($, 2878, 2884, -87), J($, 2884, 2887, 33), J($, 2887, 2889, -87), J($, 2889, 2891, 33), J($, 2891, 2894, -87), J($, 2894, 2902, 33), J($, 2902, 2904, -87), J($, 2904, 2908, 33), J($, 2908, 2910, -19), $[2910] = 33, J($, 2911, 2914, -19), J($, 2914, 2918, 33), J($, 2918, 2928, -87), J($, 2928, 2946, 33), J($, 2946, 2948, -87), $[2948] = 33, J($, 2949, 2955, -19), J($, 2955, 2958, 33), J($, 2958, 2961, -19), $[2961] = 33, J($, 2962, 2966, -19), J($, 2966, 2969, 33), J($, 2969, 2971, -19), $[2971] = 33, $[2972] = -19, $[2973] = 33, J($, 2974, 2976, -19), J($, 2976, 2979, 33), J($, 2979, 2981, -19), J($, 2981, 2984, 33), J($, 2984, 2987, -19), J($, 2987, 2990, 33), J($, 2990, 2998, -19), $[2998] = 33, J($, 2999, 3002, -19), J($, 3002, 3006, 33), J($, 3006, 3011, -87), J($, 3011, 3014, 33), J($, 3014, 3017, -87), $[3017] = 33, J($, 3018, 3022, -87), J($, 3022, 3031, 33), $[3031] = -87, J($, 3032, 3047, 33), J($, 3047, 3056, -87), J($, 3056, 3073, 33), J($, 3073, 3076, -87), $[3076] = 33, J($, 3077, 3085, -19), $[3085] = 33, J($, 3086, 3089, -19), $[3089] = 33, J($, 3090, 3113, -19), $[3113] = 33, J($, 3114, 3124, -19), $[3124] = 33, J($, 3125, 3130, -19), J($, 3130, 3134, 33), J($, 3134, 3141, -87), $[3141] = 33, J($, 3142, 3145, -87), $[3145] = 33, J($, 3146, 3150, -87), J($, 3150, 3157, 33), J($, 3157, 3159, -87), J($, 3159, 3168, 33), J($, 3168, 3170, -19), J($, 3170, 3174, 33), J($, 3174, 3184, -87), J($, 3184, 3202, 33), J($, 3202, 3204, -87), $[3204] = 33, J($, 3205, 3213, -19), $[3213] = 33, J($, 3214, 3217, -19), $[3217] = 33, J($, 3218, 3241, -19), $[3241] = 33, J($, 3242, 3252, -19), $[3252] = 33, J($, 3253, 3258, -19), J($, 3258, 3262, 33), J($, 3262, 3269, -87), $[3269] = 33, J($, 3270, 3273, -87), $[3273] = 33, J($, 3274, 3278, -87), J($, 3278, 3285, 33), J($, 3285, 3287, -87), J($, 3287, 3294, 33), $[3294] = -19, $[3295] = 33, J($, 3296, 3298, -19), J($, 3298, 3302, 33), J($, 3302, 3312, -87), J($, 3312, 3330, 33), J($, 3330, 3332, -87), $[3332] = 33, J($, 3333, 3341, -19), $[3341] = 33, J($, 3342, 3345, -19), $[3345] = 33, J($, 3346, 3369, -19), $[3369] = 33, J($, 3370, 3386, -19), J($, 3386, 3390, 33), J($, 3390, 3396, -87), J($, 3396, 3398, 33), J($, 3398, 3401, -87), $[3401] = 33, J($, 3402, 3406, -87), J($, 3406, 3415, 33), $[3415] = -87, J($, 3416, 3424, 33), J($, 3424, 3426, -19), J($, 3426, 3430, 33), J($, 3430, 3440, -87), J($, 3440, 3585, 33), J($, 3585, 3631, -19), $[3631] = 33, $[3632] = -19, $[3633] = -87, J($, 3634, 3636, -19), J($, 3636, 3643, -87), J($, 3643, 3648, 33), J($, 3648, 3654, -19), J($, 3654, 3663, -87), $[3663] = 33, J($, 3664, 3674, -87), J($, 3674, 3713, 33), J($, 3713, 3715, -19), $[3715] = 33, $[3716] = -19, J($, 3717, 3719, 33), J($, 3719, 3721, -19), $[3721] = 33, $[3722] = -19, J($, 3723, 3725, 33), $[3725] = -19, J($, 3726, 3732, 33), J($, 3732, 3736, -19), $[3736] = 33, J($, 3737, 3744, -19), $[3744] = 33, J($, 3745, 3748, -19), $[3748] = 33, $[3749] = -19, $[3750] = 33, $[3751] = -19, J($, 3752, 3754, 33), J($, 3754, 3756, -19), $[3756] = 33, J($, 3757, 3759, -19), $[3759] = 33, $[3760] = -19, $[3761] = -87, J($, 3762, 3764, -19), J($, 3764, 3770, -87), $[3770] = 33, J($, 3771, 3773, -87), $[3773] = -19, J($, 3774, 3776, 33), J($, 3776, 3781, -19), $[3781] = 33, $[3782] = -87, $[3783] = 33, J($, 3784, 3790, -87), J($, 3790, 3792, 33), J($, 3792, 3802, -87), J($, 3802, 3864, 33), J($, 3864, 3866, -87), J($, 3866, 3872, 33), J($, 3872, 3882, -87), J($, 3882, 3893, 33), $[3893] = -87, $[3894] = 33, $[3895] = -87, $[3896] = 33, $[3897] = -87, J($, 3898, 3902, 33), J($, 3902, 3904, -87), J($, 3904, 3912, -19), $[3912] = 33, J($, 3913, 3946, -19), J($, 3946, 3953, 33), J($, 3953, 3973, -87), $[3973] = 33, J($, 3974, 3980, -87), J($, 3980, 3984, 33), J($, 3984, 3990, -87), $[3990] = 33, $[3991] = -87, $[3992] = 33, J($, 3993, 4014, -87), J($, 4014, 4017, 33), J($, 4017, 4024, -87), $[4024] = 33, $[4025] = -87, J($, 4026, 4256, 33), J($, 4256, 4294, -19), J($, 4294, 4304, 33), J($, 4304, 4343, -19), J($, 4343, 4352, 33), $[4352] = -19, $[4353] = 33, J($, 4354, 4356, -19), $[4356] = 33, J($, 4357, 4360, -19), $[4360] = 33, $[4361] = -19, $[4362] = 33, J($, 4363, 4365, -19), $[4365] = 33, J($, 4366, 4371, -19), J($, 4371, 4412, 33), $[4412] = -19, $[4413] = 33, $[4414] = -19, $[4415] = 33, $[4416] = -19, J($, 4417, 4428, 33), $[4428] = -19, $[4429] = 33, $[4430] = -19, $[4431] = 33, $[4432] = -19, J($, 4433, 4436, 33), J($, 4436, 4438, -19), J($, 4438, 4441, 33), $[4441] = -19, J($, 4442, 4447, 33), J($, 4447, 4450, -19), $[4450] = 33, $[4451] = -19, $[4452] = 33, $[4453] = -19, $[4454] = 33, $[4455] = -19, $[4456] = 33, $[4457] = -19, J($, 4458, 4461, 33), J($, 4461, 4463, -19), J($, 4463, 4466, 33), J($, 4466, 4468, -19), $[4468] = 33, $[4469] = -19, J($, 4470, 4510, 33), $[4510] = -19, J($, 4511, 4520, 33), $[4520] = -19, J($, 4521, 4523, 33), $[4523] = -19, J($, 4524, 4526, 33), J($, 4526, 4528, -19), J($, 4528, 4535, 33), J($, 4535, 4537, -19), $[4537] = 33, $[4538] = -19, $[4539] = 33, J($, 4540, 4547, -19), J($, 4547, 4587, 33), $[4587] = -19, J($, 4588, 4592, 33), $[4592] = -19, J($, 4593, 4601, 33), $[4601] = -19, J($, 4602, 7680, 33), J($, 7680, 7836, -19), J($, 7836, 7840, 33), J($, 7840, 7930, -19), J($, 7930, 7936, 33), J($, 7936, 7958, -19), J($, 7958, 7960, 33), J($, 7960, 7966, -19), J($, 7966, 7968, 33), J($, 7968, 8006, -19), J($, 8006, 8008, 33), J($, 8008, 8014, -19), J($, 8014, 8016, 33), J($, 8016, 8024, -19), $[8024] = 33, $[8025] = -19, $[8026] = 33, $[8027] = -19, $[8028] = 33, $[8029] = -19, $[8030] = 33, J($, 8031, 8062, -19), J($, 8062, 8064, 33), J($, 8064, 8117, -19), $[8117] = 33, J($, 8118, 8125, -19), $[8125] = 33, $[8126] = -19, J($, 8127, 8130, 33), J($, 8130, 8133, -19), $[8133] = 33, J($, 8134, 8141, -19), J($, 8141, 8144, 33), J($, 8144, 8148, -19), J($, 8148, 8150, 33), J($, 8150, 8156, -19), J($, 8156, 8160, 33), J($, 8160, 8173, -19), J($, 8173, 8178, 33), J($, 8178, 8181, -19), $[8181] = 33, J($, 8182, 8189, -19), J($, 8189, 8400, 33), J($, 8400, 8413, -87), J($, 8413, 8417, 33), $[8417] = -87, J($, 8418, 8486, 33), $[8486] = -19, J($, 8487, 8490, 33), J($, 8490, 8492, -19), J($, 8492, 8494, 33), $[8494] = -19, J($, 8495, 8576, 33), J($, 8576, 8579, -19), J($, 8579, 12293, 33), $[12293] = -87, $[12294] = 33, $[12295] = -19, J($, 12296, 12321, 33), J($, 12321, 12330, -19), J($, 12330, 12336, -87), $[12336] = 33, J($, 12337, 12342, -87), J($, 12342, 12353, 33), J($, 12353, 12437, -19), J($, 12437, 12441, 33), J($, 12441, 12443, -87), J($, 12443, 12445, 33), J($, 12445, 12447, -87), J($, 12447, 12449, 33), J($, 12449, 12539, -19), $[12539] = 33, J($, 12540, 12543, -87), J($, 12543, 12549, 33), J($, 12549, 12589, -19), J($, 12589, 19968, 33), J($, 19968, 40870, -19), J($, 40870, 44032, 33), J($, 44032, 55204, -19), J($, 55204, Ky, 33), J($, 57344, 65534, 33);
             }
             function KOn(e) {
               var n, t, i, r, c, s, f;
@@ -49034,7 +49039,7 @@ function ELn() {
             }, o.ek = function(n) {
               return H(A3, ie, 221, n, 0, 1);
             }, w(Ei, "XMLTypePackageImpl/9", 1931);
-            var ph, _1, uk, nx, C;
+            var ph, _1, uk, nx, $;
             b(53, 63, Rl, qn), w(T1, "RegEx/ParseException", 53), b(820, 1, {}, zU), o._l = function(n) {
               return n < this.j && nr(this.i, n) == 63;
             }, o.am = function() {
@@ -49713,10 +49718,10 @@ Consider installing the package or pass your own 'workerFactory' to ELK's constr
     });
   })(V0e)), V0e.exports;
 }
-var qfn = ELn();
-const ALn = /* @__PURE__ */ jLn(qfn), MLn = /* @__PURE__ */ IDn({
+var qfn = ALn();
+const MLn = /* @__PURE__ */ ELn(qfn), TLn = /* @__PURE__ */ IDn({
   __proto__: null,
-  default: ALn
+  default: MLn
 }, [qfn]);
 export {
   Lu as MateuWorkflowElk

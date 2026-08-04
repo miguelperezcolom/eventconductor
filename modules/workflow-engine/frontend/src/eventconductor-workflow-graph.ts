@@ -38,6 +38,23 @@ interface WorkflowStep {
     joinType?: "AND" | "XOR";
 }
 
+/**
+ * Turns a legacy `status` into the flags the engine reads, the moment a definition is loaded.
+ *
+ * <p>Done on the way in, not on the way out, so that anything saved afterwards carries the flags
+ * rather than the dead field — and so that a definition which said DISABLED still says it. Leaving
+ * the field to be rewritten untouched would mean an edit to something else kept producing a file
+ * the engine cannot parse; dropping it without reading it would silently put the workflow back
+ * into service.
+ */
+function normaliseLegacyStatus(definition: WorkflowDefinition): WorkflowDefinition {
+    if (!definition.status) return definition;
+    const {status, ...rest} = definition;
+    if (status === "ARCHIVED") return {...rest, archived: true, disabled: true};
+    if (status === "DISABLED") return {...rest, disabled: true};
+    return rest;   // DRAFT and ACTIVE meant nothing to the engine
+}
+
 /** One incoming link: the step to wait for, and the condition under which arriving by it counts. */
 interface Precondition {
     stepId: string;
@@ -728,7 +745,7 @@ export class MateuWorkflowElk extends LitElement {
                         return oldStep && newStep &&
                             preconditionsOf(oldStep).join(",") !== preconditionsOf(newStep).join(",");
                     });
-                this.wf = parsed;
+                this.wf = normaliseLegacyStatus(parsed);
                 if (structureChanged || !this.layoutReady) {
                     this.didInitialFit = false;   // re-fit the new graph in view
                     this.runElkLayout();
