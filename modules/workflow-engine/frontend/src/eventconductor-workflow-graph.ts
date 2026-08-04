@@ -8,8 +8,8 @@ import {neutralButtonStyles, iconCog, iconPlus, iconSitemap, iconFit} from "./ne
 type StepType =
     | "START" | "ACTION" | "USER_TASK" | "RULE" | "TIMER"
     | "WAIT_FOR_MESSAGE" | "SEND_MESSAGE" | "FORK" | "JOIN" | "PROCESS" | "END";
-/** Written by an older version of this editor into a field the engine has no such thing as. */
-type LegacyWorkflowStatus = "DRAFT" | "ACTIVE" | "DISABLED" | "ARCHIVED";
+/** Whether a workflow is open for business. DRAFT is an older value that meant nothing. */
+type WorkflowStatus = "ACTIVE" | "DISABLED" | "ARCHIVED" | "DRAFT";
 
 interface WorkflowStep {
     id: string;
@@ -39,20 +39,19 @@ interface WorkflowStep {
 }
 
 /**
- * Turns a legacy `status` into the flags the engine reads, the moment a definition is loaded.
+ * Collapses however a definition says it is out of service into the one field the engine reads.
  *
- * <p>Done on the way in, not on the way out, so that anything saved afterwards carries the flags
- * rather than the dead field — and so that a definition which said DISABLED still says it. Leaving
- * the field to be rewritten untouched would mean an edit to something else kept producing a file
- * the engine cannot parse; dropping it without reading it would silently put the workflow back
- * into service.
+ * <p>The `disabled` and `archived` booleans said between them what `status` says in a word, and an
+ * older editor wrote a `status` with values the engine did not have. Read on the way in, so that
+ * anything saved afterwards carries one answer — and so that a definition which said it was
+ * disabled still says it. DRAFT meant nothing and becomes ACTIVE.
  */
 function normaliseLegacyStatus(definition: WorkflowDefinition): WorkflowDefinition {
-    if (!definition.status) return definition;
-    const {status, ...rest} = definition;
-    if (status === "ARCHIVED") return {...rest, archived: true, disabled: true};
-    if (status === "DISABLED") return {...rest, disabled: true};
-    return rest;   // DRAFT and ACTIVE meant nothing to the engine
+    const {disabled, archived, status, ...rest} = definition;
+    const declared: WorkflowStatus = archived || status === "ARCHIVED" ? "ARCHIVED"
+        : disabled || status === "DISABLED" ? "DISABLED"
+        : "ACTIVE";
+    return declared === "ACTIVE" ? rest : {...rest, status: declared};
 }
 
 /** One incoming link: the step to wait for, and the condition under which arriving by it counts. */
@@ -67,19 +66,14 @@ interface WorkflowDefinition {
     version?: number;
     description?: string;
     /**
-     * Declares that this workflow is not to run: no new instances, cron included. A floor the
+     * Whether this workflow is open for business — ACTIVE, DISABLED or ARCHIVED. A floor the
      * runtime cannot lift, which is what lets a definition live in the repository without being
      * live.
      */
+    status?: WorkflowStatus;
+    /** The older way of saying it, still read so files written against it keep their meaning. */
     disabled?: boolean;
-    /** Declares it retired: as disabled, and hidden from the listing. */
     archived?: boolean;
-    /**
-     * What this editor used to write instead. The engine has no `status` — the field does not
-     * exist in the schema, and a file carrying it does not import at all — so it is read here to
-     * show the state such a file was meant to be in, and dropped the moment anything is saved.
-     */
-    status?: LegacyWorkflowStatus;
     limitConcurrentExecutions?: boolean;
     maxConcurrentExecutions?: number;
     enqueueOnLimit?: boolean;
@@ -1907,9 +1901,9 @@ export class MateuWorkflowElk extends LitElement {
      */
     private setDeclaredState(state: "ACTIVE" | "DISABLED" | "ARCHIVED") {
         this.updateWf({
-            disabled: state === "DISABLED" || undefined,
-            archived: state === "ARCHIVED" || undefined,
-            status: undefined,   // the field this editor used to write; the engine has no such thing
+            status: state === "ACTIVE" ? undefined : state,
+            disabled: undefined,    // the older spelling; one answer per question
+            archived: undefined,
         });
     }
 
@@ -1919,6 +1913,8 @@ export class MateuWorkflowElk extends LitElement {
         if (this.wf.disabled || this.wf.status === "DISABLED") return "DISABLED";
         return "ACTIVE";
     }
+
+    /* eslint-disable-next-line */
 
     private renderToolbar() {
         const status = this.declaredState();

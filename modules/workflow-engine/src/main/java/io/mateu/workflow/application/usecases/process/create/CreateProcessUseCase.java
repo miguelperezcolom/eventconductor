@@ -65,11 +65,9 @@ public class CreateProcessUseCase {
         // honoured and this path did not, so anything creating a process directly (the UI, an
         // upstream event, MCP) walked straight past it. Either source can say no: an operator
         // taking it out of service, or the definition itself declaring that it is not to run.
-        if (workflowDefinition.effectivelyDisabled() || workflowDefinition.effectivelyArchived()) {
+        if (!workflowDefinition.status().accceptsNewInstances()) {
             log.warn("Workflow definition '{}' is {} — process creation for business key '{}' ignored",
-                    workflowDefinition.id(),
-                    workflowDefinition.effectivelyArchived() ? "archived" : "disabled",
-                    command.businessKey());
+                    workflowDefinition.id(), workflowDefinition.status(), command.businessKey());
             return;
         }
         AtomicInteger position = new AtomicInteger(1);

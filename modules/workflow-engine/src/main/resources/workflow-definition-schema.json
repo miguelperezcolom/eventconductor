@@ -78,6 +78,19 @@
       ],
       "description": "Spring cron expression (six fields, seconds first, e.g. \"0 0 9 * * MON-FRI\"). While the definition is ACTIVE, the engine automatically creates a process instance at each occurrence. Null means no scheduled starts."
     },
+    "status": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "ACTIVE",
+        "DISABLED",
+        "ARCHIVED",
+        null
+      ],
+      "description": "Whether this workflow is open for business. ACTIVE accepts new instances; DISABLED accepts none, cron included; ARCHIVED is retired — as disabled, and hidden from the listing. Declaring it here is a floor: an operator can take a workflow out of service at runtime, but cannot put one into service that its own definition closes. Use it to keep a definition in the repository without having it live. Defaults to ACTIVE."
+    },
     "paused": {
       "type": [
         "boolean",
@@ -91,7 +104,7 @@
         "boolean",
         "null"
       ],
-      "description": "Declares that this workflow is not to run: it accepts no new instances, cron included. Declaring it here is a floor, not a default — an operator can take a workflow out of service at runtime, but cannot put one into service that its own definition disables. Use it to keep a definition in the repository without having it live.",
+      "description": "Deprecated in favour of `status`, and still read: true means status DISABLED.",
       "default": false
     },
     "archived": {
@@ -99,7 +112,7 @@
         "boolean",
         "null"
       ],
-      "description": "Declares this workflow retired: like disabled, and also hidden from the listing. Same rule — the runtime cannot un-archive what the definition archives. Also set at runtime by the git-import prune when a definition disappears from its repository.",
+      "description": "Deprecated in favour of `status`, and still read: true means status ARCHIVED.",
       "default": false
     },
     "defaultMaxStepExecutions": {

@@ -1,6 +1,7 @@
 package io.mateu.workflow.application.usecases.lifecycle;
 
 import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
+import io.mateu.workflow.domain.aggregates.WorkflowStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,8 +18,8 @@ public class DisableWorkflowDefinitionUseCase {
         var definition = repository.findById(workflowDefinitionId)
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Workflow definition not found: " + workflowDefinitionId));
-        if (!definition.disabled()) {
-            repository.save(definition.withDisabled(true));
+        if (definition.runtimeStatus() == WorkflowStatus.ACTIVE) {
+            repository.save(definition.withRuntimeStatus(WorkflowStatus.DISABLED));
         }
     }
 }

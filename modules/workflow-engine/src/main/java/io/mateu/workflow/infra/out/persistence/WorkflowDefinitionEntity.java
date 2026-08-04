@@ -42,23 +42,18 @@ public class WorkflowDefinitionEntity {
     @ColumnDefault("false")
     boolean paused;
 
-    /** Runtime disabled flag: while true the definition accepts no new instances. */
-    @ColumnDefault("false")
-    boolean disabled;
-
-    /** Runtime archived flag: set by the git-import prune to hide a removed definition. */
-    @ColumnDefault("false")
-    boolean archived;
-
-    /**
-     * What the definition file declares, kept apart from the runtime flags above: the file is a
-     * floor the runtime cannot lift, and mixing the two in one column is what let every import
-     * overwrite an operator's decision — and an operator overwrite the file's.
+/**
+     * What the definition file declares, and what an operator has decided, as one word each.
+     *
+     * <p>Two booleans could say four things when three are meaningful, and left "is an archived
+     * workflow also disabled?" to prose. Stored apart because they answer to different people:
+     * the file to whoever writes the workflow, the runtime to whoever operates it. A workflow is
+     * open for business only if both say so.
      */
-    @ColumnDefault("false")
-    boolean declaredDisabled;
+    @ColumnDefault("'ACTIVE'")
+    String declaredStatus;
 
-    @ColumnDefault("false")
-    boolean declaredArchived;
+    @ColumnDefault("'ACTIVE'")
+    String runtimeStatus;
 
 }

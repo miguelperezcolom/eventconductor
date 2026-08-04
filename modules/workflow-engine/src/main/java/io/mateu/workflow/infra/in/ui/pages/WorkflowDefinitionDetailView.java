@@ -82,6 +82,13 @@ public class WorkflowDefinitionDetailView implements VisibilitySupplier {
     boolean definitionDisabled;
     @Hidden
     boolean definitionArchived;
+    /**
+     * What the definition file declares, as opposed to what an operator has done. A workflow its
+     * own definition closes cannot be enabled from here at all, so the button is not offered:
+     * the engine refuses it, and a button that only ever produces an error is not a button.
+     */
+    @Hidden
+    boolean declarationBlocks;
 
     /** Drives the view title via {@link #toString()}; not rendered as a field. */
     @Hidden
@@ -140,6 +147,7 @@ public class WorkflowDefinitionDetailView implements VisibilitySupplier {
         this.definitionPaused = def.paused();
         this.definitionDisabled = def.disabled();
         this.definitionArchived = def.archived();
+        this.declarationBlocks = def.declaredStatus() != io.mateu.workflow.domain.aggregates.WorkflowStatus.ACTIVE;
         this.status = runtimeStatus(def.disabled(), def.archived(), def.paused());
         this.version = "v" + def.version();
         this.description = def.description() == null || def.description().isBlank() ? "—" : def.description();
@@ -249,7 +257,7 @@ public class WorkflowDefinitionDetailView implements VisibilitySupplier {
         return switch (memberName) {
             case "edit", "new" -> true;
             case "disable" -> definitionDisabled;
-            case "enable" -> !definitionDisabled;
+            case "enable" -> !definitionDisabled || declarationBlocks;
             case "pause" -> definitionPaused;
             case "resume" -> !definitionPaused;
             // No version history in memory mode — hide the tab rather than show it empty.

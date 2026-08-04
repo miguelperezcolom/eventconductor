@@ -1,13 +1,13 @@
 function IDn($, x) {
   for (var R = 0; R < x.length; R++) {
-    const K = x[R];
-    if (typeof K != "string" && !Array.isArray(K)) {
-      for (const q in K)
+    const z = x[R];
+    if (typeof z != "string" && !Array.isArray(z)) {
+      for (const q in z)
         if (q !== "default" && !(q in $)) {
-          const Ae = Object.getOwnPropertyDescriptor(K, q);
-          Ae && Object.defineProperty($, q, Ae.get ? Ae : {
+          const be = Object.getOwnPropertyDescriptor(z, q);
+          be && Object.defineProperty($, q, be.get ? be : {
             enumerable: !0,
-            get: () => K[q]
+            get: () => z[q]
           });
         }
     }
@@ -21,16 +21,16 @@ const CDn = ($) => (x, R) => {
 };
 const EU = globalThis, Y0e = EU.ShadowRoot && (EU.ShadyCSS === void 0 || EU.ShadyCSS.nativeShadow) && "adoptedStyleSheets" in Document.prototype && "replace" in CSSStyleSheet.prototype, Z0e = /* @__PURE__ */ Symbol(), bfn = /* @__PURE__ */ new WeakMap();
 let Ofn = class {
-  constructor(x, R, K) {
-    if (this._$cssResult$ = !0, K !== Z0e) throw Error("CSSResult is not constructable. Use `unsafeCSS` or `css` instead.");
+  constructor(x, R, z) {
+    if (this._$cssResult$ = !0, z !== Z0e) throw Error("CSSResult is not constructable. Use `unsafeCSS` or `css` instead.");
     this.cssText = x, this.t = R;
   }
   get styleSheet() {
     let x = this.o;
     const R = this.t;
     if (Y0e && x === void 0) {
-      const K = R !== void 0 && R.length === 1;
-      K && (x = bfn.get(R)), x === void 0 && ((this.o = x = new CSSStyleSheet()).replaceSync(this.cssText), K && bfn.set(R, x));
+      const z = R !== void 0 && R.length === 1;
+      z && (x = bfn.get(R)), x === void 0 && ((this.o = x = new CSSStyleSheet()).replaceSync(this.cssText), z && bfn.set(R, x));
     }
     return x;
   }
@@ -39,21 +39,21 @@ let Ofn = class {
   }
 };
 const $Dn = ($) => new Ofn(typeof $ == "string" ? $ : $ + "", void 0, Z0e), Dfn = ($, ...x) => {
-  const R = $.length === 1 ? $[0] : x.reduce((K, q, Ae) => K + ((k) => {
+  const R = $.length === 1 ? $[0] : x.reduce((z, q, be) => z + ((k) => {
     if (k._$cssResult$ === !0) return k.cssText;
     if (typeof k == "number") return k;
     throw Error("Value passed to 'css' function must be a 'css' function result: " + k + ". Use 'unsafeCSS' to pass non-literal values, but take care to ensure page security.");
-  })(q) + $[Ae + 1], $[0]);
+  })(q) + $[be + 1], $[0]);
   return new Ofn(R, $, Z0e);
 }, PDn = ($, x) => {
   if (Y0e) $.adoptedStyleSheets = x.map((R) => R instanceof CSSStyleSheet ? R : R.styleSheet);
   else for (const R of x) {
-    const K = document.createElement("style"), q = EU.litNonce;
-    q !== void 0 && K.setAttribute("nonce", q), K.textContent = R.cssText, $.appendChild(K);
+    const z = document.createElement("style"), q = EU.litNonce;
+    q !== void 0 && z.setAttribute("nonce", q), z.textContent = R.cssText, $.appendChild(z);
   }
 }, wfn = Y0e ? ($) => $ : ($) => $ instanceof CSSStyleSheet ? ((x) => {
   let R = "";
-  for (const K of x.cssRules) R += K.cssText;
+  for (const z of x.cssRules) R += z.cssText;
   return $Dn(R);
 })($) : $;
 const { is: xDn, defineProperty: ODn, getOwnPropertyDescriptor: DDn, getOwnPropertyNames: LDn, getOwnPropertySymbols: NDn, getPrototypeOf: FDn } = Object, TU = globalThis, gfn = TU.trustedTypes, RDn = gfn ? gfn.emptyScript : "", BDn = TU.reactiveElementPolyfillSupport, rx = ($, x) => $, AU = { toAttribute($, x) {
@@ -95,19 +95,19 @@ let NE = class extends HTMLElement {
   }
   static createProperty(x, R = pfn) {
     if (R.state && (R.attribute = !1), this._$Ei(), this.prototype.hasOwnProperty(x) && ((R = Object.create(R)).wrapped = !0), this.elementProperties.set(x, R), !R.noAccessor) {
-      const K = /* @__PURE__ */ Symbol(), q = this.getPropertyDescriptor(x, K, R);
+      const z = /* @__PURE__ */ Symbol(), q = this.getPropertyDescriptor(x, z, R);
       q !== void 0 && ODn(this.prototype, x, q);
     }
   }
-  static getPropertyDescriptor(x, R, K) {
-    const { get: q, set: Ae } = DDn(this.prototype, x) ?? { get() {
+  static getPropertyDescriptor(x, R, z) {
+    const { get: q, set: be } = DDn(this.prototype, x) ?? { get() {
       return this[R];
     }, set(k) {
       this[R] = k;
     } };
     return { get: q, set(k) {
       const ln = q?.call(this);
-      Ae?.call(this, k), this.requestUpdate(x, ln, K);
+      be?.call(this, k), this.requestUpdate(x, ln, z);
     }, configurable: !0, enumerable: !0 };
   }
   static getPropertyOptions(x) {
@@ -121,17 +121,17 @@ let NE = class extends HTMLElement {
   static finalize() {
     if (this.hasOwnProperty(rx("finalized"))) return;
     if (this.finalized = !0, this._$Ei(), this.hasOwnProperty(rx("properties"))) {
-      const R = this.properties, K = [...LDn(R), ...NDn(R)];
-      for (const q of K) this.createProperty(q, R[q]);
+      const R = this.properties, z = [...LDn(R), ...NDn(R)];
+      for (const q of z) this.createProperty(q, R[q]);
     }
     const x = this[Symbol.metadata];
     if (x !== null) {
       const R = litPropertyMetadata.get(x);
-      if (R !== void 0) for (const [K, q] of R) this.elementProperties.set(K, q);
+      if (R !== void 0) for (const [z, q] of R) this.elementProperties.set(z, q);
     }
     this._$Eh = /* @__PURE__ */ new Map();
-    for (const [R, K] of this.elementProperties) {
-      const q = this._$Eu(R, K);
+    for (const [R, z] of this.elementProperties) {
+      const q = this._$Eu(R, z);
       q !== void 0 && this._$Eh.set(q, R);
     }
     this.elementStyles = this.finalizeStyles(this.styles);
@@ -139,14 +139,14 @@ let NE = class extends HTMLElement {
   static finalizeStyles(x) {
     const R = [];
     if (Array.isArray(x)) {
-      const K = new Set(x.flat(1 / 0).reverse());
-      for (const q of K) R.unshift(wfn(q));
+      const z = new Set(x.flat(1 / 0).reverse());
+      for (const q of z) R.unshift(wfn(q));
     } else x !== void 0 && R.push(wfn(x));
     return R;
   }
   static _$Eu(x, R) {
-    const K = R.attribute;
-    return K === !1 ? void 0 : typeof K == "string" ? K : typeof x == "string" ? x.toLowerCase() : void 0;
+    const z = R.attribute;
+    return z === !1 ? void 0 : typeof z == "string" ? z : typeof x == "string" ? x.toLowerCase() : void 0;
   }
   constructor() {
     super(), this._$Ep = void 0, this.isUpdatePending = !1, this.hasUpdated = !1, this._$Em = null, this._$Ev();
@@ -162,7 +162,7 @@ let NE = class extends HTMLElement {
   }
   _$E_() {
     const x = /* @__PURE__ */ new Map(), R = this.constructor.elementProperties;
-    for (const K of R.keys()) this.hasOwnProperty(K) && (x.set(K, this[K]), delete this[K]);
+    for (const z of R.keys()) this.hasOwnProperty(z) && (x.set(z, this[z]), delete this[z]);
     x.size > 0 && (this._$Ep = x);
   }
   createRenderRoot() {
@@ -177,35 +177,35 @@ let NE = class extends HTMLElement {
   disconnectedCallback() {
     this._$EO?.forEach((x) => x.hostDisconnected?.());
   }
-  attributeChangedCallback(x, R, K) {
-    this._$AK(x, K);
+  attributeChangedCallback(x, R, z) {
+    this._$AK(x, z);
   }
   _$ET(x, R) {
-    const K = this.constructor.elementProperties.get(x), q = this.constructor._$Eu(x, K);
-    if (q !== void 0 && K.reflect === !0) {
-      const Ae = (K.converter?.toAttribute !== void 0 ? K.converter : AU).toAttribute(R, K.type);
-      this._$Em = x, Ae == null ? this.removeAttribute(q) : this.setAttribute(q, Ae), this._$Em = null;
+    const z = this.constructor.elementProperties.get(x), q = this.constructor._$Eu(x, z);
+    if (q !== void 0 && z.reflect === !0) {
+      const be = (z.converter?.toAttribute !== void 0 ? z.converter : AU).toAttribute(R, z.type);
+      this._$Em = x, be == null ? this.removeAttribute(q) : this.setAttribute(q, be), this._$Em = null;
     }
   }
   _$AK(x, R) {
-    const K = this.constructor, q = K._$Eh.get(x);
+    const z = this.constructor, q = z._$Eh.get(x);
     if (q !== void 0 && this._$Em !== q) {
-      const Ae = K.getPropertyOptions(q), k = typeof Ae.converter == "function" ? { fromAttribute: Ae.converter } : Ae.converter?.fromAttribute !== void 0 ? Ae.converter : AU;
+      const be = z.getPropertyOptions(q), k = typeof be.converter == "function" ? { fromAttribute: be.converter } : be.converter?.fromAttribute !== void 0 ? be.converter : AU;
       this._$Em = q;
-      const ln = k.fromAttribute(R, Ae.type);
+      const ln = k.fromAttribute(R, be.type);
       this[q] = ln ?? this._$Ej?.get(q) ?? ln, this._$Em = null;
     }
   }
-  requestUpdate(x, R, K, q = !1, Ae) {
+  requestUpdate(x, R, z, q = !1, be) {
     if (x !== void 0) {
       const k = this.constructor;
-      if (q === !1 && (Ae = this[x]), K ??= k.getPropertyOptions(x), !((K.hasChanged ?? ebe)(Ae, R) || K.useDefault && K.reflect && Ae === this._$Ej?.get(x) && !this.hasAttribute(k._$Eu(x, K)))) return;
-      this.C(x, R, K);
+      if (q === !1 && (be = this[x]), z ??= k.getPropertyOptions(x), !((z.hasChanged ?? ebe)(be, R) || z.useDefault && z.reflect && be === this._$Ej?.get(x) && !this.hasAttribute(k._$Eu(x, z)))) return;
+      this.C(x, R, z);
     }
     this.isUpdatePending === !1 && (this._$ES = this._$EP());
   }
-  C(x, R, { useDefault: K, reflect: q, wrapped: Ae }, k) {
-    K && !(this._$Ej ??= /* @__PURE__ */ new Map()).has(x) && (this._$Ej.set(x, k ?? R ?? this[x]), Ae !== !0 || k !== void 0) || (this._$AL.has(x) || (this.hasUpdated || K || (R = void 0), this._$AL.set(x, R)), q === !0 && this._$Em !== x && (this._$Eq ??= /* @__PURE__ */ new Set()).add(x));
+  C(x, R, { useDefault: z, reflect: q, wrapped: be }, k) {
+    z && !(this._$Ej ??= /* @__PURE__ */ new Map()).has(x) && (this._$Ej.set(x, k ?? R ?? this[x]), be !== !0 || k !== void 0) || (this._$AL.has(x) || (this.hasUpdated || z || (R = void 0), this._$AL.set(x, R)), q === !0 && this._$Em !== x && (this._$Eq ??= /* @__PURE__ */ new Set()).add(x));
   }
   async _$EP() {
     this.isUpdatePending = !0;
@@ -224,21 +224,21 @@ let NE = class extends HTMLElement {
     if (!this.isUpdatePending) return;
     if (!this.hasUpdated) {
       if (this.renderRoot ??= this.createRenderRoot(), this._$Ep) {
-        for (const [q, Ae] of this._$Ep) this[q] = Ae;
+        for (const [q, be] of this._$Ep) this[q] = be;
         this._$Ep = void 0;
       }
-      const K = this.constructor.elementProperties;
-      if (K.size > 0) for (const [q, Ae] of K) {
-        const { wrapped: k } = Ae, ln = this[q];
-        k !== !0 || this._$AL.has(q) || ln === void 0 || this.C(q, void 0, Ae, ln);
+      const z = this.constructor.elementProperties;
+      if (z.size > 0) for (const [q, be] of z) {
+        const { wrapped: k } = be, ln = this[q];
+        k !== !0 || this._$AL.has(q) || ln === void 0 || this.C(q, void 0, be, ln);
       }
     }
     let x = !1;
     const R = this._$AL;
     try {
-      x = this.shouldUpdate(R), x ? (this.willUpdate(R), this._$EO?.forEach((K) => K.hostUpdate?.()), this.update(R)) : this._$EM();
-    } catch (K) {
-      throw x = !1, this._$EM(), K;
+      x = this.shouldUpdate(R), x ? (this.willUpdate(R), this._$EO?.forEach((z) => z.hostUpdate?.()), this.update(R)) : this._$EM();
+    } catch (z) {
+      throw x = !1, this._$EM(), z;
     }
     x && this._$AE(R);
   }
@@ -269,9 +269,9 @@ let NE = class extends HTMLElement {
 };
 NE.elementStyles = [], NE.shadowRootOptions = { mode: "open" }, NE[rx("elementProperties")] = /* @__PURE__ */ new Map(), NE[rx("finalized")] = /* @__PURE__ */ new Map(), BDn?.({ ReactiveElement: NE }), (TU.reactiveElementVersions ??= []).push("2.1.2");
 const _Dn = { attribute: !0, type: String, converter: AU, reflect: !1, hasChanged: ebe }, JDn = ($ = _Dn, x, R) => {
-  const { kind: K, metadata: q } = R;
-  let Ae = globalThis.litPropertyMetadata.get(q);
-  if (Ae === void 0 && globalThis.litPropertyMetadata.set(q, Ae = /* @__PURE__ */ new Map()), K === "setter" && (($ = Object.create($)).wrapped = !0), Ae.set(R.name, $), K === "accessor") {
+  const { kind: z, metadata: q } = R;
+  let be = globalThis.litPropertyMetadata.get(q);
+  if (be === void 0 && globalThis.litPropertyMetadata.set(q, be = /* @__PURE__ */ new Map()), z === "setter" && (($ = Object.create($)).wrapped = !0), be.set(R.name, $), z === "accessor") {
     const { name: k } = R;
     return { set(ln) {
       const Le = x.get.call(this);
@@ -280,19 +280,19 @@ const _Dn = { attribute: !0, type: String, converter: AU, reflect: !1, hasChange
       return ln !== void 0 && this.C(k, void 0, $, ln), ln;
     } };
   }
-  if (K === "setter") {
+  if (z === "setter") {
     const { name: k } = R;
     return function(ln) {
       const Le = this[k];
       x.call(this, ln), this.requestUpdate(k, Le, $, !0, ln);
     };
   }
-  throw Error("Unsupported decorator location: " + K);
+  throw Error("Unsupported decorator location: " + z);
 };
 function _E($) {
-  return (x, R) => typeof R == "object" ? JDn($, x, R) : ((K, q, Ae) => {
-    const k = q.hasOwnProperty(Ae);
-    return q.constructor.createProperty(Ae, K), k ? Object.getOwnPropertyDescriptor(q, Ae) : void 0;
+  return (x, R) => typeof R == "object" ? JDn($, x, R) : ((z, q, be) => {
+    const k = q.hasOwnProperty(be);
+    return q.constructor.createProperty(be, z), k ? Object.getOwnPropertyDescriptor(q, be) : void 0;
   })($, x, R);
 }
 function vf($) {
@@ -306,24 +306,24 @@ function Bfn($, x) {
   return vfn !== void 0 ? vfn.createHTML(x) : x;
 }
 const HDn = ($, x) => {
-  const R = $.length - 1, K = [];
-  let q, Ae = x === 2 ? "<svg>" : x === 3 ? "<math>" : "", k = ix;
+  const R = $.length - 1, z = [];
+  let q, be = x === 2 ? "<svg>" : x === 3 ? "<math>" : "", k = ix;
   for (let ln = 0; ln < R; ln++) {
     const Le = $[ln];
     let Je, $n, Fn = -1, yn = 0;
     for (; yn < Le.length && (k.lastIndex = yn, $n = k.exec(Le), $n !== null); ) yn = k.lastIndex, k === ix ? $n[1] === "!--" ? k = kfn : $n[1] !== void 0 ? k = yfn : $n[2] !== void 0 ? (Ffn.test($n[2]) && (q = RegExp("</" + $n[2], "g")), k = dk) : $n[3] !== void 0 && (k = dk) : k === dk ? $n[0] === ">" ? (k = q ?? ix, Fn = -1) : $n[1] === void 0 ? Fn = -2 : (Fn = k.lastIndex - $n[2].length, Je = $n[1], k = $n[3] === void 0 ? dk : $n[3] === '"' ? Efn : jfn) : k === Efn || k === jfn ? k = dk : k === kfn || k === yfn ? k = ix : (k = dk, q = void 0);
     const Xn = k === dk && $[ln + 1].startsWith("/>") ? " " : "";
-    Ae += k === ix ? Le + GDn : Fn >= 0 ? (K.push(Je), Le.slice(0, Fn) + Lfn + Le.slice(Fn) + t6 + Xn) : Le + t6 + (Fn === -2 ? ln : Xn);
+    be += k === ix ? Le + GDn : Fn >= 0 ? (z.push(Je), Le.slice(0, Fn) + Lfn + Le.slice(Fn) + t6 + Xn) : Le + t6 + (Fn === -2 ? ln : Xn);
   }
-  return [Bfn($, Ae + ($[R] || "<?>") + (x === 2 ? "</svg>" : x === 3 ? "</math>" : "")), K];
+  return [Bfn($, be + ($[R] || "<?>") + (x === 2 ? "</svg>" : x === 3 ? "</math>" : "")), z];
 };
 class fx {
-  constructor({ strings: x, _$litType$: R }, K) {
+  constructor({ strings: x, _$litType$: R }, z) {
     let q;
     this.parts = [];
-    let Ae = 0, k = 0;
+    let be = 0, k = 0;
     const ln = x.length - 1, Le = this.parts, [Je, $n] = HDn(x, R);
-    if (this.el = fx.createElement(Je, K), bk.currentNode = this.el.content, R === 2 || R === 3) {
+    if (this.el = fx.createElement(Je, z), bk.currentNode = this.el.content, R === 2 || R === 3) {
       const Fn = this.el.content.firstChild;
       Fn.replaceWith(...Fn.childNodes);
     }
@@ -331,34 +331,34 @@ class fx {
       if (q.nodeType === 1) {
         if (q.hasAttributes()) for (const Fn of q.getAttributeNames()) if (Fn.endsWith(Lfn)) {
           const yn = $n[k++], Xn = q.getAttribute(Fn).split(t6), Nt = /([.?@])?(.*)/.exec(yn);
-          Le.push({ type: 1, index: Ae, name: Nt[2], strings: Xn, ctor: Nt[1] === "." ? zDn : Nt[1] === "?" ? KDn : Nt[1] === "@" ? XDn : SU }), q.removeAttribute(Fn);
-        } else Fn.startsWith(t6) && (Le.push({ type: 6, index: Ae }), q.removeAttribute(Fn));
+          Le.push({ type: 1, index: be, name: Nt[2], strings: Xn, ctor: Nt[1] === "." ? zDn : Nt[1] === "?" ? KDn : Nt[1] === "@" ? XDn : SU }), q.removeAttribute(Fn);
+        } else Fn.startsWith(t6) && (Le.push({ type: 6, index: be }), q.removeAttribute(Fn));
         if (Ffn.test(q.tagName)) {
           const Fn = q.textContent.split(t6), yn = Fn.length - 1;
           if (yn > 0) {
             q.textContent = MU ? MU.emptyScript : "";
-            for (let Xn = 0; Xn < yn; Xn++) q.append(Fn[Xn], sx()), bk.nextNode(), Le.push({ type: 2, index: ++Ae });
+            for (let Xn = 0; Xn < yn; Xn++) q.append(Fn[Xn], sx()), bk.nextNode(), Le.push({ type: 2, index: ++be });
             q.append(Fn[yn], sx());
           }
         }
-      } else if (q.nodeType === 8) if (q.data === Nfn) Le.push({ type: 2, index: Ae });
+      } else if (q.nodeType === 8) if (q.data === Nfn) Le.push({ type: 2, index: be });
       else {
         let Fn = -1;
-        for (; (Fn = q.data.indexOf(t6, Fn + 1)) !== -1; ) Le.push({ type: 7, index: Ae }), Fn += t6.length - 1;
+        for (; (Fn = q.data.indexOf(t6, Fn + 1)) !== -1; ) Le.push({ type: 7, index: be }), Fn += t6.length - 1;
       }
-      Ae++;
+      be++;
     }
   }
   static createElement(x, R) {
-    const K = wk.createElement("template");
-    return K.innerHTML = x, K;
+    const z = wk.createElement("template");
+    return z.innerHTML = x, z;
   }
 }
-function BE($, x, R = $, K) {
+function BE($, x, R = $, z) {
   if (x === RE) return x;
-  let q = K !== void 0 ? R._$Co?.[K] : R._$Cl;
-  const Ae = ox(x) ? void 0 : x._$litDirective$;
-  return q?.constructor !== Ae && (q?._$AO?.(!1), Ae === void 0 ? q = void 0 : (q = new Ae($), q._$AT($, R, K)), K !== void 0 ? (R._$Co ??= [])[K] = q : R._$Cl = q), q !== void 0 && (x = BE($, q._$AS($, x.values), q, K)), x;
+  let q = z !== void 0 ? R._$Co?.[z] : R._$Cl;
+  const be = ox(x) ? void 0 : x._$litDirective$;
+  return q?.constructor !== be && (q?._$AO?.(!1), be === void 0 ? q = void 0 : (q = new be($), q._$AT($, R, z)), z !== void 0 ? (R._$Co ??= [])[z] = q : R._$Cl = q), q !== void 0 && (x = BE($, q._$AS($, x.values), q, z)), x;
 }
 class UDn {
   constructor(x, R) {
@@ -371,29 +371,29 @@ class UDn {
     return this._$AM._$AU;
   }
   u(x) {
-    const { el: { content: R }, parts: K } = this._$AD, q = (x?.creationScope ?? wk).importNode(R, !0);
+    const { el: { content: R }, parts: z } = this._$AD, q = (x?.creationScope ?? wk).importNode(R, !0);
     bk.currentNode = q;
-    let Ae = bk.nextNode(), k = 0, ln = 0, Le = K[0];
+    let be = bk.nextNode(), k = 0, ln = 0, Le = z[0];
     for (; Le !== void 0; ) {
       if (k === Le.index) {
         let Je;
-        Le.type === 2 ? Je = new hx(Ae, Ae.nextSibling, this, x) : Le.type === 1 ? Je = new Le.ctor(Ae, Le.name, Le.strings, this, x) : Le.type === 6 && (Je = new WDn(Ae, this, x)), this._$AV.push(Je), Le = K[++ln];
+        Le.type === 2 ? Je = new hx(be, be.nextSibling, this, x) : Le.type === 1 ? Je = new Le.ctor(be, Le.name, Le.strings, this, x) : Le.type === 6 && (Je = new WDn(be, this, x)), this._$AV.push(Je), Le = z[++ln];
       }
-      k !== Le?.index && (Ae = bk.nextNode(), k++);
+      k !== Le?.index && (be = bk.nextNode(), k++);
     }
     return bk.currentNode = wk, q;
   }
   p(x) {
     let R = 0;
-    for (const K of this._$AV) K !== void 0 && (K.strings !== void 0 ? (K._$AI(x, K, R), R += K.strings.length - 2) : K._$AI(x[R])), R++;
+    for (const z of this._$AV) z !== void 0 && (z.strings !== void 0 ? (z._$AI(x, z, R), R += z.strings.length - 2) : z._$AI(x[R])), R++;
   }
 }
 class hx {
   get _$AU() {
     return this._$AM?._$AU ?? this._$Cv;
   }
-  constructor(x, R, K, q) {
-    this.type = 2, this._$AH = Mi, this._$AN = void 0, this._$AA = x, this._$AB = R, this._$AM = K, this.options = q, this._$Cv = q?.isConnected ?? !0;
+  constructor(x, R, z, q) {
+    this.type = 2, this._$AH = Mi, this._$AN = void 0, this._$AA = x, this._$AB = R, this._$AM = z, this.options = q, this._$Cv = q?.isConnected ?? !0;
   }
   get parentNode() {
     let x = this._$AA.parentNode;
@@ -419,11 +419,11 @@ class hx {
     this._$AH !== Mi && ox(this._$AH) ? this._$AA.nextSibling.data = x : this.T(wk.createTextNode(x)), this._$AH = x;
   }
   $(x) {
-    const { values: R, _$litType$: K } = x, q = typeof K == "number" ? this._$AC(x) : (K.el === void 0 && (K.el = fx.createElement(Bfn(K.h, K.h[0]), this.options)), K);
+    const { values: R, _$litType$: z } = x, q = typeof z == "number" ? this._$AC(x) : (z.el === void 0 && (z.el = fx.createElement(Bfn(z.h, z.h[0]), this.options)), z);
     if (this._$AH?._$AD === q) this._$AH.p(R);
     else {
-      const Ae = new UDn(q, this), k = Ae.u(this.options);
-      Ae.p(R), this.T(k), this._$AH = Ae;
+      const be = new UDn(q, this), k = be.u(this.options);
+      be.p(R), this.T(k), this._$AH = be;
     }
   }
   _$AC(x) {
@@ -433,14 +433,14 @@ class hx {
   k(x) {
     tbe(this._$AH) || (this._$AH = [], this._$AR());
     const R = this._$AH;
-    let K, q = 0;
-    for (const Ae of x) q === R.length ? R.push(K = new hx(this.O(sx()), this.O(sx()), this, this.options)) : K = R[q], K._$AI(Ae), q++;
-    q < R.length && (this._$AR(K && K._$AB.nextSibling, q), R.length = q);
+    let z, q = 0;
+    for (const be of x) q === R.length ? R.push(z = new hx(this.O(sx()), this.O(sx()), this, this.options)) : z = R[q], z._$AI(be), q++;
+    q < R.length && (this._$AR(z && z._$AB.nextSibling, q), R.length = q);
   }
   _$AR(x = this._$AA.nextSibling, R) {
     for (this._$AP?.(!1, !0, R); x !== this._$AB; ) {
-      const K = mfn(x).nextSibling;
-      mfn(x).remove(), x = K;
+      const z = mfn(x).nextSibling;
+      mfn(x).remove(), x = z;
     }
   }
   setConnected(x) {
@@ -454,17 +454,17 @@ class SU {
   get _$AU() {
     return this._$AM._$AU;
   }
-  constructor(x, R, K, q, Ae) {
-    this.type = 1, this._$AH = Mi, this._$AN = void 0, this.element = x, this.name = R, this._$AM = q, this.options = Ae, K.length > 2 || K[0] !== "" || K[1] !== "" ? (this._$AH = Array(K.length - 1).fill(new String()), this.strings = K) : this._$AH = Mi;
+  constructor(x, R, z, q, be) {
+    this.type = 1, this._$AH = Mi, this._$AN = void 0, this.element = x, this.name = R, this._$AM = q, this.options = be, z.length > 2 || z[0] !== "" || z[1] !== "" ? (this._$AH = Array(z.length - 1).fill(new String()), this.strings = z) : this._$AH = Mi;
   }
-  _$AI(x, R = this, K, q) {
-    const Ae = this.strings;
+  _$AI(x, R = this, z, q) {
+    const be = this.strings;
     let k = !1;
-    if (Ae === void 0) x = BE(this, x, R, 0), k = !ox(x) || x !== this._$AH && x !== RE, k && (this._$AH = x);
+    if (be === void 0) x = BE(this, x, R, 0), k = !ox(x) || x !== this._$AH && x !== RE, k && (this._$AH = x);
     else {
       const ln = x;
       let Le, Je;
-      for (x = Ae[0], Le = 0; Le < Ae.length - 1; Le++) Je = BE(this, ln[K + Le], R, Le), Je === RE && (Je = this._$AH[Le]), k ||= !ox(Je) || Je !== this._$AH[Le], Je === Mi ? x = Mi : x !== Mi && (x += (Je ?? "") + Ae[Le + 1]), this._$AH[Le] = Je;
+      for (x = be[0], Le = 0; Le < be.length - 1; Le++) Je = BE(this, ln[z + Le], R, Le), Je === RE && (Je = this._$AH[Le]), k ||= !ox(Je) || Je !== this._$AH[Le], Je === Mi ? x = Mi : x !== Mi && (x += (Je ?? "") + be[Le + 1]), this._$AH[Le] = Je;
     }
     k && !q && this.j(x);
   }
@@ -489,21 +489,21 @@ class KDn extends SU {
   }
 }
 class XDn extends SU {
-  constructor(x, R, K, q, Ae) {
-    super(x, R, K, q, Ae), this.type = 5;
+  constructor(x, R, z, q, be) {
+    super(x, R, z, q, be), this.type = 5;
   }
   _$AI(x, R = this) {
     if ((x = BE(this, x, R, 0) ?? Mi) === RE) return;
-    const K = this._$AH, q = x === Mi && K !== Mi || x.capture !== K.capture || x.once !== K.once || x.passive !== K.passive, Ae = x !== Mi && (K === Mi || q);
-    q && this.element.removeEventListener(this.name, this, K), Ae && this.element.addEventListener(this.name, this, x), this._$AH = x;
+    const z = this._$AH, q = x === Mi && z !== Mi || x.capture !== z.capture || x.once !== z.once || x.passive !== z.passive, be = x !== Mi && (z === Mi || q);
+    q && this.element.removeEventListener(this.name, this, z), be && this.element.addEventListener(this.name, this, x), this._$AH = x;
   }
   handleEvent(x) {
     typeof this._$AH == "function" ? this._$AH.call(this.options?.host ?? this.element, x) : this._$AH.handleEvent(x);
   }
 }
 class WDn {
-  constructor(x, R, K) {
-    this.element = x, this.type = 6, this._$AN = void 0, this._$AM = R, this.options = K;
+  constructor(x, R, z) {
+    this.element = x, this.type = 6, this._$AN = void 0, this._$AM = R, this.options = z;
   }
   get _$AU() {
     return this._$AM._$AU;
@@ -515,11 +515,11 @@ class WDn {
 const VDn = nbe.litHtmlPolyfillSupport;
 VDn?.(fx, hx), (nbe.litHtmlVersions ??= []).push("3.3.3");
 const QDn = ($, x, R) => {
-  const K = R?.renderBefore ?? x;
-  let q = K._$litPart$;
+  const z = R?.renderBefore ?? x;
+  let q = z._$litPart$;
   if (q === void 0) {
-    const Ae = R?.renderBefore ?? null;
-    K._$litPart$ = q = new hx(x.insertBefore(sx(), Ae), Ae, void 0, R ?? {});
+    const be = R?.renderBefore ?? null;
+    z._$litPart$ = q = new hx(x.insertBefore(sx(), be), be, void 0, R ?? {});
   }
   return q._$AI($), q;
 };
@@ -603,15 +603,14 @@ gk(jc`
 gk(jc`
     <line x1="18" y1="6" x2="6" y2="18"></line>
     <line x1="6" y1="6" x2="18" y2="18"></line>`);
-var rLn = Object.defineProperty, cLn = Object.getOwnPropertyDescriptor, ss = ($, x, R, K) => {
-  for (var q = K > 1 ? void 0 : K ? cLn(x, R) : x, Ae = $.length - 1, k; Ae >= 0; Ae--)
-    (k = $[Ae]) && (q = (K ? k(x, R, q) : k(q)) || q);
-  return K && q && rLn(x, R, q), q;
+var rLn = Object.defineProperty, cLn = Object.getOwnPropertyDescriptor, ss = ($, x, R, z) => {
+  for (var q = z > 1 ? void 0 : z ? cLn(x, R) : x, be = $.length - 1, k; be >= 0; be--)
+    (k = $[be]) && (q = (z ? k(x, R, q) : k(q)) || q);
+  return z && q && rLn(x, R, q), q;
 };
 function uLn($) {
-  if (!$.status) return $;
-  const { status: x, ...R } = $;
-  return x === "ARCHIVED" ? { ...R, archived: !0, disabled: !0 } : x === "DISABLED" ? { ...R, disabled: !0 } : R;
+  const { disabled: x, archived: R, status: z, ...q } = $, be = R || z === "ARCHIVED" ? "ARCHIVED" : x || z === "DISABLED" ? "DISABLED" : "ACTIVE";
+  return be === "ACTIVE" ? q : { ...q, status: be };
 }
 const _fn = 176, sLn = 60, e6 = 60, oLn = [
   "START",
@@ -681,24 +680,24 @@ function aLn($) {
   }
 }
 function Q0e($, x, R) {
-  const K = x - $.x, q = R - $.y;
-  if (K === 0 && q === 0) return { x: $.x, y: $.y };
-  const Ae = 1 / Math.max(Math.abs(K) / ($.w / 2), Math.abs(q) / ($.h / 2));
-  return { x: $.x + K * Ae, y: $.y + q * Ae };
+  const z = x - $.x, q = R - $.y;
+  if (z === 0 && q === 0) return { x: $.x, y: $.y };
+  const be = 1 / Math.max(Math.abs(z) / ($.w / 2), Math.abs(q) / ($.h / 2));
+  return { x: $.x + z * be, y: $.y + q * be };
 }
 function Tfn($, x, R) {
-  let K = Q0e($, x.x, x.y), q = Q0e(x, $.x, $.y);
+  let z = Q0e($, x.x, x.y), q = Q0e(x, $.x, $.y);
   if (R !== 0) {
-    const Ae = Math.hypot(q.x - K.x, q.y - K.y) || 1, k = -(q.y - K.y) / Ae * R, ln = (q.x - K.x) / Ae * R;
-    K = { x: K.x + k, y: K.y + ln }, q = { x: q.x + k, y: q.y + ln };
+    const be = Math.hypot(q.x - z.x, q.y - z.y) || 1, k = -(q.y - z.y) / be * R, ln = (q.x - z.x) / be * R;
+    z = { x: z.x + k, y: z.y + ln }, q = { x: q.x + k, y: q.y + ln };
   }
-  return [K, q];
+  return [z, q];
 }
 function dLn($, x, R = 0) {
-  const K = x.x - $.x, q = x.y - $.y, Ae = 0.5;
-  if (Math.abs(K) <= Ae || Math.abs(q) <= Ae) return Tfn($, x, R);
-  const k = K > 0 ? x.x - x.w / 2 - ($.x + $.w / 2) : $.x - $.w / 2 - (x.x + x.w / 2), ln = q > 0 ? x.y - x.h / 2 - ($.y + $.h / 2) : $.y - $.h / 2 - (x.y + x.h / 2), Le = Math.abs(K) >= Math.abs(q), Je = () => {
-    const Fn = { x: $.x + Math.sign(K) * $.w / 2, y: $.y + R }, yn = { x: x.x - Math.sign(K) * x.w / 2, y: x.y + R }, Xn = (Fn.x + yn.x) / 2 + R;
+  const z = x.x - $.x, q = x.y - $.y, be = 0.5;
+  if (Math.abs(z) <= be || Math.abs(q) <= be) return Tfn($, x, R);
+  const k = z > 0 ? x.x - x.w / 2 - ($.x + $.w / 2) : $.x - $.w / 2 - (x.x + x.w / 2), ln = q > 0 ? x.y - x.h / 2 - ($.y + $.h / 2) : $.y - $.h / 2 - (x.y + x.h / 2), Le = Math.abs(z) >= Math.abs(q), Je = () => {
+    const Fn = { x: $.x + Math.sign(z) * $.w / 2, y: $.y + R }, yn = { x: x.x - Math.sign(z) * x.w / 2, y: x.y + R }, Xn = (Fn.x + yn.x) / 2 + R;
     return [Fn, { x: Xn, y: Fn.y }, { x: Xn, y: yn.y }, yn];
   }, $n = () => {
     const Fn = { x: $.x + R, y: $.y + Math.sign(q) * $.h / 2 }, yn = { x: x.x + R, y: x.y - Math.sign(q) * x.h / 2 }, Xn = (Fn.y + yn.y) / 2 + R;
@@ -707,10 +706,10 @@ function dLn($, x, R = 0) {
   return k >= 0 && (Le || ln < 0) ? Je() : ln >= 0 ? $n() : k >= 0 ? Je() : Tfn($, x, R);
 }
 function Jfn($, x, R) {
-  const K = R.x - R.w / 2, q = R.x + R.w / 2, Ae = R.y - R.h / 2, k = R.y + R.h / 2;
+  const z = R.x - R.w / 2, q = R.x + R.w / 2, be = R.y - R.h / 2, k = R.y + R.h / 2;
   let ln = 0, Le = 1;
   const Je = x.x - $.x, $n = x.y - $.y;
-  for (const [Fn, yn] of [[-Je, $.x - K], [Je, q - $.x], [-$n, $.y - Ae], [$n, k - $.y]]) {
+  for (const [Fn, yn] of [[-Je, $.x - z], [Je, q - $.x], [-$n, $.y - be], [$n, k - $.y]]) {
     if (Fn === 0) {
       if (yn < 0) return !1;
       continue;
@@ -727,21 +726,21 @@ function Jfn($, x, R) {
   return Le - ln > 0.02;
 }
 function Sfn($, x, R) {
-  const K = x - $.x, q = R - $.y, Ae = $.w / 2, k = $.h / 2;
-  if (Math.abs(K) >= Math.abs(q) && Math.abs(q) <= k) return { x: $.x + Math.sign(K) * Ae, y: R };
-  if (Math.abs(q) >= Math.abs(K) && Math.abs(K) <= Ae) return { x, y: $.y + Math.sign(q) * k };
-  if (K === 0 && q === 0) return { x: $.x, y: $.y };
-  const ln = 1 / Math.max(Math.abs(K) / Ae, Math.abs(q) / k);
-  return { x: $.x + K * ln, y: $.y + q * ln };
+  const z = x - $.x, q = R - $.y, be = $.w / 2, k = $.h / 2;
+  if (Math.abs(z) >= Math.abs(q) && Math.abs(q) <= k) return { x: $.x + Math.sign(z) * be, y: R };
+  if (Math.abs(q) >= Math.abs(z) && Math.abs(z) <= be) return { x, y: $.y + Math.sign(q) * k };
+  if (z === 0 && q === 0) return { x: $.x, y: $.y };
+  const ln = 1 / Math.max(Math.abs(z) / be, Math.abs(q) / k);
+  return { x: $.x + z * ln, y: $.y + q * ln };
 }
-function bLn($, x, R, K = 0, q = 22) {
-  const Ae = (ct) => {
+function bLn($, x, R, z = 0, q = 22) {
+  const be = (ct) => {
     let zn = 0;
     for (let Jt = 0; Jt < ct.length - 1; Jt++)
       for (const Mr of R)
         Jfn(ct[Jt], ct[Jt + 1], { x: Mr.x, y: Mr.y, w: Mr.w + 2 * q, h: Mr.h + 2 * q }) && zn++;
     return zn;
-  }, k = dLn($, x, K), ln = Ae(k);
+  }, k = dLn($, x, z), ln = be(k);
   if (ln === 0) return k;
   const Le = { x: $.x, y: $.y }, Je = { x: x.x, y: x.y }, $n = [[{ x: Je.x, y: Le.y }], [{ x: Le.x, y: Je.y }]];
   for (const ct of [0.5, 0.38, 0.62, 0.26, 0.74]) {
@@ -755,38 +754,38 @@ function bLn($, x, R, K = 0, q = 22) {
   }
   let Se = null, Ec = 1 / 0, wi = 1 / 0;
   for (const ct of $n) {
-    const zn = [Le, ...ct, Je], Jt = Ae(zn), Mr = Jt * 1e6 + n6(zn) + ct.length * 40;
+    const zn = [Le, ...ct, Je], Jt = be(zn), Mr = Jt * 1e6 + n6(zn) + ct.length * 40;
     Mr < Ec && (Se = ct, Ec = Mr, wi = Jt);
   }
   return Se && wi < ln ? [Sfn($, Se[0].x, Se[0].y), ...Se, Sfn(x, Se[Se.length - 1].x, Se[Se.length - 1].y)] : k;
 }
-function wLn($, x, R, K, q) {
-  const Ae = q === "L" || q === "R", k = q === "R" || q === "B" ? 1 : -1, ln = (Le, Je) => Math.max(-Je, Math.min(Je, Le));
+function wLn($, x, R, z, q) {
+  const be = q === "L" || q === "R", k = q === "R" || q === "B" ? 1 : -1, ln = (Le, Je) => Math.max(-Je, Math.min(Je, Le));
   if (rbe(R)) {
     const Le = ux / 2 - 3;
-    if (Ae) {
-      const $n = ln(K.y - x, Le - 1);
+    if (be) {
+      const $n = ln(z.y - x, Le - 1);
       return { x: $ + k * Math.sqrt(Le * Le - $n * $n), y: x + $n };
     }
-    const Je = ln(K.x - $, Le - 1);
+    const Je = ln(z.x - $, Le - 1);
     return { x: $ + Je, y: x + k * Math.sqrt(Le * Le - Je * Je) };
   }
   if (cbe(R)) {
     const Le = ux / 2 - 2, Je = ux / 2 - 2;
-    if (Ae) {
-      const Fn = ln(K.y - x, Je - 1);
+    if (be) {
+      const Fn = ln(z.y - x, Je - 1);
       return { x: $ + k * Le * (1 - Math.abs(Fn) / Je), y: x + Fn };
     }
-    const $n = ln(K.x - $, Le - 1);
+    const $n = ln(z.x - $, Le - 1);
     return { x: $ + $n, y: x + k * Je * (1 - Math.abs($n) / Le) };
   }
-  return K;
+  return z;
 }
 function Ifn($, x, R) {
   return x === "R" ? { x: $.x + R, y: $.y } : x === "L" ? { x: $.x - R, y: $.y } : x === "T" ? { x: $.x, y: $.y - R } : { x: $.x, y: $.y + R };
 }
-function gLn($, x, R, K, q, Ae = [], k = 20) {
-  const Le = Ifn($, x, 16), Je = Ifn(R, K, 16), $n = (zn) => {
+function gLn($, x, R, z, q, be = [], k = 20) {
+  const Le = Ifn($, x, 16), Je = Ifn(R, z, 16), $n = (zn) => {
     let Jt = 0;
     for (let Mr = 0; Mr < zn.length - 1; Mr++)
       for (const Ku of q)
@@ -797,7 +796,7 @@ function gLn($, x, R, K, q, Ae = [], k = 20) {
     for (let Mr = 0; Mr < zn.length - 1; Mr++) {
       const Ku = zn[Mr], Ys = zn[Mr + 1], Jf = Math.abs(Ku.x - Ys.x) < 1.5, H1 = Math.abs(Ku.y - Ys.y) < 1.5;
       if (!(!Jf && !H1))
-        for (const [U1, yb] of Ae)
+        for (const [U1, yb] of be)
           Jf && Math.abs(U1.x - yb.x) < 1.5 && Math.abs(U1.x - Ku.x) < 2.5 ? Jt += Math.max(0, Math.min(Math.max(Ku.y, Ys.y), Math.max(U1.y, yb.y)) - Math.max(Math.min(Ku.y, Ys.y), Math.min(U1.y, yb.y))) : H1 && Math.abs(U1.y - yb.y) < 1.5 && Math.abs(U1.y - Ku.y) < 2.5 && (Jt += Math.max(0, Math.min(Math.max(Ku.x, Ys.x), Math.max(U1.x, yb.x)) - Math.max(Math.min(Ku.x, Ys.x), Math.min(U1.x, yb.x))));
     }
     return Jt;
@@ -818,39 +817,39 @@ function gLn($, x, R, K, q, Ae = [], k = 20) {
   }
   return [$, Le, ...wi, Je, R];
 }
-function pLn($, x, R, K) {
-  const q = x.x - $.x, Ae = x.y - $.y, k = K.x - R.x, ln = K.y - R.y, Le = q * ln - Ae * k;
+function pLn($, x, R, z) {
+  const q = x.x - $.x, be = x.y - $.y, k = z.x - R.x, ln = z.y - R.y, Le = q * ln - be * k;
   if (Math.abs(Le) < 1e-9) return null;
-  const Je = ((R.x - $.x) * ln - (R.y - $.y) * k) / Le, $n = ((R.x - $.x) * Ae - (R.y - $.y) * q) / Le;
-  return Je <= 0.02 || Je >= 0.98 || $n <= 0.02 || $n >= 0.98 ? null : { x: $.x + Je * q, y: $.y + Je * Ae, t: Je };
+  const Je = ((R.x - $.x) * ln - (R.y - $.y) * k) / Le, $n = ((R.x - $.x) * be - (R.y - $.y) * q) / Le;
+  return Je <= 0.02 || Je >= 0.98 || $n <= 0.02 || $n >= 0.98 ? null : { x: $.x + Je * q, y: $.y + Je * be, t: Je };
 }
-function Cfn($, x, R, K) {
-  const q = Math.hypot(x.x - $.x, x.y - $.y) || 1, Ae = (x.x - $.x) / q, k = (x.y - $.y) / q, ln = R.map(([$n, Fn]) => pLn($, x, $n, Fn)).filter(($n) => $n !== null).filter(($n) => $n.t * q > K + 2 && (1 - $n.t) * q > K + 2).sort(($n, Fn) => $n.t - Fn.t);
+function Cfn($, x, R, z) {
+  const q = Math.hypot(x.x - $.x, x.y - $.y) || 1, be = (x.x - $.x) / q, k = (x.y - $.y) / q, ln = R.map(([$n, Fn]) => pLn($, x, $n, Fn)).filter(($n) => $n !== null).filter(($n) => $n.t * q > z + 2 && (1 - $n.t) * q > z + 2).sort(($n, Fn) => $n.t - Fn.t);
   let Le = "", Je = -1 / 0;
   for (const $n of ln)
-    $n.t * q - K <= Je + 2 || (Le += ` L ${$n.x - Ae * K} ${$n.y - k * K}`, Le += ` A ${K} ${K} 0 0 1 ${$n.x + Ae * K} ${$n.y + k * K}`, Je = $n.t * q + K);
+    $n.t * q - z <= Je + 2 || (Le += ` L ${$n.x - be * z} ${$n.y - k * z}`, Le += ` A ${z} ${z} 0 0 1 ${$n.x + be * z} ${$n.y + k * z}`, Je = $n.t * q + z);
   return Le + ` L ${x.x} ${x.y}`;
 }
-function mLn($, x, R = 9, K = 6) {
+function mLn($, x, R = 9, z = 6) {
   if ($.length < 2) return $.length ? `M ${$[0].x} ${$[0].y}` : "";
-  let q = `M ${$[0].x} ${$[0].y}`, Ae = $[0];
+  let q = `M ${$[0].x} ${$[0].y}`, be = $[0];
   for (let k = 1; k < $.length - 1; k++) {
-    const ln = $[k], Le = $[k + 1], Je = Math.hypot(ln.x - Ae.x, ln.y - Ae.y) || 1, $n = Math.hypot(Le.x - ln.x, Le.y - ln.y) || 1, Fn = Math.min(R, Je / 2, $n / 2), yn = { x: ln.x + (Ae.x - ln.x) / Je * Fn, y: ln.y + (Ae.y - ln.y) / Je * Fn }, Xn = { x: ln.x + (Le.x - ln.x) / $n * Fn, y: ln.y + (Le.y - ln.y) / $n * Fn };
-    q += Cfn(Ae, yn, x, K), q += ` Q ${ln.x} ${ln.y} ${Xn.x} ${Xn.y}`, Ae = Xn;
+    const ln = $[k], Le = $[k + 1], Je = Math.hypot(ln.x - be.x, ln.y - be.y) || 1, $n = Math.hypot(Le.x - ln.x, Le.y - ln.y) || 1, Fn = Math.min(R, Je / 2, $n / 2), yn = { x: ln.x + (be.x - ln.x) / Je * Fn, y: ln.y + (be.y - ln.y) / Je * Fn }, Xn = { x: ln.x + (Le.x - ln.x) / $n * Fn, y: ln.y + (Le.y - ln.y) / $n * Fn };
+    q += Cfn(be, yn, x, z), q += ` Q ${ln.x} ${ln.y} ${Xn.x} ${Xn.y}`, be = Xn;
   }
-  return q + Cfn(Ae, $[$.length - 1], x, K);
+  return q + Cfn(be, $[$.length - 1], x, z);
 }
 function $fn($, x = 0.5) {
   let R = 0;
   for (let q = 0; q < $.length - 1; q++) R += Math.hypot($[q + 1].x - $[q].x, $[q + 1].y - $[q].y);
-  let K = R * Math.min(Math.max(x, 0), 1);
+  let z = R * Math.min(Math.max(x, 0), 1);
   for (let q = 0; q < $.length - 1; q++) {
-    const Ae = Math.hypot($[q + 1].x - $[q].x, $[q + 1].y - $[q].y);
-    if (Ae >= K && Ae > 0) {
-      const k = K / Ae;
+    const be = Math.hypot($[q + 1].x - $[q].x, $[q + 1].y - $[q].y);
+    if (be >= z && be > 0) {
+      const k = z / be;
       return { x: $[q].x + ($[q + 1].x - $[q].x) * k, y: $[q].y + ($[q + 1].y - $[q].y) * k };
     }
-    K -= Ae;
+    z -= be;
   }
   return $[Math.floor($.length / 2)];
 }
@@ -868,7 +867,7 @@ function FE($) {
   return $.preconditions && $.preconditions.length > 0 ? $.preconditions.filter((x) => x && x.stepId) : $.preconditionStepIds && $.preconditionStepIds.length > 0 ? $.preconditionStepIds.filter(Boolean).map((x) => ({ stepId: x })) : $.preconditionStepId ? [{ stepId: $.preconditionStepId }] : [];
 }
 function yLn($, x) {
-  const R = FE($).find((K) => K.stepId === x)?.expression?.trim();
+  const R = FE($).find((z) => z.stepId === x)?.expression?.trim();
   return R || void 0;
 }
 function q1($) {
@@ -880,24 +879,24 @@ function Gfn($) {
   return x;
 }
 function jLn($) {
-  const x = new Set($.map((Je) => Je.id)), R = Gfn($), K = {}, q = /* @__PURE__ */ new Set();
+  const x = new Set($.map((Je) => Je.id)), R = Gfn($), z = {}, q = /* @__PURE__ */ new Set();
   for (const Je of $) {
     if (!R.has(Je.id))
       for (const $n of q1(Je))
-        x.has($n) && ((K[$n] ??= []).push(Je.id), q.add(Je.id));
-    Je.rollbackable && Je.compensationStepId && x.has(Je.compensationStepId) && ((K[Je.id] ??= []).push(Je.compensationStepId), q.add(Je.compensationStepId));
+        x.has($n) && ((z[$n] ??= []).push(Je.id), q.add(Je.id));
+    Je.rollbackable && Je.compensationStepId && x.has(Je.compensationStepId) && ((z[Je.id] ??= []).push(Je.compensationStepId), q.add(Je.compensationStepId));
   }
-  const Ae = $.map((Je) => Je.id).filter((Je) => !q.has(Je)), k = [], ln = 200, Le = (Je, $n, Fn) => {
+  const be = $.map((Je) => Je.id).filter((Je) => !q.has(Je)), k = [], ln = 200, Le = (Je, $n, Fn) => {
     if (k.length >= ln) return;
     $n.push(Je), Fn.add(Je);
-    const yn = (K[Je] ?? []).filter((Xn) => !Fn.has(Xn));
+    const yn = (z[Je] ?? []).filter((Xn) => !Fn.has(Xn));
     if (yn.length === 0)
       $n.length > 1 && k.push([...$n]);
     else
       for (const Xn of yn) Le(Xn, $n, Fn);
     $n.pop(), Fn.delete(Je);
   };
-  for (const Je of Ae) Le(Je, [], /* @__PURE__ */ new Set());
+  for (const Je of be) Le(Je, [], /* @__PURE__ */ new Set());
   return k;
 }
 let Lu = class extends cx {
@@ -926,8 +925,8 @@ let Lu = class extends cx {
       this.zoomK = R, this.panX = (this.viewW - R * $.w) / 2 - R * $.minX, this.panY = (this.viewH - R * $.h) / 2 - R * $.minY;
     }, this.onWheel = ($) => {
       if ($.preventDefault(), !this.svgEl) return;
-      const x = this.svgEl.getBoundingClientRect(), R = $.clientX - x.left, K = $.clientY - x.top, q = this.clampZoom(this.zoomK * Math.exp(-$.deltaY * 15e-4)), Ae = (R - this.panX) / this.zoomK, k = (K - this.panY) / this.zoomK;
-      this.panX = R - Ae * q, this.panY = K - k * q, this.zoomK = q;
+      const x = this.svgEl.getBoundingClientRect(), R = $.clientX - x.left, z = $.clientY - x.top, q = this.clampZoom(this.zoomK * Math.exp(-$.deltaY * 15e-4)), be = (R - this.panX) / this.zoomK, k = (z - this.panY) / this.zoomK;
+      this.panX = R - be * q, this.panY = z - k * q, this.zoomK = q;
     }, this.onCanvasMouseDown = ($) => {
       this.renderRoot.querySelector(".root")?.focus({ preventScroll: !0 }), !(this.draggingId || this.linkingFrom || $.button !== 0 || $.shiftKey || $.altKey || $.ctrlKey || $.metaKey) && (this.panning = !0, this.panMoved = !1, this.panStart = { x: $.clientX, y: $.clientY, panX: this.panX, panY: this.panY }, window.addEventListener("mousemove", this.onPanMove), window.addEventListener("mouseup", this.onPanUp));
     }, this.onPanMove = ($) => {
@@ -942,8 +941,8 @@ let Lu = class extends cx {
   updated($) {
     if ($.has("value"))
       try {
-        const x = JSON.parse(this.value), R = new Set((this.wf.steps ?? []).map((Ae) => Ae.id)), K = new Set((x.steps ?? []).map((Ae) => Ae.id)), q = R.size !== K.size || [...K].some((Ae) => !R.has(Ae)) || [...K].some((Ae) => {
-          const k = (this.wf.steps ?? []).find((Le) => Le.id === Ae), ln = (x.steps ?? []).find((Le) => Le.id === Ae);
+        const x = JSON.parse(this.value), R = new Set((this.wf.steps ?? []).map((be) => be.id)), z = new Set((x.steps ?? []).map((be) => be.id)), q = R.size !== z.size || [...z].some((be) => !R.has(be)) || [...z].some((be) => {
+          const k = (this.wf.steps ?? []).find((Le) => Le.id === be), ln = (x.steps ?? []).find((Le) => Le.id === be);
           return k && ln && q1(k).join(",") !== q1(ln).join(",");
         });
         this.wf = uLn(x), (q || !this.layoutReady) && (this.didInitialFit = !1, this.runElkLayout());
@@ -966,10 +965,10 @@ let Lu = class extends cx {
     const $ = this.renderRoot, x = $.querySelector("svg.canvas"), R = $.querySelector(".canvas-wrap");
     if (!x || !R) return;
     this.viewportSetup = !0, this.svgEl = x;
-    const K = () => {
+    const z = () => {
       this.viewW = R.clientWidth, this.viewH = R.clientHeight;
     };
-    K(), this.resizeObs = new ResizeObserver(K), this.resizeObs.observe(R), x.addEventListener("wheel", this.onWheel, { passive: !1 });
+    z(), this.resizeObs = new ResizeObserver(z), this.resizeObs.observe(R), x.addEventListener("wheel", this.onWheel, { passive: !1 });
   }
   disconnectedCallback() {
     super.disconnectedCallback(), this.stopFlow(), this.resizeObs?.disconnect(), this.svgEl?.removeEventListener("wheel", this.onWheel);
@@ -995,24 +994,24 @@ let Lu = class extends cx {
         "elk.layered.nodePlacement.strategy": "BRANDES_KOEPF"
       },
       children: $.map((R) => {
-        const { w: K, h: q } = ip(R.type);
-        return { id: R.id, width: K, height: q };
+        const { w: z, h: q } = ip(R.type);
+        return { id: R.id, width: z, height: q };
       }),
       // One edge per precondition: a step with several incoming preconditions
       // (preconditionStepIds) gets several edges into it.
-      edges: $.flatMap((R) => q1(R).map((K) => ({
-        id: `${K}->${R.id}`,
-        sources: [K],
+      edges: $.flatMap((R) => q1(R).map((z) => ({
+        id: `${z}->${R.id}`,
+        sources: [z],
         targets: [R.id]
       })))
     };
     try {
-      const K = await (await vLn()).layout(x), q = { ...this.positions };
-      for (const Ae of K.children ?? [])
-        (!this.elkPositioned.has(Ae.id) || !q[Ae.id]) && (q[Ae.id] = {
-          x: (Ae.x ?? 0) + e6,
-          y: (Ae.y ?? 0) + e6
-        }, this.elkPositioned.add(Ae.id));
+      const z = await (await vLn()).layout(x), q = { ...this.positions };
+      for (const be of z.children ?? [])
+        (!this.elkPositioned.has(be.id) || !q[be.id]) && (q[be.id] = {
+          x: (be.x ?? 0) + e6,
+          y: (be.y ?? 0) + e6
+        }, this.elkPositioned.add(be.id));
       this.positions = q, this.layoutReady = !0, this.layoutError = null;
     } catch (R) {
       this.layoutError = R?.message ?? "ELK layout failed", this.layoutReady = !0;
@@ -1027,8 +1026,8 @@ let Lu = class extends cx {
     this.wf = { ...this.wf, ...$ }, this.emit();
   }
   updateStep($, x) {
-    const R = this.wf.steps.map((k) => k.id === $ ? { ...k, ...x } : k), K = this.wf.steps.find((k) => k.id === $), q = R.find((k) => k.id === $), Ae = !!K && !!q && q1(K).join(",") !== q1(q).join(",");
-    this.wf = { ...this.wf, steps: R }, Ae && (this.elkPositioned.clear(), this.runElkLayout()), this.emit();
+    const R = this.wf.steps.map((k) => k.id === $ ? { ...k, ...x } : k), z = this.wf.steps.find((k) => k.id === $), q = R.find((k) => k.id === $), be = !!z && !!q && q1(z).join(",") !== q1(q).join(",");
+    this.wf = { ...this.wf, steps: R }, be && (this.elkPositioned.clear(), this.runElkLayout()), this.emit();
   }
   /**
    * Adds or removes one incoming precondition. Normalises onto the plural
@@ -1036,13 +1035,13 @@ let Lu = class extends cx {
    * any number of inputs; an empty set drops the field entirely.
    */
   togglePrecondition($, x, R) {
-    const K = FE($).filter((q) => q.stepId !== x);
-    R && K.push({ stepId: x }), this.writeLinks($.id, K);
+    const z = FE($).filter((q) => q.stepId !== x);
+    R && z.push({ stepId: x }), this.writeLinks($.id, z);
   }
   /** Sets the guard on one link, dropping the field when it is cleared. */
   setGuard($, x, R) {
-    const K = R.trim();
-    this.writeLinks($.id, FE($).map((q) => q.stepId === x ? { stepId: q.stepId, expression: K || void 0 } : q));
+    const z = R.trim();
+    this.writeLinks($.id, FE($).map((q) => q.stepId === x ? { stepId: q.stepId, expression: z || void 0 } : q));
   }
   /**
    * Writes the links back in the one shape that can hold a guard, and clears the two older
@@ -1059,7 +1058,7 @@ let Lu = class extends cx {
   addStep() {
     const $ = kLn(), x = { id: $, type: "ACTION", name: "New Step" };
     this.wf = { ...this.wf, steps: [...this.wf.steps ?? [], x] };
-    const R = Object.values(this.positions).map((K) => K.x);
+    const R = Object.values(this.positions).map((z) => z.x);
     this.positions = {
       ...this.positions,
       [$]: { x: R.length ? Math.max(...R) + _fn + 80 : e6, y: e6 }
@@ -1081,15 +1080,15 @@ let Lu = class extends cx {
   deleteStep($) {
     this.wf = {
       ...this.wf,
-      steps: this.wf.steps.filter((K) => K.id !== $).map((K) => {
-        const q = { ...K };
+      steps: this.wf.steps.filter((z) => z.id !== $).map((z) => {
+        const q = { ...z };
         if (q.preconditionStepId === $ && (q.preconditionStepId = void 0), q.preconditionStepIds) {
-          const Ae = q.preconditionStepIds.filter((k) => k !== $);
-          q.preconditionStepIds = Ae.length ? Ae : void 0;
+          const be = q.preconditionStepIds.filter((k) => k !== $);
+          q.preconditionStepIds = be.length ? be : void 0;
         }
         if (q.preconditions) {
-          const Ae = q.preconditions.filter((k) => k.stepId !== $);
-          q.preconditions = Ae.length ? Ae : void 0;
+          const be = q.preconditions.filter((k) => k.stepId !== $);
+          q.preconditions = be.length ? be : void 0;
         }
         return q.compensationStepId === $ && (q.compensationStepId = void 0), q;
       })
@@ -1129,8 +1128,8 @@ let Lu = class extends cx {
     }
     if (this.readOnly || $.altKey) return;
     $.preventDefault(), this.draggingId = x;
-    const R = this.positions[x] ?? { x: 0, y: 0 }, K = this.toSvgPoint($);
-    this.dragOffset = { x: K.x - R.x, y: K.y - R.y }, this.svgEl = $.currentTarget.closest("svg"), window.addEventListener("mousemove", this.onMouseMove), window.addEventListener("mouseup", this.onMouseUp);
+    const R = this.positions[x] ?? { x: 0, y: 0 }, z = this.toSvgPoint($);
+    this.dragOffset = { x: z.x - R.x, y: z.y - R.y }, this.svgEl = $.currentTarget.closest("svg"), window.addEventListener("mousemove", this.onMouseMove), window.addEventListener("mouseup", this.onMouseUp);
   }
   // ── Edge drawing ────────────────────────────────────────────────────────────
   startLink($, x) {
@@ -1151,18 +1150,18 @@ let Lu = class extends cx {
    * that would close a cycle is rejected silently.
    */
   createLink($, x) {
-    const R = this.wf.steps.find((q) => q.id === x), K = this.wf.steps.find((q) => q.id === $);
-    !R || !K || R.type !== "START" && (q1(R).includes($) || q1(K).includes(x) || this.ancestorsOf($).has(x) || this.togglePrecondition(R, $, !0));
+    const R = this.wf.steps.find((q) => q.id === x), z = this.wf.steps.find((q) => q.id === $);
+    !R || !z || R.type !== "START" && (q1(R).includes($) || q1(z).includes(x) || this.ancestorsOf($).has(x) || this.togglePrecondition(R, $, !0));
   }
   /** All transitive preconditions (ancestors) of a step. */
   ancestorsOf($) {
-    const x = new Map((this.wf.steps ?? []).map((q) => [q.id, q])), R = /* @__PURE__ */ new Set(), K = [...q1(x.get($) ?? {})];
-    for (; K.length; ) {
-      const q = K.pop();
+    const x = new Map((this.wf.steps ?? []).map((q) => [q.id, q])), R = /* @__PURE__ */ new Set(), z = [...q1(x.get($) ?? {})];
+    for (; z.length; ) {
+      const q = z.pop();
       if (R.has(q)) continue;
       R.add(q);
-      const Ae = x.get(q);
-      Ae && K.push(...q1(Ae));
+      const be = x.get(q);
+      be && z.push(...q1(be));
     }
     return R;
   }
@@ -1182,10 +1181,10 @@ let Lu = class extends cx {
   canvasSize() {
     let $ = 600, x = 400;
     for (const R of this.wf.steps ?? []) {
-      const K = this.positions[R.id];
-      if (!K) continue;
+      const z = this.positions[R.id];
+      if (!z) continue;
       const q = ip(R.type);
-      $ = Math.max($, K.x + q.w + e6), x = Math.max(x, K.y + q.h + e6);
+      $ = Math.max($, z.x + q.w + e6), x = Math.max(x, z.y + q.h + e6);
     }
     return { w: $, h: x };
   }
@@ -1193,12 +1192,12 @@ let Lu = class extends cx {
   graphBounds($ = 60) {
     const x = (this.wf.steps ?? []).filter((k) => this.positions[k.id]);
     if (x.length === 0) return null;
-    let R = 1 / 0, K = 1 / 0, q = -1 / 0, Ae = -1 / 0;
+    let R = 1 / 0, z = 1 / 0, q = -1 / 0, be = -1 / 0;
     for (const k of x) {
       const ln = this.positions[k.id], Le = ip(k.type);
-      R = Math.min(R, ln.x), K = Math.min(K, ln.y), q = Math.max(q, ln.x + Le.w), Ae = Math.max(Ae, ln.y + Le.h + 18);
+      R = Math.min(R, ln.x), z = Math.min(z, ln.y), q = Math.max(q, ln.x + Le.w), be = Math.max(be, ln.y + Le.h + 18);
     }
-    return { minX: R - $, minY: K - $, w: q - R + 2 * $, h: Ae - K + 2 * $ };
+    return { minX: R - $, minY: z - $, w: q - R + 2 * $, h: be - z + 2 * $ };
   }
   clampZoom($) {
     return Math.max(0.1, Math.min(2.5, $));
@@ -1209,22 +1208,22 @@ let Lu = class extends cx {
   }
   /** Center-plus-size box of a step (by id), honouring its per-type shape size. */
   boxForId($) {
-    const x = this.positions[$], R = (this.wf.steps ?? []).find((Ae) => Ae.id === $);
+    const x = this.positions[$], R = (this.wf.steps ?? []).find((be) => be.id === $);
     if (!x || !R) return null;
-    const { w: K, h: q } = ip(R.type);
-    return { x: x.x + K / 2, y: x.y + q / 2, w: K, h: q };
+    const { w: z, h: q } = ip(R.type);
+    return { x: x.x + z / 2, y: x.y + q / 2, w: z, h: q };
   }
   /** Orthogonal route between two steps that steers around every other node. */
   routeBetween($, x, R = 0) {
-    const K = this.boxForId($), q = this.boxForId(x);
-    if (!K || !q) return null;
-    const Ae = [];
+    const z = this.boxForId($), q = this.boxForId(x);
+    if (!z || !q) return null;
+    const be = [];
     for (const k of this.wf.steps ?? []) {
       if (k.id === $ || k.id === x) continue;
       const ln = this.boxForId(k.id);
-      ln && Ae.push(ln);
+      ln && be.push(ln);
     }
-    return bLn(K, q, Ae, R);
+    return bLn(z, q, be, R);
   }
   /**
    * All edges with node-avoiding routes AND distributed endpoints: edges sharing a side of a
@@ -1238,19 +1237,19 @@ let Lu = class extends cx {
         for (const Je of q1(Le)) this.boxForId(Je) && this.boxForId(Le.id) && R.push({ from: Je, to: Le.id, comp: !1 });
     for (const Le of $)
       Le.rollbackable && Le.compensationStepId && this.boxForId(Le.id) && this.boxForId(Le.compensationStepId) && R.push({ from: Le.id, to: Le.compensationStepId, comp: !0 });
-    const K = (Le, Je, $n) => {
+    const z = (Le, Je, $n) => {
       const Fn = Je - Le.x, yn = $n - Le.y;
       return Math.abs(Fn) >= Math.abs(yn) ? Fn >= 0 ? "R" : "L" : yn >= 0 ? "B" : "T";
     }, q = R.map((Le) => {
       const Je = this.boxForId(Le.from), $n = this.boxForId(Le.to);
-      return [K(Je, $n.x, $n.y), K($n, Je.x, Je.y)];
-    }), Ae = /* @__PURE__ */ new Map();
+      return [z(Je, $n.x, $n.y), z($n, Je.x, Je.y)];
+    }), be = /* @__PURE__ */ new Map();
     R.forEach((Le, Je) => {
       const $n = this.boxForId(Le.from), Fn = this.boxForId(Le.to), [yn, Xn] = q[Je], Nt = `${Le.from}|${yn}`, Se = `${Le.to}|${Xn}`;
-      (Ae.get(Nt) ?? Ae.set(Nt, []).get(Nt)).push({ edge: Je, role: 0, perp: yn === "L" || yn === "R" ? Fn.y : Fn.x }), (Ae.get(Se) ?? Ae.set(Se, []).get(Se)).push({ edge: Je, role: 1, perp: Xn === "L" || Xn === "R" ? $n.y : $n.x });
+      (be.get(Nt) ?? be.set(Nt, []).get(Nt)).push({ edge: Je, role: 0, perp: yn === "L" || yn === "R" ? Fn.y : Fn.x }), (be.get(Se) ?? be.set(Se, []).get(Se)).push({ edge: Je, role: 1, perp: Xn === "L" || Xn === "R" ? $n.y : $n.x });
     });
     const k = R.map(() => [{ x: 0, y: 0 }, { x: 0, y: 0 }]);
-    for (const [Le, Je] of Ae) {
+    for (const [Le, Je] of be) {
       const $n = Le.slice(Le.lastIndexOf("|") + 1), Fn = Le.slice(0, Le.lastIndexOf("|")), yn = this.boxForId(Fn), Xn = (this.wf.steps ?? []).find((Se) => Se.id === Fn).type;
       Je.sort((Se, Ec) => Se.perp - Ec.perp);
       const Nt = Je.length;
@@ -1290,14 +1289,14 @@ let Lu = class extends cx {
       if (!Le) return null;
       R.push(Le);
     }
-    const K = [...R[0]], q = [{ id: $[0], d: 0 }], Ae = [], k = [{ to: $[1], startD: 0, len: n6(R[0]) }];
+    const z = [...R[0]], q = [{ id: $[0], d: 0 }], be = [], k = [{ to: $[1], startD: 0, len: n6(R[0]) }];
     for (let ln = 1; ln < R.length; ln++) {
-      const Le = n6(K);
-      K.push(R[ln][0]);
-      const Je = n6(K);
-      Ae.push({ from: Le, to: Je }), q.push({ id: $[ln], d: Le }), K.push(...R[ln].slice(1)), k.push({ to: $[ln + 1], startD: Je, len: n6(R[ln]) });
+      const Le = n6(z);
+      z.push(R[ln][0]);
+      const Je = n6(z);
+      be.push({ from: Le, to: Je }), q.push({ id: $[ln], d: Le }), z.push(...R[ln].slice(1)), k.push({ to: $[ln + 1], startD: Je, len: n6(R[ln]) });
     }
-    return q.push({ id: $[$.length - 1], d: n6(K) }), { pts: K, marks: q, hidden: Ae, segs: k };
+    return q.push({ id: $[$.length - 1], d: n6(z) }), { pts: z, marks: q, hidden: be, segs: k };
   }
   isEdgeSelected($) {
     const x = this.selectedEdge;
@@ -1362,11 +1361,11 @@ let Lu = class extends cx {
     if (this.focusMode === "auto") return null;
     const $ = this.activePaths.length ? this.activePaths : this.flowPaths;
     if ($.length === 0) return null;
-    const x = this.focusMode === "path" ? [$[this.flowPathIndex % $.length]] : $, R = /* @__PURE__ */ new Set(), K = /* @__PURE__ */ new Set();
+    const x = this.focusMode === "path" ? [$[this.flowPathIndex % $.length]] : $, R = /* @__PURE__ */ new Set(), z = /* @__PURE__ */ new Set();
     for (const q of x)
-      for (let Ae = 0; Ae < q.length; Ae++)
-        R.add(q[Ae]), Ae > 0 && K.add(`${q[Ae - 1]}->${q[Ae]}`);
-    return { nodes: R, edges: K };
+      for (let be = 0; be < q.length; be++)
+        R.add(q[be]), be > 0 && z.add(`${q[be - 1]}->${q[be]}`);
+    return { nodes: R, edges: z };
   }
   /** Restart the animation at the first active path (used when the focus set changes). */
   restartFlow() {
@@ -1397,12 +1396,12 @@ let Lu = class extends cx {
    * next path takes over (looping). Runs off the Lit render path via direct SVG mutation.
    */
   stepFlow($) {
-    const x = this.renderRoot, R = x.querySelector?.(".flow-token"), K = this.activePaths.length ? this.activePaths : this.flowPaths;
-    if (!R || K.length === 0) {
+    const x = this.renderRoot, R = x.querySelector?.(".flow-token"), z = this.activePaths.length ? this.activePaths : this.flowPaths;
+    if (!R || z.length === 0) {
       R && (R.style.opacity = "0");
       return;
     }
-    const q = this.flowPathIndex % K.length, Ae = K[q], k = this.pathGeometry(Ae);
+    const q = this.flowPathIndex % z.length, be = z[q], k = this.pathGeometry(be);
     if (!k) return;
     const ln = n6(k.pts) || 1, Le = this.flowSpeed, Je = 55, $n = 1800, Fn = 600, yn = 3e4, Xn = new Map((this.wf.steps ?? []).map((Wt) => [Wt.id, Wt])), Nt = /* @__PURE__ */ new Set(["USER_TASK", "WAIT_FOR_MESSAGE", "TIMER"]), Se = (Wt) => {
       const Cc = Xn.get(Wt);
@@ -1415,7 +1414,7 @@ let Lu = class extends cx {
     for (const Wt of wi) Ec(Wt.id) && (ct += $n);
     const zn = Je / Le * 1e3, Jt = $ - this.flowStartTs;
     if (Jt >= ct + zn) {
-      this.focusMode !== "path" && (this.flowPathIndex = (q + 1) % K.length), this.flowStartTs = $, this.pulsedThisPath = /* @__PURE__ */ new Set(), this.flowPrevPosD = 0;
+      this.focusMode !== "path" && (this.flowPathIndex = (q + 1) % z.length), this.flowStartTs = $, this.pulsedThisPath = /* @__PURE__ */ new Set(), this.flowPrevPosD = 0;
       return;
     }
     let Mr = 0, Ku = 0, Ys = ln, Jf = null;
@@ -1439,9 +1438,9 @@ let Lu = class extends cx {
     const yb = k.hidden.some((Wt) => H1 >= Wt.from && H1 <= Wt.to);
     R.style.opacity = Jt <= ct && !yb && !Jf ? "1" : "0";
     const Qa = /* @__PURE__ */ new Set();
-    for (let Wt = 1; Wt < Ae.length; Wt++) {
-      const Cc = Xn.get(Ae[Wt - 1]);
-      Cc && Cc.rollbackable && Cc.compensationStepId === Ae[Wt] && Qa.add(Ae[Wt - 1]);
+    for (let Wt = 1; Wt < be.length; Wt++) {
+      const Cc = Xn.get(be[Wt - 1]);
+      Cc && Cc.rollbackable && Cc.compensationStepId === be[Wt] && Qa.add(be[Wt - 1]);
     }
     for (const Wt of wi)
       Ys >= Wt.d && !this.pulsedThisPath.has(Wt.id) && (this.pulseAt[Wt.id] = $, this.pulseColor[Wt.id] = Qa.has(Wt.id) ? "#dc2626" : "", this.pulsedThisPath.add(Wt.id));
@@ -1461,7 +1460,7 @@ let Lu = class extends cx {
     }
     this.flowPrevPosD = Ys, Jf && $ - (this.pulseAt[Jf] ?? 0) >= Fn && (this.pulseAt[Jf] = $);
     const _ = /* @__PURE__ */ new Set();
-    for (let Wt = 1; Wt < Ae.length; Wt++) _.add(`${Ae[Wt - 1]}->${Ae[Wt]}`);
+    for (let Wt = 1; Wt < be.length; Wt++) _.add(`${be[Wt - 1]}->${be[Wt]}`);
     const JE = /* @__PURE__ */ new Set();
     if (Jf && Se(Jf))
       for (const Wt of q1(Xn.get(Jf)))
@@ -1469,7 +1468,7 @@ let Lu = class extends cx {
     let vg = null, i6 = null;
     if (this.focusMode !== "auto") {
       vg = /* @__PURE__ */ new Set(), i6 = /* @__PURE__ */ new Set();
-      const Wt = this.focusMode === "path" ? [Ae] : K;
+      const Wt = this.focusMode === "path" ? [be] : z;
       for (const Cc of Wt)
         for (let Gf = 0; Gf < Cc.length; Gf++)
           i6.add(Cc[Gf]), Gf > 0 && vg.add(`${Cc[Gf - 1]}->${Cc[Gf]}`);
@@ -1478,7 +1477,7 @@ let Lu = class extends cx {
       const Cc = Wt.dataset.edge ?? "", Gf = _.has(Cc), kg = vg ? !vg.has(Cc) && !Gf : !Gf;
       Wt.classList.toggle("active", Gf), Wt.classList.toggle("dim", kg);
     });
-    const lx = new Set(Ae);
+    const lx = new Set(be);
     for (const Wt of this.wf.steps ?? []) {
       const Cc = x.querySelector?.(`.node[data-node="${Wt.id}"]`), Gf = lx.has(Wt.id) || JE.has(Wt.id), kg = i6 ? !i6.has(Wt.id) && !Gf : !Gf;
       Cc && Cc.classList.toggle("dim", kg);
@@ -1507,12 +1506,12 @@ let Lu = class extends cx {
   renderMinimap() {
     const $ = this.graphBounds();
     if (!$ || (this.wf.steps ?? []).length < 2 || this.viewW === 0) return Mi;
-    const K = Math.min(168 / $.w, 116 / $.h), q = $.w * K, Ae = $.h * K, k = -this.panX / this.zoomK, ln = -this.panY / this.zoomK, Le = this.viewW / this.zoomK, Je = this.viewH / this.zoomK, $n = (Fn) => {
+    const z = Math.min(168 / $.w, 116 / $.h), q = $.w * z, be = $.h * z, k = -this.panX / this.zoomK, ln = -this.panY / this.zoomK, Le = this.viewW / this.zoomK, Je = this.viewH / this.zoomK, $n = (Fn) => {
       const yn = Fn.currentTarget.getBoundingClientRect();
-      this.centerOn($.minX + (Fn.clientX - yn.left) / K, $.minY + (Fn.clientY - yn.top) / K);
+      this.centerOn($.minX + (Fn.clientX - yn.left) / z, $.minY + (Fn.clientY - yn.top) / z);
     };
     return jr`
-            <div class="minimap" style="width:${q}px;height:${Ae}px"
+            <div class="minimap" style="width:${q}px;height:${be}px"
                  title="Minimap — click or drag to navigate"
                  @mousedown="${(Fn) => {
       Fn.stopPropagation(), this.miniDrag = !0, $n(Fn);
@@ -1526,7 +1525,7 @@ let Lu = class extends cx {
                  @mouseleave="${() => {
       this.miniDrag = !1;
     }}">
-                <svg viewBox="0 0 ${$.w} ${$.h}" width="${q}" height="${Ae}">
+                <svg viewBox="0 0 ${$.w} ${$.h}" width="${q}" height="${be}">
                     ${(this.wf.steps ?? []).map((Fn) => {
       const yn = this.positions[Fn.id];
       if (!yn) return Mi;
@@ -1568,8 +1567,8 @@ let Lu = class extends cx {
     const x = this.overlayData[$]?.heat;
     if (!x) return 0;
     let R = 0;
-    const K = Math.min(this.heatDays, x.length);
-    for (let q = 0; q < K; q++) R += x[q] ?? 0;
+    const z = Math.min(this.heatDays, x.length);
+    for (let q = 0; q < z; q++) R += x[q] ?? 0;
     return R;
   }
   /** Tint intensity (0–100) for a node's heat, relative to the hottest node in the current window.
@@ -1672,16 +1671,17 @@ let Lu = class extends cx {
    */
   setDeclaredState($) {
     this.updateWf({
-      disabled: $ === "DISABLED" || void 0,
-      archived: $ === "ARCHIVED" || void 0,
-      status: void 0
-      // the field this editor used to write; the engine has no such thing
+      status: $ === "ACTIVE" ? void 0 : $,
+      disabled: void 0,
+      // the older spelling; one answer per question
+      archived: void 0
     });
   }
   /** What the definition declares about itself, for the badge. */
   declaredState() {
     return this.wf.archived || this.wf.status === "ARCHIVED" ? "ARCHIVED" : this.wf.disabled || this.wf.status === "DISABLED" ? "DISABLED" : "ACTIVE";
   }
+  /* eslint-disable-next-line */
   renderToolbar() {
     const $ = this.declaredState();
     return jr`
@@ -1727,8 +1727,8 @@ let Lu = class extends cx {
       ["ACTIVE", "Active", "Accepts new instances."],
       ["DISABLED", "Disabled", "No new instances, cron included. The runtime cannot enable a workflow its definition disables."],
       ["ARCHIVED", "Archived", "Retired: as disabled, and hidden from the listing."]
-    ].map(([x, R, K]) => jr`
-                            <label title="${K}">
+    ].map(([x, R, z]) => jr`
+                            <label title="${z}">
                                 <input type="radio" name="declared-state" value="${x}"
                                        ?checked="${this.declaredState() === x}"
                                        @change="${() => this.setDeclaredState(x)}"/>
@@ -1759,12 +1759,12 @@ let Lu = class extends cx {
   renderEdges() {
     const $ = this.computeEdges();
     this.edgeCache = new Map($.map((q) => [q.key, q.pts]));
-    const x = [], R = [], K = this.hasStateOverlay();
+    const x = [], R = [], z = this.hasStateOverlay();
     for (const q of $) {
-      const Ae = mLn(q.pts, x), k = K && !(this.isVisited(q.from) && this.isVisited(q.to)) ? "mon-dim" : "", ln = this.focusPaint && !this.focusPaint.edges.has(q.key) ? "focus-dim" : "", Le = this.isEdgeSelected(q) ? "sel" : "";
+      const be = mLn(q.pts, x), k = z && !(this.isVisited(q.from) && this.isVisited(q.to)) ? "mon-dim" : "", ln = this.focusPaint && !this.focusPaint.edges.has(q.key) ? "focus-dim" : "", Le = this.isEdgeSelected(q) ? "sel" : "";
       R.push(q.comp ? jc`<path class="comp-edge ${k} ${ln} ${Le}" data-comp="${q.from}" data-edge="${q.key}"
-                             d="${Ae}" marker-end="url(#ec-arrow)"/>` : jc`<path class="edge ${k} ${ln} ${Le}" data-edge="${q.key}"
-                             d="${Ae}" marker-end="url(#ec-arrow)"/>`), this.readOnly || R.push(jc`<path class="edge-hit" data-hit="${q.key}" d="${Ae}"
+                             d="${be}" marker-end="url(#ec-arrow)"/>` : jc`<path class="edge ${k} ${ln} ${Le}" data-edge="${q.key}"
+                             d="${be}" marker-end="url(#ec-arrow)"/>`), this.readOnly || R.push(jc`<path class="edge-hit" data-hit="${q.key}" d="${be}"
                                    @click="${(Je) => this.onEdgeClick(Je, q)}"/>`);
       for (let Je = 0; Je < q.pts.length - 1; Je++) x.push([q.pts[Je], q.pts[Je + 1]]);
     }
@@ -1785,71 +1785,71 @@ let Lu = class extends cx {
     if (!x) return jc``;
     const R = [];
     for (const q of FE($)) {
-      const Ae = q.expression?.trim();
-      if (!Ae) continue;
+      const be = q.expression?.trim();
+      if (!be) continue;
       const k = `${q.stepId}->${$.id}`, ln = this.edgeCache.get(k) ?? this.routeBetween(q.stepId, $.id, 0);
-      ln && R.push(this.renderGuardChip($fn(ln, 0.38), Ae, $.id, k));
+      ln && R.push(this.renderGuardChip($fn(ln, 0.38), be, $.id, k));
     }
-    const K = $.preconditionExpression?.trim();
-    if (K) {
+    const z = $.preconditionExpression?.trim();
+    if (z) {
       const { w: q } = ip($.type);
-      R.push(this.renderGuardChip({ x: x.x + q / 2, y: x.y - 40 }, K, $.id, ""));
+      R.push(this.renderGuardChip({ x: x.x + q / 2, y: x.y - 40 }, z, $.id, ""));
     }
     return R.length ? jc`${R}` : jc``;
   }
-  renderGuardChip($, x, R, K) {
-    const q = x.length > 30 ? x.slice(0, 29) + "…" : x, Ae = Math.max(30, q.length * 6.3 + 22), k = 19, ln = K && this.focusPaint && !this.focusPaint.edges.has(K) ? "focus-dim" : "";
+  renderGuardChip($, x, R, z) {
+    const q = x.length > 30 ? x.slice(0, 29) + "…" : x, be = Math.max(30, q.length * 6.3 + 22), k = 19, ln = z && this.focusPaint && !this.focusPaint.edges.has(z) ? "focus-dim" : "";
     return jc`
-            <g class="guard ${ln}" data-guard="${R}" data-edge="${K}"
+            <g class="guard ${ln}" data-guard="${R}" data-edge="${z}"
                transform="translate(${$.x}, ${$.y})">
-                <rect class="guard-halo" x="${-Ae / 2 - 4}" y="${-k / 2 - 4}" width="${Ae + 8}" height="${k + 8}" rx="12"/>
+                <rect class="guard-halo" x="${-be / 2 - 4}" y="${-k / 2 - 4}" width="${be + 8}" height="${k + 8}" rx="12"/>
                 <g class="guard-chip">
-                    <rect x="${-Ae / 2}" y="${-k / 2}" width="${Ae}" height="${k}" rx="9.5"/>
+                    <rect x="${-be / 2}" y="${-k / 2}" width="${be}" height="${k}" rx="9.5"/>
                     <text x="0" y="3.6" text-anchor="middle">◇ ${q}</text>
                 </g>
             </g>
         `;
   }
   renderNode($) {
-    const x = this.positions[$.id] ?? { x: e6, y: e6 }, R = Mfn($.type), { w: K, h: q } = ip($.type), Ae = this.selectedId === $.id ? "sel" : "", k = $.name.length > 22 ? $.name.slice(0, 21) + "…" : $.name, ln = jc`<circle class="flow-pulse" data-pulse="${$.id}"
-                                  cx="${K / 2}" cy="${q / 2}" r="${Math.max(K, q) / 2}" opacity="0"/>`;
+    const x = this.positions[$.id] ?? { x: e6, y: e6 }, R = Mfn($.type), { w: z, h: q } = ip($.type), be = this.selectedId === $.id ? "sel" : "", k = $.name.length > 22 ? $.name.slice(0, 21) + "…" : $.name, ln = jc`<circle class="flow-pulse" data-pulse="${$.id}"
+                                  cx="${z / 2}" cy="${q / 2}" r="${Math.max(z, q) / 2}" opacity="0"/>`;
     let Le = jc``;
     if (rbe($.type)) {
       const zn = $.type === "END" ? "ev-end" : "ev-start";
       Le = jc`
-                <circle class="node-shape ${zn}" cx="${K / 2}" cy="${q / 2}" r="${K / 2 - 3}"
+                <circle class="node-shape ${zn}" cx="${z / 2}" cy="${q / 2}" r="${z / 2 - 3}"
                         fill="${R.fill}" stroke="${R.stroke}"/>
-                <text class="node-caption" x="${K / 2}" y="${q + 15}" text-anchor="middle">${k}</text>`;
+                <text class="node-caption" x="${z / 2}" y="${q + 15}" text-anchor="middle">${k}</text>`;
     } else if (cbe($.type)) {
-      const zn = K / 2, Jt = q / 2, Mr = `${zn},2 ${K - 2},${Jt} ${zn},${q - 2} 2,${Jt}`, Ys = $.type === "JOIN" && $.joinType === "XOR" ? jc`<path class="gw-plus" d="M${zn - 8},${Jt - 8} L${zn + 8},${Jt + 8} M${zn + 8},${Jt - 8} L${zn - 8},${Jt + 8}" stroke="${R.stroke}"/>` : jc`<path class="gw-plus" d="M${zn - 9},${Jt} H${zn + 9} M${zn},${Jt - 9} V${Jt + 9}" stroke="${R.stroke}"/>`;
+      const zn = z / 2, Jt = q / 2, Mr = `${zn},2 ${z - 2},${Jt} ${zn},${q - 2} 2,${Jt}`, Ys = $.type === "JOIN" && $.joinType === "XOR" ? jc`<path class="gw-plus" d="M${zn - 8},${Jt - 8} L${zn + 8},${Jt + 8} M${zn + 8},${Jt - 8} L${zn - 8},${Jt + 8}" stroke="${R.stroke}"/>` : jc`<path class="gw-plus" d="M${zn - 9},${Jt} H${zn + 9} M${zn},${Jt - 9} V${Jt + 9}" stroke="${R.stroke}"/>`;
       Le = jc`
                 <polygon class="node-shape gateway" points="${Mr}" fill="${R.fill}" stroke="${R.stroke}"/>
                 ${Ys}
-                <text class="node-caption" x="${K / 2}" y="${q + 15}" text-anchor="middle">${k}</text>`;
+                <text class="node-caption" x="${z / 2}" y="${q + 15}" text-anchor="middle">${k}</text>`;
     } else {
       const zn = aLn($), Jt = zn.length > 26 ? zn.slice(0, 25) + "…" : zn;
       Le = jc`
                 <text class="node-badge" x="2" y="-7">${Jt}</text>
-                <rect class="node-shape" width="${K}" height="${q}" rx="10"
+                <rect class="node-shape" width="${z}" height="${q}" rx="10"
                       fill="${R.fill}" stroke="${R.stroke}" stroke-width="1.4"
                       stroke-dasharray="${R.dashed ? "6 4" : "0"}"/>
-                <g class="node-symbol" transform="translate(${K - 23}, 9)"
+                <g class="node-symbol" transform="translate(${z - 23}, 9)"
                    fill="none" stroke="${R.stroke}" stroke-width="1.1"
                    stroke-linejoin="round">${lLn[R.symbol] ?? jc``}</g>
                 <text class="node-title" x="14" y="${q / 2 - 2}">${k}</text>
                 <text class="node-id" x="14" y="${q / 2 + 14}">${$.id}</text>`;
     }
     const Je = this.overlayData[$.id], $n = this.heatmapOn && this.hasHeatData(), Fn = $n ? this.heatIntensity($.id) : 0, yn = Je ? `${Je.active ? "ov-active" : ""} ${Je.state ? "ov-" + Je.state.toLowerCase() : ""}` : "", Xn = $n ? this.heatValue($.id) : Je?.count ?? 0, Nt = Xn > 0 ? jc`
-            <g class="ov-count" transform="translate(${K - 5}, 5)">
+            <g class="ov-count" transform="translate(${z - 5}, 5)">
                 <circle r="10"/>
                 <text text-anchor="middle" dy="3.6">${Xn > 99 ? "99+" : Xn}</text>
             </g>` : Mi, Se = Je?.state === "COMPLETED" ? jc`
-            <g class="ov-done" transform="translate(${K - 6}, ${q - 6})">
+            <g class="ov-done" transform="translate(${z - 6}, ${q - 6})">
                 <circle r="12"/>
                 <path class="ov-check" d="M -6 0.5 L -1.5 5 L 6 -4.5"/>
             </g>` : Mi, Ec = `${this.linkHoverId === $.id ? "link-target" : ""} ${this.linkingFrom === $.id ? "link-source" : ""}`, wi = this.hasStateOverlay() && !this.isVisited($.id) ? "mon-dim" : "", ct = this.focusPaint && !this.focusPaint.nodes.has($.id) ? "focus-dim" : "";
     return jc`
-            <g class="node ${Ae} ${yn} ${Ec} ${wi} ${ct} ${$n ? "heat-on" : ""}"
+            <g class="node ${be} ${yn} ${Ec} ${wi} ${ct} ${$n ? "heat-on" : ""}"
                style="${$n ? `--heat:${Fn}` : ""}" data-node="${$.id}" transform="translate(${x.x},${x.y})"
                @mousedown="${(zn) => this.onNodeMouseDown(zn, $.id)}"
                @click="${(zn) => this.onNodeClick(zn, $.id)}"
@@ -1875,11 +1875,11 @@ let Lu = class extends cx {
   renderOverlayTooltip() {
     const $ = this.hoverId;
     if (!$ || !this.hasStateOverlay()) return Mi;
-    const x = this.overlayData[$], R = this.wf.steps.find((Fn) => Fn.id === $), K = this.positions[$];
-    if (!x || !K) return Mi;
-    const { h: q } = ip(R?.type ?? "ACTION"), Ae = this.panX + K.x * this.zoomK, k = this.panY + (K.y + q) * this.zoomK + 8, ln = (Fn) => Fn ? Fn.replace("T", " ").slice(0, 16) : "", Le = x.state ? jr`<span class="tip-chip tip-${x.state.toLowerCase()}">${x.state}</span>` : Mi, Je = (Fn, yn) => yn == null || yn === "" ? Mi : jr`<div class="tip-row"><span class="tip-k">${Fn}</span><span class="tip-v">${yn}</span></div>`, $n = x.attempt != null ? x.maxRetries ? `${x.attempt}/${x.maxRetries}` : `${x.attempt}` : null;
+    const x = this.overlayData[$], R = this.wf.steps.find((Fn) => Fn.id === $), z = this.positions[$];
+    if (!x || !z) return Mi;
+    const { h: q } = ip(R?.type ?? "ACTION"), be = this.panX + z.x * this.zoomK, k = this.panY + (z.y + q) * this.zoomK + 8, ln = (Fn) => Fn ? Fn.replace("T", " ").slice(0, 16) : "", Le = x.state ? jr`<span class="tip-chip tip-${x.state.toLowerCase()}">${x.state}</span>` : Mi, Je = (Fn, yn) => yn == null || yn === "" ? Mi : jr`<div class="tip-row"><span class="tip-k">${Fn}</span><span class="tip-v">${yn}</span></div>`, $n = x.attempt != null ? x.maxRetries ? `${x.attempt}/${x.maxRetries}` : `${x.attempt}` : null;
     return jr`
-            <div class="ov-tip" style="left:${Ae}px; top:${k}px;">
+            <div class="ov-tip" style="left:${be}px; top:${k}px;">
                 <div class="tip-head"><span class="tip-name">${R?.name ?? $}</span>${Le}</div>
                 ${x.reason ? jr`<div class="tip-reason">${x.reason}</div>` : Mi}
                 ${x.error ? jr`<div class="tip-errmsg">${x.error}</div>` : Mi}
@@ -1899,10 +1899,10 @@ let Lu = class extends cx {
   renderPanel() {
     const $ = this.wf.steps.find((q) => q.id === this.selectedId);
     if (!$) return "";
-    const x = this.wf.steps.filter((q) => q.id !== $.id), R = this.readOnly, K = (q, Ae) => jr`
+    const x = this.wf.steps.filter((q) => q.id !== $.id), R = this.readOnly, z = (q, be) => jr`
             <div class="field">
                 <label class="field-label">${q}</label>
-                ${Ae}
+                ${be}
             </div>
         `;
     return jr`
@@ -1915,31 +1915,31 @@ let Lu = class extends cx {
                             @click="${() => this.selectedId = null}">✕</button>
                 </div>
                 <div class="prop-body">
-                    ${K("ID", jr`<input class="inp" readonly .value="${$.id}"/>`)}
-                    ${K("Name", jr`<input class="inp" ?readonly="${R}" .value="${$.name}"
+                    ${z("ID", jr`<input class="inp" readonly .value="${$.id}"/>`)}
+                    ${z("Name", jr`<input class="inp" ?readonly="${R}" .value="${$.name}"
                         @change="${R ? Mi : (q) => this.updateStep($.id, { name: q.target.value })}"/>`)}
-                    ${K("Type", jr`
+                    ${z("Type", jr`
                         <select class="inp" ?disabled="${R}"
                                 @change="${R ? Mi : (q) => this.updateStep($.id, { type: q.target.value })}">
                             ${oLn.map((q) => jr`
                                 <option value="${q}" ?selected="${$.type === q}">${q}</option>`)}
                         </select>`)}
-                    ${K("Description", jr`<textarea class="inp" rows="2" ?readonly="${R}"
+                    ${z("Description", jr`<textarea class="inp" rows="2" ?readonly="${R}"
                         .value="${$.description ?? ""}"
                         @change="${R ? Mi : (q) => this.updateStep($.id, { description: q.target.value })}"></textarea>`)}
-                    ${$.type === "JOIN" ? K("Join type", jr`
+                    ${$.type === "JOIN" ? z("Join type", jr`
                         <select class="inp" ?disabled="${R}"
                                 @change="${R ? Mi : (q) => this.updateStep($.id, { joinType: q.target.value })}">
                             <option value="AND" ?selected="${($.joinType ?? "AND") === "AND"}">AND — wait for all</option>
                             <option value="XOR" ?selected="${$.joinType === "XOR"}">XOR — any one</option>
                         </select>`) : Mi}
-                    ${K("Preconditions (all must complete)", jr`
+                    ${z("Preconditions (all must complete)", jr`
                         <div class="checklist">
                             ${x.length === 0 ? jr`<span class="check-empty">no other steps</span>` : x.map((q) => jr`
                                 <label class="check">
                                     <input type="checkbox" ?disabled="${R}"
                                            ?checked="${q1($).includes(q.id)}"
-                                           @change="${R ? Mi : (Ae) => this.togglePrecondition($, q.id, Ae.target.checked)}"/>
+                                           @change="${R ? Mi : (be) => this.togglePrecondition($, q.id, be.target.checked)}"/>
                                     <span>${q.name} <em>(${q.id})</em></span>
                                 </label>
                                 ${q1($).includes(q.id) ? jr`
@@ -1949,17 +1949,17 @@ let Lu = class extends cx {
                                            placeholder="only when… (JEXL, optional)"
                                            title="Condition on the link from ${q.name}"
                                            .value="${yLn($, q.id) ?? ""}"
-                                           @change="${R ? Mi : (Ae) => this.setGuard($, q.id, Ae.target.value)}"/>` : Mi}`)}
+                                           @change="${R ? Mi : (be) => this.setGuard($, q.id, be.target.value)}"/>` : Mi}`)}
                         </div>`)}
-                    ${K("Step condition (gates the step however it is reached)", jr`
+                    ${z("Step condition (gates the step however it is reached)", jr`
                         <input class="inp" placeholder="JEXL expression" ?readonly="${R}"
                                .value="${$.preconditionExpression ?? ""}"
                                @change="${R ? Mi : (q) => this.updateStep($.id, { preconditionExpression: q.target.value || void 0 })}"/>`)}
-                    ${K("Timeout (ms)", jr`
+                    ${z("Timeout (ms)", jr`
                         <input class="inp" type="number" min="0" ?readonly="${R}"
                                .value="${String($.timeout ?? 0)}"
                                @change="${R ? Mi : (q) => this.updateStep($.id, { timeout: Number(q.target.value) })}"/>`)}
-                    ${K("Retries", jr`
+                    ${z("Retries", jr`
                         <input class="inp" type="number" min="0" ?readonly="${R}"
                                .value="${String($.retries ?? 0)}"
                                @change="${R ? Mi : (q) => this.updateStep($.id, { retries: Number(q.target.value) })}"/>`)}
@@ -1968,7 +1968,7 @@ let Lu = class extends cx {
                         <input type="checkbox" ?checked="${$.rollbackable}" ?disabled="${R}"
                                @change="${R ? Mi : (q) => this.updateStep($.id, { rollbackable: q.target.checked })}"/>
                     </div>
-                    ${$.rollbackable ? K("Compensation step", jr`
+                    ${$.rollbackable ? z("Compensation step", jr`
                         <select class="inp" ?disabled="${R}"
                                 @change="${R ? Mi : (q) => this.updateStep($.id, { compensationStepId: q.target.value || void 0 })}">
                             <option value="">— none —</option>
@@ -1977,20 +1977,20 @@ let Lu = class extends cx {
                                     ${q.name} (${q.id})
                                 </option>`)}
                         </select>`) : ""}
-                    ${$.type === "ACTION" ? K("Topic", jr`
+                    ${$.type === "ACTION" ? z("Topic", jr`
                         <input class="inp" placeholder="kafka.topic.name" ?readonly="${R}"
                                .value="${$.topic ?? ""}"
                                @change="${R ? Mi : (q) => this.updateStep($.id, { topic: q.target.value || void 0 })}"/>`) : ""}
-                    ${$.type === "USER_TASK" ? K("Form ID", jr`
+                    ${$.type === "USER_TASK" ? z("Form ID", jr`
                         <input class="inp" ?readonly="${R}" .value="${$.formId ?? ""}"
                                @change="${R ? Mi : (q) => this.updateStep($.id, { formId: q.target.value || void 0 })}"/>`) : ""}
-                    ${$.type === "RULE" ? K("Rule ID", jr`
+                    ${$.type === "RULE" ? z("Rule ID", jr`
                         <input class="inp" ?readonly="${R}" .value="${$.ruleId ?? ""}"
                                @change="${R ? Mi : (q) => this.updateStep($.id, { ruleId: q.target.value || void 0 })}"/>`) : ""}
-                    ${$.type === "WAIT_FOR_MESSAGE" || $.type === "SEND_MESSAGE" ? K("Message name", jr`
+                    ${$.type === "WAIT_FOR_MESSAGE" || $.type === "SEND_MESSAGE" ? z("Message name", jr`
                         <input class="inp" ?readonly="${R}" .value="${$.messageName ?? ""}"
                                @change="${R ? Mi : (q) => this.updateStep($.id, { messageName: q.target.value || void 0 })}"/>`) : ""}
-                    ${$.type === "PROCESS" ? K("Child workflow ID", jr`
+                    ${$.type === "PROCESS" ? z("Child workflow ID", jr`
                         <input class="inp" ?readonly="${R}" .value="${$.childWorkflowDefinitionId ?? ""}"
                                @change="${R ? Mi : (q) => this.updateStep($.id, { childWorkflowDefinitionId: q.target.value || void 0 })}"/>`) : ""}
                 </div>
@@ -2410,10 +2410,10 @@ function ALn() {
       $.exports = R();
     })(function() {
       return (/* @__PURE__ */ (function() {
-        function R(K, q, Ae) {
+        function R(z, q, be) {
           function k(Je, $n) {
             if (!q[Je]) {
-              if (!K[Je]) {
+              if (!z[Je]) {
                 var Fn = typeof jU == "function" && jU;
                 if (!$n && Fn) return Fn(Je, !0);
                 if (ln) return ln(Je, !0);
@@ -2421,28 +2421,28 @@ function ALn() {
                 throw yn.code = "MODULE_NOT_FOUND", yn;
               }
               var Xn = q[Je] = { exports: {} };
-              K[Je][0].call(Xn.exports, function(Nt) {
-                var Se = K[Je][1][Nt];
+              z[Je][0].call(Xn.exports, function(Nt) {
+                var Se = z[Je][1][Nt];
                 return k(Se || Nt);
-              }, Xn, Xn.exports, R, K, q, Ae);
+              }, Xn, Xn.exports, R, z, q, be);
             }
             return q[Je].exports;
           }
-          for (var ln = typeof jU == "function" && jU, Le = 0; Le < Ae.length; Le++) k(Ae[Le]);
+          for (var ln = typeof jU == "function" && jU, Le = 0; Le < be.length; Le++) k(be[Le]);
           return k;
         }
         return R;
-      })())({ 1: [function(R, K, q) {
+      })())({ 1: [function(R, z, q) {
         Object.defineProperty(q, "__esModule", {
           value: !0
         }), q.default = void 0;
-        function Ae(yn) {
+        function be(yn) {
           "@babel/helpers - typeof";
-          return Ae = typeof Symbol == "function" && typeof Symbol.iterator == "symbol" ? function(Xn) {
+          return be = typeof Symbol == "function" && typeof Symbol.iterator == "symbol" ? function(Xn) {
             return typeof Xn;
           } : function(Xn) {
             return Xn && typeof Symbol == "function" && Xn.constructor === Symbol && Xn !== Symbol.prototype ? "symbol" : typeof Xn;
-          }, Ae(yn);
+          }, be(yn);
         }
         function k(yn, Xn) {
           if (!(yn instanceof Xn)) throw new TypeError("Cannot call a class as a function");
@@ -2458,14 +2458,14 @@ function ALn() {
         }
         function Je(yn) {
           var Xn = $n(yn, "string");
-          return Ae(Xn) == "symbol" ? Xn : Xn + "";
+          return be(Xn) == "symbol" ? Xn : Xn + "";
         }
         function $n(yn, Xn) {
-          if (Ae(yn) != "object" || !yn) return yn;
+          if (be(yn) != "object" || !yn) return yn;
           var Nt = yn[Symbol.toPrimitive];
           if (Nt !== void 0) {
             var Se = Nt.call(yn, Xn);
-            if (Ae(Se) != "object") return Se;
+            if (be(Se) != "object") return Se;
             throw new TypeError("@@toPrimitive must return a primitive value.");
           }
           return String(yn);
@@ -2575,11 +2575,11 @@ function ALn() {
             }
           }]);
         })();
-      }, {}], 2: [function(R, K, q) {
-        (function(Ae) {
+      }, {}], 2: [function(R, z, q) {
+        (function(be) {
           (function() {
             var k;
-            typeof window < "u" ? k = window : typeof Ae < "u" ? k = Ae : typeof self < "u" && (k = self);
+            typeof window < "u" ? k = window : typeof be < "u" ? k = be : typeof self < "u" && (k = self);
             var ln;
             function Le() {
             }
@@ -3563,7 +3563,7 @@ function ALn() {
             }
             function Vve() {
             }
-            function be() {
+            function we() {
             }
             function Qve() {
             }
@@ -5800,31 +5800,31 @@ function ALn() {
             function gm(e, n) {
               return e.c = n, e;
             }
-            function ge(e, n) {
+            function pe(e, n) {
               return e.c = n, e;
             }
             function $e(e, n) {
               return e.b = n, e;
             }
-            function pe(e, n) {
+            function me(e, n) {
               return e.d = n, e;
             }
-            function me(e, n) {
+            function ve(e, n) {
               return e.e = n, e;
             }
             function Sln(e, n) {
               return e.f = n, e;
             }
-            function ve(e, n) {
+            function ke(e, n) {
               return e.g = n, e;
             }
-            function ke(e, n) {
+            function ye(e, n) {
               return e.a = n, e;
             }
-            function ye(e, n) {
+            function je(e, n) {
               return e.i = n, e;
             }
-            function je(e, n) {
+            function Ee(e, n) {
               return e.j = n, e;
             }
             function Iln(e, n) {
@@ -8534,7 +8534,7 @@ function ALn() {
               return Mt(e.c.e.a, n.c.e.a);
             }
             function Gdn(e, n) {
-              return z(n, (ue(), _j), e);
+              return K(n, (ue(), _j), e);
             }
             function qdn(e, n) {
               return e.b.zd(new kAe(e, n));
@@ -12364,7 +12364,7 @@ function ALn() {
             }
             function LL(e) {
               var n;
-              return n = new E0(), Mc(n, e), z(n, (ue(), Hr), null), n;
+              return n = new E0(), Mc(n, e), K(n, (ue(), Hr), null), n;
             }
             function NL(e, n, t) {
               var i;
@@ -13483,7 +13483,7 @@ function ALn() {
             }
             function Kvn(e) {
               var n;
-              return n = N(B(v(e, (ue(), I1)))), n < 0 && (n = 0, z(e, I1, n)), n;
+              return n = N(B(v(e, (ue(), I1)))), n < 0 && (n = 0, K(e, I1, n)), n;
             }
             function Xvn(e, n) {
               Ip(u(v(u(e.e, 9), (ue(), ni)), 102)) && (Be(), $i(u(e.e, 9).j, n));
@@ -13491,7 +13491,7 @@ function ALn() {
             function BT(e, n) {
               var t, i;
               for (i = e.Jc(); i.Ob(); )
-                t = u(i.Pb(), 70), z(t, (Q(), N3), n);
+                t = u(i.Pb(), 70), K(t, (Q(), N3), n);
             }
             function Wvn(e, n) {
               var t, i, r;
@@ -14837,7 +14837,7 @@ function ALn() {
             function ZNe(e, n) {
               var t, i;
               for (i = new A(e.b); i.a < i.c.c.length; )
-                t = u(E(i), 70), z(t, (Q(), N3), n);
+                t = u(E(i), 70), K(t, (Q(), N3), n);
             }
             function A6n(e, n, t) {
               var i, r;
@@ -14897,7 +14897,7 @@ function ALn() {
             }
             function S6n(e) {
               var n;
-              y1(e, !0), n = j1, vt(e, (ue(), O5)) && (n += u(v(e, O5), 15).a), z(e, O5, Y(n));
+              y1(e, !0), n = j1, vt(e, (ue(), O5)) && (n += u(v(e, O5), 15).a), K(e, O5, Y(n));
             }
             function uFe(e, n, t) {
               var i;
@@ -15015,12 +15015,12 @@ function ALn() {
             function Y7(e, n, t) {
               return t == null ? (!e.q && (e.q = new jn()), Gp(e.q, n)) : (!e.q && (e.q = new jn()), ut(e.q, n, t)), e;
             }
-            function z(e, n, t) {
+            function K(e, n, t) {
               return t == null ? (!e.q && (e.q = new jn()), Gp(e.q, n)) : (!e.q && (e.q = new jn()), ut(e.q, n, t)), e;
             }
             function lFe(e) {
               var n, t;
-              return t = new ET(), Mc(t, e), z(t, (oa(), C3), e), n = new jn(), TCn(e, t, n), ixn(e, t, n), t;
+              return t = new ET(), Mc(t, e), K(t, (oa(), C3), e), n = new jn(), TCn(e, t, n), ixn(e, t, n), t;
             }
             function O6n(e) {
               Cv();
@@ -15734,7 +15734,7 @@ function ALn() {
             }
             function NN(e) {
               var n;
-              return n = new lX(e.a), Mc(n, e), z(n, (Q(), yt), e), n.o.a = e.g, n.o.b = e.f, n.n.a = e.i, n.n.b = e.j, n;
+              return n = new lX(e.a), Mc(n, e), K(n, (Q(), yt), e), n.o.a = e.g, n.o.b = e.f, n.n.a = e.i, n.n.b = e.j, n;
             }
             function FN(e) {
               return (se(), Pu).Gc(e.j) ? N(B(v(e, (Q(), C5)))) : uc(I(S(Ni, 1), ie, 8, 0, [e.i.n, e.n, e.a])).b;
@@ -15878,7 +15878,7 @@ function ALn() {
             }
             function tRe(e, n) {
               var t;
-              return t = new Yf(e), gl(t, (Ye(), bi)), z(t, (Q(), yt), n), z(t, (ue(), ni), (_i(), qc)), t;
+              return t = new Yf(e), gl(t, (Ye(), bi)), K(t, (Q(), yt), n), K(t, (ue(), ni), (_i(), qc)), t;
             }
             function rZ(e, n) {
               switch (n) {
@@ -16279,10 +16279,10 @@ function ALn() {
             function K4n(e) {
               switch (u(v(e, (Q(), Jd)), 315).g) {
                 case 1:
-                  z(e, Jd, (Cl(), P3));
+                  K(e, Jd, (Cl(), P3));
                   break;
                 case 2:
-                  z(e, Jd, (Cl(), P2));
+                  K(e, Jd, (Cl(), P2));
               }
             }
             function vRe() {
@@ -16595,7 +16595,7 @@ function ALn() {
               }
               KM(t, n);
             }
-            function Ee(e, n) {
+            function Ae(e, n) {
               var t, i, r, c, s;
               if (t = n.f, Md(e.c.d, t, n), n.g != null)
                 for (r = n.g, c = 0, s = r.length; c < s; ++c)
@@ -16946,7 +16946,7 @@ function ALn() {
             }
             function DRe(e) {
               var n, t;
-              n = e.d == (r3(), j5), t = See(e), n && !t || !n && t ? z(e.a, (ue(), _h), (Yh(), uE)) : z(e.a, (ue(), _h), (Yh(), cE));
+              n = e.d == (r3(), j5), t = See(e), n && !t || !n && t ? K(e.a, (ue(), _h), (Yh(), uE)) : K(e.a, (ue(), _h), (Yh(), cE));
             }
             function WN() {
               WN = _, MA(), W$ = (ue(), Xd), vin = Qo(I(S(OH, 1), ice, 147, 0, [qj, hf, R2, Kd, Vw, aq, D5, L5, dq, b8, Ww, Na, Qw]));
@@ -17097,7 +17097,7 @@ function ALn() {
             }
             function L4(e, n) {
               var t;
-              sxn(n), t = u(v(e, (ue(), B$)), 284), t && z(e, B$, Jkn(t)), u1(e.c), u1(e.f), MQ(e.d), MQ(u(v(e, H$), 213));
+              sxn(n), t = u(v(e, (ue(), B$)), 284), t && K(e, B$, Jkn(t)), u1(e.c), u1(e.f), MQ(e.d), MQ(u(v(e, H$), 213));
             }
             function QN(e, n) {
               var t;
@@ -17484,12 +17484,12 @@ function ALn() {
             }
             function f8n(e) {
               var n, t, i, r, c, s;
-              for (s = u(v(e, (Q(), yt)), 12), z(s, C5, e.i.n.b), n = Ah(e.e), i = n, r = 0, c = i.length; r < c; ++r)
+              for (s = u(v(e, (Q(), yt)), 12), K(s, C5, e.i.n.b), n = Ah(e.e), i = n, r = 0, c = i.length; r < c; ++r)
                 t = i[r], Hi(t, s);
             }
             function h8n(e) {
               var n, t, i, r, c, s;
-              for (t = u(v(e, (Q(), yt)), 12), z(t, C5, e.i.n.b), n = Ah(e.g), r = n, c = 0, s = r.length; c < s; ++c)
+              for (t = u(v(e, (Q(), yt)), 12), K(t, C5, e.i.n.b), n = Ah(e.g), r = n, c = 0, s = r.length; c < s; ++c)
                 i = r[c], sr(i, t);
             }
             function uBe(e, n) {
@@ -17709,7 +17709,7 @@ function ALn() {
             }
             function A8n(e) {
               var n;
-              e.g && (e.c.ig() ? e.f : e.a) && (n = e.c.ig() ? e.f : e.a, Vne(n.a, e.o, !0), Vne(n.a, e.o, !1), z(e.o, (ue(), ni), (_i(), Yd)));
+              e.g && (e.c.ig() ? e.f : e.a) && (n = e.c.ig() ? e.f : e.a, Vne(n.a, e.o, !0), Vne(n.a, e.o, !1), K(e.o, (ue(), ni), (_i(), Yd)));
             }
             function pBe(e, n) {
               var t, i, r;
@@ -17781,7 +17781,7 @@ function ALn() {
             }
             function $8n(e, n) {
               var t;
-              return t = u(v(e, (ue(), Hr)), 78), iD(n, LZe) ? t ? Ms(t) : (t = new os(), z(e, Hr, t)) : t && z(e, Hr, null), t;
+              return t = u(v(e, (ue(), Hr)), 78), iD(n, LZe) ? t ? Ms(t) : (t = new os(), K(e, Hr, t)) : t && K(e, Hr, null), t;
             }
             function P8n(e, n) {
               var t, i, r;
@@ -18012,7 +18012,7 @@ function ALn() {
             }
             function IBe(e) {
               var n;
-              n = u(v(e, (wc(), Wle)), 104), z(e, (xt(), R5), new ne(0, 0)), SHe(new S7(), e, n.b - N(B(v(e, Gq))), n.d - N(B(v(e, qq))));
+              n = u(v(e, (wc(), Wle)), 104), K(e, (xt(), R5), new ne(0, 0)), SHe(new S7(), e, n.b - N(B(v(e, Gq))), n.d - N(B(v(e, qq))));
             }
             function DS(e) {
               var n;
@@ -18021,7 +18021,7 @@ function ALn() {
               throw M(new ec());
             }
             function CBe(e, n, t) {
-              t.Tg("Compound graph preprocessor", 1), e.a = new A0(), nze(e, n, null), v$n(e, n), HMn(e), z(n, (Q(), lfe), e.a), e.a = null, $c(e.b), t.Ug();
+              t.Tg("Compound graph preprocessor", 1), e.a = new A0(), nze(e, n, null), v$n(e, n), HMn(e), K(n, (Q(), lfe), e.a), e.a = null, $c(e.b), t.Ug();
             }
             function $Be(e, n, t) {
               var i, r, c;
@@ -19014,7 +19014,7 @@ function ALn() {
             }
             function a_e(e) {
               var n;
-              return n = new jn(), vt(e, (Q(), KG)) ? u(v(e, KG), 92) : (ti(bt(new De(null, new Ne(e.j, 16)), new S2e()), new fke(n)), z(e, KG, n), n);
+              return n = new jn(), vt(e, (Q(), KG)) ? u(v(e, KG), 92) : (ti(bt(new De(null, new Ne(e.j, 16)), new S2e()), new fke(n)), K(e, KG, n), n);
             }
             function B4(e, n) {
               var t, i;
@@ -19102,7 +19102,7 @@ function ALn() {
             }
             function i7n(e) {
               var n, t;
-              n = u(v(e, (cf(), tZe)), 15), n ? (t = n.a, t == 0 ? z(e, (oa(), KC), new UN()) : z(e, (oa(), KC), new kT(t))) : z(e, (oa(), KC), new kT(1));
+              n = u(v(e, (cf(), tZe)), 15), n ? (t = n.a, t == 0 ? K(e, (oa(), KC), new UN()) : K(e, (oa(), KC), new kT(t))) : K(e, (oa(), KC), new kT(1));
             }
             function r7n(e, n) {
               var t;
@@ -19239,7 +19239,7 @@ function ALn() {
             }
             function b7n(e, n, t) {
               var i;
-              i = n.c.i, i.k == (Ye(), bi) ? (z(e, (Q(), Lf), u(v(i, Lf), 12)), z(e, Lo, u(v(i, Lo), 12))) : (z(e, (Q(), Lf), n.c), z(e, Lo, t.d));
+              i = n.c.i, i.k == (Ye(), bi) ? (K(e, (Q(), Lf), u(v(i, Lf), 12)), K(e, Lo, u(v(i, Lo), 12))) : (K(e, (Q(), Lf), n.c), K(e, Lo, t.d));
             }
             function yv(e, n, t) {
               Cv();
@@ -19329,7 +19329,7 @@ function ALn() {
               var n, t, i, r, c;
               for (n = u(v(e, (Q(), n8)), 92), c = e.n, i = n.Bc().Jc(); i.Ob(); )
                 t = u(i.Pb(), 318), r = t.i, r.c += c.a, r.d += c.b, t.c ? zqe(t) : Kqe(t);
-              z(e, n8, null);
+              K(e, n8, null);
             }
             function E7n(e, n, t) {
               var i, r;
@@ -19929,7 +19929,7 @@ function ALn() {
                 case 2:
                   Ii(c, Yp(r));
               }
-              return z(c, (ue(), zw), B(v(e, zw))), c;
+              return K(c, (ue(), zw), B(v(e, zw))), c;
             }
             function See(e) {
               var n, t;
@@ -20089,7 +20089,7 @@ function ALn() {
             function jyn(e) {
               var n, t, i, r;
               for (K$n(e), t = new tn(sn(Mh(e).a.Jc(), new Se())); mn(t); )
-                n = u(an(t), 17), i = n.c.i == e, r = i ? n.d : n.c, i ? Hi(n, null) : sr(n, null), z(n, (Q(), pfe), r), yAn(e, r.i);
+                n = u(an(t), 17), i = n.c.i == e, r = i ? n.d : n.c, i ? Hi(n, null) : sr(n, null), K(n, (Q(), pfe), r), yAn(e, r.i);
             }
             function Eyn(e, n, t) {
               var i, r, c, s;
@@ -20265,7 +20265,7 @@ function ALn() {
               c = u(Yu(bt(n.Mc(), new wpe()), ls(new Wu(), new Xu(), new Vu(), I(S(Cu, 1), ee, 130, 0, [(oo(), Iu)]))), 16), vy(c), s = u(vd(e.b, t, i), 16), r == 0 ? s.ad(0, c) : s.Fc(c);
             }
             function Gyn(e, n, t) {
-              t.Tg("Grow Tree", 1), e.b = n.f, ae(le(v(n, (nv(), U9)))) ? (e.c = new qE(), LPe(e, null)) : e.c = new qE(), e.a = !1, jqe(e, n.f), z(n, vse, (Xe(), !!e.a)), t.Ug();
+              t.Tg("Grow Tree", 1), e.b = n.f, ae(le(v(n, (nv(), U9)))) ? (e.c = new qE(), LPe(e, null)) : e.c = new qE(), e.a = !1, jqe(e, n.f), K(n, vse, (Xe(), !!e.a)), t.Ug();
             }
             function R0(e) {
               var n;
@@ -20450,7 +20450,7 @@ function ALn() {
             function Yyn(e) {
               var n;
               for (n = (Kp(), u(an(new tn(sn(si(e).a.Jc(), new Se()))), 17).c.i); n.k == (Ye(), bi); )
-                z(n, (Q(), Fj), (Xe(), !0)), n = u(an(new tn(sn(si(n).a.Jc(), new Se()))), 17).c.i;
+                K(n, (Q(), Fj), (Xe(), !0)), n = u(an(new tn(sn(si(n).a.Jc(), new Se()))), 17).c.i;
             }
             function FF(e, n, t, i) {
               var r, c, s, f;
@@ -20678,16 +20678,16 @@ function ALn() {
             function bjn(e) {
               switch (u(v(e, (ue(), fc)), 165).g) {
                 case 1:
-                  z(e, fc, (Ss(), c8));
+                  K(e, fc, (Ss(), c8));
                   break;
                 case 2:
-                  z(e, fc, (Ss(), qd));
+                  K(e, fc, (Ss(), qd));
                   break;
                 case 3:
-                  z(e, fc, (Ss(), r8));
+                  K(e, fc, (Ss(), r8));
                   break;
                 case 4:
-                  z(e, fc, (Ss(), Hl));
+                  K(e, fc, (Ss(), Hl));
               }
             }
             function wjn(e, n, t) {
@@ -20741,7 +20741,7 @@ function ALn() {
             }
             function hJe(e, n) {
               var t, i;
-              i = u(v(n, (ue(), ni)), 102), z(n, (Q(), mfe), i), t = n.e, t && (ti(new De(null, new Ne(t.a, 16)), new vz(e)), ti(Qr(new De(null, new Ne(t.b, 16)), new $U()), new kz(e)));
+              i = u(v(n, (ue(), ni)), 102), K(n, (Q(), mfe), i), t = n.e, t && (ti(new De(null, new Ne(t.a, 16)), new vz(e)), ti(Qr(new De(null, new Ne(t.b, 16)), new $U()), new kz(e)));
             }
             function mjn(e) {
               var n, t, i, r;
@@ -21142,11 +21142,11 @@ function ALn() {
             function Mv(e, n, t) {
               var i, r, c;
               for (t != n.c + n.b.gc() && YCn(n.a, Y5n(n, t - n.c)), c = n.a.c.p, e.a[c] = k.Math.max(e.a[c], n.a.o.a), r = u(v(n.a, (Q(), t8)), 16).Jc(); r.Ob(); )
-                i = u(r.Pb(), 70), z(i, sG, (Xe(), !0));
+                i = u(r.Pb(), 70), K(i, sG, (Xe(), !0));
             }
             function Xjn(e, n) {
               var t, i, r;
-              r = bTn(n), z(n, (Q(), HG), r), r && (i = dt, Br(e.f, r) && (i = u(tc(Br(e.f, r)), 15).a), t = u(he(n.g, 0), 17), ae(le(v(t, S1))) || ut(e, r, Y(k.Math.min(u(v(t, Ot), 15).a, i))));
+              r = bTn(n), K(n, (Q(), HG), r), r && (i = dt, Br(e.f, r) && (i = u(tc(Br(e.f, r)), 15).a), t = u(he(n.g, 0), 17), ae(le(v(t, S1))) || ut(e, r, Y(k.Math.min(u(v(t, Ot), 15).a, i))));
             }
             function Wjn(e) {
               var n, t, i, r;
@@ -21222,7 +21222,7 @@ function ALn() {
             function Yjn(e) {
               var n, t, i, r;
               for (i = e.a.d.j, r = e.a.d.j, t = new A(e.i.d); t.a < t.c.c.length; )
-                n = u(E(t), 70), z(n, (ue(), F2), null);
+                n = u(E(t), 70), K(n, (ue(), F2), null);
               i == (se(), cn) || r == cn ? o1(e, kn, (nf(), Rw), null) : o1(e, cn, (nf(), Rw), null);
             }
             function ene(e) {
@@ -21237,7 +21237,7 @@ function ALn() {
               for (; i.a.c.length != 0; )
                 n = u(WY(i), 500), gze(e, n, !1);
             }
-            function we(e) {
+            function ge(e) {
               var n;
               this.c = new It(), this.f = e.e, this.e = e.d, this.i = e.g, this.d = e.c, this.b = e.b, this.k = e.j, this.a = e.a, e.i ? this.j = e.i : this.j = (n = u(yf(hh), 10), new to(n, u(Xo(n, n.length), 10), 0)), this.g = e.f;
             }
@@ -21526,7 +21526,7 @@ function ALn() {
             function dEn(e, n) {
               var t, i, r;
               for (i = new Ui(e.b, 0); i.b < i.d.gc(); )
-                t = (pn(i.b < i.d.gc()), u(i.d.Xb(i.c = i.b++), 70)), r = u(v(t, (ue(), Jh)), 279), r == (Vf(), sg) && (fs(i), re(n.b, t), vt(t, (Q(), D3)) || z(t, D3, e));
+                t = (pn(i.b < i.d.gc()), u(i.d.Xb(i.c = i.b++), 70)), r = u(v(t, (ue(), Jh)), 279), r == (Vf(), sg) && (fs(i), re(n.b, t), vt(t, (Q(), D3)) || K(t, D3, e));
             }
             function bEn(e) {
               var n, t, i, r, c;
@@ -21887,7 +21887,7 @@ function ALn() {
             }
             function QJe(e, n) {
               var t, i, r;
-              return i = new Yf(e), Mc(i, n), z(i, (Q(), $$), n), z(i, (ue(), ni), (_i(), qc)), z(i, _h, (Yh(), SP)), gl(i, (Ye(), mi)), t = new Rc(), rc(t, i), Ii(t, (se(), un)), r = new Rc(), rc(r, i), Ii(r, hn), i;
+              return i = new Yf(e), Mc(i, n), K(i, (Q(), $$), n), K(i, (ue(), ni), (_i(), qc)), K(i, _h, (Yh(), SP)), gl(i, (Ye(), mi)), t = new Rc(), rc(t, i), Ii(t, (se(), un)), r = new Rc(), rc(r, i), Ii(r, hn), i;
             }
             function YJe(e, n) {
               var t, i, r, c, s;
@@ -22468,7 +22468,7 @@ function ALn() {
             function TGe(e, n, t) {
               var i, r, c, s, f, h;
               for (i = 0, h = t, n || (i = t * (e.c.length - 1), h *= -1), c = new A(e); c.a < c.c.c.length; ) {
-                for (r = u(E(c), 9), z(r, (ue(), _h), (Yh(), SP)), r.o.a = i, f = k1(r, (se(), hn)).Jc(); f.Ob(); )
+                for (r = u(E(c), 9), K(r, (ue(), _h), (Yh(), SP)), r.o.a = i, f = k1(r, (se(), hn)).Jc(); f.Ob(); )
                   s = u(f.Pb(), 12), s.n.a = i;
                 i += h;
               }
@@ -22589,7 +22589,7 @@ function ALn() {
             function mAn(e, n) {
               var t, i, r;
               for (i = new A(e.i.d); i.a < i.c.c.length; )
-                t = u(E(i), 70), z(t, (ue(), F2), null);
+                t = u(E(i), 70), K(t, (ue(), F2), null);
               switch (n.g) {
                 case 2:
                 case 4:
@@ -22654,13 +22654,13 @@ function ALn() {
             }
             function yAn(e, n) {
               var t;
-              if (!vt(n, (ue(), fc)) && (t = c7n(u(v(n, Coe), 367), u(v(e, fc), 165)), z(n, Coe, t), !mn(new tn(sn(Mh(n).a.Jc(), new Se())))))
+              if (!vt(n, (ue(), fc)) && (t = c7n(u(v(n, Coe), 367), u(v(e, fc), 165)), K(n, Coe, t), !mn(new tn(sn(Mh(n).a.Jc(), new Se())))))
                 switch (t.g) {
                   case 1:
-                    z(n, fc, (Ss(), r8));
+                    K(n, fc, (Ss(), r8));
                     break;
                   case 2:
-                    z(n, fc, (Ss(), c8));
+                    K(n, fc, (Ss(), c8));
                 }
             }
             function jAn(e, n) {
@@ -22700,7 +22700,7 @@ function ALn() {
               if (r = new ce(), c = FHe(e, r), n = u(v(e, (Q(), ts)), 9), n)
                 for (i = new A(n.j); i.a < i.c.c.length; )
                   t = u(E(i), 12), G(v(t, yt)) === G(e) && (c = k.Math.max(c, FHe(t, r)));
-              return r.c.length == 0 || z(e, x2, c), c != -1 ? r : null;
+              return r.c.length == 0 || K(e, x2, c), c != -1 ? r : null;
             }
             function EAn(e, n, t, i) {
               var r;
@@ -22748,7 +22748,7 @@ function ALn() {
             }
             function BGe(e, n, t) {
               var i, r, c, s, f, h;
-              c = u(he(n.e, 0), 17).c, i = c.i, r = i.k, h = u(he(t.g, 0), 17).d, s = h.i, f = s.k, r == (Ye(), bi) ? z(e, (Q(), Lf), u(v(i, Lf), 12)) : z(e, (Q(), Lf), c), f == bi ? z(e, (Q(), Lo), u(v(s, Lo), 12)) : z(e, (Q(), Lo), h);
+              c = u(he(n.e, 0), 17).c, i = c.i, r = i.k, h = u(he(t.g, 0), 17).d, s = h.i, f = s.k, r == (Ye(), bi) ? K(e, (Q(), Lf), u(v(i, Lf), 12)) : K(e, (Q(), Lf), c), f == bi ? K(e, (Q(), Lo), u(v(s, Lo), 12)) : K(e, (Q(), Lo), h);
             }
             function _Ge(e, n) {
               var t, i, r, c, s, f;
@@ -22761,7 +22761,7 @@ function ALn() {
               var t, i, r;
               for (n.Tg("Layer constraint preprocessing", 1), t = new ce(), r = new Ui(e.a, 0); r.b < r.d.gc(); )
                 i = (pn(r.b < r.d.gc()), u(r.d.Xb(r.c = r.b++), 9)), y6n(i) && (jyn(i), en(t.c, i), fs(r));
-              t.c.length == 0 || z(e, (Q(), GG), t), n.Ug();
+              t.c.length == 0 || K(e, (Q(), GG), t), n.Ug();
             }
             function Ine(e) {
               var n, t, i;
@@ -23047,8 +23047,8 @@ function ALn() {
             function XAn(e, n) {
               var t, i, r, c;
               for (c = new A(n.a); c.a < c.c.c.length; )
-                for (r = u(E(c), 9), z(r, (Q(), x$), (Xe(), !1)), z(r, R3, Y(-1)), z(r, i8, Y(-1)), e.d.a.c.length = 0, i = new tn(sn(Mh(r).a.Jc(), new Se())); mn(i); )
-                  t = u(an(i), 17), z(t, Pen, !1);
+                for (r = u(E(c), 9), K(r, (Q(), x$), (Xe(), !1)), K(r, R3, Y(-1)), K(r, i8, Y(-1)), e.d.a.c.length = 0, i = new tn(sn(Mh(r).a.Jc(), new Se())); mn(i); )
+                  t = u(an(i), 17), K(t, Pen, !1);
             }
             function WAn(e, n) {
               return e.c < n.c ? -1 : e.c > n.c ? 1 : e.b < n.b ? -1 : e.b > n.b ? 1 : e.a != n.a ? Dt(e.a) - Dt(n.a) : e.d == (a4(), E8) && n.d == j8 ? -1 : e.d == j8 && n.d == E8 ? 1 : 0;
@@ -23363,7 +23363,7 @@ function ALn() {
             function lMn(e, n) {
               var t, i, r, c;
               for (n.Tg("Self-Loop pre-processing", 1), i = new A(e.a); i.a < i.c.c.length; )
-                t = u(E(i), 9), d9n(t) && (r = (c = new hBe(t), z(t, (Q(), fb), c), xIn(c), c), ti(ru(Qr(new De(null, new Ne(r.d, 16)), new b2e()), new w2e()), new g2e()), ITn(r));
+                t = u(E(i), 9), d9n(t) && (r = (c = new hBe(t), K(t, (Q(), fb), c), xIn(c), c), ti(ru(Qr(new De(null, new Ne(r.d, 16)), new b2e()), new w2e()), new g2e()), ITn(r));
               n.Ug();
             }
             function uqe(e, n, t) {
@@ -23485,7 +23485,7 @@ function ALn() {
             }
             function vMn(e, n, t, i) {
               var r, c, s, f;
-              for (r = new Yf(e), gl(r, (Ye(), Oc)), z(r, (Q(), yt), n), z(r, t8, i), z(r, (ue(), ni), (_i(), qc)), z(r, Lf, n.c), z(r, Lo, n.d), nR(n, r), f = k.Math.floor(t / 2), s = new A(r.j); s.a < s.c.c.length; )
+              for (r = new Yf(e), gl(r, (Ye(), Oc)), K(r, (Q(), yt), n), K(r, t8, i), K(r, (ue(), ni), (_i(), qc)), K(r, Lf, n.c), K(r, Lo, n.d), nR(n, r), f = k.Math.floor(t / 2), s = new A(r.j); s.a < s.c.c.length; )
                 c = u(E(s), 12), c.n.b = f;
               return r;
             }
@@ -23758,8 +23758,8 @@ function ALn() {
             function NMn(e, n) {
               var t, i, r, c, s, f, h;
               for (r = e.Jc(); r.Ob(); )
-                for (i = u(r.Pb(), 9), f = new Rc(), rc(f, i), Ii(f, (se(), hn)), z(f, (Q(), P$), (Xe(), !0)), s = n.Jc(); s.Ob(); )
-                  c = u(s.Pb(), 9), h = new Rc(), rc(h, c), Ii(h, un), z(h, P$, !0), t = new E0(), z(t, P$, !0), sr(t, f), Hi(t, h);
+                for (i = u(r.Pb(), 9), f = new Rc(), rc(f, i), Ii(f, (se(), hn)), K(f, (Q(), P$), (Xe(), !0)), s = n.Jc(); s.Ob(); )
+                  c = u(s.Pb(), 9), h = new Rc(), rc(h, c), Ii(h, un), K(h, P$, !0), t = new E0(), K(t, P$, !0), sr(t, f), Hi(t, h);
             }
             function FMn(e) {
               var n, t;
@@ -23830,7 +23830,7 @@ function ALn() {
             function BMn(e) {
               var n, t, i, r;
               for (i = e.a.d.j, r = e.c.d.j, t = new A(e.i.d); t.a < t.c.c.length; )
-                n = u(E(t), 70), z(n, (ue(), F2), null);
+                n = u(E(t), 70), K(n, (ue(), F2), null);
               i == (se(), cn) ? o1(e, cn, (nf(), k5), e.a) : r == cn ? o1(e, cn, (nf(), y5), e.c) : i == kn ? o1(e, kn, (nf(), y5), e.a) : r == kn && o1(e, kn, (nf(), k5), e.c);
             }
             function _Mn(e) {
@@ -23868,7 +23868,7 @@ function ALn() {
             function HMn(e) {
               var n, t, i, r;
               for (i = new cw(new jb(e.b).a); i.b; )
-                t = Vg(i), r = u(t.jd(), 12), n = u(t.kd(), 9), z(n, (Q(), yt), r), z(r, ts, n), z(r, Nj, (Xe(), !0)), Ii(r, u(v(n, kc), 64)), v(n, kc), z(r.i, (ue(), ni), (_i(), X5)), u(v(Li(r.i), eu), 22).Ec((Sr(), I5));
+                t = Vg(i), r = u(t.jd(), 12), n = u(t.kd(), 9), K(n, (Q(), yt), r), K(r, ts, n), K(r, Nj, (Xe(), !0)), Ii(r, u(v(n, kc), 64)), v(n, kc), K(r.i, (ue(), ni), (_i(), X5)), u(v(Li(r.i), eu), 22).Ec((Sr(), I5));
             }
             function UMn(e) {
               var n, t, i, r, c, s, f;
@@ -23943,7 +23943,7 @@ function ALn() {
                 c = u(he(e.j, f), 12), c.p = f, h[f] = uAn(RGe(c), t, i);
               for (yTn(e, h, t, n, i), l = new jn(), r = 0; r < h.length; r++)
                 h[r] && ut(l, u(he(e.j, r), 12), h[r]);
-              l.f.c + l.i.c != 0 && (z(e, (Q(), n8), l), Pjn(e, h));
+              l.f.c + l.i.c != 0 && (K(e, (Q(), n8), l), Pjn(e, h));
             }
             function VMn(e, n, t) {
               var i, r, c;
@@ -24219,7 +24219,7 @@ function ALn() {
               var t, i, r, c, s, f, h;
               for (n.Tg("Constraints Postprocessor", 1), s = 0, c = new A(e.b); c.a < c.c.c.length; ) {
                 for (r = u(E(c), 25), h = 0, f = !1, i = new A(r.a); i.a < i.c.c.length; )
-                  t = u(E(i), 9), t.k == (Ye(), ei) && (f = !0, z(t, (ue(), l8), Y(s)), z(t, F$, Y(h)), ++h);
+                  t = u(E(i), 9), t.k == (Ye(), ei) && (f = !0, K(t, (ue(), l8), Y(s)), K(t, F$, Y(h)), ++h);
                 f && ++s;
               }
               n.Ug();
@@ -24337,7 +24337,7 @@ function ALn() {
                 }
               for (i = Cn(e.a, 0); i.b != i.d.c; )
                 t = u(Sn(i), 65), fw(t.b.d, t, !0), fw(t.c.b, t, !0);
-              z(n, (xt(), _le), e.a);
+              K(n, (xt(), _le), e.a);
             }
             function Xne(e) {
               var n;
@@ -24392,12 +24392,12 @@ function ALn() {
             function TTn(e, n) {
               var t, i, r, c, s, f, h, l, a;
               for (h = u(v(e, (Q(), yt)), 12), l = uc(I(S(Ni, 1), ie, 8, 0, [h.i.n, h.n, h.a])).a, a = e.i.n.b, t = Ah(e.e), r = t, c = 0, s = r.length; c < s; ++c)
-                i = r[c], Hi(i, h), lr(i.a, new ne(l, a)), n && (f = u(v(i, (ue(), Hr)), 78), f || (f = new os(), z(i, Hr, f)), et(f, new ne(l, a)));
+                i = r[c], Hi(i, h), lr(i.a, new ne(l, a)), n && (f = u(v(i, (ue(), Hr)), 78), f || (f = new os(), K(i, Hr, f)), et(f, new ne(l, a)));
             }
             function STn(e, n) {
               var t, i, r, c, s, f, h, l, a;
               for (r = u(v(e, (Q(), yt)), 12), l = uc(I(S(Ni, 1), ie, 8, 0, [r.i.n, r.n, r.a])).a, a = e.i.n.b, t = Ah(e.g), s = t, f = 0, h = s.length; f < h; ++f)
-                c = s[f], sr(c, r), Cg(c.a, new ne(l, a)), n && (i = u(v(c, (ue(), Hr)), 78), i || (i = new os(), z(c, Hr, i)), et(i, new ne(l, a)));
+                c = s[f], sr(c, r), Cg(c.a, new ne(l, a)), n && (i = u(v(c, (ue(), Hr)), 78), i || (i = new os(), K(c, Hr, i)), et(i, new ne(l, a)));
             }
             function ITn(e) {
               var n, t, i, r, c, s, f, h, l;
@@ -24409,7 +24409,7 @@ function ALn() {
               var t, i, r, c;
               for (n.Tg("Semi-Interactive Crossing Minimization Processor", 1), t = !1, r = new A(e.b); r.a < r.c.c.length; )
                 i = u(E(r), 25), c = ty(RT(bt(bt(new De(null, new Ne(i.a, 16)), new j2e()), new E2e()), new A2e()), new M2e()), t = t | c.a != null;
-              t && z(e, (Q(), dfe), (Xe(), !0)), n.Ug();
+              t && K(e, (Q(), dfe), (Xe(), !0)), n.Ug();
             }
             function $Tn(e, n) {
               var t, i, r, c, s, f;
@@ -24432,7 +24432,7 @@ function ALn() {
             }
             function OTn(e) {
               var n, t;
-              t = u(v(e, (ue(), fc)), 165), n = u(v(e, (Q(), Jd)), 315), t == (Ss(), Hl) ? (z(e, fc, Rj), z(e, Jd, (Cl(), P2))) : t == qd ? (z(e, fc, Rj), z(e, Jd, (Cl(), P3))) : n == (Cl(), P2) ? (z(e, fc, Hl), z(e, Jd, Dj)) : n == P3 && (z(e, fc, qd), z(e, Jd, Dj));
+              t = u(v(e, (ue(), fc)), 165), n = u(v(e, (Q(), Jd)), 315), t == (Ss(), Hl) ? (K(e, fc, Rj), K(e, Jd, (Cl(), P2))) : t == qd ? (K(e, fc, Rj), K(e, Jd, (Cl(), P3))) : n == (Cl(), P2) ? (K(e, fc, Hl), K(e, Jd, Dj)) : n == P3 && (K(e, fc, qd), K(e, Jd, Dj));
             }
             function hI() {
               hI = _, Wj = new C3e(), yrn = Vn(new oi(), (Ji(), Jc), (zi(), ZC)), Arn = iu(Vn(new oi(), Jc, s$), Pr, u$), Mrn = Sh(Sh(A6(iu(Vn(new oi(), ff, l$), Pr, h$), Gc), f$), a$), jrn = iu(Vn(Vn(Vn(new oi(), sl, n$), Gc, i$), Gc, v5), Pr, t$), Ern = iu(Vn(Vn(new oi(), Gc, v5), Gc, YC), Pr, QC);
@@ -24442,7 +24442,7 @@ function ALn() {
             }
             function DTn(e, n, t, i, r) {
               var c, s;
-              (!ir(n) && n.c.i.c == n.d.i.c || !hNe(uc(I(S(Ni, 1), ie, 8, 0, [r.i.n, r.n, r.a])), t)) && !ir(n) && (n.c == r ? Tm(n.a, 0, new ar(t)) : et(n.a, new ar(t)), i && !Ao(e.a, t) && (s = u(v(n, (ue(), Hr)), 78), s || (s = new os(), z(n, Hr, s)), c = new ar(t), Vt(s, c, s.c.b, s.c), di(e.a, c)));
+              (!ir(n) && n.c.i.c == n.d.i.c || !hNe(uc(I(S(Ni, 1), ie, 8, 0, [r.i.n, r.n, r.a])), t)) && !ir(n) && (n.c == r ? Tm(n.a, 0, new ar(t)) : et(n.a, new ar(t)), i && !Ao(e.a, t) && (s = u(v(n, (ue(), Hr)), 78), s || (s = new os(), K(n, Hr, s)), c = new ar(t), Vt(s, c, s.c.b, s.c), di(e.a, c)));
             }
             function Tqe(e, n) {
               var t, i, r, c;
@@ -24712,7 +24712,7 @@ function ALn() {
             }
             function nR(e, n) {
               var t, i, r, c, s, f;
-              return c = e.d, f = N(B(v(e, (ue(), I1)))), f < 0 && (f = 0, z(e, I1, f)), n.o.b = f, s = k.Math.floor(f / 2), i = new Rc(), Ii(i, (se(), un)), rc(i, n), i.n.b = s, r = new Rc(), Ii(r, hn), rc(r, n), r.n.b = s, Hi(e, i), t = new E0(), Mc(t, e), z(t, Hr, null), sr(t, r), Hi(t, c), iCn(n, e, t), dEn(e, t), t;
+              return c = e.d, f = N(B(v(e, (ue(), I1)))), f < 0 && (f = 0, K(e, I1, f)), n.o.b = f, s = k.Math.floor(f / 2), i = new Rc(), Ii(i, (se(), un)), rc(i, n), i.n.b = s, r = new Rc(), Ii(r, hn), rc(r, n), r.n.b = s, Hi(e, i), t = new E0(), Mc(t, e), K(t, Hr, null), sr(t, r), Hi(t, c), iCn(n, e, t), dEn(e, t), t;
             }
             function KTn(e) {
               var n, t;
@@ -24839,7 +24839,7 @@ function ALn() {
                 for (; s.g.c.length != 0; )
                   sr(u(he(s.g, 0), 17), c);
               }
-              t || z(n, (Q(), Lf), null), i || z(n, (Q(), Lo), null);
+              t || K(n, (Q(), Lf), null), i || K(n, (Q(), Lo), null);
             }
             function Bqe(e, n) {
               var t, i, r, c, s, f, h;
@@ -24976,7 +24976,7 @@ function ALn() {
             function hSn(e, n, t) {
               var i, r, c, s;
               for (t.Tg(TXe, 1), r = u(Yu(bt(new De(null, new Ne(n.b, 16)), new bme()), ls(new Wu(), new Xu(), new Vu(), I(S(Cu, 1), ee, 130, 0, [(oo(), Iu)]))), 16), bGe(e, r, 0), s = Cn(n.b, 0); s.b != s.d.c; )
-                c = u(Sn(s), 40), i = Qe(e.a, Y(c.g)) != null ? u(Qe(e.a, Y(c.g)), 15).a : 0, z(c, (wc(), Gh), Y(i));
+                c = u(Sn(s), 40), i = Qe(e.a, Y(c.g)) != null ? u(Qe(e.a, Y(c.g)), 15).a : 0, K(c, (wc(), Gh), Y(i));
               t.Ug();
             }
             function lI(e, n, t) {
@@ -25008,7 +25008,7 @@ function ALn() {
               var i, r, c, s, f;
               if (!Yb(n)) {
                 for (f = t.dh((O(n, 18) ? u(n, 18).gc() : Af(n.Jc())) / e.a | 0), f.Tg(SXe, 1), s = new gme(), c = null, r = n.Jc(); r.Ob(); )
-                  i = u(r.Pb(), 40), s = uo(I(S(go, 1), He, 20, 0, [s, new vl(i)])), c && (z(c, (xt(), Rrn), i), z(i, Hq, c), RL(i) == RL(c) && (z(c, Uq, i), z(i, oP, c))), c = i;
+                  i = u(r.Pb(), 40), s = uo(I(S(go, 1), He, 20, 0, [s, new vl(i)])), c && (K(c, (xt(), Rrn), i), K(i, Hq, c), RL(i) == RL(c) && (K(c, Uq, i), K(i, oP, c))), c = i;
                 f.Ug(), qqe(e, s, t);
               }
             }
@@ -25125,7 +25125,7 @@ function ALn() {
               for (e = 10; e <= 15; e++) nx[e] = 65 + e - 10 & ji;
             }
             function Wqe(e, n) {
-              n.Tg("Process graph bounds", 1), z(e, (xt(), Gq), Lk(wN(Xb(new De(null, new Ne(e.b, 16)), new sme())))), z(e, qq, Lk(wN(Xb(new De(null, new Ne(e.b, 16)), new ome())))), z(e, Rle, Lk(bN(Xb(new De(null, new Ne(e.b, 16)), new fme())))), z(e, Ble, Lk(bN(Xb(new De(null, new Ne(e.b, 16)), new hme())))), n.Ug();
+              n.Tg("Process graph bounds", 1), K(e, (xt(), Gq), Lk(wN(Xb(new De(null, new Ne(e.b, 16)), new sme())))), K(e, qq, Lk(wN(Xb(new De(null, new Ne(e.b, 16)), new ome())))), K(e, Rle, Lk(bN(Xb(new De(null, new Ne(e.b, 16)), new fme())))), K(e, Ble, Lk(bN(Xb(new De(null, new Ne(e.b, 16)), new hme())))), n.Ug();
             }
             function pSn(e) {
               var n, t, i, r, c;
@@ -25393,18 +25393,18 @@ function ALn() {
             }
             function MSn(e) {
               var n, t, i;
-              switch (n = u(v(e, (ue(), P5)), 8), z(e, P5, new ne(n.b, n.a)), u(v(e, _h), 256).g) {
+              switch (n = u(v(e, (ue(), P5)), 8), K(e, P5, new ne(n.b, n.a)), u(v(e, _h), 256).g) {
                 case 1:
-                  z(e, _h, (Yh(), IP));
+                  K(e, _h, (Yh(), IP));
                   break;
                 case 2:
-                  z(e, _h, (Yh(), TP));
+                  K(e, _h, (Yh(), TP));
                   break;
                 case 3:
-                  z(e, _h, (Yh(), cE));
+                  K(e, _h, (Yh(), cE));
                   break;
                 case 4:
-                  z(e, _h, (Yh(), uE));
+                  K(e, _h, (Yh(), uE));
               }
               (e.q ? e.q : (Be(), Be(), ul))._b(Xw) && (t = u(v(e, Xw), 8), i = t.a, t.a = t.b, t.b = i);
             }
@@ -25445,7 +25445,7 @@ function ALn() {
                     case 2:
                       s = f, f = -h, h = s;
                   }
-                  z(i, Yj, Y(f)), z(i, Zj, Y(h));
+                  K(i, Yj, Y(f)), K(i, Zj, Y(h));
                 }
               n.Ug();
             }
@@ -25580,7 +25580,7 @@ function ALn() {
                   case 4:
                     n = (yd(), M5);
                 }
-                n ? (z(i, (Q(), C$), (yd(), C2)), n == M5 ? oI(i, t, (Tr(), is)) : n == C2 && oI(i, t, (Tr(), au))) : en(c.c, i);
+                n ? (K(i, (Q(), C$), (yd(), C2)), n == M5 ? oI(i, t, (Tr(), is)) : n == C2 && oI(i, t, (Tr(), au))) : en(c.c, i);
               }
               return c;
             }
@@ -25778,7 +25778,7 @@ function ALn() {
             }
             function ste(e, n, t, i) {
               var r, c, s;
-              n && (c = N(B(v(n, (xt(), P1)))) + i, s = t + N(B(v(n, fP))) / 2, z(n, Yj, Y(Gn(Ac(k.Math.round(c))))), z(n, Zj, Y(Gn(Ac(k.Math.round(s))))), n.d.b == 0 || ste(e, u(fM((r = Cn(new vl(n).a.d, 0), new jg(r))), 40), t + N(B(v(n, fP))) + e.b, i + N(B(v(n, B5)))), v(n, Uq) != null && ste(e, u(v(n, Uq), 40), t, i));
+              n && (c = N(B(v(n, (xt(), P1)))) + i, s = t + N(B(v(n, fP))) / 2, K(n, Yj, Y(Gn(Ac(k.Math.round(c))))), K(n, Zj, Y(Gn(Ac(k.Math.round(s))))), n.d.b == 0 || ste(e, u(fM((r = Cn(new vl(n).a.d, 0), new jg(r))), 40), t + N(B(v(n, fP))) + e.b, i + N(B(v(n, B5)))), v(n, Uq) != null && ste(e, u(v(n, Uq), 40), t, i));
             }
             function USn(e, n) {
               var t, i, r, c;
@@ -25884,7 +25884,7 @@ function ALn() {
             }
             function gHe(e) {
               var n, t, i;
-              vt(e, (ue(), hb)) && (i = u(v(e, hb), 22), !i.dc() && (t = (n = u(yf(xr), 10), new to(n, u(Xo(n, n.length), 10), 0)), i.Gc((pw(), Ks)) ? ef(t, Ks) : ef(t, bf), i.Gc(No) || ef(t, No), i.Gc(af) ? ef(t, wf) : i.Gc(Kl) ? ef(t, al) : i.Gc(df) && ef(t, Fo), i.Gc(wf) ? ef(t, af) : i.Gc(al) ? ef(t, Kl) : i.Gc(Fo) && ef(t, df), z(e, hb, t)));
+              vt(e, (ue(), hb)) && (i = u(v(e, hb), 22), !i.dc() && (t = (n = u(yf(xr), 10), new to(n, u(Xo(n, n.length), 10), 0)), i.Gc((pw(), Ks)) ? ef(t, Ks) : ef(t, bf), i.Gc(No) || ef(t, No), i.Gc(af) ? ef(t, wf) : i.Gc(Kl) ? ef(t, al) : i.Gc(df) && ef(t, Fo), i.Gc(wf) ? ef(t, af) : i.Gc(al) ? ef(t, Kl) : i.Gc(Fo) && ef(t, df), K(e, hb, t)));
             }
             function pHe(e, n) {
               var t, i;
@@ -26419,7 +26419,7 @@ function ALn() {
             }
             function kIn(e, n, t) {
               var i, r, c, s;
-              for (t.Tg("Processor order nodes", 2), e.b = N(B(v(n, (wc(), Kq)))), e.a = u(v(n, bb), 86), e.a == (yi(), dh) && (e.a = ah, z(n, bb, e.a)), r = new It(), s = Cn(n.b, 0); s.b != s.d.c; )
+              for (t.Tg("Processor order nodes", 2), e.b = N(B(v(n, (wc(), Kq)))), e.a = u(v(n, bb), 86), e.a == (yi(), dh) && (e.a = ah, K(n, bb, e.a)), r = new It(), s = Cn(n.b, 0); s.b != s.d.c; )
                 c = u(Sn(s), 40), ae(le(v(c, (xt(), _a)))) && Vt(r, c, r.c.b, r.c);
               i = (pn(r.b != 0), u(r.a.a.c, 40)), jUe(e, i), t.eh(1), ste(e, i, 0 - N(B(v(i, (xt(), fP)))) / 2, 0), t.eh(1), t.Ug();
             }
@@ -26610,7 +26610,7 @@ function ALn() {
             function PIn(e, n, t) {
               var i, r, c, s, f;
               for (c = 0, r = new bn((!e.a && (e.a = new V(Un, e, 10, 11)), e.a)); r.e != r.i.gc(); )
-                i = u(gn(r), 26), s = "", (!i.n && (i.n = new V(lc, i, 1, 7)), i.n).i == 0 || (s = u(D((!i.n && (i.n = new V(lc, i, 1, 7)), i.n), 0), 157).a), f = new SN(c++, n, s), Mc(f, i), z(f, (xt(), I8), i), f.e.b = i.j + i.f / 2, f.f.a = k.Math.max(i.g, 1), f.e.a = i.i + i.g / 2, f.f.b = k.Math.max(i.f, 1), et(n.b, f), Tu(t.f, i, f);
+                i = u(gn(r), 26), s = "", (!i.n && (i.n = new V(lc, i, 1, 7)), i.n).i == 0 || (s = u(D((!i.n && (i.n = new V(lc, i, 1, 7)), i.n), 0), 157).a), f = new SN(c++, n, s), Mc(f, i), K(f, (xt(), I8), i), f.e.b = i.j + i.f / 2, f.f.a = k.Math.max(i.g, 1), f.e.a = i.i + i.g / 2, f.f.b = k.Math.max(i.f, 1), et(n.b, f), Tu(t.f, i, f);
             }
             function vte(e, n, t) {
               var i, r, c, s;
@@ -26694,7 +26694,7 @@ function ALn() {
               var t, i, r, c, s, f;
               for (r = new A(n.a); r.a < r.c.c.length; )
                 i = u(E(r), 9), c = v(i, (Q(), yt)), O(c, 12) && (s = u(c, 12), f = QHe(n, i, s.o.a, s.o.b), s.n.a = f.a, s.n.b = f.b, Ii(s, u(v(i, kc), 64)));
-              t = new ne(n.f.a + n.d.b + n.d.c, n.f.b + n.d.d + n.d.a), u(v(n, (Q(), eu)), 22).Gc((Sr(), po)) ? (z(e, (ue(), ni), (_i(), qc)), u(v(Li(e), eu), 22).Ec(I5), FUe(e, t, !1)) : FUe(e, t, !0);
+              t = new ne(n.f.a + n.d.b + n.d.c, n.f.b + n.d.d + n.d.a), u(v(n, (Q(), eu)), 22).Gc((Sr(), po)) ? (K(e, (ue(), ni), (_i(), qc)), u(v(Li(e), eu), 22).Ec(I5), FUe(e, t, !1)) : FUe(e, t, !0);
             }
             function BIn(e) {
               var n, t, i, r, c, s, f, h;
@@ -26729,7 +26729,7 @@ function ALn() {
             }
             function JIn(e, n, t, i, r) {
               var c, s, f, h;
-              c = new Yf(e), gl(c, (Ye(), Zc)), z(c, (ue(), ni), (_i(), qc)), z(c, (Q(), yt), n.c.i), s = new Rc(), z(s, yt, n.c), Ii(s, r), rc(s, c), z(n.c, ts, c), f = new Yf(e), gl(f, Zc), z(f, ni, qc), z(f, yt, n.d.i), h = new Rc(), z(h, yt, n.d), Ii(h, r), rc(h, f), z(n.d, ts, f), sr(n, s), Hi(n, h), Qb(0, t.c.length), S6(t.c, 0, c), en(i.c, f), z(c, I$, Y(1)), z(f, I$, Y(1));
+              c = new Yf(e), gl(c, (Ye(), Zc)), K(c, (ue(), ni), (_i(), qc)), K(c, (Q(), yt), n.c.i), s = new Rc(), K(s, yt, n.c), Ii(s, r), rc(s, c), K(n.c, ts, c), f = new Yf(e), gl(f, Zc), K(f, ni, qc), K(f, yt, n.d.i), h = new Rc(), K(h, yt, n.d), Ii(h, r), rc(h, f), K(n.d, ts, f), sr(n, s), Hi(n, h), Qb(0, t.c.length), S6(t.c, 0, c), en(i.c, f), K(c, I$, Y(1)), K(f, I$, Y(1));
             }
             function GIn(e, n, t, i) {
               var r, c, s, f, h;
@@ -26816,13 +26816,13 @@ function ALn() {
                   for (r = new A(e.j); r.a < r.c.c.length; )
                     if (i = u(E(r), 12), ae(le(v(i, (Q(), qG)))))
                       return i;
-                  f = new Rc(), z(f, (Q(), qG), (Xe(), !0));
+                  f = new Rc(), K(f, (Q(), qG), (Xe(), !0));
                   break;
                 case 2:
                   for (s = new A(e.j); s.a < s.c.c.length; )
                     if (c = u(E(s), 12), ae(le(v(c, (Q(), UG)))))
                       return c;
-                  f = new Rc(), z(f, (Q(), UG), (Xe(), !0));
+                  f = new Rc(), K(f, (Q(), UG), (Xe(), !0));
               }
               return f && (rc(f, e), Ii(f, t), W8n(f.n, e.o, t)), f;
             }
@@ -26830,14 +26830,14 @@ function ALn() {
               var t, i, r, c, s, f;
               for (f = -1, s = new It(), i = new Xf(e.b); ic(i.a) || ic(i.b); ) {
                 for (t = u(ic(i.a) ? E(i.a) : E(i.b), 17), f = k.Math.max(f, N(B(v(t, (ue(), I1))))), t.c == e ? ti(bt(new De(null, new Ne(t.b, 16)), new Rwe()), new z8e(s)) : ti(bt(new De(null, new Ne(t.b, 16)), new Bwe()), new K8e(s)), c = Cn(s, 0); c.b != c.d.c; )
-                  r = u(Sn(c), 70), vt(r, (Q(), D3)) || z(r, D3, t);
+                  r = u(Sn(c), 70), vt(r, (Q(), D3)) || K(r, D3, t);
                 Ti(n, s), Ms(s);
               }
               return f;
             }
             function G0(e, n, t, i, r) {
               var c, s, f, h, l;
-              f = r ? i.b : i.a, !Ao(e.a, i) && (l = f > t.s && f < t.c, h = !1, t.e.b != 0 && t.j.b != 0 && (h = h | (k.Math.abs(f - N(B(Sm(t.e)))) < Dh && k.Math.abs(f - N(B(Sm(t.j)))) < Dh), h = h | (k.Math.abs(f - N(B(Ko(t.e)))) < Dh && k.Math.abs(f - N(B(Ko(t.j)))) < Dh)), (l || h) && (s = u(v(n, (ue(), Hr)), 78), s || (s = new os(), z(n, Hr, s)), c = new ar(i), Vt(s, c, s.c.b, s.c), di(e.a, c)));
+              f = r ? i.b : i.a, !Ao(e.a, i) && (l = f > t.s && f < t.c, h = !1, t.e.b != 0 && t.j.b != 0 && (h = h | (k.Math.abs(f - N(B(Sm(t.e)))) < Dh && k.Math.abs(f - N(B(Sm(t.j)))) < Dh), h = h | (k.Math.abs(f - N(B(Ko(t.e)))) < Dh && k.Math.abs(f - N(B(Ko(t.j)))) < Dh)), (l || h) && (s = u(v(n, (ue(), Hr)), 78), s || (s = new os(), K(n, Hr, s)), c = new ar(i), Vt(s, c, s.c.b, s.c), di(e.a, c)));
             }
             function UIn(e, n, t) {
               var i, r, c, s, f, h, l, a, d;
@@ -26863,7 +26863,7 @@ function ALn() {
               for (t.Tg(TXe, 1), $c(e.b), $c(e.a), f = null, c = Cn(n.b, 0); !f && c.b != c.d.c; )
                 l = u(Sn(c), 40), ae(le(v(l, (xt(), _a)))) && (f = l);
               for (h = new It(), Vt(h, f, h.c.b, h.c), lze(e, h), a = Cn(n.b, 0); a.b != a.d.c; )
-                l = u(Sn(a), 40), s = _n(v(l, (xt(), S8))), r = Kc(e.b, s) != null ? u(Kc(e.b, s), 15).a : 0, z(l, Jq, Y(r)), i = 1 + (Kc(e.a, s) != null ? u(Kc(e.a, s), 15).a : 0), z(l, Fle, Y(i));
+                l = u(Sn(a), 40), s = _n(v(l, (xt(), S8))), r = Kc(e.b, s) != null ? u(Kc(e.b, s), 15).a : 0, K(l, Jq, Y(r)), i = 1 + (Kc(e.a, s) != null ? u(Kc(e.a, s), 15).a : 0), K(l, Fle, Y(i));
               t.Ug();
             }
             function RHe(e) {
@@ -26903,7 +26903,7 @@ function ALn() {
               var i, r, c, s, f, h, l;
               for (s = new bn((!e.a && (e.a = new V(Un, e, 10, 11)), e.a)); s.e != s.i.gc(); )
                 for (c = u(gn(s), 26), r = new tn(sn(va(c).a.Jc(), new Se())); mn(r); )
-                  i = u(an(r), 85), !K4(i) && !K4(i) && !B0(i) && (h = u(tc(Br(t.f, c)), 40), l = u(Qe(t, Xr(u(D((!i.c && (i.c = new Ue(An, i, 5, 8)), i.c), 0), 84))), 40), h && l && (f = new CV(h, l), z(f, (xt(), I8), i), Mc(f, i), et(h.d, f), et(l.b, f), et(n.a, f)));
+                  i = u(an(r), 85), !K4(i) && !K4(i) && !B0(i) && (h = u(tc(Br(t.f, c)), 40), l = u(Qe(t, Xr(u(D((!i.c && (i.c = new Ue(An, i, 5, 8)), i.c), 0), 84))), 40), h && l && (f = new CV(h, l), K(f, (xt(), I8), i), Mc(f, i), et(h.d, f), et(l.b, f), et(n.a, f)));
             }
             function WIn(e, n) {
               var t, i, r, c, s, f, h, l;
@@ -27160,7 +27160,7 @@ function ALn() {
             }
             function iCn(e, n, t) {
               var i, r;
-              i = n.c.i, r = t.d.i, i.k == (Ye(), bi) ? (z(e, (Q(), Lf), u(v(i, Lf), 12)), z(e, Lo, u(v(i, Lo), 12)), z(e, Jw, le(v(i, Jw)))) : i.k == Oc ? (z(e, (Q(), Lf), u(v(i, Lf), 12)), z(e, Lo, u(v(i, Lo), 12)), z(e, Jw, (Xe(), !0))) : r.k == Oc ? (z(e, (Q(), Lf), u(v(r, Lf), 12)), z(e, Lo, u(v(r, Lo), 12)), z(e, Jw, (Xe(), !0))) : (z(e, (Q(), Lf), n.c), z(e, Lo, t.d));
+              i = n.c.i, r = t.d.i, i.k == (Ye(), bi) ? (K(e, (Q(), Lf), u(v(i, Lf), 12)), K(e, Lo, u(v(i, Lo), 12)), K(e, Jw, le(v(i, Jw)))) : i.k == Oc ? (K(e, (Q(), Lf), u(v(i, Lf), 12)), K(e, Lo, u(v(i, Lo), 12)), K(e, Jw, (Xe(), !0))) : r.k == Oc ? (K(e, (Q(), Lf), u(v(r, Lf), 12)), K(e, Lo, u(v(r, Lo), 12)), K(e, Jw, (Xe(), !0))) : (K(e, (Q(), Lf), n.c), K(e, Lo, t.d));
             }
             function rCn(e) {
               var n, t, i, r, c, s, f;
@@ -27230,7 +27230,7 @@ function ALn() {
             }
             function eUe(e) {
               var n, t, i, r, c, s;
-              return i = new iY(), Mc(i, e), G(v(i, (ue(), zs))) === G((yi(), dh)) && z(i, zs, pS(i)), v(i, (ST(), F8)) == null && (s = u(tJe(e), 174), z(i, F8, iM(s.mf(F8)))), z(i, (Q(), yt), e), z(i, eu, (n = u(yf(LG), 10), new to(n, u(Xo(n, n.length), 10), 0))), r = cxn((Ht(e) && (id(), new z1(Ht(e))), id(), new gM(Ht(e) ? new z1(Ht(e)) : null, e)), Wr), c = u(v(i, Che), 104), t = i.d, vPe(t, c), vPe(t, r), i;
+              return i = new iY(), Mc(i, e), G(v(i, (ue(), zs))) === G((yi(), dh)) && K(i, zs, pS(i)), v(i, (ST(), F8)) == null && (s = u(tJe(e), 174), K(i, F8, iM(s.mf(F8)))), K(i, (Q(), yt), e), K(i, eu, (n = u(yf(LG), 10), new to(n, u(Xo(n, n.length), 10), 0))), r = cxn((Ht(e) && (id(), new z1(Ht(e))), id(), new gM(Ht(e) ? new z1(Ht(e)) : null, e)), Wr), c = u(v(i, Che), 104), t = i.d, vPe(t, c), vPe(t, r), i;
             }
             function uCn(e, n, t) {
               var i, r, c, s, f, h, l, a;
@@ -27624,7 +27624,7 @@ function ALn() {
               var i, r, c, s;
               for (t.Tg(yXe, 1), e.a = n, e.c = new ce(), c = k.Math.max(n.a.c.length, u(v(n, (Q(), La)), 15).a); s = new bDe(e.c, e.d, e.b), XAn(s, n), Wkn(s, n), e.d.b != 0; ) {
                 for (e.rg(c, c * u(v(n, Lj), 15).a), r = new A(e.c); r.a < r.c.c.length; )
-                  i = u(E(r), 17), y1(i, !1), z(i.c.i, (ue(), l8), Y(u(v(i.c.i, l8), 15).a + 1)), z(n, O3, (Xe(), !0));
+                  i = u(E(r), 17), y1(i, !1), K(i.c.i, (ue(), l8), Y(u(v(i.c.i, l8), 15).a + 1)), K(n, O3, (Xe(), !0));
                 Ms(e.d), $c(e.b), e.c.c.length = 0;
               }
               t.Ug(), t.ah("Execution Time: " + t.Vg());
@@ -27639,7 +27639,7 @@ function ALn() {
                   for (s = n.Jc(); s.Ob(); )
                     r = u(s.Pb(), 40), h = uo(I(S(go, 1), He, 20, 0, [h, new vl(r)])), f < r.f.b && (f = r.f.b);
                 for (c = n.Jc(); c.Ob(); )
-                  r = u(c.Pb(), 40), z(r, (xt(), fP), f);
+                  r = u(c.Pb(), 40), K(r, (xt(), fP), f);
                 l.Ug(), sUe(e, h, t, i);
               }
             }
@@ -27650,8 +27650,8 @@ function ALn() {
             function y1(e, n) {
               var t, i, r, c, s, f;
               for (c = e.c, s = e.d, sr(e, null), Hi(e, null), n && ae(le(v(s, (Q(), qG)))) ? sr(e, kte(s.i, (Tr(), au), (se(), hn))) : sr(e, s), n && ae(le(v(c, (Q(), UG)))) ? Hi(e, kte(c.i, (Tr(), is), (se(), un))) : Hi(e, c), i = new A(e.b); i.a < i.c.c.length; )
-                t = u(E(i), 70), r = u(v(t, (ue(), Jh)), 279), r == (Vf(), z5) ? z(t, Jh, sg) : r == sg && z(t, Jh, z5);
-              f = ae(le(v(e, (Q(), S1)))), z(e, S1, (Xe(), !f)), e.a = JY(e.a);
+                t = u(E(i), 70), r = u(v(t, (ue(), Jh)), 279), r == (Vf(), z5) ? K(t, Jh, sg) : r == sg && K(t, Jh, z5);
+              f = ae(le(v(e, (Q(), S1)))), K(e, S1, (Xe(), !f)), e.a = JY(e.a);
             }
             function ACn(e, n) {
               var t, i, r, c, s;
@@ -27664,7 +27664,7 @@ function ALn() {
             function TCn(e, n, t) {
               var i, r, c, s, f, h;
               for (i = 0, c = new bn((!e.a && (e.a = new V(Un, e, 10, 11)), e.a)); c.e != c.i.gc(); )
-                r = u(gn(c), 26), s = "", (!r.n && (r.n = new V(lc, r, 1, 7)), r.n).i == 0 || (s = u(D((!r.n && (r.n = new V(lc, r, 1, 7)), r.n), 0), 157).a), f = new pTe(s), Mc(f, r), z(f, (oa(), C3), r), f.a = i++, f.d.a = r.i + r.g / 2, f.d.b = r.j + r.f / 2, f.e.a = k.Math.max(r.g, 1), f.e.b = k.Math.max(r.f, 1), re(n.e, f), Tu(t.f, r, f), h = u(Z(r, (cf(), Tse)), 102), h == (_i(), Ha) && (h = bh);
+                r = u(gn(c), 26), s = "", (!r.n && (r.n = new V(lc, r, 1, 7)), r.n).i == 0 || (s = u(D((!r.n && (r.n = new V(lc, r, 1, 7)), r.n), 0), 157).a), f = new pTe(s), Mc(f, r), K(f, (oa(), C3), r), f.a = i++, f.d.a = r.i + r.g / 2, f.d.b = r.j + r.f / 2, f.e.a = k.Math.max(r.g, 1), f.e.b = k.Math.max(r.f, 1), re(n.e, f), Tu(t.f, r, f), h = u(Z(r, (cf(), Tse)), 102), h == (_i(), Ha) && (h = bh);
             }
             function oUe(e) {
               var n, t, i;
@@ -27674,7 +27674,7 @@ function ALn() {
               else {
                 for (t = new A(e.j); t.a < t.c.c.length; )
                   n = u(E(t), 12), i = u(v(n, (Q(), ts)), 9), i ? Ii(n, u(v(i, kc), 64)) : n.e.c.length - n.g.c.length < 0 ? Ii(n, (se(), hn)) : Ii(n, (se(), un));
-                z(e, ni, (_i(), X5));
+                K(e, ni, (_i(), X5));
               }
             }
             function SCn(e, n) {
@@ -27771,10 +27771,10 @@ function ALn() {
             function CCn(e, n) {
               var t, i, r, c;
               if (fpn(e.d, e.e), e.c.a.$b(), N(B(v(n.j, (ue(), Bj)))) != 0 || N(B(v(n.j, Bj))) != 0)
-                for (t = p2, G(v(n.j, fl)) !== G((Nl(), Fa)) && z(n.j, (Q(), Da), (Xe(), !0)), c = u(v(n.j, w8), 15).a, r = 0; r < c && (i = GCn(e, n), !(i < t && (t = i, vNe(e), t == 0))); r++)
+                for (t = p2, G(v(n.j, fl)) !== G((Nl(), Fa)) && K(n.j, (Q(), Da), (Xe(), !0)), c = u(v(n.j, w8), 15).a, r = 0; r < c && (i = GCn(e, n), !(i < t && (t = i, vNe(e), t == 0))); r++)
                   ;
               else
-                for (t = dt, G(v(n.j, fl)) !== G((Nl(), Fa)) && z(n.j, (Q(), Da), (Xe(), !0)), c = u(v(n.j, w8), 15).a, r = 0; r < c && (i = bUe(e, n), !(i < t && (t = i, vNe(e), t == 0))); r++)
+                for (t = dt, G(v(n.j, fl)) !== G((Nl(), Fa)) && K(n.j, (Q(), Da), (Xe(), !0)), c = u(v(n.j, w8), 15).a, r = 0; r < c && (i = bUe(e, n), !(i < t && (t = i, vNe(e), t == 0))); r++)
                   ;
             }
             function $Cn(e, n) {
@@ -27879,16 +27879,16 @@ function ALn() {
             function LCn(e, n, t, i) {
               var r, c, s, f, h, l, a;
               if (t.d.i != n.i) {
-                for (r = new Yf(e), gl(r, (Ye(), bi)), z(r, (Q(), yt), t), z(r, (ue(), ni), (_i(), qc)), en(i.c, r), s = new Rc(), rc(s, r), Ii(s, (se(), un)), f = new Rc(), rc(f, r), Ii(f, hn), a = t.d, Hi(t, s), c = new E0(), Mc(c, t), z(c, Hr, null), sr(c, f), Hi(c, a), l = new Ui(t.b, 0); l.b < l.d.gc(); )
-                  h = (pn(l.b < l.d.gc()), u(l.d.Xb(l.c = l.b++), 70)), G(v(h, Jh)) === G((Vf(), sg)) && (z(h, D3, t), fs(l), re(c.b, h));
+                for (r = new Yf(e), gl(r, (Ye(), bi)), K(r, (Q(), yt), t), K(r, (ue(), ni), (_i(), qc)), en(i.c, r), s = new Rc(), rc(s, r), Ii(s, (se(), un)), f = new Rc(), rc(f, r), Ii(f, hn), a = t.d, Hi(t, s), c = new E0(), Mc(c, t), K(c, Hr, null), sr(c, f), Hi(c, a), l = new Ui(t.b, 0); l.b < l.d.gc(); )
+                  h = (pn(l.b < l.d.gc()), u(l.d.Xb(l.c = l.b++), 70)), G(v(h, Jh)) === G((Vf(), sg)) && (K(h, D3, t), fs(l), re(c.b, h));
                 BGe(r, s, f);
               }
             }
             function NCn(e, n, t, i) {
               var r, c, s, f, h, l, a;
               if (t.c.i != n.i)
-                for (r = new Yf(e), gl(r, (Ye(), bi)), z(r, (Q(), yt), t), z(r, (ue(), ni), (_i(), qc)), en(i.c, r), s = new Rc(), rc(s, r), Ii(s, (se(), un)), f = new Rc(), rc(f, r), Ii(f, hn), Hi(t, s), c = new E0(), Mc(c, t), z(c, Hr, null), sr(c, f), Hi(c, n), BGe(r, s, f), l = new Ui(t.b, 0); l.b < l.d.gc(); )
-                  h = (pn(l.b < l.d.gc()), u(l.d.Xb(l.c = l.b++), 70)), a = u(v(h, Jh), 279), a == (Vf(), sg) && (vt(h, D3) || z(h, D3, t), fs(l), re(c.b, h));
+                for (r = new Yf(e), gl(r, (Ye(), bi)), K(r, (Q(), yt), t), K(r, (ue(), ni), (_i(), qc)), en(i.c, r), s = new Rc(), rc(s, r), Ii(s, (se(), un)), f = new Rc(), rc(f, r), Ii(f, hn), Hi(t, s), c = new E0(), Mc(c, t), K(c, Hr, null), sr(c, f), Hi(c, n), BGe(r, s, f), l = new Ui(t.b, 0); l.b < l.d.gc(); )
+                  h = (pn(l.b < l.d.gc()), u(l.d.Xb(l.c = l.b++), 70)), a = u(v(h, Jh), 279), a == (Vf(), sg) && (vt(h, D3) || K(h, D3, t), fs(l), re(c.b, h));
             }
             function lUe(e) {
               $v();
@@ -27930,7 +27930,7 @@ function ALn() {
             }
             function h3(e, n) {
               var t, i, r, c, s, f;
-              if (e.k == (Ye(), Oc) && (t = e.k == Oc && !mm(bt(u(v(e, (Q(), t8)), 16).Mc(), new hm(new xU()))).zd((td(), T3)) ? (_s(), wE) : n, z(e, (Q(), N3), t), t != (_s(), Ga)))
+              if (e.k == (Ye(), Oc) && (t = e.k == Oc && !mm(bt(u(v(e, (Q(), t8)), 16).Mc(), new hm(new xU()))).zd((td(), T3)) ? (_s(), wE) : n, K(e, (Q(), N3), t), t != (_s(), Ga)))
                 for (i = u(v(e, yt), 17), f = N(B(v(i, (ue(), I1)))), s = 0, t == ll ? s = e.o.b - k.Math.ceil(f / 2) : t == wE && (s = k.Math.ceil(e.o.b - N(B(v(Li(e), R2))) - f) / 2, e.o.b -= N(B(v(Li(e), R2))), e.o.b -= f), c = new A(e.j); c.a < c.c.c.length; )
                   r = u(E(c), 12), r.n.b = s;
             }
@@ -27951,17 +27951,17 @@ function ALn() {
             }
             function Pte(e, n, t, i) {
               var r, c, s, f, h, l, a, d, g;
-              if (c = new Yf(e), gl(c, (Ye(), Zc)), z(c, (ue(), ni), (_i(), qc)), r = 0, n) {
-                for (s = new Rc(), z(s, (Q(), yt), n), z(c, yt, n.i), Ii(s, (se(), un)), rc(s, c), g = Ah(n.e), l = g, a = 0, d = l.length; a < d; ++a)
+              if (c = new Yf(e), gl(c, (Ye(), Zc)), K(c, (ue(), ni), (_i(), qc)), r = 0, n) {
+                for (s = new Rc(), K(s, (Q(), yt), n), K(c, yt, n.i), Ii(s, (se(), un)), rc(s, c), g = Ah(n.e), l = g, a = 0, d = l.length; a < d; ++a)
                   h = l[a], Hi(h, s);
-                z(n, ts, c), ++r;
+                K(n, ts, c), ++r;
               }
               if (t) {
-                for (f = new Rc(), z(c, (Q(), yt), t.i), z(f, yt, t), Ii(f, (se(), hn)), rc(f, c), g = Ah(t.g), l = g, a = 0, d = l.length; a < d; ++a)
+                for (f = new Rc(), K(c, (Q(), yt), t.i), K(f, yt, t), Ii(f, (se(), hn)), rc(f, c), g = Ah(t.g), l = g, a = 0, d = l.length; a < d; ++a)
                   h = l[a], sr(h, f);
-                z(t, ts, c), ++r;
+                K(t, ts, c), ++r;
               }
-              return z(c, (Q(), I$), Y(r)), en(i.c, c), c;
+              return K(c, (Q(), I$), Y(r)), en(i.c, c), c;
             }
             function RCn(e) {
               var n, t, i, r, c, s, f, h, l, a, d, g, p;
@@ -28057,7 +28057,7 @@ function ALn() {
               var t, i, r, c;
               if (r = gs(e.d, 1) != 0, i = mte(e, n), i == 0 && ae(le(v(n.j, (Q(), Da)))))
                 return 0;
-              !ae(le(v(n.j, (Q(), Da)))) && !ae(le(v(n.j, O2))) || G(v(n.j, (ue(), fl))) === G((Nl(), Fa)) ? n.c.kg(n.e, r) : r = ae(le(v(n.j, Da))), Iy(e, n, r, !0), ae(le(v(n.j, O2))) && z(n.j, O2, (Xe(), !1)), ae(le(v(n.j, Da))) && (z(n.j, Da, (Xe(), !1)), z(n.j, O2, !0)), t = mte(e, n);
+              !ae(le(v(n.j, (Q(), Da)))) && !ae(le(v(n.j, O2))) || G(v(n.j, (ue(), fl))) === G((Nl(), Fa)) ? n.c.kg(n.e, r) : r = ae(le(v(n.j, Da))), Iy(e, n, r, !0), ae(le(v(n.j, O2))) && K(n.j, O2, (Xe(), !1)), ae(le(v(n.j, Da))) && (K(n.j, Da, (Xe(), !1)), K(n.j, O2, !0)), t = mte(e, n);
               do {
                 if (pY(e), t == 0)
                   return 0;
@@ -28069,7 +28069,7 @@ function ALn() {
               var t, i, r, c;
               if (r = gs(e.d, 1) != 0, i = YS(e, n), i == 0 && ae(le(v(n.j, (Q(), Da)))))
                 return 0;
-              !ae(le(v(n.j, (Q(), Da)))) && !ae(le(v(n.j, O2))) || G(v(n.j, (ue(), fl))) === G((Nl(), Fa)) ? n.c.kg(n.e, r) : r = ae(le(v(n.j, Da))), Iy(e, n, r, !0), ae(le(v(n.j, O2))) && z(n.j, O2, (Xe(), !1)), ae(le(v(n.j, Da))) && (z(n.j, Da, (Xe(), !1)), z(n.j, O2, !0)), t = YS(e, n);
+              !ae(le(v(n.j, (Q(), Da)))) && !ae(le(v(n.j, O2))) || G(v(n.j, (ue(), fl))) === G((Nl(), Fa)) ? n.c.kg(n.e, r) : r = ae(le(v(n.j, Da))), Iy(e, n, r, !0), ae(le(v(n.j, O2))) && K(n.j, O2, (Xe(), !1)), ae(le(v(n.j, Da))) && (K(n.j, Da, (Xe(), !1)), K(n.j, O2, !0)), t = YS(e, n);
               do {
                 if (pY(e), t == 0)
                   return 0;
@@ -28229,7 +28229,7 @@ function ALn() {
                 for (i = u(E(r), 25), s = new A(bd(i.a)); s.a < s.c.c.length; )
                   if (c = u(E(s), 9), yLe(c) && (t = u(v(c, (Q(), ub)), 317), !t.g && t.d))
                     for (n = t, h = t.d; h; )
-                      Zqe(h.i, h.k, !1, !0), O7(n.a), O7(h.i), O7(h.k), O7(h.b), Hi(h.c, n.c.d), Hi(n.c, null), Pi(n.a, null), Pi(h.i, null), Pi(h.k, null), Pi(h.b, null), f = new rQ(n.i, h.a, n.e, h.j, h.f), f.k = n.k, f.n = n.n, f.b = n.b, f.c = h.c, f.g = n.g, f.d = h.d, z(n.i, ub, f), z(h.a, ub, f), h = h.d, n = f;
+                      Zqe(h.i, h.k, !1, !0), O7(n.a), O7(h.i), O7(h.k), O7(h.b), Hi(h.c, n.c.d), Hi(n.c, null), Pi(n.a, null), Pi(h.i, null), Pi(h.k, null), Pi(h.b, null), f = new rQ(n.i, h.a, n.e, h.j, h.f), f.k = n.k, f.n = n.n, f.b = n.b, f.c = h.c, f.g = n.g, f.d = h.d, K(n.i, ub, f), K(h.a, ub, f), h = h.d, n = f;
             }
             function vI(e, n, t, i) {
               var r, c, s, f, h, l;
@@ -28532,7 +28532,7 @@ function ALn() {
               for (c = 0; c < a; c++)
                 e.d[c] || (f = (Fe(c, d.c.length), u(d.c[c], 9)), ine(e, f));
               for (r = new A(e.b); r.a < r.c.c.length; )
-                i = u(E(r), 17), y1(i, !0), z(n, (Q(), O3), (Xe(), !0));
+                i = u(E(r), 17), y1(i, !0), K(n, (Q(), O3), (Xe(), !0));
               e.c = null, e.d = null, e.a = null, e.b = null, t.Ug();
             }
             function s$n(e, n, t) {
@@ -28544,7 +28544,7 @@ function ALn() {
               for (c = 0; c < a; c++)
                 e.e[c] || (f = (Fe(c, d.c.length), u(d.c[c], 9)), ate(e, f));
               for (r = new A(e.b); r.a < r.c.c.length; )
-                i = u(E(r), 17), y1(i, !0), z(n, (Q(), O3), (Xe(), !0));
+                i = u(E(r), 17), y1(i, !0), K(n, (Q(), O3), (Xe(), !0));
               e.d = null, e.e = null, e.a = null, e.b = null, t.Ug();
             }
             function o$n(e, n) {
@@ -28556,9 +28556,9 @@ function ALn() {
             function f$n(e, n) {
               var t, i, r, c, s, f, h;
               for (e.b = N(B(v(n, (ue(), Ww)))), e.c = N(B(v(n, Na))), e.d = u(v(n, cq), 349), e.a = u(v(n, L$), 283), skn(n), f = u(Yu(bt(bt(Qr(Qr(new De(null, new Ne(n.b, 16)), new Kwe()), new Xwe()), new Wwe()), new Vwe()), ls(new Wu(), new Xu(), new Vu(), I(S(Cu, 1), ee, 130, 0, [(oo(), Iu)]))), 16), r = f.Jc(); r.Ob(); )
-                t = u(r.Pb(), 17), s = u(v(t, (Q(), Gd)), 16), s.Ic(new X8e(e)), z(t, Gd, null);
+                t = u(r.Pb(), 17), s = u(v(t, (Q(), Gd)), 16), s.Ic(new X8e(e)), K(t, Gd, null);
               for (i = f.Jc(); i.Ob(); )
-                t = u(i.Pb(), 17), h = u(v(t, (Q(), vfe)), 17), c = u(v(t, L2), 16), MOn(e, c, h), z(t, L2, null);
+                t = u(i.Pb(), 17), h = u(v(t, (Q(), vfe)), 17), c = u(v(t, L2), 16), MOn(e, c, h), K(t, L2, null);
             }
             function jR(e, n) {
               var t, i, r, c, s, f, h;
@@ -28621,7 +28621,7 @@ function ALn() {
             }
             function AR(e, n, t, i, r, c, s) {
               var f, h, l, a, d, g, p;
-              return d = ae(le(v(n, (ue(), The)))), g = null, c == (Tr(), is) && i.c.i == t ? g = i.c : c == au && i.d.i == t && (g = i.d), l = s, !l || !d || g ? (a = (se(), hc), g ? a = g.j : Pg(u(v(t, ni), 102)) && (a = c == is ? un : hn), h = d$n(e, n, t, c, a, i), f = LL((Li(t), i)), c == is ? (sr(f, u(he(h.j, 0), 12)), Hi(f, r)) : (sr(f, r), Hi(f, u(he(h.j, 0), 12))), l = new gRe(i, f, h, u(v(h, (Q(), yt)), 12), c, !g)) : (re(l.e, i), p = k.Math.max(N(B(v(l.d, I1))), N(B(v(i, I1)))), z(l.d, I1, p)), Oe(e.a, i, new EM(l.d, n, c)), l;
+              return d = ae(le(v(n, (ue(), The)))), g = null, c == (Tr(), is) && i.c.i == t ? g = i.c : c == au && i.d.i == t && (g = i.d), l = s, !l || !d || g ? (a = (se(), hc), g ? a = g.j : Pg(u(v(t, ni), 102)) && (a = c == is ? un : hn), h = d$n(e, n, t, c, a, i), f = LL((Li(t), i)), c == is ? (sr(f, u(he(h.j, 0), 12)), Hi(f, r)) : (sr(f, r), Hi(f, u(he(h.j, 0), 12))), l = new gRe(i, f, h, u(v(h, (Q(), yt)), 12), c, !g)) : (re(l.e, i), p = k.Math.max(N(B(v(l.d, I1))), N(B(v(i, I1)))), K(l.d, I1, p)), Oe(e.a, i, new EM(l.d, n, c)), l;
             }
             function MR() {
               MR = _;
@@ -28630,7 +28630,7 @@ function ALn() {
             }
             function d$n(e, n, t, i, r, c) {
               var s, f, h, l, a, d;
-              return s = null, l = i == (Tr(), is) ? c.c : c.d, h = pS(n), l.i == t ? (s = u(Qe(e.b, l), 9), s || (s = Ny(l, u(v(t, (ue(), ni)), 102), r, gIn(l), null, l.n, l.o, h, n), z(s, (Q(), yt), l), ut(e.b, l, s))) : (s = Ny((a = new wx(), d = N(B(v(n, (ue(), hf)))) / 2, Y7(a, zw, d), a), u(v(t, ni), 102), r, i == is ? -1 : 1, null, new Xi(), new ne(0, 0), h, n), f = lyn(s, t, i), z(s, (Q(), yt), f), ut(e.b, f, s)), u(v(n, (Q(), eu)), 22).Ec((Sr(), po)), Pg(u(v(n, (ue(), ni)), 102)) ? z(n, ni, (_i(), X5)) : z(n, ni, (_i(), bh)), s;
+              return s = null, l = i == (Tr(), is) ? c.c : c.d, h = pS(n), l.i == t ? (s = u(Qe(e.b, l), 9), s || (s = Ny(l, u(v(t, (ue(), ni)), 102), r, gIn(l), null, l.n, l.o, h, n), K(s, (Q(), yt), l), ut(e.b, l, s))) : (s = Ny((a = new wx(), d = N(B(v(n, (ue(), hf)))) / 2, Y7(a, zw, d), a), u(v(t, ni), 102), r, i == is ? -1 : 1, null, new Xi(), new ne(0, 0), h, n), f = lyn(s, t, i), K(s, (Q(), yt), f), ut(e.b, f, s)), u(v(n, (Q(), eu)), 22).Ec((Sr(), po)), Pg(u(v(n, (ue(), ni)), 102)) ? K(n, ni, (_i(), X5)) : K(n, ni, (_i(), bh)), s;
             }
             function Dv(e, n) {
               var t, i, r, c, s, f, h, l, a, d, g, p, m;
@@ -28647,12 +28647,12 @@ function ALn() {
             }
             function jUe(e, n) {
               var t, i, r, c, s, f, h, l, a, d;
-              if (z(n, (xt(), B5), 0), h = u(v(n, oP), 40), n.d.b == 0)
-                h ? (a = N(B(v(h, P1))) + e.b + vZ(e, h, n), z(n, P1, a)) : z(n, P1, 0);
+              if (K(n, (xt(), B5), 0), h = u(v(n, oP), 40), n.d.b == 0)
+                h ? (a = N(B(v(h, P1))) + e.b + vZ(e, h, n), K(n, P1, a)) : K(n, P1, 0);
               else {
                 for (i = (c = Cn(new vl(n).a.d, 0), new jg(c)); Tk(i.a); )
                   t = u(Sn(i.a), 65).c, jUe(e, t);
-                f = u(fM((s = Cn(new vl(n).a.d, 0), new jg(s))), 40), d = u(San((r = Cn(new vl(n).a.d, 0), new jg(r))), 40), l = (N(B(v(d, P1))) + N(B(v(f, P1)))) / 2, h ? (a = N(B(v(h, P1))) + e.b + vZ(e, h, n), z(n, P1, a), z(n, B5, N(B(v(n, P1))) - l), $Pn(e, n)) : z(n, P1, l);
+                f = u(fM((s = Cn(new vl(n).a.d, 0), new jg(s))), 40), d = u(San((r = Cn(new vl(n).a.d, 0), new jg(r))), 40), l = (N(B(v(d, P1))) + N(B(v(f, P1)))) / 2, h ? (a = N(B(v(h, P1))) + e.b + vZ(e, h, n), K(n, P1, a), K(n, B5, N(B(v(n, P1))) - l), $Pn(e, n)) : K(n, P1, l);
               }
             }
             function w$n(e) {
@@ -28757,7 +28757,7 @@ function ALn() {
                       case 2:
                         f = 0;
                     }
-                    f != -1 && (h = (Fe(f, i.c.length), u(i.c[f], 250)), re(h.b.b, t), u(v(Li(h.b.c.i), (Q(), eu)), 22).Ec((Sr(), S5)), u(v(Li(h.b.c.i), eu), 22).Ec(T5), fs(r), z(t, gfe, c));
+                    f != -1 && (h = (Fe(f, i.c.length), u(i.c[f], 250)), re(h.b.b, t), u(v(Li(h.b.c.i), (Q(), eu)), 22).Ec((Sr(), S5)), u(v(Li(h.b.c.i), eu), 22).Ec(T5), fs(r), K(t, gfe, c));
                   }
                 sr(c, null), Hi(c, null);
               }
@@ -28766,7 +28766,7 @@ function ALn() {
               var t, i, r, c, s, f, h, l, a, d, g;
               for (a = new ce(), g = new ai(), s = n.b, r = 0; r < s.c.length; r++) {
                 for (l = (Fe(r, s.c.length), u(s.c[r], 25)).a, a.c.length = 0, c = 0; c < l.c.length; c++)
-                  f = e.a[r][c], f.p = c, f.k == (Ye(), Zc) && en(a.c, f), Ns(u(he(n.b, r), 25).a, c, f), f.j.c.length = 0, Ti(f.j, u(u(he(e.b, r), 16).Xb(c), 18)), Ip(u(v(f, (ue(), ni)), 102)) || z(f, ni, (_i(), Yd));
+                  f = e.a[r][c], f.p = c, f.k == (Ye(), Zc) && en(a.c, f), Ns(u(he(n.b, r), 25).a, c, f), f.j.c.length = 0, Ti(f.j, u(u(he(e.b, r), 16).Xb(c), 18)), Ip(u(v(f, (ue(), ni)), 102)) || K(f, ni, (_i(), Yd));
                 for (i = new A(a); i.a < i.c.c.length; )
                   t = u(E(i), 9), d = XSn(t), g.a.yc(d, g), g.a.yc(t, g);
               }
@@ -28783,7 +28783,7 @@ function ALn() {
                 for (r = s, s = (pn(c.b < c.d.gc()), u(c.d.Xb(c.c = c.b++), 25)), h = new A(r.a); h.a < h.c.c.length; )
                   for (f = u(E(h), 9), a = new A(f.j); a.a < a.c.c.length; )
                     for (l = u(E(a), 12), i = new A(l.g); i.a < i.c.c.length; )
-                      t = u(E(i), 17), g = t.d, d = g.i.c, d != r && d != s && nR(t, (p = new Yf(e), gl(p, (Ye(), bi)), z(p, (Q(), yt), t), z(p, (ue(), ni), (_i(), qc)), Pi(p, s), p));
+                      t = u(E(i), 17), g = t.d, d = g.i.c, d != r && d != s && nR(t, (p = new Yf(e), gl(p, (Ye(), bi)), K(p, (Q(), yt), t), K(p, (ue(), ni), (_i(), qc)), Pi(p, s), p));
               n.Ug();
             }
             function MUe(e) {
@@ -28866,7 +28866,7 @@ function ALn() {
                     for (j = u(he(e.b, f), 25), p = u(he(e.b, g), 25), y = bd(j.a), d = new A(y); d.a < d.c.c.length; )
                       if (a = u(E(d), 9), ga(a, p.a.c.length, p), g == 0)
                         for (s = bd(si(a)), c = new A(s); c.a < c.c.c.length; )
-                          r = u(E(c), 17), y1(r, !0), z(e, (Q(), O3), (Xe(), !0)), PUe(e, r, 1);
+                          r = u(E(c), 17), y1(r, !0), K(e, (Q(), O3), (Xe(), !0)), PUe(e, r, 1);
                   }
                   ++g, ++f;
                 }
@@ -28937,17 +28937,17 @@ function ALn() {
             function $$n(e, n, t) {
               var i, r, c, s, f, h, l;
               for (t.Tg("Find roots", 1), e.a.c.length = 0, r = Cn(n.b, 0); r.b != r.d.c; )
-                i = u(Sn(r), 40), i.b.b == 0 && (z(i, (xt(), _a), (Xe(), !0)), re(e.a, i));
+                i = u(Sn(r), 40), i.b.b == 0 && (K(i, (xt(), _a), (Xe(), !0)), re(e.a, i));
               switch (e.a.c.length) {
                 case 0:
-                  c = new SN(0, n, "DUMMY_ROOT"), z(c, (xt(), _a), (Xe(), !0)), z(c, _q, !0), et(n.b, c);
+                  c = new SN(0, n, "DUMMY_ROOT"), K(c, (xt(), _a), (Xe(), !0)), K(c, _q, !0), et(n.b, c);
                   break;
                 case 1:
                   break;
                 default:
                   for (s = new SN(0, n, cC), h = new A(e.a); h.a < h.c.c.length; )
-                    f = u(E(h), 40), l = new CV(s, f), z(l, (xt(), _q), (Xe(), !0)), et(s.a.a, l), et(s.d, l), et(f.b, l), z(f, _a, !1);
-                  z(s, (xt(), _a), (Xe(), !0)), z(s, _q, !0), et(n.b, s);
+                    f = u(E(h), 40), l = new CV(s, f), K(l, (xt(), _q), (Xe(), !0)), et(s.a.a, l), et(s.d, l), et(f.b, l), K(f, _a, !1);
+                  K(s, (xt(), _a), (Xe(), !0)), K(s, _q, !0), et(n.b, s);
               }
               t.Ug();
             }
@@ -29090,7 +29090,7 @@ function ALn() {
                   for (d = u(g.Pb(), 12), s = new A(d.g); s.a < s.c.c.length; )
                     r = u(E(s), 17), j = r.d.i, l = f ? o3(i, j, t, a) : c3(i, j, a), l < h && en(p.c, r);
               for (c = new A(p); c.a < c.c.c.length; )
-                r = u(E(c), 17), y1(r, !0), z(e, O3, (Xe(), !0));
+                r = u(E(c), 17), y1(r, !0), K(e, O3, (Xe(), !0));
               p.c.length = 0, n.Ug();
             }
             function N$n(e) {
@@ -29165,7 +29165,7 @@ function ALn() {
             }
             function G$n(e, n, t, i) {
               var r, c, s, f, h, l;
-              if (f = e.j, f == (se(), hc) && n != (_i(), bh) && n != (_i(), Ha) && (f = BHe(e, t), Ii(e, f), !(e.q ? e.q : (Be(), Be(), ul))._b((ue(), zw)) && f != hc && (e.n.a != 0 || e.n.b != 0) && z(e, zw, r7n(e, f))), n == (_i(), dl)) {
+              if (f = e.j, f == (se(), hc) && n != (_i(), bh) && n != (_i(), Ha) && (f = BHe(e, t), Ii(e, f), !(e.q ? e.q : (Be(), Be(), ul))._b((ue(), zw)) && f != hc && (e.n.a != 0 || e.n.b != 0) && K(e, zw, r7n(e, f))), n == (_i(), dl)) {
                 switch (l = 0, f.g) {
                   case 1:
                   case 3:
@@ -29175,7 +29175,7 @@ function ALn() {
                   case 4:
                     r = e.i.o.b, r > 0 && (l = e.n.b / r);
                 }
-                z(e, (Q(), ob), l);
+                K(e, (Q(), ob), l);
               }
               if (h = e.o, s = e.a, i)
                 s.a = i.a, s.b = i.b, e.d = !0;
@@ -29580,8 +29580,8 @@ function ALn() {
             }
             function PUe(e, n, t) {
               var i, r, c, s, f, h, l, a, d, g, p, m, y, j, T, P, L, F;
-              for (a = N(B(v(e, (ue(), Kd)))), i = N(B(v(e, Rhe))), g = new kx(), z(g, Kd, a + i), l = n, T = l.d, y = l.c.i, P = l.d.i, j = uX(y.c), L = uX(P.c), r = new ce(), d = j; d <= L; d++)
-                f = new Yf(e), gl(f, (Ye(), bi)), z(f, (Q(), yt), l), z(f, ni, (_i(), qc)), z(f, K$, g), p = u(he(e.b, d), 25), d == j ? ga(f, p.a.c.length - t, p) : Pi(f, p), F = N(B(v(l, I1))), F < 0 && (F = 0, z(l, I1, F)), f.o.b = F, m = k.Math.floor(F / 2), s = new Rc(), Ii(s, (se(), un)), rc(s, f), s.n.b = m, h = new Rc(), Ii(h, hn), rc(h, f), h.n.b = m, Hi(l, s), c = new E0(), Mc(c, l), z(c, Hr, null), sr(c, h), Hi(c, T), b7n(f, l, c), en(r.c, c), l = c;
+              for (a = N(B(v(e, (ue(), Kd)))), i = N(B(v(e, Rhe))), g = new kx(), K(g, Kd, a + i), l = n, T = l.d, y = l.c.i, P = l.d.i, j = uX(y.c), L = uX(P.c), r = new ce(), d = j; d <= L; d++)
+                f = new Yf(e), gl(f, (Ye(), bi)), K(f, (Q(), yt), l), K(f, ni, (_i(), qc)), K(f, K$, g), p = u(he(e.b, d), 25), d == j ? ga(f, p.a.c.length - t, p) : Pi(f, p), F = N(B(v(l, I1))), F < 0 && (F = 0, K(l, I1, F)), f.o.b = F, m = k.Math.floor(F / 2), s = new Rc(), Ii(s, (se(), un)), rc(s, f), s.n.b = m, h = new Rc(), Ii(h, hn), rc(h, f), h.n.b = m, Hi(l, s), c = new E0(), Mc(c, l), K(c, Hr, null), sr(c, h), Hi(c, T), b7n(f, l, c), en(r.c, c), l = c;
               return r;
             }
             function oPn(e, n) {
@@ -29610,7 +29610,7 @@ function ALn() {
                 for (T = y.b, g = new A(r.b); g.a < g.c.c.length; )
                   d = u(E(g), 70), en(T.c, d);
                 if (j = u(v(y, (ue(), Hr)), 78), s = u(v(r, Hr), 78), s)
-                  for (j || (j = new os(), z(y, Hr, j)), a = Cn(s, 0); a.b != a.d.c; )
+                  for (j || (j = new os(), K(y, Hr, j)), a = Cn(s, 0); a.b != a.d.c; )
                     l = u(Sn(a), 8), et(j, new ar(l));
               }
             }
@@ -29794,7 +29794,7 @@ function ALn() {
                 dV(e);
               }
               for (c = new A(e.b); c.a < c.c.c.length; )
-                r = u(E(c), 17), y1(r, !0), z(n, (Q(), O3), (Xe(), !0));
+                r = u(E(c), 17), y1(r, !0), K(n, (Q(), O3), (Xe(), !0));
               e.e = null, e.f = null, e.a = null, e.b = null, t.Ug();
             }
             function dPn(e, n, t) {
@@ -29849,7 +29849,7 @@ function ALn() {
                   }
               for (l = new A(e.b); l.a < l.c.c.length; )
                 h = u(E(l), 70), a = h.n.a + h.o.a / 2, d = h.n.b + h.o.b / 2, j = a / g.a, s = d / g.b, j + s >= 1 && (j - s > 0 && d >= 0 ? (h.n.a += y, h.n.b += c * s) : j - s < 0 && a >= 0 && (h.n.a += y * j, h.n.b += c));
-              e.o.a = n.a, e.o.b = n.b, z(e, (ue(), Ud), (Cs(), i = u(yf(V8), 10), new to(i, u(Xo(i, i.length), 10), 0)));
+              e.o.a = n.a, e.o.b = n.b, K(e, (ue(), Ud), (Cs(), i = u(yf(V8), 10), new to(i, u(Xo(i, i.length), 10), 0)));
             }
             function wPn(e, n, t) {
               var i, r, c, s, f, h, l, a, d, g, p, m, y, j, T;
@@ -29961,10 +29961,10 @@ function ALn() {
                   c = u(an(f), 17), j = c.d.i, y = c.c.i, j.c.p == t && en(r.c, j), y.c.p == t && en(r.c, y);
                 for (s = new tn(sn(Lt(p).a.Jc(), new Se())); mn(s); )
                   c = u(an(s), 17), j = c.d.i, y = c.c.i, j.c.p == t && en(r.c, j), y.c.p == t && en(r.c, y);
-                r.c.length == 0 ? en(T.c, p) : (Be(), $i(r, e.b), g = N(B(v(u(he(r, r.c.length / 2 | 0), 9), (Q(), N2)))), z(p, N2, g), l = k.Math.min(l, g), h = k.Math.max(h, g));
+                r.c.length == 0 ? en(T.c, p) : (Be(), $i(r, e.b), g = N(B(v(u(he(r, r.c.length / 2 | 0), 9), (Q(), N2)))), K(p, N2, g), l = k.Math.min(l, g), h = k.Math.max(h, g));
               }
               for (i = (h + l) / 2, d = new A(T); d.a < d.c.c.length; )
-                a = u(E(d), 9), z(a, (Q(), N2), i);
+                a = u(E(d), 9), K(a, (Q(), N2), i);
             }
             function kPn(e, n) {
               var t, i, r, c, s, f, h, l, a, d, g;
@@ -29984,7 +29984,7 @@ function ALn() {
               if (ae(le(v(t, (ue(), Hw)))))
                 for (f = new A(t.j); f.a < f.c.c.length; )
                   for (s = u(E(f), 12), g = Ah(s.g), l = g, a = 0, d = l.length; a < d; ++a)
-                    h = l[a], c = h.d.i == t, r = c && ae(le(v(h, Hd))), r && (m = h.c, p = u(Qe(e.b, m), 9), p || (p = Ny(m, (_i(), bh), m.j, -1, null, null, m.o, u(v(n, zs), 86), n), z(p, (Q(), yt), m), ut(e.b, m, p), re(n.a, p)), j = h.d, y = u(Qe(e.b, j), 9), y || (y = Ny(j, (_i(), bh), j.j, 1, null, null, j.o, u(v(n, zs), 86), n), z(y, (Q(), yt), j), ut(e.b, j, y), re(n.a, y)), i = LL(h), sr(i, u(he(p.j, 0), 12)), Hi(i, u(he(y.j, 0), 12)), Oe(e.a, h, new EM(i, n, (Tr(), au))), u(v(n, (Q(), eu)), 22).Ec((Sr(), po)));
+                    h = l[a], c = h.d.i == t, r = c && ae(le(v(h, Hd))), r && (m = h.c, p = u(Qe(e.b, m), 9), p || (p = Ny(m, (_i(), bh), m.j, -1, null, null, m.o, u(v(n, zs), 86), n), K(p, (Q(), yt), m), ut(e.b, m, p), re(n.a, p)), j = h.d, y = u(Qe(e.b, j), 9), y || (y = Ny(j, (_i(), bh), j.j, 1, null, null, j.o, u(v(n, zs), 86), n), K(y, (Q(), yt), j), ut(e.b, j, y), re(n.a, y)), i = LL(h), sr(i, u(he(p.j, 0), 12)), Hi(i, u(he(y.j, 0), 12)), Oe(e.a, h, new EM(i, n, (Tr(), au))), u(v(n, (Q(), eu)), 22).Ec((Sr(), po)));
             }
             function jPn(e, n, t, i, r) {
               var c, s, f, h, l, a, d, g, p, m, y, j;
@@ -30160,7 +30160,7 @@ function ALn() {
             }
             function GUe(e, n) {
               var t, i, r, c, s;
-              t = N(B(v(n, (ue(), hf)))), t < 2 && z(n, hf, 2), i = u(v(n, zs), 86), i == (yi(), dh) && z(n, zs, pS(n)), r = u(v(n, ain), 15), r.a == 0 ? z(n, (Q(), F3), new UN()) : z(n, (Q(), F3), new kT(r.a)), c = le(v(n, a8)), c == null && z(n, a8, (Xe(), G(v(n, Ul)) === G((Ll(), K5)))), ti(new De(null, new Ne(n.a, 16)), new vz(e)), ti(Qr(new De(null, new Ne(n.b, 16)), new $U()), new kz(e)), s = new NUe(n), z(n, (Q(), D2), s), b7(e.a), Ef(e.a, (Ji(), ff), u(v(n, J3), 188)), Ef(e.a, sl, u(v(n, J$), 188)), Ef(e.a, Jc, u(v(n, h8), 188)), Ef(e.a, Gc, u(v(n, U$), 188)), Ef(e.a, Pr, u6n(u(v(n, Ul), 222))), sX(e.a, AOn(n)), z(n, zG, Dy(e.a, n));
+              t = N(B(v(n, (ue(), hf)))), t < 2 && K(n, hf, 2), i = u(v(n, zs), 86), i == (yi(), dh) && K(n, zs, pS(n)), r = u(v(n, ain), 15), r.a == 0 ? K(n, (Q(), F3), new UN()) : K(n, (Q(), F3), new kT(r.a)), c = le(v(n, a8)), c == null && K(n, a8, (Xe(), G(v(n, Ul)) === G((Ll(), K5)))), ti(new De(null, new Ne(n.a, 16)), new vz(e)), ti(Qr(new De(null, new Ne(n.b, 16)), new $U()), new kz(e)), s = new NUe(n), K(n, (Q(), D2), s), b7(e.a), Ef(e.a, (Ji(), ff), u(v(n, J3), 188)), Ef(e.a, sl, u(v(n, J$), 188)), Ef(e.a, Jc, u(v(n, h8), 188)), Ef(e.a, Gc, u(v(n, U$), 188)), Ef(e.a, Pr, u6n(u(v(n, Ul), 222))), sX(e.a, AOn(n)), K(n, zG, Dy(e.a, n));
             }
             function Gte(e, n, t, i, r) {
               var c, s, f, h, l, a, d, g, p, m, y, j, T;
@@ -30181,7 +30181,7 @@ function ALn() {
                     ++a, l = u(v(l, oP), 40);
                   if (l)
                     for (T = p / a, l = n; l != i; )
-                      j = N(B(v(l, P1))) + p, z(l, P1, j), y = N(B(v(l, B5))) + p, z(l, B5, y), p -= T, l = u(v(l, oP), 40);
+                      j = N(B(v(l, P1))) + p, K(l, P1, j), y = N(B(v(l, B5))) + p, K(l, B5, y), p -= T, l = u(v(l, oP), 40);
                   else
                     return;
                 }
@@ -30242,7 +30242,7 @@ function ALn() {
                   for (h = u(E(a), 9), h.n.a > 0 && (t += h.n.a + h.o.a / 2, ++d), m = new A(h.j); m.a < m.c.c.length; )
                     p = u(E(m), 12), p.p = y++;
                 for (d > 0 && (t /= d), T = H(qi, Fr, 30, i.a.c.length, 15, 1), f = 0, l = new A(i.a); l.a < l.c.c.length; )
-                  h = u(E(l), 9), h.p = f++, T[h.p] = SPn(h, t), h.k == (Ye(), bi) && z(h, (Q(), wfe), T[h.p]);
+                  h = u(E(l), 9), h.p = f++, T[h.p] = SPn(h, t), h.k == (Ye(), bi) && K(h, (Q(), wfe), T[h.p]);
                 Be(), $i(i.a, new Bke(T)), $He(j, g, s, !0), ++s;
               }
               n.Ug();
@@ -30441,7 +30441,7 @@ function ALn() {
                   l = u(E(d), 9), l.p = 0;
                 for (g = new ce(), a = new A(n.a); a.a < a.c.c.length; )
                   if (l = u(E(a), 9), i = NHe(e, l, null), i) {
-                    for (h = new iY(), Mc(h, n), z(h, ql, u(i.b, 22)), IV(h.d, n.d), z(h, P5, null), f = u(i.a, 16).Jc(); f.Ob(); )
+                    for (h = new iY(), Mc(h, n), K(h, ql, u(i.b, 22)), IV(h.d, n.d), K(h, P5, null), f = u(i.a, 16).Jc(); f.Ob(); )
                       s = u(f.Pb(), 9), re(h.a, s), s.a = h;
                     g.Ec(h);
                   }
@@ -30571,12 +30571,12 @@ function ALn() {
             }
             function YUe(e, n) {
               var t, i, r, c, s, f, h, l;
-              for (z(n, (Q(), i8), Y(e.b)), z(n, R3, Y(e.b)), ++e.b, ZMe(e.d, n), z(n, x$, (Xe(), !0)), i = new tn(sn(Mh(n).a.Jc(), new Se())); mn(i); )
-                t = u(an(i), 17), !(t.c.i != n && cc(e.a, t, 0) == -1) && (t.c.i == n && cc(e.a, t, 0) != -1 || (l = null, t.d.i == n ? l = t.c.i : l = t.d.i, u(v(l, i8), 15).a == -1 ? (YUe(e, l), z(n, R3, Y(k.Math.min(u(v(n, R3), 15).a, u(v(l, R3), 15).a)))) : ae(le(v(l, x$))) && z(n, R3, Y(k.Math.min(u(v(n, R3), 15).a, u(v(l, i8), 15).a)))));
+              for (K(n, (Q(), i8), Y(e.b)), K(n, R3, Y(e.b)), ++e.b, ZMe(e.d, n), K(n, x$, (Xe(), !0)), i = new tn(sn(Mh(n).a.Jc(), new Se())); mn(i); )
+                t = u(an(i), 17), !(t.c.i != n && cc(e.a, t, 0) == -1) && (t.c.i == n && cc(e.a, t, 0) != -1 || (l = null, t.d.i == n ? l = t.c.i : l = t.d.i, u(v(l, i8), 15).a == -1 ? (YUe(e, l), K(n, R3, Y(k.Math.min(u(v(n, R3), 15).a, u(v(l, R3), 15).a)))) : ae(le(v(l, x$))) && K(n, R3, Y(k.Math.min(u(v(n, R3), 15).a, u(v(l, i8), 15).a)))));
               if (G(v(n, R3)) === G(v(n, i8))) {
                 h = new ai(), c = null;
                 do
-                  c = u(WY(e.d), 9), z(c, x$, !1), h.a.yc(c, h);
+                  c = u(WY(e.d), 9), K(c, x$, !1), h.a.yc(c, h);
                 while (n != c);
                 if (h.a.gc() > 1)
                   for (r = e.e.b, et(e.e, h), f = h.a.ec().Jc(); f.Ob(); )
@@ -30887,7 +30887,7 @@ function ALn() {
                 if (P) {
                   for (p = Is(j).Jc(); p.Ob(); )
                     for (g = u(p.Pb(), 9), c = new A(bd(si(g))); c.a < c.c.c.length; )
-                      r = u(E(c), 17), y1(r, !0), z(e, (Q(), O3), (Xe(), !0)), i = PUe(e, r, T), t = u(v(g, ub), 317), L = u(he(i, i.c.length - 1), 17), t.k = L.c.i, t.n = L, t.b = r.d.i, t.c = r;
+                      r = u(E(c), 17), y1(r, !0), K(e, (Q(), O3), (Xe(), !0)), i = PUe(e, r, T), t = u(v(g, ub), 317), L = u(he(i, i.c.length - 1), 17), t.k = L.c.i, t.n = L, t.b = r.d.i, t.c = r;
                   P = !1;
                 } else
                   j.c.length != 0 && (n = (Fe(0, j.c.length), u(j.c[0], 9)), n.k == (Ye(), oh) && (P = !0, s = -1));
@@ -30926,8 +30926,8 @@ function ALn() {
                   if (i = u(an(r), 85), !i.b && (i.b = new Ue(An, i, 4, 7)), !(i.b.i <= 1 && (!i.c && (i.c = new Ue(An, i, 5, 8)), i.c.i <= 1)))
                     throw M(new dp("Graph must not contain hyperedges."));
                   if (!K4(i) && f != Xr(u(D((!i.c && (i.c = new Ue(An, i, 5, 8)), i.c), 0), 84)))
-                    for (l = new LSe(), Mc(l, i), z(l, (oa(), C3), i), Vfn(l, u(tc(Br(t.f, f)), 155)), Qfn(l, u(Qe(t, Xr(u(D((!i.c && (i.c = new Ue(An, i, 5, 8)), i.c), 0), 84))), 155)), re(n.c, l), s = new bn((!i.n && (i.n = new V(lc, i, 1, 7)), i.n)); s.e != s.i.gc(); )
-                      c = u(gn(s), 157), a = new qxe(l, c.a), Mc(a, c), z(a, C3, c), a.e.a = k.Math.max(c.g, 1), a.e.b = k.Math.max(c.f, 1), xte(a), re(n.d, a);
+                    for (l = new LSe(), Mc(l, i), K(l, (oa(), C3), i), Vfn(l, u(tc(Br(t.f, f)), 155)), Qfn(l, u(Qe(t, Xr(u(D((!i.c && (i.c = new Ue(An, i, 5, 8)), i.c), 0), 84))), 155)), re(n.c, l), s = new bn((!i.n && (i.n = new V(lc, i, 1, 7)), i.n)); s.e != s.i.gc(); )
+                      c = u(gn(s), 157), a = new qxe(l, c.a), Mc(a, c), K(a, C3, c), a.e.a = k.Math.max(c.g, 1), a.e.b = k.Math.max(c.f, 1), xte(a), re(n.d, a);
                 }
             }
             function rxn(e, n, t) {
@@ -31020,7 +31020,7 @@ function ALn() {
               for (r = new ce(), y = new A(n.a); y.a < y.c.c.length; )
                 if (m = u(E(y), 9), p = m.e, p && (i = nze(e, p, m), Ti(r, i), yPn(e, p, m), u(v(p, (Q(), eu)), 22).Gc((Sr(), po))))
                   for (P = u(v(m, (ue(), ni)), 102), g = u(v(m, Kw), 182).Gc((es(), Xl)), T = new A(m.j); T.a < T.c.c.length; )
-                    for (j = u(E(T), 12), c = u(Qe(e.b, j), 9), c || (c = Ny(j, P, j.j, -(j.e.c.length - j.g.c.length), null, new Xi(), j.o, u(v(p, zs), 86), p), z(c, yt, j), ut(e.b, j, c), re(p.a, c)), s = u(he(c.j, 0), 12), a = new A(j.f); a.a < a.c.c.length; )
+                    for (j = u(E(T), 12), c = u(Qe(e.b, j), 9), c || (c = Ny(j, P, j.j, -(j.e.c.length - j.g.c.length), null, new Xi(), j.o, u(v(p, zs), 86), p), K(c, yt, j), ut(e.b, j, c), re(p.a, c)), s = u(he(c.j, 0), 12), a = new A(j.f); a.a < a.c.c.length; )
                       l = u(E(a), 70), f = new zje(), f.o.a = l.o.a, f.o.b = l.o.b, re(s.f, f), g || (L = j.j, d = 0, Z6(u(v(m, Kw), 22)) && (d = wne(l.n, l.o, j.o, 0, L)), P == (_i(), bh) || (se(), vu).Gc(L) ? f.o.a = d : f.o.b = d);
               return h = new ce(), jPn(e, n, t, r, h), t && B$n(e, n, t, h), h;
             }
@@ -31040,7 +31040,7 @@ function ALn() {
               var n, t, i, r, c, s, f, h, l, a, d, g, p, m, y, j;
               for (m = new A(e); m.a < m.c.c.length; ) {
                 for (p = u(E(m), 9), u1(p.n), u1(p.o), MQ(p.f), gHe(p), MSn(p), j = new A(p.j); j.a < j.c.c.length; ) {
-                  for (y = u(E(j), 12), u1(y.n), u1(y.a), u1(y.o), Ii(y, BBe(y.j)), c = u(v(y, (ue(), C1)), 15), c && z(y, C1, Y(-c.a)), r = new A(y.g); r.a < r.c.c.length; ) {
+                  for (y = u(E(j), 12), u1(y.n), u1(y.a), u1(y.o), Ii(y, BBe(y.j)), c = u(v(y, (ue(), C1)), 15), c && K(y, C1, Y(-c.a)), r = new A(y.g); r.a < r.c.c.length; ) {
                     for (i = u(E(r), 17), t = Cn(i.a, 0); t.b != t.d.c; )
                       n = u(Sn(t), 8), u1(n);
                     if (h = u(v(i, Hr), 78), h)
@@ -31052,7 +31052,7 @@ function ALn() {
                   for (g = new A(y.f); g.a < g.c.c.length; )
                     l = u(E(g), 70), u1(l.n), u1(l.o);
                 }
-                for (p.k == (Ye(), mi) && (z(p, (Q(), kc), BBe(u(v(p, kc), 64))), OTn(p)), a = new A(p.b); a.a < a.c.c.length; )
+                for (p.k == (Ye(), mi) && (K(p, (Q(), kc), BBe(u(v(p, kc), 64))), OTn(p)), a = new A(p.b); a.a < a.c.c.length; )
                   l = u(E(a), 70), gHe(l), u1(l.o), u1(l.n);
               }
             }
@@ -31107,7 +31107,7 @@ function ALn() {
                     c = (yd(), M5);
                 }
                 if (c)
-                  z(h, (Q(), C$), (yd(), C2)), c == M5 ? oI(h, s, (Tr(), is)) : c == C2 && oI(h, s, (Tr(), au));
+                  K(h, (Q(), C$), (yd(), C2)), c == M5 ? oI(h, s, (Tr(), is)) : c == C2 && oI(h, s, (Tr(), au));
                 else if (Pg(u(v(h, ni), 102)) && h.j.c.length != 0) {
                   for (n = !0, d = new A(h.j); d.a < d.c.c.length; ) {
                     if (a = u(E(d), 12), !(a.j == (se(), hn) && a.e.c.length - a.g.c.length > 0 || a.j == un && a.e.c.length - a.g.c.length < 0)) {
@@ -31170,24 +31170,24 @@ function ALn() {
                 P = u(f.Ub(), 40), u(v(P, g), 15).a == 0 ? --c : l = !1;
               if (U = n.hd(0, c), s = new mD(U), U = n.hd(c, n.gc()), h = new mD(U), s.b == 0)
                 for (y = Cn(h, 0); y.b != y.d.c; )
-                  m = u(Sn(y), 40), z(m, C8, Y(a++));
+                  m = u(Sn(y), 40), K(m, C8, Y(a++));
               else
                 for (d = s.b, X = Cn(s, 0); X.b != X.d.c; ) {
-                  for (F = u(Sn(X), 40), z(F, C8, Y(a++)), i = yN(F), ize(e, i, t.dh(1 / d | 0)), md(i, yV(new Fx(C8))), p = new It(), L = Cn(i, 0); L.b != L.d.c; )
+                  for (F = u(Sn(X), 40), K(F, C8, Y(a++)), i = yN(F), ize(e, i, t.dh(1 / d | 0)), md(i, yV(new Fx(C8))), p = new It(), L = Cn(i, 0); L.b != L.d.c; )
                     for (P = u(Sn(L), 40), T = Cn(F.d, 0); T.b != T.d.c; )
                       j = u(Sn(T), 65), j.c == P && Vt(p, j, p.c.b, p.c);
                   for (Ms(F.d), or(F.d, p), f = Cn(h, h.b), r = F.d.b, l = !0; 0 < r && l && f.Sb(); )
-                    P = u(f.Ub(), 40), u(v(P, g), 15).a == 0 ? (z(P, C8, Y(a++)), --r, f.Qb()) : l = !1;
+                    P = u(f.Ub(), 40), u(v(P, g), 15).a == 0 ? (K(P, C8, Y(a++)), --r, f.Qb()) : l = !1;
                 }
               t.Ug();
             }
             function rze(e, n, t) {
               var i, r, c, s, f, h, l, a, d, g;
-              for (a = new Yf(t), Mc(a, n), z(a, (Q(), yt), n), a.o.a = n.g, a.o.b = n.f, a.n.a = n.i, a.n.b = n.j, re(t.a, a), ut(e.a, n, a), ((!n.a && (n.a = new V(Un, n, 10, 11)), n.a).i != 0 || ae(le(Z(n, (ue(), Hw))))) && z(a, ffe, (Xe(), !0)), l = u(v(t, eu), 22), d = u(v(a, (ue(), ni)), 102), d == (_i(), Ha) ? z(a, ni, bh) : d != bh && l.Ec((Sr(), I5)), g = 0, i = u(v(t, zs), 86), h = new bn((!n.c && (n.c = new V(ks, n, 9, 9)), n.c)); h.e != h.i.gc(); )
+              for (a = new Yf(t), Mc(a, n), K(a, (Q(), yt), n), a.o.a = n.g, a.o.b = n.f, a.n.a = n.i, a.n.b = n.j, re(t.a, a), ut(e.a, n, a), ((!n.a && (n.a = new V(Un, n, 10, 11)), n.a).i != 0 || ae(le(Z(n, (ue(), Hw))))) && K(a, ffe, (Xe(), !0)), l = u(v(t, eu), 22), d = u(v(a, (ue(), ni)), 102), d == (_i(), Ha) ? K(a, ni, bh) : d != bh && l.Ec((Sr(), I5)), g = 0, i = u(v(t, zs), 86), h = new bn((!n.c && (n.c = new V(ks, n, 9, 9)), n.c)); h.e != h.i.gc(); )
                 f = u(gn(h), 125), r = Ht(n), mI(r) && !ae(le(Z(n, N$))) && Tt(f, Ot, Y(g++)), ae(le(Z(f, zd))) || pxn(e, f, a, l, i, d);
               for (s = new bn((!n.n && (n.n = new V(lc, n, 1, 7)), n.n)); s.e != s.i.gc(); )
                 c = u(gn(s), 157), !ae(le(Z(c, zd))) && c.a && re(a.b, NN(c));
-              return ae(le(v(a, u8))) && l.Ec((Sr(), A$)), ae(le(v(a, _$))) && (l.Ec((Sr(), M$)), l.Ec(Z9), z(a, ni, bh)), a;
+              return ae(le(v(a, u8))) && l.Ec((Sr(), A$)), ae(le(v(a, _$))) && (l.Ec((Sr(), M$)), l.Ec(Z9), K(a, ni, bh)), a;
             }
             function axn(e, n) {
               var t, i, r, c, s, f, h, l, a, d, g, p, m, y, j, T, P, L;
@@ -31278,7 +31278,7 @@ function ALn() {
             }
             function gxn(e, n, t, i) {
               var r, c, s, f, h, l, a, d, g, p, m, y, j;
-              for (h = new ne(i.i + i.g / 2, i.j + i.f / 2), p = MUe(i), m = u(Z(n, (ue(), ni)), 102), j = u(Z(i, x5), 64), OMe(mBe(i), zw) || (i.i == 0 && i.j == 0 ? y = 0 : y = Kyn(i, j), Tt(i, zw, y)), l = new ne(n.g, n.f), r = Ny(i, m, j, p, l, h, new ne(i.g, i.f), u(v(t, zs), 86), t), z(r, (Q(), yt), i), c = u(he(r.j, 0), 12), Zfn(c, LIn(i)), z(r, Kw, (es(), Me(Ua))), d = u(Z(n, Kw), 182).Gc(Xl), f = new bn((!i.n && (i.n = new V(lc, i, 1, 7)), i.n)); f.e != f.i.gc(); )
+              for (h = new ne(i.i + i.g / 2, i.j + i.f / 2), p = MUe(i), m = u(Z(n, (ue(), ni)), 102), j = u(Z(i, x5), 64), OMe(mBe(i), zw) || (i.i == 0 && i.j == 0 ? y = 0 : y = Kyn(i, j), Tt(i, zw, y)), l = new ne(n.g, n.f), r = Ny(i, m, j, p, l, h, new ne(i.g, i.f), u(v(t, zs), 86), t), K(r, (Q(), yt), i), c = u(he(r.j, 0), 12), Zfn(c, LIn(i)), K(r, Kw, (es(), Me(Ua))), d = u(Z(n, Kw), 182).Gc(Xl), f = new bn((!i.n && (i.n = new V(lc, i, 1, 7)), i.n)); f.e != f.i.gc(); )
                 if (s = u(gn(f), 157), !ae(le(Z(s, zd))) && s.a && (g = NN(s), re(c.f, g), !d))
                   switch (a = 0, Z6(u(Z(n, Kw), 22)) && (a = wne(new ne(s.i, s.j), new ne(s.g, s.f), new ne(i.g, i.f), 0, j)), j.g) {
                     case 2:
@@ -31289,11 +31289,11 @@ function ALn() {
                     case 3:
                       g.o.b = a;
                   }
-              z(r, D5, B(Z(Ht(n), D5))), z(r, L5, B(Z(Ht(n), L5))), z(r, Vw, B(Z(Ht(n), Vw))), re(t.a, r), ut(e.a, i, r);
+              K(r, D5, B(Z(Ht(n), D5))), K(r, L5, B(Z(Ht(n), L5))), K(r, Vw, B(Z(Ht(n), Vw))), re(t.a, r), ut(e.a, i, r);
             }
             function pxn(e, n, t, i, r, c) {
               var s, f, h, l, a, d;
-              for (l = new Rc(), Mc(l, n), Ii(l, u(Z(n, (ue(), x5)), 64)), z(l, (Q(), yt), n), rc(l, t), d = l.o, d.a = n.g, d.b = n.f, a = l.n, a.a = n.i, a.b = n.j, ut(e.a, n, l), s = qg(ru(Qr(new De(null, (!n.e && (n.e = new Ue(vi, n, 7, 4)), new Ne(n.e, 16))), new Ewe()), new kwe()), new _8e(n)), s || (s = qg(ru(Qr(new De(null, (!n.d && (n.d = new Ue(vi, n, 8, 5)), new Ne(n.d, 16))), new Awe()), new ywe()), new J8e(n))), s || (s = qg(new De(null, (!n.e && (n.e = new Ue(vi, n, 7, 4)), new Ne(n.e, 16))), new Mwe())), z(l, Nj, (Xe(), !!s)), G$n(l, c, r, u(Z(n, ab), 8)), h = new bn((!n.n && (n.n = new V(lc, n, 1, 7)), n.n)); h.e != h.i.gc(); )
+              for (l = new Rc(), Mc(l, n), Ii(l, u(Z(n, (ue(), x5)), 64)), K(l, (Q(), yt), n), rc(l, t), d = l.o, d.a = n.g, d.b = n.f, a = l.n, a.a = n.i, a.b = n.j, ut(e.a, n, l), s = qg(ru(Qr(new De(null, (!n.e && (n.e = new Ue(vi, n, 7, 4)), new Ne(n.e, 16))), new Ewe()), new kwe()), new _8e(n)), s || (s = qg(ru(Qr(new De(null, (!n.d && (n.d = new Ue(vi, n, 8, 5)), new Ne(n.d, 16))), new Awe()), new ywe()), new J8e(n))), s || (s = qg(new De(null, (!n.e && (n.e = new Ue(vi, n, 7, 4)), new Ne(n.e, 16))), new Mwe())), K(l, Nj, (Xe(), !!s)), G$n(l, c, r, u(Z(n, ab), 8)), h = new bn((!n.n && (n.n = new V(lc, n, 1, 7)), n.n)); h.e != h.i.gc(); )
                 f = u(gn(h), 157), !ae(le(Z(f, zd))) && f.a && re(l.f, NN(f));
               switch (r.g) {
                 case 2:
@@ -31397,7 +31397,7 @@ function ALn() {
               var i, r, c, s, f, h, l, a, d, g, p, m, y, j, T;
               for (p = 0, i = new ai(), c = new bn((!n.a && (n.a = new V(Un, n, 10, 11)), n.a)); c.e != c.i.gc(); )
                 r = u(gn(c), 26), ae(le(Z(r, (ue(), zd)))) || (d = Ht(r), mI(d) && !ae(le(Z(r, N$))) && (Tt(r, (Q(), Ot), Y(p)), ++p, Tf(r, Gw) && di(i, u(Z(r, Gw), 15))), rze(e, r, t));
-              for (z(t, (Q(), La), Y(p)), z(t, Lj, Y(i.a.gc())), p = 0, a = new bn((!n.b && (n.b = new V(vi, n, 12, 3)), n.b)); a.e != a.i.gc(); )
+              for (K(t, (Q(), La), Y(p)), K(t, Lj, Y(i.a.gc())), p = 0, a = new bn((!n.b && (n.b = new V(vi, n, 12, 3)), n.b)); a.e != a.i.gc(); )
                 h = u(gn(a), 85), mI(n) && (Tt(h, Ot, Y(p)), ++p), j = RF(h), T = nJe(h), g = ae(le(Z(j, (ue(), Hw)))), y = !ae(le(Z(h, zd))), m = g && B0(h) && ae(le(Z(h, Hd))), s = Ht(j) == n && Ht(j) == Ht(T), f = (Ht(j) == n && T == n) ^ (Ht(T) == n && j == n), y && !m && (f || s) && Yte(e, h, n, t);
               if (Ht(n))
                 for (l = new bn(M$e(Ht(n))); l.e != l.i.gc(); )
@@ -31474,7 +31474,7 @@ function ALn() {
               var t, i, r, c, s, f, h, l, a, d, g, p, m;
               switch (a = new os(), e.a.g) {
                 case 3:
-                  g = u(v(n.e, (Q(), Gd)), 16), p = u(v(n.j, Gd), 16), m = u(v(n.f, Gd), 16), t = u(v(n.e, L2), 16), i = u(v(n.j, L2), 16), r = u(v(n.f, L2), 16), s = new ce(), Ti(s, g), p.Ic(new qpe()), Ti(s, Is(p)), Ti(s, m), c = new ce(), Ti(c, t), Ti(c, Is(i)), Ti(c, r), z(n.f, Gd, s), z(n.f, L2, c), z(n.f, vfe, n.f), z(n.e, Gd, null), z(n.e, L2, null), z(n.j, Gd, null), z(n.j, L2, null);
+                  g = u(v(n.e, (Q(), Gd)), 16), p = u(v(n.j, Gd), 16), m = u(v(n.f, Gd), 16), t = u(v(n.e, L2), 16), i = u(v(n.j, L2), 16), r = u(v(n.f, L2), 16), s = new ce(), Ti(s, g), p.Ic(new qpe()), Ti(s, Is(p)), Ti(s, m), c = new ce(), Ti(c, t), Ti(c, Is(i)), Ti(c, r), K(n.f, Gd, s), K(n.f, L2, c), K(n.f, vfe, n.f), K(n.e, Gd, null), K(n.e, L2, null), K(n.j, Gd, null), K(n.j, L2, null);
                   break;
                 case 1:
                   or(a, n.e.a), et(a, n.i.n), or(a, Is(n.j.a)), et(a, n.a.n), or(a, n.f.a);
@@ -31482,7 +31482,7 @@ function ALn() {
                 default:
                   or(a, n.e.a), or(a, Is(n.j.a)), or(a, n.f.a);
               }
-              Ms(n.f.a), or(n.f.a, a), sr(n.f, n.e.c), f = u(v(n.e, (ue(), Hr)), 78), l = u(v(n.j, Hr), 78), h = u(v(n.f, Hr), 78), (f || l || h) && (d = new os(), tV(d, h), tV(d, l), tV(d, f), z(n.f, Hr, d)), sr(n.j, null), Hi(n.j, null), sr(n.e, null), Hi(n.e, null), Pi(n.a, null), Pi(n.i, null), n.g && uze(e, n.g);
+              Ms(n.f.a), or(n.f.a, a), sr(n.f, n.e.c), f = u(v(n.e, (ue(), Hr)), 78), l = u(v(n.j, Hr), 78), h = u(v(n.f, Hr), 78), (f || l || h) && (d = new os(), tV(d, h), tV(d, l), tV(d, f), K(n.f, Hr, d)), sr(n.j, null), Hi(n.j, null), sr(n.e, null), Hi(n.e, null), Pi(n.a, null), Pi(n.i, null), n.g && uze(e, n.g);
             }
             function sze() {
               sze = _;
@@ -31625,7 +31625,7 @@ function ALn() {
                 t = u(v(r, Gh), 15).a, kl(u(v(e, bb), 86)) ? (r.e.a < N(B((Fe(t, i.c.length), u(i.c[t], 49)).a)) && xx((Fe(t, i.c.length), u(i.c[t], 49)), r.e.a), r.e.a + r.f.a > N(B((Fe(t, i.c.length), u(i.c[t], 49)).b)) && Ox((Fe(t, i.c.length), u(i.c[t], 49)), r.e.a + r.f.a)) : (r.e.b < N(B((Fe(t, i.c.length), u(i.c[t], 49)).a)) && xx((Fe(t, i.c.length), u(i.c[t], 49)), r.e.b), r.e.b + r.f.b > N(B((Fe(t, i.c.length), u(i.c[t], 49)).b)) && Ox((Fe(t, i.c.length), u(i.c[t], 49)), r.e.b + r.f.b));
               }
               for (c = Cn(e.b, 0); c.b != c.d.c; )
-                r = u(Sn(c), 40), t = u(v(r, (wc(), Gh)), 15).a, z(r, (xt(), Nf), B((Fe(t, i.c.length), u(i.c[t], 49)).a)), z(r, lf, B((Fe(t, i.c.length), u(i.c[t], 49)).b));
+                r = u(Sn(c), 40), t = u(v(r, (wc(), Gh)), 15).a, K(r, (xt(), Nf), B((Fe(t, i.c.length), u(i.c[t], 49)).a)), K(r, lf, B((Fe(t, i.c.length), u(i.c[t], 49)).b));
               n.Ug();
             }
             function $xn(e) {
@@ -31645,8 +31645,8 @@ function ALn() {
               var t, i, r, c, s, f, h, l, a, d, g, p, m, y, j, T, P, L;
               if (n.b != 0) {
                 for (p = new It(), f = null, m = null, i = ur(k.Math.floor(k.Math.log(n.b) * k.Math.LOG10E) + 1), h = 0, L = Cn(n, 0); L.b != L.d.c; )
-                  for (T = u(Sn(L), 40), G(m) !== G(v(T, (xt(), S8))) && (m = _n(v(T, S8)), h = 0), m != null ? f = m + KPe(h++, i) : f = KPe(h++, i), z(T, S8, f), j = (r = Cn(new vl(T).a.d, 0), new jg(r)); Tk(j.a); )
-                    y = u(Sn(j.a), 65).c, Vt(p, y, p.c.b, p.c), z(y, S8, f);
+                  for (T = u(Sn(L), 40), G(m) !== G(v(T, (xt(), S8))) && (m = _n(v(T, S8)), h = 0), m != null ? f = m + KPe(h++, i) : f = KPe(h++, i), K(T, S8, f), j = (r = Cn(new vl(T).a.d, 0), new jg(r)); Tk(j.a); )
+                    y = u(Sn(j.a), 65).c, Vt(p, y, p.c.b, p.c), K(y, S8, f);
                 for (g = new jn(), s = 0; s < f.length - i; s++)
                   for (P = Cn(n, 0); P.b != P.d.c; )
                     T = u(Sn(P), 40), l = So(_n(v(T, (xt(), S8))), 0, s + 1), t = (l == null ? tc(Br(g.f, null)) : T6(g.i, l)) != null ? u(l == null ? tc(Br(g.f, null)) : T6(g.i, l), 15).a + 1 : 1, _r(g, l, Y(t));
@@ -32099,7 +32099,7 @@ function ALn() {
               var t, i, r, c, s, f, h, l, a, d, g, p, m, y, j, T, P, L, F, X, U, oe, Ie, Te;
               for (n.Tg("Compound graph postprocessor", 1), t = ae(le(v(e, (ue(), bq)))), f = u(v(e, (Q(), lfe)), 229), a = new ai(), T = f.ec().Jc(); T.Ob(); ) {
                 for (j = u(T.Pb(), 17), s = new Qu(f.cc(j)), Be(), $i(s, new yz(e)), X = q5n((Fe(0, s.c.length), u(s.c[0], 250))), oe = TNe(u(he(s, s.c.length - 1), 250)), L = X.i, Zm(oe.i, L) ? P = L.e : P = Li(L), d = $8n(j, s), Ms(j.a), g = null, c = new A(s); c.a < c.c.c.length; )
-                  r = u(E(c), 250), y = new Xi(), nne(y, r.a, P), p = r.b, i = new os(), DN(i, 0, p.a), rw(i, y), F = new ar(Kf(p.c)), U = new ar(Kf(p.d)), kt(F, y), kt(U, y), g && (i.b == 0 ? m = U : m = (pn(i.b != 0), u(i.a.a.c, 8)), Ie = k.Math.abs(g.a - m.a) > Dh, Te = k.Math.abs(g.b - m.b) > Dh, (!t && Ie && Te || t && (Ie || Te)) && et(j.a, F)), or(j.a, i), i.b == 0 ? g = F : g = (pn(i.b != 0), u(i.c.b.c, 8)), k6n(p, d, y), TNe(r) == oe && (Li(oe.i) != r.a && (y = new Xi(), nne(y, Li(oe.i), P)), z(j, XG, y)), Tjn(p, j, P), a.a.yc(p, a);
+                  r = u(E(c), 250), y = new Xi(), nne(y, r.a, P), p = r.b, i = new os(), DN(i, 0, p.a), rw(i, y), F = new ar(Kf(p.c)), U = new ar(Kf(p.d)), kt(F, y), kt(U, y), g && (i.b == 0 ? m = U : m = (pn(i.b != 0), u(i.a.a.c, 8)), Ie = k.Math.abs(g.a - m.a) > Dh, Te = k.Math.abs(g.b - m.b) > Dh, (!t && Ie && Te || t && (Ie || Te)) && et(j.a, F)), or(j.a, i), i.b == 0 ? g = F : g = (pn(i.b != 0), u(i.c.b.c, 8)), k6n(p, d, y), TNe(r) == oe && (Li(oe.i) != r.a && (y = new Xi(), nne(y, Li(oe.i), P)), K(j, XG, y)), Tjn(p, j, P), a.a.yc(p, a);
                 sr(j, X), Hi(j, oe);
               }
               for (l = a.a.ec().Jc(); l.Ob(); )
@@ -32120,7 +32120,7 @@ function ALn() {
               for (r = e.Jc(); r.Ob(); ) {
                 for (t = u(r.Pb(), 235), m = 0, a = dt, d = dt, h = Ki, l = Ki, p = new A(t.e); p.a < p.c.c.length; )
                   g = u(E(p), 155), m += u(v(g, (cf(), I3)), 15).a, a = k.Math.min(a, g.d.a - g.e.a / 2), d = k.Math.min(d, g.d.b - g.e.b / 2), h = k.Math.max(h, g.d.a + g.e.a / 2), l = k.Math.max(l, g.d.b + g.e.b / 2);
-                z(t, (cf(), I3), Y(m)), z(t, (oa(), z9), new ne(a, d)), z(t, Aj, new ne(h, l));
+                K(t, (cf(), I3), Y(m)), K(t, (oa(), z9), new ne(a, d)), K(t, Aj, new ne(h, l));
               }
               for (Be(), e.gd(new Hbe()), y = new ET(), Mc(y, u(e.Xb(0), 105)), f = 0, P = 0, c = e.Jc(); c.Ob(); )
                 t = u(c.Pb(), 235), j = xi(dr(u(v(t, (oa(), Aj)), 8)), u(v(t, z9), 8)), f = k.Math.max(f, j.a), P += j.a * j.b;
@@ -32296,7 +32296,7 @@ function ALn() {
                 a /= i.b.c.length, P = a >= i.o.b / 2;
               } else
                 P = !d;
-              P ? (T = u(v(i, (Q(), B3)), 16), T ? g ? c = T : (r = u(v(i, x3), 16), r ? T.gc() <= r.gc() ? c = T : c = r : (c = new ce(), z(i, x3, c))) : (c = new ce(), z(i, B3, c))) : (r = u(v(i, (Q(), x3)), 16), r ? d ? c = r : (T = u(v(i, B3), 16), T ? r.gc() <= T.gc() ? c = r : c = T : (c = new ce(), z(i, B3, c))) : (c = new ce(), z(i, x3, c))), c.Ec(e), z(e, (Q(), S$), t), n.d == t ? (Hi(n, null), t.e.c.length + t.g.c.length == 0 && rc(t, null), K6n(t)) : (sr(n, null), t.e.c.length + t.g.c.length == 0 && rc(t, null)), Ms(n.a);
+              P ? (T = u(v(i, (Q(), B3)), 16), T ? g ? c = T : (r = u(v(i, x3), 16), r ? T.gc() <= r.gc() ? c = T : c = r : (c = new ce(), K(i, x3, c))) : (c = new ce(), K(i, B3, c))) : (r = u(v(i, (Q(), x3)), 16), r ? d ? c = r : (T = u(v(i, B3), 16), T ? r.gc() <= T.gc() ? c = r : c = T : (c = new ce(), K(i, B3, c))) : (c = new ce(), K(i, x3, c))), c.Ec(e), K(e, (Q(), S$), t), n.d == t ? (Hi(n, null), t.e.c.length + t.g.c.length == 0 && rc(t, null), K6n(t)) : (sr(n, null), t.e.c.length + t.g.c.length == 0 && rc(t, null)), Ms(n.a);
             }
             function Yxn(e, n, t) {
               var i, r, c, s, f, h, l, a, d, g, p, m, y, j, T, P, L, F, X, U, oe, Ie, Te, qe, ze, wn, tt, Xt;
@@ -32319,13 +32319,13 @@ function ALn() {
               for (n.Tg(rXe, 1), y = new ce(), U = new ce(), l = new A(e.b); l.a < l.c.c.length; )
                 for (h = u(E(l), 25), T = -1, m = j7(h.a), d = m, g = 0, p = d.length; g < p; ++g)
                   if (a = d[g], ++T, !!(a.k == (Ye(), ei) && Pg(u(v(a, (ue(), ni)), 102)))) {
-                    for (!Ip(u(v(a, (ue(), ni)), 102)) && G(v(Li(a), fl)) === G((Nl(), Fa)) && dTn(a), z(a, (Q(), sb), a), y.c.length = 0, U.c.length = 0, t = new ce(), F = new It(), hN(F, k1(a, (se(), cn))), G(v(Li(a), fl)) !== G((Nl(), Fa)) && (F = q_e(F)), Eze(e, F, y, U, t), f = T, oe = a, c = new A(y); c.a < c.c.c.length; )
-                      i = u(E(c), 9), ga(i, f, h), ++T, z(i, sb, a), s = u(he(i.j, 0), 12), j = u(v(s, yt), 12), ae(le(v(j, QG))) || u(v(i, L3), 16).Ec(oe);
+                    for (!Ip(u(v(a, (ue(), ni)), 102)) && G(v(Li(a), fl)) === G((Nl(), Fa)) && dTn(a), K(a, (Q(), sb), a), y.c.length = 0, U.c.length = 0, t = new ce(), F = new It(), hN(F, k1(a, (se(), cn))), G(v(Li(a), fl)) !== G((Nl(), Fa)) && (F = q_e(F)), Eze(e, F, y, U, t), f = T, oe = a, c = new A(y); c.a < c.c.c.length; )
+                      i = u(E(c), 9), ga(i, f, h), ++T, K(i, sb, a), s = u(he(i.j, 0), 12), j = u(v(s, yt), 12), ae(le(v(j, QG))) || u(v(i, L3), 16).Ec(oe);
                     for (Ms(F), L = k1(a, kn).Jc(); L.Ob(); )
                       P = u(L.Pb(), 12), Vt(F, P, F.a, F.a.a);
                     for (G(v(Li(a), fl)) !== G(Fa) && (F = q_e(F)), Eze(e, F, U, null, t), X = a, r = new A(U); r.a < r.c.c.length; )
-                      i = u(E(r), 9), ga(i, ++T, h), z(i, sb, a), s = u(he(i.j, 0), 12), j = u(v(s, yt), 12), ae(le(v(j, QG))) || u(v(X, L3), 16).Ec(i);
-                    t.c.length == 0 || z(a, ofe, t);
+                      i = u(E(r), 9), ga(i, ++T, h), K(i, sb, a), s = u(he(i.j, 0), 12), j = u(v(s, yt), 12), ae(le(v(j, QG))) || u(v(X, L3), 16).Ec(i);
+                    t.c.length == 0 || K(a, ofe, t);
                   }
               n.Ug();
             }
@@ -32353,7 +32353,7 @@ function ALn() {
                 Ti(e.a, e.i), wn = F, L && (wn += L.c.a), j = L, g = p;
               } while (L);
               for (r = new A(e.j); r.a < r.c.c.length; )
-                i = u(E(r), 17), c = C5n(e, i), z(i, (Q(), L2), c), qe = xTn(e, i), z(i, Gd, qe);
+                i = u(E(r), 17), c = C5n(e, i), K(i, (Q(), L2), c), qe = xTn(e, i), K(i, Gd, qe);
               n.f.a = wn, e.d = null, t.Ug();
             }
             function tOn(e, n) {
@@ -32537,20 +32537,20 @@ function ALn() {
             }
             function Ny(e, n, t, i, r, c, s, f, h) {
               var l, a, d, g, p, m, y;
-              switch (p = t, a = new Yf(h), gl(a, (Ye(), mi)), z(a, (Q(), afe), s), z(a, (ue(), ni), (_i(), qc)), y = N(B(e.mf(zw))), z(a, zw, y), d = new Rc(), rc(d, a), n != bh && n != Ha || (i >= 0 ? p = Yp(f) : p = cy(Yp(f)), e.of(x5, p)), l = new Xi(), g = !1, e.nf(ab) ? (NX(l, u(e.mf(ab), 8)), g = !0) : Aan(l, s.a / 2, s.b / 2), p.g) {
+              switch (p = t, a = new Yf(h), gl(a, (Ye(), mi)), K(a, (Q(), afe), s), K(a, (ue(), ni), (_i(), qc)), y = N(B(e.mf(zw))), K(a, zw, y), d = new Rc(), rc(d, a), n != bh && n != Ha || (i >= 0 ? p = Yp(f) : p = cy(Yp(f)), e.of(x5, p)), l = new Xi(), g = !1, e.nf(ab) ? (NX(l, u(e.mf(ab), 8)), g = !0) : Aan(l, s.a / 2, s.b / 2), p.g) {
                 case 4:
-                  z(a, fc, (Ss(), Hl)), z(a, C$, (yd(), C2)), a.o.b = s.b, y < 0 && (a.o.a = -y), Ii(d, (se(), hn)), g || (l.a = s.a), l.a -= s.a;
+                  K(a, fc, (Ss(), Hl)), K(a, C$, (yd(), C2)), a.o.b = s.b, y < 0 && (a.o.a = -y), Ii(d, (se(), hn)), g || (l.a = s.a), l.a -= s.a;
                   break;
                 case 2:
-                  z(a, fc, (Ss(), qd)), z(a, C$, (yd(), M5)), a.o.b = s.b, y < 0 && (a.o.a = -y), Ii(d, (se(), un)), g || (l.a = 0);
+                  K(a, fc, (Ss(), qd)), K(a, C$, (yd(), M5)), a.o.b = s.b, y < 0 && (a.o.a = -y), Ii(d, (se(), un)), g || (l.a = 0);
                   break;
                 case 1:
-                  z(a, Jd, (Cl(), P2)), a.o.a = s.a, y < 0 && (a.o.b = -y), Ii(d, (se(), kn)), g || (l.b = s.b), l.b -= s.b;
+                  K(a, Jd, (Cl(), P2)), a.o.a = s.a, y < 0 && (a.o.b = -y), Ii(d, (se(), kn)), g || (l.b = s.b), l.b -= s.b;
                   break;
                 case 3:
-                  z(a, Jd, (Cl(), P3)), a.o.a = s.a, y < 0 && (a.o.b = -y), Ii(d, (se(), cn)), g || (l.b = 0);
+                  K(a, Jd, (Cl(), P3)), a.o.a = s.a, y < 0 && (a.o.b = -y), Ii(d, (se(), cn)), g || (l.b = 0);
               }
-              if (NX(d.n, l), z(a, ab, l), n == Yd || n == dl || n == qc) {
+              if (NX(d.n, l), K(a, ab, l), n == Yd || n == dl || n == qc) {
                 if (m = 0, n == Yd && e.nf(C1))
                   switch (p.g) {
                     case 1:
@@ -32571,9 +32571,9 @@ function ALn() {
                     case 3:
                       m = c.a, n == dl && (m /= r.a);
                   }
-                z(a, ob, m);
+                K(a, ob, m);
               }
-              return z(a, kc, p), a;
+              return K(a, kc, p), a;
             }
             function fOn() {
               uK();
@@ -32622,7 +32622,7 @@ function ALn() {
               if (typeof document === gB && typeof self !== gB) {
                 var t = new e(self);
                 self.onmessage = t.saveDispatch;
-              } else typeof K !== gB && K.exports && (Object.defineProperty(q, "__esModule", { value: !0 }), K.exports = { default: n, Worker: n });
+              } else typeof z !== gB && z.exports && (Object.defineProperty(q, "__esModule", { value: !0 }), z.exports = { default: n, Worker: n });
             }
             function xR(e, n, t, i, r, c, s) {
               var f, h, l, a, d, g, p, m, y, j, T, P, L, F, X, U, oe, Ie, Te, qe, ze, wn, tt, Xt;
@@ -32648,13 +32648,13 @@ function ALn() {
               for (P -= n.c.a, y = new A(e); y.a < y.c.c.length; ) {
                 switch (m = u(E(y), 9), f6(m.n, P - m.o.a), PW(m.f), VBe(m), (m.q ? m.q : (Be(), Be(), ul))._b((ue(), Xw)) && f6(u(v(m, Xw), 8), P - m.o.a), u(v(m, _h), 256).g) {
                   case 1:
-                    z(m, _h, (Yh(), uE));
+                    K(m, _h, (Yh(), uE));
                     break;
                   case 2:
-                    z(m, _h, (Yh(), cE));
+                    K(m, _h, (Yh(), cE));
                 }
                 for (T = m.o, F = new A(m.j); F.a < F.c.c.length; ) {
-                  for (L = u(E(F), 12), f6(L.n, T.a - L.o.a), f6(L.a, L.o.a), Ii(L, SNe(L.j)), s = u(v(L, C1), 15), s && z(L, C1, Y(-s.a)), c = new A(L.g); c.a < c.c.c.length; ) {
+                  for (L = u(E(F), 12), f6(L.n, T.a - L.o.a), f6(L.a, L.o.a), Ii(L, SNe(L.j)), s = u(v(L, C1), 15), s && K(L, C1, Y(-s.a)), c = new A(L.g); c.a < c.c.c.length; ) {
                     for (r = u(E(c), 17), i = Cn(r.a, 0); i.b != i.d.c; )
                       t = u(Sn(i), 8), t.a = P - t.a;
                     if (l = u(v(r, Hr), 78), l)
@@ -32666,7 +32666,7 @@ function ALn() {
                   for (p = new A(L.f); p.a < p.c.c.length; )
                     a = u(E(p), 70), f6(a.n, L.o.a - a.o.a);
                 }
-                for (m.k == (Ye(), mi) && (z(m, (Q(), kc), SNe(u(v(m, kc), 64))), bjn(m)), d = new A(m.b); d.a < d.c.c.length; )
+                for (m.k == (Ye(), mi) && (K(m, (Q(), kc), SNe(u(v(m, kc), 64))), bjn(m)), d = new A(m.b); d.a < d.c.c.length; )
                   a = u(E(d), 70), VBe(a), f6(a.n, T.a - a.o.a);
               }
             }
@@ -32680,13 +32680,13 @@ function ALn() {
               for (P -= n.c.b, y = new A(e); y.a < y.c.c.length; ) {
                 switch (m = u(E(y), 9), o6(m.n, P - m.o.b), xW(m.f), QBe(m), (m.q ? m.q : (Be(), Be(), ul))._b((ue(), Xw)) && o6(u(v(m, Xw), 8), P - m.o.b), u(v(m, _h), 256).g) {
                   case 3:
-                    z(m, _h, (Yh(), TP));
+                    K(m, _h, (Yh(), TP));
                     break;
                   case 4:
-                    z(m, _h, (Yh(), IP));
+                    K(m, _h, (Yh(), IP));
                 }
                 for (T = m.o, F = new A(m.j); F.a < F.c.c.length; ) {
-                  for (L = u(E(F), 12), o6(L.n, T.b - L.o.b), o6(L.a, L.o.b), Ii(L, INe(L.j)), s = u(v(L, C1), 15), s && z(L, C1, Y(-s.a)), c = new A(L.g); c.a < c.c.c.length; ) {
+                  for (L = u(E(F), 12), o6(L.n, T.b - L.o.b), o6(L.a, L.o.b), Ii(L, INe(L.j)), s = u(v(L, C1), 15), s && K(L, C1, Y(-s.a)), c = new A(L.g); c.a < c.c.c.length; ) {
                     for (r = u(E(c), 17), i = Cn(r.a, 0); i.b != i.d.c; )
                       t = u(Sn(i), 8), t.b = P - t.b;
                     if (l = u(v(r, Hr), 78), l)
@@ -32698,7 +32698,7 @@ function ALn() {
                   for (p = new A(L.f); p.a < p.c.c.length; )
                     a = u(E(p), 70), o6(a.n, L.o.b - a.o.b);
                 }
-                for (m.k == (Ye(), mi) && (z(m, (Q(), kc), INe(u(v(m, kc), 64))), K4n(m)), d = new A(m.b); d.a < d.c.c.length; )
+                for (m.k == (Ye(), mi) && (K(m, (Q(), kc), INe(u(v(m, kc), 64))), K4n(m)), d = new A(m.b); d.a < d.c.c.length; )
                   a = u(E(d), 70), QBe(a), o6(a.n, T.b - a.o.b);
               }
             }
@@ -32713,7 +32713,7 @@ function ALn() {
                 }
                 if (m + 1 == l) {
                   for (r = new Dc(e), _b(P, r), c = new Dc(e), _b(P, c), Te = oe.a.ec().Jc(); Te.Ob(); )
-                    Ie = u(Te.Pb(), 17), t.a._b(Ie) || (++X, t.a.yc(Ie, t)), s = new Yf(e), z(s, (ue(), ni), (_i(), X5)), Pi(s, r), gl(s, (Ye(), oh)), y = new Rc(), rc(y, s), Ii(y, (se(), un)), qe = new Rc(), rc(qe, s), Ii(qe, hn), i = new Yf(e), z(i, ni, X5), Pi(i, c), gl(i, oh), j = new Rc(), rc(j, i), Ii(j, un), ze = new Rc(), rc(ze, i), Ii(ze, hn), U = new E0(), sr(U, Ie.c), Hi(U, y), z(U, (Q(), Ot), u(v(Ie, Ot), 15)), tt = new E0(), sr(tt, qe), Hi(tt, j), z(tt, Ot, u(v(Ie, Ot), 15)), sr(Ie, ze), f = new rQ(s, i, U, tt, Ie), z(s, ub, f), z(i, ub, f), wn = U.c.i, wn.k == oh && (h = u(v(wn, ub), 317), h.d = f, f.g = h);
+                    Ie = u(Te.Pb(), 17), t.a._b(Ie) || (++X, t.a.yc(Ie, t)), s = new Yf(e), K(s, (ue(), ni), (_i(), X5)), Pi(s, r), gl(s, (Ye(), oh)), y = new Rc(), rc(y, s), Ii(y, (se(), un)), qe = new Rc(), rc(qe, s), Ii(qe, hn), i = new Yf(e), K(i, ni, X5), Pi(i, c), gl(i, oh), j = new Rc(), rc(j, i), Ii(j, un), ze = new Rc(), rc(ze, i), Ii(ze, hn), U = new E0(), sr(U, Ie.c), Hi(U, y), K(U, (Q(), Ot), u(v(Ie, Ot), 15)), tt = new E0(), sr(tt, qe), Hi(tt, j), K(tt, Ot, u(v(Ie, Ot), 15)), sr(Ie, ze), f = new rQ(s, i, U, tt, Ie), K(s, ub, f), K(i, ub, f), wn = U.c.i, wn.k == oh && (h = u(v(wn, ub), 317), h.d = f, f.g = h);
                   if (a.Ob())
                     l = u(a.Pb(), 15).a;
                   else
@@ -32922,7 +32922,7 @@ function ALn() {
               for (h = new A(j); h.a < h.c.c.length; )
                 c = u(E(h), 17), JIn(e, c, t, i, (se(), hn));
               for (s = new A(Ie); s.a < s.c.c.length; )
-                c = u(E(s), 17), Te = new Yf(e), gl(Te, (Ye(), Zc)), z(Te, (ue(), ni), (_i(), qc)), z(Te, (Q(), yt), c), qe = new Rc(), z(qe, yt, c.d), Ii(qe, (se(), un)), rc(qe, Te), ze = new Rc(), z(ze, yt, c.c), Ii(ze, hn), rc(ze, Te), z(c.c, ts, Te), z(c.d, ts, Te), sr(c, null), Hi(c, null), en(t.c, Te), z(Te, I$, Y(2));
+                c = u(E(s), 17), Te = new Yf(e), gl(Te, (Ye(), Zc)), K(Te, (ue(), ni), (_i(), qc)), K(Te, (Q(), yt), c), qe = new Rc(), K(qe, yt, c.d), Ii(qe, (se(), un)), rc(qe, Te), ze = new Rc(), K(ze, yt, c.c), Ii(ze, hn), rc(ze, Te), K(c.c, ts, Te), K(c.d, ts, Te), sr(c, null), Hi(c, null), en(t.c, Te), K(Te, I$, Y(2));
               for (U = Cn(n, 0); U.b != U.d.c; )
                 X = u(Sn(U), 12), l = X.e.c.length > 0, T = X.g.c.length > 0, l && T ? en(g.c, X) : l ? en(y.c, X) : T && en(F.c, X);
               for (m = new A(y); m.a < m.c.c.length; )
@@ -33349,7 +33349,7 @@ function ALn() {
                 default:
                   throw M(new nn(hC + (h.f != null ? h.f : "" + h.g)));
               }
-              if (e.d = new hPe(f, X, s), z(e.d, (nv(), U9), le(Z(e.c, jun))), e.d.c = ae(le(Z(e.c, fae))), nT(e.c).i == 0)
+              if (e.d = new hPe(f, X, s), K(e.d, (nv(), U9), le(Z(e.c, jun))), e.d.c = ae(le(Z(e.c, fae))), nT(e.c).i == 0)
                 return e.d;
               for (d = new bn(nT(e.c)); d.e != d.i.gc(); ) {
                 for (a = u(gn(d), 26), p = a.g / 2, g = a.f / 2, U = new ne(a.i + p, a.j + g); zc(e.g, U); )
@@ -33403,7 +33403,7 @@ function ALn() {
               for (j = new A(L); j.a < j.c.c.length; )
                 for (y = u(E(j), 9), ze = Mxe(y.j), oe = ze, Ie = 0, qe = oe.length; Ie < qe; ++Ie)
                   for (U = oe[Ie], X = Ah(U.g), r = X, c = 0, h = r.length; c < h; ++c)
-                    i = r[c], zr = i.d.i.p, e.c[y.p] > e.c[zr] && (y1(i, !0), z(n, O3, (Xe(), !0)));
+                    i = r[c], zr = i.d.i.p, e.c[y.p] > e.c[zr] && (y1(i, !0), K(n, O3, (Xe(), !0)));
               e.a = null, e.d = null, e.c = null, Ms(e.g), Ms(e.f), t.Ug();
             }
             function Cze(e, n, t) {
@@ -33441,7 +33441,7 @@ function ALn() {
               for (l = 0; l < y.length; l++)
                 !y[l] && !qe.dc() && (y[l] = u(qe.Xb(0), 40), qe.ed(0));
               for (c = 0; c < y.length; c++)
-                z(y[c], (xt(), C8), Y(c));
+                K(y[c], (xt(), C8), Y(c));
               for (d = u(D9n(bt(new De(null, new Ne(n, 16)), new Ome())), 522), U = d, oe = 0, Ie = U.length; oe < Ie; ++oe) {
                 for (X = U[oe], i = yN(X), $ze(e, i, t.dh(1 / d.length | 0)), Be(), md(i, new Fx((xt(), C8))), j = new It(), F = Cn(i, 0); F.b != F.d.c; )
                   for (L = u(Sn(F), 40), P = Cn(X.d, 0); P.b != P.d.c; )
@@ -33482,7 +33482,7 @@ function ALn() {
                       c = u(s.Pb(), 9), Pi(c, g);
                 for (X = new A(U); X.a < X.c.c.length; )
                   F = u(E(X), 9), Pi(F, null);
-                z(e, (Q(), JG), U);
+                K(e, (Q(), JG), U);
               }
             }
             function COn(e, n) {
@@ -33495,7 +33495,7 @@ function ALn() {
                     for (i = new A(Te.g); i.a < i.c.c.length; )
                       t = u(E(i), 17), ze = u(v(t, (ue(), G3)), 15).a, Ie = k.Math.max(Ie, ze);
                   }
-                  z(F, rP, Y(d)), z(F, cP, Y(Ie));
+                  K(F, rP, Y(d)), K(F, cP, Y(Ie));
                 }
               for (T = 0, p = new A(n.b); p.a < p.c.c.length; )
                 for (g = u(E(p), 25), X = new A(g.a); X.a < X.c.c.length; )
@@ -33706,7 +33706,7 @@ function ALn() {
                         case 3:
                           d = y.e.b + y.f.b + p, g = d + h.f.b;
                       }
-                    G(v(n, zq)) === G((M4(), Vj)) ? (c = d, s = g, f = Ol(bt(new De(null, new Ne(e.a, 16)), new XAe(c, s))), f.a != null ? r == (yi(), Ur) || r == Wr ? h.e.a = d : h.e.b = d : (r == (yi(), Ur) || r == mo ? f = Ol(bt(DLe(new De(null, new Ne(e.a, 16))), new d7e(c))) : f = Ol(bt(DLe(new De(null, new Ne(e.a, 16))), new b7e(c))), f.a != null && (r == Ur || r == Wr ? h.e.a = N(B((pn(f.a != null), u(f.a, 49)).a)) : h.e.b = N(B((pn(f.a != null), u(f.a, 49)).a)))), f.a != null && (a = cc(e.a, (pn(f.a != null), f.a), 0), a > 0 && a != u(v(h, Gh), 15).a && (z(h, Nle, (Xe(), !0)), z(h, Gh, Y(a))))) : r == (yi(), Ur) || r == Wr ? h.e.a = d : h.e.b = d;
+                    G(v(n, zq)) === G((M4(), Vj)) ? (c = d, s = g, f = Ol(bt(new De(null, new Ne(e.a, 16)), new XAe(c, s))), f.a != null ? r == (yi(), Ur) || r == Wr ? h.e.a = d : h.e.b = d : (r == (yi(), Ur) || r == mo ? f = Ol(bt(DLe(new De(null, new Ne(e.a, 16))), new d7e(c))) : f = Ol(bt(DLe(new De(null, new Ne(e.a, 16))), new b7e(c))), f.a != null && (r == Ur || r == Wr ? h.e.a = N(B((pn(f.a != null), u(f.a, 49)).a)) : h.e.b = N(B((pn(f.a != null), u(f.a, 49)).a)))), f.a != null && (a = cc(e.a, (pn(f.a != null), f.a), 0), a > 0 && a != u(v(h, Gh), 15).a && (K(h, Nle, (Xe(), !0)), K(h, Gh, Y(a))))) : r == (yi(), Ur) || r == Wr ? h.e.a = d : h.e.b = d;
                   }
                 t.Ug();
               }
@@ -33986,7 +33986,7 @@ function ALn() {
               for (h = new A(e); h.a < h.c.c.length; ) {
                 for (s = u(E(h), 120), P = 0, m = dt, y = dt, g = Ki, p = Ki, T = Cn(s.b, 0); T.b != T.d.c; )
                   j = u(Sn(T), 40), P += u(v(j, (wc(), hP)), 15).a, m = k.Math.min(m, j.e.a), y = k.Math.min(y, j.e.b), g = k.Math.max(g, j.e.a + j.f.a), p = k.Math.max(p, j.e.b + j.f.b);
-                z(s, (wc(), hP), Y(P)), z(s, (xt(), R5), new ne(m, y)), z(s, Qj, new ne(g, p));
+                K(s, (wc(), hP), Y(P)), K(s, (xt(), R5), new ne(m, y)), K(s, Qj, new ne(g, p));
               }
               for (Be(), $i(e, new z3e()), X = new S7(), Mc(X, (Fe(0, e.c.length), u(e.c[0], 105))), d = 0, qe = 0, l = new A(e); l.a < l.c.c.length; )
                 s = u(E(l), 120), U = xi(dr(u(v(s, (xt(), Qj)), 8)), u(v(s, R5), 8)), d = k.Math.max(d, U.a), qe += U.a * U.b;
@@ -33994,7 +33994,7 @@ function ALn() {
                 s = u(E(f), 120), U = xi(dr(u(v(s, (xt(), Qj)), 8)), u(v(s, R5), 8)), ze + U.a > d && (ze = 0, wn += a + oe, a = 0), SHe(X, s, ze, wn), n = k.Math.max(n, ze + U.a), a = k.Math.max(a, U.b), ze += U.a + oe;
               for (F = new jn(), t = new jn(), Te = new A(e); Te.a < Te.c.c.length; )
                 for (Ie = u(E(Te), 120), i = ae(le(v(Ie, (Yn(), oE)))), L = Ie.q ? Ie.q : ul, c = L.vc().Jc(); c.Ob(); )
-                  r = u(c.Pb(), 45), zc(F, r.jd()) ? G(u(r.jd(), 147).Rg()) !== G(r.kd()) && (i && zc(t, r.jd()) ? (r1(), "" + u(r.jd(), 147).Og()) : (ut(F, u(r.jd(), 147), r.kd()), z(X, u(r.jd(), 147), r.kd()), i && ut(t, u(r.jd(), 147), r.kd()))) : (ut(F, u(r.jd(), 147), r.kd()), z(X, u(r.jd(), 147), r.kd()));
+                  r = u(c.Pb(), 45), zc(F, r.jd()) ? G(u(r.jd(), 147).Rg()) !== G(r.kd()) && (i && zc(t, r.jd()) ? (r1(), "" + u(r.jd(), 147).Og()) : (ut(F, u(r.jd(), 147), r.kd()), K(X, u(r.jd(), 147), r.kd()), i && ut(t, u(r.jd(), 147), r.kd()))) : (ut(F, u(r.jd(), 147), r.kd()), K(X, u(r.jd(), 147), r.kd()));
               return Wqe(X, new yx()), IBe(X), X;
             }
             function MI(e, n) {
@@ -34085,10 +34085,10 @@ function ALn() {
             function ROn(e, n, t) {
               var i, r, c, s, f, h, l, a, d, g, p, m, y, j, T, P, L, F, X, U, oe, Ie, Te, qe, ze, wn, tt;
               for (f = new It(), oe = u(v(t, (ue(), zs)), 86), j = 0, i = new ai(), or(f, (!n.a && (n.a = new V(Un, n, 10, 11)), n.a)); f.b != 0; )
-                d = u(f.b == 0 ? null : (pn(f.b != 0), co(f, f.a.a)), 26), a = Ht(d), mI(a) && !ae(le(Z(d, N$))) && (Tt(d, (Q(), Ot), Y(j++)), Tf(d, Gw) && di(i, u(Z(d, Gw), 15))), P = !ae(le(Z(d, zd))), P && (p = (!d.a && (d.a = new V(Un, d, 10, 11)), d.a).i != 0, y = Oyn(d), m = G(Z(d, qw)) === G((Dl(), D1)), tt = !Tf(d, (Yn(), K3)) || AOe(_n(Z(d, K3))), X = null, tt && m && (p || y) && (X = eUe(d), z(X, zs, oe), vt(X, Gj) && Pje(new jZ(N(B(v(X, Gj)))), X), u(Z(d, Ud), 182).gc() != 0 && (g = X, ti(new De(null, (!d.c && (d.c = new V(ks, d, 9, 9)), new Ne(d.c, 16))), new B8e(g)), Jqe(d, X))), Ie = t, Te = u(Qe(e.a, Ht(d)), 9), Te && (Ie = Te.e), F = rze(e, d, Ie), X && (F.e = X, X.e = F, or(f, (!d.a && (d.a = new V(Un, d, 10, 11)), d.a))));
-              for (z(t, (Q(), La), Y(j)), z(t, Lj, Y(i.a.gc())), j = 0, Vt(f, n, f.c.b, f.c); f.b != 0; ) {
+                d = u(f.b == 0 ? null : (pn(f.b != 0), co(f, f.a.a)), 26), a = Ht(d), mI(a) && !ae(le(Z(d, N$))) && (Tt(d, (Q(), Ot), Y(j++)), Tf(d, Gw) && di(i, u(Z(d, Gw), 15))), P = !ae(le(Z(d, zd))), P && (p = (!d.a && (d.a = new V(Un, d, 10, 11)), d.a).i != 0, y = Oyn(d), m = G(Z(d, qw)) === G((Dl(), D1)), tt = !Tf(d, (Yn(), K3)) || AOe(_n(Z(d, K3))), X = null, tt && m && (p || y) && (X = eUe(d), K(X, zs, oe), vt(X, Gj) && Pje(new jZ(N(B(v(X, Gj)))), X), u(Z(d, Ud), 182).gc() != 0 && (g = X, ti(new De(null, (!d.c && (d.c = new V(ks, d, 9, 9)), new Ne(d.c, 16))), new B8e(g)), Jqe(d, X))), Ie = t, Te = u(Qe(e.a, Ht(d)), 9), Te && (Ie = Te.e), F = rze(e, d, Ie), X && (F.e = X, X.e = F, or(f, (!d.a && (d.a = new V(Un, d, 10, 11)), d.a))));
+              for (K(t, (Q(), La), Y(j)), K(t, Lj, Y(i.a.gc())), j = 0, Vt(f, n, f.c.b, f.c); f.b != 0; ) {
                 for (s = u(f.b == 0 ? null : (pn(f.b != 0), co(f, f.a.a)), 26), l = new bn((!s.b && (s.b = new V(vi, s, 12, 3)), s.b)); l.e != l.i.gc(); )
-                  h = u(gn(l), 85), wHe(h), mI(n) && Tt(h, Ot, Y(j++)), ze = Xr(u(D((!h.b && (h.b = new Ue(An, h, 4, 7)), h.b), 0), 84)), wn = Xr(u(D((!h.c && (h.c = new Ue(An, h, 5, 8)), h.c), 0), 84)), !(ae(le(Z(h, zd))) || ae(le(Z(ze, zd))) || ae(le(Z(wn, zd)))) && (T = B0(h) && ae(le(Z(ze, Hw))) && ae(le(Z(h, Hd))), U = s, T || tw(wn, ze) ? U = ze : tw(ze, wn) && (U = wn), Ie = t, Te = u(Qe(e.a, U), 9), Te && (Ie = Te.e), L = Yte(e, h, U, Ie), z(L, hfe, JTn(e, h, n, t)));
+                  h = u(gn(l), 85), wHe(h), mI(n) && Tt(h, Ot, Y(j++)), ze = Xr(u(D((!h.b && (h.b = new Ue(An, h, 4, 7)), h.b), 0), 84)), wn = Xr(u(D((!h.c && (h.c = new Ue(An, h, 5, 8)), h.c), 0), 84)), !(ae(le(Z(h, zd))) || ae(le(Z(ze, zd))) || ae(le(Z(wn, zd)))) && (T = B0(h) && ae(le(Z(ze, Hw))) && ae(le(Z(h, Hd))), U = s, T || tw(wn, ze) ? U = ze : tw(ze, wn) && (U = wn), Ie = t, Te = u(Qe(e.a, U), 9), Te && (Ie = Te.e), L = Yte(e, h, U, Ie), K(L, hfe, JTn(e, h, n, t)));
                 if (m = G(Z(s, qw)) === G((Dl(), D1)), m)
                   for (c = new bn((!s.a && (s.a = new V(Un, s, 10, 11)), s.a)); c.e != c.i.gc(); )
                     r = u(gn(c), 26), tt = !Tf(r, (Yn(), K3)) || AOe(_n(Z(r, K3))), qe = G(Z(r, qw)) === G(D1), tt && qe && Vt(f, r, f.c.b, f.c);
@@ -34171,7 +34171,7 @@ function ALn() {
               var r, c, s, f, h, l, a, d, g, p, m, y, j, T, P, L, F, X, U, oe, Ie, Te, qe, ze, wn, tt;
               if (wHe(n), h = u(D((!n.b && (n.b = new Ue(An, n, 4, 7)), n.b), 0), 84), a = u(D((!n.c && (n.c = new Ue(An, n, 5, 8)), n.c), 0), 84), f = Xr(h), l = Xr(a), s = (!n.a && (n.a = new V(_t, n, 6, 6)), n.a).i == 0 ? null : u(D((!n.a && (n.a = new V(_t, n, 6, 6)), n.a), 0), 170), oe = u(Qe(e.a, f), 9), ze = u(Qe(e.a, l), 9), Ie = null, wn = null, O(h, 193) && (U = u(Qe(e.a, h), 246), O(U, 12) ? Ie = u(U, 12) : O(U, 9) && (oe = u(U, 9), Ie = u(he(oe.j, 0), 12))), O(a, 193) && (qe = u(Qe(e.a, a), 246), O(qe, 12) ? wn = u(qe, 12) : O(qe, 9) && (ze = u(qe, 9), wn = u(he(ze.j, 0), 12))), !oe || !ze)
                 throw M(new dp("The source or the target of edge " + n + " could not be found. This usually happens when an edge connects a node laid out by ELK Layered to a node in another level of hierarchy laid out by either another instance of ELK Layered or another layout algorithm alltogether. The former can be solved by setting the hierarchyHandling option to INCLUDE_CHILDREN."));
-              for (y = new E0(), Mc(y, n), z(y, (Q(), yt), n), z(y, (ue(), Hr), null), p = u(v(i, eu), 22), oe == ze && p.Ec((Sr(), e8)), Ie || (X = (Tr(), au), Te = null, s && Pg(u(v(oe, ni), 102)) && (Te = new ne(s.j, s.k), Hxe(Te, Wb(n)), pOe(Te, t), tw(l, f) && (X = is, kt(Te, oe.n))), Ie = mUe(oe, Te, X, i)), wn || (X = (Tr(), is), tt = null, s && Pg(u(v(ze, ni), 102)) && (tt = new ne(s.b, s.c), Hxe(tt, Wb(n)), pOe(tt, t)), wn = mUe(ze, tt, X, Li(ze))), sr(y, Ie), Hi(y, wn), (Ie.e.c.length > 1 || Ie.g.c.length > 1 || wn.e.c.length > 1 || wn.g.c.length > 1) && p.Ec((Sr(), Z9)), g = new bn((!n.n && (n.n = new V(lc, n, 1, 7)), n.n)); g.e != g.i.gc(); )
+              for (y = new E0(), Mc(y, n), K(y, (Q(), yt), n), K(y, (ue(), Hr), null), p = u(v(i, eu), 22), oe == ze && p.Ec((Sr(), e8)), Ie || (X = (Tr(), au), Te = null, s && Pg(u(v(oe, ni), 102)) && (Te = new ne(s.j, s.k), Hxe(Te, Wb(n)), pOe(Te, t), tw(l, f) && (X = is, kt(Te, oe.n))), Ie = mUe(oe, Te, X, i)), wn || (X = (Tr(), is), tt = null, s && Pg(u(v(ze, ni), 102)) && (tt = new ne(s.b, s.c), Hxe(tt, Wb(n)), pOe(tt, t)), wn = mUe(ze, tt, X, Li(ze))), sr(y, Ie), Hi(y, wn), (Ie.e.c.length > 1 || Ie.g.c.length > 1 || wn.e.c.length > 1 || wn.g.c.length > 1) && p.Ec((Sr(), Z9)), g = new bn((!n.n && (n.n = new V(lc, n, 1, 7)), n.n)); g.e != g.i.gc(); )
                 if (d = u(gn(g), 157), !ae(le(Z(d, zd))) && d.a)
                   switch (j = NN(d), re(y.b, j), u(v(j, Jh), 279).g) {
                     case 1:
@@ -34179,12 +34179,12 @@ function ALn() {
                       p.Ec((Sr(), S5));
                       break;
                     case 0:
-                      p.Ec((Sr(), T5)), z(j, Jh, (Vf(), U5));
+                      p.Ec((Sr(), T5)), K(j, Jh, (Vf(), U5));
                   }
               if (c = u(v(i, h8), 301), T = u(v(i, U$), 328), r = c == (O4(), $j) || T == (F4(), Aq), s && (!s.a && (s.a = new ki(Vs, s, 5)), s.a).i != 0 && r) {
                 for (P = Fjn(s), m = new os(), F = Cn(P, 0); F.b != F.d.c; )
                   L = u(Sn(F), 8), et(m, new ar(L));
-                z(y, bfe, m);
+                K(y, bfe, m);
               }
               return y;
             }
@@ -38071,7 +38071,7 @@ function ALn() {
             }, o.a = 0, o.b = 0, o.c = 0, w(Aie, "FruchtermanReingoldModel", 632);
             var S3 = zt(oc, "ILayoutMetaDataProvider");
             b(844, 1, rh, D4e), o.tf = function(n) {
-              Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), DI), ""), "Force Model"), "Determines the model for force calculation."), kse), (Id(), qt)), yse), Me((Ih(), Ge))))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Mie), ""), "Iterations"), "The number of iterations on the force model."), Y(300)), hr), Ai), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Tie), ""), "Repulsive Power"), "Determines how many bend points are added to the edge; such bend points are regarded as repelling particles in the force model"), Y(0)), hr), Ai), Me(Ff)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), yB), ""), "FR Temperature"), "The temperature is used as a scaling factor for particle displacements."), Dh), Zi), pi), Me(Ge)))), Kt(n, yB, DI, zYe), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), jB), ""), "Eades Repulsion"), "Factor for repulsive forces in Eades' model."), 5), Zi), pi), Me(Ge)))), Kt(n, jB, DI, qYe), mze((new L4e(), n));
+              Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), DI), ""), "Force Model"), "Determines the model for force calculation."), kse), (Id(), qt)), yse), Me((Ih(), Ge))))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Mie), ""), "Iterations"), "The number of iterations on the force model."), Y(300)), hr), Ai), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Tie), ""), "Repulsive Power"), "Determines how many bend points are added to the edge; such bend points are regarded as repelling particles in the force model"), Y(0)), hr), Ai), Me(Ff)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), yB), ""), "FR Temperature"), "The temperature is used as a scaling factor for particle displacements."), Dh), Zi), pi), Me(Ge)))), Kt(n, yB, DI, zYe), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), jB), ""), "Eades Repulsion"), "Factor for repulsive forces in Eades' model."), 5), Zi), pi), Me(Ge)))), Kt(n, jB, DI, qYe), mze((new L4e(), n));
             };
             var _Ye, JYe, kse, GYe, qYe, HYe, UYe, zYe;
             w(b9, "ForceMetaDataProvider", 844), b(424, 23, { 3: 1, 35: 1, 23: 1, 424: 1 }, $K);
@@ -38087,7 +38087,7 @@ function ALn() {
             }, w(b9, "ForceOptions/ForceFactory", 985);
             var Aj, z9, C3, KC;
             b(845, 1, rh, N4e), o.tf = function(n) {
-              Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Iie), ""), "Fixed Position"), "Prevent that the node is moved by the layout algorithm."), (Xe(), !1)), (Id(), Si)), Zt), Me((Ih(), li))))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Cie), ""), "Desired Edge Length"), "Either specified for parent nodes or for individual edges, where the latter takes higher precedence."), 100), Zi), pi), Pt(Ge, I(S(hh, 1), ee, 160, 0, [Ff]))))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), $ie), ""), "Layout Dimension"), "Dimensions that are permitted to be altered during layout."), Cse), qt), Nse), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Pie), ""), "Stress Epsilon"), "Termination criterion for the iterative process."), Dh), Zi), pi), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), xie), ""), "Iteration Limit"), "Maximum number of performed iterations. Takes higher precedence than 'epsilon'."), Y(dt)), hr), Ai), Me(Ge)))), zUe((new F4e(), n));
+              Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Iie), ""), "Fixed Position"), "Prevent that the node is moved by the layout algorithm."), (Xe(), !1)), (Id(), Si)), Zt), Me((Ih(), li))))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Cie), ""), "Desired Edge Length"), "Either specified for parent nodes or for individual edges, where the latter takes higher precedence."), 100), Zi), pi), Pt(Ge, I(S(hh, 1), ee, 160, 0, [Ff]))))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), $ie), ""), "Layout Dimension"), "Dimensions that are permitted to be altered during layout."), Cse), qt), Nse), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Pie), ""), "Stress Epsilon"), "Termination criterion for the iterative process."), Dh), Zi), pi), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), xie), ""), "Iteration Limit"), "Maximum number of performed iterations. Takes higher precedence than 'epsilon'."), Y(dt)), hr), Ai), Me(Ge)))), zUe((new F4e(), n));
             };
             var fZe, hZe, Cse, lZe, aZe, dZe;
             w(b9, "StressMetaDataProvider", 845), b(988, 1, rh, F4e), o.tf = function(n) {
@@ -39642,7 +39642,7 @@ function ALn() {
             b(423, 23, { 3: 1, 35: 1, 23: 1, 423: 1 }, FK);
             var WG, VG, yfe = Mn(pc, "LayerUnzippingStrategy", 423, xn, T2n, O0n), Oen;
             b(843, 1, rh, u9e), o.tf = function(n) {
-              Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Lie), ""), "Direction Congruency"), "Specifies how drawings of the same graph with different layout directions compare to each other: either a natural reading direction is preserved or the drawings are rotated versions of each other."), Dfe), (Id(), qt)), Hoe), Me((Ih(), Ge))))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Nie), ""), "Feedback Edges"), "Whether feedback edges should be highlighted by routing around the nodes."), (Xe(), !1)), Si), Zt), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), JI), ""), "Interactive Reference Point"), "Determines which point of a node is considered by interactive layout phases."), _fe), qt), sfe), Me(Ge)))), Kt(n, JI, uj, Fnn), Kt(n, JI, y9, Nnn), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Fie), ""), "Merge Edges"), "Edges that have no ports are merged so they touch the connected nodes at the same points. When this option is disabled, one port is created for each edge directly connected to a node. When it is enabled, all such incoming edges share an input port, and all outgoing edges share an output port."), !1), Si), Zt), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Rie), ""), "Merge Hierarchy-Crossing Edges"), "If hierarchical layout is active, hierarchy-crossing edges use as few hierarchical ports as possible. They are broken by the algorithm, with hierarchical ports inserted as required. Usually, one such port is created for each edge at each hierarchy crossing point. With this option set to true, we try to create as few hierarchical ports as possible in the process. In particular, all edges that form a hyperedge can share a port."), !0), Si), Zt), Me(Ge)))), Ee(n, new we(Sln(ye(ke(je($e(ge(ve(pe(me(new be(), Bie), ""), "Allow Non-Flow Ports To Switch Sides"), "Specifies whether non-flow ports may switch sides if their node's port constraints are either FIXED_SIDE or FIXED_ORDER. A non-flow port is a port on a side that is not part of the currently configured layout flow. For instance, given a left-to-right layout direction, north and south ports would be considered non-flow ports. Further note that the underlying criterium whether to switch sides or not solely relies on the minimization of edge crossings. Hence, edge length and other aesthetics criteria are not addressed."), !1), Si), Zt), Me(x1)), I(S(de, 1), ie, 2, 6, ["org.eclipse.elk.layered.northOrSouthPort"])))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), _ie), ""), "Port Sorting Strategy"), "Only relevant for nodes with FIXED_SIDE port constraints. Determines the way a node's ports are distributed on the sides of a node if their order is not prescribed. The option is set on parent nodes."), Qfe), qt), ole), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Jie), ""), "Thoroughness"), "How much effort should be spent to produce a nice layout."), Y(7)), hr), Ai), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Gie), ""), "Add Unnecessary Bendpoints"), "Adds bend points even if an edge does not change direction. If true, each long edge dummy will contribute a bend point to its edges and hierarchy-crossing edges will always get a bend point where they cross hierarchy boundaries. By default, bend points are only added where an edge changes direction."), !1), Si), Zt), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), qie), ""), "Generate Position and Layer IDs"), "If enabled position id and layer id are generated, which are usually only used internally when setting the interactiveLayout option. This option should be specified on the root node."), !1), Si), Zt), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), uj), "cycleBreaking"), "Cycle Breaking Strategy"), "Strategy for cycle breaking. Cycle breaking looks for cycles in the graph and determines which edges to reverse to break the cycles. Reversed edges will end up pointing to the opposite direction of regular edges (that is, reversed edges will point left if edges usually point right)."), Ofe), qt), Goe), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), sj), f_), "Node Layering Strategy"), "Strategy for node layering."), qfe), qt), Vhe), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Hie), f_), "Layer Constraint"), "Determines a constraint on the placement of the node regarding the layering."), Jfe), qt), kfe), Me(li)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Uie), f_), "Layer Choice Constraint"), "Allows to set a constraint regarding the layer placement of a node. Let i be the value of teh constraint. Assumed the drawing has n layers and i < n. If set to i, it expresses that the node should be placed in i-th layer. Should i>=n be true then the node is placed in the last layer of the drawing. Note that this option is not part of any of ELK Layered's default configurations but is only evaluated as part of the `InteractiveLayeredGraphVisitor`, which must be applied manually or used via the `DiagramLayoutEngine."), null), hr), Ai), Me(li)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), zie), f_), "Layer ID"), "Layer identifier that was calculated by ELK Layered for a node. This is only generated if interactiveLayot or generatePositionAndLayerIds is set."), Y(-1)), hr), Ai), Me(li)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), PB), fXe), "Upper Bound On Width [MinWidth Layerer]"), "Defines a loose upper bound on the width of the MinWidth layerer. If set to '-1' multiple values are tested and the best result is selected."), Y(4)), hr), Ai), Me(Ge)))), Kt(n, PB, sj, Hnn), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), xB), fXe), "Upper Layer Estimation Scaling Factor [MinWidth Layerer]"), "Multiplied with Upper Bound On Width for defining an upper bound on the width of layers which haven't been determined yet, but whose maximum width had been (roughly) estimated by the MinWidth algorithm. Compensates for too high estimations. If set to '-1' multiple values are tested and the best result is selected."), Y(2)), hr), Ai), Me(Ge)))), Kt(n, xB, sj, znn), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), OB), hXe), "Node Promotion Strategy"), "Reduces number of dummy nodes after layering phase (if possible)."), Gfe), qt), cle), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), DB), hXe), "Max Node Promotion Iterations"), "Limits the number of iterations for node promotion."), Y(0)), hr), Ai), Me(Ge)))), Kt(n, DB, OB, null), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), LB), "layering.coffmanGraham"), "Layer Bound"), "The maximum number of nodes allowed per layer."), Y(dt)), hr), Ai), Me(Ge)))), Kt(n, LB, sj, Bnn), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), y9), Zv), "Crossing Minimization Strategy"), "Strategy for crossing minimization."), xfe), qt), Roe), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Kie), Zv), "Force Node Model Order"), "The node order given by the model does not change to produce a better layout. E.g. if node A is before node B in the model this is not changed during crossing minimization. This assumes that the node model order is already respected before crossing minimization. This can be achieved by setting considerModelOrder.strategy to NODES_AND_EDGES."), !1), Si), Zt), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), NB), Zv), "Hierarchical Sweepiness"), "How likely it is to use cross-hierarchy (1) vs bottom-up (-1)."), 0.1), Zi), pi), Me(Ge)))), Kt(n, NB, eC, fnn), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), FB), Zv), "Semi-Interactive Crossing Minimization"), "Preserves the order of nodes within a layer but still minimizes crossings between edges connecting long edge dummies. Derives the desired order from positions specified by the 'org.eclipse.elk.position' layout option. Requires a crossing minimization strategy that is able to process 'in-layer' constraints."), !1), Si), Zt), Me(Ge)))), Kt(n, FB, y9, wnn), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Xie), Zv), "In Layer Predecessor of"), "Allows to set a constraint which specifies of which node the current node is the predecessor. If set to 's' then the node is the predecessor of 's' and is in the same layer"), null), z3), de), Me(li)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Wie), Zv), "In Layer Successor of"), "Allows to set a constraint which specifies of which node the current node is the successor. If set to 's' then the node is the successor of 's' and is in the same layer"), null), z3), de), Me(li)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Vie), Zv), "Position Choice Constraint"), "Allows to set a constraint regarding the position placement of a node in a layer. Assumed the layer in which the node placed includes n other nodes and i < n. If set to i, it expresses that the node should be placed at the i-th position. Should i>=n be true then the node is placed at the last position in the layer. Note that this option is not part of any of ELK Layered's default configurations but is only evaluated as part of the `InteractiveLayeredGraphVisitor`, which must be applied manually or used via the `DiagramLayoutEngine."), null), hr), Ai), Me(li)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Qie), Zv), "Position ID"), "Position within a layer that was determined by ELK Layered for a node. This is only generated if interactiveLayot or generatePositionAndLayerIds is set."), Y(-1)), hr), Ai), Me(li)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Yie), lXe), "Greedy Switch Activation Threshold"), "By default it is decided automatically if the greedy switch is activated or not. The decision is based on whether the size of the input graph (without dummy nodes) is smaller than the value of this option. A '0' enforces the activation."), Y(40)), hr), Ai), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), RB), lXe), "Greedy Switch Crossing Minimization"), "Greedy Switch strategy for crossing minimization. The greedy switch heuristic is executed after the regular crossing minimization as a post-processor. Note that if 'hierarchyHandling' is set to 'INCLUDE_CHILDREN', the 'greedySwitchHierarchical.type' option must be used."), Pfe), qt), RG), Me(Ge)))), Kt(n, RB, y9, snn), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), GI), "crossingMinimization.greedySwitchHierarchical"), "Greedy Switch Crossing Minimization (hierarchical)"), "Activates the greedy switch heuristic in case hierarchical layout is used. The differences to the non-hierarchical case (see 'greedySwitch.type') are: 1) greedy switch is inactive by default, 3) only the option value set on the node at which hierarchical layout starts is relevant, and 2) if it's activated by the user, it properly addresses hierarchy-crossing edges."), $fe), qt), RG), Me(Ge)))), Kt(n, GI, y9, rnn), Kt(n, GI, eC, cnn), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), g2), aXe), "Node Placement Strategy"), "Strategy for node placement."), Vfe), qt), ele), Me(Ge)))), Ee(n, new we(ye(ke(je(ge(ve(pe(me(new be(), qI), aXe), "Favor Straight Edges Over Balancing"), "Favor straight edges over a balanced node placement. The default behavior is determined automatically based on the used 'edgeRouting'. For an orthogonal style it is set to true, for all other styles to false."), Si), Zt), Me(Ge)))), Kt(n, qI, g2, ftn), Kt(n, qI, g2, htn), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), BB), dXe), "BK Edge Straightening"), "Specifies whether the Brandes Koepf node placer tries to increase the number of straight edges at the expense of diagram size. There is a subtle difference to the 'favorStraightEdges' option, which decides whether a balanced placement of the nodes is desired, or not. In bk terms this means combining the four alignments into a single balanced one, or not. This option on the other hand tries to straighten additional edges during the creation of each of the four alignments."), Kfe), qt), Koe), Me(Ge)))), Kt(n, BB, g2, ctn), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), _B), dXe), "BK Fixed Alignment"), "Tells the BK node placer to use a certain alignment (out of its four) instead of the one producing the smallest height, or the combination of all four."), Xfe), qt), Yoe), Me(Ge)))), Kt(n, _B, g2, stn), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), JB), "nodePlacement.linearSegments"), "Linear Segments Deflection Dampening"), "Dampens the movement of nodes to keep the diagram from getting too large."), 0.3), Zi), pi), Me(Ge)))), Kt(n, JB, g2, atn), Ee(n, new we(ye(ke(je(ge(ve(pe(me(new be(), GB), "nodePlacement.networkSimplex"), "Node Flexibility"), "Aims at shorter and straighter edges. Two configurations are possible: (a) allow ports to move freely on the side they are assigned to (the order is always defined beforehand), (b) additionally allow to enlarge a node wherever it helps. If this option is not configured for a node, the 'nodeFlexibility.default' value is used, which is specified for the node's parent."), qt), Eq), Me(li)))), Kt(n, GB, g2, gtn), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), qB), "nodePlacement.networkSimplex.nodeFlexibility"), "Node Flexibility Default"), "Default value of the 'nodeFlexibility' option for the children of a hierarchical node."), Wfe), qt), Eq), Me(Ge)))), Kt(n, qB, g2, wtn), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Zie), bXe), "Self-Loop Distribution"), "Alter the distribution of the loops around the node. It only takes effect for PortConstraints.FREE."), Ffe), qt), lle), Me(li)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), ere), bXe), "Self-Loop Ordering"), "Alter the ordering of the loops they can either be stacked or sequenced. It only takes effect for PortConstraints.FREE."), Rfe), qt), ale), Me(li)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), HI), "edgeRouting.splines"), "Spline Routing Mode"), "Specifies the way control points are assembled for each individual edge. CONSERVATIVE ensures that edges are properly routed around the nodes but feels rather orthogonal at times. SLOPPY uses fewer control points to obtain curvier edge routes but may result in edges overlapping nodes."), Bfe), qt), ble), Me(Ge)))), Kt(n, HI, fj, Tnn), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), UI), "edgeRouting.splines.sloppy"), "Sloppy Spline Layer Spacing Factor"), "Spacing factor for routing area between layers when using sloppy spline routing."), 0.2), Zi), pi), Me(Ge)))), Kt(n, UI, fj, Inn), Kt(n, UI, HI, Cnn), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), HB), "edgeRouting.polyline"), "Sloped Edge Zone Width"), "Width of the strip to the left and to the right of each layer where the polyline edge router is allowed to refrain from ensuring that edges are routed horizontally. This prevents awkward bend points for nodes that extent almost to the edge of their layer."), 2), Zi), pi), Me(Ge)))), Kt(n, HB, fj, jnn), Ee(n, new we(ye(ke(je(ge(ve(pe(me(new be(), nre), uh), "Spacing Base Value"), "An optional base value for all other layout options of the 'spacing' group. It can be used to conveniently alter the overall 'spaciousness' of the drawing. Whenever an explicit value is set for the other layout options, this base value will have no effect. The base value is not inherited, i.e. it must be set for each hierarchical node."), Zi), pi), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), tre), uh), "Edge Node Between Layers Spacing"), "The spacing to be preserved between nodes and edges that are routed next to the node's layer. For the spacing between nodes and edges that cross the node's layer 'spacing.edgeNode' is used."), 10), Zi), pi), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), ire), uh), "Edge Edge Between Layer Spacing"), "Spacing to be preserved between pairs of edges that are routed between the same pair of layers. Note that 'spacing.edgeEdge' is used for the spacing between pairs of edges crossing the same layer."), 10), Zi), pi), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), rre), uh), "Node Node Between Layers Spacing"), "The spacing to be preserved between any pair of nodes of two adjacent layers. Note that 'spacing.nodeNode' is used for the spacing between nodes within the layer itself."), 20), Zi), pi), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), cre), pre), "Direction Priority"), "Defines how important it is to have a certain edge point into the direction of the overall layout. This option is evaluated during the cycle breaking phase."), Y(0)), hr), Ai), Me(Ff)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), ure), pre), "Shortness Priority"), "Defines how important it is to keep an edge as short as possible. This option is evaluated during the layering phase."), Y(0)), hr), Ai), Me(Ff)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), sre), pre), "Straightness Priority"), "Defines how important it is to keep an edge straight, i.e. aligned with one of the two axes. This option is evaluated during node placement."), Y(0)), hr), Ai), Me(Ff)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), UB), mre), "Connected Components Compaction"), "Tries to further compact components (disconnected sub-graphs)."), !1), Si), Zt), Me(Ge)))), Kt(n, UB, w9, !0), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), ore), wXe), "Post Compaction Strategy"), gXe), Efe), qt), rfe), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), fre), wXe), "Post Compaction Constraint Calculation"), gXe), jfe), qt), Loe), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), zI), vre), "High Degree Node Treatment"), "Makes room around high degree nodes to place leafs and trees."), !1), Si), Zt), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), zB), vre), "High Degree Node Threshold"), "Whether a node is considered to have a high degree."), Y(16)), hr), Ai), Me(Ge)))), Kt(n, zB, zI, !0), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), KB), vre), "High Degree Node Maximum Tree Height"), "Maximum height of a subtree connected to a high degree node to be moved to separate layers."), Y(5)), hr), Ai), Me(Ge)))), Kt(n, KB, zI, !0), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), _l), kre), "Graph Wrapping Strategy"), "For certain graphs and certain prescribed drawing areas it may be desirable to split the laid out graph into chunks that are placed side by side. The edges that connect different chunks are 'wrapped' around from the end of one chunk to the start of the other chunk. The points between the chunks are referred to as 'cuts'."), ehe), qt), mle), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), KI), kre), "Additional Wrapped Edges Spacing"), "To visually separate edges that are wrapped from regularly routed edges an additional spacing value can be specified in form of this layout option. The spacing is added to the regular edgeNode spacing."), 10), Zi), pi), Me(Ge)))), Kt(n, KI, _l, Ctn), Kt(n, KI, _l, $tn), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), XI), kre), "Correction Factor for Wrapping"), "At times and for certain types of graphs the executed wrapping may produce results that are consistently biased in the same fashion: either wrapping to often or to rarely. This factor can be used to correct the bias. Internally, it is simply multiplied with the 'aspect ratio' layout option."), 1), Zi), pi), Me(Ge)))), Kt(n, XI, _l, xtn), Kt(n, XI, _l, Otn), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), j9), pXe), "Cutting Strategy"), "The strategy by which the layer indexes are determined at which the layering crumbles into chunks."), Zfe), qt), _oe), Me(Ge)))), Kt(n, j9, _l, Btn), Kt(n, j9, _l, _tn), Ee(n, new we(ye(ke(je(ge(ve(pe(me(new be(), XB), pXe), "Manually Specified Cuts"), "Allows the user to specify her own cuts for a certain graph."), lh), Us), Me(Ge)))), Kt(n, XB, j9, Ltn), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), WB), "wrapping.cutting.msd"), "MSD Freedom"), "The MSD cutting strategy starts with an initial guess on the number of chunks the graph should be split into. The freedom specifies how much the strategy may deviate from this guess. E.g. if an initial number of 3 is computed, a freedom of 1 allows 2, 3, and 4 cuts."), Yfe), hr), Ai), Me(Ge)))), Kt(n, WB, j9, Ftn), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), WI), mXe), "Validification Strategy"), "When wrapping graphs, one can specify indices that are not allowed as split points. The validification strategy makes sure every computed split point is allowed."), nhe), qt), ple), Me(Ge)))), Kt(n, WI, _l, Ytn), Kt(n, WI, _l, Ztn), Ee(n, new we(ye(ke(je(ge(ve(pe(me(new be(), VI), mXe), "Valid Indices for Wrapping"), null), lh), Us), Me(Ge)))), Kt(n, VI, _l, Wtn), Kt(n, VI, _l, Vtn), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), QI), yre), "Improve Cuts"), "For general graphs it is important that not too many edges wrap backwards. Thus a compromise between evenly-distributed cuts and the total number of cut edges is sought."), !0), Si), Zt), Me(Ge)))), Kt(n, QI, _l, Htn), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), YI), yre), "Distance Penalty When Improving Cuts"), null), 2), Zi), pi), Me(Ge)))), Kt(n, YI, _l, Gtn), Kt(n, YI, QI, !0), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), VB), yre), "Improve Wrapped Edges"), "The initial wrapping is performed in a very simple way. As a consequence, edges that wrap from one chunk to another may be unnecessarily long. Activating this option tries to shorten such edges."), !0), Si), Zt), Me(Ge)))), Kt(n, VB, _l, ztn), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), QB), h_), "Layer Unzipping Strategy"), "The strategy to use for unzipping a layer into multiple sublayers while maintaining the existing ordering of nodes and edges after crossing minimization. The default value is 'NONE'."), zfe), qt), yfe), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), YB), h_), "Minimize Edge Length Heuristic"), "Use a heuristic to decide whether or not to actually perform the layer split with the goal of minimizing the total edge length. This option only works when layerSplit is set to 2. The property can be set to the nodes in a layer, which then applies the property for the layer. If any node sets the value to true, then the value is set to true for the entire layer."), !1), Si), Zt), Me(li)))), Kt(n, YB, ZB, Ynn), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), ZB), h_), "Unzipping Layer Split"), "Defines the number of sublayers to split a layer into. The property can be set to the nodes in a layer, which then applies the property for the layer. If multiple nodes set the value to different values, then the lowest value is chosen."), Hfe), hr), Ai), Me(li)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), e_), h_), "Reset Alternation on Long Edges"), "If set to true, nodes will always be placed in the first sublayer after a long edge when using the ALTERNATING strategy. Otherwise long edge dummies are treated the same as regular nodes. The default value is true. The property can be set to the nodes in a layer, which then applies the property for the layer. If any node sets the value to false, then the value is set to false for the entire layer."), Ufe), Si), Zt), Me(li)))), Kt(n, e_, QB, etn), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), hre), l_), "Edge Label Side Selection"), "Method to decide on edge label sides."), Nfe), qt), Uoe), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), lre), l_), "Edge Center Label Placement Strategy"), "Determines in which layer center labels of long edges should be placed."), Lfe), qt), A5), Pt(Ge, I(S(hh, 1), ee, 160, 0, [zl]))))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), ZI), E9), "Consider Model Order"), "Preserves the order of nodes and edges in the model file if this does not lead to additional edge crossings. Depending on the strategy this is not always possible since the node and edge order might be conflicting."), Cfe), qt), sle), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), are), E9), "Consider Port Order"), "If disabled the port order of output ports is derived from the edge order and input ports are ordered by their incoming connections. If enabled all ports are ordered by the port model order."), !1), Si), Zt), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), oj), E9), "No Model Order"), "Set on a node to not set a model order for this node even though it is a real node."), !1), Si), Zt), Me(li)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), n_), E9), "Consider Model Order for Components"), "If set to NONE the usual ordering strategy (by cumulative node priority and size of nodes) is used. INSIDE_PORT_SIDES orders the components with external ports only inside the groups with the same port side. FORCE_MODEL_ORDER enforces the mode order on components. This option might produce bad alignments and sub optimal drawings in terms of used area since the ordering should be respected."), Afe), qt), _se), Me(Ge)))), Kt(n, n_, w9, null), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), dre), E9), "Long Edge Ordering Strategy"), "Indicates whether long edges are sorted under, over, or equal to nodes that have no connection to a previous layer in a left-to-right or right-to-left layout. Under and over changes to right and left in a vertical layout."), Ife), qt), Yhe), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), t_), E9), "Crossing Counter Node Order Influence"), "Indicates with what percentage (1 for 100%) violations of the node model order are weighted against the crossings e.g. a value of 0.5 means two model order violations are as important as on edge crossing. This allows some edge crossings in favor of preserving the model order. It is advised to set this value to a very small positive value (e.g. 0.001) to have minimal crossing and a optimal node order. Defaults to no influence (0)."), 0), Zi), pi), Me(Ge)))), Kt(n, t_, ZI, null), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), i_), E9), "Crossing Counter Port Order Influence"), "Indicates with what percentage (1 for 100%) violations of the port model order are weighted against the crossings e.g. a value of 0.5 means two model order violations are as important as on edge crossing. This allows some edge crossings in favor of preserving the model order. It is advised to set this value to a very small positive value (e.g. 0.001) to have minimal crossing and a optimal port order. Defaults to no influence (0)."), 0), Zi), pi), Me(Ge)))), Kt(n, i_, ZI, null), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), r_), e5), jre), "Used to define partial ordering groups during cycle breaking. A lower group id means that the group is sorted before other groups. A group model order of 0 is the default group."), Y(0)), hr), Ai), Me(li)))), Kt(n, r_, oj, !1), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), c_), e5), jre), "Used to define partial ordering groups during crossing minimization. A lower group id means that the group is sorted before other groups. A group model order of 0 is the default group."), Y(0)), hr), Ai), Pt(li, I(S(hh, 1), ee, 160, 0, [Ff, x1]))))), Kt(n, c_, oj, !1), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), u_), e5), jre), "Used to define partial ordering groups during component packing. A lower group id means that the group is sorted before other groups. A group model order of 0 is the default group."), Y(0)), hr), Ai), Pt(li, I(S(hh, 1), ee, 160, 0, [Ff, x1]))))), Kt(n, u_, oj, !1), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), bre), e5), "Cycle Breaking Group Ordering Strategy"), "Determines how to count ordering violations during cycle breaking. NONE: They do not count. ENFORCED: A group with a higher model order is before a node with a smaller. MODEL_ORDER: The model order counts instead of the model order group id ordering."), Mfe), qt), BG), Me(Ge)))), Ee(n, new we(ye(ke(je(ge(ve(pe(me(new be(), s_), e5), "Cycle Breaking Preferred Source Id"), "The model order group id for which should be preferred as a source if possible."), hr), Ai), Me(Ge)))), Kt(n, s_, uj, qen), Ee(n, new we(ye(ke(je(ge(ve(pe(me(new be(), o_), e5), "Cycle Breaking Preferred Target Id"), "The model order group id for which should be preferred as a target if possible."), hr), Ai), Me(Ge)))), Kt(n, o_, uj, Uen), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), wre), e5), "Crossing Minimization Group Ordering Strategy"), "Determines how to count ordering violations during crossing minimization. NONE: They do not count. ENFORCED: A group with a lower id is before a group with a higher id. MODEL_ORDER: The model order counts instead of the model order group id ordering."), Sfe), qt), BG), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), gre), e5), "Crossing Minimization Enforced Group Orders"), "Holds all group ids which are enforcing their order during crossing minimization strategies. E.g. if only groups 2 and -1 (default) enforce their ordering. Other groups e.g. the group of timer nodes can be ordered arbitrarily if it helps and the mentioned groups may not change their order."), Tfe), lh), Us), Me(Ge)))), Rze((new n9e(), n));
+              Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Lie), ""), "Direction Congruency"), "Specifies how drawings of the same graph with different layout directions compare to each other: either a natural reading direction is preserved or the drawings are rotated versions of each other."), Dfe), (Id(), qt)), Hoe), Me((Ih(), Ge))))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Nie), ""), "Feedback Edges"), "Whether feedback edges should be highlighted by routing around the nodes."), (Xe(), !1)), Si), Zt), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), JI), ""), "Interactive Reference Point"), "Determines which point of a node is considered by interactive layout phases."), _fe), qt), sfe), Me(Ge)))), Kt(n, JI, uj, Fnn), Kt(n, JI, y9, Nnn), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Fie), ""), "Merge Edges"), "Edges that have no ports are merged so they touch the connected nodes at the same points. When this option is disabled, one port is created for each edge directly connected to a node. When it is enabled, all such incoming edges share an input port, and all outgoing edges share an output port."), !1), Si), Zt), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Rie), ""), "Merge Hierarchy-Crossing Edges"), "If hierarchical layout is active, hierarchy-crossing edges use as few hierarchical ports as possible. They are broken by the algorithm, with hierarchical ports inserted as required. Usually, one such port is created for each edge at each hierarchy crossing point. With this option set to true, we try to create as few hierarchical ports as possible in the process. In particular, all edges that form a hyperedge can share a port."), !0), Si), Zt), Me(Ge)))), Ae(n, new ge(Sln(je(ye(Ee($e(pe(ke(me(ve(new we(), Bie), ""), "Allow Non-Flow Ports To Switch Sides"), "Specifies whether non-flow ports may switch sides if their node's port constraints are either FIXED_SIDE or FIXED_ORDER. A non-flow port is a port on a side that is not part of the currently configured layout flow. For instance, given a left-to-right layout direction, north and south ports would be considered non-flow ports. Further note that the underlying criterium whether to switch sides or not solely relies on the minimization of edge crossings. Hence, edge length and other aesthetics criteria are not addressed."), !1), Si), Zt), Me(x1)), I(S(de, 1), ie, 2, 6, ["org.eclipse.elk.layered.northOrSouthPort"])))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), _ie), ""), "Port Sorting Strategy"), "Only relevant for nodes with FIXED_SIDE port constraints. Determines the way a node's ports are distributed on the sides of a node if their order is not prescribed. The option is set on parent nodes."), Qfe), qt), ole), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Jie), ""), "Thoroughness"), "How much effort should be spent to produce a nice layout."), Y(7)), hr), Ai), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Gie), ""), "Add Unnecessary Bendpoints"), "Adds bend points even if an edge does not change direction. If true, each long edge dummy will contribute a bend point to its edges and hierarchy-crossing edges will always get a bend point where they cross hierarchy boundaries. By default, bend points are only added where an edge changes direction."), !1), Si), Zt), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), qie), ""), "Generate Position and Layer IDs"), "If enabled position id and layer id are generated, which are usually only used internally when setting the interactiveLayout option. This option should be specified on the root node."), !1), Si), Zt), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), uj), "cycleBreaking"), "Cycle Breaking Strategy"), "Strategy for cycle breaking. Cycle breaking looks for cycles in the graph and determines which edges to reverse to break the cycles. Reversed edges will end up pointing to the opposite direction of regular edges (that is, reversed edges will point left if edges usually point right)."), Ofe), qt), Goe), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), sj), f_), "Node Layering Strategy"), "Strategy for node layering."), qfe), qt), Vhe), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Hie), f_), "Layer Constraint"), "Determines a constraint on the placement of the node regarding the layering."), Jfe), qt), kfe), Me(li)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Uie), f_), "Layer Choice Constraint"), "Allows to set a constraint regarding the layer placement of a node. Let i be the value of teh constraint. Assumed the drawing has n layers and i < n. If set to i, it expresses that the node should be placed in i-th layer. Should i>=n be true then the node is placed in the last layer of the drawing. Note that this option is not part of any of ELK Layered's default configurations but is only evaluated as part of the `InteractiveLayeredGraphVisitor`, which must be applied manually or used via the `DiagramLayoutEngine."), null), hr), Ai), Me(li)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), zie), f_), "Layer ID"), "Layer identifier that was calculated by ELK Layered for a node. This is only generated if interactiveLayot or generatePositionAndLayerIds is set."), Y(-1)), hr), Ai), Me(li)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), PB), fXe), "Upper Bound On Width [MinWidth Layerer]"), "Defines a loose upper bound on the width of the MinWidth layerer. If set to '-1' multiple values are tested and the best result is selected."), Y(4)), hr), Ai), Me(Ge)))), Kt(n, PB, sj, Hnn), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), xB), fXe), "Upper Layer Estimation Scaling Factor [MinWidth Layerer]"), "Multiplied with Upper Bound On Width for defining an upper bound on the width of layers which haven't been determined yet, but whose maximum width had been (roughly) estimated by the MinWidth algorithm. Compensates for too high estimations. If set to '-1' multiple values are tested and the best result is selected."), Y(2)), hr), Ai), Me(Ge)))), Kt(n, xB, sj, znn), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), OB), hXe), "Node Promotion Strategy"), "Reduces number of dummy nodes after layering phase (if possible)."), Gfe), qt), cle), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), DB), hXe), "Max Node Promotion Iterations"), "Limits the number of iterations for node promotion."), Y(0)), hr), Ai), Me(Ge)))), Kt(n, DB, OB, null), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), LB), "layering.coffmanGraham"), "Layer Bound"), "The maximum number of nodes allowed per layer."), Y(dt)), hr), Ai), Me(Ge)))), Kt(n, LB, sj, Bnn), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), y9), Zv), "Crossing Minimization Strategy"), "Strategy for crossing minimization."), xfe), qt), Roe), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Kie), Zv), "Force Node Model Order"), "The node order given by the model does not change to produce a better layout. E.g. if node A is before node B in the model this is not changed during crossing minimization. This assumes that the node model order is already respected before crossing minimization. This can be achieved by setting considerModelOrder.strategy to NODES_AND_EDGES."), !1), Si), Zt), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), NB), Zv), "Hierarchical Sweepiness"), "How likely it is to use cross-hierarchy (1) vs bottom-up (-1)."), 0.1), Zi), pi), Me(Ge)))), Kt(n, NB, eC, fnn), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), FB), Zv), "Semi-Interactive Crossing Minimization"), "Preserves the order of nodes within a layer but still minimizes crossings between edges connecting long edge dummies. Derives the desired order from positions specified by the 'org.eclipse.elk.position' layout option. Requires a crossing minimization strategy that is able to process 'in-layer' constraints."), !1), Si), Zt), Me(Ge)))), Kt(n, FB, y9, wnn), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Xie), Zv), "In Layer Predecessor of"), "Allows to set a constraint which specifies of which node the current node is the predecessor. If set to 's' then the node is the predecessor of 's' and is in the same layer"), null), z3), de), Me(li)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Wie), Zv), "In Layer Successor of"), "Allows to set a constraint which specifies of which node the current node is the successor. If set to 's' then the node is the successor of 's' and is in the same layer"), null), z3), de), Me(li)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Vie), Zv), "Position Choice Constraint"), "Allows to set a constraint regarding the position placement of a node in a layer. Assumed the layer in which the node placed includes n other nodes and i < n. If set to i, it expresses that the node should be placed at the i-th position. Should i>=n be true then the node is placed at the last position in the layer. Note that this option is not part of any of ELK Layered's default configurations but is only evaluated as part of the `InteractiveLayeredGraphVisitor`, which must be applied manually or used via the `DiagramLayoutEngine."), null), hr), Ai), Me(li)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Qie), Zv), "Position ID"), "Position within a layer that was determined by ELK Layered for a node. This is only generated if interactiveLayot or generatePositionAndLayerIds is set."), Y(-1)), hr), Ai), Me(li)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Yie), lXe), "Greedy Switch Activation Threshold"), "By default it is decided automatically if the greedy switch is activated or not. The decision is based on whether the size of the input graph (without dummy nodes) is smaller than the value of this option. A '0' enforces the activation."), Y(40)), hr), Ai), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), RB), lXe), "Greedy Switch Crossing Minimization"), "Greedy Switch strategy for crossing minimization. The greedy switch heuristic is executed after the regular crossing minimization as a post-processor. Note that if 'hierarchyHandling' is set to 'INCLUDE_CHILDREN', the 'greedySwitchHierarchical.type' option must be used."), Pfe), qt), RG), Me(Ge)))), Kt(n, RB, y9, snn), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), GI), "crossingMinimization.greedySwitchHierarchical"), "Greedy Switch Crossing Minimization (hierarchical)"), "Activates the greedy switch heuristic in case hierarchical layout is used. The differences to the non-hierarchical case (see 'greedySwitch.type') are: 1) greedy switch is inactive by default, 3) only the option value set on the node at which hierarchical layout starts is relevant, and 2) if it's activated by the user, it properly addresses hierarchy-crossing edges."), $fe), qt), RG), Me(Ge)))), Kt(n, GI, y9, rnn), Kt(n, GI, eC, cnn), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), g2), aXe), "Node Placement Strategy"), "Strategy for node placement."), Vfe), qt), ele), Me(Ge)))), Ae(n, new ge(je(ye(Ee(pe(ke(me(ve(new we(), qI), aXe), "Favor Straight Edges Over Balancing"), "Favor straight edges over a balanced node placement. The default behavior is determined automatically based on the used 'edgeRouting'. For an orthogonal style it is set to true, for all other styles to false."), Si), Zt), Me(Ge)))), Kt(n, qI, g2, ftn), Kt(n, qI, g2, htn), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), BB), dXe), "BK Edge Straightening"), "Specifies whether the Brandes Koepf node placer tries to increase the number of straight edges at the expense of diagram size. There is a subtle difference to the 'favorStraightEdges' option, which decides whether a balanced placement of the nodes is desired, or not. In bk terms this means combining the four alignments into a single balanced one, or not. This option on the other hand tries to straighten additional edges during the creation of each of the four alignments."), Kfe), qt), Koe), Me(Ge)))), Kt(n, BB, g2, ctn), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), _B), dXe), "BK Fixed Alignment"), "Tells the BK node placer to use a certain alignment (out of its four) instead of the one producing the smallest height, or the combination of all four."), Xfe), qt), Yoe), Me(Ge)))), Kt(n, _B, g2, stn), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), JB), "nodePlacement.linearSegments"), "Linear Segments Deflection Dampening"), "Dampens the movement of nodes to keep the diagram from getting too large."), 0.3), Zi), pi), Me(Ge)))), Kt(n, JB, g2, atn), Ae(n, new ge(je(ye(Ee(pe(ke(me(ve(new we(), GB), "nodePlacement.networkSimplex"), "Node Flexibility"), "Aims at shorter and straighter edges. Two configurations are possible: (a) allow ports to move freely on the side they are assigned to (the order is always defined beforehand), (b) additionally allow to enlarge a node wherever it helps. If this option is not configured for a node, the 'nodeFlexibility.default' value is used, which is specified for the node's parent."), qt), Eq), Me(li)))), Kt(n, GB, g2, gtn), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), qB), "nodePlacement.networkSimplex.nodeFlexibility"), "Node Flexibility Default"), "Default value of the 'nodeFlexibility' option for the children of a hierarchical node."), Wfe), qt), Eq), Me(Ge)))), Kt(n, qB, g2, wtn), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Zie), bXe), "Self-Loop Distribution"), "Alter the distribution of the loops around the node. It only takes effect for PortConstraints.FREE."), Ffe), qt), lle), Me(li)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), ere), bXe), "Self-Loop Ordering"), "Alter the ordering of the loops they can either be stacked or sequenced. It only takes effect for PortConstraints.FREE."), Rfe), qt), ale), Me(li)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), HI), "edgeRouting.splines"), "Spline Routing Mode"), "Specifies the way control points are assembled for each individual edge. CONSERVATIVE ensures that edges are properly routed around the nodes but feels rather orthogonal at times. SLOPPY uses fewer control points to obtain curvier edge routes but may result in edges overlapping nodes."), Bfe), qt), ble), Me(Ge)))), Kt(n, HI, fj, Tnn), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), UI), "edgeRouting.splines.sloppy"), "Sloppy Spline Layer Spacing Factor"), "Spacing factor for routing area between layers when using sloppy spline routing."), 0.2), Zi), pi), Me(Ge)))), Kt(n, UI, fj, Inn), Kt(n, UI, HI, Cnn), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), HB), "edgeRouting.polyline"), "Sloped Edge Zone Width"), "Width of the strip to the left and to the right of each layer where the polyline edge router is allowed to refrain from ensuring that edges are routed horizontally. This prevents awkward bend points for nodes that extent almost to the edge of their layer."), 2), Zi), pi), Me(Ge)))), Kt(n, HB, fj, jnn), Ae(n, new ge(je(ye(Ee(pe(ke(me(ve(new we(), nre), uh), "Spacing Base Value"), "An optional base value for all other layout options of the 'spacing' group. It can be used to conveniently alter the overall 'spaciousness' of the drawing. Whenever an explicit value is set for the other layout options, this base value will have no effect. The base value is not inherited, i.e. it must be set for each hierarchical node."), Zi), pi), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), tre), uh), "Edge Node Between Layers Spacing"), "The spacing to be preserved between nodes and edges that are routed next to the node's layer. For the spacing between nodes and edges that cross the node's layer 'spacing.edgeNode' is used."), 10), Zi), pi), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), ire), uh), "Edge Edge Between Layer Spacing"), "Spacing to be preserved between pairs of edges that are routed between the same pair of layers. Note that 'spacing.edgeEdge' is used for the spacing between pairs of edges crossing the same layer."), 10), Zi), pi), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), rre), uh), "Node Node Between Layers Spacing"), "The spacing to be preserved between any pair of nodes of two adjacent layers. Note that 'spacing.nodeNode' is used for the spacing between nodes within the layer itself."), 20), Zi), pi), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), cre), pre), "Direction Priority"), "Defines how important it is to have a certain edge point into the direction of the overall layout. This option is evaluated during the cycle breaking phase."), Y(0)), hr), Ai), Me(Ff)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), ure), pre), "Shortness Priority"), "Defines how important it is to keep an edge as short as possible. This option is evaluated during the layering phase."), Y(0)), hr), Ai), Me(Ff)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), sre), pre), "Straightness Priority"), "Defines how important it is to keep an edge straight, i.e. aligned with one of the two axes. This option is evaluated during node placement."), Y(0)), hr), Ai), Me(Ff)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), UB), mre), "Connected Components Compaction"), "Tries to further compact components (disconnected sub-graphs)."), !1), Si), Zt), Me(Ge)))), Kt(n, UB, w9, !0), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), ore), wXe), "Post Compaction Strategy"), gXe), Efe), qt), rfe), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), fre), wXe), "Post Compaction Constraint Calculation"), gXe), jfe), qt), Loe), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), zI), vre), "High Degree Node Treatment"), "Makes room around high degree nodes to place leafs and trees."), !1), Si), Zt), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), zB), vre), "High Degree Node Threshold"), "Whether a node is considered to have a high degree."), Y(16)), hr), Ai), Me(Ge)))), Kt(n, zB, zI, !0), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), KB), vre), "High Degree Node Maximum Tree Height"), "Maximum height of a subtree connected to a high degree node to be moved to separate layers."), Y(5)), hr), Ai), Me(Ge)))), Kt(n, KB, zI, !0), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), _l), kre), "Graph Wrapping Strategy"), "For certain graphs and certain prescribed drawing areas it may be desirable to split the laid out graph into chunks that are placed side by side. The edges that connect different chunks are 'wrapped' around from the end of one chunk to the start of the other chunk. The points between the chunks are referred to as 'cuts'."), ehe), qt), mle), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), KI), kre), "Additional Wrapped Edges Spacing"), "To visually separate edges that are wrapped from regularly routed edges an additional spacing value can be specified in form of this layout option. The spacing is added to the regular edgeNode spacing."), 10), Zi), pi), Me(Ge)))), Kt(n, KI, _l, Ctn), Kt(n, KI, _l, $tn), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), XI), kre), "Correction Factor for Wrapping"), "At times and for certain types of graphs the executed wrapping may produce results that are consistently biased in the same fashion: either wrapping to often or to rarely. This factor can be used to correct the bias. Internally, it is simply multiplied with the 'aspect ratio' layout option."), 1), Zi), pi), Me(Ge)))), Kt(n, XI, _l, xtn), Kt(n, XI, _l, Otn), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), j9), pXe), "Cutting Strategy"), "The strategy by which the layer indexes are determined at which the layering crumbles into chunks."), Zfe), qt), _oe), Me(Ge)))), Kt(n, j9, _l, Btn), Kt(n, j9, _l, _tn), Ae(n, new ge(je(ye(Ee(pe(ke(me(ve(new we(), XB), pXe), "Manually Specified Cuts"), "Allows the user to specify her own cuts for a certain graph."), lh), Us), Me(Ge)))), Kt(n, XB, j9, Ltn), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), WB), "wrapping.cutting.msd"), "MSD Freedom"), "The MSD cutting strategy starts with an initial guess on the number of chunks the graph should be split into. The freedom specifies how much the strategy may deviate from this guess. E.g. if an initial number of 3 is computed, a freedom of 1 allows 2, 3, and 4 cuts."), Yfe), hr), Ai), Me(Ge)))), Kt(n, WB, j9, Ftn), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), WI), mXe), "Validification Strategy"), "When wrapping graphs, one can specify indices that are not allowed as split points. The validification strategy makes sure every computed split point is allowed."), nhe), qt), ple), Me(Ge)))), Kt(n, WI, _l, Ytn), Kt(n, WI, _l, Ztn), Ae(n, new ge(je(ye(Ee(pe(ke(me(ve(new we(), VI), mXe), "Valid Indices for Wrapping"), null), lh), Us), Me(Ge)))), Kt(n, VI, _l, Wtn), Kt(n, VI, _l, Vtn), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), QI), yre), "Improve Cuts"), "For general graphs it is important that not too many edges wrap backwards. Thus a compromise between evenly-distributed cuts and the total number of cut edges is sought."), !0), Si), Zt), Me(Ge)))), Kt(n, QI, _l, Htn), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), YI), yre), "Distance Penalty When Improving Cuts"), null), 2), Zi), pi), Me(Ge)))), Kt(n, YI, _l, Gtn), Kt(n, YI, QI, !0), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), VB), yre), "Improve Wrapped Edges"), "The initial wrapping is performed in a very simple way. As a consequence, edges that wrap from one chunk to another may be unnecessarily long. Activating this option tries to shorten such edges."), !0), Si), Zt), Me(Ge)))), Kt(n, VB, _l, ztn), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), QB), h_), "Layer Unzipping Strategy"), "The strategy to use for unzipping a layer into multiple sublayers while maintaining the existing ordering of nodes and edges after crossing minimization. The default value is 'NONE'."), zfe), qt), yfe), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), YB), h_), "Minimize Edge Length Heuristic"), "Use a heuristic to decide whether or not to actually perform the layer split with the goal of minimizing the total edge length. This option only works when layerSplit is set to 2. The property can be set to the nodes in a layer, which then applies the property for the layer. If any node sets the value to true, then the value is set to true for the entire layer."), !1), Si), Zt), Me(li)))), Kt(n, YB, ZB, Ynn), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), ZB), h_), "Unzipping Layer Split"), "Defines the number of sublayers to split a layer into. The property can be set to the nodes in a layer, which then applies the property for the layer. If multiple nodes set the value to different values, then the lowest value is chosen."), Hfe), hr), Ai), Me(li)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), e_), h_), "Reset Alternation on Long Edges"), "If set to true, nodes will always be placed in the first sublayer after a long edge when using the ALTERNATING strategy. Otherwise long edge dummies are treated the same as regular nodes. The default value is true. The property can be set to the nodes in a layer, which then applies the property for the layer. If any node sets the value to false, then the value is set to false for the entire layer."), Ufe), Si), Zt), Me(li)))), Kt(n, e_, QB, etn), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), hre), l_), "Edge Label Side Selection"), "Method to decide on edge label sides."), Nfe), qt), Uoe), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), lre), l_), "Edge Center Label Placement Strategy"), "Determines in which layer center labels of long edges should be placed."), Lfe), qt), A5), Pt(Ge, I(S(hh, 1), ee, 160, 0, [zl]))))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), ZI), E9), "Consider Model Order"), "Preserves the order of nodes and edges in the model file if this does not lead to additional edge crossings. Depending on the strategy this is not always possible since the node and edge order might be conflicting."), Cfe), qt), sle), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), are), E9), "Consider Port Order"), "If disabled the port order of output ports is derived from the edge order and input ports are ordered by their incoming connections. If enabled all ports are ordered by the port model order."), !1), Si), Zt), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), oj), E9), "No Model Order"), "Set on a node to not set a model order for this node even though it is a real node."), !1), Si), Zt), Me(li)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), n_), E9), "Consider Model Order for Components"), "If set to NONE the usual ordering strategy (by cumulative node priority and size of nodes) is used. INSIDE_PORT_SIDES orders the components with external ports only inside the groups with the same port side. FORCE_MODEL_ORDER enforces the mode order on components. This option might produce bad alignments and sub optimal drawings in terms of used area since the ordering should be respected."), Afe), qt), _se), Me(Ge)))), Kt(n, n_, w9, null), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), dre), E9), "Long Edge Ordering Strategy"), "Indicates whether long edges are sorted under, over, or equal to nodes that have no connection to a previous layer in a left-to-right or right-to-left layout. Under and over changes to right and left in a vertical layout."), Ife), qt), Yhe), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), t_), E9), "Crossing Counter Node Order Influence"), "Indicates with what percentage (1 for 100%) violations of the node model order are weighted against the crossings e.g. a value of 0.5 means two model order violations are as important as on edge crossing. This allows some edge crossings in favor of preserving the model order. It is advised to set this value to a very small positive value (e.g. 0.001) to have minimal crossing and a optimal node order. Defaults to no influence (0)."), 0), Zi), pi), Me(Ge)))), Kt(n, t_, ZI, null), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), i_), E9), "Crossing Counter Port Order Influence"), "Indicates with what percentage (1 for 100%) violations of the port model order are weighted against the crossings e.g. a value of 0.5 means two model order violations are as important as on edge crossing. This allows some edge crossings in favor of preserving the model order. It is advised to set this value to a very small positive value (e.g. 0.001) to have minimal crossing and a optimal port order. Defaults to no influence (0)."), 0), Zi), pi), Me(Ge)))), Kt(n, i_, ZI, null), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), r_), e5), jre), "Used to define partial ordering groups during cycle breaking. A lower group id means that the group is sorted before other groups. A group model order of 0 is the default group."), Y(0)), hr), Ai), Me(li)))), Kt(n, r_, oj, !1), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), c_), e5), jre), "Used to define partial ordering groups during crossing minimization. A lower group id means that the group is sorted before other groups. A group model order of 0 is the default group."), Y(0)), hr), Ai), Pt(li, I(S(hh, 1), ee, 160, 0, [Ff, x1]))))), Kt(n, c_, oj, !1), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), u_), e5), jre), "Used to define partial ordering groups during component packing. A lower group id means that the group is sorted before other groups. A group model order of 0 is the default group."), Y(0)), hr), Ai), Pt(li, I(S(hh, 1), ee, 160, 0, [Ff, x1]))))), Kt(n, u_, oj, !1), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), bre), e5), "Cycle Breaking Group Ordering Strategy"), "Determines how to count ordering violations during cycle breaking. NONE: They do not count. ENFORCED: A group with a higher model order is before a node with a smaller. MODEL_ORDER: The model order counts instead of the model order group id ordering."), Mfe), qt), BG), Me(Ge)))), Ae(n, new ge(je(ye(Ee(pe(ke(me(ve(new we(), s_), e5), "Cycle Breaking Preferred Source Id"), "The model order group id for which should be preferred as a source if possible."), hr), Ai), Me(Ge)))), Kt(n, s_, uj, qen), Ae(n, new ge(je(ye(Ee(pe(ke(me(ve(new we(), o_), e5), "Cycle Breaking Preferred Target Id"), "The model order group id for which should be preferred as a target if possible."), hr), Ai), Me(Ge)))), Kt(n, o_, uj, Uen), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), wre), e5), "Crossing Minimization Group Ordering Strategy"), "Determines how to count ordering violations during crossing minimization. NONE: They do not count. ENFORCED: A group with a lower id is before a group with a higher id. MODEL_ORDER: The model order counts instead of the model order group id ordering."), Sfe), qt), BG), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), gre), e5), "Crossing Minimization Enforced Group Orders"), "Holds all group ids which are enforcing their order during crossing minimization strategies. E.g. if only groups 2 and -1 (default) enforce their ordering. Other groups e.g. the group of timer nodes can be ordered arbitrarily if it helps and the mentioned groups may not change their order."), Tfe), lh), Us), Me(Ge)))), Rze((new n9e(), n));
             };
             var Den, Len, Nen, jfe, Fen, Efe, Ren, Afe, Ben, _en, Jen, Mfe, Gen, qen, Hen, Uen, zen, Tfe, Ken, Sfe, Xen, Wen, Ven, Qen, Ife, Yen, Zen, enn, Cfe, nnn, tnn, inn, $fe, rnn, cnn, unn, Pfe, snn, onn, fnn, hnn, lnn, ann, dnn, bnn, wnn, gnn, xfe, pnn, Ofe, mnn, Dfe, vnn, Lfe, knn, Nfe, ynn, jnn, Enn, Ffe, Ann, Rfe, Mnn, Bfe, Tnn, Snn, Inn, Cnn, $nn, Pnn, xnn, Onn, Dnn, Lnn, _fe, Nnn, Fnn, Rnn, Bnn, _nn, Jnn, Jfe, Gnn, qnn, Hnn, Unn, znn, Knn, Xnn, Gfe, Wnn, qfe, Vnn, Hfe, Qnn, Ynn, Znn, Ufe, etn, ntn, zfe, ttn, itn, rtn, Kfe, ctn, utn, Xfe, stn, otn, ftn, htn, ltn, atn, dtn, btn, Wfe, wtn, gtn, ptn, Vfe, mtn, Qfe, vtn, ktn, ytn, jtn, Etn, Atn, Mtn, Ttn, Stn, Itn, Ctn, $tn, Ptn, xtn, Otn, Dtn, Ltn, Ntn, Yfe, Ftn, Rtn, Zfe, Btn, _tn, Jtn, Gtn, qtn, Htn, Utn, ztn, Ktn, ehe, Xtn, Wtn, Vtn, Qtn, nhe, Ytn, Ztn;
             w(pc, "LayeredMetaDataProvider", 843), b(982, 1, rh, n9e), o.tf = function(n) {
@@ -40044,9 +40044,9 @@ function ALn() {
             }, o.kg = function(n, t) {
               var i, r, c, s, f, h;
               for (i = t ? 0 : k.Math.max(0, n.length - 1), r = Qo(n[i]), h = new A(r); h.a < h.c.c.length; )
-                s = u(E(h), 9), z(s, (Q(), N2), DD(this.a));
+                s = u(E(h), 9), K(s, (Q(), N2), DD(this.a));
               for (Be(), $i(r, this.b), c = 0, f = new A(r); f.a < f.c.c.length; )
-                s = u(E(f), 9), n[i][c++] = s, z(s, (Q(), N2), c);
+                s = u(E(f), 9), n[i][c++] = s, K(s, (Q(), N2), c);
               return !1;
             }, w(pu, "MedianHeuristic", 1844), b(1845, 1, nt, n3e), o.Le = function(n, t) {
               return bAn(u(n, 9), u(t, 9));
@@ -40441,7 +40441,7 @@ function ALn() {
             var uP, A8, M8, T8, Ele = Mn(Gl, "TreeLayoutPhases", 398, xn, D3n, nbn), Lrn;
             b(1082, 214, K0, JSe), o.kf = function(n, t) {
               var i, r, c, s, f, h, l, a;
-              for (ae(le(Z(n, (wc(), Xle)))) || v7((i = new u6((id(), new z1(n))), i)), f = t.dh(y_), f.Tg("build tGraph", 1), h = (l = new S7(), Mc(l, n), z(l, (xt(), I8), n), a = new jn(), PIn(n, l, a), XIn(n, l, a), l), f.Ug(), f = t.dh(y_), f.Tg("Split graph", 1), s = FIn(this.a, h), f.Ug(), c = new A(s); c.a < c.c.c.length; )
+              for (ae(le(Z(n, (wc(), Xle)))) || v7((i = new u6((id(), new z1(n))), i)), f = t.dh(y_), f.Tg("build tGraph", 1), h = (l = new S7(), Mc(l, n), K(l, (xt(), I8), n), a = new jn(), PIn(n, l, a), XIn(n, l, a), l), f.Ug(), f = t.dh(y_), f.Tg("Split graph", 1), s = FIn(this.a, h), f.Ug(), c = new A(s); c.a < c.c.c.length; )
                 r = u(E(c), 120), fyn(this.b, r, t.dh(0.5999999940395355 / s.c.length));
               f = t.dh(y_), f.Tg("Pack components", 1), h = FOn(s), f.Ug(), f = t.dh(y_), f.Tg("Apply layout results", 1), EPn(h), f.Ug();
             }, w(Gl, "TreeLayoutProvider", 1082), b(1812, 1, nl, K3e), o.Ic = function(n) {
@@ -40634,7 +40634,7 @@ function ALn() {
             }, w(Yc, "Untreeifyer", 1907), b(385, 23, { 3: 1, 35: 1, 23: 1, 385: 1 }, DO);
             var Vj, Rq, Dle, Lle = Mn(lj, "EdgeRoutingMode", 385, xn, Ipn, ibn), Frn, Qj, R5, Bq, Nle, Fle, _q, Jq, Rle, Gq, Ble, qq, S8, Hq, oP, fP, lf, Nf, B5, I8, C8, P1, _le, Rrn, Uq, _a, Yj, Zj;
             b(846, 1, rh, a9e), o.tf = function(n) {
-              Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), oce), ""), CXe), "Turns on Tree compaction which decreases the size of the whole tree by placing nodes of multiple levels in one large level"), (Xe(), !1)), (Id(), Si)), Zt), Me((Ih(), Ge))))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), fce), ""), "Edge End Texture Length"), "Should be set to the length of the texture at the end of an edge. This value can be used to improve the Edge Routing."), 7), Zi), pi), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), hce), ""), "Tree Level"), "The index for the tree level the node is in"), Y(0)), hr), Ai), Me(li)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), lce), ""), CXe), "When set to a positive number this option will force the algorithm to place the node to the specified position within the trees layer if weighting is set to constraint"), Y(-1)), hr), Ai), Me(li)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), ace), ""), "Weighting of Nodes"), "Which weighting to use when computing a node order."), qle), qt), n1e), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), dce), ""), "Edge Routing Mode"), "Chooses an Edge Routing algorithm."), Jle), qt), Lle), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), bce), ""), "Search Order"), "Which search order to use when computing a spanning tree."), Gle), qt), i1e), Me(Ge)))), vze((new v9e(), n));
+              Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), oce), ""), CXe), "Turns on Tree compaction which decreases the size of the whole tree by placing nodes of multiple levels in one large level"), (Xe(), !1)), (Id(), Si)), Zt), Me((Ih(), Ge))))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), fce), ""), "Edge End Texture Length"), "Should be set to the length of the texture at the end of an edge. This value can be used to improve the Edge Routing."), 7), Zi), pi), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), hce), ""), "Tree Level"), "The index for the tree level the node is in"), Y(0)), hr), Ai), Me(li)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), lce), ""), CXe), "When set to a positive number this option will force the algorithm to place the node to the specified position within the trees layer if weighting is set to constraint"), Y(-1)), hr), Ai), Me(li)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), ace), ""), "Weighting of Nodes"), "Which weighting to use when computing a node order."), qle), qt), n1e), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), dce), ""), "Edge Routing Mode"), "Chooses an Edge Routing algorithm."), Jle), qt), Lle), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), bce), ""), "Search Order"), "Which search order to use when computing a spanning tree."), Gle), qt), i1e), Me(Ge)))), vze((new v9e(), n));
             };
             var Brn, _rn, Jrn, Jle, Grn, qrn, Gle, Hrn, Urn, qle;
             w(lj, "MrTreeMetaDataProvider", 846), b(990, 1, rh, v9e), o.tf = function(n) {
@@ -40866,7 +40866,7 @@ function ALn() {
             b(386, 23, { 3: 1, 35: 1, 23: 1, 386: 1 }, LO);
             var dP, s1e, o1e, f1e = Mn(M9, DXe, 386, xn, Cpn, fbn), gcn;
             b(847, 1, rh, w9e), o.tf = function(n) {
-              Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), vce), ""), "Center On Root"), "Centers the layout on the root of the tree i.e. so that the central node is also the center node of the final layout. This introduces additional whitespace."), (Xe(), !1)), (Id(), Si)), Zt), Me((Ih(), Ge))))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), kce), ""), "Order ID"), "The id can be used to define an order for nodes of one radius. This can be used to sort them in the layer accordingly."), Y(0)), hr), Ai), Me(li)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), yce), ""), "Radius"), "The radius option can be used to set the initial radius for the radial layouter."), 0), Zi), pi), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), oC), ""), "Rotate"), "The rotate option determines whether a rotation of the layout should be performed."), !1), Si), Zt), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), A_), ""), LXe), "With the compacter option it can be determined how compaction on the graph is done. It can be chosen between none, the radial compaction or the compaction of wedges separately."), h1e), qt), f1e), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), M_), ""), "Compaction Step Size"), "Determine the size of steps with which the compaction is done. Step size 1 correlates to a compaction of 1 pixel per Iteration."), Y(1)), hr), Ai), Me(Ge)))), Kt(n, M_, A_, null), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), jce), ""), "Sorter"), "Sort the nodes per radius according to the sorting algorithm. The strategies are none, by the given order id, or sorting them by polar coordinates."), a1e), qt), S1e), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Ece), ""), "Annulus Wedge Criteria"), "Determine how the wedge for the node placement is calculated. It can be chosen between wedge determination by the number of leaves or by the maximum sum of diagonals."), d1e), qt), u1e), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Ace), ""), "Translation Optimization"), "Find the optimal translation of the nodes of the first radii according to this criteria. For example edge crossings can be minimized."), l1e), qt), A1e), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), T_), Tce), "Target Angle"), "The angle in radians that the layout should be rotated to after layout."), 0), Zi), pi), Me(Ge)))), Kt(n, T_, oC, null), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), S_), Tce), "Additional Wedge Space"), "If set to true, modifies the target angle by rotating further such that space is left for an edge to pass in between the nodes. This option should only be used in conjunction with top-down layout."), !1), Si), Zt), Me(Ge)))), Kt(n, S_, oC, null), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Mce), Tce), "Outgoing Edge Angles"), "Calculate the required angle of connected nodes to leave space for an incoming edge. This option should only be used in conjunction with top-down layout."), !1), Si), Zt), Me(Ge)))), aze((new j9e(), n));
+              Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), vce), ""), "Center On Root"), "Centers the layout on the root of the tree i.e. so that the central node is also the center node of the final layout. This introduces additional whitespace."), (Xe(), !1)), (Id(), Si)), Zt), Me((Ih(), Ge))))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), kce), ""), "Order ID"), "The id can be used to define an order for nodes of one radius. This can be used to sort them in the layer accordingly."), Y(0)), hr), Ai), Me(li)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), yce), ""), "Radius"), "The radius option can be used to set the initial radius for the radial layouter."), 0), Zi), pi), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), oC), ""), "Rotate"), "The rotate option determines whether a rotation of the layout should be performed."), !1), Si), Zt), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), A_), ""), LXe), "With the compacter option it can be determined how compaction on the graph is done. It can be chosen between none, the radial compaction or the compaction of wedges separately."), h1e), qt), f1e), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), M_), ""), "Compaction Step Size"), "Determine the size of steps with which the compaction is done. Step size 1 correlates to a compaction of 1 pixel per Iteration."), Y(1)), hr), Ai), Me(Ge)))), Kt(n, M_, A_, null), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), jce), ""), "Sorter"), "Sort the nodes per radius according to the sorting algorithm. The strategies are none, by the given order id, or sorting them by polar coordinates."), a1e), qt), S1e), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Ece), ""), "Annulus Wedge Criteria"), "Determine how the wedge for the node placement is calculated. It can be chosen between wedge determination by the number of leaves or by the maximum sum of diagonals."), d1e), qt), u1e), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Ace), ""), "Translation Optimization"), "Find the optimal translation of the nodes of the first radii according to this criteria. For example edge crossings can be minimized."), l1e), qt), A1e), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), T_), Tce), "Target Angle"), "The angle in radians that the layout should be rotated to after layout."), 0), Zi), pi), Me(Ge)))), Kt(n, T_, oC, null), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), S_), Tce), "Additional Wedge Space"), "If set to true, modifies the target angle by rotating further such that space is left for an edge to pass in between the nodes. This option should only be used in conjunction with top-down layout."), !1), Si), Zt), Me(Ge)))), Kt(n, S_, oC, null), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Mce), Tce), "Outgoing Edge Angles"), "Calculate the required angle of connected nodes to leave space for an incoming edge. This option should only be used in conjunction with top-down layout."), !1), Si), Zt), Me(Ge)))), aze((new j9e(), n));
             };
             var pcn, mcn, vcn, h1e, kcn, l1e, ycn, jcn, Ecn, Acn, Mcn, Tcn, Scn, a1e, Icn, d1e;
             w(M9, "RadialMetaDataProvider", 847), b(992, 1, rh, j9e), o.tf = function(n) {
@@ -40973,7 +40973,7 @@ function ALn() {
             b(387, 23, { 3: 1, 35: 1, 23: 1, 387: 1 }, RO);
             var C1e, $1e, gH, P1e = Mn(I_, "OptimizationGoal", 387, xn, $pn, bbn), qcn;
             b(849, 1, rh, y9e), o.tf = function(n) {
-              Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Ice), ""), "Try box layout first"), "Whether one should check whether the regions are stackable to see whether box layout would do the job. For example, nodes with the same height are not stackable inside a row. Therefore, box layout will perform better and faster."), (Xe(), !1)), (Id(), Si)), Zt), Me((Ih(), Ge))))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Cce), ""), "Current position of a node in the order of nodes"), "The rectangles are ordered. Normally according to their definition the the model. This option specifies the current position of a node."), Y(-1)), hr), Ai), Me(li)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), $ce), ""), "Desired index of node"), "The rectangles are ordered. Normally according to their definition the the model. This option allows to specify a desired position that has preference over the original position."), Y(-1)), hr), Ai), Me(li)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Pce), ""), "In new Row"), "If set to true this node begins in a new row. Consequently this node cannot be moved in a previous layer during compaction. Width approximation does does not take this into account."), !1), Si), Zt), Me(li)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), xce), ""), "Order nodes by height"), "If set to true the nodes will be sorted by their height before computing the layout. The largest node will be in the first position."), !1), Si), Zt), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Oce), C_), "Width Approximation Strategy"), "Strategy for finding an initial width of the drawing."), L1e), qt), W1e), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Dce), C_), "Target Width"), "Option to place the rectangles in the given target width instead of approximating the width using the desired aspect ratio. The padding is not included in this. Meaning a drawing will have width of targetwidth + horizontal padding."), -1), Zi), pi), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Lce), C_), "Optimization Goal"), "Optimization goal for approximation of the bounding box given by the first iteration. Determines whether layout is sorted by the maximum scaling, aspect ratio, or area. Depending on the strategy the aspect ratio might be nearly ignored."), D1e), qt), P1e), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Nce), C_), "Shift Last Placed."), "When placing a rectangle behind or below the last placed rectangle in the first iteration, it is sometimes possible to shift the rectangle further to the left or right, resulting in less whitespace. True (default) enables the shift and false disables it. Disabling the shift produces a greater approximated area by the first iteration and a layout, when using ONLY the first iteration (default not the case), where it is sometimes impossible to implement a size transformation of rectangles that will fill the bounding box and eliminate empty spaces."), !0), Si), Zt), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Fce), "packing"), JXe), "Strategy for finding an initial placement on nodes."), x1e), qt), Y1e), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Rce), GXe), "Row Height Reevaluation"), "During the compaction step the height of a row is normally not changed. If this options is set, the blocks of other rows might be added if they exceed the row height. If this is the case the whole row has to be packed again to be optimal regarding the new row height. This option should, therefore, be used with care since it might be computation heavy."), !1), Si), Zt), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Bce), GXe), "Compaction iterations"), "Defines the number of compaction iterations. E.g. if set to 2 the width is initially approximated, then the drawing is compacted and based on the resulting drawing the target width is decreased or increased and a second compaction step is executed and the result compared to the first one. The best run is used based on the scale measure."), Y(1)), hr), Ai), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), _ce), "whiteSpaceElimination"), "White Space Approximation Strategy"), "Strategy for expanding nodes such that whitespace in the parent is eliminated."), O1e), qt), nae), Me(Ge)))), Ize((new k9e(), n));
+              Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Ice), ""), "Try box layout first"), "Whether one should check whether the regions are stackable to see whether box layout would do the job. For example, nodes with the same height are not stackable inside a row. Therefore, box layout will perform better and faster."), (Xe(), !1)), (Id(), Si)), Zt), Me((Ih(), Ge))))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Cce), ""), "Current position of a node in the order of nodes"), "The rectangles are ordered. Normally according to their definition the the model. This option specifies the current position of a node."), Y(-1)), hr), Ai), Me(li)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), $ce), ""), "Desired index of node"), "The rectangles are ordered. Normally according to their definition the the model. This option allows to specify a desired position that has preference over the original position."), Y(-1)), hr), Ai), Me(li)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Pce), ""), "In new Row"), "If set to true this node begins in a new row. Consequently this node cannot be moved in a previous layer during compaction. Width approximation does does not take this into account."), !1), Si), Zt), Me(li)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), xce), ""), "Order nodes by height"), "If set to true the nodes will be sorted by their height before computing the layout. The largest node will be in the first position."), !1), Si), Zt), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Oce), C_), "Width Approximation Strategy"), "Strategy for finding an initial width of the drawing."), L1e), qt), W1e), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Dce), C_), "Target Width"), "Option to place the rectangles in the given target width instead of approximating the width using the desired aspect ratio. The padding is not included in this. Meaning a drawing will have width of targetwidth + horizontal padding."), -1), Zi), pi), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Lce), C_), "Optimization Goal"), "Optimization goal for approximation of the bounding box given by the first iteration. Determines whether layout is sorted by the maximum scaling, aspect ratio, or area. Depending on the strategy the aspect ratio might be nearly ignored."), D1e), qt), P1e), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Nce), C_), "Shift Last Placed."), "When placing a rectangle behind or below the last placed rectangle in the first iteration, it is sometimes possible to shift the rectangle further to the left or right, resulting in less whitespace. True (default) enables the shift and false disables it. Disabling the shift produces a greater approximated area by the first iteration and a layout, when using ONLY the first iteration (default not the case), where it is sometimes impossible to implement a size transformation of rectangles that will fill the bounding box and eliminate empty spaces."), !0), Si), Zt), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Fce), "packing"), JXe), "Strategy for finding an initial placement on nodes."), x1e), qt), Y1e), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Rce), GXe), "Row Height Reevaluation"), "During the compaction step the height of a row is normally not changed. If this options is set, the blocks of other rows might be added if they exceed the row height. If this is the case the whole row has to be packed again to be optimal regarding the new row height. This option should, therefore, be used with care since it might be computation heavy."), !1), Si), Zt), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Bce), GXe), "Compaction iterations"), "Defines the number of compaction iterations. E.g. if set to 2 the width is initially approximated, then the drawing is compacted and based on the resulting drawing the target width is decreased or increased and a second compaction step is executed and the result compared to the first one. The best run is used based on the scale measure."), Y(1)), hr), Ai), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), _ce), "whiteSpaceElimination"), "White Space Approximation Strategy"), "Strategy for expanding nodes such that whitespace in the parent is eliminated."), O1e), qt), nae), Me(Ge)))), Ize((new k9e(), n));
             };
             var Hcn, Ucn, zcn, Kcn, Xcn, Wcn, Vcn, x1e, Qcn, Ycn, O1e, Zcn, eun, D1e, nun, L1e, tun;
             w(I_, "RectPackingMetaDataProvider", 849), b(998, 1, rh, k9e), o.tf = function(n) {
@@ -41111,7 +41111,7 @@ function ALn() {
               return n = new vje(), n;
             }, o.vf = function(n) {
             }, w(Pw, "SporeCompactionOptions/SporeCompactionFactory", 997), b(848, 1, rh, E9e), o.tf = function(n) {
-              Ee(n, new we(ye(ke(je(ge(ve(pe(me(new be(), $_), ""), "Underlying Layout Algorithm"), "A layout algorithm that is applied to the graph before it is compacted. If this is null, nothing is applied before compaction."), (Id(), z3)), de), Me((Ih(), Ge))))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), O_), "structure"), "Structure Extraction Strategy"), "This option defines what kind of triangulation or other partitioning of the plane is applied to the vertices."), pae), qt), Eae), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Gce), D_), "Tree Construction Strategy"), "Whether a minimum spanning tree or a maximum spanning tree should be constructed."), wae), qt), Mae), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), qce), D_), "Cost Function for Spanning Tree"), "The cost function is used in the creation of the spanning tree."), bae), qt), sae), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), P_), D_), "Root node for spanning tree construction"), "The identifier of the node that is preferred as the root of the spanning tree. If this is null, the first node is chosen."), null), z3), de), Me(Ge)))), Kt(n, P_, x_, Pun), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), x_), D_), "Root selection for spanning tree"), "This sets the method used to select a root node for the construction of a spanning tree"), dae), qt), iae), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Hce), mre), JXe), "This option defines how the compaction is applied."), aae), qt), tae), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Uce), mre), "Orthogonal Compaction"), "Restricts the translation of nodes to orthogonal directions in the compaction phase."), (Xe(), !1)), Si), Zt), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), zce), HXe), "Upper limit for iterations of overlap removal"), null), Y(64)), hr), Ai), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Kce), HXe), "Whether to run a supplementary scanline overlap check."), null), !0), Si), Zt), Me(Ge)))), AHe((new A9e(), n)), kUe((new d9e(), n));
+              Ae(n, new ge(je(ye(Ee(pe(ke(me(ve(new we(), $_), ""), "Underlying Layout Algorithm"), "A layout algorithm that is applied to the graph before it is compacted. If this is null, nothing is applied before compaction."), (Id(), z3)), de), Me((Ih(), Ge))))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), O_), "structure"), "Structure Extraction Strategy"), "This option defines what kind of triangulation or other partitioning of the plane is applied to the vertices."), pae), qt), Eae), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Gce), D_), "Tree Construction Strategy"), "Whether a minimum spanning tree or a maximum spanning tree should be constructed."), wae), qt), Mae), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), qce), D_), "Cost Function for Spanning Tree"), "The cost function is used in the creation of the spanning tree."), bae), qt), sae), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), P_), D_), "Root node for spanning tree construction"), "The identifier of the node that is preferred as the root of the spanning tree. If this is null, the first node is chosen."), null), z3), de), Me(Ge)))), Kt(n, P_, x_, Pun), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), x_), D_), "Root selection for spanning tree"), "This sets the method used to select a root node for the construction of a spanning tree"), dae), qt), iae), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Hce), mre), JXe), "This option defines how the compaction is applied."), aae), qt), tae), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Uce), mre), "Orthogonal Compaction"), "Restricts the translation of nodes to orthogonal directions in the compaction phase."), (Xe(), !1)), Si), Zt), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), zce), HXe), "Upper limit for iterations of overlap removal"), null), Y(64)), hr), Ai), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Kce), HXe), "Whether to run a supplementary scanline overlap check."), null), !0), Si), Zt), Me(Ge)))), AHe((new A9e(), n)), kUe((new d9e(), n));
             };
             var Tun, aae, Sun, Iun, Cun, $un, Pun, xun, dae, Oun, bae, Dun, wae, gae, pae, mae;
             w(Pw, "SporeMetaDataProvider", 848), b(994, 1, rh, A9e), o.tf = function(n) {
@@ -41285,7 +41285,7 @@ function ALn() {
               return new nLe(u(n, 379));
             }, w(oc, "LayoutMetaDataService/lambda$9$Type", 871);
             var OH = zt(Qy, "IProperty");
-            b(21, 1, { 35: 1, 690: 1, 21: 1, 147: 1 }, we), o.Dd = function(n) {
+            b(21, 1, { 35: 1, 690: 1, 21: 1, 147: 1 }, ge), o.Dd = function(n) {
               return kan(this, u(n, 147));
             }, o.Fb = function(n) {
               return O(n, 21) ? xe(this.f, u(n, 21).f) : O(n, 147) && xe(this.f, u(n, 147).Og());
@@ -41307,7 +41307,7 @@ function ALn() {
               return b1(this.f);
             }, o.Ib = function() {
               return "Layout Option: " + this.f;
-            }, w(oc, "LayoutOptionData", 21), b(24, 1, {}, be), w(oc, "LayoutOptionData/Builder", 24), b(160, 23, { 3: 1, 35: 1, 23: 1, 160: 1 }, qk);
+            }, w(oc, "LayoutOptionData", 21), b(24, 1, {}, we), w(oc, "LayoutOptionData/Builder", 24), b(160, 23, { 3: 1, 35: 1, 23: 1, 160: 1 }, qk);
             var Ff, zl, li, Ge, x1, hh = Mn(oc, "LayoutOptionData/Target", 160, xn, Smn, Sbn), Hun;
             b(285, 23, { 3: 1, 35: 1, 23: 1, 285: 1 }, vp);
             var Si, Zi, qt, U3, hr, lh, z3, Sae, Uun = Mn(oc, "LayoutOptionData/Type", 285, xn, Jvn, Ibn), zun, F8, Iae;
@@ -41374,7 +41374,7 @@ function ALn() {
             }, w(hu, "BoxLayouterOptions/BoxFactory", 976), b(299, 23, { 3: 1, 35: 1, 23: 1, 299: 1 }, O6);
             var R8, NH, B8, _8, J8, FH, RH = Mn(hu, "ContentAlignment", 299, xn, ivn, Dbn), Zun;
             b(689, 1, rh, KU), o.tf = function(n) {
-              Ee(n, new we(ye(ke(je(ge(ve(pe(me(new be(), QXe), ""), "Layout Algorithm"), "Select a specific layout algorithm."), (Id(), z3)), de), Me((Ih(), Ge))))), Ee(n, new we(ye(ke(je(ge(ve(pe(me(new be(), YXe), ""), "Resolved Layout Algorithm"), "Meta data associated with the selected algorithm."), lh), yDn), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Fre), ""), "Alignment"), "Alignment of the selected node relative to other nodes; the exact meaning depends on the used algorithm."), Fae), qt), $ae), Me(li)))), Ee(n, new we(ye(ke(je(ge(ve(pe(me(new be(), Xv), ""), "Aspect Ratio"), "The desired aspect ratio of the drawing, that is the quotient of width by height."), Zi), pi), Me(Ge)))), Ee(n, new we(ye(ke(je(ge(ve(pe(me(new be(), Qce), ""), "Bend Points"), "A fixed list of bend points for the edge. This is used by the 'Fixed Layout' algorithm to specify a pre-defined routing for an edge. The vector chain must include the source point, any bend points, and the target point, so it must have at least two points."), lh), Cae), Me(Ff)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), nC), ""), "Content Alignment"), "Specifies how the content of a node are aligned. Each node can individually control the alignment of its contents. I.e. if a node should be aligned top left in its parent node, the parent node should specify that option."), Bae), U3), RH), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), hj), ""), "Debug Mode"), "Whether additional debug information shall be generated."), (Xe(), !1)), Si), Zt), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), d_), ""), "Direction"), "Overall direction of edges: horizontal (right / left) or vertical (down / up)."), _ae), qt), q8), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), fj), ""), "Edge Routing"), "What kind of edge routing style should be applied for the content of a parent node. Algorithms may also set this option to single edges in order to mark them as splines. The bend point list of edges with this option set to SPLINES must be interpreted as control points for a piecewise cubic spline."), qae), qt), YH), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Wce), ""), "Expand Nodes"), "If active, nodes are expanded to fill the area of their parent."), !1), Si), Zt), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), eC), ""), "Hierarchy Handling"), "Determines whether separate layout runs are triggered for different compound nodes in a hierarchical graph. Setting a node's hierarchy handling to `INCLUDE_CHILDREN` will lay out that node and all of its descendants in a single layout run, until a descendant is encountered which has its hierarchy handling set to `SEPARATE_CHILDREN`. In general, `SEPARATE_CHILDREN` will ensure that a new layout run is triggered for a node with that setting. Including multiple levels of hierarchy in a single layout run may allow cross-hierarchical edges to be laid out properly. If the root node is set to `INHERIT` (or not set at all), the default behavior is `SEPARATE_CHILDREN`."), Uae), qt), Dde), Pt(Ge, I(S(hh, 1), ee, 160, 0, [li]))))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Iw), ""), "Padding"), "The padding to be left to a parent element's border when placing child elements. This can also serve as an output option of a layout algorithm if node size calculation is setup appropriately."), tde), lh), Gse), Pt(Ge, I(S(hh, 1), ee, 160, 0, [li]))))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), g9), ""), "Interactive"), "Whether the algorithm should be run in interactive mode for the content of a parent node. What this means exactly depends on how the specific algorithm interprets this option. Usually in the interactive mode algorithms try to modify the current layout as little as possible."), !1), Si), Zt), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), iC), ""), "interactive Layout"), "Whether the graph should be changeable interactively and by setting constraints"), !1), Si), Zt), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), p9), ""), "Omit Node Micro Layout"), "Node micro layout comprises the computation of node dimensions (if requested), the placement of ports and their labels, and the placement of node labels. The functionality is implemented independent of any specific layout algorithm and shouldn't have any negative impact on the layout algorithm's performance itself. Yet, if any unforeseen behavior occurs, this option allows to deactivate the micro layout."), !1), Si), Zt), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), AB), ""), "Port Constraints"), "Defines constraints of the position of the ports of a node."), sde), qt), Fde), Me(li)))), Ee(n, new we(ye(ke(je(ge(ve(pe(me(new be(), tC), ""), "Position"), "The position of a node, port, or label. This is used by the 'Fixed Layout' algorithm to specify a pre-defined position."), lh), Ni), Pt(li, I(S(hh, 1), ee, 160, 0, [x1, zl]))))), Ee(n, new we(ye(ke(je(ge(ve(pe(me(new be(), Zy), ""), "Priority"), "Defines the priority of an object; its meaning depends on the specific layout algorithm and the context where it is used."), hr), Ai), Pt(li, I(S(hh, 1), ee, 160, 0, [Ff]))))), Ee(n, new we(ye(ke(je(ge(ve(pe(me(new be(), LI), ""), "Randomization Seed"), "Seed used for pseudo-random number generators to control the layout algorithm. If the value is 0, the seed shall be determined pseudo-randomly (e.g. from the system time)."), hr), Ai), Me(Ge)))), Ee(n, new we(ye(ke(je(ge(ve(pe(me(new be(), w9), ""), "Separate Connected Components"), "Whether each connected component should be processed separately."), Si), Zt), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Xre), ""), "Junction Points"), "This option is not used as option, but as output of the layout algorithms. It is attached to edges and determines the points where junction symbols should be drawn in order to represent hyperedges with orthogonal routing. Whether such points are computed depends on the chosen layout algorithm and edge routing style. The points are put into the vector chain with no specific order."), Xae), lh), Cae), Me(Ff)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Yre), ""), "Comment Box"), "Whether the node should be regarded as a comment box instead of a regular node. In that case its placement should be similar to how labels are handled. Any edges incident to a comment box specify to which graph elements the comment is related."), !1), Si), Zt), Me(li)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Zre), ""), "Hypernode"), "Whether the node should be handled as a hypernode."), !1), Si), Zt), Me(li)))), Ee(n, new we(ye(ke(je(ge(ve(pe(me(new be(), XOn), ""), "Label Manager"), "Label managers can shorten labels upon a layout algorithm's request."), lh), SDn), Pt(Ge, I(S(hh, 1), ee, 160, 0, [zl]))))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), ZXe), ""), "Softwrapping Fuzziness"), "Determines the amount of fuzziness to be used when performing softwrapping on labels. The value expresses the percent of overhang that is permitted for each line. If the next line would take up less space than this threshold, it is appended to the current line instead of being placed in a new line."), 0), Zi), pi), Me(zl)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), nce), ""), "Margins"), "Margins define additional space around the actual bounds of a graph element. For instance, ports or labels being placed on the outside of a node's border might introduce such a margin. The margin is used to guarantee non-overlap of other graph elements with those ports or labels."), Wae), lh), Jse), Me(li)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Lre), ""), "No Layout"), "No layout is done for the associated element. This is used to mark parts of a diagram to avoid their inclusion in the layout graph, or to mark parts of the layout graph to prevent layout engines from processing them. If you wish to exclude the contents of a compound node from automatic layout, while the node itself is still considered on its own layer, use the 'Fixed Layout' algorithm for that node."), !1), Si), Zt), Pt(li, I(S(hh, 1), ee, 160, 0, [Ff, x1, zl]))))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), eWe), ""), "Scale Factor"), "The scaling factor to be applied to the corresponding node in recursive layout. It causes the corresponding node's size to be adjusted, and its ports and labels to be sized and placed accordingly after the layout of that node has been determined (and before the node itself and its siblings are arranged). The scaling is not reverted afterwards, so the resulting layout graph contains the adjusted size and position data. This option is currently not supported if 'Layout Hierarchy' is set."), 1), Zi), pi), Me(li)))), Ee(n, new we(ye(ke(je(ge(ve(pe(me(new be(), nWe), ""), "Child Area Width"), "The width of the area occupied by the laid out children of a node."), Zi), pi), Me(Ge)))), Ee(n, new we(ye(ke(je(ge(ve(pe(me(new be(), tWe), ""), "Child Area Height"), "The height of the area occupied by the laid out children of a node."), Zi), pi), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), ej), ""), zXe), "Turns topdown layout on and off. If this option is enabled, hierarchical layout will be computed first for the root node and then for its children recursively. Layouts are then scaled down to fit the area provided by their parents. Graphs must follow a certain structure for topdown layout to work properly. {@link TopdownNodeTypes.PARALLEL_NODE} nodes must have children of type {@link TopdownNodeTypes.HIERARCHICAL_NODE} and must define {@link topdown.hierarchicalNodeWidth} and {@link topdown.hierarchicalNodeAspectRatio} for their children. Furthermore they need to be laid out using an algorithm that is a {@link TopdownLayoutProvider}. Hierarchical nodes can also be parents of other hierarchical nodes and can optionally use a {@link TopdownSizeApproximator} to dynamically set sizes during topdown layout. In this case {@link topdown.hierarchicalNodeWidth} and {@link topdown.hierarchicalNodeAspectRatio} should be set on the node itself rather than the parent. The values are then used by the size approximator as base values. Hierarchical nodes require the layout option {@link nodeSize.fixedGraphSize} to be true to prevent the algorithm used there from resizing the hierarchical node. This option is not supported if 'Hierarchy Handling' is set to 'INCLUDE_CHILDREN'"), !1), Si), Zt), Me(Ge)))), Kt(n, ej, X0, null), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), iWe), ""), "Animate"), "Whether the shift from the old layout to the new computed layout shall be animated."), !0), Si), Zt), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), rWe), ""), "Animation Time Factor"), "Factor for computation of animation time. The higher the value, the longer the animation time. If the value is 0, the resulting time is always equal to the minimum defined by 'Minimal Animation Time'."), Y(100)), hr), Ai), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), cWe), ""), "Layout Ancestors"), "Whether the hierarchy levels on the path from the selected element to the root of the diagram shall be included in the layout process."), !1), Si), Zt), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), uWe), ""), "Maximal Animation Time"), "The maximal time for animations, in milliseconds."), Y(4e3)), hr), Ai), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), sWe), ""), "Minimal Animation Time"), "The minimal time for animations, in milliseconds."), Y(400)), hr), Ai), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), oWe), ""), "Progress Bar"), "Whether a progress bar shall be displayed during layout computations."), !1), Si), Zt), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), fWe), ""), "Validate Graph"), "Whether the graph shall be validated before any layout algorithm is applied. If this option is enabled and at least one error is found, the layout process is aborted and a message is shown to the user."), !1), Si), Zt), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), hWe), ""), "Validate Options"), "Whether layout options shall be validated before any layout algorithm is applied. If this option is enabled and at least one error is found, the layout process is aborted and a message is shown to the user."), !0), Si), Zt), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), lWe), ""), "Zoom to Fit"), "Whether the zoom level shall be set to view the whole diagram after layout."), !1), Si), Zt), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Vce), "box"), "Box Layout Mode"), "Configures the packing mode used by the {@link BoxLayoutProvider}. If SIMPLE is not required (neither priorities are used nor the interactive mode), GROUP_DEC can improve the packing and decrease the area. GROUP_MIXED and GROUP_INC may, in very specific scenarios, work better."), Rae), qt), Vde), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), aWe), "json"), "Shape Coords"), "For layouts transferred into JSON graphs, specify the coordinate system to be used for nodes, ports, and labels of nodes and ports."), Kae), qt), _de), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), dWe), "json"), "Edge Coords"), "For layouts transferred into JSON graphs, specify the coordinate system to be used for edge route points and edge labels."), zae), qt), yde), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Ere), uh), "Comment Comment Spacing"), "Spacing to be preserved between a comment box and other comment boxes connected to the same node. The space left between comment boxes of different nodes is controlled by the node-node spacing."), 10), Zi), pi), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Are), uh), "Comment Node Spacing"), "Spacing to be preserved between a node and its connected comment boxes. The space left between a node and the comments of another node is controlled by the node-node spacing."), 10), Zi), pi), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Mre), uh), "Components Spacing"), "Spacing to be preserved between pairs of connected components. This option is only relevant if 'separateConnectedComponents' is activated."), 20), Zi), pi), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Tre), uh), "Edge Spacing"), "Spacing to be preserved between any two edges. Note that while this can somewhat easily be satisfied for the segments of orthogonally drawn edges, it is harder for general polylines or splines."), 10), Zi), pi), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), EB), uh), "Edge Label Spacing"), "The minimal distance to be preserved between a label and the edge it is associated with. Note that the placement of a label is influenced by the 'edgelabels.placement' option."), 2), Zi), pi), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), a_), uh), "Edge Node Spacing"), "Spacing to be preserved between nodes and edges."), 10), Zi), pi), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Sre), uh), "Label Spacing"), "Determines the amount of space to be left between two labels of the same graph element."), 0), Zi), pi), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), $re), uh), "Label Node Spacing"), "Spacing to be preserved between labels and the border of node they are associated with. Note that the placement of a label is influenced by the 'nodelabels.placement' option."), 5), Zi), pi), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Ire), uh), "Horizontal spacing between Label and Port"), "Horizontal spacing to be preserved between labels and the ports they are associated with. Note that the placement of a label is influenced by the 'portlabels.placement' option."), 1), Zi), pi), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Cre), uh), "Vertical spacing between Label and Port"), "Vertical spacing to be preserved between labels and the ports they are associated with. Note that the placement of a label is influenced by the 'portlabels.placement' option."), 1), Zi), pi), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Sw), uh), "Node Spacing"), "The minimal distance to be preserved between each two nodes."), 20), Zi), pi), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Pre), uh), "Node Self Loop Spacing"), "Spacing to be preserved between a node and its self loops."), 10), Zi), pi), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), xre), uh), "Port Spacing"), "Spacing between pairs of ports of the same node."), 10), Zi), pi), Pt(Ge, I(S(hh, 1), ee, 160, 0, [li]))))), Ee(n, new we(ye(ke(je(ge(ve(pe(me(new be(), Ore), uh), "Individual Spacing"), "Allows to specify individual spacing values for graph elements that shall be different from the value specified for the element's parent."), lh), Wsn), Pt(li, I(S(hh, 1), ee, 160, 0, [Ff, x1, zl]))))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), tce), uh), "Additional Port Space"), "Additional space around the sets of ports on each node side. For each side of a node, this option can reserve additional space before and after the ports on each side. For example, a top spacing of 20 makes sure that the first port on the western and eastern side is 20 units away from the northern border."), pde), lh), Jse), Me(Ge)))), Ee(n, new we(ye(ke(je(ge(ve(pe(me(new be(), w_), gWe), "Layout Partition"), "Partition to which the node belongs. This requires Layout Partitioning to be active. Nodes with lower partition IDs will appear to the left of nodes with higher partition IDs (assuming a left-to-right layout direction)."), hr), Ai), Pt(Ge, I(S(hh, 1), ee, 160, 0, [li]))))), Kt(n, w_, b_, lsn), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), b_), gWe), "Layout Partitioning"), "Whether to activate partitioned layout. This will allow to group nodes through the Layout Partition option. a pair of nodes with different partition indices is then placed such that the node with lower index is placed to the left of the other node (with left-to-right layout direction). Depending on the layout algorithm, this may only be guaranteed to work if all nodes have a layout partition configured, or at least if edges that cross partitions are not part of a partition-crossing cycle."), ide), Si), Zt), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), _re), pWe), "Node Label Padding"), "Define padding for node labels that are placed inside of a node."), Qae), lh), Gse), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Vv), pWe), "Node Label Placement"), "Hints for where node labels are to be placed; if empty, the node label's position is not modified."), Yae), U3), xr), Pt(li, I(S(hh, 1), ee, 160, 0, [zl]))))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), qre), lC), "Port Alignment"), "Defines the default port distribution for a node. May be overridden for each side individually."), cde), qt), K8), Me(li)))), Ee(n, new we(ye(ke(je(ge(ve(pe(me(new be(), Hre), lC), "Port Alignment (North)"), "Defines how ports on the northern side are placed, overriding the node's general port alignment."), qt), K8), Me(li)))), Ee(n, new we(ye(ke(je(ge(ve(pe(me(new be(), Ure), lC), "Port Alignment (South)"), "Defines how ports on the southern side are placed, overriding the node's general port alignment."), qt), K8), Me(li)))), Ee(n, new we(ye(ke(je(ge(ve(pe(me(new be(), zre), lC), "Port Alignment (West)"), "Defines how ports on the western side are placed, overriding the node's general port alignment."), qt), K8), Me(li)))), Ee(n, new we(ye(ke(je(ge(ve(pe(me(new be(), Kre), lC), "Port Alignment (East)"), "Defines how ports on the eastern side are placed, overriding the node's general port alignment."), qt), K8), Me(li)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), w2), __), "Node Size Constraints"), "What should be taken into account when calculating a node's size. Empty size constraints specify that a node's size is already fixed and should not be changed."), Zae), U3), V8), Me(li)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), v3), __), "Node Size Options"), "Options modifying the behavior of the size constraints set on a node. Each member of the set specifies something that should be taken into account when calculating node sizes. The empty set corresponds to no further modifications."), nde), U3), Jde), Me(li)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), k3), __), "Node Size Minimum"), "The minimal size to which a node can be reduced."), ede), lh), Ni), Me(li)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Wv), __), "Fixed Graph Size"), "By default, the fixed layout provider will enlarge a graph until it is large enough to contain its children. If this option is set, it won't do so."), !1), Si), Zt), Me(Ge)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Vre), l_), "Edge Label Placement"), "Gives a hint on where to put edge labels."), Jae), qt), jde), Me(zl)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), NI), l_), "Inline Edge Labels"), "If true, an edge label is placed directly on its edge. May only apply to center edge labels. This kind of label placement is only advisable if the label's rendering is such that it is not crossed by its edge and thus stays legible."), !1), Si), Zt), Me(zl)))), Ee(n, new we(ye(ke(je(ge(ve(pe(me(new be(), WOn), "font"), "Font Name"), "Font name used for a label."), z3), de), Me(zl)))), Ee(n, new we(ye(ke(je(ge(ve(pe(me(new be(), bWe), "font"), "Font Size"), "Font size used for a label."), hr), Ai), Me(zl)))), Ee(n, new we(ye(ke(je(ge(ve(pe(me(new be(), ece), J_), "Port Anchor Offset"), "The offset to the port position where connections shall be attached."), lh), Ni), Me(x1)))), Ee(n, new we(ye(ke(je(ge(ve(pe(me(new be(), Qre), J_), "Port Index"), "The index of a port in the fixed order around a node. The order is assumed as clockwise, starting with the leftmost port on the top side. This option must be set if 'Port Constraints' is set to FIXED_ORDER and no specific positions are given for the ports. Additionally, the option 'Port Side' must be defined in this case."), hr), Ai), Me(x1)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Nre), J_), "Port Side"), "The side of a node on which a port is situated. This option must be set if 'Port Constraints' is set to FIXED_SIDE or FIXED_ORDER and no specific positions are given for the ports."), hde), qt), kr), Me(x1)))), Ee(n, new we(ye(ke(je(ge(ve(pe(me(new be(), Dre), J_), "Port Border Offset"), "The offset of ports on the node border. With a positive offset the port is moved outside of the node, while with a negative offset the port is moved towards the inside. An offset of 0 means that the port is placed directly on the node border, i.e. if the port side is north, the port's south border touches the nodes's north border; if the port side is east, the port's west border touches the nodes's east border; if the port side is south, the port's north border touches the node's south border; if the port side is west, the port's east border touches the node's west border."), Zi), pi), Me(x1)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Qv), eue), "Port Label Placement"), "Decides on a placement method for port labels; if empty, the node label's position is not modified."), ode), U3), LP), Me(li)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Jre), eue), "Port Labels Next to Port"), "Use 'portLabels.placement': NEXT_TO_PORT_OF_POSSIBLE."), !1), Si), Zt), Me(li)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Gre), eue), "Treat Port Labels as Group"), "If this option is true (default), the labels of a port will be treated as a group when it comes to centering them next to their port. If this option is false, only the first label will be centered next to the port, with the others being placed below. This only applies to labels of eastern and western ports and will have no effect if labels are not placed next to their port."), !0), Si), Zt), Me(li)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), R_), u5), "Number of size categories"), "Defines the number of categories to use for the FIXED_INTEGER_RATIO_BOXES size approximator."), Y(3)), hr), Ai), Me(Ge)))), Kt(n, R_, B_, Esn), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Yce), u5), "Weight of a node containing children for determining the graph size"), "When determining the graph size for the size categorisation, this value determines how many times a node containing children is weighted more than a simple node. For example setting this value to four would result in a graph containing a simple node and a hierarchical node to be counted as having a size of five."), Y(4)), hr), Ai), Me(Ge)))), Kt(n, Yce, R_, null), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), nj), u5), "Topdown Scale Factor"), "The scaling factor to be applied to the nodes laid out within the node in recursive topdown layout. The difference to 'Scale Factor' is that the node itself is not scaled. This value has to be set on hierarchical nodes."), 1), Zi), pi), Me(Ge)))), Kt(n, nj, X0, ksn), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), B_), u5), "Topdown Size Approximator"), "The size approximator to be used to set sizes of hierarchical nodes during topdown layout. The default value is null, which results in nodes keeping whatever size is defined for them e.g. through parent parallel node or by manually setting the size."), null), lh), jDn), Me(li)))), Kt(n, B_, X0, ysn), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), tj), u5), "Topdown Hierarchical Node Width"), "The fixed size of a hierarchical node when using topdown layout. If this value is set on a parallel node it applies to its children, when set on a hierarchical node it applies to the node itself."), 150), Zi), pi), Pt(Ge, I(S(hh, 1), ee, 160, 0, [li]))))), Kt(n, tj, X0, null), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), ij), u5), "Topdown Hierarchical Node Aspect Ratio"), "The fixed aspect ratio of a hierarchical node when using topdown layout. Default is 1/sqrt(2). If this value is set on a parallel node it applies to its children, when set on a hierarchical node it applies to the node itself."), 1.414), Zi), pi), Pt(Ge, I(S(hh, 1), ee, 160, 0, [li]))))), Kt(n, ij, X0, null), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), X0), u5), "Topdown Node Type"), "The different node types used for topdown layout. If the node type is set to {@link TopdownNodeTypes.PARALLEL_NODE} the algorithm must be set to a {@link TopdownLayoutProvider} such as {@link TopdownPacking}. The {@link nodeSize.fixedGraphSize} option is technically only required for hierarchical nodes."), null), qt), qde), Me(li)))), Kt(n, X0, Wv, null), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Zce), u5), "Topdown Scale Cap"), "Determines the upper limit for the topdown scale factor. The default value is 1.0 which ensures that nested children never end up appearing larger than their parents in terms of unit sizes such as the font size. If the limit is larger, nodes will fully utilize the available space, but it is counteriniuitive for inner nodes to have a larger scale than outer nodes."), 1), Zi), pi), Me(Ge)))), Kt(n, Zce, X0, vsn), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Rre), mWe), "Activate Inside Self Loops"), "Whether this node allows to route self loops inside of it instead of around it. If set to true, this will make the node a compound node if it isn't already, and will require the layout algorithm to support compound nodes with hierarchical ports."), !1), Si), Zt), Me(li)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Bre), mWe), "Inside Self Loop"), "Whether a self loop should be routed inside a node instead of around that node."), !1), Si), Zt), Me(Ff)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), Wre), "edge"), "Edge Thickness"), "The thickness of an edge. This is a hint on the line width used to draw an edge, possibly requiring more space to be reserved for it."), 1), Zi), pi), Me(Ff)))), Ee(n, new we(ye(ke(je($e(ge(ve(pe(me(new be(), wWe), "edge"), "Edge Type"), "The type of an edge. This is usually used for UML class diagrams, where associations must be handled differently from generalizations."), Hae), qt), Ide), Me(Ff)))), E6(n, new Rp(p6(gm(wm(new rp(), We), "Layered"), 'The layer-based method was introduced by Sugiyama, Tagawa and Toda in 1981. It emphasizes the direction of edges by pointing as many edges as possible into the same direction. The nodes are arranged in layers, which are sometimes called "hierarchies", and then reordered such that the number of edge crossings is minimized. Afterwards, concrete coordinates are computed for the nodes and edge bend points.'))), E6(n, new Rp(p6(gm(wm(new rp(), "org.eclipse.elk.orthogonal"), "Orthogonal"), `Orthogonal methods that follow the "topology-shape-metrics" approach by Batini, Nardelli and Tamassia '86. The first phase determines the topology of the drawing by applying a planarization technique, which results in a planar representation of the graph. The orthogonal shape is computed in the second phase, which aims at minimizing the number of edge bends, and is called orthogonalization. The third phase leads to concrete coordinates for nodes and edge bend points by applying a compaction method, thus defining the metrics.`))), E6(n, new Rp(p6(gm(wm(new rp(), gu), "Force"), "Layout algorithms that follow physical analogies by simulating a system of attractive and repulsive forces. The first successful method of this kind was proposed by Eades in 1984."))), E6(n, new Rp(p6(gm(wm(new rp(), "org.eclipse.elk.circle"), "Circle"), "Circular layout algorithms emphasize cycles or biconnected components of a graph by arranging them in circles. This is useful if a drawing is desired where such components are clearly grouped, or where cycles are shown as prominent OPTIONS of the graph."))), E6(n, new Rp(p6(gm(wm(new rp(), $Xe), "Tree"), "Specialized layout methods for trees, i.e. acyclic graphs. The regular structure of graphs that have no undirected cycles can be emphasized using an algorithm of this type."))), E6(n, new Rp(p6(gm(wm(new rp(), "org.eclipse.elk.planar"), "Planar"), "Algorithms that require a planar or upward planar graph. Most of these algorithms are theoretically interesting, but not practically usable."))), E6(n, new Rp(p6(gm(wm(new rp(), ao), "Radial"), "Radial layout algorithms usually position the nodes of the graph on concentric circles."))), jHe((new S9e(), n)), RHe((new T9e(), n)), Xqe((new I9e(), n));
+              Ae(n, new ge(je(ye(Ee(pe(ke(me(ve(new we(), QXe), ""), "Layout Algorithm"), "Select a specific layout algorithm."), (Id(), z3)), de), Me((Ih(), Ge))))), Ae(n, new ge(je(ye(Ee(pe(ke(me(ve(new we(), YXe), ""), "Resolved Layout Algorithm"), "Meta data associated with the selected algorithm."), lh), yDn), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Fre), ""), "Alignment"), "Alignment of the selected node relative to other nodes; the exact meaning depends on the used algorithm."), Fae), qt), $ae), Me(li)))), Ae(n, new ge(je(ye(Ee(pe(ke(me(ve(new we(), Xv), ""), "Aspect Ratio"), "The desired aspect ratio of the drawing, that is the quotient of width by height."), Zi), pi), Me(Ge)))), Ae(n, new ge(je(ye(Ee(pe(ke(me(ve(new we(), Qce), ""), "Bend Points"), "A fixed list of bend points for the edge. This is used by the 'Fixed Layout' algorithm to specify a pre-defined routing for an edge. The vector chain must include the source point, any bend points, and the target point, so it must have at least two points."), lh), Cae), Me(Ff)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), nC), ""), "Content Alignment"), "Specifies how the content of a node are aligned. Each node can individually control the alignment of its contents. I.e. if a node should be aligned top left in its parent node, the parent node should specify that option."), Bae), U3), RH), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), hj), ""), "Debug Mode"), "Whether additional debug information shall be generated."), (Xe(), !1)), Si), Zt), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), d_), ""), "Direction"), "Overall direction of edges: horizontal (right / left) or vertical (down / up)."), _ae), qt), q8), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), fj), ""), "Edge Routing"), "What kind of edge routing style should be applied for the content of a parent node. Algorithms may also set this option to single edges in order to mark them as splines. The bend point list of edges with this option set to SPLINES must be interpreted as control points for a piecewise cubic spline."), qae), qt), YH), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Wce), ""), "Expand Nodes"), "If active, nodes are expanded to fill the area of their parent."), !1), Si), Zt), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), eC), ""), "Hierarchy Handling"), "Determines whether separate layout runs are triggered for different compound nodes in a hierarchical graph. Setting a node's hierarchy handling to `INCLUDE_CHILDREN` will lay out that node and all of its descendants in a single layout run, until a descendant is encountered which has its hierarchy handling set to `SEPARATE_CHILDREN`. In general, `SEPARATE_CHILDREN` will ensure that a new layout run is triggered for a node with that setting. Including multiple levels of hierarchy in a single layout run may allow cross-hierarchical edges to be laid out properly. If the root node is set to `INHERIT` (or not set at all), the default behavior is `SEPARATE_CHILDREN`."), Uae), qt), Dde), Pt(Ge, I(S(hh, 1), ee, 160, 0, [li]))))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Iw), ""), "Padding"), "The padding to be left to a parent element's border when placing child elements. This can also serve as an output option of a layout algorithm if node size calculation is setup appropriately."), tde), lh), Gse), Pt(Ge, I(S(hh, 1), ee, 160, 0, [li]))))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), g9), ""), "Interactive"), "Whether the algorithm should be run in interactive mode for the content of a parent node. What this means exactly depends on how the specific algorithm interprets this option. Usually in the interactive mode algorithms try to modify the current layout as little as possible."), !1), Si), Zt), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), iC), ""), "interactive Layout"), "Whether the graph should be changeable interactively and by setting constraints"), !1), Si), Zt), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), p9), ""), "Omit Node Micro Layout"), "Node micro layout comprises the computation of node dimensions (if requested), the placement of ports and their labels, and the placement of node labels. The functionality is implemented independent of any specific layout algorithm and shouldn't have any negative impact on the layout algorithm's performance itself. Yet, if any unforeseen behavior occurs, this option allows to deactivate the micro layout."), !1), Si), Zt), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), AB), ""), "Port Constraints"), "Defines constraints of the position of the ports of a node."), sde), qt), Fde), Me(li)))), Ae(n, new ge(je(ye(Ee(pe(ke(me(ve(new we(), tC), ""), "Position"), "The position of a node, port, or label. This is used by the 'Fixed Layout' algorithm to specify a pre-defined position."), lh), Ni), Pt(li, I(S(hh, 1), ee, 160, 0, [x1, zl]))))), Ae(n, new ge(je(ye(Ee(pe(ke(me(ve(new we(), Zy), ""), "Priority"), "Defines the priority of an object; its meaning depends on the specific layout algorithm and the context where it is used."), hr), Ai), Pt(li, I(S(hh, 1), ee, 160, 0, [Ff]))))), Ae(n, new ge(je(ye(Ee(pe(ke(me(ve(new we(), LI), ""), "Randomization Seed"), "Seed used for pseudo-random number generators to control the layout algorithm. If the value is 0, the seed shall be determined pseudo-randomly (e.g. from the system time)."), hr), Ai), Me(Ge)))), Ae(n, new ge(je(ye(Ee(pe(ke(me(ve(new we(), w9), ""), "Separate Connected Components"), "Whether each connected component should be processed separately."), Si), Zt), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Xre), ""), "Junction Points"), "This option is not used as option, but as output of the layout algorithms. It is attached to edges and determines the points where junction symbols should be drawn in order to represent hyperedges with orthogonal routing. Whether such points are computed depends on the chosen layout algorithm and edge routing style. The points are put into the vector chain with no specific order."), Xae), lh), Cae), Me(Ff)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Yre), ""), "Comment Box"), "Whether the node should be regarded as a comment box instead of a regular node. In that case its placement should be similar to how labels are handled. Any edges incident to a comment box specify to which graph elements the comment is related."), !1), Si), Zt), Me(li)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Zre), ""), "Hypernode"), "Whether the node should be handled as a hypernode."), !1), Si), Zt), Me(li)))), Ae(n, new ge(je(ye(Ee(pe(ke(me(ve(new we(), XOn), ""), "Label Manager"), "Label managers can shorten labels upon a layout algorithm's request."), lh), SDn), Pt(Ge, I(S(hh, 1), ee, 160, 0, [zl]))))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), ZXe), ""), "Softwrapping Fuzziness"), "Determines the amount of fuzziness to be used when performing softwrapping on labels. The value expresses the percent of overhang that is permitted for each line. If the next line would take up less space than this threshold, it is appended to the current line instead of being placed in a new line."), 0), Zi), pi), Me(zl)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), nce), ""), "Margins"), "Margins define additional space around the actual bounds of a graph element. For instance, ports or labels being placed on the outside of a node's border might introduce such a margin. The margin is used to guarantee non-overlap of other graph elements with those ports or labels."), Wae), lh), Jse), Me(li)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Lre), ""), "No Layout"), "No layout is done for the associated element. This is used to mark parts of a diagram to avoid their inclusion in the layout graph, or to mark parts of the layout graph to prevent layout engines from processing them. If you wish to exclude the contents of a compound node from automatic layout, while the node itself is still considered on its own layer, use the 'Fixed Layout' algorithm for that node."), !1), Si), Zt), Pt(li, I(S(hh, 1), ee, 160, 0, [Ff, x1, zl]))))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), eWe), ""), "Scale Factor"), "The scaling factor to be applied to the corresponding node in recursive layout. It causes the corresponding node's size to be adjusted, and its ports and labels to be sized and placed accordingly after the layout of that node has been determined (and before the node itself and its siblings are arranged). The scaling is not reverted afterwards, so the resulting layout graph contains the adjusted size and position data. This option is currently not supported if 'Layout Hierarchy' is set."), 1), Zi), pi), Me(li)))), Ae(n, new ge(je(ye(Ee(pe(ke(me(ve(new we(), nWe), ""), "Child Area Width"), "The width of the area occupied by the laid out children of a node."), Zi), pi), Me(Ge)))), Ae(n, new ge(je(ye(Ee(pe(ke(me(ve(new we(), tWe), ""), "Child Area Height"), "The height of the area occupied by the laid out children of a node."), Zi), pi), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), ej), ""), zXe), "Turns topdown layout on and off. If this option is enabled, hierarchical layout will be computed first for the root node and then for its children recursively. Layouts are then scaled down to fit the area provided by their parents. Graphs must follow a certain structure for topdown layout to work properly. {@link TopdownNodeTypes.PARALLEL_NODE} nodes must have children of type {@link TopdownNodeTypes.HIERARCHICAL_NODE} and must define {@link topdown.hierarchicalNodeWidth} and {@link topdown.hierarchicalNodeAspectRatio} for their children. Furthermore they need to be laid out using an algorithm that is a {@link TopdownLayoutProvider}. Hierarchical nodes can also be parents of other hierarchical nodes and can optionally use a {@link TopdownSizeApproximator} to dynamically set sizes during topdown layout. In this case {@link topdown.hierarchicalNodeWidth} and {@link topdown.hierarchicalNodeAspectRatio} should be set on the node itself rather than the parent. The values are then used by the size approximator as base values. Hierarchical nodes require the layout option {@link nodeSize.fixedGraphSize} to be true to prevent the algorithm used there from resizing the hierarchical node. This option is not supported if 'Hierarchy Handling' is set to 'INCLUDE_CHILDREN'"), !1), Si), Zt), Me(Ge)))), Kt(n, ej, X0, null), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), iWe), ""), "Animate"), "Whether the shift from the old layout to the new computed layout shall be animated."), !0), Si), Zt), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), rWe), ""), "Animation Time Factor"), "Factor for computation of animation time. The higher the value, the longer the animation time. If the value is 0, the resulting time is always equal to the minimum defined by 'Minimal Animation Time'."), Y(100)), hr), Ai), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), cWe), ""), "Layout Ancestors"), "Whether the hierarchy levels on the path from the selected element to the root of the diagram shall be included in the layout process."), !1), Si), Zt), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), uWe), ""), "Maximal Animation Time"), "The maximal time for animations, in milliseconds."), Y(4e3)), hr), Ai), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), sWe), ""), "Minimal Animation Time"), "The minimal time for animations, in milliseconds."), Y(400)), hr), Ai), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), oWe), ""), "Progress Bar"), "Whether a progress bar shall be displayed during layout computations."), !1), Si), Zt), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), fWe), ""), "Validate Graph"), "Whether the graph shall be validated before any layout algorithm is applied. If this option is enabled and at least one error is found, the layout process is aborted and a message is shown to the user."), !1), Si), Zt), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), hWe), ""), "Validate Options"), "Whether layout options shall be validated before any layout algorithm is applied. If this option is enabled and at least one error is found, the layout process is aborted and a message is shown to the user."), !0), Si), Zt), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), lWe), ""), "Zoom to Fit"), "Whether the zoom level shall be set to view the whole diagram after layout."), !1), Si), Zt), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Vce), "box"), "Box Layout Mode"), "Configures the packing mode used by the {@link BoxLayoutProvider}. If SIMPLE is not required (neither priorities are used nor the interactive mode), GROUP_DEC can improve the packing and decrease the area. GROUP_MIXED and GROUP_INC may, in very specific scenarios, work better."), Rae), qt), Vde), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), aWe), "json"), "Shape Coords"), "For layouts transferred into JSON graphs, specify the coordinate system to be used for nodes, ports, and labels of nodes and ports."), Kae), qt), _de), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), dWe), "json"), "Edge Coords"), "For layouts transferred into JSON graphs, specify the coordinate system to be used for edge route points and edge labels."), zae), qt), yde), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Ere), uh), "Comment Comment Spacing"), "Spacing to be preserved between a comment box and other comment boxes connected to the same node. The space left between comment boxes of different nodes is controlled by the node-node spacing."), 10), Zi), pi), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Are), uh), "Comment Node Spacing"), "Spacing to be preserved between a node and its connected comment boxes. The space left between a node and the comments of another node is controlled by the node-node spacing."), 10), Zi), pi), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Mre), uh), "Components Spacing"), "Spacing to be preserved between pairs of connected components. This option is only relevant if 'separateConnectedComponents' is activated."), 20), Zi), pi), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Tre), uh), "Edge Spacing"), "Spacing to be preserved between any two edges. Note that while this can somewhat easily be satisfied for the segments of orthogonally drawn edges, it is harder for general polylines or splines."), 10), Zi), pi), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), EB), uh), "Edge Label Spacing"), "The minimal distance to be preserved between a label and the edge it is associated with. Note that the placement of a label is influenced by the 'edgelabels.placement' option."), 2), Zi), pi), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), a_), uh), "Edge Node Spacing"), "Spacing to be preserved between nodes and edges."), 10), Zi), pi), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Sre), uh), "Label Spacing"), "Determines the amount of space to be left between two labels of the same graph element."), 0), Zi), pi), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), $re), uh), "Label Node Spacing"), "Spacing to be preserved between labels and the border of node they are associated with. Note that the placement of a label is influenced by the 'nodelabels.placement' option."), 5), Zi), pi), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Ire), uh), "Horizontal spacing between Label and Port"), "Horizontal spacing to be preserved between labels and the ports they are associated with. Note that the placement of a label is influenced by the 'portlabels.placement' option."), 1), Zi), pi), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Cre), uh), "Vertical spacing between Label and Port"), "Vertical spacing to be preserved between labels and the ports they are associated with. Note that the placement of a label is influenced by the 'portlabels.placement' option."), 1), Zi), pi), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Sw), uh), "Node Spacing"), "The minimal distance to be preserved between each two nodes."), 20), Zi), pi), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Pre), uh), "Node Self Loop Spacing"), "Spacing to be preserved between a node and its self loops."), 10), Zi), pi), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), xre), uh), "Port Spacing"), "Spacing between pairs of ports of the same node."), 10), Zi), pi), Pt(Ge, I(S(hh, 1), ee, 160, 0, [li]))))), Ae(n, new ge(je(ye(Ee(pe(ke(me(ve(new we(), Ore), uh), "Individual Spacing"), "Allows to specify individual spacing values for graph elements that shall be different from the value specified for the element's parent."), lh), Wsn), Pt(li, I(S(hh, 1), ee, 160, 0, [Ff, x1, zl]))))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), tce), uh), "Additional Port Space"), "Additional space around the sets of ports on each node side. For each side of a node, this option can reserve additional space before and after the ports on each side. For example, a top spacing of 20 makes sure that the first port on the western and eastern side is 20 units away from the northern border."), pde), lh), Jse), Me(Ge)))), Ae(n, new ge(je(ye(Ee(pe(ke(me(ve(new we(), w_), gWe), "Layout Partition"), "Partition to which the node belongs. This requires Layout Partitioning to be active. Nodes with lower partition IDs will appear to the left of nodes with higher partition IDs (assuming a left-to-right layout direction)."), hr), Ai), Pt(Ge, I(S(hh, 1), ee, 160, 0, [li]))))), Kt(n, w_, b_, lsn), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), b_), gWe), "Layout Partitioning"), "Whether to activate partitioned layout. This will allow to group nodes through the Layout Partition option. a pair of nodes with different partition indices is then placed such that the node with lower index is placed to the left of the other node (with left-to-right layout direction). Depending on the layout algorithm, this may only be guaranteed to work if all nodes have a layout partition configured, or at least if edges that cross partitions are not part of a partition-crossing cycle."), ide), Si), Zt), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), _re), pWe), "Node Label Padding"), "Define padding for node labels that are placed inside of a node."), Qae), lh), Gse), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Vv), pWe), "Node Label Placement"), "Hints for where node labels are to be placed; if empty, the node label's position is not modified."), Yae), U3), xr), Pt(li, I(S(hh, 1), ee, 160, 0, [zl]))))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), qre), lC), "Port Alignment"), "Defines the default port distribution for a node. May be overridden for each side individually."), cde), qt), K8), Me(li)))), Ae(n, new ge(je(ye(Ee(pe(ke(me(ve(new we(), Hre), lC), "Port Alignment (North)"), "Defines how ports on the northern side are placed, overriding the node's general port alignment."), qt), K8), Me(li)))), Ae(n, new ge(je(ye(Ee(pe(ke(me(ve(new we(), Ure), lC), "Port Alignment (South)"), "Defines how ports on the southern side are placed, overriding the node's general port alignment."), qt), K8), Me(li)))), Ae(n, new ge(je(ye(Ee(pe(ke(me(ve(new we(), zre), lC), "Port Alignment (West)"), "Defines how ports on the western side are placed, overriding the node's general port alignment."), qt), K8), Me(li)))), Ae(n, new ge(je(ye(Ee(pe(ke(me(ve(new we(), Kre), lC), "Port Alignment (East)"), "Defines how ports on the eastern side are placed, overriding the node's general port alignment."), qt), K8), Me(li)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), w2), __), "Node Size Constraints"), "What should be taken into account when calculating a node's size. Empty size constraints specify that a node's size is already fixed and should not be changed."), Zae), U3), V8), Me(li)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), v3), __), "Node Size Options"), "Options modifying the behavior of the size constraints set on a node. Each member of the set specifies something that should be taken into account when calculating node sizes. The empty set corresponds to no further modifications."), nde), U3), Jde), Me(li)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), k3), __), "Node Size Minimum"), "The minimal size to which a node can be reduced."), ede), lh), Ni), Me(li)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Wv), __), "Fixed Graph Size"), "By default, the fixed layout provider will enlarge a graph until it is large enough to contain its children. If this option is set, it won't do so."), !1), Si), Zt), Me(Ge)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Vre), l_), "Edge Label Placement"), "Gives a hint on where to put edge labels."), Jae), qt), jde), Me(zl)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), NI), l_), "Inline Edge Labels"), "If true, an edge label is placed directly on its edge. May only apply to center edge labels. This kind of label placement is only advisable if the label's rendering is such that it is not crossed by its edge and thus stays legible."), !1), Si), Zt), Me(zl)))), Ae(n, new ge(je(ye(Ee(pe(ke(me(ve(new we(), WOn), "font"), "Font Name"), "Font name used for a label."), z3), de), Me(zl)))), Ae(n, new ge(je(ye(Ee(pe(ke(me(ve(new we(), bWe), "font"), "Font Size"), "Font size used for a label."), hr), Ai), Me(zl)))), Ae(n, new ge(je(ye(Ee(pe(ke(me(ve(new we(), ece), J_), "Port Anchor Offset"), "The offset to the port position where connections shall be attached."), lh), Ni), Me(x1)))), Ae(n, new ge(je(ye(Ee(pe(ke(me(ve(new we(), Qre), J_), "Port Index"), "The index of a port in the fixed order around a node. The order is assumed as clockwise, starting with the leftmost port on the top side. This option must be set if 'Port Constraints' is set to FIXED_ORDER and no specific positions are given for the ports. Additionally, the option 'Port Side' must be defined in this case."), hr), Ai), Me(x1)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Nre), J_), "Port Side"), "The side of a node on which a port is situated. This option must be set if 'Port Constraints' is set to FIXED_SIDE or FIXED_ORDER and no specific positions are given for the ports."), hde), qt), kr), Me(x1)))), Ae(n, new ge(je(ye(Ee(pe(ke(me(ve(new we(), Dre), J_), "Port Border Offset"), "The offset of ports on the node border. With a positive offset the port is moved outside of the node, while with a negative offset the port is moved towards the inside. An offset of 0 means that the port is placed directly on the node border, i.e. if the port side is north, the port's south border touches the nodes's north border; if the port side is east, the port's west border touches the nodes's east border; if the port side is south, the port's north border touches the node's south border; if the port side is west, the port's east border touches the node's west border."), Zi), pi), Me(x1)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Qv), eue), "Port Label Placement"), "Decides on a placement method for port labels; if empty, the node label's position is not modified."), ode), U3), LP), Me(li)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Jre), eue), "Port Labels Next to Port"), "Use 'portLabels.placement': NEXT_TO_PORT_OF_POSSIBLE."), !1), Si), Zt), Me(li)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Gre), eue), "Treat Port Labels as Group"), "If this option is true (default), the labels of a port will be treated as a group when it comes to centering them next to their port. If this option is false, only the first label will be centered next to the port, with the others being placed below. This only applies to labels of eastern and western ports and will have no effect if labels are not placed next to their port."), !0), Si), Zt), Me(li)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), R_), u5), "Number of size categories"), "Defines the number of categories to use for the FIXED_INTEGER_RATIO_BOXES size approximator."), Y(3)), hr), Ai), Me(Ge)))), Kt(n, R_, B_, Esn), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Yce), u5), "Weight of a node containing children for determining the graph size"), "When determining the graph size for the size categorisation, this value determines how many times a node containing children is weighted more than a simple node. For example setting this value to four would result in a graph containing a simple node and a hierarchical node to be counted as having a size of five."), Y(4)), hr), Ai), Me(Ge)))), Kt(n, Yce, R_, null), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), nj), u5), "Topdown Scale Factor"), "The scaling factor to be applied to the nodes laid out within the node in recursive topdown layout. The difference to 'Scale Factor' is that the node itself is not scaled. This value has to be set on hierarchical nodes."), 1), Zi), pi), Me(Ge)))), Kt(n, nj, X0, ksn), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), B_), u5), "Topdown Size Approximator"), "The size approximator to be used to set sizes of hierarchical nodes during topdown layout. The default value is null, which results in nodes keeping whatever size is defined for them e.g. through parent parallel node or by manually setting the size."), null), lh), jDn), Me(li)))), Kt(n, B_, X0, ysn), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), tj), u5), "Topdown Hierarchical Node Width"), "The fixed size of a hierarchical node when using topdown layout. If this value is set on a parallel node it applies to its children, when set on a hierarchical node it applies to the node itself."), 150), Zi), pi), Pt(Ge, I(S(hh, 1), ee, 160, 0, [li]))))), Kt(n, tj, X0, null), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), ij), u5), "Topdown Hierarchical Node Aspect Ratio"), "The fixed aspect ratio of a hierarchical node when using topdown layout. Default is 1/sqrt(2). If this value is set on a parallel node it applies to its children, when set on a hierarchical node it applies to the node itself."), 1.414), Zi), pi), Pt(Ge, I(S(hh, 1), ee, 160, 0, [li]))))), Kt(n, ij, X0, null), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), X0), u5), "Topdown Node Type"), "The different node types used for topdown layout. If the node type is set to {@link TopdownNodeTypes.PARALLEL_NODE} the algorithm must be set to a {@link TopdownLayoutProvider} such as {@link TopdownPacking}. The {@link nodeSize.fixedGraphSize} option is technically only required for hierarchical nodes."), null), qt), qde), Me(li)))), Kt(n, X0, Wv, null), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Zce), u5), "Topdown Scale Cap"), "Determines the upper limit for the topdown scale factor. The default value is 1.0 which ensures that nested children never end up appearing larger than their parents in terms of unit sizes such as the font size. If the limit is larger, nodes will fully utilize the available space, but it is counteriniuitive for inner nodes to have a larger scale than outer nodes."), 1), Zi), pi), Me(Ge)))), Kt(n, Zce, X0, vsn), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Rre), mWe), "Activate Inside Self Loops"), "Whether this node allows to route self loops inside of it instead of around it. If set to true, this will make the node a compound node if it isn't already, and will require the layout algorithm to support compound nodes with hierarchical ports."), !1), Si), Zt), Me(li)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Bre), mWe), "Inside Self Loop"), "Whether a self loop should be routed inside a node instead of around that node."), !1), Si), Zt), Me(Ff)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), Wre), "edge"), "Edge Thickness"), "The thickness of an edge. This is a hint on the line width used to draw an edge, possibly requiring more space to be reserved for it."), 1), Zi), pi), Me(Ff)))), Ae(n, new ge(je(ye(Ee($e(pe(ke(me(ve(new we(), wWe), "edge"), "Edge Type"), "The type of an edge. This is usually used for UML class diagrams, where associations must be handled differently from generalizations."), Hae), qt), Ide), Me(Ff)))), E6(n, new Rp(p6(gm(wm(new rp(), We), "Layered"), 'The layer-based method was introduced by Sugiyama, Tagawa and Toda in 1981. It emphasizes the direction of edges by pointing as many edges as possible into the same direction. The nodes are arranged in layers, which are sometimes called "hierarchies", and then reordered such that the number of edge crossings is minimized. Afterwards, concrete coordinates are computed for the nodes and edge bend points.'))), E6(n, new Rp(p6(gm(wm(new rp(), "org.eclipse.elk.orthogonal"), "Orthogonal"), `Orthogonal methods that follow the "topology-shape-metrics" approach by Batini, Nardelli and Tamassia '86. The first phase determines the topology of the drawing by applying a planarization technique, which results in a planar representation of the graph. The orthogonal shape is computed in the second phase, which aims at minimizing the number of edge bends, and is called orthogonalization. The third phase leads to concrete coordinates for nodes and edge bend points by applying a compaction method, thus defining the metrics.`))), E6(n, new Rp(p6(gm(wm(new rp(), gu), "Force"), "Layout algorithms that follow physical analogies by simulating a system of attractive and repulsive forces. The first successful method of this kind was proposed by Eades in 1984."))), E6(n, new Rp(p6(gm(wm(new rp(), "org.eclipse.elk.circle"), "Circle"), "Circular layout algorithms emphasize cycles or biconnected components of a graph by arranging them in circles. This is useful if a drawing is desired where such components are clearly grouped, or where cycles are shown as prominent OPTIONS of the graph."))), E6(n, new Rp(p6(gm(wm(new rp(), $Xe), "Tree"), "Specialized layout methods for trees, i.e. acyclic graphs. The regular structure of graphs that have no undirected cycles can be emphasized using an algorithm of this type."))), E6(n, new Rp(p6(gm(wm(new rp(), "org.eclipse.elk.planar"), "Planar"), "Algorithms that require a planar or upward planar graph. Most of these algorithms are theoretically interesting, but not practically usable."))), E6(n, new Rp(p6(gm(wm(new rp(), ao), "Radial"), "Radial layout algorithms usually position the nodes of the graph on concentric circles."))), jHe((new S9e(), n)), RHe((new T9e(), n)), Xqe((new I9e(), n));
             };
             var K3, esn, Fae, J5, nsn, tsn, Rae, ng, tg, isn, sE, Bae, oE, Vd, _ae, BH, _H, Jae, Gae, qae, rsn, Hae, csn, z2, Uae, usn, fE, JH, hE, GH, ssn, zae, osn, Kae, K2, Xae, G5, Wae, Vae, Qae, X2, Yae, Qd, Zae, ig, W2, ede, Ja, nde, CP, lE, hl, tde, fsn, ide, hsn, lsn, rde, cde, qH, HH, UH, zH, ude, vs, G8, sde, KH, XH, rg, ode, fde, V2, hde, X3, aE, WH, cg, asn, VH, dsn, bsn, wsn, gsn, lde, ade, W3, dde, $P, bde, wde, O1, psn, gde, pde, mde, q5, ug, H5, V3, msn, vsn, PP, ksn, xP, ysn, jsn, Esn, Asn;
             w(hu, "CoreOptions", 689), b(86, 23, { 3: 1, 35: 1, 23: 1, 86: 1 }, Hk);
@@ -49632,14 +49632,14 @@ function ALn() {
             w5n(Jhn), P5n("permProps", [[["locale", "default"], [vQe, "gecko1_8"]], [["locale", "default"], [vQe, "safari"]]]), afn(null, "elk", null);
           }).call(this);
         }).call(this, typeof Pfn < "u" ? Pfn : typeof self < "u" ? self : typeof window < "u" ? window : {});
-      }, {}], 3: [function(R, K, q) {
-        function Ae(wi) {
+      }, {}], 3: [function(R, z, q) {
+        function be(wi) {
           "@babel/helpers - typeof";
-          return Ae = typeof Symbol == "function" && typeof Symbol.iterator == "symbol" ? function(ct) {
+          return be = typeof Symbol == "function" && typeof Symbol.iterator == "symbol" ? function(ct) {
             return typeof ct;
           } : function(ct) {
             return ct && typeof Symbol == "function" && ct.constructor === Symbol && ct !== Symbol.prototype ? "symbol" : typeof ct;
-          }, Ae(wi);
+          }, be(wi);
         }
         function k(wi, ct, zn) {
           return Object.defineProperty(wi, "prototype", { writable: !1 }), wi;
@@ -49651,7 +49651,7 @@ function ALn() {
           return ct = yn(ct), Je(wi, Fn() ? Reflect.construct(ct, zn || [], yn(wi).constructor) : ct.apply(wi, zn));
         }
         function Je(wi, ct) {
-          if (ct && (Ae(ct) == "object" || typeof ct == "function")) return ct;
+          if (ct && (be(ct) == "object" || typeof ct == "function")) return ct;
           if (ct !== void 0) throw new TypeError("Derived constructors may only return object or undefined");
           return $n(wi);
         }
@@ -49712,12 +49712,12 @@ Consider installing the package or pass your own 'workerFactory' to ELK's constr
           }
           return Xn(ct, wi), k(ct);
         })(Se);
-        Object.defineProperty(K.exports, "__esModule", {
+        Object.defineProperty(z.exports, "__esModule", {
           value: !0
-        }), K.exports = Ec, Ec.default = Ec;
-      }, { "./elk-api.js": 1, "./elk-worker.min.js": 2, "web-worker": 4 }], 4: [function(R, K, q) {
-        var Ae = typeof Worker < "u" ? Worker : void 0;
-        K.exports = Ae;
+        }), z.exports = Ec, Ec.default = Ec;
+      }, { "./elk-api.js": 1, "./elk-worker.min.js": 2, "web-worker": 4 }], 4: [function(R, z, q) {
+        var be = typeof Worker < "u" ? Worker : void 0;
+        z.exports = be;
       }, {}] }, {}, [3])(3);
     });
   })(V0e)), V0e.exports;

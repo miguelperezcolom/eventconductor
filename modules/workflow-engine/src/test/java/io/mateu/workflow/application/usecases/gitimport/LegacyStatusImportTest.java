@@ -2,6 +2,7 @@ package io.mateu.workflow.application.usecases.gitimport;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.mateu.workflow.domain.aggregates.WorkflowDefinition;
+import io.mateu.workflow.domain.aggregates.WorkflowStatus;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -32,31 +33,33 @@ class LegacyStatusImportTest {
     }
 
     @Test
-    void aFileWithTheLegacyStatusDoesNotEvenParse() throws Exception {
-        // What the editor produced, before this: unreadable.
-        var node = fileWith("\"status\": \"DISABLED\",");
+    void aFileWithTheOlderBooleansDoesNotParseOnItsOwn() throws Exception {
+        // `disabled` and `archived` are no longer fields of the definition: one `status` says what
+        // they said. A file still using them has to be adopted, or it does not read at all.
+        var node = fileWith("\"disabled\": true,");
 
         assertThatThrownBy(() -> mapper.treeToValue(node, WorkflowDefinition.class))
-                .hasMessageContaining("status");
+                .hasMessageContaining("disabled");
     }
 
     @Test
-    void theLegacyDisabledStatusIsReadAsTheDisabledFlag() throws Exception {
-        var node = fileWith("\"status\": \"DISABLED\",");
+    void theLegacyDisabledBooleanIsReadAsTheStatus() throws Exception {
+        var node = fileWith("\"disabled\": true,");
 
-        ImportWorkflowDefinitionsFromGitUseCase.adoptLegacyStatus(node, "order.ec");
+        ImportWorkflowDefinitionsFromGitUseCase.adoptLegacyLifecycleFields(node, "order.ec");
 
         var definition = mapper.treeToValue(node, WorkflowDefinition.class);
-        assertThat(definition.disabled()).isTrue();
+        assertThat(definition.declaredStatus()).isEqualTo(WorkflowStatus.DISABLED);
     }
 
     @Test
-    void theLegacyArchivedStatusIsReadAsTheArchivedFlag() throws Exception {
-        var node = fileWith("\"status\": \"ARCHIVED\",");
+    void theLegacyArchivedBooleanIsReadAsTheStatus() throws Exception {
+        var node = fileWith("\"archived\": true,");
 
-        ImportWorkflowDefinitionsFromGitUseCase.adoptLegacyStatus(node, "order.ec");
+        ImportWorkflowDefinitionsFromGitUseCase.adoptLegacyLifecycleFields(node, "order.ec");
 
-        assertThat(mapper.treeToValue(node, WorkflowDefinition.class).archived()).isTrue();
+        assertThat(mapper.treeToValue(node, WorkflowDefinition.class).declaredStatus())
+                .isEqualTo(WorkflowStatus.ARCHIVED);
     }
 
     @Test
@@ -64,11 +67,10 @@ class LegacyStatusImportTest {
         for (var status : new String[]{"DRAFT", "ACTIVE"}) {
             var node = fileWith("\"status\": \"%s\",".formatted(status));
 
-            ImportWorkflowDefinitionsFromGitUseCase.adoptLegacyStatus(node, "order.ec");
+            ImportWorkflowDefinitionsFromGitUseCase.adoptLegacyLifecycleFields(node, "order.ec");
 
             var definition = mapper.treeToValue(node, WorkflowDefinition.class);
-            assertThat(definition.disabled()).as(status).isFalse();
-            assertThat(definition.archived()).as(status).isFalse();
+            assertThat(definition.declaredStatus()).as(status).isEqualTo(WorkflowStatus.ACTIVE);
         }
     }
 
@@ -76,9 +78,9 @@ class LegacyStatusImportTest {
     void aFileWithoutOneIsLeftAlone() throws Exception {
         var node = fileWith("");
 
-        ImportWorkflowDefinitionsFromGitUseCase.adoptLegacyStatus(node, "order.ec");
+        ImportWorkflowDefinitionsFromGitUseCase.adoptLegacyLifecycleFields(node, "order.ec");
 
         var definition = mapper.treeToValue(node, WorkflowDefinition.class);
-        assertThat(definition.disabled()).isFalse();
+        assertThat(definition.declaredStatus()).isEqualTo(WorkflowStatus.ACTIVE);
     }
 }

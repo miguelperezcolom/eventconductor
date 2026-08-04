@@ -6,6 +6,7 @@ import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
 import io.mateu.workflow.application.out.WorkflowMetrics;
 import io.mateu.workflow.domain.aggregates.Process;
 import io.mateu.workflow.domain.aggregates.WorkflowDefinition;
+import io.mateu.workflow.domain.aggregates.WorkflowStatus;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -33,11 +34,10 @@ class CreateProcessDisabledDefinitionTest {
 
     @InjectMocks CreateProcessUseCase createProcessUseCase;
 
-    private void given(boolean disabled, boolean archived,
-                       boolean declaredDisabled, boolean declaredArchived) {
+    private void given(WorkflowStatus declared, WorkflowStatus runtime) {
         when(workflowDefinitionRepository.findById("wd-1")).thenReturn(Optional.of(
                 new WorkflowDefinition("wd-1", "Order", 1, null, false, 0, false, null, 0,
-                        List.of(), false, disabled, archived, declaredDisabled, declaredArchived)));
+                        List.of(), false, declared, runtime)));
     }
 
     private void create() {
@@ -46,7 +46,7 @@ class CreateProcessDisabledDefinitionTest {
 
     @Test
     void refusesToCreateAProcessForAWorkflowAnOperatorDisabled() {
-        given(true, false, false, false);
+        given(WorkflowStatus.ACTIVE, WorkflowStatus.DISABLED);
 
         create();
 
@@ -56,7 +56,7 @@ class CreateProcessDisabledDefinitionTest {
 
     @Test
     void refusesToCreateAProcessForAWorkflowItsOwnDefinitionDisables() {
-        given(false, false, true, false);
+        given(WorkflowStatus.DISABLED, WorkflowStatus.ACTIVE);
 
         create();
 
@@ -65,9 +65,9 @@ class CreateProcessDisabledDefinitionTest {
 
     @Test
     void refusesForAnArchivedWorkflowFromEitherSource() {
-        given(false, true, false, false);
+        given(WorkflowStatus.ACTIVE, WorkflowStatus.ARCHIVED);
         create();
-        given(false, false, false, true);
+        given(WorkflowStatus.ARCHIVED, WorkflowStatus.ACTIVE);
         create();
 
         verify(processRepository, never()).save(any(Process.class));
@@ -75,7 +75,7 @@ class CreateProcessDisabledDefinitionTest {
 
     @Test
     void createsWhenNeitherSourceObjects() {
-        given(false, false, false, false);
+        given(WorkflowStatus.ACTIVE, WorkflowStatus.ACTIVE);
 
         create();
 

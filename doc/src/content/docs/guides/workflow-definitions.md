@@ -70,8 +70,8 @@ steps: [...]
 | `version` | integer | **Ignored for numbering.** The engine assigns versions itself on each content change (see [Versioning](#versioning)); any value here is not authoritative and is overwritten |
 | `description` | string | Optional description |
 | `paused` | boolean | Runtime flag — **not authored in the `.ec`**. Toggled at runtime (UI, `PauseWorkflowUseCase`/`ResumeWorkflowUseCase`, MCP). While `true`, all the definition's processes are held and new instances (cron included) are created born-`PAUSED`. Kept in the schema (default `false`) only so exported definitions round-trip |
-| `disabled` | boolean | Runtime flag — **not authored in the `.ec`**. Toggled at runtime (disable/enable). While `true` the definition accepts no new instances (cron included); running ones continue. Default `false` |
-| `archived` | boolean | Runtime flag — **not authored in the `.ec`**. Set by the Git-import prune when a definition disappears from its repository, to hide it without deleting. Default `false` |
+| `status` | string | `ACTIVE` (default), `DISABLED` or `ARCHIVED`. **Authored in the `.ec`**, and a floor: an operator can take a workflow out of service at runtime, but cannot put one into service that its own definition closes. This is how a definition lives in the repository without being live |
+| `disabled`, `archived` | boolean | The older way of saying the same thing, still read: `disabled: true` means `status: DISABLED`, `archived: true` means `status: ARCHIVED` |
 | `limitConcurrentExecutions` | boolean | Cap concurrent running instances |
 | `maxConcurrentExecutions` | integer | Max instances (if limit enabled) |
 | `enqueueOnLimit` | boolean | Queue new instances when limit reached |
@@ -81,8 +81,7 @@ steps: [...]
 ### Runtime state
 
 Definitions are **authored as `.ec` files** (edited with the [IDE plugins](/guides/ide-plugins/))
-and imported — they are never edited in the management UI. The UI only toggles two orthogonal
-**runtime** flags (they live outside the `.ec`, in the engine's runtime state):
+and imported — they are never edited in the management UI. The UI toggles runtime state:
 
 | Action | Effect |
 |---|---|
@@ -93,11 +92,22 @@ A definition removed from its Git repository is **archived** by the import prune
 deleted) — see [Importing from Git](#importing-from-git). Archived and disabled definitions do not
 start new instances.
 
+Pausing is a different axis from the status and stays a flag of its own: a paused workflow still
+accepts new instances — they are born paused — while a disabled one accepts none. A workflow can
+be both.
+
+**The file and the runtime are two answers to the same question, and the stricter one wins.** The
+engine keeps them apart: what the `.ec` declares in `status`, and what an operator has done. A
+re-import replaces the declaration and leaves the runtime state alone, so it no longer puts back
+into service anything that had been disabled; and **Enable** is refused — and not offered — for a
+workflow whose own definition says `DISABLED` or `ARCHIVED`. Change that in the file and import it
+again.
+
 ## Versioning
 
 The engine keeps a **history of every version** of a definition. Whenever a definition is saved
 (imported from Git, or its content otherwise changed) the engine hashes its *content* — the steps
-and configuration, **excluding** the runtime flags (`paused`/`disabled`/`archived`) and the
+and configuration, **excluding** the runtime state (pause, and the operator's disable/archive) and the
 `version` field — and, if that hash differs from the latest recorded version, records a new
 immutable version: an incrementing number (starting at **1**), a **creation timestamp**, and a
 frozen JSON snapshot. Re-importing an unchanged definition, or a runtime toggle (pause/disable/

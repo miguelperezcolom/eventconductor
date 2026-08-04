@@ -40,10 +40,8 @@ public class WorkflowDefinitionDBRepository implements WorkflowDefinitionReposit
                 entity.getDefaultMaxStepExecutions(),
                 listFromJson(entity.getStepsJson(), Step.class),
                 entity.isPaused(),
-                entity.isDisabled(),
-                entity.isArchived(),
-                entity.isDeclaredDisabled(),
-                entity.isDeclaredArchived()
+                WorkflowStatus.of(entity.getDeclaredStatus(), false, false),
+                WorkflowStatus.of(entity.getRuntimeStatus(), false, false)
         );
     }
 
@@ -66,10 +64,8 @@ public class WorkflowDefinitionDBRepository implements WorkflowDefinitionReposit
                 workflowDefinition.cronExpression(),
                 workflowDefinition.defaultMaxStepExecutions(),
                 workflowDefinition.paused(),
-                workflowDefinition.disabled(),
-                workflowDefinition.archived(),
-                workflowDefinition.declaredDisabled(),
-                workflowDefinition.declaredArchived()
+                workflowDefinition.declaredStatus().name(),
+                workflowDefinition.runtimeStatus().name()
         ));
         return workflowDefinition.id();
     }
@@ -83,7 +79,9 @@ public class WorkflowDefinitionDBRepository implements WorkflowDefinitionReposit
     public void deleteAllById(List<String> selectedIds) {
         selectedIds.stream().map(workflowDefinitionEntityRepository::findById)
                 .map(Optional::orElseThrow)
-                .filter(entity -> !entity.isDisabled() && !entity.isArchived())
+                .filter(entity -> WorkflowStatus.of(entity.getRuntimeStatus(), false, false)
+                        .and(WorkflowStatus.of(entity.getDeclaredStatus(), false, false))
+                        .accceptsNewInstances())
                 .findAny()
                 .ifPresent(entity -> {
                     throw new RuntimeException("Cannot delete an active workflow definition (disable or archive it first): " + entity.getName());

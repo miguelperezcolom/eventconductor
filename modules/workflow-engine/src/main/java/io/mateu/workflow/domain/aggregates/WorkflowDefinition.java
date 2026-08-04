@@ -50,47 +50,54 @@ public record WorkflowDefinition(
         // included). Never in the .ec — toggled through Pause/ResumeWorkflowUseCase.
         @Hidden
         boolean paused,
-        // Runtime disabled flag: while true the definition accepts no new instances (cron
-        // included). Never in the .ec — toggled through Disable/EnableWorkflowDefinitionUseCase.
-        @Hidden
-        boolean disabled,
-        // Runtime archived flag: set by the git-import prune when a definition disappears from
-        // its repository, to hide it without deleting. Never in the .ec.
-        @Hidden
-        boolean archived,
         /**
-         * What the definition file itself says, kept apart from the two runtime flags above
-         * because they answer to different people: the file answers to whoever writes the
-         * workflow, the flags to whoever operates it.
+         * What this workflow's own definition declares — ACTIVE, DISABLED or ARCHIVED — carried in
+         * the file as `status`.
          *
-         * <p>A definition can live in the repository without being live — that is the point of
-         * declaring it here — and the declaration is a floor, not a suggestion. The runtime can
-         * take a workflow out of service that the file allows; it cannot put one into service that
-         * the file does not. See {@link #effectivelyDisabled()}.
-         *
-         * <p>Set only by whatever supplies the definition (the git import, an editor save), and
-         * preserved across imports for the runtime flags rather than overwritten — which is what
-         * used to happen, so every import silently re-enabled anything an operator had disabled.
+         * <p>It is a floor, not a suggestion: the runtime can take a workflow out of service that
+         * the file allows, and cannot put one into service that the file does not. That asymmetry
+         * is the point — the file is in version control and reviewed, the toggle is a button — and
+         * it is what lets a definition live in the repository without being live.
+         */
+        @Hidden
+        @com.fasterxml.jackson.annotation.JsonProperty("status")
+        WorkflowStatus declaredStatus,
+        /**
+         * What an operator (or the git-import prune, which archives a definition that disappeared
+         * from its repository) has decided. Engine state, never file syntax, and preserved across
+         * imports rather than overwritten by them.
          */
         @Hidden
         @com.fasterxml.jackson.annotation.JsonIgnore
-        boolean declaredDisabled,
-        @Hidden
-        @com.fasterxml.jackson.annotation.JsonIgnore
-        boolean declaredArchived
+        WorkflowStatus runtimeStatus
 ) implements Identifiable, SearchableText, LookupOptionsSupplier, VisibilitySupplier {
 
-    /** Creation without the runtime flags: definitions start unpaused, enabled and not archived. */
+    /**
+     * Neither status is ever null inside the record: absent in a file, absent in a row written
+     * before the column existed, and absent from a copy made by an older caller all mean active.
+     * Defaulting in the accessors instead left the components themselves null, so two definitions
+     * that mean the same thing were not equal — which is how a definition stopped round-tripping
+     * through its own exporter.
+     */
+    public WorkflowDefinition {
+        declaredStatus = declaredStatus == null ? WorkflowStatus.ACTIVE : declaredStatus;
+        runtimeStatus = runtimeStatus == null ? WorkflowStatus.ACTIVE : runtimeStatus;
+    }
+
+    /** Creation without any lifecycle state: definitions start unpaused and active. */
     public WorkflowDefinition(String id, String name, int version, String description,
                               boolean limitConcurrentExecutions, int maxConcurrentExecutions,
                               boolean enqueueOnLimit, String cronExpression,
                               int defaultMaxStepExecutions, List<Step> steps) {
         this(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
-                steps, false, false, false, false, false);
+                steps, false, WorkflowStatus.ACTIVE, WorkflowStatus.ACTIVE);
     }
 
-    /** The shape this record had before the declared flags existed, so callers keep compiling. */
+    /**
+     * The shape this record had while the state was two booleans, so callers written against it
+     * keep compiling and keep meaning what they meant.
+     */
     public WorkflowDefinition(String id, String name, int version, String description,
                               boolean limitConcurrentExecutions, int maxConcurrentExecutions,
                               boolean enqueueOnLimit, String cronExpression,
@@ -98,61 +105,88 @@ public record WorkflowDefinition(
                               boolean paused, boolean disabled, boolean archived) {
         this(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
-                steps, paused, disabled, archived, false, false);
+                steps, paused, WorkflowStatus.ACTIVE,
+                WorkflowStatus.of(null, disabled, archived));
     }
 
     /**
-     * Whether this workflow accepts new instances — the answer both the cron scheduler and
-     * process creation ask.
-     *
-     * <p>Either source can say no. An operator disabling a workflow takes it out of service; a
-     * definition that declares itself disabled was never in service to begin with, and no runtime
-     * toggle can talk it into one. That asymmetry is the whole point: the file is in version
-     * control and reviewed, the toggle is a button.
+     * Annotated here as well as on the components: writing an accessor by hand replaces the
+     * one a record generates, and the component's annotations do not follow it — which is how
+     * `runtimeStatus`, engine state that has no business in a definition file, ended up being
+     * serialised into one.
      */
-    public boolean effectivelyDisabled() {
-        return disabled || declaredDisabled;
+    @com.fasterxml.jackson.annotation.JsonProperty("status")
+    public WorkflowStatus declaredStatus() {
+        return declaredStatus;
     }
 
-    /** Same rule for archived: declared in the file, or archived at runtime. */
-    public boolean effectivelyArchived() {
-        return archived || declaredArchived;
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    public WorkflowStatus runtimeStatus() {
+        return runtimeStatus;
+    }
+
+    /**
+     * The answer the cron scheduler and process creation ask: the stricter of what the file
+     * declares and what the runtime has decided.
+     */
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    public WorkflowStatus status() {
+        return declaredStatus().and(runtimeStatus());
+    }
+
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    public boolean disabled() {
+        return status() != WorkflowStatus.ACTIVE;
+    }
+
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    public boolean archived() {
+        return status() == WorkflowStatus.ARCHIVED;
     }
 
     /** Returns a copy with a different runtime pause flag. */
     public WorkflowDefinition withPaused(boolean newPaused) {
         return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
-                steps, newPaused, disabled, archived, declaredDisabled, declaredArchived);
+                steps, newPaused, declaredStatus, runtimeStatus);
     }
 
-    /** Returns a copy with a different runtime disabled flag. */
+    /** Returns a copy with a different runtime status — what an operator decided. */
+    public WorkflowDefinition withRuntimeStatus(WorkflowStatus newStatus) {
+        return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
+                maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
+                steps, paused, declaredStatus, newStatus);
+    }
+
+    /** Returns a copy with a different declared status — what the definition file says. */
+    public WorkflowDefinition withDeclaredStatus(WorkflowStatus newStatus) {
+        return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
+                maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
+                steps, paused, newStatus, runtimeStatus);
+    }
+
+    /** Kept for callers written against the boolean API. */
     public WorkflowDefinition withDisabled(boolean newDisabled) {
-        return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
-                maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
-                steps, paused, newDisabled, archived, declaredDisabled, declaredArchived);
+        return withRuntimeStatus(newDisabled ? WorkflowStatus.DISABLED : WorkflowStatus.ACTIVE);
     }
 
-    /** Returns a copy with a different runtime archived flag. */
     public WorkflowDefinition withArchived(boolean newArchived) {
-        return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
-                maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
-                steps, paused, disabled, newArchived, declaredDisabled, declaredArchived);
+        return withRuntimeStatus(newArchived ? WorkflowStatus.ARCHIVED
+                : (runtimeStatus() == WorkflowStatus.ARCHIVED ? WorkflowStatus.ACTIVE : runtimeStatus()));
     }
 
-    /** Returns a copy carrying the runtime flags of {@code existing}, keeping this one's file state. */
-    public WorkflowDefinition withRuntimeFlagsOf(WorkflowDefinition existing) {
+    /** Returns a copy carrying the runtime state of {@code existing}, keeping this one's declaration. */
+    public WorkflowDefinition withRuntimeStateOf(WorkflowDefinition existing) {
         return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
-                steps, existing.paused(), existing.disabled(), existing.archived(),
-                declaredDisabled, declaredArchived);
+                steps, existing.paused(), declaredStatus, existing.runtimeStatus());
     }
 
     /** Returns a copy carrying the given (engine-assigned) version number. */
     public WorkflowDefinition withVersion(int newVersion) {
         return new WorkflowDefinition(id, name, newVersion, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
-                steps, paused, disabled, archived);
+                steps, paused, declaredStatus(), runtimeStatus());
     }
 
     // ── Detail-view lifecycle buttons (conditional on state via VisibilitySupplier) ──
@@ -166,8 +200,8 @@ public record WorkflowDefinition(
     public boolean isHidden(String memberName, HttpRequest httpRequest) {
         return switch (memberName) {
             case "edit" -> true;
-            case "disable" -> disabled;
-            case "enable" -> !disabled;
+            case "disable" -> disabled();
+            case "enable" -> !disabled();
             default -> false;
         };
     }

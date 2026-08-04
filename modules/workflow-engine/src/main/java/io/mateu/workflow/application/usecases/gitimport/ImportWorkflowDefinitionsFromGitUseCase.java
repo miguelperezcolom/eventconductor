@@ -8,6 +8,7 @@ import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
 import io.mateu.workflow.application.services.DefinitionFileFormat;
 import io.mateu.workflow.application.services.WorkflowDefinitionValidator;
 import io.mateu.workflow.domain.aggregates.WorkflowDefinition;
+import io.mateu.workflow.domain.aggregates.WorkflowStatus;
 import io.mateu.workflow.infra.config.GitImportProperties;
 import io.mateu.workflow.webhook.ImportedDefinitionsRegistry;
 import lombok.RequiredArgsConstructor;
@@ -165,7 +166,7 @@ public class ImportWorkflowDefinitionsFromGitUseCase {
             return;
         }
 
-        adoptLegacyStatus(node, fileName);
+        adoptLegacyLifecycleFields(node, fileName);
 
         var definition = objectMapper.treeToValue(node, WorkflowDefinition.class);
 
@@ -195,7 +196,7 @@ public class ImportWorkflowDefinitionsFromGitUseCase {
         definition = asDeclaration(definition);
         var existing = workflowDefinitionRepository.findById(definition.id());
         if (existing.isPresent()) {
-            definition = definition.withRuntimeFlagsOf(existing.get());
+            definition = definition.withRuntimeStateOf(existing.get());
         }
 
         // Validation is delegated to WorkflowDefinitionValidator (called inside repository.save()).
@@ -212,31 +213,35 @@ public class ImportWorkflowDefinitionsFromGitUseCase {
     }
 
     /**
-     * Reads a legacy {@code status} — DRAFT / ACTIVE / DISABLED / ARCHIVED — and drops it.
+     * Reads the older ways a file could say it is not to run — the `disabled` and `archived`
+     * booleans — and leaves a single `status` behind.
      *
-     * <p>The graph editor used to write that field, and the engine has never had it: it is not in
-     * the schema, and the parser rejects properties it does not know, so a file carrying one did
-     * not fail validation with a clear message — it failed to import at all, logged as a skipped
-     * file. Anyone who used the editor's old status dropdown to keep a workflow out of service got
-     * a definition the engine would not read.
+     * <p>They said between them what one word says: four combinations for three meanings, with
+     * "is an archived workflow also disabled?" answered in prose. Files written against them keep
+     * working, and the value they meant survives; the field they used does not.
      *
-     * <p>DISABLED and ARCHIVED said something, and they say it in the flags now. DRAFT and ACTIVE
-     * meant nothing to the engine and are simply dropped.
+     * <p>A legacy DRAFT or ACTIVE `status`, which an older graph editor wrote and the engine never
+     * had, means nothing and is dropped — the values that did mean something, DISABLED and
+     * ARCHIVED, are now what this field is for.
      */
-    static void adoptLegacyStatus(JsonNode node, String fileName) {
-        if (!(node instanceof ObjectNode object) || !object.has("status")) {
+    static void adoptLegacyLifecycleFields(JsonNode node, String fileName) {
+        if (!(node instanceof ObjectNode object)) {
             return;
         }
-        var status = object.get("status").asText("");
-        object.remove("status");
-        if ("DISABLED".equalsIgnoreCase(status)) {
-            object.put("disabled", true);
-        } else if ("ARCHIVED".equalsIgnoreCase(status)) {
-            object.put("archived", true);
+        var declared = object.hasNonNull("status") ? object.get("status").asText("") : null;
+        var disabled = object.path("disabled").asBoolean(false);
+        var archived = object.path("archived").asBoolean(false);
+        if (!object.has("disabled") && !object.has("archived")
+                && (declared == null || WorkflowStatus.of(declared, false, false).name().equalsIgnoreCase(declared))) {
+            return;   // nothing legacy about it
         }
-        log.info("{} carries a legacy 'status: {}', which this engine has no such field for — read"
-                + " as the disabled/archived flags and dropped. Re-save it from the editor to write"
-                + " the flags directly.", fileName, status);
+        object.remove("disabled");
+        object.remove("archived");
+        var status = WorkflowStatus.of(declared, disabled, archived);
+        object.put("status", status.name());
+        log.info("{} uses the older lifecycle fields (status={}, disabled={}, archived={}); read as"
+                + " status {}. Re-save it from the editor to write it directly.",
+                fileName, declared, disabled, archived, status);
     }
 
     /**
@@ -250,9 +255,7 @@ public class ImportWorkflowDefinitionsFromGitUseCase {
                 fromFile.limitConcurrentExecutions(), fromFile.maxConcurrentExecutions(),
                 fromFile.enqueueOnLimit(), fromFile.cronExpression(),
                 fromFile.defaultMaxStepExecutions(), fromFile.steps(),
-                false, false, false,
-                fromFile.disabled() || fromFile.declaredDisabled(),
-                fromFile.archived() || fromFile.declaredArchived());
+                false, fromFile.declaredStatus(), WorkflowStatus.ACTIVE);
     }
 
     /**

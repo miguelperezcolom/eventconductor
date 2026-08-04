@@ -54,8 +54,9 @@ class DdlAutoToFlywayUpgradeTest {
 
     /**
      * The other half of making V11 run twice over: on a database Flyway built from V1 the old
-     * `status` column is real and holds data, and the flags it becomes must still be carried over.
-     * That is the part making the migration idempotent could quietly have broken.
+     * `status` column is real and holds data, and what it becomes must still be carried over —
+     * through V11, which made it two flags, and V16, which made those one word again. Two format
+     * changes on the same fact, and a definition disabled before either has to still be disabled.
      */
     @Test
     void aDefinitionDisabledUnderTheOldStatusColumnStaysDisabled() throws Exception {
@@ -77,15 +78,17 @@ class DdlAutoToFlywayUpgradeTest {
         migrate(empty, null);
 
         try (var connection = empty.getConnection(); var statement = connection.createStatement()) {
+            // V11 turned the old `status` column into flags; V16 turned the flags into one word
+            // again. What has to survive both is the meaning: this definition was out of service.
             var rows = statement.executeQuery(
-                    "select id, disabled, archived from workflow_definition_entity order by id");
+                    "select id, runtime_status, declared_status from workflow_definition_entity order by id");
             rows.next();
             assertThat(rows.getString("id")).isEqualTo("wf-active");
-            assertThat(rows.getBoolean("disabled")).isFalse();
+            assertThat(rows.getString("runtime_status")).isEqualTo("ACTIVE");
             rows.next();
             assertThat(rows.getString("id")).isEqualTo("wf-disabled");
-            assertThat(rows.getBoolean("disabled")).isTrue();
-            assertThat(rows.getBoolean("archived")).isFalse();
+            assertThat(rows.getString("runtime_status")).isEqualTo("DISABLED");
+            assertThat(rows.getString("declared_status")).isEqualTo("ACTIVE");
         }
     }
 
