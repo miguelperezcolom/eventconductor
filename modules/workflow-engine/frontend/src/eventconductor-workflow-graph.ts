@@ -552,6 +552,14 @@ export class MateuWorkflowElk extends LitElement {
     @property({type: Boolean}) readOnly = false;
 
     /**
+     * Drops the expand button. Inside an IDE editor pane — the VS Code custom editor, the IntelliJ
+     * split editor — the component already fills everything it is allowed to fill, so "expand"
+     * either does nothing visible or fights the host's own layout. The app, where the graph sits in
+     * a page among other things, leaves it on.
+     */
+    @property({type: Boolean, attribute: "no-expand"}) noExpand = false;
+
+    /**
      * JSON string with a per-step monitoring overlay (read-only views). Map of stepId →
      * `{count?, state?, active?}`:
      *  - `count`: how many process instances currently sit at this step (definition view badge).
@@ -1752,8 +1760,9 @@ export class MateuWorkflowElk extends LitElement {
                 ${sim}
                 ${heat}
                 <button class="vbtn" title="Fit graph to view" @click="${() => this.fitToView()}">${iconFit}</button>
-                <button class="vbtn" title="${this.fullscreen ? "Collapse" : "Expand"}"
-                        @click="${() => { this.fullscreen = !this.fullscreen; }}">${this.fullscreen ? "✕" : "⤢"}</button>
+                ${this.noExpand ? nothing : html`
+                    <button class="vbtn" title="${this.fullscreen ? "Collapse" : "Expand"}"
+                            @click="${() => { this.fullscreen = !this.fullscreen; }}">${this.fullscreen ? "✕" : "⤢"}</button>`}
             </div>`;
     }
 
@@ -1784,9 +1793,13 @@ export class MateuWorkflowElk extends LitElement {
                         <svg width="100%" height="100%" class="canvas ${this.panning ? "panning" : ""}"
                              @mousedown="${this.onCanvasMouseDown}">
                             <defs>
-                                <marker id="ec-arrow" markerWidth="9" markerHeight="9"
-                                        refX="7.5" refY="3.2" orient="auto" markerUnits="userSpaceOnUse">
-                                    <path d="M0,0 L0,6.4 L8,3.2 z" fill="context-stroke"/>
+                                <!-- The arrowhead is what tells you which way a line runs, and at
+                                     1:1 zoom the old one was a smudge on a 1.6px line: present,
+                                     unreadable. Half again as long, wider at the base, and it
+                                     reads as an arrow at the zoom people actually work at. -->
+                                <marker id="ec-arrow" markerWidth="13" markerHeight="13"
+                                        refX="11" refY="4.5" orient="auto" markerUnits="userSpaceOnUse">
+                                    <path d="M0,0 L0,9 L11.5,4.5 z" fill="context-stroke"/>
                                 </marker>
                                 <filter id="ec-shadow" x="-20%" y="-20%" width="140%" height="150%">
                                     <feDropShadow dx="0" dy="1" stdDeviation="1.2" flood-color="#0f172a"
@@ -2088,7 +2101,7 @@ export class MateuWorkflowElk extends LitElement {
                     <span>Step Properties</span>
                     ${!ro ? html`<button class="del-btn" title="Delete step"
                             @click="${() => this.deleteStep(step.id)}">🗑</button>` : nothing}
-                    <button class="close-btn"
+                    <button class="close-btn" title="Close properties"
                             @click="${() => this.selectedId = null}">✕</button>
                 </div>
                 <div class="prop-body">
@@ -2442,10 +2455,14 @@ export class MateuWorkflowElk extends LitElement {
             border-bottom: 1px solid var(--ec-border);
         }
         .prop-header span {flex: 1;}
+        /* Both were thin glyphs floating in the header and read as decoration; sized up and given
+           a hover surface so they read as the buttons they are. */
         .del-btn, .close-btn {
-            background: none; border: none; cursor: pointer;
-            font-size: .95rem; padding: .1rem .3rem; border-radius: 4px; line-height: 1;
+            background: none; border: none; cursor: pointer; color: var(--ec-text-dim);
+            font-size: 1.05rem; padding: .15rem .4rem; border-radius: 5px; line-height: 1;
         }
+        .close-btn:hover {color: var(--ec-text);}
+        .del-btn:hover {color: #dc2626;}
         .del-btn:hover {background: #fee2e2;}
         .close-btn:hover {background: #f1f5f9;}
         .prop-body {flex: 1; overflow-y: auto; padding: .75rem; display: flex; flex-direction: column; gap: .6rem;}

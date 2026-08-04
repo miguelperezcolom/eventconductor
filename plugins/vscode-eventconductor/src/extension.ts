@@ -158,7 +158,8 @@ class EcEditorProvider implements vscode.CustomTextEditorProvider {
 </head>
 <body>
   <div id="error"></div>
-  <eventconductor-workflow-graph></eventconductor-workflow-graph>
+  <!-- no-expand: the custom editor already fills the pane, so expanding it means nothing -->
+  <eventconductor-workflow-graph no-expand></eventconductor-workflow-graph>
   <script nonce="${nonce}" type="module" src="${bundle}"></script>
   <script nonce="${nonce}" src="${main}"></script>
 </body>

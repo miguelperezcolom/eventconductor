@@ -109,7 +109,8 @@ class EcGraphFileEditor(
             <style>html,body{height:100%;margin:0}body{display:flex}
             eventconductor-workflow-graph{flex:1 1 auto;min-height:0}</style></head>
             <body>
-            <eventconductor-workflow-graph></eventconductor-workflow-graph>
+            <!-- no-expand: this editor pane is already the whole surface the graph can have -->
+            <eventconductor-workflow-graph no-expand></eventconductor-workflow-graph>
             <script>$jsYaml</script>
             <script type="module">$bundle</script>
             <script>$main</script>
