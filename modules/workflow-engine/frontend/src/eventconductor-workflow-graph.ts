@@ -526,7 +526,10 @@ function allPaths(steps: WorkflowStep[]): string[][] {
         seen.add(node);
         const outs = (outgoing[node] ?? []).filter(n => !seen.has(n));
         if (outs.length === 0) {
-            paths.push([...trail]);
+            // A lone node is not a path: nothing flows anywhere, and animating it means a token
+            // walking a zero-length line while the simulation waits out its turn. A step that is
+            // not wired up yet — one just added in the editor — is exactly this case.
+            if (trail.length > 1) paths.push([...trail]);
         } else {
             for (const nxt of outs) dfs(nxt, trail, seen);
         }
@@ -680,16 +683,19 @@ export class MateuWorkflowElk extends LitElement {
                     this.didInitialFit = false;   // re-fit the new graph in view
                     this.runElkLayout();
                 }
-                // Recompute the paths the token animation cycles through; reset focus.
-                this.flowPaths = allPaths(this.wf.steps ?? []);
-                this.focusMode = "auto";
-                this.focusNodeId = null;
-                this.activePaths = this.flowPaths;
-                this.flowPathIndex = 0;
-                this.pulsedThisPath = new Set();
             } catch {
                 /* keep previous */
             }
+        }
+        // Keyed on the graph itself, not on the `value` attribute it may have arrived in. An edit
+        // made in the editor — a node added, deleted, or rewired — changes `wf` and never touches
+        // `value`, so deriving these from `value` left the animation cycling the paths of the graph
+        // as it was before the edit, alt+click cycling paths through nodes that were gone, and new
+        // nodes on no path at all. It only looked intermittent because a host that echoes the
+        // edited document back re-set `value` and papered over it — unless the round trip produced
+        // the identical JSON, in which case nothing was pushed and the staleness stuck.
+        if (changed.has("wf")) {
+            this.refreshFlowPaths();
         }
         if (changed.has("overlay")) {
             try {
@@ -1330,6 +1336,30 @@ export class MateuWorkflowElk extends LitElement {
     private pathsThrough(id: string): string[][] {
         const through = this.flowPaths.filter(p => p.includes(id));
         return through.length ? through : this.flowPaths;
+    }
+
+    /**
+     * Re-derives the paths the animation and the focus work over, after any change to the graph.
+     *
+     * <p>A focus on a node that is still there survives the edit — losing it every time a field is
+     * typed into would be its own annoyance — and one on a node that has just been deleted falls
+     * back to animating everything. The path index is taken modulo the new length so the token
+     * carries on from a path that exists rather than pointing past the end of the list.
+     */
+    private refreshFlowPaths() {
+        this.flowPaths = allPaths(this.wf.steps ?? []);
+        const focusStillThere = this.focusNodeId != null
+            && (this.wf.steps ?? []).some(s => s.id === this.focusNodeId);
+        if (this.focusMode !== "auto" && focusStillThere) {
+            this.activePaths = this.pathsThrough(this.focusNodeId!);
+        } else {
+            this.focusMode = "auto";
+            this.focusNodeId = null;
+            this.activePaths = this.flowPaths;
+        }
+        const paths = this.activePaths.length ? this.activePaths : this.flowPaths;
+        this.flowPathIndex = paths.length ? this.flowPathIndex % paths.length : 0;
+        this.pulsedThisPath = new Set();
     }
 
     /**
