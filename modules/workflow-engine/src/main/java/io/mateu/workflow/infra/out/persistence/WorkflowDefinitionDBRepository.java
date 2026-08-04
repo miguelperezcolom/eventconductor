@@ -20,6 +20,7 @@ public class WorkflowDefinitionDBRepository implements WorkflowDefinitionReposit
 
     final WorkflowDefinitionEntityRepository workflowDefinitionEntityRepository;
     final WorkflowDefinitionValidator workflowDefinitionValidator;
+    final io.mateu.workflow.application.services.WorkflowDefinitionVersioningService versioningService;
 
     @Override
     public Optional<WorkflowDefinition> findById(String id) {
@@ -47,10 +48,14 @@ public class WorkflowDefinitionDBRepository implements WorkflowDefinitionReposit
     @Override
     public String save(WorkflowDefinition workflowDefinition) {
         workflowDefinitionValidator.validate(workflowDefinition);
+        // Record a new immutable version iff the content changed, and stamp the head row with the
+        // engine-assigned version (the author-supplied .ec version is not authoritative). Lifecycle
+        // toggles and unchanged re-imports reconcile to the existing version and record nothing.
+        int version = versioningService.reconcile(workflowDefinition);
         workflowDefinitionEntityRepository.save(new WorkflowDefinitionEntity(
                 workflowDefinition.id(),
                 workflowDefinition.name(),
-                workflowDefinition.version(),
+                version,
                 workflowDefinition.description(),
                 toJson(workflowDefinition.steps().stream().map(step -> step.withWorkflowDefinitionId(workflowDefinition.id())).toList()),
                 workflowDefinition.limitConcurrentExecutions(),

@@ -67,7 +67,7 @@ steps: [...]
 |---|---|---|
 | `id` | string | Unique workflow identifier |
 | `name` | string | Human-readable name |
-| `version` | integer | Version number |
+| `version` | integer | **Ignored for numbering.** The engine assigns versions itself on each content change (see [Versioning](#versioning)); any value here is not authoritative and is overwritten |
 | `description` | string | Optional description |
 | `paused` | boolean | Runtime flag — **not authored in the `.ec`**. Toggled at runtime (UI, `PauseWorkflowUseCase`/`ResumeWorkflowUseCase`, MCP). While `true`, all the definition's processes are held and new instances (cron included) are created born-`PAUSED`. Kept in the schema (default `false`) only so exported definitions round-trip |
 | `disabled` | boolean | Runtime flag — **not authored in the `.ec`**. Toggled at runtime (disable/enable). While `true` the definition accepts no new instances (cron included); running ones continue. Default `false` |
@@ -92,6 +92,29 @@ and imported — they are never edited in the management UI. The UI only toggles
 A definition removed from its Git repository is **archived** by the import prune (hidden, not
 deleted) — see [Importing from Git](#importing-from-git). Archived and disabled definitions do not
 start new instances.
+
+## Versioning
+
+The engine keeps a **history of every version** of a definition. Whenever a definition is saved
+(imported from Git, or its content otherwise changed) the engine hashes its *content* — the steps
+and configuration, **excluding** the runtime flags (`paused`/`disabled`/`archived`) and the
+`version` field — and, if that hash differs from the latest recorded version, records a new
+immutable version: an incrementing number (starting at **1**), a **creation timestamp**, and a
+frozen JSON snapshot. Re-importing an unchanged definition, or a runtime toggle (pause/disable/
+archive), records **nothing** — only a real content change bumps the version.
+
+Because numbering is engine-owned, the `version` field authored in the `.ec` is **ignored** for
+numbering (and overwritten on the head record). Every process instance already captures the version
+it was created with, so the engine can attribute each running or finished process to the exact
+version it ran.
+
+In the management UI, a definition's detail view has a **Versions** tab listing every recorded
+version with its creation date and how many processes ran with it — **running**, **completed** and
+**total**. Processes created before versioning existed (whose captured version matches no recorded
+version) are grouped under a single **legacy (pre-versioning)** row.
+
+> Versioning is available with **JPA persistence** (`workflow.persistence=jpa`). In memory mode the
+> Versions tab is not shown.
 
 ## Importing from Git
 

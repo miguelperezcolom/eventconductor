@@ -91,6 +91,13 @@ public record WorkflowDefinition(
                 steps, paused, disabled, newArchived);
     }
 
+    /** Returns a copy carrying the given (engine-assigned) version number. */
+    public WorkflowDefinition withVersion(int newVersion) {
+        return new WorkflowDefinition(id, name, newVersion, description, limitConcurrentExecutions,
+                maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
+                steps, paused, disabled, archived);
+    }
+
     // ── Detail-view lifecycle buttons (conditional on state via VisibilitySupplier) ──
 
     /**

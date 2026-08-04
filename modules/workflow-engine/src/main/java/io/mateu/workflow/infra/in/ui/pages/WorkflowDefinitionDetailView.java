@@ -24,11 +24,17 @@ import io.mateu.workflow.application.usecases.lifecycle.EnableWorkflowDefinition
 import io.mateu.workflow.application.usecases.lifecycle.PauseWorkflowUseCase;
 import io.mateu.workflow.application.usecases.lifecycle.ResumeWorkflowUseCase;
 import io.mateu.workflow.infra.in.ui.WorkflowHome;
+import io.mateu.workflow.infra.in.ui.pages.definitionversions.VersionRow;
+import io.mateu.workflow.infra.in.ui.pages.definitionversions.WorkflowDefinitionVersionQueryService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Service;
 
+import io.mateu.workflow.domain.aggregates.StepExecution;
+
+import java.util.List;
 import java.util.Map;
 
 import static io.mateu.core.infra.JsonSerializer.toJson;
@@ -63,6 +69,8 @@ public class WorkflowDefinitionDetailView implements VisibilitySupplier {
     final EnableWorkflowDefinitionUseCase enableWorkflowDefinitionUseCase;
     final PauseWorkflowUseCase pauseWorkflowUseCase;
     final ResumeWorkflowUseCase resumeWorkflowUseCase;
+    /** JPA-only: absent in memory mode, which is why the "Versions" tab is then hidden. */
+    final ObjectProvider<WorkflowDefinitionVersionQueryService> versionQueryProvider;
 
     @Hidden
     String id;
@@ -115,6 +123,16 @@ public class WorkflowDefinitionDetailView implements VisibilitySupplier {
     @Label("Paused")
     String paused;
 
+    // ── "Versions" tab: the engine-recorded version history of this definition, one row per version
+    //    with its creation date and per-version process stats (running/completed/total), plus a
+    //    legacy bucket. JPA-only; hidden in memory mode (see isHidden). ─────────────────────────────
+    @Tab("Versions")
+    @Label("")
+    List<VersionRow> versions;
+
+    @Hidden
+    boolean versionsAvailable;
+
     public WorkflowDefinitionDetailView load(String workflowId) {
         var def = repository.findById(workflowId).orElseThrow();
         this.id = def.id();
@@ -141,16 +159,11 @@ public class WorkflowDefinitionDetailView implements VisibilitySupplier {
         attrs.put("import", GRAPH_MODULE);
         attrs.put("value", toJson(def));
         attrs.put("readonly", "true");
-        var counts = liveProcessCountsByStep(def.id());
-        if (!counts.isEmpty()) {
-            // Per-step "stopped/waiting" heat histogram (index = days ago) so the viewer's heatmap
-            // toggle + last-N-days slider can recolor and filter entirely client-side, with no round
-            // trip: sum the buckets within the chosen window. The total over the whole window equals
-            // the live count badge above.
-            var heat = stoppedTaskHeatByStep(def.id());
-            var overlay = new java.util.HashMap<String, Object>();
-            counts.forEach((stepId, c) -> overlay.put(stepId,
-                    Map.of("count", c, "heat", heat.getOrDefault(stepId, new int[HEAT_WINDOW_DAYS]))));
+        // Per-step overlay: a live process count + a "stopped/waiting" heat histogram (index = days
+        // ago) so the viewer's heatmap toggle + last-N-days slider can recolor and filter entirely
+        // client-side. Built from this definition's live step executions across all versions.
+        var overlay = WorkflowGraphOverlays.overlay(liveForDefinition(def.id()));
+        if (!overlay.isEmpty()) {
             attrs.put("overlay", toJson(overlay));
         }
         // Give the graph a tall, viewport-sized box: on its own the host falls back to a ~230px
@@ -161,6 +174,12 @@ public class WorkflowDefinitionDetailView implements VisibilitySupplier {
                 .content("")
                 .style("display: block; width: 100%; height: 68vh; min-height: 460px;")
                 .build();
+        // "Versions" tab: only populated when the JPA-only version query service exists.
+        var versionQuery = versionQueryProvider.getIfAvailable();
+        this.versionsAvailable = versionQuery != null;
+        if (versionsAvailable) {
+            this.versions = versionQuery.rows(id);
+        }
         return this;
     }
 
@@ -174,43 +193,24 @@ public class WorkflowDefinitionDetailView implements VisibilitySupplier {
      * per-process fan-out ({@code findAll()} + one {@code findByProcess} per process) was an N+1
      * that made opening a definition take seconds once thousands of processes had accumulated.
      */
+    /** This definition's live (PENDING/RUNNING) step executions, across all versions. */
+    private List<StepExecution> liveForDefinition(String definitionId) {
+        return stepExecutionRepository.findPendingOrRunning().stream()
+                .filter(se -> definitionId.equals(se.getWorkflowDefinitionId()))
+                .toList();
+    }
+
+    /** How many live process instances of this definition currently sit on each step. Keyed by step id. */
     Map<String, Integer> liveProcessCountsByStep(String definitionId) {
-        var counts = new java.util.HashMap<String, Integer>();
-        for (var se : stepExecutionRepository.findPendingOrRunning()) {
-            if (!definitionId.equals(se.getWorkflowDefinitionId())) continue;
-            counts.merge(se.getStepId(), 1, Integer::sum);
-        }
-        return counts;
+        return WorkflowGraphOverlays.countsByStep(liveForDefinition(definitionId));
     }
 
-    /** Longest window the heatmap slider can reach, in days. Tasks older than this fold into the
-     *  last bucket, so they still show at the widest setting without unbounding the array. */
-    static final int HEAT_WINDOW_DAYS = 90;
+    /** Alias kept so callers/tests referring to the window keep compiling. */
+    static final int HEAT_WINDOW_DAYS = WorkflowGraphOverlays.HEAT_WINDOW_DAYS;
 
-    /**
-     * Per-step histogram of the currently stopped/waiting (live PENDING/RUNNING) step executions of
-     * this definition, bucketed by how many days ago each one started ({@code heat[0]} = started
-     * today). Same source as {@link #liveProcessCountsByStep} — so summing a step's buckets over the
-     * full window reproduces its live count — but keyed by age so the viewer can filter to the last N
-     * days on the client. Keyed by step id; steps with no live task are absent.
-     */
+    /** Per-step heat histogram (days-ago buckets) of this definition's live step executions. */
     Map<String, int[]> stoppedTaskHeatByStep(String definitionId) {
-        var now = java.time.LocalDateTime.now();
-        var heat = new java.util.HashMap<String, int[]>();
-        for (var se : stepExecutionRepository.findPendingOrRunning()) {
-            if (!definitionId.equals(se.getWorkflowDefinitionId())) continue;
-            heat.computeIfAbsent(se.getStepId(), k -> new int[HEAT_WINDOW_DAYS])[bucketOf(se.getStartedAt(), now)]++;
-        }
-        return heat;
-    }
-
-    /** Day bucket for a task's start time: 0 = today, clamped into [0, HEAT_WINDOW_DAYS - 1]. A null
-     *  start (not yet stamped) counts as today. */
-    private static int bucketOf(java.time.LocalDateTime startedAt, java.time.LocalDateTime now) {
-        if (startedAt == null) return 0;
-        long daysAgo = java.time.Duration.between(startedAt, now).toDays();
-        if (daysAgo < 0) return 0;
-        return (int) Math.min(daysAgo, HEAT_WINDOW_DAYS - 1);
+        return WorkflowGraphOverlays.heatByStep(liveForDefinition(definitionId));
     }
 
     // ── Runtime toolbar: pause/resume and disable/enable. No editing (definitions are .ec files).
@@ -252,6 +252,8 @@ public class WorkflowDefinitionDetailView implements VisibilitySupplier {
             case "enable" -> !definitionDisabled;
             case "pause" -> definitionPaused;
             case "resume" -> !definitionPaused;
+            // No version history in memory mode — hide the tab rather than show it empty.
+            case "versions" -> !versionsAvailable;
             default -> false;
         };
     }
