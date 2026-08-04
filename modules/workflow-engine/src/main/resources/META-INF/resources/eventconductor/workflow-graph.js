@@ -1299,12 +1299,17 @@ let zu = class extends iO {
     const O = this.flowPaths.filter((B) => B.includes($));
     return O.length ? O : this.flowPaths;
   }
+  /**
+   * Selecting a node changes what the simulation would animate; it does not decide whether it
+   * animates. A paused simulation stays paused — the pause is the operator's, and having a click
+   * on a node undo it made the play/pause button look broken.
+   */
   focusReachable($) {
-    this.focusMode = "reachable", this.focusNodeId = $, this.activePaths = this.pathsThrough($), this.isMonitoring() || (this.restartFlow(), this.flowOn = !0), this.requestUpdate();
+    this.focusMode = "reachable", this.focusNodeId = $, this.activePaths = this.pathsThrough($), this.flowOn && !this.isMonitoring() && this.restartFlow(), this.requestUpdate();
   }
   focusNextPath($) {
     const O = this.pathsThrough($);
-    this.focusMode === "path" && this.focusNodeId === $ ? this.flowPathIndex = (this.flowPathIndex + 1) % O.length : (this.focusMode = "path", this.focusNodeId = $, this.flowPathIndex = 0), this.activePaths = O, this.pulsedThisPath = /* @__PURE__ */ new Set(), this.isMonitoring() || (this.flowStartTs = performance.now(), this.flowOn = !0), this.requestUpdate();
+    this.focusMode === "path" && this.focusNodeId === $ ? this.flowPathIndex = (this.flowPathIndex + 1) % O.length : (this.focusMode = "path", this.focusNodeId = $, this.flowPathIndex = 0), this.activePaths = O, this.pulsedThisPath = /* @__PURE__ */ new Set(), this.flowOn && !this.isMonitoring() && (this.flowStartTs = performance.now()), this.requestUpdate();
   }
   clearFocus() {
     this.focusMode = "auto", this.focusNodeId = null, this.activePaths = this.flowPaths, this.restartFlow(), this.requestUpdate();
