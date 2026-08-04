@@ -9,9 +9,12 @@
   var fileIsYaml = false;
   var applying = false;
 
+  // An empty file is YAML: there is nothing to sniff, and a new .ec the graph editor fills in
+  // should look like the ones in the docs and examples, which are all YAML. Answering JSON here
+  // meant creating a file and drawing in it produced JSON, a format nobody chose.
   function looksLikeYaml(t) {
     var s = t.replace(/^\s+/, "");
-    return !!s && s[0] !== "{" && s[0] !== "[";
+    return !s || (s[0] !== "{" && s[0] !== "[");
   }
 
   function b64ToUtf8(b64) {

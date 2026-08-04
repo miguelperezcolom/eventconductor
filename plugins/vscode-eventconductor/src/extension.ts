@@ -167,10 +167,17 @@ class EcEditorProvider implements vscode.CustomTextEditorProvider {
   }
 }
 
-/** A .ec body is YAML unless it clearly starts as JSON (a leading '{' or '['). */
+/**
+ * A .ec body is YAML unless it clearly starts as JSON (a leading '{' or '[').
+ *
+ * An empty file is YAML too: there is nothing to sniff, and a new .ec that the graph editor fills
+ * in should come out looking like the ones in the documentation and the examples, all of which are
+ * YAML. It used to answer JSON here, so creating a file and drawing in it produced JSON — a format
+ * nobody chose, from a file that had not said anything.
+ */
 function looksLikeYaml(text: string): boolean {
   const t = text.trimStart();
-  if (!t) return false;
+  if (!t) return true;
   return !(t.startsWith("{") || t.startsWith("["));
 }
 
