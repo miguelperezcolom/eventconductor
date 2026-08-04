@@ -68,8 +68,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: azure/setup-helm@v4
-      - name: Lint chart
-        run: helm lint charts/eventconductor
+      - name: Lint charts
+        run: |
+          helm lint charts/eventconductor
+          helm lint charts/eventconductor-demo
 
   trivy-config:
     name: Trivy IaC + secret scan

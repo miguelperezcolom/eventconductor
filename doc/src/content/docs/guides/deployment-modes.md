@@ -224,42 +224,76 @@ docker compose up -d --env-file .env.prod
 
 ## Kubernetes (Helm)
 
-A Helm chart is included in the `charts/eventconductor/` directory. It deploys the same stack — Redpanda, PostgreSQL, orchestrator, and forms — with PersistentVolumeClaims, Secrets, and readiness-gated initContainers.
+The chart in `charts/eventconductor/` deploys the whole stack — Redpanda, PostgreSQL, the
+orchestrator, the forms engine and the rule engine — with PersistentVolumeClaims, Secrets and
+readiness-gated initContainers.
 
 **Install:**
 
 ```shell
-helm install ec charts/eventconductor
+helm install ec charts/eventconductor --set postgres.password=mypwd
 ```
 
-**Install with overrides:**
+The password has no default and the chart refuses to render without one, deliberately: the
+alternative is a known password on a database reachable from every pod in the namespace. To hold
+it outside your shell history, put it in a Secret with the keys `POSTGRES_DB`, `POSTGRES_USER`
+and `POSTGRES_PASSWORD` and name it instead:
 
 ```shell
-helm install ec charts/eventconductor \
-  --set postgres.password=mypwd \
-  --set orchestrator.replicas=2 \
-  --set orchestrator.image=miguelperezcolom/orchestrator-standalone-app:1.2.0
+helm install ec charts/eventconductor --set postgres.existingSecret=ec-postgres
 ```
 
 **Key values (`charts/eventconductor/values.yaml`):**
 
 | Value | Default | Description |
 |---|---|---|
-| `postgres.password` | `secret` | PostgreSQL password |
+| `postgres.password` | — | PostgreSQL password. Required unless `postgres.existingSecret` is set |
+| `postgres.existingSecret` | `""` | Secret holding `POSTGRES_DB` / `POSTGRES_USER` / `POSTGRES_PASSWORD` |
+| `postgres.maxConnections` | `200` | Server connection limit. The three apps ask for 96 of them before anything else connects |
 | `postgres.storage` | `8Gi` | PVC size for PostgreSQL |
+| `redpanda.defaultTopicPartitions` | `6` | Partitions, which cap how many orchestrator pods can share the load |
 | `redpanda.storage` | `8Gi` | PVC size for Redpanda |
 | `redpanda.externalNodePort` | `30092` | NodePort for external Kafka access (0 = disabled) |
-| `orchestrator.replicas` | `1` | Orchestrator pod count |
-| `orchestrator.image` | `miguelperezcolom/orchestrator-standalone-app:latest` | Image |
-| `forms.replicas` | `1` | Forms pod count |
-| `forms.image` | `miguelperezcolom/forms-standalone-app:latest` | Image |
+| `orchestrator.replicas` | `2` | Orchestrator pod count |
+| `orchestrator.dbPoolSize` | `16` | Connections per pod. Must cover both consumer bindings, the relay, the scanner and the UI |
+| `orchestrator.consumerConcurrency` | `3` | Consumer threads per pod, per binding |
+| `orchestrator.extraEnv` | `{}` | Extra environment, injected verbatim (tracing endpoints, git import, …) |
+| `forms.replicas` / `rules.replicas` | `2` | Pod counts |
+| `*.image` / `*.imageTag` | see values | Image; the tag defaults to the chart's `appVersion` |
+| `*.flywayTable` | per app | Flyway history table. The three apps share one database and must not share one history table |
+| `ingress.enabled` | `false` | Ingress for the three UIs |
 
 **Upgrade / uninstall:**
 
 ```shell
-helm upgrade ec charts/eventconductor --set orchestrator.replicas=3
+helm upgrade ec charts/eventconductor --reuse-values --set orchestrator.replicas=3
 helm uninstall ec
 ```
+
+### The demo
+
+`charts/eventconductor-demo/` deploys the seven services of the [demo](/guides/demos/) — shell,
+gateway, users, content, control plane, booking and the AI agent — as ordinary applications that
+participate in workflows. It brings no infrastructure of its own: it talks to the PostgreSQL,
+Redpanda and orchestrator of an EventConductor release, so install that one first and point this
+one at it.
+
+```shell
+helm install demo charts/eventconductor-demo \
+  --set engine.postgresSecret=ec-postgres
+```
+
+The AI agent is the one service that needs something from you — a Claude key, without which it
+cannot start at all. Create the Secret and name it:
+
+```shell
+kubectl create secret generic ec-demo-anthropic --from-literal=ANTHROPIC_API_KEY=sk-...
+helm upgrade demo charts/eventconductor-demo \
+  --reuse-values --set services.ia-agent-service.anthropicSecret=ec-demo-anthropic
+```
+
+Both charts install into whatever namespace you give them; the demo resolves the engine by service
+name, so they have to share one.
 
 ## Choosing a mode
 

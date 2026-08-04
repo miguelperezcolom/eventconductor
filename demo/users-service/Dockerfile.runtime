@@ -1,0 +1,11 @@
+# Runtime-only image from a locally-built jar (user accounts for the demo). Non-root and writing only to /tmp, so it
+# satisfies the deployment's runAsNonRoot + readOnlyRootFilesystem — the same shape as the two
+# demo services that already had one.
+FROM eclipse-temurin:21-jre-alpine
+RUN addgroup -S app && adduser -S -G app -u 10001 app
+WORKDIR /opt/app
+COPY --chown=app:app target/users-service-*.jar app.jar
+ENV SERVER_PORT=9191 JAVA_TOOL_OPTIONS=-Djava.io.tmpdir=/tmp
+USER app
+EXPOSE 9191
+ENTRYPOINT ["java", "-jar", "app.jar"]

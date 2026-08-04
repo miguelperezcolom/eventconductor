@@ -3,9 +3,11 @@ name: eventconductor
 description: EventConductor workflow orchestration — Redpanda, PostgreSQL, orchestrator and forms.
 type: application
 version: 0.1.1
-# Pinned to a real release in CI. The chart fails to template when this is
-# the literal string "latest" so users notice if they forget to override it.
-appVersion: "0.0.0"
+# The images this chart deploys, unless imageTag says otherwise. It has to name a release that
+# exists: it was "0.0.0" here, which is not a tag anybody published, so installing the chart
+# straight from the repository pulled nothing and every pod sat in ImagePullBackOff. Bump it with
+# each release.
+appVersion: "1.0-beta.018"
 maintainers:
   - name: Miguel Pérez Colom
     url: https://github.com/miguelperezcolom

@@ -1,0 +1,8 @@
+apiVersion: v2
+name: eventconductor-demo
+description: The demo applications that ride on EventConductor — a booking saga, a content control
+  plane, an API gateway, a UI shell and the Claude agent that drives the engine over MCP.
+type: application
+version: 0.1.0
+# The tag the demo images are published under; every service moves together.
+appVersion: "1.0-beta.018"

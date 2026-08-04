@@ -1,0 +1,98 @@
+## Where the engine and its infrastructure live. The demo does not bring its own: it talks to the
+## Postgres and Redpanda of an EventConductor release, and to the orchestrator over Kafka, which
+## is the whole point of the demo — these are ordinary services participating in workflows.
+engine:
+  # Service names as the eventconductor chart creates them (they are fixed, not release-prefixed).
+  postgresHost: postgres
+  postgresPort: 5432
+  database: workflow
+  # Secret holding POSTGRES_USER / POSTGRES_PASSWORD — the one the eventconductor release created,
+  # named <release>-eventconductor-postgres unless you overrode it there.
+  postgresSecret: ec-eventconductor-postgres
+  # Connections per demo service. See the comment in the template: they all share the engine's
+  # database, whose max_connections the eventconductor chart sizes for the engine plus headroom.
+  dbPoolSize: 5
+  kafkaBrokers: redpanda:19092
+
+image:
+  registry: miguelperezcolom
+  # Blank means .Chart.AppVersion — set it to deploy a specific build.
+  tag: ""
+  pullPolicy: IfNotPresent
+# Only needed while the demo images are private on Docker Hub.
+imagePullSecrets: []
+
+## Every demo service, in one place. `db` and `kafka` decide which environment a service gets;
+## the rest is the shape of any Spring Boot deployment.
+services:
+  shell:
+    port: 8101
+    replicas: 1
+    db: false
+    kafka: false
+  users-service:
+    port: 8102
+    replicas: 1
+    db: true
+    kafka: true
+  control-plane-service:
+    port: 8103
+    replicas: 1
+    db: true
+    kafka: true
+  content-service:
+    port: 8104
+    replicas: 1
+    db: true
+    kafka: true
+  booking-service:
+    port: 8108
+    replicas: 1
+    db: true
+    kafka: true
+  api-gw:
+    port: 8191
+    replicas: 1
+    db: false
+    kafka: false
+    # Where each route goes. Service name and port, as the two charts create them; the engine's
+    # three (orchestrator, forms, rules) come from the eventconductor release.
+    routes:
+      SHELL_URL: http://shell:8101
+      USERS_URL: http://users-service:8102
+      CONTROL_PLANE_URL: http://control-plane-service:8103
+      CONTENT_URL: http://content-service:8104
+      BOOKING_URL: http://booking-service:8108
+      AI_URL: http://ia-agent-service:8095
+      WORKFLOW_URL: http://orchestrator:8105
+      FORMS_URL: http://forms:8106
+      STATIC_URL: http://rules:8107
+  ia-agent-service:
+    port: 8095
+    replicas: 1
+    db: false
+    kafka: false
+    # The agent needs a Claude key, and it needs it to start at all: the key is a placeholder in
+    # its configuration, so without one the context fails to build and the pod restarts for ever
+    # ("Could not resolve placeholder 'ANTHROPIC_API_KEY'"). Everything else in the demo works
+    # without it. Create the secret yourself and name it here:
+    #   kubectl create secret generic ec-demo-anthropic --from-literal=ANTHROPIC_API_KEY=...
+    anthropicSecret: ""
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 512Mi
+  limits:
+    memory: 1Gi
+
+nodeSelector: {}
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  host: demo.local
+  # Which service answers at "/" — the UI the rest hangs off.
+  root: shell
+  tls: []

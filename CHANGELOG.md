@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+Four things a first deployment of the demo onto a real cluster ran into, none of which any test or
+lint could have caught, because each of them only exists once the three applications are pointed at
+one database and one another.
+
+- **The orchestrator and the rule engine could not start next to the forms engine.** They share a
+  database, each ships its own migrations numbered from V1, and all three wrote to Flyway's default
+  history table: whichever started first put its V1 there and the other two refused to start on a
+  checksum mismatch. Forms and rules now keep their own history tables, and all three baseline at
+  version 0 rather than 1 — `baseline-on-migrate` reads a non-empty schema as "my tables are
+  already here", which in a shared database means somebody else got there first, so the app skipped
+  the baseline that creates its own tables and then failed on the first migration that touched one.
+- **The rule engine's gRPC server never started**, in every release since `1.0-beta.009`: the stubs
+  were generated with protoc 4.35.1 while grpc-java and Spring Boot's dependency management resolve
+  protobuf-java 4.32.0, and generated code refuses to load on a runtime older than itself. The
+  failing bean took the whole application context down with it. protoc is now pinned to the runtime
+  the hosts actually get.
+- **The database ran out of connections.** PostgreSQL allows 100 by default and the chart's own
+  defaults ask for 96 — three apps, two replicas each, sixteen connections apiece — so anything
+  else sharing it, including the demo's own services, was refused with "sorry, too many clients
+  already". The chart now sets `postgres.maxConnections` (200), and the demo services take small
+  pools out of it.
+- **The chart deployed images that do not exist**: `appVersion` was the placeholder `0.0.0`, so
+  installing straight from the repository left every pod in `ImagePullBackOff`. It names a real
+  release, and the comment claiming CI pinned it is gone — nothing did.
+
+### Added
+- **A chart for the demo** (`charts/eventconductor-demo/`): the seven services, deployed as
+  ordinary applications against an existing EventConductor release. Runtime images for the five
+  that lacked them, and the gateway's routes, which point at localhost in the image and so answer
+  "connection refused" to everything until a deployment tells them the real addresses.
+
+### Documentation
+- The Helm section of the deployment guide describes the chart as it is: the rule engine it also
+  deploys, the password it requires to install at all, the values that matter, and the demo chart.
+
+
 ## [1.0-beta.018] - 2026-08-04
 
 ### Added
