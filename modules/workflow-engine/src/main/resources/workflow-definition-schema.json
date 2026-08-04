@@ -91,7 +91,7 @@
         "boolean",
         "null"
       ],
-      "description": "Runtime disabled flag: while true the definition accepts no new instances (cron included). Toggled at runtime (disable/enable); not authored in the .ec.",
+      "description": "Declares that this workflow is not to run: it accepts no new instances, cron included. Declaring it here is a floor, not a default — an operator can take a workflow out of service at runtime, but cannot put one into service that its own definition disables. Use it to keep a definition in the repository without having it live.",
       "default": false
     },
     "archived": {
@@ -99,7 +99,7 @@
         "boolean",
         "null"
       ],
-      "description": "Runtime archived flag: set by the git-import prune when a definition disappears from its repository, to hide it without deleting. Not authored in the .ec.",
+      "description": "Declares this workflow retired: like disabled, and also hidden from the listing. Same rule — the runtime cannot un-archive what the definition archives. Also set at runtime by the git-import prune when a definition disappears from its repository.",
       "default": false
     },
     "defaultMaxStepExecutions": {

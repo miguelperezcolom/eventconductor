@@ -183,6 +183,17 @@ public class ImportWorkflowDefinitionsFromGitUseCase {
             );
         }
 
+        // What the file says about being disabled or archived is a declaration, not a runtime
+        // flag: it belongs to whoever writes the workflow, and it is a floor the runtime cannot
+        // lift. The runtime flags belong to whoever operates it, so they are taken from the row
+        // that is already there — overwriting them, which is what this used to do, meant every
+        // import silently put back into service anything an operator had taken out.
+        definition = asDeclaration(definition);
+        var existing = workflowDefinitionRepository.findById(definition.id());
+        if (existing.isPresent()) {
+            definition = definition.withRuntimeFlagsOf(existing.get());
+        }
+
         // Validation is delegated to WorkflowDefinitionValidator (called inside repository.save()).
         // Any violation will throw WorkflowDefinitionValidationException, caught by the caller.
         workflowDefinitionRepository.save(definition);
@@ -194,6 +205,22 @@ public class ImportWorkflowDefinitionsFromGitUseCase {
         log.info("Imported workflow definition '{}' (id={}) from {}",
                 definition.name(), definition.id(), repoRoot.relativize(file));
         imported.add(definition.name() + " [" + definition.id() + "]");
+    }
+
+    /**
+     * Moves what the file declared — {@code disabled}, {@code archived} — out of the runtime flags
+     * and into the declaration, leaving the runtime ones clear for the caller to fill from the
+     * existing row.
+     */
+    private static WorkflowDefinition asDeclaration(WorkflowDefinition fromFile) {
+        return new WorkflowDefinition(
+                fromFile.id(), fromFile.name(), fromFile.version(), fromFile.description(),
+                fromFile.limitConcurrentExecutions(), fromFile.maxConcurrentExecutions(),
+                fromFile.enqueueOnLimit(), fromFile.cronExpression(),
+                fromFile.defaultMaxStepExecutions(), fromFile.steps(),
+                false, false, false,
+                fromFile.disabled() || fromFile.declaredDisabled(),
+                fromFile.archived() || fromFile.declaredArchived());
     }
 
     /**

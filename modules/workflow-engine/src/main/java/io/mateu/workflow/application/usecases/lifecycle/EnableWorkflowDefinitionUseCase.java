@@ -17,6 +17,15 @@ public class EnableWorkflowDefinitionUseCase {
         var definition = repository.findById(workflowDefinitionId)
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Workflow definition not found: " + workflowDefinitionId));
+        if (definition.declaredDisabled() || definition.declaredArchived()) {
+            // The declaration is a floor. Refusing out loud rather than clearing the runtime flag
+            // and leaving the workflow just as disabled, which would look like the button is
+            // broken: the answer is in the file, and that is where it has to be changed.
+            throw new IllegalStateException("Workflow definition '" + definition.name()
+                    + "' is " + (definition.declaredArchived() ? "archived" : "disabled")
+                    + " in its own definition, so it cannot be enabled here. Change it in the"
+                    + " definition file and import it again.");
+        }
         if (definition.disabled()) {
             repository.save(definition.withDisabled(false));
         }

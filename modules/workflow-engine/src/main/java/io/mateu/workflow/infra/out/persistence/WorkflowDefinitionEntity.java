@@ -50,4 +50,15 @@ public class WorkflowDefinitionEntity {
     @ColumnDefault("false")
     boolean archived;
 
+    /**
+     * What the definition file declares, kept apart from the runtime flags above: the file is a
+     * floor the runtime cannot lift, and mixing the two in one column is what let every import
+     * overwrite an operator's decision — and an operator overwrite the file's.
+     */
+    @ColumnDefault("false")
+    boolean declaredDisabled;
+
+    @ColumnDefault("false")
+    boolean declaredArchived;
+
 }

@@ -60,6 +60,18 @@ public class CreateProcessUseCase {
         var workflowDefinition = StepTimeoutDefaults.applyTo(
                 workflowDefinitionRepository.findById(command.workflowDefinitionId()).orElseThrow(),
                 defaultStepTimeoutMillis);
+
+        // A disabled workflow accepts no new instances — which the cron scheduler already
+        // honoured and this path did not, so anything creating a process directly (the UI, an
+        // upstream event, MCP) walked straight past it. Either source can say no: an operator
+        // taking it out of service, or the definition itself declaring that it is not to run.
+        if (workflowDefinition.effectivelyDisabled() || workflowDefinition.effectivelyArchived()) {
+            log.warn("Workflow definition '{}' is {} — process creation for business key '{}' ignored",
+                    workflowDefinition.id(),
+                    workflowDefinition.effectivelyArchived() ? "archived" : "disabled",
+                    command.businessKey());
+            return;
+        }
         AtomicInteger position = new AtomicInteger(1);
         var stepExecutions = workflowDefinition.steps().stream()
                 .map(step -> StepExecution.create(step, command.processId(), position.getAndIncrement())).toList();

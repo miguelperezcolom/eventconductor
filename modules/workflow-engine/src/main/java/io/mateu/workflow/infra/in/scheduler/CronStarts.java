@@ -59,8 +59,8 @@ class CronStarts {
     }
 
     private static boolean isScheduled(WorkflowDefinition definition) {
-        return !definition.disabled()
-                && !definition.archived()
+        return !definition.effectivelyDisabled()
+                && !definition.effectivelyArchived()
                 && definition.cronExpression() != null
                 && !definition.cronExpression().isBlank();
     }

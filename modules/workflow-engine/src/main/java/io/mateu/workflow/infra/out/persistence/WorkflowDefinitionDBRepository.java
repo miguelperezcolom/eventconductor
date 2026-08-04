@@ -41,7 +41,9 @@ public class WorkflowDefinitionDBRepository implements WorkflowDefinitionReposit
                 listFromJson(entity.getStepsJson(), Step.class),
                 entity.isPaused(),
                 entity.isDisabled(),
-                entity.isArchived()
+                entity.isArchived(),
+                entity.isDeclaredDisabled(),
+                entity.isDeclaredArchived()
         );
     }
 
@@ -65,7 +67,9 @@ public class WorkflowDefinitionDBRepository implements WorkflowDefinitionReposit
                 workflowDefinition.defaultMaxStepExecutions(),
                 workflowDefinition.paused(),
                 workflowDefinition.disabled(),
-                workflowDefinition.archived()
+                workflowDefinition.archived(),
+                workflowDefinition.declaredDisabled(),
+                workflowDefinition.declaredArchived()
         ));
         return workflowDefinition.id();
     }

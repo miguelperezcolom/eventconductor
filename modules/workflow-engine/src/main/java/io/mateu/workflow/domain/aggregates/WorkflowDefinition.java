@@ -57,7 +57,27 @@ public record WorkflowDefinition(
         // Runtime archived flag: set by the git-import prune when a definition disappears from
         // its repository, to hide it without deleting. Never in the .ec.
         @Hidden
-        boolean archived
+        boolean archived,
+        /**
+         * What the definition file itself says, kept apart from the two runtime flags above
+         * because they answer to different people: the file answers to whoever writes the
+         * workflow, the flags to whoever operates it.
+         *
+         * <p>A definition can live in the repository without being live — that is the point of
+         * declaring it here — and the declaration is a floor, not a suggestion. The runtime can
+         * take a workflow out of service that the file allows; it cannot put one into service that
+         * the file does not. See {@link #effectivelyDisabled()}.
+         *
+         * <p>Set only by whatever supplies the definition (the git import, an editor save), and
+         * preserved across imports for the runtime flags rather than overwritten — which is what
+         * used to happen, so every import silently re-enabled anything an operator had disabled.
+         */
+        @Hidden
+        @com.fasterxml.jackson.annotation.JsonIgnore
+        boolean declaredDisabled,
+        @Hidden
+        @com.fasterxml.jackson.annotation.JsonIgnore
+        boolean declaredArchived
 ) implements Identifiable, SearchableText, LookupOptionsSupplier, VisibilitySupplier {
 
     /** Creation without the runtime flags: definitions start unpaused, enabled and not archived. */
@@ -67,28 +87,65 @@ public record WorkflowDefinition(
                               int defaultMaxStepExecutions, List<Step> steps) {
         this(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
-                steps, false, false, false);
+                steps, false, false, false, false, false);
+    }
+
+    /** The shape this record had before the declared flags existed, so callers keep compiling. */
+    public WorkflowDefinition(String id, String name, int version, String description,
+                              boolean limitConcurrentExecutions, int maxConcurrentExecutions,
+                              boolean enqueueOnLimit, String cronExpression,
+                              int defaultMaxStepExecutions, List<Step> steps,
+                              boolean paused, boolean disabled, boolean archived) {
+        this(id, name, version, description, limitConcurrentExecutions,
+                maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
+                steps, paused, disabled, archived, false, false);
+    }
+
+    /**
+     * Whether this workflow accepts new instances — the answer both the cron scheduler and
+     * process creation ask.
+     *
+     * <p>Either source can say no. An operator disabling a workflow takes it out of service; a
+     * definition that declares itself disabled was never in service to begin with, and no runtime
+     * toggle can talk it into one. That asymmetry is the whole point: the file is in version
+     * control and reviewed, the toggle is a button.
+     */
+    public boolean effectivelyDisabled() {
+        return disabled || declaredDisabled;
+    }
+
+    /** Same rule for archived: declared in the file, or archived at runtime. */
+    public boolean effectivelyArchived() {
+        return archived || declaredArchived;
     }
 
     /** Returns a copy with a different runtime pause flag. */
     public WorkflowDefinition withPaused(boolean newPaused) {
         return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
-                steps, newPaused, disabled, archived);
+                steps, newPaused, disabled, archived, declaredDisabled, declaredArchived);
     }
 
     /** Returns a copy with a different runtime disabled flag. */
     public WorkflowDefinition withDisabled(boolean newDisabled) {
         return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
-                steps, paused, newDisabled, archived);
+                steps, paused, newDisabled, archived, declaredDisabled, declaredArchived);
     }
 
     /** Returns a copy with a different runtime archived flag. */
     public WorkflowDefinition withArchived(boolean newArchived) {
         return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
-                steps, paused, disabled, newArchived);
+                steps, paused, disabled, newArchived, declaredDisabled, declaredArchived);
+    }
+
+    /** Returns a copy carrying the runtime flags of {@code existing}, keeping this one's file state. */
+    public WorkflowDefinition withRuntimeFlagsOf(WorkflowDefinition existing) {
+        return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
+                maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
+                steps, existing.paused(), existing.disabled(), existing.archived(),
+                declaredDisabled, declaredArchived);
     }
 
     /** Returns a copy carrying the given (engine-assigned) version number. */
