@@ -28,6 +28,11 @@ default, backed by the underlying text document.
   line, click a node to select it and filter the graph to what it is connected to, wheel to zoom,
   drag the background to pan, plus fit-to-view and a minimap. A token-flow **simulation** animates
   the paths (and pauses on an AND-join to show it synchronising on all its branches).
+- **Deleting** — select a node or a connection and press **Delete** (or **Backspace**). Deleting a
+  node also removes every reference other steps held to it: preconditions, whether written as
+  `preconditionStepId` or in a `preconditionStepIds` list, and the `compensationStepId` of a
+  rollbackable step. Deleting a connection removes only that link and leaves both steps in place.
+  Delete typed into a field of the step panel edits the text, as it should.
 - **Graph ↔ text** — the graph is backed by the text document, so graphical edits update the file
   and text edits refresh the graph. Use the editor title button **Show YAML/JSON side-by-side**, or
   the commands **EventConductor: Open as Text** / **Open as Graph** (Command Palette).
