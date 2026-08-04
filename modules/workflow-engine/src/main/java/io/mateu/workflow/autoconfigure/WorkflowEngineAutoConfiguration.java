@@ -15,4 +15,13 @@ public class WorkflowEngineAutoConfiguration {
     WorkflowMetrics workflowMetrics() {
         return WorkflowMetrics.NOOP;
     }
+
+    // Same shape as the metrics fallback: WorkflowTracingAutoConfiguration runs before this and
+    // wins when a Tracer is available; with no tracing on the classpath the engine describes
+    // nothing and costs nothing.
+    @org.springframework.context.annotation.Bean
+    @org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean(io.mateu.workflow.application.out.WorkflowTracing.class)
+    io.mateu.workflow.application.out.WorkflowTracing workflowTracing() {
+        return io.mateu.workflow.application.out.WorkflowTracing.NOOP;
+    }
 }

@@ -18,6 +18,11 @@ class StepExecutionRequestedEventHandlerTest {
 
     @Mock StartStepExecutionUseCase startStepExecutionUseCase;
 
+    // The real no-op, not a mock: a mocked span() would swallow the work it is meant to wrap.
+    @org.mockito.Spy
+    io.mateu.workflow.application.out.WorkflowTracing workflowTracing =
+            io.mateu.workflow.application.out.WorkflowTracing.NOOP;
+
     @InjectMocks StepExecutionRequestedEventHandler handler;
 
     @Test

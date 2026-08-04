@@ -70,7 +70,8 @@ class JpaDurabilityE2eTest extends AbstractJpaE2eTest {
                 LocalDateTime.now(),
                 OutboxMessageStatus.Pending.name(),
                 "com.evil.NotARealEvent",
-                "{}");
+                "{}",
+                null);   // no trace: this row is hand-made, not produced by the engine
         outboxRepository.save(poison);
 
         await().atMost(TIMEOUT).untilAsserted(() ->

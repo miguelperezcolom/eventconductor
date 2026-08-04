@@ -29,8 +29,15 @@ public class CorrelateMessageUseCase {
 
     final StepExecutionRepository stepExecutionRepository;
     final CompleteMessageStepHandler completeMessageStepHandler;
+    final io.mateu.workflow.application.out.WorkflowTracing workflowTracing;
 
     public void handle(CorrelateMessageCommand command) {
+        workflowTracing.span("eventconductor.correlate-message",
+                java.util.Map.of("messageName", String.valueOf(command.messageName())),
+                () -> correlate(command));
+    }
+
+    private void correlate(CorrelateMessageCommand command) {
         var matched = stepExecutionRepository.findWaitingForMessage(
                 command.messageName(), command.correlationKey());
         if (matched.isEmpty()) {

@@ -19,9 +19,17 @@ import static io.mateu.core.infra.JsonSerializer.pojoFromJson;
 public class StartStepExecutionUseCase {
 
     final StepExecutionRepository stepExecutionRepository;
+
+    final io.mateu.workflow.application.out.WorkflowTracing workflowTracing;
     private final DownstreamEventPublisher downstreamEventPublisher;
 
     public void handle(StartStepExecutionCommand command) {
+        workflowTracing.span("eventconductor.dispatch-step",
+                java.util.Map.of("stepExecutionId", command.stepExecutionId()),
+                () -> dispatch(command));
+    }
+
+    private void dispatch(StartStepExecutionCommand command) {
         var stepExecution = stepExecutionRepository.findById(command.stepExecutionId()).orElseThrow();
         // Idempotency: only dispatch if the step is still waiting (PENDING).
         // A duplicate event arriving after the worker has already responded

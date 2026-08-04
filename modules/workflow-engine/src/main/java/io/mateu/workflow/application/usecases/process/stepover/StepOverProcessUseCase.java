@@ -23,12 +23,18 @@ public class StepOverProcessUseCase {
     final WorkflowOrchestrationService workflowOrchestrationService;
     final NotifyParentStepService notifyParentStepService;
     final CancelChildProcessService cancelChildProcessService;
+    final io.mateu.workflow.application.out.WorkflowTracing workflowTracing;
 
     public void handle(StepOverProcessCommand command) {
         // Serialize per process: two concurrent step-overs (e.g. two parallel steps
         // completing at once, or two pods handling events for the same process) would
         // both see the next step as CREATED and dispatch it twice.
-        if (!processLockService.runExclusively(command.processId(), () -> doHandle(command))) {
+        // Named, because this is where a process actually moves and it is the span an operator
+        // reading a trace is looking for — everything else in the picture is a database call.
+        if (!processLockService.runExclusively(command.processId(),
+                () -> workflowTracing.span("eventconductor.step-over",
+                        java.util.Map.of("processId", command.processId()),
+                        () -> doHandle(command)))) {
             log.error("Could not acquire lock for process {}, skipping step-over (another node is working on it)",
                     command.processId());
         }

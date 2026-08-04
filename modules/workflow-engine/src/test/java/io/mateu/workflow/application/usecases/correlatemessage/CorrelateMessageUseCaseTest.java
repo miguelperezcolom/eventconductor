@@ -29,6 +29,11 @@ class CorrelateMessageUseCaseTest {
     @Mock StepExecutionRepository stepExecutionRepository;
     @Mock CompleteMessageStepHandler completeMessageStepHandler;
 
+    // The real no-op, not a mock: a mocked span() would swallow the work it is meant to wrap.
+    @org.mockito.Spy
+    io.mateu.workflow.application.out.WorkflowTracing workflowTracing =
+            io.mateu.workflow.application.out.WorkflowTracing.NOOP;
+
     @InjectMocks CorrelateMessageUseCase useCase;
 
     private StepExecution pending(String id) {

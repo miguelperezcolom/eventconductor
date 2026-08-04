@@ -48,11 +48,30 @@ public class OutboxMessageEntity {
     @Column(columnDefinition = "TEXT")
     private String payload;
 
+    /**
+     * The W3C {@code traceparent} of whatever produced this event, so the relay can publish it as
+     * part of that trace instead of starting a new one.
+     *
+     * <p>This row is the engine's asynchronous boundary: written inside one transaction, published
+     * by another thread later. Nothing automatic bridges that gap — the instrumentation sees a
+     * database write in one trace and, some time afterwards, an unrelated Kafka send — so without
+     * carrying the context here, following a process end to end gives a trace per hop. Null when
+     * nothing was being traced, which is the normal case.
+     */
+    @Column(length = 64)
+    private String traceParent;
+
+    /** An event with no trace attached — what happens when tracing is off, which is the default. */
     public OutboxMessageEntity(DomainEvent event) {
+        this(event, null);
+    }
+
+    public OutboxMessageEntity(DomainEvent event, String traceParent) {
         this.id = UUID.randomUUID().toString();
         this.timestamp = LocalDateTime.now();
         this.status = OutboxMessageStatus.Pending.name();
         this.messageType = event.getClass().getName();
         this.payload = toJson(event);
+        this.traceParent = traceParent;
     }
 }

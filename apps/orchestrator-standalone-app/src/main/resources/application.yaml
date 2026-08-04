@@ -22,6 +22,13 @@ management:
     sampling:
       probability: ${TRACING_SAMPLING:0.0}
   otlp:
+    # Metrics over OTLP: off by default, so a deployment that scrapes Prometheus is unaffected.
+    # Turn it on when you already run a collector and want one pipeline for both signals.
+    metrics:
+      export:
+        enabled: ${OTLP_METRICS_ENABLED:false}
+        url: ${OTLP_METRICS_ENDPOINT:http://localhost:4318/v1/metrics}
+        step: ${OTLP_METRICS_INTERVAL:60s}
     tracing:
       endpoint: ${OTLP_TRACING_ENDPOINT:http://localhost:4318/v1/traces}
 

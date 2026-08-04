@@ -45,6 +45,8 @@ import static io.mateu.core.infra.JsonSerializer.pojoFromJson;
 public class OutboxDrain {
 
     final OutboxMessageEntityRepository outboxMessageEntityRepository;
+
+    final io.mateu.workflow.application.out.WorkflowTracing workflowTracing;
     final JdbcTemplate jdbcTemplate;
     final DbLockDialect dbLockDialect;
     final TransactionTemplate transactionTemplate;
@@ -71,7 +73,7 @@ public class OutboxDrain {
             var sent = new ArrayList<OutboxMessageEntity>();
             var poisoned = new ArrayList<OutboxMessageEntity>();
             for (var message : outboxMessageEntityRepository.findAllById(ids)) {
-                DomainEvent payload;
+                final DomainEvent payload;
                 try {
                     payload = (DomainEvent) pojoFromJson(message.getPayload(),
                             OutboxMessages.messageClass(message.getMessageType()));
@@ -83,7 +85,12 @@ public class OutboxDrain {
                 }
                 try {
                     log.debug("Relaying outbox message {}", message.getId());
-                    deliver.accept(payload);
+                    // Delivered as a continuation of the trace that produced the event, not of the
+                    // relay pass that happens to be draining it. Without this the send belongs to
+                    // no trace at all and the consumer on the other side starts a fresh one, so a
+                    // process reads as a series of unrelated traces rather than one.
+                    workflowTracing.continuing(message.getTraceParent(), "outbox relay",
+                            () -> deliver.accept(payload));
                     sent.add(message);
                 } catch (Exception e) {
                     // Left Pending: the next pass picks it up again.

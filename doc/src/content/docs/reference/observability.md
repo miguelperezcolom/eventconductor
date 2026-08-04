@@ -131,11 +131,49 @@ export OTLP_TRACING_ENDPOINT=http://localhost:4318/v1/traces
 ```
 
 With tracing on, HTTP requests, Kafka (Spring Cloud Stream) publish/consume and JDBC calls are
-auto-instrumented and the trace context propagates across the engines' asynchronous boundaries, so
-a single process execution can be followed end to end across services. The standalone apps bundle
-`micrometer-tracing-bridge-otel` and `opentelemetry-exporter-otlp`; enabling tracing needs only the
-two properties above.
+auto-instrumented. The standalone apps bundle `micrometer-tracing-bridge-otel` and
+`opentelemetry-exporter-otlp`; enabling tracing needs only the two properties above.
 
-Tracing is wired at the application layer (rather than as hand-written spans inside the engines)
-because Micrometer is an *optional* engine dependency — this keeps the engine libraries runnable
-with zero observability dependencies, consistent with how metrics activate.
+### Across the outbox
+
+Auto-instrumentation alone does **not** give you one trace per process, because this engine's
+asynchronous boundary is not a network call — it is a database row. A domain event is written to
+the outbox inside the transaction that produced it, and a relay thread publishes it some time
+afterwards. The instrumentation sees a write in one trace and, later, a Kafka send belonging to
+nothing, so the consumer on the other side starts a fresh trace: a trace per hop rather than a
+trace per process.
+
+The engine therefore carries the context itself. Each outbox row stores the W3C `traceparent` of
+whatever produced the event (column `trace_parent`, null when nothing was being traced), and the
+relay publishes **as a continuation of that trace**. A process started by an HTTP request and
+finished by a worker three hops later reads as one trace.
+
+### The engine's own spans
+
+Three operations are named, so a trace shows what the engine was doing rather than only the
+database calls it made along the way:
+
+| Span | What it covers |
+|---|---|
+| `eventconductor.step-over` | Advancing a process: deciding what may run now and dispatching it |
+| `eventconductor.dispatch-step` | Handing one step to a worker |
+| `eventconductor.correlate-message` | Matching an arriving message to the steps waiting for it |
+
+Both the propagation and the spans go through a port with a no-op default
+(`WorkflowTracing`), wired to Micrometer only when the host application brings a `Tracer` — the
+same shape as metrics. The engine libraries still run with **zero** observability dependencies, and
+nothing here can fail a workflow: a tracing error is logged at debug and the work carries on.
+
+## Metrics over OTLP
+
+Metrics are exposed for Prometheus scraping by default. A deployment that already runs an
+OpenTelemetry collector can push them instead, over the same protocol as the traces:
+
+```properties
+management.otlp.metrics.export.enabled=${OTLP_METRICS_ENABLED:false}
+management.otlp.metrics.export.url=${OTLP_METRICS_ENDPOINT:http://localhost:4318/v1/metrics}
+management.otlp.metrics.export.step=${OTLP_METRICS_INTERVAL:60s}
+```
+
+Off by default, and independent of the Prometheus endpoint — turning it on does not turn scraping
+off.

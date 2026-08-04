@@ -42,6 +42,11 @@ class StepExecutionStatusUpdatedEventHandlerTest {
     // it for real and only stub the repositories that feed it.
     @Spy CompensationService compensationService = new CompensationService();
 
+    // The real no-op, not a mock: a mocked span() would swallow the work it is meant to wrap.
+    @org.mockito.Spy
+    io.mateu.workflow.application.out.WorkflowTracing workflowTracing =
+            io.mateu.workflow.application.out.WorkflowTracing.NOOP;
+
     @InjectMocks StepExecutionStatusUpdatedEventHandler handler;
 
     private Process proc;

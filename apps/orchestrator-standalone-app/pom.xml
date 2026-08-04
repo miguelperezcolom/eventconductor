@@ -65,6 +65,13 @@
             <groupId>io.micrometer</groupId>
             <artifactId>micrometer-registry-prometheus</artifactId>
         </dependency>
+        <!-- Metrics over OTLP, for a deployment that already runs an OpenTelemetry collector and
+             would rather not scrape a second endpoint. Off unless management.otlp.metrics.export
+             is enabled; Prometheus scraping stays available either way. -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-otlp</artifactId>
+        </dependency>
         <!-- Distributed tracing: bridges Micrometer Observations (incl. the engine's use-case
              spans and auto-instrumented HTTP/Kafka/JDBC) to OpenTelemetry and exports them via
              OTLP. Inert until management.tracing.sampling.probability > 0 and an OTLP endpoint

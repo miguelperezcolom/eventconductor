@@ -20,6 +20,11 @@ class ProcessCreatedEventHandlerTest {
     @Mock StartProcessUseCase startProcessUseCase;
     @Mock StepOverProcessUseCase stepOverProcessUseCase;
 
+    // The real no-op, not a mock: a mocked span() would swallow the work it is meant to wrap.
+    @org.mockito.Spy
+    io.mateu.workflow.application.out.WorkflowTracing workflowTracing =
+            io.mateu.workflow.application.out.WorkflowTracing.NOOP;
+
     @InjectMocks ProcessCreatedEventHandler handler;
 
     @Test

@@ -24,6 +24,7 @@ public class StepExecutionDBRepository implements StepExecutionRepository {
 
     final StepExecutionEntityRepository stepExecutionEntityRepository;
     final OutboxMessageEntityRepository outboxMessageEntityRepository;
+    final io.mateu.workflow.application.out.WorkflowTracing workflowTracing;
     final io.mateu.workflow.infra.out.async.OutboxSignal outboxSignal;
 
     @Override
@@ -74,7 +75,11 @@ public class StepExecutionDBRepository implements StepExecutionRepository {
                 stepExecution.getVersion()
         ));
 
-        var outbox = stepExecution.popEvents().stream().map(OutboxMessageEntity::new).toList();
+        // Captured here, at the one moment the event and the context that produced it are both
+        // in hand: the relay publishes this row later, from a thread that has neither.
+        var traceParent = workflowTracing.currentTraceParent();
+        var outbox = stepExecution.popEvents().stream()
+                .map(event -> new OutboxMessageEntity(event, traceParent)).toList();
         outboxMessageEntityRepository.saveAll(outbox);
         if (!outbox.isEmpty()) {
             // Wake this pod's relay once the transaction commits, rather than leaving the row to

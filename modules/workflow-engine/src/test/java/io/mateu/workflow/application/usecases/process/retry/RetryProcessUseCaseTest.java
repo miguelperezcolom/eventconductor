@@ -36,6 +36,11 @@ class RetryProcessUseCaseTest {
     @Mock
     WorkflowMetrics workflowMetrics;
 
+    // The real no-op, not a mock: a mocked span() would swallow the work it is meant to wrap.
+    @org.mockito.Spy
+    io.mateu.workflow.application.out.WorkflowTracing workflowTracing =
+            io.mateu.workflow.application.out.WorkflowTracing.NOOP;
+
     @InjectMocks
     RetryProcessUseCase retryProcessUseCase;
 

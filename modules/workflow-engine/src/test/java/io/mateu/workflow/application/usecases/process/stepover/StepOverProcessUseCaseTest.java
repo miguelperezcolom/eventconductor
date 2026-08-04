@@ -38,6 +38,11 @@ class StepOverProcessUseCaseTest {
     @Mock CancelChildProcessService    cancelChildProcessService;
     @Spy  WorkflowOrchestrationService workflowOrchestrationService = new WorkflowOrchestrationService();
 
+    // The real no-op, not a mock: a mocked span() would swallow the work it is meant to wrap.
+    @org.mockito.Spy
+    io.mateu.workflow.application.out.WorkflowTracing workflowTracing =
+            io.mateu.workflow.application.out.WorkflowTracing.NOOP;
+
     @InjectMocks StepOverProcessUseCase useCase;
 
     @BeforeEach

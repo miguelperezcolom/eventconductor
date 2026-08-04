@@ -20,6 +20,11 @@ class MessageReceivedEventHandlerTest {
 
     @Mock CorrelateMessageUseCase correlateMessageUseCase;
 
+    // The real no-op, not a mock: a mocked span() would swallow the work it is meant to wrap.
+    @org.mockito.Spy
+    io.mateu.workflow.application.out.WorkflowTracing workflowTracing =
+            io.mateu.workflow.application.out.WorkflowTracing.NOOP;
+
     @InjectMocks MessageReceivedEventHandler handler;
 
     @Test
