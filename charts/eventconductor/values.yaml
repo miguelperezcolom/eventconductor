@@ -8,6 +8,13 @@ postgres:
   # POSTGRES_DB / POSTGRES_USER / POSTGRES_PASSWORD.
   password: ""
   existingSecret: ""
+  # PostgreSQL's own default is 100, and this chart's defaults ask for 96 of them before anything
+  # else connects: three apps at dbPoolSize 16, two replicas each. The database is then full, and
+  # the next thing to open a connection — an application of yours sharing it, a psql session, the
+  # backup you are about to take — is refused with "sorry, too many clients already". Keep this
+  # above (orchestrator + forms + rules pool sizes x their replicas) plus room for your own
+  # clients. Raising it costs a few MB of server memory per additional connection.
+  maxConnections: 200
   port: 5432
   storage: 8Gi
   storageClass: ""
@@ -63,6 +70,11 @@ orchestrator:
   # In production keep ddl-auto=validate so Flyway owns the schema.
   ddlAuto: validate
   flywayEnabled: true
+  # Flyway's history table. The three apps are normally pointed at one database and each
+  # carries its own migrations numbered from V1, so they cannot share one history table:
+  # whichever starts first writes its V1 there and the others fail validation on a checksum
+  # mismatch. The engine keeps the default name; forms and rules take suffixed ones.
+  flywayTable: flyway_schema_history
   # Consumer threads per pod, on each of the two consumer bindings. The useful ceiling is
   # redpanda.defaultTopicPartitions / replicas — threads past the partition count are assigned
   # nothing. Below that ceiling a deployment cannot use the partitions it created: measured on a
@@ -110,6 +122,11 @@ forms:
   servicePort: 8106
   ddlAuto: validate
   flywayEnabled: true
+  # Flyway's history table. The three apps are normally pointed at one database and each
+  # carries its own migrations numbered from V1, so they cannot share one history table:
+  # whichever starts first writes its V1 there and the others fail validation on a checksum
+  # mismatch. The engine keeps the default name; forms and rules take suffixed ones.
+  flywayTable: flyway_schema_history_forms
   security:
     enabled: true
     user: admin
@@ -137,6 +154,11 @@ rules:
   grpcPort: 9090
   ddlAuto: validate
   flywayEnabled: true
+  # Flyway's history table. The three apps are normally pointed at one database and each
+  # carries its own migrations numbered from V1, so they cannot share one history table:
+  # whichever starts first writes its V1 there and the others fail validation on a checksum
+  # mismatch. The engine keeps the default name; forms and rules take suffixed ones.
+  flywayTable: flyway_schema_history_rules
   security:
     enabled: true
     user: admin

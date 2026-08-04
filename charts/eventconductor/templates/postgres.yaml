@@ -66,6 +66,8 @@ spec:
       containers:
         - name: postgres
           image: {{ .Values.postgres.image }}
+          # "postgres" first because args replaces the image's CMD, not just appends to it.
+          args: ["postgres", "-c", "max_connections={{ .Values.postgres.maxConnections }}"]
           {{- with .Values.postgres.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
