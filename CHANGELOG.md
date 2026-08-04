@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0-beta.018] - 2026-08-04
+
+### Added
+- **A process is one trace, not one per hop.** OpenTelemetry over OTLP was already wired and the
+  documentation said the context propagated across the engine's asynchronous boundaries. It did
+  not, for the boundary that matters: that boundary is a database row, not a network call. An event
+  is written to the outbox inside the transaction that produced it and published by a relay thread
+  afterwards, so auto-instrumentation saw a write in one trace and, later, a Kafka send belonging
+  to nothing — and the consumer started a fresh trace. The outbox row now carries the producing
+  trace's W3C `traceparent` (`V17`, null when nothing is being traced) and the relay publishes as a
+  continuation of it.
+- **Engine spans**: `eventconductor.step-over`, `eventconductor.dispatch-step` and
+  `eventconductor.correlate-message`, so a trace shows what the engine was doing rather than only
+  the queries it made along the way.
+- **Metrics over OTLP** (`OTLP_METRICS_ENABLED`), for deployments that already run a collector.
+  Off by default, and it does not turn Prometheus scraping off.
+
+All of it through a `WorkflowTracing` port with a no-op default, wired to Micrometer only when the
+host brings a `Tracer` — the engine libraries still run with zero observability dependencies, and
+a tracing failure is logged at debug rather than being allowed to fail a workflow.
+
+### Documentation
+- The observability reference describes the outbox propagation, the engine's spans and the OTLP
+  metrics export; the AI reference gained the definition status, per-link preconditions,
+  `restartProcess` and the tracing summary; the IDE guide documents the workflow status in the
+  graph's Settings panel and that a new `.ec` is written as YAML.
+
 ## [1.0-beta.017] - 2026-08-04
 
 Two questions a definition could not answer before: which route into a step a condition belongs to,

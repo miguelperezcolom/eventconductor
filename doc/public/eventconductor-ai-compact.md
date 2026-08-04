@@ -7,7 +7,7 @@ EventConductor is an event-driven **workflow / saga orchestration engine** for J
 <dependency>
   <groupId>io.mateu.workflow</groupId>
   <artifactId>workflow-engine</artifactId>
-  <version>1.0-beta.017</version> <!-- check Maven Central / CHANGELOG.md for the newest release -->
+  <version>1.0-beta.018</version> <!-- check Maven Central / CHANGELOG.md for the newest release -->
 </dependency>
 <!-- add io.mateu.workflow:forms-engine only if you use USER_TASK / human forms -->
 ```
@@ -101,7 +101,9 @@ processUpstreamEventUseCase.handle(new ProcessUpstreamEventCommand(
 ```
 
 Cancel: `cancelProcessUseCase.handle(new CancelProcessCommand(processId))` — running/pending steps go `CANCELLED`, process → `CANCELLED`.
-Retry a process in `ERROR`: `retryProcessUseCase.handle(new RetryProcessCommand(processId))`.
+Run a stopped (`ERROR`/`CANCELLED`) process again — from the failure or from the top:
+`RetryProcessRequested(processId)` / `RestartProcessRequested(processId)`, published so the pod that
+owns the process carries it out. MCP tools: `retryProcess`, `restartProcess`.
 Pause/resume: `pauseProcessUseCase.handle(new PauseProcessCommand(processId))` (PENDING/RUNNING → `PAUSED`) / `resumeProcessUseCase.handle(new ResumeProcessCommand(processId))`. Pause holds the frontier, not in-flight work: workers finish and their reports are accepted, messages still complete WAIT_FOR_MESSAGE steps, but successors don't start and timer/timeout clocks freeze (on resume `startedAt` is shifted forward by the pause duration). `PauseWorkflowUseCase.handle(defId)` / `ResumeWorkflowUseCase.handle(defId)` pause a whole definition (runtime `paused` flag, orthogonal to its lifecycle status): all its PENDING/RUNNING processes are paused and new instances — cron included — are still created, **born PAUSED**.
 Query: `ProcessRepository.findById(id)` / `.findByBusinessKey("order-123")` — both return `Optional<Process>`.
 

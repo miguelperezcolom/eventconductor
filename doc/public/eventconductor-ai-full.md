@@ -13,14 +13,14 @@ It scales from a single JVM with no external dependencies up to a multi-pod Kube
 <dependency>
   <groupId>io.mateu.workflow</groupId>
   <artifactId>workflow-engine</artifactId>
-  <version>1.0-beta.017</version>
+  <version>1.0-beta.018</version>
 </dependency>
 
 <!-- only if you use USER_TASK steps (human forms) -->
 <dependency>
   <groupId>io.mateu.workflow</groupId>
   <artifactId>forms-engine</artifactId>
-  <version>1.0-beta.017</version>
+  <version>1.0-beta.018</version>
 </dependency>
 ```
 
@@ -127,6 +127,14 @@ YAML (first line):
 ```
 
 ---
+
+### Definition status
+
+| Field | Values | Meaning |
+|---|---|---|
+| `status` | `ACTIVE` (default), `DISABLED`, `ARCHIVED` | Whether the workflow accepts new instances. Declaring it in the `.ec` is a **floor**: an operator can take a workflow out of service at runtime, but cannot put one into service that its own definition closes. `ARCHIVED` also hides it from the listing |
+| `disabled`, `archived` | boolean | The older spelling, still read: `true` means the corresponding status |
+| `paused` | boolean | A different axis: a paused workflow still accepts instances (born `PAUSED`); a disabled one accepts none. A workflow can be both |
 
 ## 4. Step types
 
@@ -238,7 +246,8 @@ Exactly one per workflow. Transitions the process to `COMPLETED`. With parallel 
 | `description` | string | — | Optional |
 | `preconditionStepId` | string | — | Single step that must complete first |
 | `preconditionStepIds` | string[] | — | Steps that must ALL complete first; wins over the singular form when non-empty |
-| `preconditionExpression` | string | — | JEXL guard; while falsy the step is never run (stays `CREATED`, → `CANCELLED` when `END` fires) |
+| `preconditions` | object[] | — | `{stepId, expression?}` per incoming link: the condition belongs to that route in, not to the step. Wins over both spellings above. A link whose `expression` is falsy is **not satisfied**, so the step waits (it is not skipped, and the process does not finish around it) |
+| `preconditionExpression` | string | — | JEXL guard on the step, whatever route reached it; while falsy the step is never run (stays `CREATED`, → `CANCELLED` when `END` fires) |
 | `parallel` | boolean | `false` | **Deprecated and ignored** (kept for deserialization of old files) |
 | `topic` | string | — | Worker destination (ACTION, Kafka mode) |
 | `formId` | string | — | Form to render (USER_TASK) |
@@ -562,6 +571,17 @@ Also triggerable via the MCP tool `importWorkflowDefinitionsFromGit`, or a git w
 The engine exposes an MCP server so AI agents can operate it in natural language. Workflow tools: `listProcesses`, `getProcessDetails`, `findProcessByBusinessKey`, `getProcessLogs`, `retryProcess`, `pauseProcess` / `resumeProcess` (pause/resume a process — see §6 semantics), `pauseWorkflow` / `resumeWorkflow` (pause/resume a whole definition), `sendMessage` (resume WAIT_FOR_MESSAGE steps), `getWorkflowAnalytics` / `findBottleneck` (per-definition analytics and bottleneck detection), `importWorkflowDefinitionsFromGit`. There is no start-process tool. Plus forms tools and rule catalog tools (`listRules`, `evaluateRule`, ...). See `doc/src/content/docs/guides/mcp-overview.md`.
 
 ---
+
+## 14b. Observability
+
+- **Metrics** — Micrometer; Prometheus scraping by default, and OTLP push when
+  `management.otlp.metrics.export.enabled=true`.
+- **Tracing** — OpenTelemetry over OTLP, off until `management.tracing.sampling.probability > 0`.
+  The outbox row carries the producing trace's W3C `traceparent`, and the relay publishes as a
+  continuation of it, so one process is **one trace** rather than one per hop. The engine names
+  `eventconductor.step-over`, `eventconductor.dispatch-step` and `eventconductor.correlate-message`.
+- Both go through ports with no-op defaults (`WorkflowMetrics`, `WorkflowTracing`), so the engine
+  libraries run with no observability dependencies at all.
 
 ## 15. Minimal fully-embedded example
 

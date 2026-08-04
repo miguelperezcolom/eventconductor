@@ -14,7 +14,7 @@ everywhere.
 **JSON or YAML** — the plugins (and the engine's git import) detect the format from the content
 and preserve it, so you pick whichever you prefer without renaming. An `.ec` file is just a
 [workflow definition](/guides/workflow-definitions/); it is validated against the same
-[JSON schema](/reference/maven-plugin/).
+[JSON schema](/reference/maven-plugin/). A file that is still empty — a `.ec` you have just created — is written as **YAML**, which is what the examples and this documentation use.
 
 The engine also imports `.ec` files (alongside `.json` / `.yaml` / `.yml`) from configured Git
 repositories and from `classpath:/workflows/` — see [Configuration](/reference/configuration/#git-import-workflowgit-import).
@@ -28,6 +28,10 @@ default, backed by the underlying text document.
   line, click a node to select it and filter the graph to what it is connected to, wheel to zoom,
   drag the background to pan, plus fit-to-view and a minimap. A token-flow **simulation** animates
   the paths (and pauses on an AND-join to show it synchronising on all its branches).
+- **Workflow status** — the graph's **Settings** panel declares whether the workflow is `Active`,
+  `Disabled` or `Archived`, written to the `.ec` as `status`. It is a floor the runtime cannot
+  lift: an operator can take a workflow out of service, but cannot enable one whose definition
+  disables it.
 - **Deleting** — select a node or a connection and press **Delete** (or **Backspace**). Deleting a
   node also removes every reference other steps held to it: preconditions, whether written as
   `preconditionStepId` or in a `preconditionStepIds` list, and the `compensationStepId` of a
