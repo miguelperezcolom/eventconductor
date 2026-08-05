@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Plugins — IntelliJ 0.1.3, VS Code 0.1.2
+- **The editors ship the current graph.** Neither plugin's sources have changed since the last
+  plugin release; what has changed is the component they carry, and they only carry a new one when
+  they are released. Installed alongside `1.0-beta.022`, the editor was laying a definition out
+  differently from the web viewer — it had the bundle from 4 August, before the rollback edges
+  reached the layout. These builds bring compensation steps drawn amber once they have run, the
+  rollback edges laid out (so a compensation sits to the right of the step it undoes rather than at
+  the far left with its line drawn back across the graph), and a paused animation that stays paused
+  when a node is selected.
+
 ## [1.0-beta.022] - 2026-08-05
 
 A failure that says why.
