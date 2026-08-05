@@ -7,17 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.0.0] - 2026-08-05
+## [1.0-beta.023] - 2026-08-05
 
-The promises begin.
+The last blockers before the promise.
 
-1.0 is not a feature — it is a commitment. From here, the definition formats, the configuration, the
-worker contract and the metrics are a stable surface you can build on, and a break in any of them is
-a major version, not a surprise on a Tuesday. Getting there meant closing the last things a
-workflow engine cannot ship without: a rule could no longer reach out of its sandbox, a fast-failing
-step could no longer hammer the thing it depended on, and a rollback that could not finish could no
-longer do so in silence. See [Versioning & Compatibility](doc/src/content/docs/reference/versioning.md)
-for exactly what is, and is not, covered.
+The hardening a workflow engine cannot go to 1.0 without: a rule can no longer reach out of its
+sandbox, a fast-failing step can no longer hammer the thing it depended on, and a rollback that
+cannot finish can no longer do so in silence. This beta also writes down the 1.0 compatibility
+promise before making it — see [Versioning & Compatibility](doc/src/content/docs/reference/versioning.md)
+for exactly what will, and will not, be covered from 1.0.0.
 
 ### Security
 - **Rule expressions now run sandboxed.** The `rule-runtime` JEXL evaluator built its engine

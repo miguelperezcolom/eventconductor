@@ -633,7 +633,7 @@ parseability for rules.
 <plugin>
   <groupId>io.mateu.workflow</groupId>
   <artifactId>workflow-maven-plugin</artifactId>
-  <version>1.0.0</version>
+  <version>1.0-beta.023</version>
   <executions>
     <execution>
       <goals>
@@ -817,7 +817,7 @@ Place workflow definitions under `src/main/resources/workflows/` as JSON or YAML
 <dependency>
     <groupId>io.mateu.workflow</groupId>
     <artifactId>workflow-engine</artifactId>
-    <version>1.0.0</version>
+    <version>1.0-beta.023</version>
 </dependency>
 ```
 
@@ -920,4 +920,4 @@ contract**, the documented **embedded entry points**, the **HTTP message + MCP**
 `eventconductor.*` **metric names**. The internal Java classes — including the `WorkflowDefinition`
 and `Step` model types — are **not** a public API: program against the definition format, not
 against those types. Full policy, format versioning and deprecation rules:
-[Versioning & Compatibility](doc/src/content/docs/reference/versioning.md).
+[Versioning & Compatibility](https://miguelperezcolom.github.io/eventconductor/reference/versioning/).
