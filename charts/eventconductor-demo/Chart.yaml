@@ -4,7 +4,9 @@ description: The demo applications that ride on EventConductor — a booking sag
   plane, an API gateway, a UI shell and the Claude agent that drives the engine over MCP.
 type: application
 version: 0.1.0
-# The tag the demo images are published under; every service moves together. It is deliberately
-# not the engine's version: the demo is not part of the reactor the release workflow builds, so
-# these images are published separately and only move when the demo services change.
-appVersion: "1.0-beta.018"
+# The tag the demo images are published under; every service moves together. Deliberately not
+# engine-shaped: the demo is not part of the reactor the release workflow builds, so these images
+# are published separately (the "Publish demo images" workflow) and only move when the demo
+# services change. It used to read 1.0-beta.018 — a real tag, and the right one, but one that
+# reads as "two releases behind" every time the engine moves, which is how it got misread.
+appVersion: "demo-0.1.0"
