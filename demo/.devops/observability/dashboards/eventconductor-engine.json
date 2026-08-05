@@ -1,5 +1,5 @@
 {
-  "title": "EventConductor \u2014 Engine",
+  "title": "EventConductor — Engine",
   "uid": "eventconductor-engine",
   "tags": [
     "eventconductor",
@@ -95,7 +95,7 @@
     },
     {
       "type": "timeseries",
-      "title": "Event processing rate \u2014 by service \u00b7 topic",
+      "title": "Event processing rate — by service · topic",
       "gridPos": {
         "x": 12,
         "y": 0,
@@ -122,7 +122,7 @@
       "targets": [
         {
           "expr": "sum by(job,topic)(label_replace(rate(spring_kafka_listener_seconds_count{job=~\"orchestrator|forms|rules\"}[5m]),\"topic\",\"$1\",\"name\",\".*consumerDestinationName=..([^..]+).*\"))",
-          "legendFormat": "{{job}} \u00b7 {{topic}}",
+          "legendFormat": "{{job}} · {{topic}}",
           "refId": "A",
           "datasource": {
             "type": "prometheus",
@@ -373,6 +373,318 @@
           "datasource": {
             "type": "loki",
             "uid": "P8E80F9AEF21F6940"
+          }
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Engine — process & saga (eventconductor.*)",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 26,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "title": "Processes running",
+      "description": "Gauge eventconductor.process.running — instances currently RUNNING.",
+      "gridPos": {
+        "x": 0,
+        "y": 27,
+        "w": 6,
+        "h": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(eventconductor_process_running)",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Outbox pending",
+      "description": "Gauge eventconductor.outbox.pending — messages waiting to be relayed (jpa mode). Rises during a broker outage; must return to zero.",
+      "gridPos": {
+        "x": 6,
+        "y": 27,
+        "w": 6,
+        "h": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(eventconductor_outbox_pending)",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Stalled steps (ALERT)",
+      "description": "Gauge eventconductor.steps.stalled — ACTION/RULE steps with no deadline waiting on a worker. The one gauge to alert on. Cluster-wide: alert on max across replicas.",
+      "gridPos": {
+        "x": 12,
+        "y": 27,
+        "w": 6,
+        "h": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(eventconductor_steps_stalled)",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Compensations failed 1h (ALERT)",
+      "description": "eventconductor.compensations.failed — saga rollbacks that could not complete (COMPENSATION_FAILED). Any non-zero value is business state left inconsistent.",
+      "gridPos": {
+        "x": 18,
+        "y": 27,
+        "w": 6,
+        "h": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(increase(eventconductor_compensations_failed_total[1h]))",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Process outcomes /s",
+      "description": "Process lifecycle rates from the engine's own meters (mode-agnostic).",
+      "gridPos": {
+        "x": 0,
+        "y": 31,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(eventconductor_process_started_total[5m]))",
+          "legendFormat": "started",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        },
+        {
+          "expr": "sum(rate(eventconductor_process_completed_total[5m]))",
+          "legendFormat": "completed",
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        },
+        {
+          "expr": "sum(rate(eventconductor_process_errored_total[5m]))",
+          "legendFormat": "errored",
+          "refId": "C",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        },
+        {
+          "expr": "sum(rate(eventconductor_process_cancelled_total[5m]))",
+          "legendFormat": "cancelled",
+          "refId": "D",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Steps: retries · compensations · dead-lettered /s",
+      "description": "Retry/compensation/dead-letter/optimistic-conflict rates.",
+      "gridPos": {
+        "x": 12,
+        "y": 31,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(eventconductor_step_retries_total[5m]))",
+          "legendFormat": "retries",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        },
+        {
+          "expr": "sum(rate(eventconductor_step_compensations_total[5m]))",
+          "legendFormat": "compensations",
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        },
+        {
+          "expr": "sum(rate(eventconductor_events_dead_lettered_total[5m]))",
+          "legendFormat": "dead-lettered",
+          "refId": "C",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        },
+        {
+          "expr": "sum(rate(eventconductor_process_concurrent_writes_rejected_total[5m]))",
+          "legendFormat": "concurrent-writes-rejected",
+          "refId": "D",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
           }
         }
       ]

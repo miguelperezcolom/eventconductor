@@ -13,6 +13,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `when`/`then` expressions come from untrusted sources (imported from Git, edited in the UI), so an
   attacker who controlled a rule could reach `Runtime.exec`, `System.exit` or reflection — arbitrary
   code execution on the rules service. The evaluator is now restricted to match the engine's.
+- **Docker image release now fails on HIGH/CRITICAL CVEs.** The three Trivy image scans in the
+  release workflow ran with `exit-code: '0'`, so vulnerabilities were reported but never blocked a
+  publish. They now gate the release (`exit-code: '1'`, `ignore-unfixed` retained).
+- **`rule-engine` upgraded jgit 6.10.1 → 7.7.0**, matching `workflow-engine`/`forms-engine`.
+  rule-engine also clones remote repositories, so it carried the same fetch/parse CVEs the other
+  modules had already been bumped away from.
+- **Standalone apps fail closed on the DB password.** The orchestrator/forms/rules configs defaulted
+  `password` to `${DB_PASSWORD:user_password}`, so a bare-jar boot with the env var unset came up on
+  a known password (contradicting the Dockerfiles, which state there is no default). The default is
+  removed; Helm and docker-compose supply `DB_PASSWORD` as before.
+
+### Changed
+- **In-memory persistence warns loudly at startup.** `workflow.persistence=memory` (the default)
+  keeps all state in the JVM heap and loses every running process on restart. The engine now logs a
+  prominent warning so a non-durable store is a deliberate choice, not a silent one.
+- **The bundled Grafana engine dashboard charts the engine's own metrics.** It previously showed
+  only infrastructure (Kafka lag, executors, Hikari, HTTP). Added process running / outbox pending /
+  stalled steps / compensations-failed stat panels (the alert-worthy gauges) and process-outcome and
+  step-retry/compensation/dead-letter rate timeseries.
 
 ### Fixed
 - **Auto-retry now backs off instead of hot-looping.** A failed step with retries left was
