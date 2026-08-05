@@ -10,6 +10,7 @@ import java.sql.SQLException;
 import java.sql.SQLNonTransientConnectionException;
 import java.sql.SQLRecoverableException;
 import java.sql.SQLTransientException;
+import java.util.concurrent.RejectedExecutionException;
 
 /**
  * Whether a failed event is worth trying again, or is never going to succeed.
@@ -40,7 +41,11 @@ public final class EventFailures {
                     // The database being unreachable is the plainest retryable failure there is,
                     // and Spring files both of these outside the transient family.
                     || cause instanceof DataAccessResourceFailureException
-                    || cause instanceof CannotCreateTransactionException) {
+                    || cause instanceof CannotCreateTransactionException
+                    // A full embedded worker pool. Nothing is wrong with the message: there is
+                    // no room for it this instant, and the outbox is the one place that can hold
+                    // it until there is. Parking it would dead-letter a queue being busy.
+                    || cause instanceof RejectedExecutionException) {
                 return true;
             }
             if (cause instanceof SQLException sql && isConnectionFailure(sql)) {
