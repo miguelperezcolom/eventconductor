@@ -128,8 +128,16 @@ spring.kafka.bootstrap-servers=localhost:9092
   of a rebalance
 - Horizontally scalable — add more orchestrator pods at any time
 
-:::caution[One consumer group per binding]
-If you wire the bindings yourself, give `consumeUpstream-in-0` and `consumeOutbox-in-0`
+:::caution[If you wire the bindings yourself]
+The engine contributes its own bindings as defaults, so normally you do not have to. If you do,
+two things it sets are not optional.
+
+**`consumer.batch-mode=true` on both.** The engine's consumers take a batch of events, so a
+binding without it delivers one unconverted record: the payload arrives as a `byte[]`, the first
+event dies with `ClassCastException: class [B cannot be cast to class java.util.List`, retries
+exhaust, and the outbox is dead-lettered event by event.
+
+**A group each.** Give `consumeUpstream-in-0` and `consumeOutbox-in-0`
 **different** groups. A group whose members subscribe to different topics is assigned by Kafka's
 default range assignor per topic, and with mixed subscriptions it leaves partitions with **no
 consumer at all** — those events are never read and the processes waiting on them never move.

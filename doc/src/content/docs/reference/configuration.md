@@ -246,29 +246,52 @@ spring.kafka.bootstrap-servers=localhost:9092
 
 ### Topic bindings
 
-Consumers are Spring Cloud Function bindings (`<function>-in-0`); producers use the named bindings `outbox`, `upstream`, and `downstream` (published via `StreamBridge`):
+**The engine wires its own.** Destinations, a group per binding and `batch-mode` for both consumers
+arrive as defaults, at the lowest precedence — set any of them yourself and yours wins. What is
+left to the application is the list of functions it composes, because only it knows whether a
+worker or the forms engine is on the classpath too:
 
 ```properties
-# Outbox topic (internal domain events)
-spring.cloud.stream.bindings.consumeOutbox-in-0.destination=outbox
-spring.cloud.stream.bindings.consumeOutbox-in-0.group=orchestrator-group
-spring.cloud.stream.bindings.outbox.destination=outbox
-
-# Upstream topic (integration events from external services)
-spring.cloud.stream.bindings.consumeUpstream-in-0.destination=upstream
-spring.cloud.stream.bindings.consumeUpstream-in-0.group=orchestrator-group
-spring.cloud.stream.bindings.upstream.destination=upstream
-
-# Downstream topic (task execution requests to workers)
-spring.cloud.stream.bindings.consumeWorkerEvent-in-0.destination=downstream
-spring.cloud.stream.bindings.consumeWorkerEvent-in-0.group=worker-group
-spring.cloud.stream.bindings.downstream.destination=downstream
-
-# Function bindings
 spring.cloud.function.definition=consumeOutbox;consumeUpstream;consumeWorkerEvent
 
 # Auto-create topics (dev/test only)
 spring.cloud.stream.kafka.binder.auto-create-topics=true
+```
+
+:::caution[Don't drop `batch-mode` if you wire the bindings yourself]
+The engine's consumers take a **batch** — `Consumer<Message<List<DomainEvent>>>` — because a poll
+batch is committed as one transaction per process. A binding without `batch-mode` delivers one
+unconverted record, so the payload arrives as a `byte[]` and the first event dies with
+`ClassCastException: class [B cannot be cast to class java.util.List`; retries exhaust and the
+outbox is dead-lettered event by event.
+
+And give each consumer **its own group**. A group whose members subscribe to different topics is
+assigned per topic by the default range assignor, and with mixed subscriptions it leaves
+partitions with no consumer at all — messages nobody reads, processes that never move.
+:::
+
+These are what the defaults set, if you need to name them explicitly:
+
+```properties
+# Outbox topic (internal domain events)
+spring.cloud.stream.bindings.consumeOutbox-in-0.destination=outbox
+spring.cloud.stream.bindings.consumeOutbox-in-0.group=orchestrator-outbox
+spring.cloud.stream.bindings.consumeOutbox-in-0.consumer.batch-mode=true
+spring.cloud.stream.bindings.outbox.destination=outbox
+
+# Upstream topic (integration events from external services)
+spring.cloud.stream.bindings.consumeUpstream-in-0.destination=upstream
+spring.cloud.stream.bindings.consumeUpstream-in-0.group=orchestrator-upstream
+spring.cloud.stream.bindings.consumeUpstream-in-0.consumer.batch-mode=true
+spring.cloud.stream.bindings.upstream.destination=upstream
+
+# Downstream topic (task execution requests to workers) — the worker's own binding
+spring.cloud.stream.bindings.consumeWorkerEvent-in-0.destination=downstream
+spring.cloud.stream.bindings.consumeWorkerEvent-in-0.group=worker-group
+spring.cloud.stream.bindings.downstream.destination=downstream
+
+# Where events the engine can never process are parked
+spring.cloud.stream.bindings.deadLetter.destination=dead-letter
 ```
 
 ### Startup resilience (broker down at startup)
@@ -323,16 +346,10 @@ spring.jpa.hibernate.ddl-auto=update
 
 spring.kafka.bootstrap-servers=localhost:9092
 
-spring.cloud.stream.bindings.consumeOutbox-in-0.destination=outbox
-spring.cloud.stream.bindings.consumeOutbox-in-0.group=orchestrator-group
-spring.cloud.stream.bindings.consumeUpstream-in-0.destination=upstream
-spring.cloud.stream.bindings.consumeUpstream-in-0.group=orchestrator-group
+# The engine's own bindings (destinations, a group each, batch-mode) come as defaults.
+spring.cloud.function.definition=consumeOutbox;consumeUpstream;consumeWorkerEvent
 spring.cloud.stream.bindings.consumeWorkerEvent-in-0.destination=downstream
 spring.cloud.stream.bindings.consumeWorkerEvent-in-0.group=worker-group
-spring.cloud.stream.bindings.outbox.destination=outbox
-spring.cloud.stream.bindings.upstream.destination=upstream
-spring.cloud.stream.bindings.downstream.destination=downstream
-spring.cloud.function.definition=consumeOutbox;consumeUpstream;consumeWorkerEvent
 spring.cloud.stream.kafka.binder.auto-create-topics=true
 ```
 

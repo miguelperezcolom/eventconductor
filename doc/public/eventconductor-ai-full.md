@@ -489,12 +489,15 @@ Workers may only report `RUNNING`, `COMPLETED`, `ERROR`.
 | `downstream` | orchestrator → workers | `TaskExecutionRequested` (per ACTION step `topic`) |
 | `outbox` | internal | orchestrator outbox relay |
 
-Typical Spring Cloud Stream bindings:
+Spring Cloud Stream bindings. The engine contributes its own as lowest-precedence defaults —
+destinations, a consumer group per binding, and `consumer.batch-mode=true`, which its batch
+consumers require (without it the payload arrives as a `byte[]` and every event dies with
+`ClassCastException: class [B cannot be cast to class java.util.List`). The function list is
+yours, since only the application knows what it composes:
 ```properties
-spring.cloud.stream.bindings.consumeOutbox-in-0.destination=outbox
-spring.cloud.stream.bindings.consumeUpstream-in-0.destination=upstream
+spring.cloud.function.definition=consumeOutbox;consumeUpstream;consumeWorkerEvent
 spring.cloud.stream.bindings.consumeWorkerEvent-in-0.destination=downstream
-spring.cloud.stream.function.definition=consumeOutbox;consumeUpstream;consumeWorkerEvent
+spring.cloud.stream.bindings.consumeWorkerEvent-in-0.group=worker-group
 spring.cloud.stream.kafka.binder.auto-create-topics=true
 ```
 

@@ -75,10 +75,9 @@ spring.jpa.hibernate.ddl-auto=update
 workflow.mode=kafka
 workflow.persistence=jpa
 spring.kafka.bootstrap-servers=localhost:9092
-spring.cloud.stream.bindings.consumeOutbox-in-0.destination=outbox
-spring.cloud.stream.bindings.consumeUpstream-in-0.destination=upstream
+# The engine's bindings (destinations, a group each, batch-mode) are defaults; this is not.
+spring.cloud.function.definition=consumeOutbox;consumeUpstream;consumeWorkerEvent
 spring.cloud.stream.bindings.consumeWorkerEvent-in-0.destination=downstream
-spring.cloud.stream.function.definition=consumeOutbox;consumeUpstream;consumeWorkerEvent
 # + datasource as above
 ```
 Standalone distributed apps read `WORKFLOW_MODE` / `WORKFLOW_PERSISTENCE` env vars.

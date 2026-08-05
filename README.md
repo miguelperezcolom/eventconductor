@@ -439,15 +439,15 @@ public class MyApplication {
 
 ### Kafka configuration (application.properties)
 
-```properties
-spring.cloud.stream.bindings.consumeOutbox-in-0.destination=outbox
-spring.cloud.stream.bindings.consumeUpstream-in-0.destination=upstream
-spring.cloud.stream.bindings.consumeWorkerEvent-in-0.destination=downstream
-spring.cloud.stream.bindings.outbox-out-0.destination=outbox
-spring.cloud.stream.bindings.upstream-out-0.destination=upstream
-spring.cloud.stream.bindings.downstream-out-0.destination=downstream
+The engine wires its own bindings — destinations, a consumer group each and the `batch-mode` its
+batch consumers require — as defaults you can override. What is left to you is the broker and the
+list of functions this application composes:
 
+```properties
 spring.kafka.bootstrap-servers=localhost:9092
+spring.cloud.function.definition=consumeOutbox;consumeUpstream;consumeWorkerEvent
+spring.cloud.stream.bindings.consumeWorkerEvent-in-0.destination=downstream
+spring.cloud.stream.bindings.consumeWorkerEvent-in-0.group=worker-group
 ```
 
 ---
@@ -788,16 +788,13 @@ spring.jpa.hibernate.ddl-auto=update
 # --- Kafka broker (workflow.mode=kafka) ---
 spring.kafka.bootstrap-servers=localhost:9092
 
-# --- Kafka topics ---
-spring.cloud.stream.bindings.consumeOutbox-in-0.destination=outbox
-spring.cloud.stream.bindings.consumeOutbox-in-0.group=orchestrator-group
-spring.cloud.stream.bindings.consumeUpstream-in-0.destination=upstream
-spring.cloud.stream.bindings.consumeUpstream-in-0.group=orchestrator-group
+# --- Kafka topics: the engine's own bindings come as defaults (destinations, a group each,
+#     batch-mode). Only the worker's binding is left, and the function list. ---
 spring.cloud.stream.bindings.consumeWorkerEvent-in-0.destination=downstream
 spring.cloud.stream.bindings.consumeWorkerEvent-in-0.group=worker-group
 
 # --- Spring Cloud Stream function bindings ---
-spring.cloud.stream.function.definition=consumeOutbox;consumeUpstream;consumeWorkerEvent
+spring.cloud.function.definition=consumeOutbox;consumeUpstream;consumeWorkerEvent
 spring.cloud.stream.kafka.binder.auto-create-topics=true
 ```
 
