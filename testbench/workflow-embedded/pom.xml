@@ -59,6 +59,27 @@
             <artifactId>mvc-core</artifactId>
             <version>${mateu.version}</version>
         </dependency>
+        <!-- The UI needs JPA persistence: its home dashboard and the process detail's child
+             CRUDs read the entity repositories directly, so with workflow.persistence=memory the
+             context fails to start with NoClassDefFoundError: JpaRepository. H2 in memory keeps
+             this a single-command app while still exercising the real persistence path. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+        <!-- There is a context-load test in src/test, and without this the module does not
+             compile at all: mvn spring-boot:run fails in testCompile before it ever starts. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
         <dependency>
             <groupId>io.mateu</groupId>
             <artifactId>annotation-processor-mvc</artifactId>

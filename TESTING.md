@@ -148,6 +148,30 @@ mvn -pl modules/workflow-e2e -am verify
 mvn -Pdist-e2e -pl modules/workflow-dist-e2e -am verify
 ```
 
+### Trying the UI by hand
+
+Nothing above opens a browser, and some things are only visible there — the graph on a live
+process, the Errors tab, pause/resume, retry from failure. `testbench/workflow-embedded` is the
+app for that: the engine, its UI and a couple of workflows, in one command and with nothing to
+install.
+
+```bash
+mvn -f testbench/workflow-embedded spring-boot:run
+# http://localhost:8095 → Workflow → Processes → View
+```
+
+Cron keeps a process in flight so there is always something to look at: `slow-saga` reserves a
+room, waits a minute in a TIMER and then fails its charge, so the detail shows a live graph, a
+compensation drawn amber, an Errors tab with a reason in it and a process that ends
+`Compensated (100%)`. Turn `workflow.cron-enabled` off to keep the list still.
+
+It runs `embedded` + **`jpa`** (H2, in memory) rather than `memory` persistence, and has to: the
+UI reads the JPA entity repositories directly — the home dashboard's counts, the process detail's
+steps, messages, errors and resources — so with `workflow.persistence=memory` the context does not
+start at all (`NoClassDefFoundError: JpaRepository`).
+
+## How to run — details
+
 The e2e suite configures fast polling (`workflow.outbox-poll-interval-ms`,
 `workflow.timeout-scan-interval-ms`, `workflow.cron-scan-interval-ms`) so the whole suite
 stays in the tens of seconds. Cron starts are disabled suite-wide
