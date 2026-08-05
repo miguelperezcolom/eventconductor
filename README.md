@@ -633,7 +633,7 @@ parseability for rules.
 <plugin>
   <groupId>io.mateu.workflow</groupId>
   <artifactId>workflow-maven-plugin</artifactId>
-  <version>1.0-beta.019</version>
+  <version>1.0-beta.020</version>
   <executions>
     <execution>
       <goals>
@@ -820,7 +820,7 @@ Place workflow definitions under `src/main/resources/workflows/` as JSON or YAML
 <dependency>
     <groupId>io.mateu.workflow</groupId>
     <artifactId>workflow-engine</artifactId>
-    <version>1.0-beta.019</version>
+    <version>1.0-beta.020</version>
 </dependency>
 ```
 

@@ -7,6 +7,65 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0-beta.020] - 2026-08-05
+
+One worker is not the engine — and a step with nothing to wait for is not a step that may run.
+
+Both came out of the same afternoon with a proof-of-concept saga. A hotel service that accepted
+the connection and never answered stopped every process in the JVM, not just its own, and the
+symptom named nothing: the processes created afterwards sat with every step in `CREATED`, which
+the UI describes as "waiting for its preconditions". And the compensation steps of that saga ran
+in the happy path, because an anchor written without its guard is an ordinary edge — an anchor
+they only needed because "no preconditions" meant "start immediately".
+
+### Fixed
+- **An embedded worker that blocked stopped the engine, and one that threw stopped its process.**
+  Embedded dispatch calls the worker and waits for it to return, on the calling thread — which
+  under `jpa` persistence is `embedded-outbox-relay`, the single thread draining the outbox and so
+  the only one advancing every process in the JVM. One HTTP call to a service that accepted the
+  connection and never answered froze all of them: no step-over ran, and processes created
+  afterwards sat with every step in `CREATED`, which the UI describes as "waiting for its
+  preconditions" and which looks nothing like a stuck worker.
+
+  And an exception escaping a worker left its `StepExecution` exactly as it was, `PENDING`,
+  waiting for a reply that was never coming; only the outbox row was parked as `Error`. Without a
+  `timeout` on the step nothing would ever look at it again. The engine now records the throw as
+  the step's failure, so retries and compensation engage. Reporting `ERROR` yourself is still the
+  contract — a throw carries no variables and no message of your choosing.
+
+### Changed
+- **A step with nothing to wait for no longer runs.** Eligibility asked whether every
+  precondition was satisfied, and every precondition of none is satisfied — so "no preconditions"
+  meant "start immediately". That is why a compensation step had to be anchored to some step it
+  had no relationship with and guarded with `"preconditionExpression": "false"`: a fiction whose
+  only job was to keep the dataflow away from it, that had to be written correctly every single
+  time, and that turned into a live branch of the happy path when it was not. A compensation is
+  declared on the step it undoes and started by the rollback pipeline; it needs no way in of its
+  own, and now it may have none.
+
+  Only a flow's entry points run with no preconditions: `START`, and a `WAIT_FOR_MESSAGE` that
+  begins a flow rather than sitting inside one. The roots rule becomes a reachability rule —
+  a step with no preconditions that is neither of those nor another step's `compensationStepId`
+  is rejected at load, because nothing would ever start it. Definitions using the false-guarded
+  anchor keep working unchanged, in the engine and in the Maven plugin's build-time validation;
+  the anchor was never real flow and is still ignored by the topology warnings.
+
+### Added
+- **A step that ran as a compensation is drawn amber in the process diagram**, with an undo badge
+  instead of the green tick and a `COMPENSATION` chip on its hover card. A compensation that
+  succeeds is `COMPLETED` like any other step, so it was drawn in the same green as the work it
+  had just undone: a fully rolled-back saga read as a successful one with a few extra boxes. The
+  graph already knew which steps those were — it draws their rollback edges — so nothing new is
+  sent to it.
+- **`workflow.embedded.worker-threads`** (plus `worker-queue-capacity` and
+  `worker-shutdown-grace-ms`): hands embedded tasks to a bounded pool instead of running them on
+  the dispatching thread. Off by default, because turning it on changes what delivery means —
+  `Sent` becomes handed-off rather than finished, as it already is in `kafka` mode, so a task lost
+  to a crash is recovered by the step's `timeout` rather than by redelivery, and two tasks of one
+  process can be in flight at once. A full pool rejects, and the rejection is classified retryable
+  so the outbox holds the message and offers it again rather than dead-lettering a queue for being
+  busy.
+
 ## [1.0-beta.019] - 2026-08-05
 
 The first time the whole thing was deployed to a real cluster — the engine and the seven demo

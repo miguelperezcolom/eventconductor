@@ -50,7 +50,7 @@ replicated by the plugin and will only fail when the engine loads the definition
 <plugin>
   <groupId>io.mateu.workflow</groupId>
   <artifactId>workflow-maven-plugin</artifactId>
-  <version>1.0-beta.019</version>
+  <version>1.0-beta.020</version>
   <executions>
     <execution>
       <goals>
