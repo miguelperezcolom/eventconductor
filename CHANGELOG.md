@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **A rolled-back process looked like one that had stopped halfway.** Reaching `COMPENSATED` only
+  set the status: the steps the flow never reached stayed `CREATED` — indefinitely, on a process
+  that is over — and the completion bar stayed frozen wherever the failure happened. A finished
+  saga went on showing steps that looked like they were waiting their turn, at 43%. The steps that
+  can no longer run are cancelled now, the same ones an END transition cancels, and the process is
+  100% complete: the rollback ran to the end. The step that failed keeps its `ERROR`.
+- **`COMPENSATED` is drawn green**, like `COMPLETED`. It was amber, which said "something here
+  needs looking at" about a process that had already cleaned up after itself, and sat it next to
+  the `ERROR` processes that do.
+- **The rollback edges were drawn but never laid out.** ELK was given the flow and nothing else,
+  so a compensation step — which declares no preconditions — was a node with no edges at all: it
+  went to the first layer, at the far left, and its rollback line was then drawn from the middle
+  of the flow back across everything in front of it, through whatever nodes were in the way. The
+  layout gets those edges now, which puts each compensation in the layer after the step it undoes
+  — to its right, where the eye looks for it, stacked above or below the flow rather than beyond
+  it — and routes around what is already there. Definitions written either way lay out the same.
+
 ## [1.0-beta.020] - 2026-08-05
 
 One worker is not the engine — and a step with nothing to wait for is not a step that may run.

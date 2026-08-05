@@ -25,6 +25,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.List;
 import java.util.Optional;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -156,6 +157,54 @@ class StepExecutionStatusUpdatedEventHandlerTest {
         handler.handle(new StepExecutionStatusChanged("comp-se", TaskStatus.COMPLETED, List.of()));
 
         verify(processRepository).save(argThat(p -> p.getStatus() == ProcessStatus.COMPENSATED));
+    }
+
+    @Test
+    void aCompensatedProcessIsFinishedAtAHundredPercent() {
+        // The rollback ran to the end: the process is as finished as one that completed, and a
+        // bar frozen wherever the failure happened says the opposite.
+        var failed = se(1, 1, true, "comp-step");
+        var compensationSe = compensationExecution(StepExecutionStatus.COMPLETED);
+
+        when(stepExecutionRepository.findById("comp-se")).thenReturn(Optional.of(compensationSe));
+        when(stepExecutionRepository.findByProcess(proc)).thenReturn(List.of(failed, compensationSe));
+
+        handler.handle(new StepExecutionStatusChanged("comp-se", TaskStatus.COMPLETED, List.of()));
+
+        verify(processRepository).save(argThat(p -> p.getCompletionPercentage() == 100
+                && p.getFinished() != null));
+    }
+
+    @Test
+    void theStepsTheRollbackNeverReachedAreCancelled() {
+        // They were left CREATED on a process that is over, so a finished saga went on showing
+        // steps that looked like they were waiting their turn.
+        var failed = se(1, 1, true, "comp-step");
+        var compensationSe = compensationExecution(StepExecutionStatus.COMPLETED);
+        var neverRan = StepExecution.builder()
+                .id("se-later").processId("p-1").workflowDefinitionId("wd-1").stepId("later")
+                .stepJson(JsonSerializer.toJson(step(0, false, null).withId("later")))
+                .status(StepExecutionStatus.CREATED)
+                .variables(List.of()).build();
+
+        when(stepExecutionRepository.findById("comp-se")).thenReturn(Optional.of(compensationSe));
+        when(stepExecutionRepository.findByProcess(proc))
+                .thenReturn(List.of(failed, compensationSe, neverRan));
+
+        handler.handle(new StepExecutionStatusChanged("comp-se", TaskStatus.COMPLETED, List.of()));
+
+        verify(stepExecutionRepository).save(argThat(saved -> "later".equals(saved.getStepId())
+                && saved.getStatus() == StepExecutionStatus.CANCELLED));
+        // The failed step keeps its ERROR: it is why the process rolled back, and the record of it.
+        assertThat(failed.getStatus()).isEqualTo(StepExecutionStatus.ERROR);
+    }
+
+    private StepExecution compensationExecution(StepExecutionStatus status) {
+        return StepExecution.builder()
+                .id("comp-se").processId("p-1").workflowDefinitionId("wd-1").stepId("comp-step")
+                .stepJson(JsonSerializer.toJson(step(0, false, null).withId("comp-step")))
+                .status(status)
+                .variables(List.of()).build();
     }
 
     @Test

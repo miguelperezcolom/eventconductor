@@ -34,6 +34,22 @@ class CompensationE2eTest extends AbstractE2eTest {
     }
 
     @Test
+    void aRolledBackProcessIsFinished_notLeftLookingLikeItIsStillGoing() {
+        worker.on("charge", TestWorker.fail());
+        worker.on("refund", TestWorker.succeed());
+
+        createProcess("compensation", "comp-3");
+
+        // The rollback ran to the end, so the process is as finished as one that completed.
+        assertThat(process("comp-3").getCompletionPercentage()).isEqualTo(100);
+        assertThat(process("comp-3").getFinished()).isNotNull();
+        // And nothing is left looking like it is waiting its turn: 'end' never ran and never will.
+        assertThat(step("comp-3", "end").getStatus()).isEqualTo(StepExecutionStatus.CANCELLED);
+        // The step that failed keeps its ERROR — it is the record of why this happened.
+        assertThat(step("comp-3", "charge").getStatus()).isEqualTo(StepExecutionStatus.ERROR);
+    }
+
+    @Test
     void aCompensationDoesNotRunWhenNothingWentWrong() {
         worker.on("charge", TestWorker.succeed());
         worker.on("refund", TestWorker.succeed());

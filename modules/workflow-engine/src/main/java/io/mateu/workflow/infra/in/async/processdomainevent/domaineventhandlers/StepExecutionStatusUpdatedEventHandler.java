@@ -15,6 +15,7 @@ import io.mateu.workflow.domain.aggregates.Process;
 import io.mateu.workflow.domain.aggregates.ProcessStatus;
 import io.mateu.workflow.domain.aggregates.Step;
 import io.mateu.workflow.domain.aggregates.StepExecution;
+import io.mateu.workflow.domain.aggregates.StepExecutionStatus;
 import io.mateu.workflow.domain.services.CompensationService;
 import io.mateu.workflow.dtos.events.domain.StepExecutionStatusChanged;
 import io.mateu.workflow.dtos.events.integration.TaskCancellationRequested;
@@ -39,6 +40,12 @@ public class StepExecutionStatusUpdatedEventHandler implements DomainEventHandle
     final WorkflowMetrics workflowMetrics;
     final CancelChildProcessService cancelChildProcessService;
     final CompensationService compensationService;
+
+    /** What a terminal process still holds that can never run now. */
+    private static final java.util.Set<StepExecutionStatus> CANCELLABLE_AT_THE_END = java.util.Set.of(
+            StepExecutionStatus.CREATED,
+            StepExecutionStatus.PENDING,
+            StepExecutionStatus.RUNNING);
 
     @Override
     public Class<? extends DomainEvent> eventClass() {
@@ -114,25 +121,52 @@ public class StepExecutionStatusUpdatedEventHandler implements DomainEventHandle
                 stepExecutionRepository.save(compensation);
                 workflowMetrics.compensationTriggered(compensation.getWorkflowDefinitionId());
             }
-            case DONE -> markCompensated(process);
+            case DONE -> markCompensated(process, executions);
             case NONE, WAITING, FAILED -> { /* nothing to start now */ }
         }
     }
 
     /**
-     * Marks a fully rolled-back process COMPENSATED. It was already ERROR while compensating
-     * (which blocks the normal flow and, for a child, has already notified its parent as a
-     * failure); this only records the clean-rollback terminal state, which is sticky so
-     * nothing reverts it to ERROR.
+     * Marks a fully rolled-back process COMPENSATED, and finishes it properly.
+     *
+     * <p>It was already ERROR while compensating (which blocks the normal flow and, for a child,
+     * has already notified its parent as a failure); this records the clean-rollback terminal
+     * state, which is sticky so nothing reverts it to ERROR.
+     *
+     * <p>Finishing it properly means the two things the normal completion path does and this one
+     * did not, because the process stopped mid-flow rather than reaching an END:
+     *
+     * <ul>
+     *   <li><b>The steps that never ran are cancelled.</b> They were left CREATED — indefinitely,
+     *       on a process that is over — so the UI showed a finished saga still holding steps that
+     *       looked like they were waiting for their turn.</li>
+     *   <li><b>The completion percentage is 100.</b> The rollback ran to the end; the process is
+     *       as finished as one that completed, and a bar frozen at 43% says the opposite.</li>
+     * </ul>
      */
-    private void markCompensated(Process process) {
+    private void markCompensated(Process process, List<StepExecution> executions) {
         if (ProcessStatus.COMPENSATED.equals(process.getStatus())) {
             return;
         }
-        var compensated = process.withStatus(ProcessStatus.COMPENSATED);
+        cancelStepsThatNeverRan(executions);
+        var compensated = process.withStatus(ProcessStatus.COMPENSATED).withCompletionPercentage(100);
         if (compensated.getFinished() == null) {
             compensated = compensated.withFinished(LocalDateTime.now());
         }
         processRepository.save(compensated);
+    }
+
+    /**
+     * Cancels whatever is still live once the rollback is done — the same set an END transition
+     * cancels when the flow reaches one. Nothing here can run any more: the frontier is held by a
+     * failed step and the process is terminal.
+     */
+    private void cancelStepsThatNeverRan(List<StepExecution> executions) {
+        for (var execution : executions) {
+            if (CANCELLABLE_AT_THE_END.contains(execution.getStatus())) {
+                execution.updateStatus(StepExecutionStatus.CANCELLED);
+                stepExecutionRepository.save(execution);
+            }
+        }
     }
 }

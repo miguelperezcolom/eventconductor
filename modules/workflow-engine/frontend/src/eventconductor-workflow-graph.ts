@@ -822,6 +822,45 @@ export class MateuWorkflowElk extends LitElement {
 
     // ── ELK layout ────────────────────────────────────────────────────────────
 
+    /**
+     * Everything the layout has to know about, which is more than the flow.
+     *
+     * <p>One edge per precondition — a step with several incoming preconditions gets several edges
+     * into it — <b>and one per rollback pointer</b>. The rollback edges used to be drawn but never
+     * laid out, and a compensation step declares no preconditions, so ELK saw nodes with no edges
+     * at all: it stacked them in the first layer, at the far left, and each rollback line was then
+     * drawn from somewhere in the middle of the flow back across everything in front of it.
+     *
+     * <p>Given the edge, ELK puts a compensation in the layer after the step it undoes — to its
+     * right, where the eye goes to look for it — and routes around what is already there. It costs
+     * no width of its own: a compensation lands in the layer its predecessor's successor occupies,
+     * stacked above or below it rather than beyond it.
+     *
+     * <p>Sequence edges carry a higher direction priority so the flow stays the straight line
+     * through the middle and the rollback edges are the ones that bend.
+     */
+    private layoutEdges(steps: WorkflowStep[]): ElkExtendedEdge[] {
+        const ids = new Set(steps.map(s => s.id));
+        const flow = steps.flatMap(s =>
+            preconditionsOf(s)
+                .filter(from => ids.has(from))
+                .map(from => ({
+                    id: `${from}->${s.id}`,
+                    sources: [from],
+                    targets: [s.id],
+                    layoutOptions: {"elk.layered.priority.direction": "10"},
+                } as ElkExtendedEdge)));
+        const rollback = steps
+            .filter(s => s.rollbackable && s.compensationStepId && ids.has(s.compensationStepId))
+            .map(s => ({
+                id: `${s.id}~>${s.compensationStepId}`,
+                sources: [s.id],
+                targets: [s.compensationStepId!],
+                layoutOptions: {"elk.layered.priority.direction": "0"},
+            } as ElkExtendedEdge));
+        return [...flow, ...rollback];
+    }
+
     private async runElkLayout() {
         const steps = this.wf.steps ?? [];
         if (steps.length === 0) {
@@ -847,14 +886,7 @@ export class MateuWorkflowElk extends LitElement {
                 const {w, h} = sizeOf(s.type);
                 return {id: s.id, width: w, height: h};
             }),
-            // One edge per precondition: a step with several incoming preconditions
-            // (preconditionStepIds) gets several edges into it.
-            edges: steps.flatMap(s =>
-                preconditionsOf(s).map(from => ({
-                    id: `${from}->${s.id}`,
-                    sources: [from],
-                    targets: [s.id],
-                } as ElkExtendedEdge))),
+            edges: this.layoutEdges(steps),
         };
 
         try {

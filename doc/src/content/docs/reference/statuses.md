@@ -28,13 +28,20 @@ PAUSED → CANCELLED
 
 A process in `ERROR` can be retried, which transitions it back to `RUNNING`.
 
-`ERROR` and `COMPENSATED` are both terminal failure states, but distinct: `ERROR` means the
-process failed and was left as-is; `COMPENSATED` means it failed and then cleanly undid its
-side effects. While the rollback is running the process is `ERROR`; it flips to `COMPENSATED`
-only once the whole reverse-order compensation chain has completed. If a compensation itself
-fails after its own retries, the chain halts and the process stays `ERROR`. Both are sticky —
-nothing transitions them back to `RUNNING` on their own. See
+`ERROR` and `COMPENSATED` are both reached by failing, but they are not the same outcome:
+`ERROR` means the process failed and was left as it fell; `COMPENSATED` means it failed and then
+undid its side effects, in order, to the end. While the rollback is running the process is
+`ERROR`; it flips to `COMPENSATED` only once the whole reverse-order compensation chain has
+completed. If a compensation itself fails after its own retries, the chain halts and the process
+stays `ERROR`. Both are sticky — nothing transitions them back to `RUNNING` on their own. See
 [Retries, Timeouts & Compensation](/guides/retries-timeouts-compensation/).
+
+**A `COMPENSATED` process is finished, and reads as finished.** Its badge is green, like
+`COMPLETED`: the business outcome is not the happy one, but the process did exactly what it was
+written to do. Its completion is 100% — the rollback ran to the end — and the steps the flow never
+reached are `CANCELLED` rather than left `CREATED`, which used to leave a finished saga showing
+steps that looked like they were waiting their turn. The step that failed keeps its `ERROR`: it is
+the record of why any of this happened.
 
 ### Pause semantics
 

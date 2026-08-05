@@ -75,10 +75,12 @@ public class SimpleProcessCrudAdapter  {
         StatusType statusType = switch (status) {
             case PENDING -> StatusType.INFO;
             case RUNNING, PAUSED -> StatusType.WARNING;
-            case COMPLETED -> StatusType.SUCCESS;
-            // COMPENSATED: a clean saga rollback — a non-happy terminal, but distinct from a
-            // raw failure, so WARNING rather than DANGER.
-            case COMPENSATED -> StatusType.WARNING;
+            // COMPENSATED is a success, and reads as one. The business outcome is not the happy
+            // one, but the process did exactly what it was written to do: it failed, and every
+            // step that had run was undone, in order, to the end. Amber said "something needs
+            // looking at" about a saga that had already cleaned up after itself — and it sat in a
+            // list next to the ERROR processes that really do.
+            case COMPLETED, COMPENSATED -> StatusType.SUCCESS;
             case CANCELLED, ERROR -> StatusType.DANGER;
         };
         return new Status(statusType, toUpperCaseFirst(status.name()) + " (" + completionPercentage + "%)");

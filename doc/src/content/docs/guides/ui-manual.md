@@ -114,7 +114,8 @@ rows qualify from a page that may already be out of date.
 | `Running (N%)` | In progress — percentage shows completion |
 | `Paused` | Held by an operator or a paused definition — no new steps start until resumed |
 | `Completed` | All steps finished successfully |
-| `Error` | A step failed after exhausting retries |
+| `Compensated` | A step failed and the saga rolled back cleanly — every executed step undone, in reverse order. Green, and at 100%: not the happy outcome, but the process did what it was written to do. The badge to worry about is `Error` |
+| `Error` | A step failed after exhausting retries, and the process did not (or could not) fully roll back |
 | `Cancelled` | Process was cancelled |
 
 Clicking **View** on a row opens the process detail, showing all step executions, their individual statuses, variables, and the full audit log. The detail is organised in tabs: **Steps**, **Messages**, **Errors** and **Resources**.
