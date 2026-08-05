@@ -4,6 +4,7 @@ import org.apache.commons.jexl3.JexlBuilder;
 import org.apache.commons.jexl3.JexlContext;
 import org.apache.commons.jexl3.JexlEngine;
 import org.apache.commons.jexl3.MapContext;
+import org.apache.commons.jexl3.introspection.JexlPermissions;
 
 import java.util.Map;
 
@@ -14,7 +15,11 @@ import java.util.Map;
  */
 public class RuleExpressionEvaluator {
 
+    // Rule expressions come from rule definitions, which may be imported from git or edited in
+    // the UI — treat them as untrusted. RESTRICTED blocks reflection, System, Runtime, etc.,
+    // matching the workflow-engine JEXLEvaluator so a rule cannot escalate to RCE.
     private final JexlEngine jexl = new JexlBuilder()
+            .permissions(JexlPermissions.RESTRICTED)
             .cache(512)
             .strict(true)
             .create();
