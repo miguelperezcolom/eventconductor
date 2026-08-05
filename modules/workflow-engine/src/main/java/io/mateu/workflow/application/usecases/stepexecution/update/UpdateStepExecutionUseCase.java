@@ -7,6 +7,7 @@ import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.out.WorkflowMetrics;
 import io.mateu.workflow.application.services.MessageSubscriptionService;
 import io.mateu.workflow.domain.aggregates.LogMessage;
+import io.mateu.workflow.domain.aggregates.StepExecution;
 import io.mateu.workflow.domain.aggregates.StepExecutionStatus;
 import io.mateu.workflow.dtos.MessageType;
 import lombok.RequiredArgsConstructor;
@@ -81,13 +82,34 @@ public class UpdateStepExecutionUseCase {
             workflowMetrics.stepExecutionFinished(execution.getWorkflowDefinitionId(), command.status(), duration);
         }
 
+        recordWhatHappened(command, execution);
+    }
+
+    /**
+     * Writes the step's own account of the transition into the process log.
+     *
+     * <p>{@link UpdateStepExecutionCommand#log()} is what the caller had to say about it — a
+     * worker's message, or the exception the engine caught on its behalf when one escaped. It was
+     * accepted by the command and then dropped here, every time: the log recorded "Task status
+     * changed to ERROR" and nothing about why, so a process that failed carried no trace of the
+     * failure and an operator had to go and find the application's stdout.
+     *
+     * <p>Typed by outcome rather than by who wrote it, so a failure lands where failures are read
+     * — the Errors tab, and the graph's hover card — and everything else stays out of it.
+     */
+    private void recordWhatHappened(UpdateStepExecutionCommand command, StepExecution execution) {
+        var reported = command.log() == null ? "" : command.log().trim();
+        var failed = StepExecutionStatus.ERROR.equals(command.status())
+                || StepExecutionStatus.TIMEOUT.equals(command.status());
         logMessageRepository.save(new LogMessage(
                 UUID.randomUUID().toString(),
                 LocalDateTime.now(),
                 execution.getProcessId(),
                 execution.id(),
-                MessageType.Info.name(),
-                "Task status changed to " + command.status().name(),
+                (failed ? MessageType.Error : MessageType.Info).name(),
+                // A failure with nothing said about it still gets a line, so the Errors tab shows
+                // that it happened rather than nothing at all.
+                reported.isEmpty() ? "Task status changed to " + command.status().name() : reported,
                 "system"
         ));
     }

@@ -37,6 +37,22 @@ class WorkerThrowsE2eTest extends AbstractE2eTest {
     }
 
     @Test
+    void theExceptionIsRecordedOnTheProcess_notOnlyInTheApplicationLog() {
+        worker.on("s1", (request, callback, invocation) -> {
+            throw new IllegalStateException("the reservation service is not there");
+        });
+
+        createProcess("sequential-3", "throwing-logged");
+
+        // Where an operator looks: the process's own errors, which is what the Errors tab and the
+        // graph's hover card read. Before this the process recorded "Task status changed to ERROR"
+        // and the reason existed only in the application's stdout.
+        assertThat(errorsOf("throwing-logged"))
+                .anySatisfy(message -> assertThat(message)
+                        .contains("IllegalStateException", "the reservation service is not there"));
+    }
+
+    @Test
     void aThrowIsRetriedLikeAnyOtherFailureWhenTheStepAllowsIt() {
         worker.on("flaky", (request, callback, invocation) -> {
             if (invocation == 1) {

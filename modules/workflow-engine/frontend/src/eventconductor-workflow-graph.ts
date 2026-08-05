@@ -1438,10 +1438,20 @@ export class MateuWorkflowElk extends LitElement {
         e.stopPropagation();
         this.selectedEdge = null;                              // one thing selected at a time
         if (e.shiftKey) return;                                // shift is line drawing, not focus
-        if (e.altKey) { this.focusNextPath(id); return; }      // one path through the node, cycling
-        // Plain click: select the node AND filter to what's connected to it (its ancestors +
-        // descendants), dimming the rest.
         this.selectedId = id;
+        // Paused means paused. Focusing belongs to the simulation — it picks the paths the token
+        // will take and lights them while the rest of the graph falls back — so on a graph whose
+        // flow the operator has stopped, a click selects the node and the picture stays neutral.
+        // Lighting up on click read as the animation starting itself again, because that lighting
+        // is the animation's. Any focus left over from before the pause goes with it, rather than
+        // sitting there pointing at a node that is no longer the selected one.
+        if (!this.flowOn) {
+            if (this.focusMode !== "auto") this.clearFocus();
+            return;
+        }
+        if (e.altKey) { this.focusNextPath(id); return; }      // one path through the node, cycling
+        // Plain click: filter to what's connected to it (its ancestors + descendants), dimming
+        // the rest.
         this.focusReachable(id);
     }
 

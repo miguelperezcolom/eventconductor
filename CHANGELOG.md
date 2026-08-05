@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **A failing step recorded that it failed, and nothing about why.** `UpdateStepExecutionCommand`
+  has always carried a log line — a worker's message, or the exception the engine catches on its
+  behalf in embedded mode — and the use case dropped it: the process log said "Task status changed
+  to ERROR" and the reason existed only in the application's stdout. It is written to the process
+  now, typed by outcome, so a failure lands where failures are read.
+- **And where they are read was reading the wrong thing.** Log messages are stored as
+  `MessageType.name()` — "Error" — and all four readers compared against the lowercase literal, so
+  the Errors tab of a process was empty however badly it had gone, its errors appeared in the
+  Messages tab instead, and the graph's hover card never had a reason to show. Matched
+  case-insensitively now, which covers the rows already written.
+- **Selecting a node started the animation the operator had paused.** Focusing belongs to the
+  simulation — it picks the paths the token will take and lights them while the rest of the graph
+  falls back — so on a paused graph a click now selects the node and leaves the picture neutral,
+  clearing any focus left over from before the pause. The token itself was already staying
+  stopped; it was the lighting that read as it starting again.
+
 ## [1.0-beta.021] - 2026-08-05
 
 The mode we were the only ones running.

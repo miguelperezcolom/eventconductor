@@ -12,12 +12,16 @@ import io.mateu.workflow.support.RunsTheAction;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
+import io.mateu.workflow.domain.aggregates.LogMessage;
+import io.mateu.workflow.dtos.MessageType;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
 import java.util.Optional;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
@@ -65,6 +69,60 @@ class UpdateStepExecutionUseCaseTest {
         // its stored key only follows them if this call is here.
         verify(messageSubscriptionService).rearm(proc);
         verify(processLockService).runExclusively(eq("p-1"), any());
+    }
+
+    @Test
+    void whatTheCallerSaidAboutTheFailureIsWhatTheProcessRecords() {
+        // The command has carried a log line since forever and this dropped it, so a process that
+        // failed recorded "Task status changed to ERROR" and nothing about why. In embedded mode
+        // that line is the exception the engine caught on the worker's behalf, and without it the
+        // only copy of the reason was the application's stdout.
+        var se = stepExecution("se-1", "p-1");
+        when(repository.findById("se-1")).thenReturn(Optional.of(se));
+        when(processRepository.findById("p-1")).thenReturn(Optional.of(process("p-1")));
+        when(processLockService.runExclusively(eq("p-1"), any())).thenAnswer(RunsTheAction.granted());
+
+        useCase.handle(new UpdateStepExecutionCommand("se-1", List.of(),
+                "Worker threw ResourceAccessException: I/O error on POST (caused by ConnectException)",
+                StepExecutionStatus.ERROR));
+
+        var saved = ArgumentCaptor.forClass(LogMessage.class);
+        verify(logMessageRepository).save(saved.capture());
+        assertThat(saved.getValue().getMessage()).contains("ConnectException");
+        // Typed by outcome, so it lands in the Errors tab and on the graph's hover card.
+        assertThat(MessageType.isError(saved.getValue().getMessageType())).isTrue();
+        assertThat(saved.getValue().getStepExecutionId()).isEqualTo("se-1");
+    }
+
+    @Test
+    void aFailureWithNothingSaidAboutItStillGetsAnErrorLine() {
+        var se = stepExecution("se-1", "p-1");
+        when(repository.findById("se-1")).thenReturn(Optional.of(se));
+        when(processRepository.findById("p-1")).thenReturn(Optional.of(process("p-1")));
+        when(processLockService.runExclusively(eq("p-1"), any())).thenAnswer(RunsTheAction.granted());
+
+        useCase.handle(new UpdateStepExecutionCommand("se-1", List.of(), "  ", StepExecutionStatus.TIMEOUT));
+
+        var saved = ArgumentCaptor.forClass(LogMessage.class);
+        verify(logMessageRepository).save(saved.capture());
+        assertThat(MessageType.isError(saved.getValue().getMessageType())).isTrue();
+        assertThat(saved.getValue().getMessage()).contains("TIMEOUT");
+    }
+
+    @Test
+    void aSuccessfulStepIsNotFiledAsAnError() {
+        var se = stepExecution("se-1", "p-1");
+        when(repository.findById("se-1")).thenReturn(Optional.of(se));
+        when(processRepository.findById("p-1")).thenReturn(Optional.of(process("p-1")));
+        when(processLockService.runExclusively(eq("p-1"), any())).thenAnswer(RunsTheAction.granted());
+
+        useCase.handle(new UpdateStepExecutionCommand("se-1", List.of(), "all good",
+                StepExecutionStatus.COMPLETED));
+
+        var saved = ArgumentCaptor.forClass(LogMessage.class);
+        verify(logMessageRepository).save(saved.capture());
+        assertThat(MessageType.isError(saved.getValue().getMessageType())).isFalse();
+        assertThat(saved.getValue().getMessage()).isEqualTo("all good");
     }
 
     @Test

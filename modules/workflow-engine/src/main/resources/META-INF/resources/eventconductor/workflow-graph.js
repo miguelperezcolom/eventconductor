@@ -1333,11 +1333,15 @@ let Lu = class extends cx {
   }
   onNodeClick(C, P) {
     if (C.stopPropagation(), this.selectedEdge = null, !C.shiftKey) {
+      if (this.selectedId = P, !this.flowOn) {
+        this.focusMode !== "auto" && this.clearFocus();
+        return;
+      }
       if (C.altKey) {
         this.focusNextPath(P);
         return;
       }
-      this.selectedId = P, this.focusReachable(P);
+      this.focusReachable(P);
     }
   }
   /** Root→sink paths passing through a node (falls back to all paths if none). */

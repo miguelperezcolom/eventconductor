@@ -195,8 +195,7 @@ public class EmbeddedDownstreamEventPublisher implements DownstreamEventPublishe
             updateStepExecution.handle(new UpdateStepExecutionCommand(
                     request.taskExecutionId(),
                     List.of(),
-                    "Worker threw " + failure.getClass().getSimpleName()
-                            + (failure.getMessage() == null ? "" : ": " + failure.getMessage()),
+                    describe(failure),
                     StepExecutionStatus.ERROR));
         } catch (Exception reportingFailure) {
             // Best effort by construction: if this cannot be written the step keeps waiting, and
@@ -204,5 +203,36 @@ public class EmbeddedDownstreamEventPublisher implements DownstreamEventPublishe
             log.error("Could not record the failure of step execution {}; it stays in flight until "
                     + "its timeout", request.taskExecutionId(), reportingFailure);
         }
+    }
+
+    /**
+     * What goes in the process log, and therefore what an operator reads in the Errors tab and on
+     * the graph's hover card. The root cause is included because the outer exception is often the
+     * one that says least: {@code ResourceAccessException: I/O error on POST …: null} is a
+     * {@code ConnectException} with the useful half removed.
+     */
+    private String describe(Throwable failure) {
+        var message = new StringBuilder("Worker threw ").append(failure.getClass().getSimpleName());
+        if (failure.getMessage() != null && !failure.getMessage().isBlank()) {
+            message.append(": ").append(failure.getMessage());
+        }
+        var root = rootCauseOf(failure);
+        if (root != failure) {
+            message.append(" (caused by ").append(root.getClass().getSimpleName());
+            if (root.getMessage() != null && !root.getMessage().isBlank()) {
+                message.append(": ").append(root.getMessage());
+            }
+            message.append(')');
+        }
+        return message.toString();
+    }
+
+    /** Bounded, because a cause chain can be circular and this runs on a failure path. */
+    private Throwable rootCauseOf(Throwable failure) {
+        var cause = failure;
+        for (int depth = 0; depth < 20 && cause.getCause() != null && cause.getCause() != cause; depth++) {
+            cause = cause.getCause();
+        }
+        return cause;
     }
 }

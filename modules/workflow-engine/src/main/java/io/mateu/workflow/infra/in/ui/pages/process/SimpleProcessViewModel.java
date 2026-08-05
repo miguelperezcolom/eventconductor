@@ -1,6 +1,7 @@
 package io.mateu.workflow.infra.in.ui.pages.process;
 
 
+import io.mateu.workflow.dtos.MessageType;
 import io.mateu.uidl.annotations.*;
 import io.mateu.uidl.annotations.Tab;
 import io.mateu.uidl.data.*;
@@ -148,13 +149,13 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
         var logs = logMessageRepository.findByProcessId(id);
         this.diagram = buildDiagram(process, stepExecutions, logs);
         this.messages = logs.stream()
-                .filter(msg -> !"error".equals(msg.getMessageType()))
+                .filter(msg -> !MessageType.isError(msg.getMessageType()))
                 .sorted(Comparator.comparing(LogMessage::getTimestamp).reversed())
                 .limit(10)
                 .map(msg -> new Message(id, msg.id(), msg.getTimestamp(), msg.getMessage()))
                 .toList();
         this.errors = logs.stream()
-                .filter(msg -> "error".equals(msg.getMessageType()))
+                .filter(msg -> MessageType.isError(msg.getMessageType()))
                 .sorted(Comparator.comparing(LogMessage::getTimestamp).reversed())
                 .limit(10)
                 .map(msg -> new Error(id, msg.id(), msg.getTimestamp(), msg.getMessage()))
@@ -273,7 +274,7 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
         var latest = new HashMap<String, String>();
         var when = new HashMap<String, LocalDateTime>();
         for (var lm : logs) {
-            if (!"error".equals(lm.getMessageType())) continue;
+            if (!MessageType.isError(lm.getMessageType())) continue;
             var eid = lm.getStepExecutionId();
             if (eid == null) continue;
             var ts = lm.getTimestamp();

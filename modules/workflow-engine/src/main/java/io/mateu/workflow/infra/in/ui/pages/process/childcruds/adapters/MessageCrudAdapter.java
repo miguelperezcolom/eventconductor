@@ -42,7 +42,7 @@ public class MessageCrudAdapter  {
             @Override
             public List<Message> findAll() {
                 return repository.findAllByProcessId(processId).stream()
-                        .filter(entity -> !"error".equals(entity.getMessageType()))
+                        .filter(entity -> !io.mateu.workflow.dtos.MessageType.isError(entity.getMessageType()))
                         .map(entity -> new Message(processId, entity.getId(), entity.getTimestamp(), entity.getMessage()))
                         .toList();
             }

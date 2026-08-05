@@ -31,6 +31,7 @@ import java.util.List;
 public abstract class AbstractE2eTest {
 
     @Autowired protected TestWorker worker;
+    @Autowired protected io.mateu.workflow.application.out.LogMessageRepository logMessageRepository;
     @Autowired protected ProcessRepository processRepository;
     @Autowired protected StepExecutionRepository stepExecutionRepository;
     @Autowired protected ProcessUpstreamEventUseCase processUpstreamEventUseCase;
@@ -63,5 +64,13 @@ public abstract class AbstractE2eTest {
         return steps(businessKey).stream()
                 .filter(s -> stepId.equals(s.getStepId()))
                 .findFirst().orElseThrow();
+    }
+
+    /** What the process recorded as errors — the Errors tab of its detail page. */
+    protected List<String> errorsOf(String businessKey) {
+        return logMessageRepository.findByProcessId(process(businessKey).id()).stream()
+                .filter(m -> io.mateu.workflow.dtos.MessageType.isError(m.getMessageType()))
+                .map(io.mateu.workflow.domain.aggregates.LogMessage::getMessage)
+                .toList();
     }
 }
