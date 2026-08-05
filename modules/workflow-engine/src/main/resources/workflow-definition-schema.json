@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "urn:eventconductor:workflow-definition-schema",
+  "$id": "urn:eventconductor:workflow-definition-schema:1",
   "title": "WorkflowDefinition",
   "description": "Schema for an EventConductor workflow definition JSON file.",
   "type": "object",

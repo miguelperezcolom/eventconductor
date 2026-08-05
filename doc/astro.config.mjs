@@ -108,6 +108,7 @@ export default defineConfig({
 						{ label: 'Maven Plugin (validate definitions)', slug: 'reference/maven-plugin' },
 						{ label: 'Kafka Topics', slug: 'reference/kafka-topics' },
 						{ label: 'Java API', slug: 'reference/java-api' },
+						{ label: 'Versioning & Compatibility', slug: 'reference/versioning' },
 					],
 				},
 				{
