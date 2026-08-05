@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0-beta.022] - 2026-08-05
+
+A failure that says why.
+
+An exception escaping an embedded worker has failed its step since the last release, and the
+process recorded that it had failed and nothing about why — the reason existed only in the
+application's stdout. Two separate things were dropping it, and the second one had been hiding
+the first for as long as there has been an Errors tab: it was empty however badly a process had
+gone, because it looked for a string nothing writes.
+
 ### Fixed
 - **A failing step recorded that it failed, and nothing about why.** `UpdateStepExecutionCommand`
   has always carried a log line — a worker's message, or the exception the engine catches on its
