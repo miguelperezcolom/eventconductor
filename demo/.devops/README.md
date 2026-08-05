@@ -49,7 +49,9 @@ pushes are `miguelperezcolom/<service>` — the names `charts/eventconductor-dem
 
 By hand, if you must (Mateu apps; **Lombok services need JDK 21**):
 ```sh
-mvn -f demo/pom.xml -DskipTests package          # one build, all seven jars
+mvn -DskipTests install -pl modules/shared -am    # five services compile against it, and
+                                                  # 1.0-SNAPSHOT is never published
+mvn -f demo/pom.xml -DskipTests package           # one build, all seven jars
 docker buildx build --platform linux/amd64 -f demo/<svc>/Dockerfile.runtime \
   -t miguelperezcolom/<svc>:<tag> --push demo/<svc>
 ```

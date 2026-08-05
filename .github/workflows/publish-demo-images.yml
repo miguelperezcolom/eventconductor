@@ -52,6 +52,13 @@ jobs:
           java-version: 21
           cache: maven
 
+      # The demo is its own reactor, but five of its services compile against
+      # io.mateu.workflow:shared:1.0-SNAPSHOT — a module of the main one, and a version that is
+      # never published. On a developer machine it is in ~/.m2 from some earlier build, which is
+      # why the demo appears to build from a clean checkout and does not.
+      - name: Install the engine artifact the demo builds against
+        run: mvn -B -ntp -DskipTests -Djacoco.skip=true install -pl modules/shared -am
+
       # Built here rather than inside the images: the Dockerfiles are runtime-only (they copy
       # target/<service>-*.jar), Maven caching works, and one build serves all seven.
       - name: Build the demo services
