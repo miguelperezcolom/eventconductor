@@ -37,14 +37,25 @@ services run Mateu 3.0-alpha.273. EventConductor engine chart lives at `charts/e
 - DNS `app` / `auth` / `grafana`.mateu.io → the LB IP.
 
 ## Build the service images
-Build each service's jar (Mateu apps; **Lombok services need JDK 21**), then the image:
+Don't, normally: run the **Publish demo images** workflow, which builds them from a commit and
+labels every image with the revision it came from.
+
 ```sh
-# from repo root, per service dir under demo/<svc> (they have their own mvnw)
-(cd demo/<svc> && ./mvnw -DskipTests package)
-docker buildx build --platform linux/amd64 -f demo/.devops/services/Dockerfile \
-  --build-arg JAR=target/<svc>-*.jar -t miguelperezcolom/mateu-demo-<name>:0.1.0 --push demo/<svc>
+gh workflow run publish-demo-images.yml -f tag=demo-0.1.0
 ```
-The worker (`apps/worker-standalone-app`) → `miguelperezcolom/mateu-demo-worker`.
+
+Then point `charts/eventconductor-demo/Chart.yaml`'s `appVersion` at that tag. The images it
+pushes are `miguelperezcolom/<service>` — the names `charts/eventconductor-demo` deploys.
+
+By hand, if you must (Mateu apps; **Lombok services need JDK 21**):
+```sh
+mvn -f demo/pom.xml -DskipTests package          # one build, all seven jars
+docker buildx build --platform linux/amd64 -f demo/<svc>/Dockerfile.runtime \
+  -t miguelperezcolom/<svc>:<tag> --push demo/<svc>
+```
+`demo/.devops/services/Dockerfile` is the older common build, taking the jar as a `JAR` build-arg;
+the per-service `Dockerfile.runtime` files replaced it and are what the chart's images are built
+from. The worker (`apps/worker-standalone-app`) → `miguelperezcolom/mateu-demo-worker`.
 
 ## Secrets (create out-of-band, not committed — see `.gitignore`)
 ```sh

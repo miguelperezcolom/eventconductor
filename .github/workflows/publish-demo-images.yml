@@ -1,0 +1,104 @@
+# Publishes the seven demo service images on demand.
+#
+# Separate from build-and-publish.yml, which fires on a release and builds the reactor: the demo is
+# not part of that reactor, and its services move on their own schedule — which is why the demo
+# chart carries an appVersion of its own rather than the engine's.
+#
+# Until now these were built by hand, with buildx, from a laptop: the images that are on Docker Hub
+# today were pushed before the Dockerfiles they were built from had even been committed, and
+# nothing records which commit any of them came from. Every image this workflow pushes carries the
+# revision it was built at as an OCI label, so `docker inspect` can answer that question.
+#
+#   gh workflow run publish-demo-images.yml -f tag=demo-0.1.0
+#
+# Then point charts/eventconductor-demo/Chart.yaml's appVersion at the tag you used.
+name: Publish demo images
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: >-
+          Image tag to publish, e.g. demo-0.1.0. Avoid engine-shaped versions like 1.0-beta.020 —
+          the demo does not ship with the engine, and a tag that looks like its version reads as
+          stale the moment the engine moves.
+        required: true
+      ref:
+        description: Branch, tag or SHA to build
+        required: false
+        default: main
+      push_latest:
+        description: Also move the `latest` tag
+        type: boolean
+        required: false
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+
+      # Built here rather than inside the images: the Dockerfiles are runtime-only (they copy
+      # target/<service>-*.jar), Maven caching works, and one build serves all seven.
+      - name: Build the demo services
+        run: mvn -B -ntp -f demo/pom.xml -DskipTests package
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # linux/amd64 only, like the reference deployment (demo/.devops/README.md): the nodepool can
+      # provision arm64, and an image built for both would need a nodeSelector to stay predictable.
+      - name: Build and push the service images
+        env:
+          REGISTRY: ${{ secrets.DOCKERHUB_USERNAME }}
+          TAG: ${{ inputs.tag }}
+          PUSH_LATEST: ${{ inputs.push_latest }}
+        run: |
+          set -euo pipefail
+          SERVICES="api-gw booking-service content-service control-plane-service ia-agent-service shell users-service"
+          echo "### Demo images \`$TAG\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Built from \`${{ github.sha }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          for svc in $SERVICES; do
+            tags="--tag $REGISTRY/$svc:$TAG"
+            if [ "$PUSH_LATEST" = "true" ]; then
+              tags="$tags --tag $REGISTRY/$svc:latest"
+            fi
+            docker buildx build \
+              --platform linux/amd64 \
+              --file "demo/$svc/Dockerfile.runtime" \
+              --label "org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}" \
+              --label "org.opencontainers.image.revision=${{ github.sha }}" \
+              --label "org.opencontainers.image.version=$TAG" \
+              $tags \
+              --push \
+              "demo/$svc"
+            echo "- \`$REGISTRY/$svc:$TAG\`" >> "$GITHUB_STEP_SUMMARY"
+          done
+
+      - name: Remind about the chart
+        run: |
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Set \`appVersion: \"${{ inputs.tag }}\"\` in charts/eventconductor-demo/Chart.yaml" \
+            "for the chart to deploy these." >> "$GITHUB_STEP_SUMMARY"
