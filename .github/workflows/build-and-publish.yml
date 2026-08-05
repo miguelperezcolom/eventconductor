@@ -1,5 +1,5 @@
 # Builds the project, publishes Maven artifacts to Maven Central and pushes
-# Docker images to Docker Hub when a release is created.
+# Docker images to Docker Hub when an ENGINE release is created.
 #
 # This file replaces the misspelled buid-and-publish.yml.
 
@@ -14,6 +14,12 @@ permissions:
 
 jobs:
   release:
+    # Engine releases only. The version comes from the tag, so a release tagged anything else gets
+    # published under that name: the IDE plugins are released from this repository as
+    # `plugins-v0.1.x`, and each of those put a full set of engine artifacts on Maven Central
+    # under the version "plugins-v0.1.x" — three of them, before anyone noticed. Central is
+    # immutable, so they are still there. An engine tag is `v<version>`; nothing else builds.
+    if: startsWith(github.event.release.tag_name, 'v')
     runs-on: ubuntu-latest
 
     steps:
