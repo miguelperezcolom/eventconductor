@@ -492,14 +492,13 @@ steps:
     type: ACTION
     name: Undo step 1
     topic: my-worker-topic
-    preconditionStepId: step-1
-    preconditionExpression: 'false'
 ```
 
-Every flow enters through a `START` (or a `WAIT_FOR_MESSAGE`) step — a step with no
-preconditions of any other type is rejected at load. Compensation steps are anchored to the
-step they compensate and guarded with `preconditionExpression: 'false'`, so only the
-compensation pipeline (which ignores the guard) ever starts them.
+A step runs when its preconditions are met, so a step with none never runs by itself — unless it
+is the way in: a `START`, or a `WAIT_FOR_MESSAGE` that begins the flow. Anything else with no
+preconditions has to be reachable some other way, and a compensation step is: it is named by the
+step it undoes and started by the rollback pipeline. A step that is neither is rejected at load,
+because nothing would ever start it.
 
 **JSON** (with IDE schema support via `$schema`):
 
@@ -542,9 +541,7 @@ compensation pipeline (which ignores the guard) ever starts them.
       "id": "step-compensate",
       "type": "ACTION",
       "name": "Undo step 1",
-      "topic": "my-worker-topic",
-      "preconditionStepId": "step-1",
-      "preconditionExpression": "false"
+      "topic": "my-worker-topic"
     }
   ]
 }

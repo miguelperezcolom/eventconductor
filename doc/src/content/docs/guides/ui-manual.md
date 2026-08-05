@@ -119,6 +119,25 @@ rows qualify from a page that may already be out of date.
 
 Clicking **View** on a row opens the process detail, showing all step executions, their individual statuses, variables, and the full audit log. The detail is organised in tabs: **Steps**, **Messages**, **Errors** and **Resources**.
 
+#### Reading the diagram
+
+The process detail draws the definition with this run painted onto it. Hovering a step opens a
+card with why it is where it is — the last error, the attempt count, what it awaits, its
+deadline, the worker and a snapshot of its variables.
+
+| Node | Meaning |
+|------|---------|
+| Green outline, green tick | The step completed |
+| Blue outline, pulsing | Running right now |
+| Red outline | Failed (or timed out) after exhausting its retries |
+| Grey dashed, faded | Not reached — the process never got there |
+| **Amber outline, amber undo badge** | **The step ran as a compensation**: it undid work rather than doing any |
+
+The amber matters on a rolled-back process. A compensation that succeeds is `COMPLETED` like
+any other step, so painted green a fully rolled-back saga read as a successful one with a few
+extra boxes. Amber says the step did its job and the job was undoing something; its hover card
+carries a `COMPENSATION` chip next to the status.
+
 The process detail toolbar carries the process-level actions, each shown only when it
 applies to the current status:
 

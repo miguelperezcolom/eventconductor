@@ -152,6 +152,27 @@ public EmbeddedTaskExecutor taskExecutor(UpdateStepExecutionUseCase updateStepEx
 
 A working example with two sequential steps is available in `demo/embedded-headless`.
 
+### The thread the worker runs on
+
+By default the engine calls the bean and waits, **on the thread that dispatched the task**. With
+`workflow.persistence=jpa` that is `embedded-outbox-relay`, the single thread draining the outbox
+and therefore the only one advancing every process in the JVM. A worker that blocks there stops
+all of them — and the symptom does not look like a stuck worker: processes created afterwards sit
+with every step in `CREATED`, described in the UI as "waiting for its preconditions".
+
+So an embedded worker must not block indefinitely. Two ways out, and they compose:
+
+- Give every outbound call a timeout. A `RestClient` built with `builder.baseUrl(url).build()` has
+  none — the connect and read timeouts have to be set on the request factory.
+- Set `workflow.embedded.worker-threads` above zero to hand tasks to a pool, or do the handoff
+  yourself (see [Asynchronous workers](#asynchronous-workers)). Read
+  [the configuration reference](/reference/configuration/#where-an-embedded-worker-runs) first:
+  through a pool, a task lost to a crash is recovered by the step's `timeout` rather than by
+  redelivery, so give ACTION steps one.
+
+An exception that escapes the bean fails the step — the engine reports the `ERROR` you did not.
+Prefer reporting it yourself: a throw carries no output variables and no message of your choosing.
+
 ## Reporting intermediate progress
 
 Workers can report `RUNNING` status to indicate they are still working. This resets the timeout clock and updates the step execution status:

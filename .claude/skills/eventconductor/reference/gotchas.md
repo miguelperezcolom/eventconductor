@@ -11,11 +11,12 @@
   `ProcessCreationRequested`) vs `io.mateu.workflow.domain.aggregates.Variable`
   (`UpdateStepExecutionCommand`). Mixing them fails to compile; check the import.
 
-- **The roots rule breaks old definitions.** Every step with no preconditions must be a
-  `START` or a `WAIT_FOR_MESSAGE` — a definition whose first step is a plain `ACTION` with no
-  precondition is now **rejected at load**. Migration: add one `START` step and point the old
-  first steps at it (`"preconditionStepId": "start"`). A `START` itself must have NO
-  preconditions.
+- **The roots rule breaks old definitions.** A step with no preconditions does not run — it
+  must be a `START`, a `WAIT_FOR_MESSAGE` beginning a flow, or another step's
+  `compensationStepId` (the rollback pipeline starts that one). Anything else with no
+  preconditions is **rejected at load**: nothing would ever start it. Migration: add one
+  `START` step and point the old first steps at it (`"preconditionStepId": "start"`). A
+  `START` itself must have NO preconditions.
 
 - **`parallel` is ignored.** It is deprecated (kept only for deserialization): every step
   whose preconditions are met starts concurrently, always. Don't emit it in new definitions;
@@ -25,9 +26,11 @@
   preconditions: list every branch end in `preconditionStepIds`. A JOIN with a single
   precondition (or the singular `preconditionStepId`) waits for that one step only.
 
-- **Compensation steps need a precondition too** (roots rule). Anchor them to the step they
-  compensate plus `"preconditionExpression": "false"` so the dataflow never starts them; the
-  compensation pipeline starts them directly and does not evaluate the guard.
+- **Compensation steps declare no preconditions.** They are named by the step they undo and
+  started directly by the rollback pipeline, so they need no way in — and must not be given
+  one. (Older definitions anchor them to the step they compensate with
+  `"preconditionExpression": "false"`; that still works. An anchor written *without* the
+  guard does not: it is a live branch of the happy path.)
 
 - **PROCESS cancellation propagates both ways.** Child ERROR/CANCELLED → parent PROCESS step
   `ERROR`; and a parent step ending CANCELLED/ERROR/TIMEOUT (retries exhausted) cancels a
@@ -101,14 +104,23 @@
 
 - **Worker throws instead of reporting ERROR.** Catch exceptions and report
   `StepExecutionStatus.ERROR` / `TaskStatus.ERROR` with a log message, so retries and error
-  tracking work. An unhandled throw is not the same as a reported failure.
+  tracking work. An unhandled throw is not the same as a reported failure — in embedded mode the
+  engine now fails the step for you rather than leaving it `PENDING` for ever, but with no
+  variables and a message you did not choose. In Kafka mode nobody catches it at all.
+
+- **An embedded worker that blocks stops the engine.** Embedded dispatch is inline by default,
+  and under `jpa` persistence the calling thread is the single `embedded-outbox-relay` — the only
+  thread advancing every process in the JVM. A worker waiting on an HTTP call with no timeout
+  freezes all of them, and processes created afterwards show every step in `CREATED`
+  ("waiting for its preconditions"). Set `workflow.embedded.worker-threads` to hand tasks to a
+  pool, and give ACTION steps a `timeout` before you do.
 
 - **Forgetting `RUNNING` on long tasks.** Report `RUNNING` periodically to reset the timeout
   clock, or configure a `timeout` large enough for the work.
 
 - **Compensation misconfigured.** `compensationStepId` requires `rollbackable: true` on the
-  step; the compensation step itself is a normal `ACTION` anchored to the step it compensates
-  with `"preconditionExpression": "false"` (see the roots-rule bullet above).
+  step; the compensation step itself is a normal `ACTION` with no preconditions at all (see
+  the compensation bullet above).
 
 - **Wrong default mode assumption.** Defaults are `workflow.mode=embedded` +
   `workflow.persistence=memory` (in-process, no external deps). Set `kafka`/`jpa` explicitly

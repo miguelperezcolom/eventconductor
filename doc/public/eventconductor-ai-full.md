@@ -140,8 +140,9 @@ YAML (first line):
 
 Steps run as a **pure dataflow**: a step starts when all its preconditions have `COMPLETED`
 and its JEXL guard holds, concurrently with every other eligible step — array order is
-irrelevant and the `parallel` flag is deprecated and ignored. **Roots rule:** every step with
-no preconditions must be a `START` or a `WAIT_FOR_MESSAGE` (rejected at load otherwise).
+irrelevant and the `parallel` flag is deprecated and ignored. **Roots rule:** a step with no
+preconditions does not run; it must be a `START`, a `WAIT_FOR_MESSAGE` beginning a flow, or
+another step's `compensationStepId` (rejected at load otherwise).
 
 ### START — entry point
 ```json
@@ -361,6 +362,8 @@ Register one `EmbeddedTaskExecutor` bean; branch on `stepId`. (You may also regi
 
 Mind the two `Variable` records: `UpdateStepExecutionCommand` takes `io.mateu.workflow.domain.aggregates.Variable`, while the events (`TaskExecutionRequested`, `TaskStatusChanged`, `ProcessCreationRequested`) use `io.mateu.workflow.dtos.Variable` — import the right one per use.
 
+The bean is called **on the dispatching thread**, which under `workflow.persistence=jpa` is the single outbox relay — the only thread advancing every process in the JVM. A worker that blocks there stops all of them, and the symptom is that processes created afterwards show every step in `CREATED` ("waiting for its preconditions"). Give outbound calls timeouts (a `RestClient` from `builder.baseUrl(url).build()` has none), and set `workflow.embedded.worker-threads` above zero to dispatch through a pool — after giving ACTION steps a `timeout`, which is what recovers a task lost to a crash once delivery no longer means completion. An exception escaping the bean fails the step; reporting `ERROR` yourself is still better, since a throw carries no output variables.
+
 ```java
 @Bean
 EmbeddedTaskExecutor taskExecutor(UpdateStepExecutionUseCase update) {
@@ -431,7 +434,7 @@ Worker outputs are **merged into process variables** (overwriting same-named one
 
 - `retries: N` — retry a step up to N times on `ERROR` or `TIMEOUT`.
 - `timeout` — on expiry the step goes `TIMEOUT`, then retries if attempts remain, else `ERROR`. A process in `ERROR` (after retries exhausted) can be retried, transitioning back to `RUNNING`.
-- **Saga**: mark steps `rollbackable: true` with a `compensationStepId`. When any step fails after exhausting retries, the engine runs the compensations of **every executed rollbackable step** (completed steps plus the one that just failed) **sequentially, in reverse execution order** — latest-executed undone first, each starting only once the previous compensation completes. When the whole chain finishes the process ends in the terminal **`COMPENSATED`** state; if a compensation itself fails after its own retries, the chain halts and the process stays `ERROR`. Define compensation steps as ordinary `ACTION` steps anchored to the step they compensate with `"preconditionExpression": "false"` — the dataflow never starts them (and the roots rule is satisfied); the compensation pipeline starts them directly, ignoring the guard.
+- **Saga**: mark steps `rollbackable: true` with a `compensationStepId`. When any step fails after exhausting retries, the engine runs the compensations of **every executed rollbackable step** (completed steps plus the one that just failed) **sequentially, in reverse execution order** — latest-executed undone first, each starting only once the previous compensation completes. When the whole chain finishes the process ends in the terminal **`COMPENSATED`** state; if a compensation itself fails after its own retries, the chain halts and the process stays `ERROR`. Define compensation steps as ordinary `ACTION` steps with **no preconditions** — being named as a `compensationStepId` is what makes them reachable, and the dataflow never starts a step that has nothing to wait for. (Older definitions anchor them with `"preconditionExpression": "false"`; still supported. An anchor without the guard is a live branch of the happy path.)
 
 ```json
 {
@@ -444,10 +447,8 @@ Worker outputs are **merged into process variables** (overwriting same-named one
     { "id": "reserve-flight", "type": "ACTION", "topic": "flight-service",
       "preconditionStepId": "reserve-hotel",
       "rollbackable": true, "compensationStepId": "cancel-flight" },
-    { "id": "cancel-hotel",  "type": "ACTION", "topic": "hotel-service",
-      "preconditionStepId": "reserve-hotel", "preconditionExpression": "false" },
-    { "id": "cancel-flight", "type": "ACTION", "topic": "flight-service",
-      "preconditionStepId": "reserve-flight", "preconditionExpression": "false" },
+    { "id": "cancel-hotel",  "type": "ACTION", "topic": "hotel-service" },
+    { "id": "cancel-flight", "type": "ACTION", "topic": "flight-service" },
     { "id": "end", "type": "END", "preconditionStepId": "reserve-flight" }
   ]
 }

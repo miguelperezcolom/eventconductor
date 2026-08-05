@@ -18,6 +18,9 @@ description: Complete reference for all EventConductor configuration properties.
 | `workflow.process-lock-timeout-seconds` | s | `10` | How long to wait for exclusive access to a process before giving up. Exclusivity is a row lock on the process, so this is a statement timeout on the wait, not a spin: the caller queues in the database and is woken in turn |
 | `workflow.outbox.batch-size` | int | `100` | How many messages a relay claims per batch. In `kafka` mode the claim holds a row lock on each until the batch is published, so this also bounds how long one pod can keep another from those rows; raising it trades that for fewer round trips |
 | `workflow.message-api.api-key` | string | — | Optional API key required in the `X-Api-Key` header of `POST /workflow/api/messages`. Blank = unauthenticated |
+| `workflow.embedded.worker-threads` | int | `0` | Embedded mode only. `0` runs the worker on the thread that dispatched the task — which under `jpa` persistence is the single outbox relay thread, the one advancing **every** process in the JVM, so a worker that blocks stops all of them. Above zero the task is handed to a pool of that many threads and the dispatching thread is freed. See the note below before turning it on |
+| `workflow.embedded.worker-queue-capacity` | int | `1000` | How many tasks may wait for a worker thread. A full queue rejects, and the rejection is retryable: the outbox holds the message and offers it again |
+| `workflow.embedded.worker-shutdown-grace-ms` | ms | `10000` | How long shutdown waits for in-flight workers before abandoning them |
 | `rules.persistence` | `jpa` \| `memory` | `memory` | Rule catalog persistence mode |
 | `rules.source` | `local` \| `classpath` \| `rest` \| `grpc` | `local` | Where the rule runtime reads rules from |
 | `rules.catalog.url` | URL | — | Catalog base URL for `rules.source=rest` |
@@ -26,6 +29,34 @@ description: Complete reference for all EventConductor configuration properties.
 | `rules.kafka-refresh` | `true` \| `false` | `false` | Refresh the rule cache from `RulePublished`/`RuleDeleted` events |
 | `rules.grpc.enabled` | `true` \| `false` | `false` | Start the catalog's gRPC read API |
 | `rules.grpc.port` | port | `9090` | Catalog gRPC port |
+
+### Where an embedded worker runs
+
+By default the engine calls your `EmbeddedTaskExecutor` on the thread that dispatched the task and
+waits for it to return. With `workflow.persistence=jpa` that thread is `embedded-outbox-relay`,
+the single thread that drains the outbox and therefore the only one advancing every process in the
+JVM. A worker that blocks there — an HTTP call to a service that accepts the connection and never
+answers — stops the engine: no step-over runs, and processes created afterwards sit with every
+step in `CREATED`, which reads as "waiting for its preconditions" and looks nothing like the
+problem it is.
+
+`workflow.embedded.worker-threads > 0` hands the task to a pool instead. Three things change:
+
+- **Delivery stops meaning completion.** Inline, the outbox row is marked `Sent` only once the
+  worker returned, so a crash mid-task redelivers it. Through a pool, `Sent` means handed off —
+  what it already means in `kafka` mode. A task lost to a crash after the handoff is recovered by
+  the step's own `timeout`, so give ACTION steps one (or set `workflow.default-step-timeout-ms`)
+  before enabling this.
+- **Redelivery stops retrying the worker.** Inline, a retryable failure propagates and the relay
+  re-dispatches next cycle. Off-thread the step is failed instead, and the ordinary retry and
+  compensation pipeline takes over.
+- **Tasks of one process can overlap.** Reporting is still serialised by the process lock, but a
+  worker can no longer assume it is called one at a time.
+
+Either way, an exception that escapes a worker now fails its step. Reporting `ERROR` through
+`UpdateStepExecutionUseCase` is still the contract — a throw carries no variables and no message
+of your choosing — but a step whose worker threw is no longer left waiting for a reply that is
+never coming.
 
 ## Git import (`workflow.git-import.*`)
 

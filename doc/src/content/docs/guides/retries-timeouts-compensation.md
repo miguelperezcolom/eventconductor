@@ -89,26 +89,31 @@ For distributed transactions, use `rollbackable` + `compensationStepId` to defin
       "id": "cancel-hotel",
       "type": "ACTION",
       "name": "Cancel Hotel",
-      "topic": "hotel-service",
-      "preconditionStepId": "reserve-hotel",
-      "preconditionExpression": "false"
+      "topic": "hotel-service"
     },
     {
       "id": "cancel-flight",
       "type": "ACTION",
       "name": "Cancel Flight",
-      "topic": "flight-service",
-      "preconditionStepId": "reserve-flight",
-      "preconditionExpression": "false"
+      "topic": "flight-service"
     }
   ]
 }
 ```
 
-Compensation steps need a precondition like every other step (the [roots rule](/guides/workflow-definitions/#validation-at-load)):
-anchor each one to the step it compensates and guard it with `"preconditionExpression": "false"`,
-so the normal dataflow never starts it. The compensation pipeline starts it directly — without
-evaluating the guard — during rollback.
+**A compensation step declares no preconditions.** It is named by the step it undoes, and the
+rollback pipeline starts it directly, so it needs no way in of its own — and a step with nothing
+to wait for never starts by itself (only a `START`, or a `WAIT_FOR_MESSAGE` that begins a flow,
+does). Validation knows this: a compensation step is reachable because something names it.
+
+:::note[Written the old way]
+Before compensation steps could stand on their own, every step needed a precondition, so they were
+anchored to the step they compensate and guarded with `"preconditionExpression": "false"` to keep
+the dataflow from starting them. Definitions written that way still work exactly as they did — the
+guard is false, so the anchor never fires. The reason to stop writing them is that the anchor had
+to be correct every time: an anchor whose guard is missing or misspelled is not a compensation, it
+is a live branch of the happy path that fires the moment the step it "compensates" succeeds.
+:::
 
 **How it works:** compensation is a **whole-process saga rollback**, not a per-step undo. When
 any step fails after exhausting its retries:

@@ -78,9 +78,10 @@ Add `"$schema"` (JSON) or a `# yaml-language-server: $schema=...` comment (YAML)
 Steps execute by **pure data flow**: a step becomes eligible when ALL its preconditions
 (`preconditionStepIds` / `preconditionStepId`) have completed and its guard holds; every
 eligible step starts concurrently. Array order is irrelevant; `parallel` is ignored.
-**Roots rule:** every step with no preconditions must be a `START` or a `WAIT_FOR_MESSAGE`,
-or the definition is rejected at load. Migrating an old definition = add one `START` step and
-point the old first steps at it.
+**Roots rule:** a step with no preconditions does not run — it must be a `START`, a
+`WAIT_FOR_MESSAGE` beginning a flow, or another step's `compensationStepId` (started by the
+rollback pipeline). Anything else with no preconditions is rejected at load. Migrating an old
+definition = add one `START` step and point the old first steps at it.
 
 ## Patterns
 
@@ -116,13 +117,12 @@ Saga with compensation:
 { "id": "reserve-hotel", "type": "ACTION", "topic": "hotel-service",
   "preconditionStepId": "start",
   "rollbackable": true, "compensationStepId": "cancel-hotel", "retries": 2 },
-{ "id": "cancel-hotel",  "type": "ACTION", "topic": "hotel-service",
-  "preconditionStepId": "reserve-hotel", "preconditionExpression": "false" }
+{ "id": "cancel-hotel",  "type": "ACTION", "topic": "hotel-service" }
 ```
-Compensation steps are ordinary `ACTION` steps anchored to the step they compensate with
-`"preconditionExpression": "false"` (satisfies the roots rule; the dataflow never starts
-them). The compensation pipeline starts them directly — ignoring the guard — to undo
-completed work when the process fails.
+Compensation steps are ordinary `ACTION` steps with **no preconditions**: they are named by
+the step they undo, and the compensation pipeline starts them directly to undo completed work
+when the process fails. Older definitions anchor them to the step they compensate with
+`"preconditionExpression": "false"` and still work.
 
 ## Working copies (jpa mode)
 

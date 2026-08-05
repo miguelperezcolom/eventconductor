@@ -52,7 +52,7 @@ In `embedded`+`memory` mode, definitions are loaded from `classpath:/workflows/`
 ### Core rules
 
 - Ordering is **pure data flow**, not array order: a step runs when **all** its preconditions (`preconditionStepIds` array, or the singular `preconditionStepId`) have completed and its guard holds. All eligible steps start **concurrently** — an active step never blocks unrelated branches. The `parallel` flag is deprecated and **ignored** (still deserializes).
-- **Roots rule:** every step with no preconditions must be a `START` or a `WAIT_FOR_MESSAGE` — every flow must enter through one; violating definitions are rejected at load. Migration for old definitions: add one `START` step and point the old first steps at it.
+- **Roots rule:** a step with no preconditions does not run — it must be a `START`, a `WAIT_FOR_MESSAGE` beginning a flow, or another step's `compensationStepId` (started by the rollback pipeline); anything else is rejected at load. Migration for old definitions: add one `START` step and point the old first steps at it.
 - Declare one `END` step (recommended; the engine also completes implicitly when no runnable steps remain). With parallel branches, put a `JOIN` (with `preconditionStepIds` listing all branches) before the `END`.
 - `preconditionExpression` is a **JEXL** expression evaluated against process variables; while falsy the step is simply never run (stays `CREATED`) and is flipped to `CANCELLED` when the `END` step fires. **Trap:** dependents wait for `COMPLETED`, so a step whose guard never turns true permanently blocks every step whose `preconditionStepId` points at it — give such chains an alternative path to `END`.
 - Variables are `(name, value)` string pairs. Worker outputs are **merged** into process variables and visible to later steps and JEXL expressions.
@@ -113,7 +113,7 @@ Query: `ProcessRepository.findById(id)` / `.findByBusinessKey("order-123")` — 
 
 A worker receives a `TaskExecutionRequested`, does work, and reports a status back. It is **stateless**; the engine handles retries/timeouts/errors.
 
-**Embedded mode** — register one `EmbeddedTaskExecutor` bean; branch on `stepId`. Note there are two `Variable` records: `UpdateStepExecutionCommand` takes `io.mateu.workflow.domain.aggregates.Variable`; the events (`TaskExecutionRequested`, `TaskStatusChanged`, `ProcessCreationRequested`) use `io.mateu.workflow.dtos.Variable`.
+**Embedded mode** — register one `EmbeddedTaskExecutor` bean; branch on `stepId`. Note there are two `Variable` records: `UpdateStepExecutionCommand` takes `io.mateu.workflow.domain.aggregates.Variable`; the events (`TaskExecutionRequested`, `TaskStatusChanged`, `ProcessCreationRequested`) use `io.mateu.workflow.dtos.Variable`. The bean runs on the dispatching thread — under `persistence=jpa` the single outbox relay — so a worker that blocks stops every process in the JVM: use timeouts on outbound calls, and `workflow.embedded.worker-threads` to dispatch through a pool. A throw fails the step (reporting `ERROR` yourself is still better: a throw carries no output variables).
 ```java
 @Bean
 EmbeddedTaskExecutor taskExecutor(UpdateStepExecutionUseCase update) {
@@ -138,7 +138,7 @@ Report `RUNNING` for progress (resets the timeout clock). Long tasks can return 
 
 - `retries: N` — auto-retry on `ERROR` or `TIMEOUT` up to N times.
 - `timeout` — after it elapses the step goes `TIMEOUT`, then retries if any remain, else `ERROR`.
-- **Saga/compensation**: set `rollbackable: true` + `compensationStepId: "..."` on a step. When any step fails after exhausting retries, the compensations of **all executed rollbackable steps** run **sequentially in reverse execution order** (saga rollback); when the chain finishes the process ends in the terminal **`COMPENSATED`** state (a failed compensation halts the chain and leaves it `ERROR`). Define compensation steps as normal `ACTION` steps anchored to the step they compensate with `"preconditionExpression": "false"` — the dataflow never starts them (and the roots rule is satisfied); the compensation pipeline starts them directly, ignoring the guard.
+- **Saga/compensation**: set `rollbackable: true` + `compensationStepId: "..."` on a step. When any step fails after exhausting retries, the compensations of **all executed rollbackable steps** run **sequentially in reverse execution order** (saga rollback); when the chain finishes the process ends in the terminal **`COMPENSATED`** state (a failed compensation halts the chain and leaves it `ERROR`). Define compensation steps as normal `ACTION` steps with **no preconditions** — being named as a `compensationStepId` is what makes them reachable. (Older definitions anchor them with `"preconditionExpression": "false"`; still supported.)
 
 ---
 
@@ -171,7 +171,7 @@ Report `RUNNING` for progress (resets the timeout clock). Long tasks can return 
 ## Gotchas
 
 - **Order by preconditions, not array position.** All eligible steps start concurrently; `parallel` is deprecated and ignored.
-- **Roots rule.** A step with no preconditions must be a `START` or a `WAIT_FOR_MESSAGE`, or the definition is rejected at load. Old definitions migrate by adding one `START` and pointing the old first steps at it.
+- **Roots rule.** A step with no preconditions does not run: it must be a `START`, a `WAIT_FOR_MESSAGE` beginning a flow, or another step's `compensationStepId`, or the definition is rejected at load. Old definitions migrate by adding one `START` and pointing the old first steps at it.
 - **Exactly one `END`.** Parallel branches must funnel through a `JOIN` (its `preconditionStepIds` = the branch ends) before `END`.
 - **Report with `taskExecutionId`**, the value from `TaskExecutionRequested` — not the workflow `stepId`.
 - **Variables are strings.** JEXL numeric comparisons operate on the string value (`amount > 1000`).

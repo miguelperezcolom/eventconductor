@@ -54,10 +54,12 @@ irrelevant. The `parallel` flag is **deprecated and ignored** (it still deserial
 definition files keep loading) — parallelism is simply several steps declaring the same
 precondition, and a barrier is one step declaring several preconditions.
 
-Because eligibility is driven only by preconditions, every flow must have an explicit entry
-point: **a step with no preconditions must be a [`START`](#start) or a
-[`WAIT_FOR_MESSAGE`](#wait_for_message)** — every flow must enter through one. A definition
-that violates this rule is rejected at load.
+Because eligibility is driven only by preconditions, **a step with no preconditions does not
+run** — having nothing to wait for is not permission to start. The exceptions are the ways into
+a flow, [`START`](#start) and a [`WAIT_FOR_MESSAGE`](#wait_for_message) that begins one, and
+steps something else starts: a step named as another's `compensationStepId` is run by the
+rollback pipeline and needs no precondition of its own. A step with no preconditions that is
+none of those is rejected at load, because nothing would ever start it.
 
 **Migrating an existing definition**: add one `START` step and point your old first steps at
 it —

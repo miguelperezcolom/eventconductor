@@ -269,7 +269,7 @@ Beyond the JSON schema, the engine checks these invariants when a definition is 
 - **Duplicate step ids** — every `id` must be unique within the workflow.
 - **Self-reference** — a step cannot be one of its own preconditions or its own `compensationStepId`.
 - **Dangling references** — every id in `preconditionStepIds`/`preconditionStepId` and `compensationStepId` must point to an existing step.
-- **Entry points (roots rule)** — every step with no preconditions must be a `START` or a `WAIT_FOR_MESSAGE`: every flow must enter through one. Conversely, a `START` step must have **no** preconditions.
+- **Reachability (roots rule)** — a step with no preconditions never starts by itself, so it must be something that another mechanism starts: a `START`, a `WAIT_FOR_MESSAGE` that begins a flow, or a step named as some other step's `compensationStepId` (started by the rollback pipeline). Anything else with no preconditions is rejected — nothing would ever start it. Conversely, a `START` step must have **no** preconditions.
 - **At most one START** — a workflow has a single entry point (or enters via `WAIT_FOR_MESSAGE`); more than one `START` is rejected. Multiple `END` steps are fine — a flow may finish through several distinct outcomes.
 - **Precondition cycles** — the precondition graph must be acyclic (A waits for B waits for … waits for A would deadlock). Steps may declare several preconditions, so the check is a DFS over the multi-edge graph.
 - **TIMER required fields** — a `TIMER` step must define a positive `duration` or a non-blank `untilVariable`.
