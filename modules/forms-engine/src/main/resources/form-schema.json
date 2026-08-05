@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "urn:eventconductor:form-schema",
+  "$id": "urn:eventconductor:form-schema:1",
   "title": "Form",
   "description": "Schema for an EventConductor form definition JSON file.",
   "type": "object",

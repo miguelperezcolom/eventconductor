@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-08-05
+
+The promises begin.
+
+1.0 is not a feature — it is a commitment. From here, the definition formats, the configuration, the
+worker contract and the metrics are a stable surface you can build on, and a break in any of them is
+a major version, not a surprise on a Tuesday. Getting there meant closing the last things a
+workflow engine cannot ship without: a rule could no longer reach out of its sandbox, a fast-failing
+step could no longer hammer the thing it depended on, and a rollback that could not finish could no
+longer do so in silence. See [Versioning & Compatibility](doc/src/content/docs/reference/versioning.md)
+for exactly what is, and is not, covered.
+
 ### Security
 - **Rule expressions now run sandboxed.** The `rule-runtime` JEXL evaluator built its engine
   without `JexlPermissions.RESTRICTED`, unlike the workflow-engine's precondition evaluator. Rule
@@ -49,6 +61,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `eventconductor.compensations.failed` metric and the `COMPENSATION_FAILED` process status.
 - `workflow.retry.backoff-base-ms` / `-multiplier` / `-max-ms` / `-jitter` configuration and the
   `AWAITING_RETRY` step-execution status.
+- **A documented versioning & compatibility policy** (`reference/versioning`): what 1.0 keeps stable
+  (definition formats, configuration, worker/Kafka contract, embedded entry points, HTTP/MCP surface,
+  metric names) and what it explicitly does not (the internal Java model classes — program against
+  the definition format, not the `WorkflowDefinition`/`Step` types).
+- **Versioned definition-format schemas.** The workflow/rule/form JSON Schemas now carry a versioned
+  `$id` (`…-schema:1`), so a future backward-incompatible format change is a distinct version rather
+  than a silent break.
 
 ### Plugins — IntelliJ 0.1.3, VS Code 0.1.2
 - **The editors ship the current graph.** Neither plugin's sources have changed since the last
