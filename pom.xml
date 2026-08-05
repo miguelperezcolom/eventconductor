@@ -56,10 +56,45 @@
 
   <dependencyManagement>
     <dependencies>
+      <!-- Security overrides — pull specific managed/transitive dependencies up to their
+           CVE-fixed versions. Declared BEFORE the spring-boot-dependencies import so they win:
+           property overrides (e.g. <tomcat.version>) do NOT apply to an *imported* BOM, only to a
+           parent. Trivy gates the release on these (CVE-2026-40976/41293/54512/54513/42198/…).
+           Revisit when the Spring Boot BOM catches up so these can be dropped. -->
+      <dependency>
+        <groupId>com.fasterxml.jackson.core</groupId>
+        <artifactId>jackson-databind</artifactId>
+        <version>2.21.4</version>
+      </dependency>
+      <dependency>
+        <groupId>com.fasterxml.jackson.core</groupId>
+        <artifactId>jackson-core</artifactId>
+        <version>2.21.4</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.tomcat.embed</groupId>
+        <artifactId>tomcat-embed-core</artifactId>
+        <version>11.0.22</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.tomcat.embed</groupId>
+        <artifactId>tomcat-embed-el</artifactId>
+        <version>11.0.22</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.tomcat.embed</groupId>
+        <artifactId>tomcat-embed-websocket</artifactId>
+        <version>11.0.22</version>
+      </dependency>
+      <dependency>
+        <groupId>org.postgresql</groupId>
+        <artifactId>postgresql</artifactId>
+        <version>42.7.12</version>
+      </dependency>
       <dependency>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-dependencies</artifactId>
-        <version>4.0.4</version>
+        <version>4.0.7</version>
         <type>pom</type>
         <scope>import</scope>
       </dependency>
