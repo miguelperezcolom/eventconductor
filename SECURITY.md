@@ -41,4 +41,8 @@ we will credit you in the release notes unless you ask otherwise.
 - Issues that require an attacker with administrative access to the host,
   database, or Kafka broker.
 - Anything in the `demo/` and `testbench/` modules: they are example code
-  and are not intended for production use.
+  and are not intended for production use. In particular, the `demo/api-gw`
+  module ships a **throwaway self-signed keystore** (`keystore.p12`) with a
+  well-known password, committed only so the demo runs out of the box. It is
+  not a secret and must never be reused in a real deployment — supply your
+  own keystore and password there.
