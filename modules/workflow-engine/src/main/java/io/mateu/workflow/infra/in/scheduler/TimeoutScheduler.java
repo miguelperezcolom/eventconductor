@@ -3,6 +3,7 @@ package io.mateu.workflow.infra.in.scheduler;
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.out.UpstreamEventPublisher;
 import io.mateu.workflow.application.out.WorkflowMetrics;
+import io.mateu.workflow.dtos.events.integration.RetryDueCheckRequested;
 import io.mateu.workflow.dtos.events.integration.TimeoutCheckRequested;
 import io.mateu.workflow.dtos.events.integration.TimerCheckRequested;
 import io.mateu.workflow.infra.out.persistence.DbLockDialect;
@@ -70,6 +71,8 @@ public class TimeoutScheduler {
                                         upstreamEventPublisher.publish(new TimeoutCheckRequested(processId)));
                                 deadlines.dueTimerProcessIds().forEach(processId ->
                                         upstreamEventPublisher.publish(new TimerCheckRequested(processId)));
+                                deadlines.dueRetryProcessIds().forEach(processId ->
+                                        upstreamEventPublisher.publish(new RetryDueCheckRequested(processId)));
                             } finally {
                                 dbLockDialect.unlock(con, LOCK_ID);
                             }

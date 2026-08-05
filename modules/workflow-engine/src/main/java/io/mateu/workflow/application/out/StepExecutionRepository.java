@@ -40,6 +40,14 @@ public interface StepExecutionRepository extends CrudStore<StepExecution> {
     List<StepExecution> findDueByProcessId(String processId, LocalDateTime now);
 
     /**
+     * The AWAITING_RETRY steps of ONE process whose backoff deadline has passed — the ones ready to
+     * be re-dispatched. Deliberately separate from {@link #findDueByProcessId(String, LocalDateTime)}
+     * so the timeout path never sees a step that is only waiting to retry (its {@code startedAt} is
+     * the failed attempt's, so a timeout check would wrongly expire it).
+     */
+    List<StepExecution> findDueRetriesByProcessId(String processId, LocalDateTime now);
+
+    /**
      * The WAIT_FOR_MESSAGE steps subscribed to this message under this correlation key. A null
      * key matches nothing, which is how the fail-closed contract of an unevaluable correlation
      * expression survives being indexed.

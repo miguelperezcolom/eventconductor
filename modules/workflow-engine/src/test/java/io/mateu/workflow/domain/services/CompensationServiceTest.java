@@ -119,4 +119,16 @@ class CompensationServiceTest {
 
         assertThat(decision.outcome()).isEqualTo(Outcome.FAILED);
     }
+
+    @Test
+    void waitsWhileACompensationIsAwaitingItsOwnRetry() {
+        // A compensation with retries left, parked in AWAITING_RETRY, is still in flight — the
+        // chain must wait for it, not treat it as failed or skip past it.
+        var decision = service.decide(List.of(
+                exec("c", StepExecutionStatus.ERROR, true, "cc", 1, t0.plusSeconds(1)),
+                comp("cc", StepExecutionStatus.AWAITING_RETRY)));
+
+        assertThat(decision.outcome()).isEqualTo(Outcome.WAITING);
+        assertThat(decision.next()).isNull();
+    }
 }

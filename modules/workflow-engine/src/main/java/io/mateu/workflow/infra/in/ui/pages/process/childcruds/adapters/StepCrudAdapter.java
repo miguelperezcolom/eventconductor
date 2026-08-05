@@ -65,7 +65,7 @@ public class StepCrudAdapter  {
         StatusType statusType = switch (status) {
             case CREATED -> StatusType.NONE;
             case PENDING -> StatusType.INFO;
-            case RUNNING -> StatusType.WARNING;
+            case RUNNING, AWAITING_RETRY -> StatusType.WARNING;
             case COMPLETED -> StatusType.SUCCESS;
             case CANCELLED -> StatusType.DANGER;
             case ERROR, TIMEOUT -> StatusType.DANGER;

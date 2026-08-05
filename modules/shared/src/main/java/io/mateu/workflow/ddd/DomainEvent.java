@@ -22,6 +22,7 @@ import io.mateu.workflow.dtos.events.integration.*;
         @JsonSubTypes.Type(value = MessageReceived.class, name = "message-received"),
         @JsonSubTypes.Type(value = TimeoutCheckRequested.class, name = "timeout-check-requested"),
         @JsonSubTypes.Type(value = TimerCheckRequested.class, name = "timer-check-requested"),
+        @JsonSubTypes.Type(value = RetryDueCheckRequested.class, name = "retry-due-check-requested"),
         @JsonSubTypes.Type(value = RulePublished.class, name = "rule-published"),
         @JsonSubTypes.Type(value = RuleDeleted.class, name = "rule-deleted"),
         @JsonSubTypes.Type(value = RetryProcessRequested.class, name = "retry-process-requested"),

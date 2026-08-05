@@ -36,6 +36,13 @@ public interface WorkflowMetrics {
     default void compensationTriggered(String workflowDefinitionId) {}
 
     /**
+     * A saga rollback could not complete: a compensation step itself failed, leaving the process
+     * partially rolled back (status {@code COMPENSATION_FAILED}). The one compensation metric to
+     * alert on — a non-zero rate is money left in an inconsistent state that a human must resolve.
+     */
+    default void compensationFailed(String workflowDefinitionId) {}
+
+    /**
      * A write lost an optimistic-locking race: two writers touched the same process.
      *
      * <p>Worth watching rather than merely logging. Events are keyed by process and a consumer

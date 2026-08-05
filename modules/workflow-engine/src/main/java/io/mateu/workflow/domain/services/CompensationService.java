@@ -92,7 +92,9 @@ public class CompensationService {
             switch (compensation.getStatus()) {
                 case COMPLETED -> { /* already undone — look further back in the chain */ }
                 case CREATED -> { return new Decision(Outcome.RUN, compensation); }
-                case PENDING, RUNNING -> { return Decision.of(Outcome.WAITING); }
+                // AWAITING_RETRY is a compensation waiting out its own backoff before retrying —
+                // still in flight, so wait for it, exactly like PENDING/RUNNING.
+                case PENDING, RUNNING, AWAITING_RETRY -> { return Decision.of(Outcome.WAITING); }
                 case ERROR, TIMEOUT, CANCELLED -> { return Decision.of(Outcome.FAILED); }
             }
         }

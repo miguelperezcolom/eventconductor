@@ -6,6 +6,7 @@ import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.out.WorkflowMetrics;
 import io.mateu.workflow.application.usecases.process.childcancel.CancelChildProcessService;
+import io.mateu.workflow.application.services.BackoffPolicy;
 import io.mateu.workflow.application.usecases.process.stepover.StepOverProcessUseCase;
 import io.mateu.workflow.application.usecases.process.update.ProcessUpdateStepExecutionUpdateUseCase;
 import io.mateu.workflow.domain.aggregates.*;
@@ -39,6 +40,7 @@ class StepExecutionStatusUpdatedEventHandlerTest {
     @Mock DownstreamEventPublisher downstreamEventPublisher;
     @Mock WorkflowMetrics workflowMetrics;
     @Mock CancelChildProcessService cancelChildProcessService;
+    @Mock BackoffPolicy backoffPolicy;
     // Real service (spy): the reverse-order rollback decision is pure and cheap, so we exercise
     // it for real and only stub the repositories that feed it.
     @Spy CompensationService compensationService = new CompensationService();
@@ -54,7 +56,8 @@ class StepExecutionStatusUpdatedEventHandlerTest {
 
     @BeforeEach
     void setUp() {
-        proc = Process.builder().id("p-1").variables(List.of()).status(ProcessStatus.RUNNING).build();
+        proc = Process.builder().id("p-1").workflowDefinitionId("wd-1")
+                .variables(List.of()).status(ProcessStatus.RUNNING).build();
         // advanceCompensation loads the process on every terminal event; default it so the
         // paths that don't set up a specific rollback still run.
         lenient().when(processRepository.findById(any())).thenReturn(Optional.of(proc));
@@ -84,11 +87,15 @@ class StepExecutionStatusUpdatedEventHandlerTest {
     void retriesWhenAttemptsRemaining() {
         var se = se(0, 2, false, null);
         when(stepExecutionRepository.findById("se-1")).thenReturn(Optional.of(se));
+        when(backoffPolicy.nextDelay(1)).thenReturn(java.time.Duration.ofMillis(50));
 
         handler.handle(new StepExecutionStatusChanged("se-1", TaskStatus.ERROR, List.of()));
 
         verify(stepExecutionRepository).save(se);
-        verify(stepOverProcessUseCase).handle(any());
+        // The step is parked for backoff, NOT re-dispatched here: an immediate step-over would
+        // defeat the backoff and hot-loop a fast-failing worker. The scheduler wakes it later.
+        assertThat(se.getStatus()).isEqualTo(StepExecutionStatus.AWAITING_RETRY);
+        verify(stepOverProcessUseCase, never()).handle(any());
         verify(processUpdateUseCase, never()).handle(any(), any());
         verify(workflowMetrics).retryPerformed("wd-1", WorkflowMetrics.RetryTrigger.AUTO);
         // While retries remain the step is not finally failed — a still-running child of a
@@ -197,6 +204,24 @@ class StepExecutionStatusUpdatedEventHandlerTest {
                 && saved.getStatus() == StepExecutionStatus.CANCELLED));
         // The failed step keeps its ERROR: it is why the process rolled back, and the record of it.
         assertThat(failed.getStatus()).isEqualTo(StepExecutionStatus.ERROR);
+    }
+
+    @Test
+    void marksProcessCompensationFailedWhenACompensationItselfFails() {
+        // A rollbackable step failed and its compensation was run — but the compensation itself
+        // errored (retries=0). The rollback cannot complete: the process must reach the distinct,
+        // sticky COMPENSATION_FAILED terminal (never left in ERROR) and the failure must be metered.
+        var failed = se(1, 1, true, "comp-step");
+        var compensationSe = compensationExecution(StepExecutionStatus.ERROR);
+
+        when(stepExecutionRepository.findById("comp-se")).thenReturn(Optional.of(compensationSe));
+        when(stepExecutionRepository.findByProcess(proc)).thenReturn(List.of(failed, compensationSe));
+
+        handler.handle(new StepExecutionStatusChanged("comp-se", TaskStatus.ERROR, List.of()));
+
+        verify(processRepository).save(argThat(p -> p.getStatus() == ProcessStatus.COMPENSATION_FAILED
+                && p.getFinished() != null));
+        verify(workflowMetrics).compensationFailed("wd-1");
     }
 
     private StepExecution compensationExecution(StepExecutionStatus status) {

@@ -38,8 +38,8 @@ class StepExecutionFinishedAtTest {
     void scheduleRetryClearsFinishedAt() {
         var execution = execution();
         execution.updateStatus(StepExecutionStatus.ERROR);
-        execution.scheduleRetry();
+        execution.scheduleRetry(java.time.Duration.ofMillis(1000));
         assertThat(execution.getFinishedAt()).isNull();
-        assertThat(execution.getStatus()).isEqualTo(StepExecutionStatus.CREATED);
+        assertThat(execution.getStatus()).isEqualTo(StepExecutionStatus.AWAITING_RETRY);
     }
 }

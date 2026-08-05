@@ -81,7 +81,10 @@ public class SimpleProcessCrudAdapter  {
             // looking at" about a saga that had already cleaned up after itself — and it sat in a
             // list next to the ERROR processes that really do.
             case COMPLETED, COMPENSATED -> StatusType.SUCCESS;
-            case CANCELLED, ERROR -> StatusType.DANGER;
+            // COMPENSATION_FAILED is a real failure that reads as one — the rollback could not
+            // finish and the process is left partially undone. It belongs next to ERROR, unlike
+            // COMPENSATED which cleaned up after itself.
+            case CANCELLED, ERROR, COMPENSATION_FAILED -> StatusType.DANGER;
         };
         return new Status(statusType, toUpperCaseFirst(status.name()) + " (" + completionPercentage + "%)");
     }

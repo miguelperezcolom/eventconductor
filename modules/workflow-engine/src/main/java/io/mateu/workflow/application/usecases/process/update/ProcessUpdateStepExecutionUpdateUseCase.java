@@ -53,9 +53,12 @@ public class ProcessUpdateStepExecutionUpdateUseCase {
         for (StepExecution execution : executions) {
             switch (execution.getStatus()) {
                 case COMPLETED -> completed++;
-                case PENDING, RUNNING -> anyLive = true;
-                // A step in a final failure state (retries already exhausted — auto-retry resets
-                // the step to CREATED before this use case runs) means the process itself failed.
+                // AWAITING_RETRY is a step waiting out its backoff before running again: the process
+                // is still in flight, not finished — without this it falls through to the default and
+                // a lone retrying step would read as a completed process.
+                case PENDING, RUNNING, AWAITING_RETRY -> anyLive = true;
+                // A step in a final failure state (retries already exhausted — a step with retries
+                // left is parked in AWAITING_RETRY, counted as live above) means the process failed.
                 case ERROR, TIMEOUT -> anyFailed = true;
                 default -> { /* CREATED / CANCELLED do not move the process status */ }
             }
@@ -81,6 +84,9 @@ public class ProcessUpdateStepExecutionUpdateUseCase {
                     // COMPENSATED is a terminal saga-rollback state: once reached it must not
                     // fall back to ERROR (its failed step is still ERROR) or any other status.
                     || process.getStatus() == ProcessStatus.COMPENSATED
+                    // COMPENSATION_FAILED is likewise terminal and sticky: a halted rollback must
+                    // not be resurrected or masked back into a plain ERROR.
+                    || process.getStatus() == ProcessStatus.COMPENSATION_FAILED
                     // PAUSED is sticky too: steps completing during the pause (worker reports,
                     // correlated messages) must not resurrect the process to RUNNING — only
                     // ResumeProcessUseCase leaves PAUSED.

@@ -6,9 +6,20 @@ import io.mateu.workflow.e2e.support.AbstractE2eTest;
 import io.mateu.workflow.e2e.support.TestWorker;
 import org.junit.jupiter.api.Test;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import java.time.Duration;
 
-/** E2E-RET-01..05. */
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
+
+/**
+ * E2E-RET-01..05.
+ *
+ * <p>Auto-retry is asynchronous: a failed step with attempts left is parked in AWAITING_RETRY for a
+ * backoff delay, and the timeout scheduler re-dispatches it once the delay elapses. So retry
+ * outcomes are awaited, not asserted synchronously right after {@code createProcess}. The e2e config
+ * uses a tiny fixed backoff (50 ms) so these resolve quickly. The invocation-count assertions still
+ * hold: backoff changes <em>when</em> attempts happen, not <em>how many</em>.
+ */
 class RetryAndFailureE2eTest extends AbstractE2eTest {
 
     @Test
@@ -18,8 +29,9 @@ class RetryAndFailureE2eTest extends AbstractE2eTest {
 
         createProcess("retry", "ret-1");
 
+        await().atMost(Duration.ofSeconds(10)).untilAsserted(() ->
+                assertThat(process("ret-1").getStatus()).isEqualTo(ProcessStatus.COMPLETED));
         assertThat(worker.invocationsOf("flaky")).isEqualTo(3);
-        assertThat(process("ret-1").getStatus()).isEqualTo(ProcessStatus.COMPLETED);
     }
 
     @Test
@@ -29,11 +41,12 @@ class RetryAndFailureE2eTest extends AbstractE2eTest {
         createProcess("retry", "ret-2");
 
         // retries=2 → 1 initial + 2 retries = 3 attempts, then give up.
+        await().atMost(Duration.ofSeconds(10)).untilAsserted(() ->
+                assertThat(process("ret-2").getStatus())
+                        .as("a process with an exhausted step must be ERROR, never COMPLETED")
+                        .isEqualTo(ProcessStatus.ERROR));
         assertThat(worker.invocationsOf("flaky")).isEqualTo(3);
         assertThat(step("ret-2", "flaky").getStatus()).isEqualTo(StepExecutionStatus.ERROR);
-        assertThat(process("ret-2").getStatus())
-                .as("a process with an exhausted step must be ERROR, never COMPLETED")
-                .isEqualTo(ProcessStatus.ERROR);
         assertThat(step("ret-2", "end").getStatus()).isNotEqualTo(StepExecutionStatus.COMPLETED);
     }
 
@@ -41,7 +54,8 @@ class RetryAndFailureE2eTest extends AbstractE2eTest {
     void manualStepRetryResumesFailedProcess() {
         worker.on("flaky", TestWorker.fail());
         createProcess("retry", "ret-3");
-        assertThat(process("ret-3").getStatus()).isEqualTo(ProcessStatus.ERROR);
+        await().atMost(Duration.ofSeconds(10)).untilAsserted(() ->
+                assertThat(process("ret-3").getStatus()).isEqualTo(ProcessStatus.ERROR));
 
         // Operator fixes the downstream system: now the step succeeds. Retry it.
         worker.on("flaky", TestWorker.succeed());
@@ -56,7 +70,8 @@ class RetryAndFailureE2eTest extends AbstractE2eTest {
     void manualProcessRetryResetsAllFailedSteps() {
         worker.on("flaky", TestWorker.fail());
         createProcess("retry", "ret-4");
-        assertThat(process("ret-4").getStatus()).isEqualTo(ProcessStatus.ERROR);
+        await().atMost(Duration.ofSeconds(10)).untilAsserted(() ->
+                assertThat(process("ret-4").getStatus()).isEqualTo(ProcessStatus.ERROR));
 
         worker.on("flaky", TestWorker.succeed());
         retryProcessUseCase.handle(

@@ -74,17 +74,28 @@ public class InMemoryStepExecutionRepository implements StepExecutionRepository 
 
     @Override
     public List<StepExecution> findDue(java.time.LocalDateTime now) {
+        // Mirror the JPA scan: PENDING/RUNNING (timeouts, timers) plus AWAITING_RETRY (backoffs).
         return store.values().stream()
-                .filter(InMemoryStepExecutionRepository::isLive)
+                .filter(se -> isLive(se) || se.getStatus() == StepExecutionStatus.AWAITING_RETRY)
                 .filter(se -> se.getDeadlineAt() != null && !se.getDeadlineAt().isAfter(now))
                 .toList();
     }
 
     @Override
     public List<StepExecution> findDueByProcessId(String processId, java.time.LocalDateTime now) {
+        // PENDING/RUNNING only — feeds the timeout check, which must not see AWAITING_RETRY steps.
         return store.values().stream()
                 .filter(se -> processId.equals(se.getProcessId()))
                 .filter(InMemoryStepExecutionRepository::isLive)
+                .filter(se -> se.getDeadlineAt() != null && !se.getDeadlineAt().isAfter(now))
+                .toList();
+    }
+
+    @Override
+    public List<StepExecution> findDueRetriesByProcessId(String processId, java.time.LocalDateTime now) {
+        return store.values().stream()
+                .filter(se -> processId.equals(se.getProcessId()))
+                .filter(se -> se.getStatus() == StepExecutionStatus.AWAITING_RETRY)
                 .filter(se -> se.getDeadlineAt() != null && !se.getDeadlineAt().isAfter(now))
                 .toList();
     }
