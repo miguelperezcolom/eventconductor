@@ -7,7 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0-beta.021] - 2026-08-05
+
+The mode we were the only ones running.
+
+Kafka mode worked in the standalone application, in the benchmark and in the distributed tests —
+everywhere we run the engine ourselves — and could not work anywhere else, because the one
+property that makes its consumers function was in each of those configurations and in none of the
+documentation. An application that followed the README to the letter got a `ClassCastException` on
+the first event of its first process, and its whole outbox dead-lettered behind it. The engine
+brings its own bindings now.
+
+The rest is a compensated saga finally looking like what it is: a process that finished.
+
 ### Fixed
+- **Kafka mode did not work outside our own applications.** The engine's consumers take a batch —
+  `Consumer<Message<List<DomainEvent>>>` — because a poll batch is committed as one transaction
+  per process. A binding without `consumer.batch-mode` delivers one record and does not convert
+  it, so the payload arrives as a `byte[]` and the first event dies with `ClassCastException:
+  class [B cannot be cast to class java.util.List`; retries exhaust and every outbox event is
+  dead-lettered. That property was set in the standalone application's YAML, in the benchmark and
+  in the distributed tests, and appeared in no documentation at all — every snippet in the README,
+  the configuration reference, the AI references and the scaffold skill wired the destinations and
+  left it out. Those same snippets gave both consumers one shared group, which is the
+  range-assignor trap fixed for our own configuration in `1.0-beta.015` and never fixed in the
+  docs. The engine contributes its own bindings now — destinations, a group per binding,
+  batch-mode — as the lowest-precedence property source, so anything an application declares still
+  wins. It does not contribute `spring.cloud.function.definition`: that lists the functions the
+  application composes, and a default would silently drop a worker's or the forms engine's. Also
+  `spring.cloud.stream.function.definition`, in the README and the scaffold skill: that property
+  has not been read since Boot 2.x.
 - **A rolled-back process looked like one that had stopped halfway.** Reaching `COMPENSATED` only
   set the status: the steps the flow never reached stayed `CREATED` — indefinitely, on a process
   that is over — and the completion bar stayed frozen wherever the failure happened. A finished
@@ -24,6 +53,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   layout gets those edges now, which puts each compensation in the layer after the step it undoes
   — to its right, where the eye looks for it, stacked above or below the flow rather than beyond
   it — and routes around what is already there. Definitions written either way lay out the same.
+
+### Added
+- **The demo images are published from CI**, by a `workflow_dispatch` job that builds the demo
+  reactor once and pushes all seven, each labelled with the revision it was built at. They used to
+  be built by hand with buildx: the ones on Docker Hub had been pushed three hours before the
+  Dockerfiles they came from were committed, and nothing recorded which commit any of them
+  contained. Their tag is `demo-0.1.0` now — the demo does not ship with the engine, and a tag
+  shaped like an engine version reads as stale the moment the engine moves.
+
+### Fixed (build)
+- **The demo did not build from a clean checkout.** Five of its services depend on
+  `io.mateu.workflow:shared:1.0-SNAPSHOT`, which nothing publishes; on any machine that had built
+  the repository it was in `~/.m2`, so it appeared to build on its own.
 
 ## [1.0-beta.020] - 2026-08-05
 
