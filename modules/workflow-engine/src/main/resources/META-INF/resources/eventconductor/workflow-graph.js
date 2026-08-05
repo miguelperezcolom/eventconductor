@@ -901,7 +901,10 @@ function jLn(C) {
 }
 let Lu = class extends cx {
   constructor() {
-    super(...arguments), this.value = '{"name":"New Workflow","steps":[]}', this.readOnly = !1, this.noExpand = !1, this.overlay = "", this.dark = !1, this.wf = { name: "New Workflow", steps: [] }, this.overlayData = {}, this.positions = {}, this.layoutReady = !1, this.selectedId = null, this.selectedEdge = null, this.hoverId = null, this.showMeta = !1, this.layoutError = null, this.fullscreen = !1, this.flowOn = !0, this.flowSpeed = 260, this.heatmapOn = !1, this.heatDays = 30, this.heatMax = 0, this.flowRaf = 0, this.flowStartTs = 0, this.flowPaths = [], this.flowPathIndex = 0, this.pulsedThisPath = /* @__PURE__ */ new Set(), this.pulseAt = {}, this.pulseColor = {}, this.flowPrevPosD = 0, this.focusMode = "auto", this.focusNodeId = null, this.activePaths = [], this.focusPaint = null, this.edgeCache = /* @__PURE__ */ new Map(), this.compTargetsCache = /* @__PURE__ */ new Set(), this.compTargetsFor = null, this.draggingId = null, this.dragOffset = { x: 0, y: 0 }, this.svgEl = null, this.elkPositioned = /* @__PURE__ */ new Set(), this.linkingFrom = null, this.linkCursor = null, this.linkHoverId = null, this.zoomK = 1, this.panX = 0, this.panY = 0, this.viewW = 0, this.viewH = 0, this.didInitialFit = !1, this.viewportSetup = !1, this.panning = !1, this.panMoved = !1, this.panStart = { x: 0, y: 0, panX: 0, panY: 0 }, this.miniDrag = !1, this.onMouseMove = (C) => {
+    super(...arguments), this.value = '{"name":"New Workflow","steps":[]}', this.readOnly = !1, this.noExpand = !1, this.overlay = "", this.dark = !1, this.wf = { name: "New Workflow", steps: [] }, this.overlayData = {}, this.positions = {}, this.layoutReady = !1, this.selectedId = null, this.selectedEdge = null, this.hoverId = null, this.showMeta = !1, this.layoutError = null, this.fullscreen = !1, this.flowOn = !0, this.flowSpeed = 260, this.heatmapOn = !1, this.heatDays = 30, this.heatMax = 0, this.flowRaf = 0, this.flowStartTs = 0, this.flowPaths = [], this.flowPathIndex = 0, this.pulsedThisPath = /* @__PURE__ */ new Set(), this.pulseAt = {}, this.pulseColor = {}, this.flowPrevPosD = 0, this.focusMode = "auto", this.focusNodeId = null, this.activePaths = [], this.focusPaint = null, this.edgeCache = /* @__PURE__ */ new Map(), this.compTargetsCache = /* @__PURE__ */ new Set(), this.compTargetsFor = null, this.draggingId = null, this.dragOffset = { x: 0, y: 0 }, this.svgEl = null, this.elkPositioned = /* @__PURE__ */ new Set(), this.linkingFrom = null, this.linkCursor = null, this.linkHoverId = null, this.zoomK = 1, this.panX = 0, this.panY = 0, this.viewW = 0, this.viewH = 0, this.didInitialFit = !1, this.viewportSetup = !1, this.panning = !1, this.panMoved = !1, this.panStart = { x: 0, y: 0, panX: 0, panY: 0 }, this.miniDrag = !1, this.onFullscreenChange = () => {
+      const C = document.fullscreenElement === this;
+      this.fullscreen !== C && (this.fullscreen = C), C || document.removeEventListener("fullscreenchange", this.onFullscreenChange);
+    }, this.onMouseMove = (C) => {
       if (!this.draggingId || !this.svgEl) return;
       const P = this.toSvgPoint(C);
       this.elkPositioned.add(this.draggingId), this.positions = {
@@ -971,7 +974,28 @@ let Lu = class extends cx {
     K(), this.resizeObs = new ResizeObserver(K), this.resizeObs.observe(R), P.addEventListener("wheel", this.onWheel, { passive: !1 });
   }
   disconnectedCallback() {
-    super.disconnectedCallback(), this.stopFlow(), this.resizeObs?.disconnect(), this.svgEl?.removeEventListener("wheel", this.onWheel);
+    super.disconnectedCallback(), this.stopFlow(), this.resizeObs?.disconnect(), this.svgEl?.removeEventListener("wheel", this.onWheel), document.removeEventListener("fullscreenchange", this.onFullscreenChange);
+  }
+  /**
+   * Expands through the Fullscreen API rather than by positioning ourselves over the page.
+   *
+   * <p>`position: fixed` is relative to the viewport only while no ancestor establishes a
+   * containing block for it, and a transform, a filter, `perspective` or `contain` on any
+   * ancestor does — which a page of cards, tabs and panels has somewhere almost by definition.
+   * Expanded inside the process detail, the graph covered its own card and stopped there. The
+   * top layer has no ancestors.
+   *
+   * <p>Kept working if the request is refused (an iframe without `allowfullscreen`, a browser
+   * that requires a different gesture): the class-based overlay is still there and still better
+   * than nothing.
+   */
+  async toggleFullscreen() {
+    const C = !this.fullscreen;
+    this.fullscreen = C;
+    try {
+      C ? (document.addEventListener("fullscreenchange", this.onFullscreenChange), await this.requestFullscreen?.()) : document.fullscreenElement === this && await document.exitFullscreen?.();
+    } catch {
+    }
   }
   // ── ELK layout ────────────────────────────────────────────────────────────
   /**
@@ -1659,9 +1683,7 @@ let Lu = class extends cx {
                 <button class="vbtn" title="Fit graph to view" @click="${() => this.fitToView()}">${iLn}</button>
                 ${this.noExpand ? Ai : mr`
                     <button class="vbtn" title="${this.fullscreen ? "Collapse" : "Expand"}"
-                            @click="${() => {
-      this.fullscreen = !this.fullscreen;
-    }}">${this.fullscreen ? "✕" : "⤢"}</button>`}
+                            @click="${() => this.toggleFullscreen()}">${this.fullscreen ? "✕" : "⤢"}</button>`}
             </div>`;
   }
   render() {
@@ -2083,9 +2105,24 @@ Lu.styles = [ZDn, Lfn`
         /* focusable for the Delete key, but a focus ring around the whole editor is just noise */
         .root:focus, .root:focus-visible {outline: none;}
 
+        /* Expanded through the Fullscreen API: the browser puts the host in the top layer, where
+           no ancestor can contain or clip it. The host carries a height from whoever embedded it —
+           68vh inline, in the process detail — and an inline declaration beats a normal rule from
+           here, so these are !important. It is the one place in this file that needs to be. */
+        :host(:fullscreen) {
+            height: 100% !important; min-height: 0 !important; width: 100% !important;
+            background: var(--ec-surface);
+        }
+        /* The fallback, for a browser that refuses the request: position:fixed, which any ancestor
+           with a transform, a filter or "contain" turns into position-relative-to-that-ancestor —
+           which is why expanding inside a page of cards and tabs covered a card and not the
+           viewport. */
         .root.fullscreen {
             position: fixed; inset: 0; height: 100vh; width: 100vw; z-index: 9999;
             box-shadow: 0 0 0 100vmax rgba(0, 0, 0, .15);
+        }
+        :host(:fullscreen) .root.fullscreen {
+            position: static; height: 100%; width: 100%; box-shadow: none;
         }
 
         /* floating view/animation controls — bottom-left, clear of toolbar + minimap */

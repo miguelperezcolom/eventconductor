@@ -818,7 +818,47 @@ export class MateuWorkflowElk extends LitElement {
         this.stopFlow();
         this.resizeObs?.disconnect();
         this.svgEl?.removeEventListener("wheel", this.onWheel);
+        document.removeEventListener("fullscreenchange", this.onFullscreenChange);
     }
+
+    /**
+     * Expands through the Fullscreen API rather than by positioning ourselves over the page.
+     *
+     * <p>`position: fixed` is relative to the viewport only while no ancestor establishes a
+     * containing block for it, and a transform, a filter, `perspective` or `contain` on any
+     * ancestor does — which a page of cards, tabs and panels has somewhere almost by definition.
+     * Expanded inside the process detail, the graph covered its own card and stopped there. The
+     * top layer has no ancestors.
+     *
+     * <p>Kept working if the request is refused (an iframe without `allowfullscreen`, a browser
+     * that requires a different gesture): the class-based overlay is still there and still better
+     * than nothing.
+     */
+    private async toggleFullscreen() {
+        const wanted = !this.fullscreen;
+        this.fullscreen = wanted;                 // the fallback overlay, and the button's icon
+        try {
+            if (wanted) {
+                document.addEventListener("fullscreenchange", this.onFullscreenChange);
+                await this.requestFullscreen?.();
+            } else if (document.fullscreenElement === this) {
+                await document.exitFullscreen?.();
+            }
+        } catch {
+            // Refused: the class-based overlay above stands in for it.
+        }
+    }
+
+    /** Esc leaves fullscreen without going through our button; the icon has to follow. */
+    private onFullscreenChange = () => {
+        const active = document.fullscreenElement === this;
+        if (this.fullscreen !== active) {
+            this.fullscreen = active;
+        }
+        if (!active) {
+            document.removeEventListener("fullscreenchange", this.onFullscreenChange);
+        }
+    };
 
     // ── ELK layout ────────────────────────────────────────────────────────────
 
@@ -1905,7 +1945,7 @@ export class MateuWorkflowElk extends LitElement {
                 <button class="vbtn" title="Fit graph to view" @click="${() => this.fitToView()}">${iconFit}</button>
                 ${this.noExpand ? nothing : html`
                     <button class="vbtn" title="${this.fullscreen ? "Collapse" : "Expand"}"
-                            @click="${() => { this.fullscreen = !this.fullscreen; }}">${this.fullscreen ? "✕" : "⤢"}</button>`}
+                            @click="${() => this.toggleFullscreen()}">${this.fullscreen ? "✕" : "⤢"}</button>`}
             </div>`;
     }
 
@@ -2434,9 +2474,24 @@ export class MateuWorkflowElk extends LitElement {
         /* focusable for the Delete key, but a focus ring around the whole editor is just noise */
         .root:focus, .root:focus-visible {outline: none;}
 
+        /* Expanded through the Fullscreen API: the browser puts the host in the top layer, where
+           no ancestor can contain or clip it. The host carries a height from whoever embedded it —
+           68vh inline, in the process detail — and an inline declaration beats a normal rule from
+           here, so these are !important. It is the one place in this file that needs to be. */
+        :host(:fullscreen) {
+            height: 100% !important; min-height: 0 !important; width: 100% !important;
+            background: var(--ec-surface);
+        }
+        /* The fallback, for a browser that refuses the request: position:fixed, which any ancestor
+           with a transform, a filter or "contain" turns into position-relative-to-that-ancestor —
+           which is why expanding inside a page of cards and tabs covered a card and not the
+           viewport. */
         .root.fullscreen {
             position: fixed; inset: 0; height: 100vh; width: 100vw; z-index: 9999;
             box-shadow: 0 0 0 100vmax rgba(0, 0, 0, .15);
+        }
+        :host(:fullscreen) .root.fullscreen {
+            position: static; height: 100%; width: 100%; box-shadow: none;
         }
 
         /* floating view/animation controls — bottom-left, clear of toolbar + minimap */
