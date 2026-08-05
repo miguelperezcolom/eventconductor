@@ -7,11 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
-Four things a first deployment of the demo onto a real cluster ran into, none of which any test or
-lint could have caught, because each of them only exists once the three applications are pointed at
-one database and one another.
+## [1.0-beta.019] - 2026-08-05
 
+The first time the whole thing was deployed to a real cluster — the engine and the seven demo
+services, on Kubernetes, against one database — and it did not come up. Four separate reasons, none
+of which a test or a lint could have found, because each of them only exists once the three
+applications are pointed at one database and at one another. Two of them had been shipping in
+releases for weeks: the rule engine's gRPC server has not started since `1.0-beta.009`, and the
+chart named an image tag that was never published.
+
+Nothing here changes how the engine behaves. It is the difference between software that passes its
+tests and software that starts.
+
+### Fixed
 - **The orchestrator and the rule engine could not start next to the forms engine.** They share a
   database, each ships its own migrations numbered from V1, and all three wrote to Flyway's default
   history table: whichever started first put its V1 there and the other two refused to start on a

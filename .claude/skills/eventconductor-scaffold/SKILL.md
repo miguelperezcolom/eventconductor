@@ -25,13 +25,13 @@ only when you need JPA/Kafka.
 <dependency>
   <groupId>io.mateu.workflow</groupId>
   <artifactId>workflow-engine</artifactId>
-  <version>1.0-beta.018</version> <!-- check Maven Central / CHANGELOG.md for the newest release -->
+  <version>1.0-beta.019</version> <!-- check Maven Central / CHANGELOG.md for the newest release -->
 </dependency>
 <!-- add only if you use USER_TASK / human forms -->
 <dependency>
   <groupId>io.mateu.workflow</groupId>
   <artifactId>forms-engine</artifactId>
-  <version>1.0-beta.018</version>
+  <version>1.0-beta.019</version>
 </dependency>
 ```
 Kafka mode uses `spring-cloud-starter-stream-kafka` — it already arrives transitively as a

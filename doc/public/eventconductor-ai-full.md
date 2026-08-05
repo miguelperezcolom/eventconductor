@@ -13,14 +13,14 @@ It scales from a single JVM with no external dependencies up to a multi-pod Kube
 <dependency>
   <groupId>io.mateu.workflow</groupId>
   <artifactId>workflow-engine</artifactId>
-  <version>1.0-beta.018</version>
+  <version>1.0-beta.019</version>
 </dependency>
 
 <!-- only if you use USER_TASK steps (human forms) -->
 <dependency>
   <groupId>io.mateu.workflow</groupId>
   <artifactId>forms-engine</artifactId>
-  <version>1.0-beta.018</version>
+  <version>1.0-beta.019</version>
 </dependency>
 ```
 

@@ -1,13 +1,14 @@
 apiVersion: v2
 name: eventconductor
-description: EventConductor workflow orchestration — Redpanda, PostgreSQL, orchestrator and forms.
+description: EventConductor workflow orchestration — Redpanda, PostgreSQL, orchestrator, forms
+  engine and rule engine.
 type: application
-version: 0.1.1
+version: 0.1.2
 # The images this chart deploys, unless imageTag says otherwise. It has to name a release that
 # exists: it was "0.0.0" here, which is not a tag anybody published, so installing the chart
 # straight from the repository pulled nothing and every pod sat in ImagePullBackOff. Bump it with
 # each release.
-appVersion: "1.0-beta.018"
+appVersion: "1.0-beta.019"
 maintainers:
   - name: Miguel Pérez Colom
     url: https://github.com/miguelperezcolom

@@ -4,5 +4,7 @@ description: The demo applications that ride on EventConductor — a booking sag
   plane, an API gateway, a UI shell and the Claude agent that drives the engine over MCP.
 type: application
 version: 0.1.0
-# The tag the demo images are published under; every service moves together.
+# The tag the demo images are published under; every service moves together. It is deliberately
+# not the engine's version: the demo is not part of the reactor the release workflow builds, so
+# these images are published separately and only move when the demo services change.
 appVersion: "1.0-beta.018"
