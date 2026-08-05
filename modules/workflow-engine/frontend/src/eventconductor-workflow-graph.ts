@@ -688,6 +688,10 @@ export class MateuWorkflowElk extends LitElement {
      * token (pathGeometry) and guard chips so they follow the exact painted lines. */
     private edgeCache = new Map<string, Pt[]>();
 
+    /** compTargets memo, keyed by the steps array it was computed from (see compensationTargets). */
+    private compTargetsCache = new Set<string>();
+    private compTargetsFor: WorkflowStep[] | null = null;
+
     private draggingId: string | null = null;
     private dragOffset = {x: 0, y: 0};
     private svgEl: SVGSVGElement | null = null;
@@ -1778,6 +1782,34 @@ export class MateuWorkflowElk extends LitElement {
         return !!st && st !== "PENDING";
     }
 
+    /**
+     * True when this step ran as a compensation — it is some rollbackable step's
+     * {@link WorkflowStep.compensationStepId} and this process actually reached it.
+     *
+     * <p>Worth its own colour because the state alone misreads: a compensation that completes is
+     * `COMPLETED`, drawn in the same green as the work it just undid, so a rolled-back process
+     * looked like a successful one with a few extra green boxes. Amber says the step did its job
+     * and the job was undoing something.
+     *
+     * <p>A compensation the process never needed keeps its ordinary look — this is about what ran,
+     * not about what the definition declares.
+     */
+    private ranAsCompensation(id: string): boolean {
+        const st = this.overlayData[id]?.state;
+        if (!st || st === "PENDING" || st === "CANCELLED") return false;
+        return this.compensationTargets().has(id);
+    }
+
+    /** {@link compTargets} for the current definition, computed once per graph rather than per node. */
+    private compensationTargets(): Set<string> {
+        const steps = this.wf.steps ?? [];
+        if (this.compTargetsFor !== steps) {
+            this.compTargetsCache = compTargets(steps);
+            this.compTargetsFor = steps;
+        }
+        return this.compTargetsCache;
+    }
+
     /** True when the overlay carries per-step heat histograms — i.e. this is a definition view that
      *  can offer the stopped/waiting heatmap. The single-process monitoring view ships no heat. */
     private hasHeatData() {
@@ -2124,7 +2156,10 @@ export class MateuWorkflowElk extends LitElement {
         const ov = this.overlayData[step.id];
         const heatOn = this.heatmapOn && this.hasHeatData();
         const heatPct = heatOn ? this.heatIntensity(step.id) : 0;
-        const ovCls = ov ? `${ov.active ? "ov-active" : ""} ${ov.state ? "ov-" + ov.state.toLowerCase() : ""}` : "";
+        // A step that ran as a compensation is coloured for what it did, not for how it ended:
+        // 'ov-undone' comes after the state class so amber wins over the state's own colour.
+        const undone = this.ranAsCompensation(step.id) ? "ov-undone" : "";
+        const ovCls = ov ? `${ov.active ? "ov-active" : ""} ${ov.state ? "ov-" + ov.state.toLowerCase() : ""} ${undone}` : "";
         // With the heatmap on the badge narrows to the tasks inside the chosen last-N-days window.
         const count = heatOn ? this.heatValue(step.id) : (ov?.count ?? 0);
         const badge = count > 0 ? svg`
@@ -2133,11 +2168,14 @@ export class MateuWorkflowElk extends LitElement {
                 <text text-anchor="middle" dy="3.6">${count > 99 ? "99+" : count}</text>
             </g>` : nothing;
 
-        // A big green check on executed (COMPLETED) steps, bottom-right corner — reads clearly.
+        // A big check on executed (COMPLETED) steps, bottom-right corner — reads clearly. On a
+        // compensation it turns into an undo arrow: a green tick there would say the work stands.
         const done = ov?.state === "COMPLETED" ? svg`
             <g class="ov-done" transform="translate(${w - 6}, ${h - 6})">
                 <circle r="12"/>
-                <path class="ov-check" d="M -6 0.5 L -1.5 5 L 6 -4.5"/>
+                ${undone
+                    ? svg`<path class="ov-undo" d="M -5.5 -1 A 5.5 5.5 0 1 1 -3.2 4.2 M -5.5 -4.5 L -5.5 -1 L -2 -1"/>`
+                    : svg`<path class="ov-check" d="M -6 0.5 L -1.5 5 L 6 -4.5"/>`}
             </g>` : nothing;
 
         const linkCls = `${this.linkHoverId === step.id ? "link-target" : ""} ${this.linkingFrom === step.id ? "link-source" : ""}`;
@@ -2183,13 +2221,16 @@ export class MateuWorkflowElk extends LitElement {
         const fmt = (s?: string) => s ? s.replace("T", " ").slice(0, 16) : "";
         const chip = ov.state
             ? html`<span class="tip-chip tip-${ov.state.toLowerCase()}">${ov.state}</span>` : nothing;
+        // Says what the amber means, so the colour does not have to be learned from the docs.
+        const undoneChip = this.ranAsCompensation(id)
+            ? html`<span class="tip-chip tip-undone">COMPENSATION</span>` : nothing;
         const row = (k: string, v?: string | null) => v == null || v === ""
             ? nothing : html`<div class="tip-row"><span class="tip-k">${k}</span><span class="tip-v">${v}</span></div>`;
         const attempt = ov.attempt != null
             ? (ov.maxRetries ? `${ov.attempt}/${ov.maxRetries}` : `${ov.attempt}`) : null;
         return html`
             <div class="ov-tip" style="left:${left}px; top:${top}px;">
-                <div class="tip-head"><span class="tip-name">${step?.name ?? id}</span>${chip}</div>
+                <div class="tip-head"><span class="tip-name">${step?.name ?? id}</span>${chip}${undoneChip}</div>
                 ${ov.reason ? html`<div class="tip-reason">${ov.reason}</div>` : nothing}
                 ${ov.error ? html`<div class="tip-errmsg">${ov.error}</div>` : nothing}
                 ${row("Attempt", attempt)}
@@ -2468,6 +2509,12 @@ export class MateuWorkflowElk extends LitElement {
         .node.ov-error     .node-shape {stroke: #dc2626 !important; stroke-width: 2.4 !important;}
         .node.ov-cancelled .node-shape {stroke: #94a3b8 !important; opacity: .7;}
         .node.ov-compensated .node-shape {stroke: #dc2626 !important; stroke-dasharray: 5 4 !important;}
+        /* ran as a compensation: amber, whatever the state says. A completed compensation is
+           COMPLETED like any other step, and drawn green it made a rolled-back process read as a
+           successful one with extra boxes. Last here so it wins over the state colours above. */
+        .node.ov-undone .node-shape {stroke: #f59e0b !important; stroke-width: 2.4 !important; fill: #fffbeb !important;}
+        .node.ov-undone.ov-error .node-shape {stroke: #dc2626 !important; stroke-dasharray: 5 4 !important;}
+        .node.ov-undone .ov-done circle {fill: #f59e0b;}
         .node.ov-active .node-shape {stroke: var(--ec-primary) !important; stroke-width: 3 !important; filter: drop-shadow(0 0 5px color-mix(in srgb, var(--ec-primary) 60%, transparent));}
         .node.ov-active .node-inner {animation: ec-active-pulse 1.6s ease-in-out infinite;}
         @keyframes ec-active-pulse {0%,100% {opacity: 1;} 50% {opacity: .72;}}
@@ -2475,6 +2522,7 @@ export class MateuWorkflowElk extends LitElement {
         .ov-count text {fill: #fff; font-size: 11px; font-weight: 700;}
         .ov-done circle {fill: #16a34a; stroke: var(--ec-surface); stroke-width: 2;}
         .ov-done .ov-check {fill: none; stroke: #fff; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round;}
+        .ov-done .ov-undo {fill: none; stroke: #fff; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round;}
         /* parts the process hasn't reached yet fade back */
         .node.mon-dim {opacity: .3;}
         .edge.mon-dim, .comp-edge.mon-dim {opacity: .18;}
@@ -2510,6 +2558,9 @@ export class MateuWorkflowElk extends LitElement {
         .tip-error {background: #dc2626;}
         .tip-cancelled {background: #94a3b8;}
         .tip-compensated {background: #dc2626;}
+        .tip-undone {background: #f59e0b;}
+        /* the first chip is pushed right by margin:auto; a second one sits beside it, not past it */
+        .tip-chip ~ .tip-chip {margin-left: 4px;}
         .tip-reason {font-weight: 600; margin-bottom: 4px;}
         .tip-errmsg {color: #dc2626; margin-bottom: 4px; white-space: pre-wrap; word-break: break-word;}
         .tip-row {display: flex; gap: 8px; justify-content: space-between;}
