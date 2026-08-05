@@ -1,4 +1,7 @@
 FROM eclipse-temurin:21-jre-alpine
+# Patch OS packages to pick up Alpine security fixes not yet in the base image tag
+# (Trivy gates the release on fixable HIGH/CRITICAL CVEs).
+RUN apk upgrade --no-cache
 RUN addgroup -S app && adduser -S -G app -u 10001 app
 WORKDIR /opt/app
 
