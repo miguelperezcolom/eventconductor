@@ -109,13 +109,18 @@ class StepExecutionDeadlineTest {
     }
 
     @Test
-    void retryDisarmsTheDeadlineUntilTheNextAttemptStarts() {
+    void retryArmsTheBackoffDeadlineThenReleaseDisarmsIt() {
         var started = created(actionStep(30_000)).start(process());
         assertThat(started.getDeadlineAt()).isNotNull();
 
-        started.scheduleRetry();
+        // The retry now parks the step for a backoff: the deadline is the moment it may run again,
+        // and the previous attempt's timeout deadline is replaced by it, not left to survive.
+        started.scheduleRetry(java.time.Duration.ofMillis(5000));
+        assertThat(started.getStatus()).isEqualTo(io.mateu.workflow.domain.aggregates.StepExecutionStatus.AWAITING_RETRY);
+        assertThat(started.getDeadlineAt()).isNotNull();
 
-        // The previous attempt's deadline must not survive into an attempt that has not begun.
+        // Releasing it for re-dispatch disarms the backoff deadline; start() arms a fresh one.
+        started.releaseForRetry();
         assertThat(started.getDeadlineAt()).isNull();
     }
 

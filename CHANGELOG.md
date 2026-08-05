@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- **Rule expressions now run sandboxed.** The `rule-runtime` JEXL evaluator built its engine
+  without `JexlPermissions.RESTRICTED`, unlike the workflow-engine's precondition evaluator. Rule
+  `when`/`then` expressions come from untrusted sources (imported from Git, edited in the UI), so an
+  attacker who controlled a rule could reach `Runtime.exec`, `System.exit` or reflection — arbitrary
+  code execution on the rules service. The evaluator is now restricted to match the engine's.
+
+### Fixed
+- **Auto-retry now backs off instead of hot-looping.** A failed step with retries left was
+  re-dispatched immediately, so a worker that failed fast burned the entire retry budget in
+  milliseconds and hammered the failing dependency. Failed steps are now parked in a new
+  `AWAITING_RETRY` status for an exponential, jittered backoff (`workflow.retry.backoff-*`) and the
+  scheduler re-dispatches them when the delay elapses. Manual retries still reset immediately.
+- **A failed compensation is no longer silent.** When a compensation step itself failed after its
+  retries, the saga rollback halted and the process was left in `ERROR`, half-rolled-back, with no
+  terminal state, metric or alert — indistinguishable from a plain failure. Such a process now
+  reaches the distinct, sticky terminal `COMPENSATION_FAILED`, increments the new
+  `eventconductor.compensations.failed` counter and logs loudly.
+
+### Added
+- `eventconductor.compensations.failed` metric and the `COMPENSATION_FAILED` process status.
+- `workflow.retry.backoff-base-ms` / `-multiplier` / `-max-ms` / `-jitter` configuration and the
+  `AWAITING_RETRY` step-execution status.
+
 ### Plugins — IntelliJ 0.1.3, VS Code 0.1.2
 - **The editors ship the current graph.** Neither plugin's sources have changed since the last
   plugin release; what has changed is the component they carry, and they only carry a new one when

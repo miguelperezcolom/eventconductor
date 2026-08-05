@@ -5,7 +5,10 @@ import io.mateu.workflow.domain.aggregates.StepExecutionStatus;
 import io.mateu.workflow.e2e.support.AbstractE2eTest;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
+
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 
 /**
  * E2E-EMB-02 — a worker that throws fails its step.
@@ -63,7 +66,10 @@ class WorkerThrowsE2eTest extends AbstractE2eTest {
 
         createProcess("retry", "throw-then-succeed");
 
+        // Auto-retry is async (backoff): the second attempt runs after the scheduler wakes the
+        // parked step, so the success is awaited rather than asserted inline.
+        await().atMost(Duration.ofSeconds(10)).untilAsserted(() ->
+                assertThat(process("throw-then-succeed").getStatus()).isEqualTo(ProcessStatus.COMPLETED));
         assertThat(worker.invocationsOf("flaky")).isEqualTo(2);
-        assertThat(process("throw-then-succeed").getStatus()).isEqualTo(ProcessStatus.COMPLETED);
     }
 }

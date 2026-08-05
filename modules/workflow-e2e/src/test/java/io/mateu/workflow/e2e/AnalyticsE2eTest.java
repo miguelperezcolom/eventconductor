@@ -9,7 +9,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.annotation.DirtiesContext;
 
+import java.time.Duration;
+
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 
 /**
  * E2E-ANA-01: built-in analytics reflect executed processes.
@@ -35,7 +38,10 @@ class AnalyticsE2eTest extends AbstractE2eTest {
 
         worker.on("flaky", TestWorker.fail());
         createProcess("retry", "ana-ko-1");
-        assertThat(process("ana-ko-1").getStatus()).isEqualTo(ProcessStatus.ERROR);
+        // Auto-retry is async (backoff): the step exhausts its attempts over the scheduler's ticks,
+        // so the terminal ERROR is awaited rather than asserted inline.
+        await().atMost(Duration.ofSeconds(10)).untilAsserted(() ->
+                assertThat(process("ana-ko-1").getStatus()).isEqualTo(ProcessStatus.ERROR));
 
         var analytics = analyticsService.analyze("sequential-3", TimeWindow.lastDays(1)).orElseThrow();
         assertThat(analytics.workflowDefinitionName()).isEqualTo("Sequential 3 steps");

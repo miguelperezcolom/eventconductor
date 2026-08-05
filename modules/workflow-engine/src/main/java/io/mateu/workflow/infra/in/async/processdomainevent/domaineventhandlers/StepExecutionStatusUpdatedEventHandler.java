@@ -3,6 +3,7 @@ package io.mateu.workflow.infra.in.async.processdomainevent.domaineventhandlers;
 import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.out.WorkflowMetrics;
+import io.mateu.workflow.application.services.BackoffPolicy;
 import io.mateu.workflow.application.usecases.process.childcancel.CancelChildProcessService;
 import io.mateu.workflow.application.usecases.process.stepover.StepOverProcessCommand;
 import io.mateu.workflow.application.usecases.process.stepover.StepOverProcessUseCase;
@@ -21,6 +22,7 @@ import io.mateu.workflow.dtos.events.domain.StepExecutionStatusChanged;
 import io.mateu.workflow.dtos.events.integration.TaskCancellationRequested;
 import io.mateu.workflow.dtos.events.integration.TaskStatus;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -30,6 +32,7 @@ import static io.mateu.core.infra.JsonSerializer.pojoFromJson;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class StepExecutionStatusUpdatedEventHandler implements DomainEventHandler<StepExecutionStatusChanged> {
 
     final ProcessUpdateStepExecutionUpdateUseCase processUpdateStepExecutionUpdateUseCase;
@@ -40,12 +43,14 @@ public class StepExecutionStatusUpdatedEventHandler implements DomainEventHandle
     final WorkflowMetrics workflowMetrics;
     final CancelChildProcessService cancelChildProcessService;
     final CompensationService compensationService;
+    final BackoffPolicy backoffPolicy;
 
     /** What a terminal process still holds that can never run now. */
     private static final java.util.Set<StepExecutionStatus> CANCELLABLE_AT_THE_END = java.util.Set.of(
             StepExecutionStatus.CREATED,
             StepExecutionStatus.PENDING,
-            StepExecutionStatus.RUNNING);
+            StepExecutionStatus.RUNNING,
+            StepExecutionStatus.AWAITING_RETRY);
 
     @Override
     public Class<? extends DomainEvent> eventClass() {
@@ -64,13 +69,18 @@ public class StepExecutionStatusUpdatedEventHandler implements DomainEventHandle
 
             var step = pojoFromJson(stepExecution.getStepJson(), Step.class);
 
-            // Auto-retry: attempts remaining → reset to CREATED and re-dispatch.
+            // Auto-retry: attempts remaining → park the step in AWAITING_RETRY for a backoff delay.
+            // The timeout scheduler wakes it and CheckRetryUseCase re-dispatches it once the delay
+            // has elapsed. Deliberately NOT re-dispatched here: an immediate step-over would burn
+            // the whole retry budget in milliseconds against a worker that fails fast (bad config,
+            // downstream 500) — a hot loop that hammers the failing dependency and defeats retries,
+            // whose point is to wait out a transient fault.
             if (stepExecution.getAttemptCount() < step.retries()) {
-                stepExecution.scheduleRetry();
+                var backoff = backoffPolicy.nextDelay(stepExecution.getAttemptCount() + 1);
+                stepExecution.scheduleRetry(backoff);
                 stepExecutionRepository.save(stepExecution);
                 workflowMetrics.retryPerformed(stepExecution.getWorkflowDefinitionId(),
                         WorkflowMetrics.RetryTrigger.AUTO);
-                stepOverProcessUseCase.handle(new StepOverProcessCommand(stepExecution.getProcessId()));
                 return;
             }
 
@@ -122,7 +132,12 @@ public class StepExecutionStatusUpdatedEventHandler implements DomainEventHandle
                 workflowMetrics.compensationTriggered(compensation.getWorkflowDefinitionId());
             }
             case DONE -> markCompensated(process, executions);
-            case NONE, WAITING, FAILED -> { /* nothing to start now */ }
+            // A compensation step itself failed (its own retries exhausted): the rollback cannot go
+            // on. This must NOT fall into the do-nothing bucket — that left the process ERROR and
+            // half-rolled-back with no terminal state, no metric and no alert, which for a saga is
+            // worse than not rolling back at all. Record the distinct COMPENSATION_FAILED terminal.
+            case FAILED -> markCompensationFailed(process, executions);
+            case NONE, WAITING -> { /* nothing to start now */ }
         }
     }
 
@@ -154,6 +169,37 @@ public class StepExecutionStatusUpdatedEventHandler implements DomainEventHandle
             compensated = compensated.withFinished(LocalDateTime.now());
         }
         processRepository.save(compensated);
+    }
+
+    /**
+     * Records a halted saga rollback: a compensation step failed after its own retries, so the
+     * process is <b>partially rolled back</b> and cannot finish undoing itself. Sets the distinct,
+     * sticky {@link ProcessStatus#COMPENSATION_FAILED} terminal state — never leaving it in ERROR,
+     * where a half-rolled-back saga would be indistinguishable from a plain failure and no metric
+     * would fire.
+     *
+     * <p>Unlike {@link #markCompensated}, the completion percentage is left as it stands: the
+     * rollback did NOT run to the end, and 100% would claim otherwise. The steps that never ran are
+     * still cancelled — nothing can advance on a terminal process — and the failure is both metered
+     * (the one compensation metric to alert on) and logged loudly. The parent of a child process
+     * was already notified as a failure when this process first went ERROR, so no re-notification
+     * is needed here.
+     */
+    private void markCompensationFailed(Process process, List<StepExecution> executions) {
+        if (ProcessStatus.COMPENSATION_FAILED.equals(process.getStatus())) {
+            return;
+        }
+        cancelStepsThatNeverRan(executions);
+        var failed = process.withStatus(ProcessStatus.COMPENSATION_FAILED);
+        if (failed.getFinished() == null) {
+            failed = failed.withFinished(LocalDateTime.now());
+        }
+        processRepository.save(failed);
+        workflowMetrics.compensationFailed(process.getWorkflowDefinitionId());
+        log.warn("Saga rollback halted for process {} (definition {}): a compensation step failed after "
+                        + "its retries, leaving the process partially rolled back. It is now "
+                        + "COMPENSATION_FAILED and needs manual resolution.",
+                process.getId(), process.getWorkflowDefinitionId());
     }
 
     /**

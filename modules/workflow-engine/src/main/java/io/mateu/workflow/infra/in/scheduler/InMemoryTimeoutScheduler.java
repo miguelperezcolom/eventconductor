@@ -2,6 +2,7 @@ package io.mateu.workflow.infra.in.scheduler;
 
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.out.UpstreamEventPublisher;
+import io.mateu.workflow.dtos.events.integration.RetryDueCheckRequested;
 import io.mateu.workflow.dtos.events.integration.TimeoutCheckRequested;
 import io.mateu.workflow.dtos.events.integration.TimerCheckRequested;
 import jakarta.annotation.PostConstruct;
@@ -58,6 +59,8 @@ public class InMemoryTimeoutScheduler {
                     upstreamEventPublisher.publish(new TimeoutCheckRequested(processId)));
             deadlines.dueTimerProcessIds().forEach(processId ->
                     upstreamEventPublisher.publish(new TimerCheckRequested(processId)));
+            deadlines.dueRetryProcessIds().forEach(processId ->
+                    upstreamEventPublisher.publish(new RetryDueCheckRequested(processId)));
         } catch (Throwable e) {
             log.error("Error checking step timeouts and timers", e);
         }

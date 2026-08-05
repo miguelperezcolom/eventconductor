@@ -222,7 +222,9 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
             case COMPLETED -> "COMPLETED";
             case ERROR, TIMEOUT -> "ERROR";
             case CANCELLED -> "CANCELLED";
-            case CREATED, PENDING -> "PENDING";
+            // A step waiting out its retry backoff reads as pending work on the graph, not as an
+            // error — it failed but is going to run again, and the overlay reason spells that out.
+            case CREATED, PENDING, AWAITING_RETRY -> "PENDING";
         };
     }
 
@@ -231,6 +233,9 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
         return switch (status) {
             case ERROR, TIMEOUT -> 5;
             case RUNNING -> 4;
+            // A pending retry outranks a plain pending: it is the more telling of the two when a
+            // step has several executions, because it says the last attempt failed.
+            case AWAITING_RETRY -> 4;
             case PENDING -> 3;
             case CREATED -> 2;
             case COMPLETED -> 1;
@@ -293,6 +298,8 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
             case RUNNING -> "Running" + (se.getWorkerId() != null ? " on worker " + se.getWorkerId() : "");
             case CREATED -> se.getAttemptCount() > 0 ? "Queued for retry" : "Queued, not started yet";
             case PENDING -> pendingReason(se, type);
+            case AWAITING_RETRY -> "Waiting to retry (attempt " + (se.getAttemptCount() + 1) + ")"
+                    + (se.getDeadlineAt() != null ? " at " + se.getDeadlineAt() : "");
             case ERROR -> (se.getAttemptCount() > 0 ? "Failed on attempt " + (se.getAttemptCount() + 1) : "Failed")
                     + (error != null ? ": " + error : "");
             case TIMEOUT -> "Timed out" + (se.getDeadlineAt() != null ? " (deadline " + se.getDeadlineAt() + ")" : "");
@@ -407,7 +414,7 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
         StatusType statusType = switch (status) {
             case CREATED -> StatusType.NONE;
             case PENDING -> StatusType.INFO;
-            case RUNNING -> StatusType.WARNING;
+            case RUNNING, AWAITING_RETRY -> StatusType.WARNING;
             case COMPLETED -> StatusType.SUCCESS;
             case ERROR, TIMEOUT, CANCELLED -> StatusType.DANGER;
         };

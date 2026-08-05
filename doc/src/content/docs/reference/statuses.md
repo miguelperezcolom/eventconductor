@@ -11,8 +11,9 @@ description: All status values for process instances and step executions.
 | `RUNNING` | At least one step is currently executing |
 | `PAUSED` | Held by an operator (or a paused definition) — no new steps start, clocks are frozen |
 | `COMPLETED` | All steps finished successfully |
-| `ERROR` | A step failed after exhausting all retries (and the process did not, or could not, fully roll back) |
+| `ERROR` | A step failed after exhausting all retries, and the process was left as it fell (no rollback, or nothing rollbackable had run) |
 | `COMPENSATED` | The process failed and every executed rollbackable step was successfully compensated in reverse execution order (saga rollback) |
+| `COMPENSATION_FAILED` | The process failed and a saga rollback started, but a compensation step itself failed after its own retries — the process is **partially rolled back** and needs manual resolution |
 | `CANCELLED` | Process was cancelled by an operator or a cancellation event |
 
 ### Status transitions
@@ -20,6 +21,7 @@ description: All status values for process instances and step executions.
 ```
 PENDING → RUNNING → COMPLETED
                   → ERROR → COMPENSATED (saga rollback finished)
+                          → COMPENSATION_FAILED (a compensation step itself failed)
          RUNNING → CANCELLED
 PENDING → CANCELLED
 PENDING / RUNNING → PAUSED → RUNNING (resume)
@@ -28,12 +30,15 @@ PAUSED → CANCELLED
 
 A process in `ERROR` can be retried, which transitions it back to `RUNNING`.
 
-`ERROR` and `COMPENSATED` are both reached by failing, but they are not the same outcome:
-`ERROR` means the process failed and was left as it fell; `COMPENSATED` means it failed and then
-undid its side effects, in order, to the end. While the rollback is running the process is
-`ERROR`; it flips to `COMPENSATED` only once the whole reverse-order compensation chain has
-completed. If a compensation itself fails after its own retries, the chain halts and the process
-stays `ERROR`. Both are sticky — nothing transitions them back to `RUNNING` on their own. See
+`ERROR`, `COMPENSATED` and `COMPENSATION_FAILED` are all reached by failing, but they are three
+different outcomes. `ERROR` means the process failed and was left as it fell. `COMPENSATED` means
+it failed and then undid its side effects, in order, to the end. While the rollback is running the
+process is `ERROR`; it flips to `COMPENSATED` only once the whole reverse-order compensation chain
+has completed. If a compensation step itself fails after its own retries, the chain halts and the
+process reaches the distinct, sticky `COMPENSATION_FAILED` — **not** left in `ERROR`, where a
+half-rolled-back saga would be indistinguishable from a plain failure. It also increments
+`eventconductor.compensations.failed` (the one compensation metric to alert on). All three are
+sticky — nothing transitions them back to `RUNNING` on their own. See
 [Retries, Timeouts & Compensation](/guides/retries-timeouts-compensation/).
 
 **A `COMPENSATED` process is finished, and reads as finished.** Its badge is green, like
@@ -73,25 +78,30 @@ processes and makes new instances be created born-`PAUSED` — see
 | `CREATED` | Scheduled by the orchestrator, waiting for the next orchestration loop tick — or waiting for its preconditions to complete and its guard to become true |
 | `PENDING` | Task dispatched to worker, awaiting acknowledgement |
 | `RUNNING` | Worker reported it has started processing |
+| `AWAITING_RETRY` | Failed with attempts remaining — waiting out its backoff delay before being re-dispatched. Carries a `deadlineAt` (when the backoff expires); the timeout scheduler wakes it |
 | `COMPLETED` | Worker reported success |
-| `ERROR` | Worker reported failure, or timeout after retries exhausted |
-| `TIMEOUT` | Step exceeded its configured `timeout` — will retry if retries remain |
+| `ERROR` | Worker reported failure, or timeout, after retries exhausted |
+| `TIMEOUT` | Step exceeded its configured `timeout` — will retry (via `AWAITING_RETRY`) if retries remain |
 | `CANCELLED` | Step was never run or was stopped: process cancellation, saga compensation, or process completion while the step was still waiting |
 
 ### Status transitions
 
 ```
 CREATED → PENDING → RUNNING → COMPLETED
-                            → ERROR
-                  → TIMEOUT → CREATED (retry, if attempts remain)
-                            → ERROR (if no retries remain)
-ERROR   → CREATED (retry — automatic if attempts remain, or manual process retry)
+                            → ERROR / TIMEOUT → AWAITING_RETRY (if attempts remain)
+                                              → ERROR           (if no retries remain)
+AWAITING_RETRY → CREATED (backoff elapsed — the scheduler re-dispatches it)
+ERROR          → CREATED (manual process/step retry)
 CREATED → CANCELLED (END step reached, or implicit completion, or process cancelled)
-PENDING → CANCELLED
-RUNNING → CANCELLED
+PENDING / RUNNING / AWAITING_RETRY → CANCELLED (process finished or cancelled)
 ```
 
-A retry (automatic while attempts remain, or a manual process retry) resets the step to `CREATED`, from where it is dispatched again on the next orchestration tick.
+**Auto-retry is asynchronous and backed off.** A failed step with attempts remaining is not
+re-dispatched immediately — it is parked in `AWAITING_RETRY` for a delay that grows exponentially
+per attempt (`workflow.retry.backoff-*`), so a worker that fails fast is never hammered in a tight
+loop. The timeout scheduler wakes the step once the delay elapses and returns it to `CREATED`, from
+where it is dispatched again. A **manual** process/step retry resets straight to `CREATED` (no
+backoff).
 
 ### Preconditions: there is no "skipped" status
 

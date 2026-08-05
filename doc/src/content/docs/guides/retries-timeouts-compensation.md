@@ -21,9 +21,27 @@ Set the `retries` field on a step to automatically re-dispatch the task when it 
 
 When a step fails:
 1. The orchestrator checks the retry count
-2. If retries remain, a new `TaskExecutionRequested` is dispatched
-3. The retry count is decremented
+2. If retries remain, the step is parked in `AWAITING_RETRY` for a **backoff delay**, then
+   re-dispatched with a new `TaskExecutionRequested` once the delay elapses
+3. The attempt count is incremented
 4. If all retries are exhausted, the step transitions to `ERROR` and the process to `ERROR`
+
+### Backoff
+
+Retries are **not** re-dispatched immediately — a worker that fails fast (bad config, a downstream
+`500`) would otherwise burn the entire retry budget in milliseconds and hammer the failing
+dependency in a tight loop, which defeats the purpose of retrying at all. Instead a failed step
+waits out an exponentially growing, jittered delay in `AWAITING_RETRY`, and the timeout scheduler
+re-dispatches it when the delay expires. Tune it globally:
+
+| Property | Default | Meaning |
+|---|---|---|
+| `workflow.retry.backoff-base-ms` | `1000` | Delay before the first retry |
+| `workflow.retry.backoff-multiplier` | `2.0` | Per-attempt growth (`1.0` = fixed delay) |
+| `workflow.retry.backoff-max-ms` | `60000` | Cap on the delay |
+| `workflow.retry.backoff-jitter` | `0.2` | ±fraction of randomness, so a fleet that failed together does not retry in lockstep |
+
+A **manual** retry (below) resets straight to `CREATED` with no backoff.
 
 ## Timeouts
 
@@ -125,8 +143,12 @@ any step fails after exhausting its retries:
    `reserve-flight` fails, `cancel-flight` runs first, then `cancel-hotel`.
 3. Each compensation starts only once the previous one has completed, so the order is strict.
 4. When the whole chain completes, the process transitions to the terminal **`COMPENSATED`**
-   state (a clean rollback — distinct from a raw `ERROR`). If a compensation itself fails after
-   its own retries, the chain halts and the process stays `ERROR`.
+   state (a clean rollback — distinct from a raw `ERROR`). If a compensation step itself fails
+   after its own retries, the chain halts and the process reaches the distinct terminal
+   **`COMPENSATION_FAILED`** — it is left **partially rolled back**, so it is *not* masked back into
+   a plain `ERROR`. This is the most dangerous saga outcome and is never silent: it increments the
+   `eventconductor.compensations.failed` metric (the one compensation metric to alert on) and logs
+   loudly, so an operator can find the process and resolve the inconsistent state by hand.
 
 A single failed rollbackable step is just the degenerate case of this cascade: its one
 compensation runs and the process ends `COMPENSATED`.

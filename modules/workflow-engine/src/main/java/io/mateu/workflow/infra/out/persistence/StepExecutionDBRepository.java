@@ -11,6 +11,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
+import static io.mateu.workflow.domain.aggregates.StepExecutionStatus.AWAITING_RETRY;
 import static io.mateu.workflow.domain.aggregates.StepExecutionStatus.PENDING;
 import static io.mateu.workflow.domain.aggregates.StepExecutionStatus.RUNNING;
 
@@ -122,16 +123,29 @@ public class StepExecutionDBRepository implements StepExecutionRepository {
 
     @Override
     public List<StepExecution> findDue(LocalDateTime now) {
+        // AWAITING_RETRY joins the scan so a step waiting out its backoff is woken the same way a
+        // TIMER is; classification (timeout vs timer vs retry) happens by status/type downstream.
         return stepExecutionEntityRepository
-                .findAllByStatusInAndDeadlineAtLessThanEqual(List.of(PENDING.name(), RUNNING.name()), now)
+                .findAllByStatusInAndDeadlineAtLessThanEqual(
+                        List.of(PENDING.name(), RUNNING.name(), AWAITING_RETRY.name()), now)
                 .stream().map(this::map).toList();
     }
 
     @Override
     public List<StepExecution> findDueByProcessId(String processId, LocalDateTime now) {
+        // Intentionally PENDING/RUNNING only: this feeds the timeout check, which must never see an
+        // AWAITING_RETRY step (its startedAt is the failed attempt's and would read as expired).
         return stepExecutionEntityRepository
                 .findAllByProcessIdAndStatusInAndDeadlineAtLessThanEqual(
                         processId, List.of(PENDING.name(), RUNNING.name()), now)
+                .stream().map(this::map).toList();
+    }
+
+    @Override
+    public List<StepExecution> findDueRetriesByProcessId(String processId, LocalDateTime now) {
+        return stepExecutionEntityRepository
+                .findAllByProcessIdAndStatusInAndDeadlineAtLessThanEqual(
+                        processId, List.of(AWAITING_RETRY.name()), now)
                 .stream().map(this::map).toList();
     }
 

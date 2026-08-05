@@ -29,6 +29,7 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
     public static final String STEP_DURATION = "eventconductor.step.duration";
     public static final String STEP_RETRIES = "eventconductor.step.retries";
     public static final String STEP_COMPENSATIONS = "eventconductor.step.compensations";
+    public static final String COMPENSATIONS_FAILED = "eventconductor.compensations.failed";
     public static final String CONCURRENT_WRITES_REJECTED = "eventconductor.process.concurrent.writes.rejected";
     public static final String EVENTS_DEAD_LETTERED = "eventconductor.events.dead.lettered";
 
@@ -103,6 +104,16 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
     public void compensationTriggered(String workflowDefinitionId) {
         Counter.builder(STEP_COMPENSATIONS)
                 .description("Compensation steps triggered after retries were exhausted")
+                .tag(TAG_WORKFLOW_DEFINITION_ID, tagValue(workflowDefinitionId))
+                .register(registry)
+                .increment();
+    }
+
+    @Override
+    public void compensationFailed(String workflowDefinitionId) {
+        Counter.builder(COMPENSATIONS_FAILED)
+                .description("Saga rollbacks that could not complete: a compensation step itself failed, "
+                        + "leaving the process partially rolled back (COMPENSATION_FAILED)")
                 .tag(TAG_WORKFLOW_DEFINITION_ID, tagValue(workflowDefinitionId))
                 .register(registry)
                 .increment();

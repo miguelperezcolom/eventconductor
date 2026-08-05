@@ -44,12 +44,14 @@ public class WorkflowOrchestrationService {
     public TransitionResult calculateNextTransitions(Process process, List<StepExecution> stepExecutions) {
         if (ProcessStatus.CANCELLED.equals(process.getStatus())
                 || ProcessStatus.PAUSED.equals(process.getStatus())
-                || ProcessStatus.COMPENSATED.equals(process.getStatus())) {
+                || ProcessStatus.COMPENSATED.equals(process.getStatus())
+                || ProcessStatus.COMPENSATION_FAILED.equals(process.getStatus())) {
             // A process being cancelled must not dispatch new steps. Same for a paused one:
             // in-flight steps may still complete (their reports are accepted), but their
             // successors are held here — and blocking-error handling is deferred — until
-            // the process is resumed. COMPENSATED is terminal (saga rollback finished): return
-            // it untouched so the blocking-error branch below can't flip it back to ERROR.
+            // the process is resumed. COMPENSATED and COMPENSATION_FAILED are terminal saga
+            // outcomes: return them untouched so the blocking-error branch below (the failed step
+            // is still ERROR) can't flip them back to a plain ERROR.
             return new TransitionResult(process, List.of(), false, false);
         }
 
@@ -221,7 +223,8 @@ public class WorkflowOrchestrationService {
                 .filter(execution -> !endSteps.contains(execution))
                 .filter(execution -> List.of(StepExecutionStatus.PENDING,
                                 StepExecutionStatus.CREATED,
-                                StepExecutionStatus.RUNNING)
+                                StepExecutionStatus.RUNNING,
+                                StepExecutionStatus.AWAITING_RETRY)
                         .contains(execution.getStatus()))
                 .map(execution -> execution.withStatus(StepExecutionStatus.CANCELLED))
                 .forEach(stepsToSave::add);
@@ -291,15 +294,21 @@ public class WorkflowOrchestrationService {
     }
 
     private boolean hasNoActiveStepsRemaining(List<StepExecution> stepExecutions) {
+        // AWAITING_RETRY is active work: a step waiting out its backoff will run again, so a process
+        // holding one has not reached the point where it can complete and cancel the rest.
         return stepExecutions.stream()
-                .noneMatch(execution -> List.of(StepExecutionStatus.PENDING, StepExecutionStatus.RUNNING)
+                .noneMatch(execution -> List.of(StepExecutionStatus.PENDING, StepExecutionStatus.RUNNING,
+                                StepExecutionStatus.AWAITING_RETRY)
                         .contains(execution.getStatus()));
     }
 
     private boolean canBeCompleted(Process process) {
-        return process.getStatus() != ProcessStatus.CANCELLED 
-                && process.getStatus() != ProcessStatus.ERROR 
-                && process.getStatus() != ProcessStatus.COMPLETED;
+        return process.getStatus() != ProcessStatus.CANCELLED
+                && process.getStatus() != ProcessStatus.ERROR
+                && process.getStatus() != ProcessStatus.COMPLETED
+                // Terminal saga states are never "completed" through the normal END path.
+                && process.getStatus() != ProcessStatus.COMPENSATED
+                && process.getStatus() != ProcessStatus.COMPENSATION_FAILED;
     }
 
     private Process completeProcess(Process process) {

@@ -11,6 +11,10 @@ description: Complete reference for all EventConductor configuration properties.
 | `workflow.persistence` | `jpa` \| `memory` | `memory` | Workflow state persistence mode |
 | `forms.persistence` | `jpa` \| `memory` | `memory` | Forms state persistence mode |
 | `workflow.timeout-scan-interval-ms` | ms | `10000` | How often the scheduler looks for expired step timeouts and due `TIMER` steps. The lookup is an indexed query on the step's materialised deadline, so its cost tracks the work that is due — normally none — and not how many steps are waiting; lowering it tightens firing latency without a scan penalty |
+| `workflow.retry.backoff-base-ms` | ms | `1000` | Auto-retry backoff for the first retry. A failed step with retries left is parked in `AWAITING_RETRY` and re-dispatched only after this delay, so a worker that fails fast is never hammered in a tight loop |
+| `workflow.retry.backoff-multiplier` | double | `2.0` | Exponential growth factor applied per attempt: the *n*-th retry waits `base × multiplier^(n-1)`, capped at `backoff-max-ms`. `1.0` = fixed delay |
+| `workflow.retry.backoff-max-ms` | ms | `60000` | Upper bound on the backoff delay, however many attempts have failed |
+| `workflow.retry.backoff-jitter` | double (0–1) | `0.2` | Randomises each delay by ±this fraction, so a fleet of steps that failed together (a downstream outage) do not all retry on the same tick. `0.0` disables jitter |
 | `workflow.cron-scan-interval-ms` | ms | `10000` | How often the scheduler checks `cronExpression` schedules on ACTIVE definitions |
 | `workflow.cron-enabled` | `true` \| `false` | `true` | Master switch for cron-scheduled process starts |
 | `workflow.outbox-poll-interval-ms` | ms | `500` | How long a relay waits before looking again **when nothing woke it**. A pod raises a signal after committing an outbox row of its own, so this is the fallback for rows written by other pods — a crashed pod's undelivered work, mostly — and no longer the latency every step pays. Before the signal it set per-transition latency directly: 500 ms here meant ~500 ms per transition |

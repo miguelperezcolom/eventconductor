@@ -50,6 +50,25 @@ class CompensationE2eTest extends AbstractE2eTest {
     }
 
     @Test
+    void aFailedCompensationReachesCompensationFailed_notSilentlyWedged() {
+        worker.on("charge", TestWorker.fail());   // rollbackable step fails → triggers rollback
+        worker.on("refund", TestWorker.fail());   // the compensation itself fails (retries=0)
+
+        createProcess("compensation", "comp-4");
+
+        assertThat(step("comp-4", "charge").getStatus()).isEqualTo(StepExecutionStatus.ERROR);
+        assertThat(step("comp-4", "refund").getStatus()).isEqualTo(StepExecutionStatus.ERROR);
+        // The whole point of the fix: a saga whose compensation fails must reach the distinct,
+        // sticky COMPENSATION_FAILED terminal — never left in ERROR, half-rolled-back and silent.
+        assertThat(process("comp-4").getStatus())
+                .as("a failed compensation must surface as COMPENSATION_FAILED, not a plain ERROR")
+                .isEqualTo(ProcessStatus.COMPENSATION_FAILED);
+        // It is terminal: finished is stamped and 'end' can never run.
+        assertThat(process("comp-4").getFinished()).isNotNull();
+        assertThat(step("comp-4", "end").getStatus()).isEqualTo(StepExecutionStatus.CANCELLED);
+    }
+
+    @Test
     void aCompensationDoesNotRunWhenNothingWentWrong() {
         worker.on("charge", TestWorker.succeed());
         worker.on("refund", TestWorker.succeed());

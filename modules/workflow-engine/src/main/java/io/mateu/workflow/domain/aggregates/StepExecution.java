@@ -363,7 +363,7 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
      * Returns this step to the state it was created in, so the process can run it again as if it
      * never had: no attempt behind it, no start, no deadline and nothing subscribed.
      *
-     * <p>Distinct from {@link #scheduleRetry()}, which is the automatic retry of a step that just
+     * <p>Distinct from {@link #scheduleRetry(java.time.Duration)}, which is the automatic retry of a step that just
      * failed and deliberately keeps counting attempts against the step's own retry budget. This is
      * an operator restarting a whole process from the beginning, where a step that already
      * succeeded is going to run a second time and its history of the first run is no longer the
@@ -389,17 +389,39 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
     }
 
     /**
-     * Resets this step execution for a new attempt.
-     * Increments {@code attemptCount}, sets status back to CREATED and logs the retry.
-     * Does NOT emit a domain event — the caller is responsible for driving the next cycle.
+     * Schedules a new attempt after a backoff delay instead of re-dispatching immediately.
+     * Increments {@code attemptCount}, parks the step in {@link StepExecutionStatus#AWAITING_RETRY}
+     * with {@code deadlineAt} set to {@code now + backoff}, and logs it. The timeout scheduler wakes
+     * the step once the deadline passes and {@link #releaseForRetry()} returns it to CREATED so the
+     * process re-dispatches it. A zero or negative backoff still parks the step for the scheduler's
+     * next tick rather than spinning here — a failing worker must never be hammered in a tight loop.
+     *
+     * <p>Does NOT emit a {@code StepExecutionStatusChanged} — the step is not yet running again and
+     * the wait is driven off {@code deadlineAt}, not off the normal status pipeline.
      */
-    public void scheduleRetry() {
+    public void scheduleRetry(java.time.Duration backoff) {
         this.attemptCount++;
+        this.status = StepExecutionStatus.AWAITING_RETRY;
+        this.finishedAt = null;
+        this.workerId = null;
+        var delay = backoff == null || backoff.isNegative() ? java.time.Duration.ZERO : backoff;
+        this.deadlineAt = LocalDateTime.now().plus(delay);
+        send(new TaskLogEmitted(id, MessageType.Info,
+                "Auto-retry attempt " + attemptCount + " for step " + stepId
+                        + " scheduled in " + delay.toMillis() + " ms (at " + deadlineAt + ")"));
+    }
+
+    /**
+     * Returns a step parked in {@link StepExecutionStatus#AWAITING_RETRY} to CREATED so the process
+     * can dispatch it again. Keeps {@code attemptCount} (this is a retry, not a fresh run) and clears
+     * the backoff deadline; {@link #start(Process)} arms a new one. Does NOT emit a domain event —
+     * the caller drives the next step-over.
+     */
+    public void releaseForRetry() {
         this.status = StepExecutionStatus.CREATED;
         this.finishedAt = null;
-        // The previous attempt's deadline is meaningless now; start() arms a fresh one.
         this.deadlineAt = null;
         send(new TaskLogEmitted(id, MessageType.Info,
-                "Auto-retry attempt " + attemptCount + " scheduled for step " + stepId));
+                "Backoff elapsed; re-dispatching step " + stepId + " (attempt " + attemptCount + ")"));
     }
 }

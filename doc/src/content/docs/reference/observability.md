@@ -51,6 +51,7 @@ modes** (embedded + memory, embedded + jpa, kafka + jpa).
 | `eventconductor.step.duration` | Timer | `workflowDefinitionId`, `outcome` | Step execution duration, from dispatch to final status |
 | `eventconductor.step.retries` | Counter | `workflowDefinitionId`, `trigger` | Retries performed (`auto` = retry policy, `manual` = user-initiated) |
 | `eventconductor.step.compensations` | Counter | `workflowDefinitionId` | Compensation steps triggered after retries were exhausted |
+| `eventconductor.compensations.failed` | Counter | `workflowDefinitionId` | Saga rollbacks that could **not** complete — a compensation step itself failed, leaving the process partially rolled back (`COMPENSATION_FAILED`). Alert on any non-zero rate: it is business state left inconsistent for a human to resolve |
 | `eventconductor.process.running` | Gauge | — | Processes currently in `RUNNING` status |
 | `eventconductor.outbox.pending` | Gauge | — | Outbox messages waiting to be relayed (only with `workflow.persistence=jpa`; the in-memory mode has no outbox). Rises during a broker outage and must return to zero |
 | `eventconductor.steps.stalled` | Gauge | — | ACTION and RULE steps with **no deadline** that have been waiting on a worker longer than `workflow.stalled-step-after-ms`. The one gauge to alert on — see below |

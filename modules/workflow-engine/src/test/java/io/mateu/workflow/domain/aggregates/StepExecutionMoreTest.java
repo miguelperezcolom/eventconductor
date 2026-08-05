@@ -27,16 +27,32 @@ class StepExecutionMoreTest {
     }
 
     @Test
-    void scheduleRetryIncrementsAttemptCountAndResetsStatus() {
+    void scheduleRetryIncrementsAttemptCountAndParksAwaitingRetry() {
         var step = actionStep();
         var se = StepExecution.create(step, "p-1", 0);
         se.start(process(List.of()));
         se.popEvents();
 
-        se.scheduleRetry();
+        se.scheduleRetry(java.time.Duration.ofMillis(1000));
 
         assertThat(se.getAttemptCount()).isEqualTo(1);
+        assertThat(se.getStatus()).isEqualTo(StepExecutionStatus.AWAITING_RETRY);
+        // The backoff deadline is set so the timeout scheduler can wake it.
+        assertThat(se.getDeadlineAt()).isNotNull();
+    }
+
+    @Test
+    void releaseForRetryReturnsToCreatedKeepingAttemptCount() {
+        var step = actionStep();
+        var se = StepExecution.create(step, "p-1", 0);
+        se.scheduleRetry(java.time.Duration.ofMillis(1000));
+        se.popEvents();
+
+        se.releaseForRetry();
+
         assertThat(se.getStatus()).isEqualTo(StepExecutionStatus.CREATED);
+        assertThat(se.getAttemptCount()).isEqualTo(1);
+        assertThat(se.getDeadlineAt()).isNull();
     }
 
     @Test
@@ -44,7 +60,7 @@ class StepExecutionMoreTest {
         var step = actionStep();
         var se = StepExecution.create(step, "p-1", 0);
 
-        se.scheduleRetry();
+        se.scheduleRetry(java.time.Duration.ZERO);
 
         var events = se.popEvents();
         assertThat(events).hasSize(1);
@@ -158,11 +174,11 @@ class StepExecutionMoreTest {
         var step = actionStep();
         var se = StepExecution.create(step, "p-1", 0);
 
-        se.scheduleRetry();
+        se.scheduleRetry(java.time.Duration.ZERO);
         se.popEvents();
-        se.scheduleRetry();
+        se.scheduleRetry(java.time.Duration.ZERO);
         se.popEvents();
-        se.scheduleRetry();
+        se.scheduleRetry(java.time.Duration.ZERO);
 
         assertThat(se.getAttemptCount()).isEqualTo(3);
     }
