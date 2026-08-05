@@ -1,0 +1,19 @@
+{
+  "id": "compensation",
+  "name": "Compensation without an anchor",
+  "version": 1,
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    {
+      "id": "charge",
+      "type": "ACTION",
+      "name": "Charge card",
+      "topic": "work",
+      "rollbackable": true,
+      "compensationStepId": "refund",
+      "preconditionStepId": "start"
+    },
+    { "id": "refund", "type": "ACTION", "name": "Refund", "topic": "work" },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "charge" }
+  ]
+}

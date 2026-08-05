@@ -1,0 +1,11 @@
+{
+  "id": "unreachable",
+  "name": "A step nothing can start",
+  "version": 1,
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "s1", "type": "ACTION", "name": "First", "topic": "work", "preconditionStepId": "start" },
+    { "id": "orphan", "type": "ACTION", "name": "Orphan", "topic": "work" },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "s1" }
+  ]
+}

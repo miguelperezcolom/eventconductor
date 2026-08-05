@@ -223,7 +223,7 @@ class WorkflowDefinitionInvariantsTest {
                 .hasMessageContaining("step-2");
     }
 
-    // ── Roots rule: every flow must enter through a START (or WAIT_FOR_MESSAGE) ──
+    // ── Reachability: a step with no preconditions must be an entry point or a compensation ──
 
     @Test
     void shouldFailWhenARootStepIsNotStartNorWaitForMessage() {
@@ -231,7 +231,20 @@ class WorkflowDefinitionInvariantsTest {
         assertThatThrownBy(() -> definition(steps).checkInvariants())
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("step-1")
-                .hasMessageContaining("every flow must enter through one");
+                .hasMessageContaining("nothing would ever start it");
+    }
+
+    @Test
+    void shouldPassWhenACompensationStepHasNoPreconditionsOfItsOwn() {
+        // A compensation is declared on the step it undoes and started by the rollback pipeline.
+        // Having to give it a way in of its own is what produced the false-guarded anchor, and a
+        // way in it does not need is a way in that can fire.
+        var steps = List.of(
+                startStep(),
+                step("charge", "start", "refund"),
+                step("refund", (String) null, null)
+        );
+        assertThatNoException().isThrownBy(() -> definition(steps).checkInvariants());
     }
 
     @Test

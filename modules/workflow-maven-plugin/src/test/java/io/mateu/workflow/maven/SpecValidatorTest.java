@@ -69,6 +69,20 @@ class SpecValidatorTest {
     }
 
     @Test
+    void aCompensationStepNeedsNoWayInOfItsOwn() throws Exception {
+        // It is declared on the step it undoes and started by the rollback pipeline. Requiring a
+        // precondition here is what produced the anchor-with-a-false-guard, and an anchor written
+        // without the guard is a compensation wired into the happy path.
+        assertThat(validate(SpecValidator.Kind.WORKFLOW, "/valid/workflows/compensation.json")).isEmpty();
+    }
+
+    @Test
+    void aStepNothingCanStartIsReported() throws Exception {
+        assertThat(validate(SpecValidator.Kind.WORKFLOW, "/invalid/workflows/unreachable-step.json"))
+                .anySatisfy(v -> assertThat(v).contains("'orphan'", "nothing would ever start it"));
+    }
+
+    @Test
     void duplicateStepIdIsReported() throws Exception {
         assertThat(validate(SpecValidator.Kind.WORKFLOW, "/invalid/workflows/duplicate-id.json"))
                 .anySatisfy(v -> assertThat(v).contains("Duplicate step id 's1'"));

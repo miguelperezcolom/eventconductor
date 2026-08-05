@@ -208,4 +208,54 @@ class WorkflowOrchestrationServiceTest {
         assertThat(result.isProcessErrored()).isFalse();
         assertThat(result.getStepsToSave()).isEmpty();
     }
+
+    // ── Nothing to wait for is not permission to run ──
+
+    @Test
+    void aStepWithNoPreconditionsDoesNotRunUnlessItIsAnEntryPoint() {
+        // 'refund' compensates 'charge'. It declares no way in because it needs none: the
+        // rollback pipeline starts it. Read as "no preconditions, so all of them are satisfied",
+        // it would instead run the moment the process began.
+        var start = se(step("start", StepType.START, null, null), StepExecutionStatus.COMPLETED);
+        var charge = se(step("charge", StepType.ACTION, "start", null), StepExecutionStatus.COMPLETED);
+        var next = se(step("next", StepType.ACTION, "charge", null), StepExecutionStatus.CREATED);
+        var refund = se(step("refund", StepType.ACTION, null, null), StepExecutionStatus.CREATED);
+
+        var result = service.calculateNextTransitions(process(), List.of(start, charge, next, refund));
+
+        assertThat(result.getStepsToSave()).extracting(StepExecution::getStepId)
+                .containsExactly("next");
+    }
+
+    @Test
+    void aCompensationNeverNeededIsCancelledWithEverythingElseWhenTheFlowRunsOut() {
+        // And it does not hold the process open either: it is not waiting for anything, it is
+        // simply not part of this run.
+        var start = se(step("start", StepType.START, null, null), StepExecutionStatus.COMPLETED);
+        var charge = se(step("charge", StepType.ACTION, "start", null), StepExecutionStatus.COMPLETED);
+        var refund = se(step("refund", StepType.ACTION, null, null), StepExecutionStatus.CREATED);
+
+        var result = service.calculateNextTransitions(process(), List.of(start, charge, refund));
+
+        assertThat(result.getStepsToSave()).extracting(StepExecution::getStepId).containsExactly("refund");
+        assertThat(result.getStepsToSave().get(0).getStatus()).isEqualTo(StepExecutionStatus.CANCELLED);
+        assertThat(result.isProcessCompleted()).isTrue();
+    }
+
+    @Test
+    void aMessageStartStillArmsItselfWithNoPreconditions() {
+        // The exception that keeps its reason: a flow entered by a message has to be subscribed
+        // when the process is created, or the message it waits for finds nothing to correlate.
+        var messageStart = new Step("wait", "wd-1", StepType.WAIT_FOR_MESSAGE, "Wait", null,
+                null, null, null, false, null, null, null, null, null, 0, null,
+                "payment-captured", "businessKey", null, 0, 0, false, null, 0, null);
+        var waiting = se(messageStart, StepExecutionStatus.CREATED);
+        var correlatable = Process.builder().id("p-1").businessKey("bk-1")
+                .status(ProcessStatus.RUNNING).variables(List.of()).build();
+
+        var result = service.calculateNextTransitions(correlatable, List.of(waiting));
+
+        assertThat(result.getStepsToSave()).extracting(StepExecution::getStepId).containsExactly("wait");
+        assertThat(result.getStepsToSave().get(0).getStatus()).isEqualTo(StepExecutionStatus.PENDING);
+    }
 }

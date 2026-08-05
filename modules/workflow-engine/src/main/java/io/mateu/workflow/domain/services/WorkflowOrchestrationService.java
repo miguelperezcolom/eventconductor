@@ -108,6 +108,9 @@ public class WorkflowOrchestrationService {
     }
 
     private boolean checkPreconditionStep(Step step, Process process, List<StepExecution> stepExecutions) {
+        if (step.resolvedPreconditions().isEmpty()) {
+            return isAnEntryPoint(step);
+        }
         // A precondition is satisfied once its step has a COMPLETED execution AND its own guard,
         // if it declares one, holds. An XOR join proceeds as soon as ANY incoming branch is
         // satisfied; every other step — including an AND join, the default barrier — needs them ALL.
@@ -128,6 +131,25 @@ public class WorkflowOrchestrationService {
         return xorJoin
                 ? step.resolvedPreconditions().stream().anyMatch(satisfied)
                 : step.resolvedPreconditions().stream().allMatch(satisfied);
+    }
+
+    /**
+     * Whether a step with nothing to wait for may nevertheless run.
+     *
+     * <p>Only a flow's entry points may: START, and a WAIT_FOR_MESSAGE that begins a flow rather
+     * than sitting inside one — that one has to be armed when the process is created or the
+     * message it waits for finds nothing to correlate with.
+     *
+     * <p>Everything else with no incoming link is a step that some other mechanism starts, or a
+     * mistake, and running it at process creation serves neither. The mechanism this exists for
+     * is compensation: a compensation is declared on the step it undoes, and the rollback
+     * pipeline starts it directly, so it needs no way in of its own. Reading "no preconditions"
+     * as "run immediately" is what forced compensation steps to be anchored to some unrelated
+     * step with a permanently false guard — a fiction that had to be written correctly every
+     * time, and that silently turned into a live branch of the happy path when it was not.
+     */
+    private boolean isAnEntryPoint(Step step) {
+        return StepType.START.equals(step.type()) || StepType.WAIT_FOR_MESSAGE.equals(step.type());
     }
 
     /** A link's own condition. Fail-closed, exactly like the step-level one. */

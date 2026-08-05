@@ -250,6 +250,9 @@ public record WorkflowDefinition(
      */
     public void checkInvariants() {
         if (steps == null) return;
+        // Reachability below is judged against these: a compensation is declared on the step it
+        // undoes and started by the rollback pipeline, so it needs no way in of its own.
+        var compensationTargets = compensationTargets();
         // At most one START: a flow has a single entry point (or enters via WAIT_FOR_MESSAGE).
         // Multiple END steps are fine — a flow may finish through several distinct outcomes.
         long startCount = steps.stream().filter(s -> StepType.START.equals(s.type())).count();
@@ -277,10 +280,11 @@ public record WorkflowDefinition(
                         "START step '" + step.id() + "' cannot have preconditions.");
             }
             if (!StepType.START.equals(step.type()) && !StepType.WAIT_FOR_MESSAGE.equals(step.type())
-                    && step.preconditionIds().isEmpty()) {
+                    && step.preconditionIds().isEmpty() && !compensationTargets.contains(step.id())) {
                 throw new IllegalStateException(
-                        "Step '" + step.id() + "' has no preconditions but is not a START or"
-                                + " WAIT_FOR_MESSAGE — every flow must enter through one.");
+                        "Step '" + step.id() + "' has no preconditions and is not a START, a"
+                                + " WAIT_FOR_MESSAGE or another step's compensation — nothing"
+                                + " would ever start it.");
             }
             if (StepType.PROCESS.equals(step.type())) {
                 if (step.childWorkflowDefinitionId() == null || step.childWorkflowDefinitionId().isBlank()) {
@@ -340,21 +344,29 @@ public record WorkflowDefinition(
         }
     }
 
+    /** The steps some other step names as its {@code compensationStepId}. */
+    private java.util.Set<String> compensationTargets() {
+        var targets = new java.util.HashSet<String>();
+        for (var step : steps) {
+            if (step.compensationStepId() != null && !step.compensationStepId().isBlank()) {
+                targets.add(step.compensationStepId());
+            }
+        }
+        return targets;
+    }
+
     /**
      * Non-fatal style guidance toward the FORK/JOIN gateway model: a normal step should have a
      * single incoming and a single outgoing flow, using FORK to split and JOIN to merge. These are
-     * WARNINGS, not errors — compensation anchors (the false-guarded edge into a step that is some
-     * other step's {@code compensationStepId}) are excluded from the counts, and conditional splits
-     * (several guarded successors) stay allowed. Returns one message per node that could be clearer.
+     * WARNINGS, not errors — edges into a compensation step are excluded from the counts (a
+     * compensation needs no incoming edge at all now, but definitions written before that anchored
+     * it to some step with a permanently false guard, and that anchor was never real flow) — and
+     * conditional splits (several guarded successors) stay allowed. Returns one message per node
+     * that could be clearer.
      */
     public List<String> topologyWarnings() {
         if (steps == null || steps.isEmpty()) return List.of();
-        var compensationTargets = new java.util.HashSet<String>();
-        for (var step : steps) {
-            if (step.compensationStepId() != null && !step.compensationStepId().isBlank()) {
-                compensationTargets.add(step.compensationStepId());
-            }
-        }
+        var compensationTargets = compensationTargets();
         // Real outgoing edges per node, excluding the anchor edges into compensation steps.
         var realOut = new java.util.LinkedHashMap<String, Integer>();
         for (var step : steps) {

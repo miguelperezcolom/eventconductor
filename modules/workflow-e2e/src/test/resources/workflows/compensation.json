@@ -22,9 +22,7 @@
       "id": "refund",
       "type": "ACTION",
       "name": "Refund",
-      "topic": "work",
-      "preconditionExpression": "false",
-      "preconditionStepId": "start"
+      "topic": "work"
     },
     {
       "id": "end",

@@ -353,7 +353,7 @@
             "string",
             "null"
           ],
-          "description": "ID of the step that undoes this step's effect. Run during saga rollback (in reverse execution order) when the process fails. Only relevant when rollbackable is true. Anchor the compensation step to a precondition and guard it with preconditionExpression 'false' so the normal flow never starts it."
+          "description": "ID of the step that undoes this step's effect. Run during saga rollback (in reverse execution order) when the process fails. Only relevant when rollbackable is true. The compensation step needs no preconditions of its own: being named here is what makes it reachable, and the rollback pipeline starts it directly. (Definitions written before that anchor it to a precondition and guard it with preconditionExpression 'false'; still supported.)"
         },
         "maxSuccessfulExecutions": {
           "type": [

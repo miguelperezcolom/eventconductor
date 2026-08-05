@@ -149,11 +149,18 @@ public class SpecValidator {
             return; // the schema already reports a missing/!array steps list
         }
         Set<String> ids = new HashSet<>();
+        // A compensation is declared on the step it undoes and started by the rollback pipeline,
+        // so it needs no way in of its own — which the reachability check below has to know.
+        Set<String> compensationTargets = new HashSet<>();
         for (JsonNode step : steps) {
             String id = text(step, "id");
             if (id == null) continue;
             if (!ids.add(id)) {
                 violations.add("Duplicate step id '" + id + "'.");
+            }
+            String compensationOfThisStep = text(step, "compensationStepId");
+            if (isSet(compensationOfThisStep)) {
+                compensationTargets.add(compensationOfThisStep);
             }
         }
         String workflowId = text(wf, "id");
@@ -180,9 +187,11 @@ public class SpecValidator {
             if ("START".equals(type) && !preconditions.isEmpty()) {
                 violations.add("START step '" + id + "' cannot have preconditions.");
             }
-            if (!"START".equals(type) && !"WAIT_FOR_MESSAGE".equals(type) && preconditions.isEmpty()) {
-                violations.add("Step '" + id + "' has no preconditions but is not a START or"
-                        + " WAIT_FOR_MESSAGE — every flow must enter through one.");
+            if (!"START".equals(type) && !"WAIT_FOR_MESSAGE".equals(type) && preconditions.isEmpty()
+                    && !compensationTargets.contains(id)) {
+                violations.add("Step '" + id + "' has no preconditions and is not a START, a"
+                        + " WAIT_FOR_MESSAGE or another step's compensation — nothing would ever"
+                        + " start it.");
             }
             if ("PROCESS".equals(type)) {
                 String childWorkflowDefinitionId = text(step, "childWorkflowDefinitionId");

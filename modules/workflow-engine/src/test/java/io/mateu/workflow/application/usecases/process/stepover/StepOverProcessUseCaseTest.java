@@ -56,18 +56,33 @@ class StepOverProcessUseCaseTest {
     }
 
     private StepExecution se(String id, String stepId, StepType type, StepExecutionStatus status, int order) {
-        Step step = new Step(stepId, "wd-1", type, stepId, null, null, null, null, false, "topic", "form-1", null, null, null, 0, null, null, null, null, 0, 0, false, null, 0, null);
+        return se(id, stepId, type, status, order, null);
+    }
+
+    /**
+     * Steps are anchored to a precondition here as they are in a real definition: since only an
+     * entry point may run with nothing to wait for, a fixture without one is a step that never
+     * starts — which several of these tests would have passed anyway, for the wrong reason.
+     */
+    private StepExecution se(String id, String stepId, StepType type, StepExecutionStatus status,
+                             int order, String preconditionStepId) {
+        Step step = new Step(stepId, "wd-1", type, stepId, null, preconditionStepId, null, null, false, "topic", "form-1", null, null, null, 0, null, null, null, null, 0, 0, false, null, 0, null);
         return StepExecution.builder()
                 .id(id).processId("p-1").workflowDefinitionId("wd-1")
                 .stepId(stepId).stepJson(JsonSerializer.toJson(step))
                 .status(status).order(order).variables(List.of()).build();
     }
 
+    /** A START that has already been passed through, so its successors are eligible. */
+    private StepExecution startedFlow() {
+        return se("se-start", "start", StepType.START, StepExecutionStatus.COMPLETED, -1);
+    }
+
     @Test
     void completedStepsAreSkipped() {
         var process = process("p-1");
         var completed = se("se-1", "step-1", StepType.ACTION, StepExecutionStatus.COMPLETED, 0);
-        var pending = se("se-2", "step-2", StepType.ACTION, StepExecutionStatus.CREATED, 1);
+        var pending = se("se-2", "step-2", StepType.ACTION, StepExecutionStatus.CREATED, 1, "step-1");
 
         when(processRepository.findById("p-1")).thenReturn(Optional.of(process));
         when(stepExecutionRepository.findByProcess(process)).thenReturn(List.of(completed, pending));
@@ -82,10 +97,10 @@ class StepOverProcessUseCaseTest {
     @Test
     void endStepCompletesProcess() {
         var process = process("p-1");
-        var endStep = se("se-1", "end", StepType.END, StepExecutionStatus.CREATED, 0);
+        var endStep = se("se-1", "end", StepType.END, StepExecutionStatus.CREATED, 0, "start");
 
         when(processRepository.findById("p-1")).thenReturn(Optional.of(process));
-        when(stepExecutionRepository.findByProcess(process)).thenReturn(List.of(endStep));
+        when(stepExecutionRepository.findByProcess(process)).thenReturn(List.of(startedFlow(), endStep));
 
         useCase.handle(new StepOverProcessCommand("p-1"));
 
@@ -132,11 +147,11 @@ class StepOverProcessUseCaseTest {
         // Pure dataflow: an in-flight step only gates its own successors. A CREATED step
         // whose preconditions are met starts even while an unrelated step is PENDING.
         var process = process("p-1");
-        var pending = se("se-1", "step-1", StepType.ACTION, StepExecutionStatus.PENDING, 0);
-        var created = se("se-2", "step-2", StepType.ACTION, StepExecutionStatus.CREATED, 1);
+        var pending = se("se-1", "step-1", StepType.ACTION, StepExecutionStatus.PENDING, 0, "start");
+        var created = se("se-2", "step-2", StepType.ACTION, StepExecutionStatus.CREATED, 1, "start");
 
         when(processRepository.findById("p-1")).thenReturn(Optional.of(process));
-        when(stepExecutionRepository.findByProcess(process)).thenReturn(List.of(pending, created));
+        when(stepExecutionRepository.findByProcess(process)).thenReturn(List.of(startedFlow(), pending, created));
 
         useCase.handle(new StepOverProcessCommand("p-1"));
 
@@ -195,11 +210,11 @@ class StepOverProcessUseCaseTest {
     @Test
     void errorStepBlocksFlowAndMarksProcessAsError() {
         var process = process("p-1");
-        var failed = se("se-1", "step-1", StepType.ACTION, StepExecutionStatus.ERROR, 0);
-        var next = se("se-2", "step-2", StepType.ACTION, StepExecutionStatus.CREATED, 1);
+        var failed = se("se-1", "step-1", StepType.ACTION, StepExecutionStatus.ERROR, 0, "start");
+        var next = se("se-2", "step-2", StepType.ACTION, StepExecutionStatus.CREATED, 1, "step-1");
 
         when(processRepository.findById("p-1")).thenReturn(Optional.of(process));
-        when(stepExecutionRepository.findByProcess(process)).thenReturn(List.of(failed, next));
+        when(stepExecutionRepository.findByProcess(process)).thenReturn(List.of(startedFlow(), failed, next));
 
         useCase.handle(new StepOverProcessCommand("p-1"));
 
@@ -217,8 +232,8 @@ class StepOverProcessUseCaseTest {
     @Test
     void parallelStepsAreAllStarted() {
         var process = process("p-1");
-        Step step1 = new Step("s1", "wd-1", StepType.ACTION, "s1", null, null, null, null, true, "topic", null, null, null, null, 0, null, null, null, null, 0, 0, false, null, 0, null);
-        Step step2 = new Step("s2", "wd-1", StepType.ACTION, "s2", null, null, null, null, true, "topic", null, null, null, null, 0, null, null, null, null, 0, 0, false, null, 0, null);
+        Step step1 = new Step("s1", "wd-1", StepType.ACTION, "s1", null, "start", null, null, true, "topic", null, null, null, null, 0, null, null, null, null, 0, 0, false, null, 0, null);
+        Step step2 = new Step("s2", "wd-1", StepType.ACTION, "s2", null, "start", null, null, true, "topic", null, null, null, null, 0, null, null, null, null, 0, 0, false, null, 0, null);
         var se1 = StepExecution.builder().id("se-1").processId("p-1").workflowDefinitionId("wd-1")
                 .stepId("s1").stepJson(JsonSerializer.toJson(step1))
                 .status(StepExecutionStatus.CREATED).order(0).variables(List.of()).build();
@@ -227,7 +242,7 @@ class StepOverProcessUseCaseTest {
                 .status(StepExecutionStatus.CREATED).order(1).variables(List.of()).build();
 
         when(processRepository.findById("p-1")).thenReturn(Optional.of(process));
-        when(stepExecutionRepository.findByProcess(process)).thenReturn(List.of(se1, se2));
+        when(stepExecutionRepository.findByProcess(process)).thenReturn(List.of(startedFlow(), se1, se2));
 
         useCase.handle(new StepOverProcessCommand("p-1"));
 
@@ -237,7 +252,7 @@ class StepOverProcessUseCaseTest {
     @Test
     void stepWithUnmetPreconditionStepIdIsNotStarted() {
         var process = process("p-1");
-        Step prerequisite = new Step("prereq", "wd-1", StepType.ACTION, "prereq", null, null, null, null, false, "topic", null, null, null, null, 0, null, null, null, null, 0, 0, false, null, 0, null);
+        Step prerequisite = new Step("prereq", "wd-1", StepType.ACTION, "prereq", null, "start", null, null, false, "topic", null, null, null, null, 0, null, null, null, null, 0, 0, false, null, 0, null);
         Step dependent = new Step("dep", "wd-1", StepType.ACTION, "dep", null, "prereq", null, null, false, "topic", null, null, null, null, 0, null, null, null, null, 0, 0, false, null, 0, null);
         var sePrereq = StepExecution.builder().id("se-prereq").processId("p-1").workflowDefinitionId("wd-1")
                 .stepId("prereq").stepJson(JsonSerializer.toJson(prerequisite))
@@ -247,7 +262,7 @@ class StepOverProcessUseCaseTest {
                 .status(StepExecutionStatus.CREATED).order(1).variables(List.of()).build();
 
         when(processRepository.findById("p-1")).thenReturn(Optional.of(process));
-        when(stepExecutionRepository.findByProcess(process)).thenReturn(List.of(sePrereq, seDependent));
+        when(stepExecutionRepository.findByProcess(process)).thenReturn(List.of(startedFlow(), sePrereq, seDependent));
 
         useCase.handle(new StepOverProcessCommand("p-1"));
 
