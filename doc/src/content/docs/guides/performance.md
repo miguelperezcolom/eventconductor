@@ -88,13 +88,29 @@ The practical order for tuning, once your workers are not the bottleneck:
    from every pod.
 4. Only then start moving poll intervals and batch sizes.
 
-## What we do not claim
+## Scaling past one database
 
-EventConductor keeps its state in a shared relational database. Camunda 8 (Zeebe) keeps it in a
-partitioned log with local state and no database in the hot path; Temporal shards its storage
-horizontally. **Both will out-scale a single database, and no amount of tuning here changes that.**
+By default EventConductor keeps its state in one shared relational database, and the write ceiling is
+**your database's, not the engine's**: the engine adds no ceiling of its own above what your database
+and your workers can do — and you can verify that on your own hardware, in an afternoon, with the
+harness in this repository. Numbers you can reproduce are worth more than numbers you cannot.
 
-What the design buys instead is that the engine adds no ceiling of its own above what your database
-and your workers can do — and that you can verify that claim on your own hardware, in an afternoon,
-with the harness in this repository. Numbers you can reproduce are worth more than numbers you
-cannot.
+For a long time that single database was also the hard limit — the honest thing to concede against
+Zeebe (a partitioned log, no database in the hot path) and Temporal (storage sharded horizontally).
+**It no longer is.** [Sharding](/reference/configuration/#sharding-advanced-opt-in) runs the engine as
+**N shared-nothing shards**, each a full stack with its own database, so writes scale horizontally with
+the shard count — the same shard-your-storage principle Temporal uses. It falls out of the design
+almost for free: a process is keyed to a partition and lives entirely on one shard, so shards never
+coordinate.
+
+Two properties make it practical rather than a rewrite:
+
+- **Opt-in and config-only.** A shard is the stock engine re-pointed by config (`workflow.sharding.*`,
+  off by default); a single-database deployment is unchanged and never touches any of it.
+- **Elastic, without migration.** Shards are added and removed **hot**. Because a process is transient,
+  rebalancing is by *draining* — a new shard takes new work, a removed one finishes what it holds and
+  then leaves — so there is no reshard and no data copy. (See the elastic-sharding design in the
+  benchmark module.)
+
+So the ceiling is what you provision: one database's throughput, or N of them. What stays constant is
+that the engine adds nothing on top — a claim the harness lets you check either way.
