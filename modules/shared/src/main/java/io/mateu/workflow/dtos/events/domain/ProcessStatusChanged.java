@@ -18,6 +18,12 @@ import java.time.LocalDateTime;
  *                   (an in-process cascade can run a just-created process to completion before the
  *                   creation's own seed event is dispatched), and it advances monotonically across
  *                   restarts as wall-clock time does — where a reset in-memory counter would not.
+ * @param shardId    the shard that owns this process ({@code null} when not sharded). Stamped here, on
+ *                   the owning shard as the event is emitted, so the read model records where the
+ *                   process lives regardless of where the projector runs — in-process on each shard, or
+ *                   a single fanned-out projector consuming every shard's events, which could not
+ *                   otherwise tell them apart. It is what lets a targeted command (retry / cancel /
+ *                   pause a process by id) be routed back to the shard that owns it.
  */
 public record ProcessStatusChanged(
         String processId,
@@ -29,7 +35,8 @@ public record ProcessStatusChanged(
         LocalDateTime created,
         LocalDateTime started,
         LocalDateTime finished,
-        LocalDateTime occurredAt) implements DomainEvent {
+        LocalDateTime occurredAt,
+        String shardId) implements DomainEvent {
 
     @Override
     public String partitionKey() {

@@ -29,10 +29,14 @@ import org.springframework.stereotype.Component;
 public class ProcessStatusAnnouncer {
 
     private final boolean enabled;
+    private final String shardId;
 
     public ProcessStatusAnnouncer(
-            @Value("${workflow.projection.enabled:false}") boolean enabled) {
+            @Value("${workflow.projection.enabled:false}") boolean enabled,
+            @Value("${workflow.shard-id:}") String shardId) {
         this.enabled = enabled;
+        // Blank (the default, non-sharded) reads as null on the event and the index row.
+        this.shardId = (shardId == null || shardId.isBlank()) ? null : shardId;
     }
 
     /** Whether the read model is on. Lets a repository skip the prior-state read entirely when off. */
@@ -65,6 +69,9 @@ public class ProcessStatusAnnouncer {
                 process.getFinished(),
                 // Stamp the emit time here, in causal order — this, not the projector's consume time,
                 // is what orders the read model (see ProcessStatusChanged#occurredAt).
-                java.time.LocalDateTime.now()));
+                java.time.LocalDateTime.now(),
+                // The owning shard, stamped here rather than read by the projector, so a fanned-out
+                // projector still records where the process lives (see ProcessStatusChanged#shardId).
+                shardId));
     }
 }
