@@ -1,0 +1,75 @@
+# The engine under test: the published orchestrator image (NOT the benchmark image).
+#
+# Image tag is a placeholder the runbook substitutes (ENGINE_IMAGE, e.g.
+# miguelperezcolom/orchestrator-standalone-app:1.0-beta.024) so a run states which build it proved.
+#
+# Scale everything together: raise replicas AND kafka NUM_PARTITIONS to >= replicas x
+# KAFKA_CONCURRENCY, and keep DB_POOL_SIZE x replicas <= postgres max_connections.
+#
+# DEFAULT_STEP_TIMEOUT_MS is the single most important setting for a chaos run: at 0 (the chart
+# default) a lost dispatch leaves a deadline-less step nothing ever looks at again — the exact
+# silent-stall that left 3,356 processes stuck. Set it above the slowest task so every ACTION/RULE
+# step carries a deadline and a lost message is retried, not orphaned.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orchestrator
+  namespace: ec-scale
+spec:
+  replicas: 6
+  selector: { matchLabels: { app: orchestrator } }
+  template:
+    metadata:
+      labels: { app: orchestrator, scale-role: engine }
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: /actuator/prometheus
+    spec:
+      imagePullSecrets: [{ name: regcred }]
+      securityContext: { runAsUser: 10001, runAsGroup: 10001, runAsNonRoot: true }
+      containers:
+        - name: orchestrator
+          image: ENGINE_IMAGE
+          env:
+            - { name: WORKFLOW_MODE, value: kafka }
+            - { name: WORKFLOW_PERSISTENCE, value: jpa }
+            - { name: DB_URL, value: "jdbc:postgresql://postgres.ec-scale.svc.cluster.local:5432/eventconductor" }
+            - { name: DB_USERNAME, value: eventconductor }
+            - { name: DB_PASSWORD, value: eventconductor }
+            - { name: KAFKA_BROKERS, value: "kafka-bootstrap.ec-scale.svc.cluster.local:9092" }
+            - { name: KAFKA_CONCURRENCY, value: "8" }
+            - { name: DB_POOL_SIZE, value: "30" }
+            # Above the slowest task. Chaos injects delays, so give it headroom (30s here).
+            - { name: DEFAULT_STEP_TIMEOUT_MS, value: "30000" }
+            - { name: DDL_AUTO, value: update }
+            - { name: JAVA_OPTS, value: "-XX:MaxRAMPercentage=70" }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+            seccompProfile: { type: RuntimeDefault }
+            readOnlyRootFilesystem: true
+          ports: [{ containerPort: 8080 }]
+          readinessProbe:
+            httpGet: { path: /actuator/health/readiness, port: 8080 }
+            initialDelaySeconds: 20
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /actuator/health/liveness, port: 8080 }
+            initialDelaySeconds: 60
+            periodSeconds: 10
+          resources:
+            requests: { cpu: "1", memory: "1Gi" }
+            limits: { memory: "1500Mi" }
+          volumeMounts: [{ name: tmp, mountPath: /tmp }]
+      volumes: [{ name: tmp, emptyDir: {} }]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: orchestrator
+  namespace: ec-scale
+  labels: { app: orchestrator }
+spec:
+  selector: { app: orchestrator }
+  ports: [{ name: http, port: 8080, targetPort: 8080 }]

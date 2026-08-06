@@ -1,0 +1,101 @@
+# PostgreSQL for the scale reliability run.
+#
+# TWO deliberate differences from the benchmark's Postgres (k8s/10-infra.yaml), both because this
+# run proves durability rather than measuring the engine:
+#
+#   1. synchronous_commit = ON.  The benchmark turns it off to measure the engine unencumbered;
+#      here that would hide exactly the losses under test — a crash after an un-fsynced commit is
+#      a lost process, and off-mode pretends it was durable. Never off for a reliability run.
+#
+#   2. Storage is the node's LOCAL NVMe (emptyDir on an NVMe node), not Hetzner block storage.
+#      With synchronous_commit on, the WAL fsync rate is the throughput ceiling; block storage
+#      sustains ~356 fsync/s (~14 process instances/s → 20M ≈ 17 days). Local NVMe does 10k-50k+
+#      fsync/s, i.e. hundreds of PI/s, which is what makes a 20M run finish in ~1-2 days. emptyDir
+#      lands on the node's ephemeral disk, so pinning this pod to an NVMe node (nodeSelector below)
+#      puts the WAL on NVMe. Trade-off: a node loss loses the DB — acceptable for a test cluster,
+#      and node-drain-with-local-data is itself a chaos scenario worth running deliberately (or
+#      declaring out of scope). For a durable variant, swap emptyDir for a local-NVMe PVC.
+#
+# group-commit tuning (commit_delay/commit_siblings) lets many concurrent writers share one fsync,
+# so effective commits/s can exceed the raw fsync rate under load — the second throughput lever.
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: ec-scale
+spec:
+  selector: { app: postgres }
+  ports: [{ port: 5432, targetPort: 5432 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: ec-scale
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector: { matchLabels: { app: postgres } }
+  template:
+    metadata:
+      labels: { app: postgres, scale-role: infra }
+    spec:
+      # Pin to a node whose ephemeral disk is NVMe. Set this label on the NVMe node pool (Hetzner
+      # dedicated-vCPU / CCX instances have local NVMe). Without it, emptyDir may land on a
+      # network-backed disk and the fsync ceiling reappears.
+      nodeSelector:
+        eventconductor.io/storage: nvme
+      securityContext:
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+      containers:
+        - name: postgres
+          image: postgres:16
+          env:
+            - { name: POSTGRES_DB, value: eventconductor }
+            - { name: POSTGRES_USER, value: eventconductor }
+            # Demo-grade for a throwaway test cluster; override with a Secret for anything shared.
+            - { name: POSTGRES_PASSWORD, value: eventconductor }
+            - { name: PGDATA, value: /var/lib/postgresql/data/pgdata }
+          args:
+            - postgres
+            - -c
+            - shared_buffers=2GB
+            - -c
+            - max_connections=400
+            # Durable — see the header. group commit batches fsyncs under concurrent load.
+            - -c
+            - synchronous_commit=on
+            - -c
+            - commit_delay=200
+            - -c
+            - commit_siblings=10
+            - -c
+            - max_wal_size=8GB
+            - -c
+            - checkpoint_timeout=15min
+            - -c
+            - wal_compression=on
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities: { drop: ["ALL"] }
+            seccompProfile: { type: RuntimeDefault }
+            readOnlyRootFilesystem: true
+          ports: [{ containerPort: 5432 }]
+          resources:
+            requests: { cpu: "3", memory: "6Gi" }
+            limits: { memory: "8Gi" }
+          volumeMounts:
+            - { name: data, mountPath: /var/lib/postgresql/data }
+            - { name: run, mountPath: /var/run/postgresql }
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        # Node-local (NVMe when pinned as above). Nothing here is meant to outlive the run.
+        - name: data
+          emptyDir: {}
+        - name: run
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}

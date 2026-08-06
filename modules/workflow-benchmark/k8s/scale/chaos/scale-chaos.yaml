@@ -1,0 +1,124 @@
+# Continuous, randomized chaos for the scale run — chaos-mesh Schedules (one experiment fires per
+# cron tick, on a random target). Together they form the "something is always breaking underneath
+# it" regime the run must survive with zero loss. Apply while the driver runs; delete before the
+# final drain so the system can stabilize before the verdict.
+#
+# Requires chaos-mesh installed in the cluster (namespace chaos-mesh). Every experiment is scoped to
+# ec-scale by label so nothing else is touched.
+#
+# NEEDS CLUSTER VALIDATION — authored, not yet run. Tune the crons/durations to the run length.
+---
+# Kill one random orchestrator pod every 2 minutes — crash between commit and dispatch is the
+# canonical recovery case (a fresh pod's outbox relay must drain the parked Pending rows).
+apiVersion: chaos-mesh.org/v1alpha1
+kind: Schedule
+metadata:
+  name: kill-orchestrator
+  namespace: ec-scale
+spec:
+  schedule: "*/2 * * * *"
+  type: PodChaos
+  historyLimit: 5
+  concurrencyPolicy: Forbid
+  podChaos:
+    action: pod-kill
+    mode: one
+    selector:
+      namespaces: [ec-scale]
+      labelSelectors: { app: orchestrator }
+---
+# Kill one random worker every 3 minutes — a worker dying mid-task must not lose the reply
+# (WorkerReply redelivers) and its in-flight task must be retried, not orphaned.
+apiVersion: chaos-mesh.org/v1alpha1
+kind: Schedule
+metadata:
+  name: kill-worker
+  namespace: ec-scale
+spec:
+  schedule: "*/3 * * * *"
+  type: PodChaos
+  historyLimit: 5
+  concurrencyPolicy: Forbid
+  podChaos:
+    action: pod-kill
+    mode: one
+    selector:
+      namespaces: [ec-scale]
+      labelSelectors: { app: worker }
+---
+# Kill ONE Kafka broker every 7 minutes — the RF=3 test: the topic must stay writable (min ISR 2)
+# and lose no committed record. One at a time only (mode: one) so the quorum is never lost.
+apiVersion: chaos-mesh.org/v1alpha1
+kind: Schedule
+metadata:
+  name: kill-broker
+  namespace: ec-scale
+spec:
+  schedule: "*/7 * * * *"
+  type: PodChaos
+  historyLimit: 5
+  concurrencyPolicy: Forbid
+  podChaos:
+    action: pod-kill
+    mode: one
+    selector:
+      namespaces: [ec-scale]
+      labelSelectors: { app: kafka }
+---
+# Partition orchestrators from Kafka for 30s every 5 minutes — the broker-outage recovery case
+# (outbox backs up as Pending during the partition, drains after). Directional, brokers as target.
+apiVersion: chaos-mesh.org/v1alpha1
+kind: Schedule
+metadata:
+  name: partition-kafka
+  namespace: ec-scale
+spec:
+  schedule: "*/5 * * * *"
+  type: NetworkChaos
+  historyLimit: 5
+  concurrencyPolicy: Forbid
+  networkChaos:
+    action: partition
+    mode: all
+    duration: 30s
+    direction: to
+    selector:
+      namespaces: [ec-scale]
+      labelSelectors: { app: orchestrator }
+    target:
+      mode: all
+      selector:
+        namespaces: [ec-scale]
+        labelSelectors: { app: kafka }
+---
+# Inject 200ms±50ms latency + 5% loss between orchestrators and Postgres for 1 minute every 4
+# minutes — the degraded-network case (connection-loss rollbacks now classified retryable; this is
+# the cluster validation that fix still lacks).
+apiVersion: chaos-mesh.org/v1alpha1
+kind: Schedule
+metadata:
+  name: slow-postgres-net
+  namespace: ec-scale
+spec:
+  schedule: "*/4 * * * *"
+  type: NetworkChaos
+  historyLimit: 5
+  concurrencyPolicy: Forbid
+  networkChaos:
+    action: delay
+    mode: all
+    duration: 60s
+    direction: to
+    selector:
+      namespaces: [ec-scale]
+      labelSelectors: { app: orchestrator }
+    target:
+      mode: all
+      selector:
+        namespaces: [ec-scale]
+        labelSelectors: { app: postgres }
+    delay:
+      latency: "200ms"
+      jitter: "50ms"
+    loss:
+      loss: "5"

@@ -1,0 +1,125 @@
+# Kafka — 3 brokers, replication factor 3.
+#
+# The benchmark and reliability rigs run a SINGLE broker (RF=1). That is fine for measuring the
+# engine, but it makes a broker-kill chaos scenario a total loss of availability AND durability —
+# not a fair reliability test, because a real deployment survives losing one broker. RF=3 with
+# min.insync.replicas=2 means killing one broker keeps the topic writable and loses no committed
+# record, which is the property the chaos run must actually exercise.
+#
+# Zero-operator KRaft StatefulSet: each pod is a combined broker+controller, node id from its
+# ordinal, quorum listing all three. NEEDS CLUSTER VALIDATION — a 3-node KRaft quorum is fiddly and
+# this has only been authored, not run. For a production-grade broker prefer the Strimzi operator;
+# this is the no-new-dependency option.
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka          # headless — per-pod DNS (kafka-0.kafka, kafka-1.kafka, kafka-2.kafka)
+  namespace: ec-scale
+spec:
+  clusterIP: None
+  selector: { app: kafka }
+  ports:
+    - { name: broker, port: 9092 }
+    - { name: controller, port: 9093 }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-bootstrap   # what clients connect to
+  namespace: ec-scale
+spec:
+  selector: { app: kafka }
+  ports: [{ name: broker, port: 9092, targetPort: 9092 }]
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: kafka
+  namespace: ec-scale
+spec:
+  serviceName: kafka
+  replicas: 3
+  podManagementPolicy: Parallel
+  selector: { matchLabels: { app: kafka } }
+  template:
+    metadata:
+      labels: { app: kafka, scale-role: infra }
+    spec:
+      # Spread the brokers across nodes so one node loss takes at most one broker.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector: { matchLabels: { app: kafka } }
+      securityContext: { runAsUser: 1000, runAsGroup: 1000 }
+      initContainers:
+        # The image renders server.properties into its config dir at startup; a read-only root
+        # needs that dir writable and seeded from the image defaults.
+        - name: seed-config
+          image: apache/kafka:3.9.0
+          command: ["sh", "-c", "cp -r /opt/kafka/config/. /seed/"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities: { drop: ["ALL"] }
+            seccompProfile: { type: RuntimeDefault }
+            readOnlyRootFilesystem: true
+          volumeMounts: [{ name: config, mountPath: /seed }]
+      containers:
+        - name: kafka
+          image: apache/kafka:3.9.0
+          # Node id and advertised listener depend on the pod ordinal, so derive them at start.
+          command: ["sh", "-c"]
+          args:
+            - |
+              export KAFKA_NODE_ID="${HOSTNAME##*-}"
+              export KAFKA_ADVERTISED_LISTENERS="PLAINTEXT://${HOSTNAME}.kafka.ec-scale.svc.cluster.local:9092"
+              exec /etc/kafka/docker/run
+          env:
+            - { name: KAFKA_PROCESS_ROLES, value: "broker,controller" }
+            - { name: KAFKA_LISTENERS, value: "PLAINTEXT://:9092,CONTROLLER://:9093" }
+            - { name: KAFKA_LISTENER_SECURITY_PROTOCOL_MAP, value: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT" }
+            - { name: KAFKA_CONTROLLER_LISTENER_NAMES, value: "CONTROLLER" }
+            - { name: KAFKA_INTER_BROKER_LISTENER_NAME, value: "PLAINTEXT" }
+            - name: KAFKA_CONTROLLER_QUORUM_VOTERS
+              value: "0@kafka-0.kafka.ec-scale.svc.cluster.local:9093,1@kafka-1.kafka.ec-scale.svc.cluster.local:9093,2@kafka-2.kafka.ec-scale.svc.cluster.local:9093"
+            # Replication: survive one broker loss with no committed-record loss.
+            - { name: KAFKA_DEFAULT_REPLICATION_FACTOR, value: "3" }
+            - { name: KAFKA_MIN_INSYNC_REPLICAS, value: "2" }
+            - { name: KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR, value: "3" }
+            - { name: KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR, value: "3" }
+            - { name: KAFKA_TRANSACTION_STATE_LOG_MIN_ISR, value: "2" }
+            - { name: KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS, value: "0" }
+            # Partitions per auto-created topic. MUST be >= (orchestrator replicas x consumer
+            # concurrency) or extra consumer threads get nothing; raise with the pod count.
+            - { name: KAFKA_NUM_PARTITIONS, value: "48" }
+            - { name: KAFKA_AUTO_CREATE_TOPICS_ENABLE, value: "true" }
+            - { name: CLUSTER_ID, value: "ec-scale-cluster-0001" }
+            - { name: KAFKA_LOG_DIRS, value: "/var/lib/kafka/data" }
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities: { drop: ["ALL"] }
+            seccompProfile: { type: RuntimeDefault }
+            readOnlyRootFilesystem: true
+          ports:
+            - { containerPort: 9092 }
+            - { containerPort: 9093 }
+          resources:
+            requests: { cpu: "2", memory: "3Gi" }
+            limits: { memory: "4Gi" }
+          volumeMounts:
+            - { name: data, mountPath: /var/lib/kafka/data }
+            - { name: config, mountPath: /opt/kafka/config }
+            - { name: tmp, mountPath: /tmp }
+            - { name: logs, mountPath: /opt/kafka/logs }
+      volumes:
+        # Node-local; a broker that loses its node re-replicates from the surviving two on restart.
+        - name: data
+          emptyDir: {}
+        - name: config
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+        - name: logs
+          emptyDir: {}
