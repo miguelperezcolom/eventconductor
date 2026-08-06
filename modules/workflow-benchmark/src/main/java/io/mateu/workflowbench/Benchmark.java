@@ -41,10 +41,15 @@ public final class Benchmark {
             // A different question entirely — see SoakDriver. It shares the load path and nothing
             // else, and in particular it never asserts a duration or a rate: the verdict comes
             // from the verifier reading the database afterwards.
+            var workload = "scale".equals(config.workload())
+                    ? new io.mateu.workflowbench.soak.ScaleWorkload(
+                            config.sagaWeightPct(), config.compPermil(), config.compFailPermil())
+                    : io.mateu.workflowbench.soak.Workload.linear();
+            System.out.println("soak workload=" + config.workload());
             try (var driver = new LoadDriver(config, true)) {
                 new io.mateu.workflowbench.soak.SoakDriver(
                         jdbc, config.soakPrefix(), config.ratePerSecond(),
-                        java.time.Duration.ofMinutes(config.soakMinutes()))
+                        java.time.Duration.ofMinutes(config.soakMinutes()), workload)
                         .run(driver);
             }
             return;

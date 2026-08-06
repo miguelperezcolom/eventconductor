@@ -32,8 +32,8 @@ public final class WorkflowInstaller {
             INSERT INTO workflow_definition_entity
               (id, name, version, description, steps_json,
                limit_concurrent_executions, max_concurrent_executions, enqueue_on_limit,
-               cron_expression, default_max_step_executions, paused, disabled, archived)
-            VALUES (?, ?, ?, ?, ?, false, 0, false, NULL, 0, false, false, false)
+               cron_expression, default_max_step_executions, paused, declared_status, runtime_status)
+            VALUES (?, ?, ?, ?, ?, false, 0, false, NULL, 0, false, 'ACTIVE', 'ACTIVE')
             ON CONFLICT (id) DO UPDATE SET
               name = excluded.name,
               version = excluded.version,

@@ -12,7 +12,8 @@ record BenchmarkConfig(
         int pods, int processes, int workerThinkMillis, int workerConcurrency,
         int consumerConcurrency, long outboxPollMillis, int outboxBatchSize, int poolSize,
         int ratePerSecond, String role,
-        int soakMinutes, String soakPrefix) {
+        int soakMinutes, String soakPrefix,
+        String workload, int sagaWeightPct, int compPermil, int compFailPermil) {
 
     static BenchmarkConfig fromSystemProperties() {
         return new BenchmarkConfig(
@@ -50,7 +51,19 @@ record BenchmarkConfig(
                 // Namespaces the run's business keys. Defaulted to the hostname because in
                 // Kubernetes that is the pod name, so a driver that is rescheduled mid-run does
                 // not silently reuse the keys of the one that died.
-                prop("bench.soak.prefix", "soak-" + hostname()));
+                prop("bench.soak.prefix", "soak-" + hostname()),
+                // Which workload the soak drives:
+                //   linear — the single 3-ACTION definition (throughput/control).
+                //   scale  — the realistic suite (order-saga + linear …), with a configured
+                //            fraction of processes made to fail so the retry, saga-compensation
+                //            and COMPENSATION_FAILED paths are exercised at volume.
+                prop("bench.workload", "linear"),
+                // scale only: % of processes that run the order-saga (rest run linear).
+                intProp("bench.scale.saga-weight-pct", 40),
+                // scale only: per-1000 saga processes that fail and roll back (→ COMPENSATED),
+                // and — a subset of those — whose compensation also fails (→ COMPENSATION_FAILED).
+                intProp("bench.scale.comp-permil", 100),
+                intProp("bench.scale.comp-fail-permil", 10));
     }
 
     private static String hostname() {
