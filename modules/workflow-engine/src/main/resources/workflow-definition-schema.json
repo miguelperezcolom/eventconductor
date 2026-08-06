@@ -124,6 +124,22 @@
       "minimum": 0,
       "default": 0
     },
+    "requiredScopes": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": { "type": "string" },
+      "description": "Flow authorization: the scopes a caller must ALL hold to create a process of this definition. Evaluated against the caller's snapshot at creation. Empty or absent means open. Enforced only when workflow.security.flow-authorization.enabled."
+    },
+    "requiredRoles": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": { "type": "string" },
+      "description": "Flow authorization: the roles a caller must ALL hold to create a process of this definition. See requiredScopes."
+    },
     "steps": {
       "type": "array",
       "description": "Ordered list of steps that make up the workflow.",

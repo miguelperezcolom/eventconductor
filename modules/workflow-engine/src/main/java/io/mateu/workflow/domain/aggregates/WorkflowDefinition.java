@@ -69,7 +69,15 @@ public record WorkflowDefinition(
          */
         @Hidden
         @com.fasterxml.jackson.annotation.JsonIgnore
-        WorkflowStatus runtimeStatus
+        WorkflowStatus runtimeStatus,
+        /**
+         * Flow-authorization: the scopes and roles a caller must hold to CREATE a process of this
+         * definition. Evaluated against the caller's snapshot at creation (see {@code AuthorizationContext}),
+         * requires-all. Empty (the default) means open — no restriction. Enforced only when
+         * {@code workflow.security.flow-authorization.enabled}.
+         */
+        List<String> requiredScopes,
+        List<String> requiredRoles
 ) implements Identifiable, SearchableText, LookupOptionsSupplier, VisibilitySupplier {
 
     /**
@@ -82,6 +90,9 @@ public record WorkflowDefinition(
     public WorkflowDefinition {
         declaredStatus = declaredStatus == null ? WorkflowStatus.ACTIVE : declaredStatus;
         runtimeStatus = runtimeStatus == null ? WorkflowStatus.ACTIVE : runtimeStatus;
+        // Absent in a file, in an old row, or in a copy from an older caller all mean "no requirement".
+        requiredScopes = requiredScopes == null ? List.of() : List.copyOf(requiredScopes);
+        requiredRoles = requiredRoles == null ? List.of() : List.copyOf(requiredRoles);
     }
 
     /** Creation without any lifecycle state: definitions start unpaused and active. */
@@ -91,7 +102,7 @@ public record WorkflowDefinition(
                               int defaultMaxStepExecutions, List<Step> steps) {
         this(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
-                steps, false, WorkflowStatus.ACTIVE, WorkflowStatus.ACTIVE);
+                steps, false, WorkflowStatus.ACTIVE, WorkflowStatus.ACTIVE, List.of(), List.of());
     }
 
     /**
@@ -106,7 +117,19 @@ public record WorkflowDefinition(
         this(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
                 steps, paused, WorkflowStatus.ACTIVE,
-                WorkflowStatus.of(null, disabled, archived));
+                WorkflowStatus.of(null, disabled, archived), List.of(), List.of());
+    }
+
+    /** The canonical shape before flow-authorization requirements existed — callers that build a
+     *  definition with explicit statuses keep compiling and get no requirements by default. */
+    public WorkflowDefinition(String id, String name, int version, String description,
+                              boolean limitConcurrentExecutions, int maxConcurrentExecutions,
+                              boolean enqueueOnLimit, String cronExpression,
+                              int defaultMaxStepExecutions, List<Step> steps,
+                              boolean paused, WorkflowStatus declaredStatus, WorkflowStatus runtimeStatus) {
+        this(id, name, version, description, limitConcurrentExecutions, maxConcurrentExecutions,
+                enqueueOnLimit, cronExpression, defaultMaxStepExecutions, steps, paused,
+                declaredStatus, runtimeStatus, List.of(), List.of());
     }
 
     /**
@@ -148,21 +171,21 @@ public record WorkflowDefinition(
     public WorkflowDefinition withPaused(boolean newPaused) {
         return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
-                steps, newPaused, declaredStatus, runtimeStatus);
+                steps, newPaused, declaredStatus, runtimeStatus, requiredScopes, requiredRoles);
     }
 
     /** Returns a copy with a different runtime status — what an operator decided. */
     public WorkflowDefinition withRuntimeStatus(WorkflowStatus newStatus) {
         return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
-                steps, paused, declaredStatus, newStatus);
+                steps, paused, declaredStatus, newStatus, requiredScopes, requiredRoles);
     }
 
     /** Returns a copy with a different declared status — what the definition file says. */
     public WorkflowDefinition withDeclaredStatus(WorkflowStatus newStatus) {
         return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
-                steps, paused, newStatus, runtimeStatus);
+                steps, paused, newStatus, runtimeStatus, requiredScopes, requiredRoles);
     }
 
     /** Kept for callers written against the boolean API. */
@@ -179,14 +202,14 @@ public record WorkflowDefinition(
     public WorkflowDefinition withRuntimeStateOf(WorkflowDefinition existing) {
         return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
-                steps, existing.paused(), declaredStatus, existing.runtimeStatus());
+                steps, existing.paused(), declaredStatus, existing.runtimeStatus(), requiredScopes, requiredRoles);
     }
 
     /** Returns a copy carrying the given (engine-assigned) version number. */
     public WorkflowDefinition withVersion(int newVersion) {
         return new WorkflowDefinition(id, name, newVersion, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
-                steps, paused, declaredStatus(), runtimeStatus());
+                steps, paused, declaredStatus(), runtimeStatus(), requiredScopes, requiredRoles);
     }
 
     // ── Detail-view lifecycle buttons (conditional on state via VisibilitySupplier) ──
