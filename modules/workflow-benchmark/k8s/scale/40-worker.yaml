@@ -1,0 +1,49 @@
+# Workers — the benchmark image in the failure-injecting worker role (BenchmarkWorkerApp).
+#
+# They consume the `downstream` task topic and reply via WorkerReply (never a dropped reply). They
+# honour the benchOutcome variable the driver sets, so a configured fraction of processes roll back
+# or fail their compensation — see BenchmarkWorkerApp.
+#
+# replicas x worker.concurrency must be >= the topic partition count (kafka NUM_PARTITIONS) or some
+# partitions go unconsumed and their processes stall. Here 3 x 16 = 48 = KAFKA_NUM_PARTITIONS.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker
+  namespace: ec-scale
+spec:
+  replicas: 3
+  selector: { matchLabels: { app: worker } }
+  template:
+    metadata:
+      labels: { app: worker, scale-role: worker }
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector: { matchLabels: { app: worker } }
+      imagePullSecrets: [{ name: regcred }]
+      securityContext: { runAsUser: 1000, runAsGroup: 1000 }
+      containers:
+        - name: worker
+          image: BENCH_IMAGE
+          env:
+            - name: BENCH_OPTS
+              value: >-
+                -Dbench.role=worker
+                -Dbench.worker.concurrency=16
+                -Dbench.worker.think-ms=5
+                -Dbench.kafka.brokers=kafka-bootstrap.ec-scale.svc.cluster.local:9092
+                -XX:MaxRAMPercentage=70
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities: { drop: ["ALL"] }
+            seccompProfile: { type: RuntimeDefault }
+            readOnlyRootFilesystem: true
+          volumeMounts: [{ name: tmp, mountPath: /tmp }]
+          resources:
+            requests: { cpu: "1", memory: "1Gi" }
+            limits: { memory: "1500Mi" }
+      volumes: [{ name: tmp, emptyDir: {} }]

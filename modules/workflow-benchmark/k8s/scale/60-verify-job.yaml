@@ -1,0 +1,40 @@
+# The verdict — benchmark image, verify role. A Job: it runs the reconciler once, prints the
+# per-invariant PASS/FAIL and a JSON verdict, and exits non-zero on any failure, so the controller
+# (and `kubectl wait --for=condition=complete`) gate on it.
+#
+# Run it only AFTER the driver is stopped and the system has drained; a verdict taken mid-flight
+# would flag in-flight work as stuck. SOAK_PREFIX is substituted to match the driver's run.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: verify
+  namespace: ec-scale
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      labels: { app: verify, scale-role: verify }
+    spec:
+      restartPolicy: Never
+      imagePullSecrets: [{ name: regcred }]
+      securityContext: { runAsUser: 1000, runAsGroup: 1000 }
+      containers:
+        - name: verify
+          image: BENCH_IMAGE
+          env:
+            - name: BENCH_OPTS
+              value: >-
+                -Dbench.role=verify
+                -Dbench.soak.prefix=SOAK_PREFIX
+                -Dbench.jdbc.url=jdbc:postgresql://postgres.ec-scale.svc.cluster.local:5432/eventconductor
+                -XX:MaxRAMPercentage=70
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities: { drop: ["ALL"] }
+            seccompProfile: { type: RuntimeDefault }
+            readOnlyRootFilesystem: true
+          volumeMounts: [{ name: tmp, mountPath: /tmp }]
+          resources:
+            requests: { cpu: "500m", memory: "1Gi" }
+      volumes: [{ name: tmp, emptyDir: {} }]
