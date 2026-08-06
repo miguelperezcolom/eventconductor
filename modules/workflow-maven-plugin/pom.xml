@@ -16,6 +16,9 @@
         definitions (JSON/YAML) against their published specifications at build time.</description>
 
     <properties>
+        <!-- Coverage floor for this module, just under what it measures today
+             (89.5%). Raise it when the module improves; never lower it. -->
+        <jacoco.line.minimum>0.87</jacoco.line.minimum>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.api.version>3.9.16</maven.api.version>
         <!-- Do not run the plugin on itself. -->

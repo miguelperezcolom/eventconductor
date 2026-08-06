@@ -15,6 +15,9 @@
     <url>http://maven.apache.org</url>
 
     <properties>
+        <!-- Coverage floor for this module, just under what it measures today
+             (a 14-line sample worker, kept out of the floor deliberately). Raise it when the module improves; never lower it. -->
+        <jacoco.line.minimum>0.00</jacoco.line.minimum>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 

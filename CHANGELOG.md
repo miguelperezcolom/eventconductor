@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Tests for the paths whose failure mode is silence.** The outbox drain (`OutboxDrain`), where
+  delivering before marking Sent is what makes the at-least-once guarantee, and a refused delivery
+  must leave its row Pending — the shape of the defect that lost 71 of 642,912 messages during a
+  broker outage. The boot-time rearm (`InFlightStepRearmRunner`), where a missed step is not
+  un-timed-out but invisible: never scanned again, its process stopped for ever with nothing logged.
+  And the tracing bridge, whose entire contract is that tracing failures never reach the work.
+- **The 1.0 public surfaces are pinned as literals.** Meter names and tags for all four metric
+  adapters, and the MCP tool names for the workflow, forms and rules engines. Both are listed as
+  stable in `versioning.md` and both have consumers outside this repository — a Grafana dashboard,
+  an alert rule, someone's assistant configuration — so a rename broke them and broke nothing here.
+  Asserting the constants would not have caught it; the tests assert the published strings.
+- **The filesystem half of Git import**, including the guard that stops a configured
+  `directory: ../..` from walking out of the throwaway clone, and the rule that one unparseable
+  definition costs that file rather than aborting the import of every file after it.
+
+### Changed
+- **The coverage gate now measures the code that carries the risk.** It asked for 85% of lines and
+  passed, over a bundle that excluded the outbox, the schedulers, the JPA repositories, the message
+  REST API, the MCP tools, the autoconfiguration and the Git import. Two exclusions remain —
+  generated gRPC stubs and the Vaadin view classes — and the gate is now a per-module floor set just
+  under what each module measures, so no module can regress. Over the honest scope the repository is
+  at 65.7% per module and 76.4% aggregated; `TESTING.md` records both and how to reproduce them.
+- `InFlightStepRearmRunner.rearmOnce` and two Git-import helpers widened from private to
+  package-private so a single pass can be driven without the retry thread or a repository to clone.
+
 ## [1.0-beta.025] - 2026-08-06
 
 The schema travels with the engine.

@@ -51,6 +51,10 @@
     <mateu.version>3.0-alpha.271</mateu.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <java.version>21</java.version>
+    <!-- Per-module line-coverage floor, overridden in each module's own pom. A floor,
+         not a target: it exists so a module cannot regress, and it is raised when the
+         module improves. -->
+    <jacoco.line.minimum>0.40</jacoco.line.minimum>
     <maven.compiler.release>21</maven.compiler.release>
   </properties>
 
@@ -223,37 +227,19 @@
             <version>0.8.13</version>
             <configuration>
                 <excludes>
-                    <!-- UI layer - requires browser/Vaadin runtime -->
-                    <exclude>io/mateu/workflow/infra/in/ui/**</exclude>
-                    <!-- JPA persistence - requires database -->
-                    <exclude>io/mateu/workflow/infra/out/persistence/**</exclude>
-                    <!-- Kafka / async infrastructure -->
-                    <exclude>io/mateu/workflow/infra/out/async/Kafka*</exclude>
-                    <exclude>io/mateu/workflow/infra/out/async/*Outbox*</exclude>
-                    <exclude>io/mateu/workflow/infra/in/async/*KafkaConsumerConfig*</exclude>
-                    <!-- MCP tools - requires AI framework at runtime -->
-                    <exclude>io/mateu/workflow/infra/in/mcp/**</exclude>
-                    <!-- Spring scheduler / startup runners / REST webhooks -->
-                    <exclude>io/mateu/workflow/infra/in/scheduler/**</exclude>
-                    <exclude>io/mateu/workflow/infra/in/startup/**</exclude>
-                    <exclude>io/mateu/workflow/infra/in/rest/**</exclude>
-                    <!-- Spring Boot auto-configuration boilerplate -->
-                    <exclude>io/mateu/workflow/autoconfigure/**</exclude>
-                    <!-- Infrastructure configuration -->
-                    <exclude>io/mateu/workflow/infra/config/**</exclude>
-                    <!-- Engine starter -->
-                    <exclude>io/mateu/workflow/infra/EngineStarter*</exclude>
-                    <!-- Git-based import use case - requires network/git repo -->
-                    <exclude>io/mateu/workflow/application/usecases/gitimport/**</exclude>
-                    <!-- Classpath-based workflow definition loader -->
-                    <exclude>io/mateu/workflow/infra/out/classpath/**</exclude>
-                    <!-- Shared outbox events (forms-engine) -->
-                    <exclude>io/mateu/workflow/infra/out/shared/**</exclude>
-                    <!-- Generated gRPC stubs (rule-runtime) -->
+                    <!-- What is left out, and why. The list used to be long enough to hide most of
+                         what carries risk in production — the outbox, the schedulers, the JPA
+                         repositories, the message REST API, the MCP tools, the autoconfiguration and
+                         the Git import were all excluded, so an 85% figure was measured over the
+                         domain and application layers and said nothing about the rest. Two things
+                         stay out, both because a test of them would assert nothing a compiler does
+                         not already: -->
+                    <!-- Generated protobuf/gRPC stubs. Not our code; regenerated from the .proto. -->
                     <exclude>io/mateu/workflow/rules/grpc/**</exclude>
-                    <!-- gRPC adapters - require a running server/channel -->
-                    <exclude>io/mateu/workflow/infra/in/grpc/**</exclude>
-                    <exclude>io/mateu/workflow/infra/out/grpc/**</exclude>
+                    <!-- Vaadin/Mateu view classes: declarative page definitions whose behaviour is
+                         the framework's rendering, which needs a browser runtime to exercise. The
+                         query services and adapters behind them are NOT excluded. -->
+                    <exclude>io/mateu/workflow/infra/in/ui/**</exclude>
                 </excludes>
             </configuration>
             <executions>
@@ -285,7 +271,7 @@
                                 <limit>
                                     <counter>LINE</counter>
                                     <value>COVEREDRATIO</value>
-                                    <minimum>0.85</minimum>
+                                    <minimum>${jacoco.line.minimum}</minimum>
                                 </limit>
                             </limits>
                         </rule>
