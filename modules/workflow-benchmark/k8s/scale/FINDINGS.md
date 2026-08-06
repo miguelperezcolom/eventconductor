@@ -58,32 +58,40 @@ terminal status.
 
 ---
 
-## Rung 2 — throughput ceiling (2026-08-06, partial — storage-bound)
+## Rung 2 — throughput ceiling (2026-08-06)
 
-**Setup.** Full-ish footprint (postgres + 3-broker Kafka + 4 orchestrators + 2 workers) on the
-`mateu-fleet` CloudFleet NodePool, Postgres on `emptyDir` with `synchronous_commit=on`. Drove at
-200/s.
+**Setup.** postgres + 3-broker Kafka + 4 orchestrators (1 vCPU each) + 2 workers on the `mateu-fleet`
+CloudFleet NodePool, Postgres on `emptyDir` + `synchronous_commit=on`, right-sized from the start so
+nothing restarts mid-run.
 
-**Result — a storage ceiling, not a compute one.** At 200/s the driver kept acking (broker fine)
-but the engine backed up immediately: ~24k steps stuck in `CREATED`, ~3.4k outbox `Pending`, ~1
-process completed in 100s. Bumping orchestrator CPU did **not** move it — the completion rate stayed
-~15-20 steps/s and Postgres held a **flat ~137 commits/s** (`xact_commit` delta). No errors: pure
-write-throughput saturation.
+**A false start, recorded because it is a real trap.** An earlier attempt patched the running Kafka
+StatefulSet's resource requests. Kafka here uses `emptyDir`, so the rolling restart **wiped each
+broker's log**, breaking partition replicas → the orchestrators' producer failed with
+`NOT_LEADER_OR_FOLLOWER` on the outbox topic, the outbox could not be relayed, and completions fell
+to ~0 with commits stuck at ~137/s. That was a broken broker cluster, not a storage ceiling. **Lesson:
+Kafka on `emptyDir` loses data on any pod restart — never patch the StatefulSet, and use PVCs for a
+real run.**
 
-**Conclusion: `emptyDir` on the default CloudFleet nodes is NOT fast local NVMe.** ~137 commits/s
-with `synchronous_commit=on` is block-storage class (slower even than the ~356 fsync/s the reliability
-FINDINGS measured), a fraction of the thousands/s local NVMe gives. On my laptop's real NVMe the same
-harness did ~120 steps/s in compose; here it is ~15-20. So the cluster's default node storage is
-network-backed, and the design's central lever — genuine local NVMe — is **not** delivered by
-`emptyDir` on this NodePool.
+**Clean result.** Measured the disk directly first: `pg_test_fsync` on `emptyDir` sustains
+**~890-1,600 fdatasync ops/sec** single-threaded — a decent network SSD, ~3× the reliability rig's
+~356 fsync/s block volume, but far from top local NVMe (10k-50k+/s). On a freshly-deployed, healthy
+cluster the sustained completion ceiling is **~12-15 process instances/s** (arrivals above that just
+grow the backlog; the engine holds ~300-375 commits/s ≈ **1/3 of the disk's single-thread fsync
+budget** — group commit is not fully closing that gap under this write pattern). For reference the
+same harness did ~120 steps/s on a laptop's real NVMe in compose.
 
-**Next (a provisioning decision for the operator).** To get the hundreds-of-PI/s that put 20M in
-~1-2 days, provision a node with **genuine local NVMe** (a Hetzner instance type with a local NVMe
-disk, exposed to the pod via `hostPath`/local-path or the instance's ephemeral NVMe mount) and pin
-Postgres there — the `eventconductor.io/storage=nvme` selector is exactly for this. If a single NVMe
-node still can't hit the target rate, go to the sharded topology (design §4.3). Only then is the
-rung-2 ceiling sweep (and rung 3's 20M) meaningful — on this cluster's default storage 20M would take
-the block-storage-class weeks, which is the number this rung exists to avoid.
+**What it means for 20M.** ~13 PI/s → **20M ≈ ~18 days** on this cluster. Two levers to reach the
+1-2 day target, in order of leverage:
+1. **Faster storage.** A genuine local-NVMe instance (high concurrent-fsync) pinned to Postgres — the
+   `eventconductor.io/storage=nvme` selector is for this. CloudFleet auto-selects Hetzner nodes whose
+   `emptyDir` is this ~1k-fsync SSD; a dedicated-NVMe instance type (requested via an instance-type
+   requirement on the NodePool/NodeClass) or a local-NVMe StorageClass would raise the fsync budget.
+2. **Close the engine's 1/3-of-disk gap** (write batching / higher write concurrency so group commit
+   batches more per fsync) and/or the **sharded topology** (design §4.3: N Postgres, processes hashed
+   across them → ~N× the fsync budget) — the only path that scales writes past one node.
+
+Until one of those lands, a 20M run on this cluster's storage is a block-storage-class multi-week
+soak, which is exactly the outcome this rung exists to surface before booking the hardware.
 
 **Rung 1 is unaffected:** it ran at 15/s, well under this ceiling, so its zero-loss + crash-recovery
 verdicts stand.
