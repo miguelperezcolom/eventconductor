@@ -55,6 +55,7 @@ public final class SoakDriver {
     private final String prefix;
     private final int ratePerSecond;
     private final Duration duration;
+    private final Workload workload;
 
     private final AtomicLong attempted = new AtomicLong();
     private final AtomicLong acked = new AtomicLong();
@@ -63,11 +64,13 @@ public final class SoakDriver {
 
     private volatile boolean stopping;
 
-    public SoakDriver(JdbcTemplate jdbc, String prefix, int ratePerSecond, Duration duration) {
+    public SoakDriver(JdbcTemplate jdbc, String prefix, int ratePerSecond, Duration duration,
+                      Workload workload) {
         this.jdbc = jdbc;
         this.prefix = prefix;
         this.ratePerSecond = ratePerSecond;
         this.duration = duration;
+        this.workload = workload;
     }
 
     public void run(LoadDriver loadDriver) throws InterruptedException {
@@ -84,7 +87,9 @@ public final class SoakDriver {
 
         for (long i = 0; !stopping && System.nanoTime() < deadline; i++) {
             attempted.incrementAndGet();
-            loadDriver.createProcess(prefix + "-" + i, (metadata, error) -> {
+            var creation = workload.at(prefix, i);
+            loadDriver.createProcess(creation.definitionId(), creation.businessKey(),
+                    creation.variables(), (metadata, error) -> {
                 if (error == null) {
                     acked.incrementAndGet();
                 } else {
@@ -185,7 +190,9 @@ public final class SoakDriver {
         for (var attempt = 0; ; attempt++) {
             try {
                 jdbc.execute(CREATE_TABLE);
-                WorkflowInstaller.install(jdbc, "/workflows/bench-3-steps.json");
+                for (var definition : workload.definitions()) {
+                    WorkflowInstaller.install(jdbc, definition);
+                }
                 return;
             } catch (RuntimeException e) {
                 if (attempt == 150) {

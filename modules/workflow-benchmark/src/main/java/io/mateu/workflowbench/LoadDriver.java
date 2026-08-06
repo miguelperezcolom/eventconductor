@@ -2,6 +2,7 @@ package io.mateu.workflowbench;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.mateu.workflow.ddd.DomainEvent;
+import io.mateu.workflow.dtos.Variable;
 import io.mateu.workflow.dtos.events.integration.ProcessCreationRequested;
 import org.apache.kafka.clients.producer.Callback;
 import org.apache.kafka.clients.producer.KafkaProducer;
@@ -69,7 +70,18 @@ public final class LoadDriver implements AutoCloseable {
     }
 
     public void createProcess(String businessKey, Callback callback) {
-        var event = new ProcessCreationRequested("bench-3-steps", businessKey, List.of(), null);
+        createProcess("bench-3-steps", businessKey, List.of(), callback);
+    }
+
+    /**
+     * Creates a process of any definition, with initial variables — the realistic suite needs both:
+     * a definition per workload kind, and a {@code benchOutcome} variable that tells the worker
+     * whether to make this one succeed, roll back, or fail its compensation.
+     */
+    public void createProcess(String definitionId, String businessKey, List<Variable> variables,
+                              Callback callback) {
+        var event = new ProcessCreationRequested(
+                definitionId, businessKey, variables == null ? List.of() : variables, null);
         producer.send(new ProducerRecord<>("upstream", key(event), serialize(event)), callback);
     }
 
