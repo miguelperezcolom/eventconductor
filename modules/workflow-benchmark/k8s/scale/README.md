@@ -23,8 +23,10 @@ the module README); this directory is the cluster deployment of the same pieces.
 ## Prerequisites
 
 1. **Images**, published and CVE-clean (≥ `1.0-beta.024`):
-   `miguelperezcolom/orchestrator-standalone-app:<tag>` and the benchmark image. Build/push the
-   benchmark image with `modules/workflow-benchmark/Dockerfile` (see the module README).
+   `miguelperezcolom/orchestrator-standalone-app:<tag>` (from a release) and the benchmark image.
+   Publish the benchmark image from the current branch with the CI workflow:
+   `gh workflow run publish-benchmark-image.yml -f ref=<branch> -f tag=scale` →
+   `miguelperezcolom/eventconductor-bench:scale`.
 2. **NVMe node label** — the storage lever. Label the NVMe node pool so Postgres lands there:
    `kubectl label node <nvme-node> eventconductor.io/storage=nvme`.
 3. **Pull secret** in the namespace: `kubectl -n ec-scale create secret docker-registry regcred …`.
@@ -39,7 +41,7 @@ Each rung is a gate; advance only on a clean PASS.
 
 ```bash
 export ENGINE_IMAGE=miguelperezcolom/orchestrator-standalone-app:1.0-beta.024
-export BENCH_IMAGE=miguelperezcolom/workflow-benchmark:1.0-beta.024
+export BENCH_IMAGE=miguelperezcolom/eventconductor-bench:scale   # from publish-benchmark-image.yml
 
 # Rung 1 — 100k-ish: validate the whole pipeline incl. chaos + verdict. Short.
 ./run-scale.sh --rate 100 --minutes 20 --chaos
