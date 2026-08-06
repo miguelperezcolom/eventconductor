@@ -37,6 +37,20 @@ public final class Benchmark {
             return;
         }
 
+        if ("verify".equals(config.role())) {
+            // The zero-loss verdict, computed from the database after a run has drained. Its own
+            // role, and an exit code, so an autonomous controller can gate on it.
+            var verdict = io.mateu.workflowbench.soak.Reconciler.verify(jdbc, config.soakPrefix());
+            System.out.println(verdict.render());
+            try {
+                System.out.println("verdict-json " + new com.fasterxml.jackson.databind.ObjectMapper()
+                        .writeValueAsString(verdict));
+            } catch (Exception ignored) {
+                // The human render above is the verdict; JSON is a convenience for the controller.
+            }
+            System.exit(verdict.pass() ? 0 : 1);
+        }
+
         if (config.soaks()) {
             // A different question entirely — see SoakDriver. It shares the load path and nothing
             // else, and in particular it never asserts a duration or a rate: the verdict comes
