@@ -214,8 +214,10 @@ That leaves three pieces doing the work:
 - **Transactional outbox** — state change and event are atomic, and the relay re-delivers after any
   crash (at-least-once). The pod that writes a row wakes its own relay, so the poll interval is a
   fallback for other pods' rows rather than latency on every step.
-- **Ownership by partition** — described above. It is also why sharding the database by process id
-  would scale cleanly: shards never coordinate.
+- **Ownership by partition** — described above. It is also why sharding the database scales cleanly:
+  shards never coordinate. This is now an opt-in, elastic capability — N shared-nothing shards, added
+  and removed hot, routed by config (`workflow.sharding.*`), off by default. See
+  [Sharding configuration](/reference/configuration/#sharding-advanced-opt-in).
 - **An optimistic version** on the process and its steps, fencing the one gap ownership leaves. A
   consumer group guarantees which consumer is *assigned* a partition, not which is still *in
   flight*: during a rebalance the outgoing pod can be finishing a record the incoming one now owns.

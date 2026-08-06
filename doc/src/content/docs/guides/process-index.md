@@ -148,7 +148,7 @@ would plug in for a sharded deployment.
 | Property | Values | Default | Description |
 |---|---|---|---|
 | `workflow.projection.enabled` | `true` \| `false` | `false` | Turn the read model on: emit `ProcessStatusChanged` and run the projector. |
-| `workflow.shard-id` | string | *(empty)* | Recorded on each row as provenance in a sharded deployment; leave unset when non-sharded. |
+| `workflow.sharding.shard-id` | string | *(empty)* | Recorded on each row as provenance in a sharded deployment; leave unset when non-sharded. See [Sharding configuration](/reference/configuration/#sharding-advanced-opt-in). |
 
 ## Relationship to sharding
 
