@@ -1,0 +1,14 @@
+{
+  "id": "ui-saga",
+  "name": "UI Saga",
+  "version": 1,
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "reserve", "type": "ACTION", "name": "Reserve the room", "topic": "work",
+      "preconditionStepId": "start", "rollbackable": true, "compensationStepId": "cancelReservation" },
+    { "id": "charge", "type": "ACTION", "name": "Charge the card", "topic": "work",
+      "preconditionStepId": "reserve", "retries": 0 },
+    { "id": "end", "type": "END", "name": "Done", "preconditionStepId": "charge" },
+    { "id": "cancelReservation", "type": "ACTION", "name": "Cancel the reservation", "topic": "work" }
+  ]
+}

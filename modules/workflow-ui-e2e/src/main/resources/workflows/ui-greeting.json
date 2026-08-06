@@ -1,0 +1,10 @@
+{
+  "id": "ui-greeting",
+  "name": "UI Greeting",
+  "version": 1,
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "greet", "type": "ACTION", "name": "Greet the user", "topic": "work", "preconditionStepId": "start" },
+    { "id": "end", "type": "END", "name": "Done", "preconditionStepId": "greet" }
+  ]
+}

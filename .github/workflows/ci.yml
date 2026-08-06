@@ -36,6 +36,36 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
+  ui-e2e:
+    name: Browser suite (Playwright)
+    runs-on: ubuntu-latest
+    # TESTING.md §7: the engine's UI driven in a real Chromium. Kept out of the
+    # default `mvn verify` reactor because the first run downloads a browser and
+    # the suite is slower, and differently flaky, from everything else here.
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: 21
+          distribution: zulu
+          cache: maven
+
+      - name: Build the engine (unit tests already run in the build job)
+        run: mvn -B -ntp -pl modules/workflow-engine -am -DskipTests -Djacoco.skip=true install
+
+      - name: Run the browser journeys
+        run: mvn -B -ntp -Pui-e2e -pl modules/workflow-ui-e2e -Djacoco.skip=true verify
+
+      - name: Keep what was on screen
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-e2e-screenshots
+          path: modules/workflow-ui-e2e/target/ui-e2e/
+          if-no-files-found: ignore
+
   dist-e2e:
     name: Distributed suite (Testcontainers)
     runs-on: ubuntu-latest

@@ -1,0 +1,10 @@
+{
+  "id": "ui-long-running",
+  "name": "UI Long Running",
+  "version": 1,
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "wait", "type": "TIMER", "name": "Wait a long while", "duration": 600000, "preconditionStepId": "start" },
+    { "id": "end", "type": "END", "name": "Done", "preconditionStepId": "wait" }
+  ]
+}
