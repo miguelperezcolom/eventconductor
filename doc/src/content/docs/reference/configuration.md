@@ -9,7 +9,9 @@ description: Complete reference for all EventConductor configuration properties.
 |---|---|---|---|
 | `workflow.mode` | `kafka` \| `embedded` | `embedded` | Event dispatch mode |
 | `workflow.persistence` | `jpa` \| `memory` | `memory` | Workflow state persistence mode |
-| `forms.persistence` | `jpa` \| `memory` | `memory` | Forms state persistence mode |
+| `workflow.projection.enabled` | `true` \| `false` | `false` | Turn on the [process-index read model](/guides/process-index/): emit `ProcessStatusChanged` from `ProcessRepository.save` and run the projector that maintains the `process_index` table. Off = no prior-status read, no event, no projector bean; the write path is unchanged |
+| `workflow.shard-id` | string | — | Recorded on each `process_index` row as provenance in a sharded deployment; leave unset when non-sharded |
+| `forms.persistence` | `jpa` \| `memory` | `memory` | Forms state persistence mode. Read only by the forms engine — `workflow.persistence` does not cover it, so an app that embeds both engines has to set both. The standalone forms app overrides the default to `jpa` (`FORMS_PERSISTENCE`) |
 | `workflow.timeout-scan-interval-ms` | ms | `10000` | How often the scheduler looks for expired step timeouts and due `TIMER` steps. The lookup is an indexed query on the step's materialised deadline, so its cost tracks the work that is due — normally none — and not how many steps are waiting; lowering it tightens firing latency without a scan penalty |
 | `workflow.retry.backoff-base-ms` | ms | `1000` | Auto-retry backoff for the first retry. A failed step with retries left is parked in `AWAITING_RETRY` and re-dispatched only after this delay, so a worker that fails fast is never hammered in a tight loop |
 | `workflow.retry.backoff-multiplier` | double | `2.0` | Exponential growth factor applied per attempt: the *n*-th retry waits `base × multiplier^(n-1)`, capped at `backoff-max-ms`. `1.0` = fixed delay |

@@ -25,6 +25,9 @@ class InMemoryProcessRepositoryTest {
     void setUp() {
         repo = new InMemoryProcessRepository();
         ReflectionTestUtils.setField(repo, "processDomainEventUseCase", processDomainEventUseCase);
+        // Read model off: announceIfChanged short-circuits, so save behaves as before.
+        ReflectionTestUtils.setField(repo, "processStatusAnnouncer",
+                new io.mateu.workflow.application.services.ProcessStatusAnnouncer(false));
     }
 
     private Process process(String id, String businessKey) {

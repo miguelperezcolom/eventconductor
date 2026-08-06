@@ -72,6 +72,7 @@ export default defineConfig({
 						{ label: 'Implementing Workers', slug: 'guides/workers' },
 						{ label: 'Retries, Timeouts & Compensation', slug: 'guides/retries-timeouts-compensation' },
 						{ label: 'Process Analytics', slug: 'guides/analytics' },
+						{ label: 'Process Index (CQRS Read Model)', slug: 'guides/process-index' },
 						{ label: 'Event Storming', slug: 'guides/event-storming' },
 					],
 				},

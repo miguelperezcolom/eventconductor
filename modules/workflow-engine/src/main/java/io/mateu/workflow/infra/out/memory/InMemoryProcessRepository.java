@@ -24,6 +24,9 @@ public class InMemoryProcessRepository implements ProcessRepository {
     @Autowired
     private ProcessDomainEventUseCase processDomainEventUseCase;
 
+    @Autowired
+    private io.mateu.workflow.application.services.ProcessStatusAnnouncer processStatusAnnouncer;
+
     private final Map<String, Process> store = new ConcurrentHashMap<>();
 
     @Override
@@ -33,6 +36,13 @@ public class InMemoryProcessRepository implements ProcessRepository {
 
     @Override
     public String save(Process process) {
+        // Read-model event, emitted at the one point every status transition funnels through: if the
+        // read model is on and this save changes the status, ride a ProcessStatusChanged on the same
+        // dispatch below. Off → no store read, no event.
+        if (processStatusAnnouncer.isEnabled()) {
+            var previous = store.get(process.id());
+            processStatusAnnouncer.announceIfChanged(process, previous == null ? null : previous.getStatus());
+        }
         store.put(process.id(), process);
         process.popEvents().forEach(event ->
                 processDomainEventUseCase.handle(new ProcessDomainEventCommand(event)));

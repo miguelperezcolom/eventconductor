@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import io.mateu.workflow.dtos.events.domain.ProcessCancellationRequested;
 import io.mateu.workflow.dtos.events.domain.ProcessCreated;
+import io.mateu.workflow.dtos.events.domain.ProcessStatusChanged;
 import io.mateu.workflow.dtos.events.domain.StepExecutionStatusChanged;
 import io.mateu.workflow.dtos.events.integration.*;
 
@@ -11,6 +12,7 @@ import io.mateu.workflow.dtos.events.integration.*;
 @JsonSubTypes({
         @JsonSubTypes.Type(value = ProcessCreationRequested.class, name = "process-creation-requested"),
         @JsonSubTypes.Type(value = ProcessCreated.class, name = "process-created"),
+        @JsonSubTypes.Type(value = ProcessStatusChanged.class, name = "process-status-changed"),
         @JsonSubTypes.Type(value = ProcessCancellationRequested.class, name = "process-cancellation-requested"),
         @JsonSubTypes.Type(value = StepExecutionStatusChanged.class, name = "step-execution-status-changed"),
         @JsonSubTypes.Type(value = StepExecutionsCreationRequested.class, name = "step-execution-creation-requested"),
