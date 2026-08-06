@@ -274,13 +274,20 @@ rate that makes 20M finish in an acceptable window, rung 3 uses the **sharded** 
 4. **Kafka**: stand up a 3-broker RF=3 Redpanda (needed for fair broker-chaos) — new manifest.
 5. **Cost/box**: rung-3 on `cloudfleet-hetzner` for 1–2 days of dedicated nodes — confirm budget.
 
-## 11. Build order (what I implement first)
+## 11. Build order — status
 
-1. The **realistic workload suite** + **failure-injecting worker** (§5) and the **extended
-   reconciler** (§6) — pure code/SQL in `workflow-benchmark`, testable at rung 0 on compose.
-2. The **3-broker Kafka + NVMe Postgres + worker Deployment** manifests (§3) in a new
-   `k8s/scale/` alongside this doc.
-3. The **continuous-chaos loop** + **autonomous controller** Job (§7) and the **artifact bundle**
-   (§8).
-4. Run **rung 1 (100k)**, iterate, then **rung 2 (1M)** to size, then propose **rung 3 (20M)**.
+1. ✅ **DONE, validated on compose.** Realistic workload suite (§5:
+   `scale/{order-saga,fanout,timed,child,child-work}.json`) + failure-injecting worker
+   (`BenchmarkWorkerApp`) + weighted driver (`Workload`/`ScaleWorkload`) + the extended reconciler
+   (§6: `Reconciler` + `verify` role, R1–R7). A 349-process mixed run returns PASS on all
+   invariants, including COMPENSATION_FAILED exercised at volume through the real Kafka+Postgres
+   flow. (Also fixed a pre-existing `WorkflowInstaller` schema bug.)
+2. ✅ **AUTHORED, YAML-validated, needs cluster validation.** `k8s/scale/`: NVMe Postgres,
+   3-broker RF=3 Kafka, orchestrator (N replicas, timeout>0), failure workers, soak driver, verify
+   Job.
+3. ✅ **AUTHORED.** `k8s/scale/chaos/scale-chaos.yaml` (chaos-mesh Schedules) + `run-scale.sh`
+   (autonomous controller: deploy→load→chaos→drain→verify→collect→PASS/FAIL) + README runbook.
+4. ⏳ **NEXT — needs the cluster.** Build/push the benchmark image; label an NVMe node; install
+   chaos-mesh; run **rung 1 (100k)** to shake out the manifests, **rung 2 (1M)** to measure the
+   NVMe ceiling and size **rung 3 (20M)**.
 </content>
