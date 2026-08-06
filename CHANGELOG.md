@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0-beta.024] - 2026-08-06
+
+The gate earns its keep.
+
+The Trivy image gate that landed in beta.023 immediately did the job it was added for: it caught
+fixable HIGH/CRITICAL CVEs in core dependencies that would otherwise have shipped silently — Spring
+Boot and Spring Framework (security bypass, DoS, XSS), Tomcat (HTTP/2, authentication bypass),
+Jackson 2.x and 3.x (arbitrary code execution), Spring Data, Spring for Kafka, the PostgreSQL JDBC
+driver, and Alpine OS packages. This release remediates all of them to a clean image.
+
+### Security
+- **Spring Boot 4.0.4 → 4.0.7**, which bundles the coordinated Spring fixes (Framework 7.0.8,
+  Data Commons 4.0.6, Spring for Kafka 4.0.6, Jackson 3.1.4, Tomcat 11.0.22). Applied to the engine
+  library modules (via the reactor root) and to the orchestrator/forms/rules apps (which parent off
+  `spring-boot-starter-parent`, so each app pom carries the bump).
+- Explicit pins for what the Boot BOM does not cover: **Jackson 2.x → 2.21.4** (arrives via
+  `json-schema-validator`; Boot 4 manages only Jackson 3.x) and **PostgreSQL JDBC → 42.7.12**.
+- **`apk upgrade`** on the container base images (Alpine → 3.23.5) for the OS package fixes.
+- The orchestrator image now scans clean under the release Trivy gate (alpine 0, app.jar 0).
+
 ## [1.0-beta.023] - 2026-08-05
 
 The last blockers before the promise.
