@@ -10,7 +10,6 @@ description: Complete reference for all EventConductor configuration properties.
 | `workflow.mode` | `kafka` \| `embedded` | `embedded` | Event dispatch mode |
 | `workflow.persistence` | `jpa` \| `memory` | `memory` | Workflow state persistence mode |
 | `workflow.projection.enabled` | `true` \| `false` | `false` | Turn on the [process-index read model](/guides/process-index/): emit `ProcessStatusChanged` from `ProcessRepository.save` and run the projector that maintains the `process_index` table. Off = no prior-status read, no event, no projector bean; the write path is unchanged |
-| `workflow.shard-id` | string | — | Recorded on each `process_index` row as provenance in a sharded deployment; leave unset when non-sharded |
 | `forms.persistence` | `jpa` \| `memory` | `memory` | Forms state persistence mode. Read only by the forms engine — `workflow.persistence` does not cover it, so an app that embeds both engines has to set both. The standalone forms app overrides the default to `jpa` (`FORMS_PERSISTENCE`) |
 | `workflow.timeout-scan-interval-ms` | ms | `10000` | How often the scheduler looks for expired step timeouts and due `TIMER` steps. The lookup is an indexed query on the step's materialised deadline, so its cost tracks the work that is due — normally none — and not how many steps are waiting; lowering it tightens firing latency without a scan penalty |
 | `workflow.retry.backoff-base-ms` | ms | `1000` | Auto-retry backoff for the first retry. A failed step with retries left is parked in `AWAITING_RETRY` and re-dispatched only after this delay, so a worker that fails fast is never hammered in a tight loop |
@@ -325,6 +324,26 @@ spring.cloud.stream.bindingRetryInterval=10
 spring.cloud.stream.kafka.binder.configuration.default.api.timeout.ms=15000
 spring.cloud.stream.kafka.binder.configuration.request.timeout.ms=10000
 ```
+
+## Sharding (advanced, opt-in)
+
+Run the engine as **N shared-nothing shards** to scale writes past a single database, with shards added
+and removed **hot**. Entirely opt-in and off by default — a single-cluster deployment is unchanged and
+never touches any of this. Design and deployment: `k8s/scale/sharded/README.md` and
+`k8s/reliability/ELASTIC-SHARDING-DESIGN.md` in the benchmark module.
+
+| Property | Values | Default | Description |
+|---|---|---|---|
+| `workflow.sharding.enabled` | `true` \| `false` | `false` | Master switch. On: `MessageReceived` routes to a shared `messages` topic every shard consumes (cross-shard `SEND_MESSAGE`→`WAIT_FOR_MESSAGE`), and operator commands (retry/cancel/pause/resume) route to the shard that owns the process. Off: messages and commands go through this shard's own `upstream` exactly as before |
+| `workflow.sharding.shard-id` | string | — | This shard's id. Stamped on every `ProcessStatusChanged` (so the read-model row records where the process lives — the lookup command routing and ingress idempotency use). Leave unset when not sharded |
+| `workflow.sharding.active-shards` | csv | — | Static list of active shard ids the ingress router places new processes across (round-robin). Overridden by `registry-file` when set |
+| `workflow.sharding.registry-file` | path | — | Path to a file listing the active shard ids (comma/newline separated, `#` comments). Re-read on an interval, so editing it — in Kubernetes, a mounted ConfigMap — scales the fleet hot, no restart. Keeps the last good list on a read error. When set, it is the active-shard source instead of `active-shards` |
+| `workflow.sharding.registry-refresh-ms` | ms | `5000` | How often `registry-file` is re-read |
+
+Each shard is the stock engine re-pointed by config: its own `DB_URL`, per-shard Kafka bindings
+(`upstream-<i>`/`downstream-<i>`/`outbox-<i>`/`dead-letter-<i>` via `spring.cloud.stream.bindings.*.destination`),
+and the one shared `messages` topic consumed under a **per-shard consumer group**. See the sharded
+manifests for the full set of overrides.
 
 ## Complete configurations by mode
 
