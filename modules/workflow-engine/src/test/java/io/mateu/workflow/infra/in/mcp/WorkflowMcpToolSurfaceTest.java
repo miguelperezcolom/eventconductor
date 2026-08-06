@@ -32,6 +32,10 @@ class WorkflowMcpToolSurfaceTest {
             "getProcessDetails",
             "findProcessByBusinessKey",
             "getProcessLogs",
+            // Added with the CQRS process-index read model (opt-in via workflow.projection.enabled) —
+            // adding tools is a MINOR change, pinned here by hand per this test's contract.
+            "listInFlightProcesses",
+            "countProcessesByStatus",
             "pauseProcess",
             "resumeProcess",
             "restartProcess",
