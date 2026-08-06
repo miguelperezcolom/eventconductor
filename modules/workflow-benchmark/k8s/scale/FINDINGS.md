@@ -158,3 +158,33 @@ arrivals sit just under capacity (no death spiral) + a higher step timeout, and 
 (more orchestrators / a 3-broker Kafka / more partitions) once the 24-vCPU cap is lifted or the demo
 moved aside. That rate-controlled clean sweep is the next step; this run's job — show the disk lift is
 real and find where the bottleneck moved (engine/CPU + step-timeout dynamics, not storage) — is done.
+
+### Rate-controlled clean sweep — the bottleneck is pipeline concurrency, not any resource (2026-08-06)
+
+Re-ran the same trimmed topology with `DEFAULT_STEP_TIMEOUT_MS=600000` (10 min, so an over-driven
+backlog can't spiral into timeouts) at a steady 80/s. Clean this time: **72 ERROR out of ~55k rows**
+(vs 12.5k in the saturated run), `outbox_unsent` held ~10 throughout.
+
+**The honest sustained ceiling is ~28/s COMPLETED** (plateau 25.5 → 28.7 → 27.3 → 27.9 over the last
+four intervals), ~2× the shared-disk ~13/s — **not** the 4–9× the flat-out drain burst suggested. The
+drain number was inflated (it processed a pre-staged backlog with all resources freed); the steady
+sustained figure is what a 20M run actually gets, and it is ~28/s → **20M ≈ ~8 days**.
+
+**And nothing was resource-bound at that ceiling** (`kubectl top`, mid-run):
+
+| Pod | CPU used | Note |
+|---|---|---|
+| postgres (ccx23) | ~0.87 vCPU | its 8.2k-fsync/s disk is nowhere near saturated |
+| orchestrator ×4 | ~0.4–0.7 vCPU each | not CPU-maxed |
+| kafka (1 broker) | ~0.4 vCPU | idle-ish |
+| worker ×2 | ~0.1 vCPU each | idle |
+
+So the ~28/s ceiling is **not CPU, not disk, not the relay** — it is **event-pipeline concurrency and
+per-step latency**: each process advances one step at a time through outbox → Kafka → consumer →
+commit, a process is pinned to a partition by business key, and the default 500 ms outbox poll adds
+latency to cross-pod hand-offs. Throughput ≈ (concurrently-advancing processes) ÷ (per-step latency),
+and both were left at defaults. **Adding raw resources (faster disk, more CPU) will not move this** —
+the levers are *parallelism and latency*: lower `workflow.outbox-poll-interval-ms`, raise
+`KAFKA_CONCURRENCY` and partition count, more orchestrators, and ultimately **sharding** (§4.3, N
+independent pipelines). That, not storage, is what stands between ~8 days and the 1–2 day target — the
+real, corrected outcome of rung 2.
