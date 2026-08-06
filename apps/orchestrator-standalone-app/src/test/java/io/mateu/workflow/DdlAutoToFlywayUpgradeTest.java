@@ -28,6 +28,10 @@ import static org.assertj.core.api.Assertions.assertThatNoException;
  *
  * <p>Flyway is switched off for the context here so Hibernate builds the schema first; the
  * migrations are then run by hand against it, the way an upgrading deployment would.
+ *
+ * <p>The migrations themselves live in the workflow-engine jar now, not in this application — the
+ * engine owns and applies its own schema. Resolving them from the classpath here is part of what
+ * this test is worth keeping for: it is the application's view of them.
  */
 @SpringBootTest(properties = {
         "spring.flyway.enabled=false",

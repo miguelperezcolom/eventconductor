@@ -41,6 +41,17 @@
         </dependency>
 
         <dependency>
+            <!-- The engine applies its own migrations (see FormsSchemaAutoConfiguration). Optional
+                 for the same reason the JPA starter is: a run with workflow.persistence=memory needs
+                 no database and should not carry a migration tool. Whoever opts into the durable
+                 store brings the JPA stack, and Flyway belongs to that same opt-in — the engine warns
+                 loudly at startup if it is missing, so it is never a silent downgrade. -->
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <dependency>
             <groupId>io.micrometer</groupId>
             <artifactId>micrometer-core</artifactId>
             <!-- metrics only activate if the host app brings a MeterRegistry -->

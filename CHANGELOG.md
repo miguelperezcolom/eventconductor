@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **The engine now ships and applies its own schema.** The Flyway migrations lived in
+  `apps/*-standalone-app`, not in the engine modules, so they existed only for the deployment shape
+  we happen to ship. Anyone **embedding** the engine got no migrations at all: `ddl-auto=update`
+  built tables and primary keys and no indexes — Hibernate's update path emits no index DDL — so
+  every deadline scan, outbox claim and message correlation ran as a sequential scan, silently. The
+  documented advice for embedders (`spring.flyway.enabled=true`) could not have worked either: the
+  SQL was not on their classpath. The migrations now travel in `workflow-engine`, `forms-engine` and
+  `rule-engine`, and each engine runs its own at startup, embedded exactly as in the standalone apps.
+- **The engine's migration history is kept away from the host application's.** A host's migrations
+  are numbered from V1 and so are the engine's; one shared `flyway_schema_history` collides the two
+  numbering spaces and the second to run fails validation on a checksum mismatch. Each engine
+  records its history in a table of its own (`eventconductor_schema_history`, `…_forms`, `…_rules`)
+  and never touches `flyway_schema_history`. `spring.flyway.*` keeps meaning what it meant: the
+  application's own migrations.
+
+### Added
+- `workflow.schema.enabled` / `workflow.schema.table` (and the `forms.schema.*` / `rules.schema.*`
+  equivalents) — whether an engine applies its own migrations, and where it records them.
+- **A startup warning when the engine runs on a schema it is not managing.** Reached by running
+  `workflow.persistence=jpa` without `flyway-core` on the classpath, or with
+  `workflow.schema.enabled=false`. Both are legitimate; running indexless without knowing it is not.
+- Tests for the case that was never covered: an application with a data source and no
+  `spring.flyway.*` configuration of its own. They immediately caught an ordering defect — the
+  schema autoconfiguration evaluated its condition before the data source existed, so an embedder
+  would still have got nothing.
+
+### Changed
+- The standalone apps no longer carry the migrations or configure Boot's Flyway for them. They keep
+  their historical history-table names through `FLYWAY_TABLE`, so **an existing deployment upgrades
+  in place with no manual step**. The Helm chart sets `WORKFLOW_SCHEMA_TABLE` / `FORMS_SCHEMA_TABLE`
+  / `RULES_SCHEMA_TABLE` in place of `SPRING_FLYWAY_TABLE`; its `*.flywayTable` values are unchanged.
+- `flyway-core` is an optional dependency of the engine modules: a run with
+  `workflow.persistence=memory` needs no database and should not carry a migration tool. Embedders
+  using `jpa` add it (plus the driver module, e.g. `flyway-database-postgresql`).
+
 ## [1.0-beta.024] - 2026-08-06
 
 The gate earns its keep.

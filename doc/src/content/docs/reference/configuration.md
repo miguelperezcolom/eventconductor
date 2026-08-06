@@ -211,18 +211,30 @@ GRANT EXECUTE ON DBMS_LOCK TO <your_schema_user>;
 ```
 :::
 
-The standalone apps ship **Flyway migrations and run them by default** (`FLYWAY_ENABLED=true`). In production also set `DDL_AUTO=validate`, so Flyway owns the schema and Hibernate only checks it.
+**Each engine ships its own migrations and applies them itself** at startup, whenever it has a data source — embedded exactly as in the standalone apps. In production also set `DDL_AUTO=validate`, so the migrations own the schema and Hibernate only checks it.
 
-Do not turn Flyway off. The migrations are the only place the engine's indexes come from: `ddl-auto=update` emits no index DDL at all, so a schema built without them has primary keys and nothing else, and every deadline scan, outbox claim and message correlation becomes a sequential scan. Measured on a cluster where they were missing, PostgreSQL pinned at 750m of CPU and throughput fell to a fraction.
+Do not turn this off. The migrations are the only place the engine's indexes come from: `ddl-auto=update` emits no index DDL at all, so a schema built without them has primary keys and nothing else, and every deadline scan, outbox claim and message correlation becomes a sequential scan. Measured on a cluster where they were missing, PostgreSQL pinned at 750m of CPU and throughput fell to a fraction.
 
 ```properties
-spring.flyway.enabled=${FLYWAY_ENABLED:true}
-spring.flyway.locations=classpath:db/migration/workflow   # forms app: db/migration/forms, rule app: db/migration/rules
-spring.flyway.baseline-on-migrate=true
-spring.flyway.baseline-version=1
+workflow.schema.enabled=true                       # forms.schema.*, rules.schema.* for the other two
+workflow.schema.table=eventconductor_schema_history
 ```
 
-The orchestrator ships migrations `V1__baseline.sql` through `V12__optimistic_version.sql`; `baseline-on-migrate` lets Flyway adopt an existing Hibernate-created schema.
+| Property | Default | What it does |
+|---|---|---|
+| `workflow.schema.enabled` | `true` | Apply the engine's migrations at startup. Off means something else owns its tables. |
+| `workflow.schema.table` | `eventconductor_schema_history` | Where the engine records **its own** migration history. |
+| `forms.schema.*` | `eventconductor_schema_history_forms` | Same, for the forms engine. |
+| `rules.schema.*` | `eventconductor_schema_history_rules` | Same, for the rules engine. |
+
+Two things follow from the engine owning its schema:
+
+- **It never writes to `flyway_schema_history`.** That table is yours. Your application's migrations are numbered from V1 and so are the engine's; a shared history would collide them and the second one to run would fail validation on a checksum mismatch. `spring.flyway.*` keeps meaning exactly what it meant before — your migrations, your history — and the engine stays out of it.
+- **It adopts an existing schema.** The migrations baseline at 0 and every `V1` is written `IF NOT EXISTS`, so turning this on over tables `ddl-auto` already created applies the indexes and nothing else.
+
+Embedding the engine needs `org.flywaydb:flyway-core` on the classpath (plus the driver module, e.g. `flyway-database-postgresql`) — it is an optional dependency, since a run with `workflow.persistence=memory` needs neither. With `persistence=jpa` and no Flyway the engine warns loudly at startup rather than running indexless in silence.
+
+The standalone apps keep their historical history-table names (`flyway_schema_history`, `…_forms`, `…_rules`) via `FLYWAY_TABLE`, so an existing deployment upgrades in place.
 
 ### Distributed locking
 
@@ -390,7 +402,8 @@ The standalone images are fully configured via environment variables. All variab
 | `DB_DRIVER` | `org.postgresql.Driver` | `spring.datasource.driver-class-name` |
 | `JPA_DIALECT` | `org.hibernate.dialect.PostgreSQLDialect` | `spring.jpa.database-platform` |
 | `DDL_AUTO` | `update` | `spring.jpa.hibernate.ddl-auto` |
-| `FLYWAY_ENABLED` | `true` | `spring.flyway.enabled` |
+| `FLYWAY_ENABLED` | `true` | `workflow.schema.enabled` |
+| `FLYWAY_TABLE` | `flyway_schema_history` | `workflow.schema.table` |
 | `DB_POOL_SIZE` | `16` | `spring.datasource.hikari.maximum-pool-size` |
 | `DB_CONNECTION_TIMEOUT` | `20000` | `spring.datasource.hikari.connection-timeout` (ms) |
 | `KAFKA_BROKERS` | `localhost:9092` | `spring.cloud.stream.kafka.binder.brokers` |
@@ -420,7 +433,8 @@ The standalone images are fully configured via environment variables. All variab
 | `DB_DRIVER` | `org.postgresql.Driver` | `spring.datasource.driver-class-name` |
 | `JPA_DIALECT` | `org.hibernate.dialect.PostgreSQLDialect` | `spring.jpa.database-platform` |
 | `DDL_AUTO` | `update` | `spring.jpa.hibernate.ddl-auto` |
-| `FLYWAY_ENABLED` | `true` | `spring.flyway.enabled` |
+| `FLYWAY_ENABLED` | `true` | `forms.schema.enabled` |
+| `FLYWAY_TABLE` | `flyway_schema_history_forms` | `forms.schema.table` |
 | `DB_POOL_SIZE` | `16` | `spring.datasource.hikari.maximum-pool-size` |
 | `DB_CONNECTION_TIMEOUT` | `20000` | `spring.datasource.hikari.connection-timeout` (ms) |
 | `KAFKA_BROKERS` | `localhost:9092` | `spring.cloud.stream.kafka.binder.brokers` |

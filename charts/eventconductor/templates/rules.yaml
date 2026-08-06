@@ -71,13 +71,12 @@ spec:
               value: {{ .Values.rules.ddlAuto | quote }}
             - name: FLYWAY_ENABLED
               value: {{ .Values.rules.flywayEnabled | quote }}
-            - name: SPRING_FLYWAY_TABLE
+            # The engine applies its own migrations and records them here. Baselining at 0
+            # so V1 is applied even though the schema is not empty — the three apps share
+            # one database, so "not empty" means somebody else got here first — is now the
+            # engine's own behaviour and no longer needs to be configured per deployment.
+            - name: RULES_SCHEMA_TABLE
               value: {{ .Values.rules.flywayTable | quote }}
-            # Baseline at 0 so V1 is applied even though the schema is not empty: the
-            # three apps share one database, so "not empty" means somebody else got
-            # here first, not that this app's tables exist. Every V1 is IF NOT EXISTS.
-            - name: SPRING_FLYWAY_BASELINE_VERSION
-              value: "0"
             - name: SECURITY_ENABLED
               value: {{ .Values.rules.security.enabled | quote }}
             - name: SECURITY_USER

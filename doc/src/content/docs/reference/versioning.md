@@ -71,11 +71,21 @@ is the 1.0 format.
 
 ## Database upgrades
 
-Flyway migrations run automatically on startup (`workflow.persistence=jpa`). Within a MAJOR line
-they are **forward-only and additive** — a newer engine upgrades an older schema in place with no
-manual step, and no migration drops or rewrites existing data. Always take a backup before a MAJOR
-upgrade. Run one engine version at a time through the migration; skipping intermediate MAJORs is not
-supported unless a release note says otherwise.
+**The engine ships its schema and applies it itself.** The migrations live in the engine jar, and
+the engine runs them at startup against whatever data source it has — embedded exactly as in the
+standalone apps. It records its history in a table of its own (`eventconductor_schema_history`) and
+never writes to `flyway_schema_history`, so your application's own migrations and the engine's stay
+independent in the same database. `workflow.schema.enabled=false` opts out; see
+[Configuration](/reference/configuration/).
+
+Within a MAJOR line the migrations are **forward-only and additive** — a newer engine upgrades an
+older schema in place with no manual step, and no migration drops or rewrites existing data. Always
+take a backup before a MAJOR upgrade. Run one engine version at a time through the migration;
+skipping intermediate MAJORs is not supported unless a release note says otherwise.
+
+The migration files themselves are **not** part of the public contract: their names, numbering and
+contents are implementation detail, like the schema they build. What is stable is that upgrading the
+engine upgrades the schema for you.
 
 ## Deprecation policy
 

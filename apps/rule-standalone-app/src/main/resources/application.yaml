@@ -44,6 +44,17 @@ workflow:
 
 rules:
   persistence: ${RULES_PERSISTENCE:jpa}
+  schema:
+    # The engine applies its own migrations at startup. They are the only place this app's indexes
+    # come from — Hibernate's ddl-auto=update path emits no index DDL — and under the chart's
+    # DDL_AUTO=validate they are the only thing that creates the tables at all. Safe on a schema
+    # ddl-auto already created: every V1 is written with IF NOT EXISTS.
+    enabled: ${FLYWAY_ENABLED:true}
+    # Its own history table, because rules, forms and the orchestrator are routinely pointed at one
+    # database — that is what the chart does — and each carries a different set of migrations under
+    # the same version numbers. Kept at the name existing deployments already have, rather than the
+    # engine's own default, so their history is not suddenly empty.
+    table: ${FLYWAY_TABLE:flyway_schema_history_rules}
   source: local
   grpc:
     enabled: ${RULES_GRPC_ENABLED:true}
@@ -114,27 +125,9 @@ spring:
         format_sql: true
 
   flyway:
-    # On by default, for the same reason as in the orchestrator: the migrations are the schema of
-    # record and the only place this app's indexes come from. Hibernate's ddl-auto=update path
-    # emits no index DDL, so running without them leaves a schema with primary keys and nothing
-    # else. Safe to enable on a schema ddl-auto already created — it baselines at V1.
-    enabled: ${FLYWAY_ENABLED:true}
-    locations: classpath:db/migration/rules
-    baseline-on-migrate: true
-    # Baseline at 0, not at 1, so V1 is always applied. Flyway's baseline-on-migrate treats a
-    # non-empty schema as "my schema is already here" and skips V1 — a fair guess for one app per
-    # database, and wrong for the deployment the chart actually describes, where three apps share
-    # one. Whichever starts second finds tables (somebody else's), skips its own baseline and dies
-    # on the first migration that touches a table it never created. Every V1 here creates only
-    # IF NOT EXISTS, so applying it to a schema that already has those tables does nothing.
-    baseline-version: 0
-    # Its own history table, because rules, forms and the orchestrator are routinely pointed at one
-    # database — that is what the chart does — and each carries a different set of migrations under
-    # the same version numbers. Sharing the default table means whichever app starts first writes
-    # its V1 there and the other two fail validation on a checksum mismatch and never come up.
-    table: ${FLYWAY_TABLE:flyway_schema_history_rules}
-    out-of-order: false
-    validate-on-migrate: true
+    # Off: the rules engine now ships and applies its own migrations (see rules.schema above). This
+    # is Boot's Flyway, for *this application's* own migrations, and it has none.
+    enabled: false
 
 logging:
   level:

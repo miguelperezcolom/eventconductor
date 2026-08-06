@@ -70,5 +70,25 @@
             <artifactId>spring-boot</artifactId>
             <optional>true</optional>
         </dependency>
+        <dependency>
+            <!-- ManagedSchema, the runner each engine applies its own migrations with. Optional
+                 here so a worker or a DTO consumer does not drag Flyway in; the engine modules
+                 that actually own a schema declare it themselves. -->
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <!-- A real database for ManagedSchemaTest: what it asserts is what Flyway did to the
+                 schema, which a mock cannot tell us. -->
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-jdbc</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 </project>
