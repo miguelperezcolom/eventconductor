@@ -13,6 +13,7 @@ safety**.
 | End-to-end (embedded) | `modules/workflow-e2e` | None — engine in `embedded` + `memory` mode, programmable workers | Yes (`mvn verify`) — ~33 tests, all green |
 | End-to-end (JPA outbox) | `modules/workflow-e2e` | H2 in PostgreSQL mode — exercises the real outbox relay, JDBC advisory locks and JPA persistence | Yes (`mvn verify`) — 4 tests (see §5) |
 | Distributed (Kafka) | `modules/workflow-dist-e2e` (Testcontainers) | PostgreSQL + Kafka in Docker | Yes — dedicated CI job via the `dist-e2e` Maven profile — 8 tests (see §6) |
+| Browser (UI) | `modules/workflow-ui-e2e` (Playwright) | A real Chromium, downloaded on first run | Yes — dedicated CI job via the `ui-e2e` Maven profile — 14 journeys (see §7) |
 
 The e2e tests drive the engine exclusively through its public surface: upstream events
 (`ProcessCreationRequested`, worker status callbacks), the `EmbeddedTaskExecutor` port, and the
@@ -175,6 +176,77 @@ profile and a dedicated CI job.
 | DIST-11 | **Partition ownership.** Every event of a process carries that process as its Kafka key, so all of them hash to one partition — which a consumer group hands to exactly one pod. Read off the topics directly rather than inferred: a key that silently fails to be written leaves every event round-robining as before, and nothing else would look different. This is what per-process serialization and ordering rest on. |
 | DIST-12 | **An unprocessable event is parked, not dropped, and does not stall the traffic around it.** Real traffic is driven with a report for a step execution the engine has never heard of mixed into it: the real processes finish, and the poison event turns up on the dead-letter topic unchanged. Both halves matter — a poll batch shares transactions, so the scope has to be one process; and an event the engine gives up on has to be visible somewhere. |
 
+## 7. The UI, in a browser (`modules/workflow-ui-e2e`)
+
+Everything above drives the engine through its ports. These drive it the way an operator does:
+a real browser, a real click, a real wait for the screen to catch up.
+
+**Playwright rather than Selenium**, because the UI is nested *open* shadow roots four deep
+(`mateu-ui` → `mateu-ux` → `mateu-app` → `vaadin-*`). Playwright's selector engines pierce open
+shadow roots; with WebDriver every step would mean walking `shadowRoot` by hand.
+
+**Selectors are text, isolated behind page objects.** The UI exposes no test hooks — Mateu emits a
+fresh UUID as every component's id on every render — so there is nothing stable to select by except
+custom element names and the words on screen. Selecting by visible text is the right thing for a
+test that claims to simulate a user, and it does couple these tests to the UI's copy: keeping every
+such selector in `io.mateu.workflow.uie2e.pages` makes a renamed button one edit instead of many,
+and is where `data-testid` would land if the framework grows them.
+
+**Assertions wait, they never sample.** An operator action does not perform anything — it publishes
+a request that the pod owning the process carries out, after which the detail view's two-second
+poll notices. So every assertion is on what the badge *becomes*.
+
+| ID | Spec | Status |
+|----|------|--------|
+| UI-NAV-01 | The Workflow menu offers Definitions, Processes, Steps and Analytics — the engine's navigation contract with any app that embeds it. | ✅ |
+| UI-NAV-02 | A started process appears in the list, under its workflow's name. | ✅ |
+| UI-NAV-03 | The list is columned Id / Name / Status / Created / Started / Finished. | ✅ |
+| UI-NAV-04 | A process that completes is *shown* as Completed, not merely recorded as such. | ✅ |
+| UI-NAV-05 | Search narrows the list. Asserted on the grid's own item count: `vaadin-grid` reuses its cell elements, so a filtered-out row is still in the DOM holding its old text. | ✅ |
+| UI-DET-01 | Opening a process shows its id, name and outcome. | ✅ |
+| UI-DET-02 | The detail offers all six tabs: Diagram, Steps, Messages, Errors, Resources, Variables. | ✅ |
+| UI-DET-03 | The diagram draws the steps of the definition — the one part of this UI with no equivalent in the API. | ✅ |
+| UI-DET-04 | The Steps tab lists what ran, by step id. | ✅ |
+| UI-DET-05 | A rolled-back saga shows COMPENSATED, its compensation step, and the reason in the Errors tab. | ✅ |
+| UI-DET-06 | "Back to list" returns to the list with the process still in it. | ✅ |
+| UI-OPS-01 | Pausing a running process stops it — the click reaches the engine and the badge becomes Paused. | ✅ |
+| UI-OPS-02 | Cancelling asks first and only acts on confirmation. | ✅ |
+| UI-OPS-03 | A running process is offered Pause and Cancel, and *not* Resume. | ✅ |
+| UI-OPS-04 | Resuming a paused process sets it running again. | ⛔ Disabled — the detail never renders "Resume process" (see below) |
+| UI-OPS-05 | "Retry from failure" re-drives a rolled-back process. | ⛔ Disabled — the detail never renders it |
+| UI-OPS-06 | A paused process is offered Resume. | ⛔ Disabled — same cause |
+
+### What these found
+
+**Three of the five operator actions are missing from the process detail.**
+`SimpleProcessViewModel` declares cancel, pause, resume, retry and restart, all `@Toolbar` and none
+`@Hidden`. Only cancel and pause are ever rendered — in either state of the "⋯" expander, at any
+window width, and whatever the process status. Confirmed by hand against
+`testbench/workflow-embedded`, outside the tests. An operator therefore cannot resume, retry or
+restart from the screen showing the process that needs it, which is precisely what `retryProcess`'s
+javadoc says it is for. The list page offers Retry and Restart against a selection, which is the
+workaround. The three specs above are written and disabled; they should pass unchanged once the
+toolbar renders them.
+
+**The engine did not apply its own schema in this application.**
+`WorkflowSchemaAutoConfiguration` loaded but its initializer was conditioned away —
+`@ConditionalOnSingleCandidate(DataSource.class)` found no bean at evaluation time even though
+`DataSourceAutoConfiguration` matched, meaning it is being ordered ahead of the data source rather
+than after it. The engine's own unmanaged-schema warning fired and `ddl-auto=validate` then failed
+on the missing tables, which is the sequence that warning exists to produce instead of silence.
+`UiE2eApplication` declares the initializer explicitly as a documented workaround so these tests
+still run on the real migrations.
+
+### Running them
+
+```bash
+mvn -Pui-e2e -pl modules/workflow-ui-e2e -am verify
+```
+
+The first run downloads a Chromium (~150 MB). Every test leaves a screenshot and the rendered HTML
+under `target/ui-e2e/`, passing or failing — a browser test that fails in CI is unreadable from a
+stack trace, and the question is always "what was on screen?".
+
 ## How to run
 
 ```bash
@@ -186,6 +258,9 @@ mvn -pl modules/workflow-e2e -am verify
 
 # Distributed suite (needs Docker; PostgreSQL + Kafka via Testcontainers):
 mvn -Pdist-e2e -pl modules/workflow-dist-e2e -am verify
+
+# Browser suite (downloads a Chromium on first run):
+mvn -Pui-e2e -pl modules/workflow-ui-e2e -am verify
 ```
 
 ### Trying the UI by hand

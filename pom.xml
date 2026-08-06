@@ -289,6 +289,19 @@
       default build because it needs Docker (Testcontainers: PostgreSQL + Kafka)
       and takes minutes. Run with: mvn -Pdist-e2e -pl modules/workflow-dist-e2e -am verify
     -->
+    <!--
+      Browser end-to-end tests for the engine's UI. Excluded from the default build because the
+      first run downloads a browser (~150 MB) and the suite drives a real one, which is slower and
+      differently flaky from everything else here. Run with:
+      mvn -Pui-e2e -pl modules/workflow-ui-e2e -am verify
+    -->
+    <profile>
+      <id>ui-e2e</id>
+      <modules>
+        <module>modules/workflow-ui-e2e</module>
+      </modules>
+    </profile>
+
     <profile>
       <id>dist-e2e</id>
       <modules>
