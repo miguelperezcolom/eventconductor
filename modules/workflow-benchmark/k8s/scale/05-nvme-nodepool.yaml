@@ -1,0 +1,60 @@
+# Rung 2 — a dedicated-vCPU (CCX) node pool for Postgres, to lift the WAL-fsync ceiling.
+#
+# NOTE: CloudFleet blocks `kubectl apply` of NodePools ("must be managed via the Cloudfleet Fleet
+# API"), so on THIS cluster you cannot create this pool directly — create it via the Fleet API /
+# dashboard, OR use the kubectl-only workaround that 10-postgres.yaml uses: select the CCX
+# instance-type directly (`node.kubernetes.io/instance-type: ccx23`), which Karpenter honours off
+# the existing unrestricted pool. This file is the reference for clusters where you DO own the pool
+# (it also carries the `eventconductor.io/storage=nvme` node label the selector-label path expects).
+#
+# Rung 1/2 ran Postgres on a shared-vCPU Hetzner node (cx23/cx43), whose emptyDir sustained only
+# ~890-1,600 fdatasync/s → the engine's ~13 process-instances/s ceiling → 20M ≈ ~18 days. The CCX
+# line has DEDICATED vCPUs, so an fsync syscall is not stalled by noisy-neighbour CPU steal; this
+# pool exists to measure whether that raises the fsync budget enough to matter.
+#
+# ADDITIVE and isolated: a NEW NodePool, so it never disrupts the existing `mateu-fleet` pool that
+# also backs the live demo. It provisions only when a pod requests its label
+# (eventconductor.io/storage=nvme), and its own cpu limit caps the spend. Delete this NodePool (or
+# just the ec-scale namespace) after the run and Karpenter tears the node down.
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: mateu-nvme
+spec:
+  disruption:
+    # Don't consolidate mid-run: a Postgres holding the whole DB on node-local disk must not be
+    # rescheduled underneath the soak. Emptied after the run, it expires on its own.
+    consolidationPolicy: WhenEmpty
+    consolidateAfter: 2m
+  limits:
+    cpu: "10"
+  template:
+    metadata:
+      labels:
+        eventconductor.io/storage: nvme
+    spec:
+      expireAfter: Never
+      nodeClassRef:
+        group: cfke.io
+        kind: NodeClass
+        name: mateu-fleet
+      requirements:
+        - key: cfke.io/provider
+          operator: In
+          values: [HETZNER, hetzner]
+        - key: kubernetes.io/arch
+          operator: In
+          values: [amd64]
+        # Dedicated-vCPU CCX instances (local NVMe, no CPU steal on fsync). Let Karpenter pick the
+        # cheapest that fits the Postgres request (3 vCPU / 6Gi): ccx23 = 4 vCPU / 16Gi.
+        - key: node.kubernetes.io/instance-type
+          operator: In
+          values: [ccx13, ccx23, ccx33]
+      startupTaints:
+        - effect: NoExecute
+          key: node.cilium.io/agent-not-ready
+          value: "true"
+        - effect: NoSchedule
+          key: node.cloudprovider.kubernetes.io/uninitialized
+          value: "true"
+  weight: 20

@@ -1,0 +1,106 @@
+# Kafka — SINGLE broker, RF=1. For the rung-2 THROUGHPUT sweep only (not a reliability run).
+#
+# The 3-broker RF=3 manifest (20-kafka.yaml) is the durability topology; a throughput sweep does not
+# need it and, under the 24-vCPU cap shared with the live demo, cannot afford it. One KRaft broker
+# (combined broker+controller, single quorum voter) with every replication factor at 1 is the
+# canonical benchmark broker — it measures the engine, which is the point here.
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka
+  namespace: ec-scale
+spec:
+  clusterIP: None
+  selector: { app: kafka }
+  ports:
+    - { name: broker, port: 9092 }
+    - { name: controller, port: 9093 }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-bootstrap
+  namespace: ec-scale
+spec:
+  selector: { app: kafka }
+  ports: [{ name: broker, port: 9092, targetPort: 9092 }]
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: kafka
+  namespace: ec-scale
+spec:
+  serviceName: kafka
+  replicas: 1
+  podManagementPolicy: Parallel
+  selector: { matchLabels: { app: kafka } }
+  template:
+    metadata:
+      labels: { app: kafka, scale-role: infra }
+    spec:
+      securityContext: { runAsUser: 1000, runAsGroup: 1000 }
+      initContainers:
+        - name: seed-config
+          image: apache/kafka:3.9.0
+          command: ["sh", "-c", "cp -r /opt/kafka/config/. /seed/"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities: { drop: ["ALL"] }
+            seccompProfile: { type: RuntimeDefault }
+            readOnlyRootFilesystem: true
+          volumeMounts: [{ name: config, mountPath: /seed }]
+      containers:
+        - name: kafka
+          image: apache/kafka:3.9.0
+          command: ["sh", "-c"]
+          args:
+            - |
+              export KAFKA_NODE_ID="${HOSTNAME##*-}"
+              export KAFKA_ADVERTISED_LISTENERS="PLAINTEXT://${HOSTNAME}.kafka.ec-scale.svc.cluster.local:9092"
+              exec /etc/kafka/docker/run
+          env:
+            - { name: KAFKA_PROCESS_ROLES, value: "broker,controller" }
+            - { name: KAFKA_LISTENERS, value: "PLAINTEXT://:9092,CONTROLLER://:9093" }
+            - { name: KAFKA_LISTENER_SECURITY_PROTOCOL_MAP, value: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT" }
+            - { name: KAFKA_CONTROLLER_LISTENER_NAMES, value: "CONTROLLER" }
+            - { name: KAFKA_INTER_BROKER_LISTENER_NAME, value: "PLAINTEXT" }
+            # Single voter — this broker is the whole quorum.
+            - { name: KAFKA_CONTROLLER_QUORUM_VOTERS, value: "0@kafka-0.kafka.ec-scale.svc.cluster.local:9093" }
+            - { name: KAFKA_DEFAULT_REPLICATION_FACTOR, value: "1" }
+            - { name: KAFKA_MIN_INSYNC_REPLICAS, value: "1" }
+            - { name: KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR, value: "1" }
+            - { name: KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR, value: "1" }
+            - { name: KAFKA_TRANSACTION_STATE_LOG_MIN_ISR, value: "1" }
+            - { name: KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS, value: "0" }
+            - { name: KAFKA_NUM_PARTITIONS, value: "48" }
+            - { name: KAFKA_AUTO_CREATE_TOPICS_ENABLE, value: "true" }
+            - { name: CLUSTER_ID, value: "ec-scale-cluster-0001" }
+            - { name: KAFKA_LOG_DIRS, value: "/var/lib/kafka/data" }
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities: { drop: ["ALL"] }
+            seccompProfile: { type: RuntimeDefault }
+            readOnlyRootFilesystem: true
+          ports:
+            - { containerPort: 9092 }
+            - { containerPort: 9093 }
+          resources:
+            requests: { cpu: "2", memory: "3Gi" }
+            limits: { memory: "4Gi" }
+          volumeMounts:
+            - { name: data, mountPath: /var/lib/kafka/data }
+            - { name: config, mountPath: /opt/kafka/config }
+            - { name: tmp, mountPath: /tmp }
+            - { name: logs, mountPath: /opt/kafka/logs }
+      volumes:
+        - name: data
+          emptyDir: {}
+        - name: config
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+        - name: logs
+          emptyDir: {}

@@ -40,11 +40,18 @@ spec:
     metadata:
       labels: { app: postgres, scale-role: infra }
     spec:
-      # Pin to a node whose ephemeral disk is NVMe. Set this label on the NVMe node pool (Hetzner
-      # dedicated-vCPU / CCX instances have local NVMe). Without it, emptyDir may land on a
-      # network-backed disk and the fsync ceiling reappears.
+      # Pin Postgres to a DEDICATED-vCPU node so its WAL fsyncs are not throttled by noisy-neighbour
+      # CPU steal. Measured on this cluster (pg_test_fsync, 8kB fdatasync, single thread):
+      #   shared-vCPU cx23/cx43 emptyDir : ~890-1,600 ops/s  -> engine ceiling ~13 process-instances/s
+      #   dedicated-vCPU ccx23 emptyDir  : ~8,250 ops/s       -> ~5-9x, the rung-2 storage lift
+      # So the ceiling was CPU-steal on the fsync syscall, NOT inherent Hetzner storage.
+      #
+      # Selection: on a cluster where you control the node pool, label the NVMe/dedicated pool
+      # `eventconductor.io/storage: nvme` and select that. CloudFleet (this cluster) blocks creating
+      # NodePools via kubectl — its pools are Fleet-API-managed — but the existing pool has no
+      # instance-type restriction, so selecting the CCX type directly makes Karpenter provision one.
       nodeSelector:
-        eventconductor.io/storage: nvme
+        node.kubernetes.io/instance-type: ccx23
       securityContext:
         runAsUser: 999
         runAsGroup: 999
