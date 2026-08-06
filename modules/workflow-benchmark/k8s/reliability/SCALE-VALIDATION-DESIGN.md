@@ -127,9 +127,68 @@ Three candidate Postgres topologies, measured in the pilot, chosen by result:
    Cost: local disk is ephemeral, so a node loss = DB loss — acceptable for a *test* cluster, and
    itself a chaos scenario worth running deliberately (node-drain with data on local disk tests the
    backup/restore story, or is explicitly out of scope).
-3. **Sharded (stretch).** N Postgres on local NVMe, processes hashed across them, N orchestrator/worker
-   pools. Linear write scaling; the only way to push past a single node's fsync rate. Build only if 1M
-   pilot shows a single NVMe node can't hit the target rate.
+3. **Sharded (stretch).** N Postgres, processes hashed across them, N orchestrator/worker
+   pools. Linear write scaling; the only way to push past a single node's fsync rate. Build only if the
+   1M pilot shows a single fast node can't hit the target rate. Fully designed in §4a.
+
+## 4a. Sharding — how it would work
+
+The single-Postgres ceiling is a WAL fsync stream: one node, one commit-serialisation point. Sharding
+splits the *processes* across **N shared-nothing stacks**, so the total fsync budget is ~N×. Measured
+here at ~13 PI/s/node, N shards give ~13N; on real NVMe (say ~40/node) far fewer shards reach the
+target. It is the heavyweight lever — reach for it only when one fast node is not enough.
+
+**The unit is the process.** Everything about a process — its `process_entity` row, all its
+`step_execution_entity` rows, its outbox rows, its logs — lives on ONE shard, chosen by
+`hash(businessKey) % N`. That is forced by the engine's model: a process advances in a per-process
+transaction under single-writer (partition) ownership, so its state cannot straddle two databases.
+
+**A shard is the stock engine, re-pointed by config — no code change.** The engine already
+externalises both things a shard needs: the database (`spring.datasource.url` → `DB_URL`) and every
+Kafka topic (Spring Cloud Stream binding `destination`s, defaulted by `KafkaBindingDefaults` to
+`upstream`/`downstream`/`outbox`/`dead-letter`, overridable per binding). So **shard i** is the same
+`orchestrator-standalone-app` image with `DB_URL=postgres-i` and its binding destinations suffixed
+`-i` (`upstream-i`, …). N deployments, N Postgres, one Kafka cluster with per-shard topic names (or N
+Kafka clusters). Each shard is a complete, independent mini-cluster: DB + orchestrators + workers +
+topics.
+
+**Routing happens once, at ingestion.** An external `ProcessCreationRequested` is produced to
+`upstream-<hash(businessKey) % N>`. The load driver already holds the business key, so it shards at
+the source (a real deployment puts a thin router in front of the message-API / Kafka ingress). After
+that, everything about the process stays on its shard by construction.
+
+**The three things that could cross a shard, and how each is handled:**
+
+1. **Child processes (`PROCESS` step) — local for free.** A parent in shard i spawns a child by
+   emitting `ProcessCreationRequested` through *its own* `upstream-i` binding, so the child is created
+   in shard i. Parent↔child completion notification (`NotifyParentStepService`) reads the parent's
+   `PROCESS` step in shard i's DB — same shard, works unchanged. Grandchildren likewise.
+
+2. **Worker replies — local for free.** Shard i's workers consume `downstream-i` and reply via
+   `WorkerReply` to `upstream-i` (their own bindings). A task and its reply never leave the shard, so
+   the reply lands in the DB that owns the step.
+
+3. **Messages (`SEND_MESSAGE` → `WAIT_FOR_MESSAGE`) — the one genuinely cross-shard case.** A send in
+   shard i must be able to wake a wait in shard j, but neither knows the other's shard. Handle it with
+   **one shared `messages` topic that every shard consumes**: `SEND_MESSAGE`'s `MessageReceived` is
+   published there (not to a per-shard `upstream-i`), and each shard correlates it against *its own*
+   local `WAIT_FOR_MESSAGE` subscriptions — a message that matches nothing locally is simply dropped,
+   which is already the fail-closed contract. This is the only piece that is more than per-shard config:
+   a binding that routes `MessageReceived` to the shared topic on publish and consumes the shared topic
+   on every shard (a small, additive engine/config change). Volume is low (messages are rare relative
+   to steps), so the shared topic is not a new bottleneck.
+
+**The reconciler fans out.** `Reconciler.verify` runs its invariants against each shard's Postgres and
+sums them: conservation is Σ(acked_i) vs Σ(present_i); exactly-once / no-stuck / outbox are per-shard
+and unioned; the saga histogram sums across shards. Business keys already carry the intent, so the
+verdict is shard-agnostic. The driver's `soak_progress` gets a shard column (or one row per shard).
+
+**Cost.** N× the infrastructure, plus the ingress router, the shared `messages` topic, and the
+shard-fanout reconciler. Operationally it is N clusters to watch. This is why it is the stretch option:
+prove a single fast-NVMe node's ceiling first (rung 2 on real NVMe), and only shard if 20M ÷ that
+ceiling is still an unacceptable wall-clock. (For reference, this is the same shard-by-workflow-id
+principle Temporal/Cadence use for history shards; EventConductor's Kafka-partition-per-process model
+just makes topic-per-shard the natural expression of it.)
 
 ---
 
