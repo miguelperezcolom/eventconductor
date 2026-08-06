@@ -1,6 +1,6 @@
 package io.mateu.workflow.infra.in.mcp;
 
-import io.mateu.workflow.application.out.UpstreamEventPublisher;
+import io.mateu.workflow.application.services.CommandDispatcher;
 import io.mateu.workflow.dtos.events.integration.RestartProcessRequested;
 import io.mateu.workflow.dtos.events.integration.RetryProcessRequested;
 import org.junit.jupiter.api.Test;
@@ -28,7 +28,7 @@ class WorkflowMcpToolsRerunTest {
     @Mock io.mateu.workflow.application.out.LogMessageRepository logMessageRepository;
     @Mock io.mateu.workflow.application.usecases.process.retry.RetryProcessUseCase retryProcessUseCase;
     @Mock io.mateu.workflow.application.usecases.gitimport.ImportWorkflowDefinitionsFromGitUseCase importWorkflowDefinitionsFromGitUseCase;
-    @Mock UpstreamEventPublisher upstreamEventPublisher;
+    @Mock CommandDispatcher commandDispatcher;
 
     @InjectMocks WorkflowMcpTools tools;
 
@@ -36,7 +36,7 @@ class WorkflowMcpToolsRerunTest {
     void retryPublishesARetryRequestKeyedByTheProcess() {
         var result = tools.retryProcess("p-1");
 
-        verify(upstreamEventPublisher).publish(new RetryProcessRequested("p-1"));
+        verify(commandDispatcher).dispatch(new RetryProcessRequested("p-1"));
         assertThat(result).contains("p-1");
     }
 
@@ -44,7 +44,7 @@ class WorkflowMcpToolsRerunTest {
     void restartPublishesARestartRequestKeyedByTheProcess() {
         var result = tools.restartProcess("p-1");
 
-        verify(upstreamEventPublisher).publish(new RestartProcessRequested("p-1"));
+        verify(commandDispatcher).dispatch(new RestartProcessRequested("p-1"));
         assertThat(result).contains("p-1");
     }
 }

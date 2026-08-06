@@ -16,7 +16,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * The cross-shard message routing, exercised end to end with {@code workflow.messages.shared-topic=true}.
+ * The cross-shard message routing, exercised end to end with {@code workflow.sharding.enabled=true}.
  * The switch changes where an external message is published (the shared {@code messages} topic instead of
  * a shard's {@code upstream}); this proves the switch does not break correlation — a message dispatched
  * through {@link MessageDispatcher} still wakes the waiting step and merges its payload.
@@ -25,7 +25,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * true two-shard case (a send on shard A waking a waiter on shard B over one shared topic) is a
  * distributed test. This guards the routing itself: enabling the flag must be lossless.
  */
-@TestPropertySource(properties = "workflow.messages.shared-topic=true")
+@TestPropertySource(properties = "workflow.sharding.enabled=true")
 class MessageSharedTopicE2eTest extends AbstractE2eTest {
 
     @Autowired MessageDispatcher messageDispatcher;

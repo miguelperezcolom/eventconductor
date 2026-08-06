@@ -11,7 +11,7 @@ import io.mateu.workflow.dtos.events.integration.MessageReceived;
  *
  * <p>Distinct from {@link UpstreamEventPublisher}, which addresses one shard's own {@code upstream}.
  * Which of the two a send uses is decided by {@code MessageDispatcher} from
- * {@code workflow.messages.shared-topic}; with the read model / sharding off, messages keep going
+ * {@code workflow.sharding.enabled}; with the read model / sharding off, messages keep going
  * through {@code upstream} exactly as before and this port is unused.
  */
 public interface MessagePublisher {

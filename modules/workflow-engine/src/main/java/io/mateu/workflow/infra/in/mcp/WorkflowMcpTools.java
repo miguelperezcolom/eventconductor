@@ -64,7 +64,7 @@ public class WorkflowMcpTools implements McpTools, McpSystemContext {
     private final PauseWorkflowUseCase pauseWorkflowUseCase;
     private final ResumeWorkflowUseCase resumeWorkflowUseCase;
     private final ImportWorkflowDefinitionsFromGitUseCase importWorkflowDefinitionsFromGitUseCase;
-    private final UpstreamEventPublisher upstreamEventPublisher;
+    private final io.mateu.workflow.application.services.CommandDispatcher commandDispatcher;
     private final io.mateu.workflow.application.services.MessageDispatcher messageDispatcher;
     private final ProcessAnalyticsService processAnalyticsService;
     private final io.mateu.workflow.application.readmodel.ProcessIndexQueryService processIndexQueryService;
@@ -177,7 +177,7 @@ public class WorkflowMcpTools implements McpTools, McpSystemContext {
             + " that was down, a downstream service that has since recovered.")
     public String retryProcess(String processId) {
         log.info("Retrying process " + processId);
-        upstreamEventPublisher.publish(new RetryProcessRequested(processId));
+        commandDispatcher.dispatch(new RetryProcessRequested(processId));
         return "Retry requested for process " + processId
                 + ". It is carried out by the node that owns the process, so query the process to see the outcome.";
     }
@@ -190,7 +190,7 @@ public class WorkflowMcpTools implements McpTools, McpSystemContext {
             + " re-running successful steps would repeat work that has already had an effect.")
     public String restartProcess(String processId) {
         log.info("Restarting process " + processId + " from the beginning");
-        upstreamEventPublisher.publish(new RestartProcessRequested(processId));
+        commandDispatcher.dispatch(new RestartProcessRequested(processId));
         return "Restart requested for process " + processId
                 + ". It is carried out by the node that owns the process, so query the process to see the outcome.";
     }
@@ -198,7 +198,7 @@ public class WorkflowMcpTools implements McpTools, McpSystemContext {
     @Tool(description = "Pause a PENDING or RUNNING workflow process: no new steps start and timer/timeout clocks freeze until it is resumed. In-flight work is not cancelled — worker reports and messages are still accepted, only successors are held.")
     public String pauseProcess(String processId) {
         log.info("Pausing process " + processId);
-        upstreamEventPublisher.publish(new PauseProcessRequested(processId));
+        commandDispatcher.dispatch(new PauseProcessRequested(processId));
         return "Pause requested for process " + processId
                 + ". It is carried out by the node that owns the process, so query the process to see the outcome.";
     }
@@ -206,7 +206,7 @@ public class WorkflowMcpTools implements McpTools, McpSystemContext {
     @Tool(description = "Resume a PAUSED workflow process: timer/timeout clocks are shifted forward by the pause duration and the flow moves on.")
     public String resumeProcess(String processId) {
         log.info("Resuming process " + processId);
-        upstreamEventPublisher.publish(new ResumeProcessRequested(processId));
+        commandDispatcher.dispatch(new ResumeProcessRequested(processId));
         return "Resume requested for process " + processId
                 + ". It is carried out by the node that owns the process, so query the process to see the outcome.";
     }

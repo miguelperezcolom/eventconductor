@@ -8,8 +8,8 @@ import org.springframework.stereotype.Component;
 
 /**
  * Decides where an externally-injected {@link MessageReceived} goes: the shared {@code messages}
- * topic (so it can wake a waiter on any shard) when {@code workflow.messages.shared-topic} is on, or
- * — the default — one shard's own {@code upstream}, exactly as before. The one place the sharded vs
+ * topic (so it can wake a waiter on any shard) when {@code workflow.sharding.enabled} is on, or — the
+ * default — one shard's own {@code upstream}, exactly as before. The one place the sharded vs
  * single-cluster message routing is chosen, so the external entry points (the MCP tool, the REST
  * endpoint) do not each have to know about sharding.
  *
@@ -22,18 +22,18 @@ public class MessageDispatcher {
 
     private final UpstreamEventPublisher upstreamEventPublisher;
     private final MessagePublisher messagePublisher;
-    private final boolean sharedTopic;
+    private final boolean sharding;
 
     public MessageDispatcher(UpstreamEventPublisher upstreamEventPublisher,
                              MessagePublisher messagePublisher,
-                             @Value("${workflow.messages.shared-topic:false}") boolean sharedTopic) {
+                             @Value("${workflow.sharding.enabled:false}") boolean sharding) {
         this.upstreamEventPublisher = upstreamEventPublisher;
         this.messagePublisher = messagePublisher;
-        this.sharedTopic = sharedTopic;
+        this.sharding = sharding;
     }
 
     public void dispatch(MessageReceived message) {
-        if (sharedTopic) {
+        if (sharding) {
             messagePublisher.publish(message);
         } else {
             upstreamEventPublisher.publish(message);

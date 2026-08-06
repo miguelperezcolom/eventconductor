@@ -84,7 +84,7 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
     private static final String GRAPH_TAG = "eventconductor-workflow-graph";
     private static final String GRAPH_MODULE = "/eventconductor/workflow-graph.js";
 
-    final UpstreamEventPublisher upstreamEventPublisher;
+    final io.mateu.workflow.application.services.CommandDispatcher commandDispatcher;
     final ProcessRepository processRepository;
     final StepExecutionRepository stepExecutionRepository;
     final WorkflowDefinitionRepository workflowDefinitionRepository;
@@ -350,19 +350,19 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
         // process belongs to the pod holding its partition. The view polls, so the state shows
         // up on the next refresh. Cancellation was always a notification anyway — whether a
         // worker abandons what it is doing is the worker's business.
-        upstreamEventPublisher.publish(new ProcessCancellationRequested(null, id));
+        commandDispatcher.dispatch(new ProcessCancellationRequested(null, id));
     }
 
     @Toolbar(buttonStyle = ButtonStyle.secondary)
     @Action
     public void pauseProcess() {
-        upstreamEventPublisher.publish(new PauseProcessRequested(id));
+        commandDispatcher.dispatch(new PauseProcessRequested(id));
     }
 
     @Toolbar(buttonStyle = ButtonStyle.secondary)
     @Action
     public void resumeProcess() {
-        upstreamEventPublisher.publish(new ResumeProcessRequested(id));
+        commandDispatcher.dispatch(new ResumeProcessRequested(id));
     }
 
     /**
@@ -377,7 +377,7 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
         // Requested, not performed here: like cancel/pause/resume, the retry runs on the pod that
         // owns the process, so an operator can re-drive a failed process from its detail view
         // without dropping to the cross-process Steps page.
-        upstreamEventPublisher.publish(new RetryProcessRequested(id));
+        commandDispatcher.dispatch(new RetryProcessRequested(id));
     }
 
     /**
@@ -391,7 +391,7 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
             confirmationMessage = "Every step runs again, including the ones that already "
                     + "succeeded. Continue?")
     public void restartProcess() {
-        upstreamEventPublisher.publish(new RestartProcessRequested(id));
+        commandDispatcher.dispatch(new RestartProcessRequested(id));
     }
 
 

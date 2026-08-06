@@ -28,6 +28,9 @@ public interface ProcessIndexRepository {
     /** Point lookup by business key — the routing key, unique per process. */
     Optional<ProcessIndexRow> findByBusinessKey(String businessKey);
 
+    /** Point lookup by process id (the row's primary key) — how a command finds its owning shard. */
+    Optional<ProcessIndexRow> findByProcessId(String processId);
+
     /** How many processes are in each status — the operator's at-a-glance fleet view. */
     Map<String, Long> countByStatus();
 }

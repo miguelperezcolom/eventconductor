@@ -10,7 +10,7 @@ import org.springframework.stereotype.Service;
 /**
  * Embedded (single-node) message sink. Sharding is a distributed-topology concept, so here the
  * "shared messages topic" and the node's own upstream are the same reach: delegate to the upstream
- * publisher, which correlates locally. This keeps {@code workflow.messages.shared-topic=true} working
+ * publisher, which correlates locally. This keeps {@code workflow.sharding.enabled=true} working
  * in embedded mode (and in tests) without a second correlation path to maintain.
  */
 @Service

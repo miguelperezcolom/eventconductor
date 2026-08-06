@@ -47,10 +47,10 @@ public class OutboxRelay {
     @org.springframework.beans.factory.annotation.Value("${workflow.outbox.batch-size:100}")
     int batchSize;
 
-    // When on, a SEND_MESSAGE step's MessageReceived (which rides this process's outbox) is relayed to
-    // the shared cross-shard `messages` topic instead of this shard's `outbox`, so it can reach a waiter
-    // on any shard. Off (default) → messages stay on `outbox`, single-cluster behaviour unchanged.
-    @org.springframework.beans.factory.annotation.Value("${workflow.messages.shared-topic:false}")
+    // When sharded, a SEND_MESSAGE step's MessageReceived (which rides this process's outbox) is relayed
+    // to the shared cross-shard `messages` topic instead of this shard's `outbox`, so it can reach a
+    // waiter on any shard. Off (default) → messages stay on `outbox`, single-cluster behaviour unchanged.
+    @org.springframework.beans.factory.annotation.Value("${workflow.sharding.enabled:false}")
     boolean sharedMessages;
 
     @PostConstruct

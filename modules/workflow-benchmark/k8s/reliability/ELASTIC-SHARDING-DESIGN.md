@@ -91,7 +91,7 @@ Almost all of it is config + ops; the engine surface is deliberately tiny.
 
 | Piece | Where | Kind |
 |---|---|---|
-| Shared `messages` binding: publish `MessageReceived` to a shared topic; a `consumeMessages` consumer on every shard that correlates locally | engine | **code** (small, additive, gated by a `workflow.messages.shared-topic`-style flag so non-sharded is unchanged) |
+| Shared `messages` binding: publish `MessageReceived` to a shared topic; a `consumeMessages` consumer on every shard that correlates locally | engine | **code** (small, additive, gated by a `workflow.sharding.enabled`-style flag so non-sharded is unchanged) |
 | Stamp `shardId` on a process at creation + carry it into the CQRS index | engine (index already has the column) | **code** (small) |
 | Ingress router: pick active shard, publish to `upstream-<shardId>` | driver / an ingress service | code (outside the engine hot path) |
 | Command router: `process-id → shard_id` via the index, route retry/cancel/pause | UI/MCP layer | code (small) |
@@ -130,7 +130,7 @@ Each is gated/additive so `main` behaviour is unchanged until a deployment opts 
    `consumeUpstream`). Route `MessageReceived` to it from **both** send routes when enabled: external
    sends (MCP `sendMessage`, REST controller) publish via `MessagePublisher` instead of the upstream
    publisher; and the **outbox relay diverts** `MessageReceived` events to the `messages` binding instead
-   of `outbox`. Gate with `workflow.messages.shared-topic` (default false → unchanged). The consumer's
+   of `outbox`. Gate with `workflow.sharding.enabled` (default false → unchanged). The consumer's
    group must be **unique per shard** so every shard receives every message (each shard is its own
    deployment, so distinct group ids fall out naturally). Ships with a test proving a message sent from
    "shard A" wakes a waiter on "shard B" and is dropped everywhere else. **This is the reliability-
