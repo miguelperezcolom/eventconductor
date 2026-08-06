@@ -27,7 +27,16 @@ import java.util.List;
 public final class ScaleWorkload implements Workload {
 
     private static final String SAGA = "order-saga";
-    private static final String LINEAR = "bench-3-steps";
+
+    /**
+     * Non-saga definitions, all happy-path (→ COMPLETED). Their id is also the business-key tag the
+     * verifier reconciles on ({@code <prefix>-<def>-<i>}). {@code child} spawns a child process
+     * whose own business key is {@code parent:<…>}, which the reconciler scopes through the parent.
+     */
+    private static final String[] HAPPY = {"linear", "fanout", "timed", "child"};
+
+    // Definition id for the "linear" tag (the original 3-ACTION control).
+    private static final String LINEAR_DEFINITION = "bench-3-steps";
 
     // Knuth multiplicative hash — spreads consecutive indices across the whole 64-bit range so the
     // two buckets drawn from it (definition, outcome) are effectively independent.
@@ -46,23 +55,32 @@ public final class ScaleWorkload implements Workload {
 
     @Override
     public List<String> definitions() {
-        return List.of("/scale/order-saga.json", "/workflows/bench-3-steps.json");
+        // child-work must be installed before child (a PROCESS step resolves it at runtime).
+        return List.of(
+                "/scale/order-saga.json",
+                "/scale/fanout.json",
+                "/scale/timed.json",
+                "/scale/child-work.json",
+                "/scale/child.json",
+                "/workflows/bench-3-steps.json");
     }
 
     @Override
     public Creation at(String prefix, long i) {
         long h = i * MIX;
-        boolean saga = Math.floorMod(h, 100) < sagaWeightPct;
-        if (!saga) {
-            return Creation.of(LINEAR, prefix + "-linear-" + i);
+        if (Math.floorMod(h, 100) < sagaWeightPct) {
+            int outcomeBucket = (int) Math.floorMod(h >>> 20, 1000);
+            String outcome = outcomeBucket >= compPermil ? "ok"
+                    : outcomeBucket < compFailPermil ? "compfail"
+                    : "comp";
+            return new Creation(SAGA,
+                    prefix + "-order-saga-" + outcome + "-" + i,
+                    List.of(new Variable("benchOutcome", outcome)));
         }
-        int outcomeBucket = (int) Math.floorMod(h >>> 20, 1000);
-        String outcome = outcomeBucket >= compPermil ? "ok"
-                : outcomeBucket < compFailPermil ? "compfail"
-                : "comp";
-        return new Creation(SAGA,
-                prefix + "-order-saga-" + outcome + "-" + i,
-                List.of(new Variable("benchOutcome", outcome)));
+        // Non-saga: spread evenly across the happy-path definitions.
+        String tag = HAPPY[(int) Math.floorMod(h >>> 33, HAPPY.length)];
+        String definitionId = "linear".equals(tag) ? LINEAR_DEFINITION : tag;
+        return Creation.of(definitionId, prefix + "-" + tag + "-" + i);
     }
 
     private static int clamp(int v, int lo, int hi) {

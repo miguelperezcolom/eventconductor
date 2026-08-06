@@ -1,0 +1,14 @@
+{
+  "id": "fanout",
+  "name": "Fan-out (FORK → 3 parallel ACTIONs → JOIN)",
+  "version": 1,
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "fork", "type": "FORK", "name": "Fork", "preconditionStepId": "start" },
+    { "id": "a", "type": "ACTION", "name": "Branch A", "topic": "bench", "preconditionStepId": "fork" },
+    { "id": "b", "type": "ACTION", "name": "Branch B", "topic": "bench", "preconditionStepId": "fork" },
+    { "id": "c", "type": "ACTION", "name": "Branch C", "topic": "bench", "preconditionStepId": "fork" },
+    { "id": "join", "type": "JOIN", "name": "Join", "preconditionStepIds": ["a", "b", "c"] },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "join" }
+  ]
+}

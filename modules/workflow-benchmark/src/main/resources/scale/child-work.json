@@ -1,0 +1,10 @@
+{
+  "id": "child-work",
+  "name": "Child workflow (spawned by the child definition's PROCESS step)",
+  "version": 1,
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "work", "type": "ACTION", "name": "Do child work", "topic": "bench", "preconditionStepId": "start" },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "work" }
+  ]
+}
