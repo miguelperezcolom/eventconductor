@@ -33,6 +33,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `InFlightStepRearmRunner.rearmOnce` and two Git-import helpers widened from private to
   package-private so a single pass can be driven without the retry thread or a repository to clone.
 
+### Fixed
+- **The engine's own migrations never ran in any of the three standalone applications.** The
+  initializer that applies them was guarded by `@ConditionalOnSingleCandidate(DataSource.class)`,
+  which asks whether the data source's *bean definition* is visible at the moment the condition
+  runs — and in a real boot of these apps it is not. The condition reported "did not find any beans"
+  while Hikari's own autoconfiguration matched in the same report, so the bean was never registered
+  and not one migration was applied. Nothing failed, because `ddl-auto` defaults to `update` and
+  Hibernate built the schema instead — without a single index, which is the exact slow failure
+  1.0-beta.025 exists to prevent. Under the chart's `DDL_AUTO=validate` the apps did not start at
+  all. The data source is now resolved when the bean is *created* rather than when it is *defined*,
+  which takes autoconfiguration ordering out of the picture; an ambiguous set of data sources now
+  says so instead of silently skipping. The autoconfiguration's own test could never have caught
+  this — an `ApplicationContextRunner` orders the autoconfigurations by construction — so each app
+  now has a `@SpringBootTest` that boots it the way it really boots.
+- **`forms-standalone-app` kept every form definition and task execution on the heap.** It set
+  `workflow.persistence`, which the forms engine does not read, and never set `forms.persistence` —
+  so an application wired to PostgreSQL, shipping forms migrations and running under
+  `DDL_AUTO=validate` lost all of it on restart. It also meant the task list was permanently empty:
+  `Tasks`, `TasksV2`, `TasksWidget` and `CancelTaskUseCase` read the JPA repository directly, so
+  they queried a table nothing was writing to. Now `forms.persistence: ${FORMS_PERSISTENCE:jpa}`,
+  as `rules.persistence` already was.
+- **A form silently lost a field to any other form that reused its id.** `field_entity` was keyed on
+  the field id alone, but a field id is unique only *within* its form — `form-schema.json` says so,
+  and git-imported definitions use human slugs (`approved`, `comment`) that repeat freely. Saving
+  the second form re-parented the row and the first form's field was gone. The key is now
+  `(form_id, id)`. Three more that had never run in production alongside it: a field dropped from a
+  definition survived the save that dropped it, deleting a form orphaned its fields (which
+  git-import's prune path hits), and field order was whatever the database returned — now stored,
+  because a form renders its fields in order. A field that omits the optional `stereotype` no longer
+  throws on save; it defaults to `regular`, as the schema documents.
+
 ## [1.0-beta.025] - 2026-08-06
 
 The schema travels with the engine.

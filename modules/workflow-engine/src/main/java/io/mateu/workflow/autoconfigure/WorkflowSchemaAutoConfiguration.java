@@ -7,7 +7,7 @@ import org.flywaydb.core.Flyway;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnSingleCandidate;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfiguration;
 import org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration;
@@ -48,13 +48,16 @@ public class WorkflowSchemaAutoConfiguration {
 
     static final String LOCATION = "classpath:db/migration/workflow";
 
+    // ObjectProvider rather than @ConditionalOnSingleCandidate(DataSource.class): see
+    // ManagedSchemaInitializer. The condition asks whether the data source's bean definition is
+    // already visible, and in the standalone apps it is not, so the bean never registered and no
+    // migration ever ran.
     @Bean
-    @ConditionalOnSingleCandidate(DataSource.class)
     @ConditionalOnProperty(prefix = "workflow.schema", name = "enabled", matchIfMissing = true)
     ManagedSchemaInitializer workflowSchemaInitializer(
-            DataSource dataSource, WorkflowSchemaProperties properties) {
+            ObjectProvider<DataSource> dataSources, WorkflowSchemaProperties properties) {
         return new ManagedSchemaInitializer(
-                new ManagedSchema("workflow", LOCATION, properties.getTable()), dataSource);
+                new ManagedSchema("workflow", LOCATION, properties.getTable()), dataSources);
     }
 
     /**
