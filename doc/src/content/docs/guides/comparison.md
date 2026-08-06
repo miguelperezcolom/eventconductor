@@ -120,7 +120,7 @@ one business process rather than the aggregate rate, this axis may not decide an
 ### How EventConductor scales
 
 - **Workers** are stateless Kafka consumers — add instances to a consumer group to scale task execution linearly. The engine dispatches work and drives the state machine; it never executes business logic itself, so it does not become a bottleneck as business logic grows heavier.
-- **Orchestrator instances** scale horizontally in the sense that each owns the processes whose partitions it holds — but **adding pods does not raise the write ceiling**, because they all commit against the same WAL. What extra pods buy is concurrency, which makes group commit more effective; the gain is real but sublinear and load-dependent. The bottleneck is the single serialised resource they share, not their CPU.
+- **Orchestrator instances** scale horizontally in the sense that each owns the processes whose partitions it holds. Within one database, **adding pods does not raise the write ceiling** — they all commit against the same WAL; extra pods buy concurrency (which makes group commit more effective, a real but sublinear gain), not a higher ceiling. To raise the ceiling itself, [**sharding**](/reference/configuration/#sharding-advanced-opt-in) gives each shard its own database and WAL, so write capacity scales with the shard count (see below).
 
 ### Where the ceiling actually is
 
@@ -134,8 +134,18 @@ That is not thousands per second and should not be read as such. It is, however,
 process instances a day at 10/s and 4M a day at 50/s. Reaching *thousands* per second means
 thousands of bookings, invoices or payments per second — a regime that exists (hyperscale event
 processing, high-frequency fintech) but that most business-process workloads never approach. If
-yours does, Zeebe and Temporal have paid the operational complexity to give you the headroom and are
-the right choice.
+yours does, Zeebe and Temporal have paid the operational complexity to give you that headroom today.
+
+That single-database ceiling is no longer architectural, though. [**Sharding**](/reference/configuration/#sharding-advanced-opt-in)
+runs the engine as N shared-nothing shards — each a full stack with its own database — so the write
+ceiling scales with the shard count, the same shard-your-storage principle Temporal uses. It is
+opt-in and config-only (a shard is the stock engine re-pointed by config; a single-database deployment
+is unchanged), and elastic: shards are added and removed *hot*, and because a process is transient the
+fleet rebalances by draining rather than migrating — no reshard, no data copy. Two things keep the
+comparison honest: it is off by default, and while its engine paths are covered by unit and e2e tests,
+a live multi-shard run at thousands-per-second has not yet been published — so for *proven* extreme
+throughput today, Zeebe and Temporal still have the track record. What has changed is that the ceiling
+is now what you provision, not one node's WAL.
 
 EventConductor's published baseline comes from the distributed test suite (DIST-05 in [the test plan](https://github.com/miguelperezcolom/eventconductor/blob/main/TESTING.md), reproducible with `mvn -Pdist-e2e`). It creates **500 concurrent process instances** — three worker-executed steps each, i.e. 1,500 task executions — and asserts they all complete with **no lost or stuck instances**. The most recent run:
 
