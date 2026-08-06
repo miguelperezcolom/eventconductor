@@ -53,6 +53,11 @@ public class ProcessIndexDBRepository implements ProcessIndexRepository {
     }
 
     @Override
+    public Optional<ProcessIndexRow> findByProcessId(String processId) {
+        return repository.findById(processId).map(this::toRow);
+    }
+
+    @Override
     public Map<String, Long> countByStatus() {
         return repository.findAll().stream()
                 .collect(Collectors.groupingBy(ProcessIndexEntity::getStatus, Collectors.counting()));

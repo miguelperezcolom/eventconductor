@@ -36,7 +36,7 @@ import java.util.List;
 public class Processes extends Crud<Object, Object, Object, ProcessFilters, ProcessRow, String> {
 
     final SimpleProcessCrudAdapter processCrudAdapter;
-    final io.mateu.workflow.application.out.UpstreamEventPublisher upstreamEventPublisher;
+    final io.mateu.workflow.application.services.CommandDispatcher commandDispatcher;
     final RetryProcessUseCase retryProcessUseCase;
 
     @Override
@@ -131,7 +131,7 @@ public class Processes extends Crud<Object, Object, Object, ProcessFilters, Proc
         selectedRows.forEach(row -> {
             // Requested, not performed here — the process belongs to the pod holding its
             // partition, and this is whichever pod served the click.
-            upstreamEventPublisher.publish(new RetryProcessRequested(row.id()));
+            commandDispatcher.dispatch(new RetryProcessRequested(row.id()));
         });
     }
 
@@ -143,7 +143,7 @@ public class Processes extends Crud<Object, Object, Object, ProcessFilters, Proc
     @Label("Restart from the beginning")
     public void restart(List<ProcessRow> selectedRows) {
         selectedRows.forEach(row ->
-                upstreamEventPublisher.publish(new RestartProcessRequested(row.id())));
+                commandDispatcher.dispatch(new RestartProcessRequested(row.id())));
     }
 
 }

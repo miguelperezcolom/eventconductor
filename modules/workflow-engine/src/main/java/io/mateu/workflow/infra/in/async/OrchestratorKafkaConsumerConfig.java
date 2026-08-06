@@ -42,6 +42,20 @@ public class OrchestratorKafkaConsumerConfig {
     }
 
     /**
+     * The shared cross-shard messages channel. Every shard binds this to the one {@code messages}
+     * topic under its own consumer group, so each receives every {@link io.mateu.workflow.dtos.events.integration.MessageReceived}
+     * and correlates it against its own WAIT_FOR_MESSAGE steps; the shard that owns the waiter resumes
+     * it, the rest match nothing and drop it (fail-closed). Correlation is the same upstream path — only
+     * the topic the message arrived on differs. Bound only where {@code messages} is configured (sharded
+     * deployments); an unlisted function bean is inert, so single-cluster deployments are unaffected.
+     */
+    @Bean
+    public Consumer<List<DomainEvent>> consumeMessages() {
+        return events -> perProcess(events, event ->
+                processUpstreamEventUseCase.handle(new ProcessUpstreamEventCommand(event)), "messages");
+    }
+
+    /**
      * Commits a poll batch as one transaction per process rather than one per event — a busy
      * batch carries several events for the same process, and collapsing those into a single
      * commit is where the saving is.

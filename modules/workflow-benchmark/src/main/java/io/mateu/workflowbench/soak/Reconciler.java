@@ -123,6 +123,50 @@ public final class Reconciler {
     }
 
     /**
+     * The same verdict, fanned out across a sharded fleet: each shard's own database is verified and
+     * the invariants are combined. Everything about a process lives on one shard (§4a), so the per-shard
+     * counts are complete — no cross-shard join is needed, only a sum.
+     *
+     * <ul>
+     *   <li><b>R1 conservation</b> is the one that must be recomputed globally: {@code acked} lives in the
+     *       driver's {@code soak_progress} (on one shard) while processes are spread across all of them,
+     *       so it is Σ(acked) vs Σ(present), not a sum of per-shard R1s.</li>
+     *   <li><b>R2–R7</b> are counts of offending rows, complete per shard, so they sum.</li>
+     * </ul>
+     *
+     * A single-shard list verifies exactly one database — identical to {@link #verify}.
+     */
+    public static Verdict verifyAcrossShards(List<JdbcTemplate> shards, String prefix) {
+        if (shards.size() <= 1) {
+            return verify(shards.get(0), prefix);
+        }
+        return merge(shards.stream().map(jdbc -> verify(jdbc, prefix)).toList(), prefix);
+    }
+
+    /** Combine per-shard verdicts: R1 recomputed globally (Σacked vs Σpresent), the rest summed.
+     *  Package-visible so the merge can be unit-tested without databases. */
+    static Verdict merge(List<Verdict> perShard, String prefix) {
+        long acked = perShard.stream().mapToLong(v -> asLong(v.facts().get("acked"))).sum();
+        long present = perShard.stream().mapToLong(v -> asLong(v.facts().get("present"))).sum();
+
+        var merged = new ArrayList<Check>();
+        for (var template : perShard.get(0).checks()) {
+            long violations = "R1".equals(template.id())
+                    ? Math.abs(acked - present)
+                    : perShard.stream().flatMap(v -> v.checks().stream())
+                            .filter(c -> c.id().equals(template.id())).mapToLong(Check::violations).sum();
+            merged.add(check(template.id(), template.description(), violations));
+        }
+        var pass = merged.stream().allMatch(Check::pass);
+        var facts = Map.<String, Object>of("acked", acked, "present", present, "shards", perShard.size());
+        return new Verdict(prefix, pass, merged, facts);
+    }
+
+    private static long asLong(Object value) {
+        return ((Number) value).longValue();
+    }
+
+    /**
      * R7 — every order-saga process ended in the terminal status its intent demanded. The intent is
      * the 4th business-key segment ({@code <prefix>-order-saga-<intent>-<i>}); a row whose status
      * does not match the intent's expected terminal is a violation.

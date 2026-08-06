@@ -1,0 +1,162 @@
+# One shard = the stock engine re-pointed by config. Nothing here is a new build: it is the same
+# orchestrator image and the same Postgres as the single-node run, with (1) its own database and
+# (2) its Kafka bindings pointed at per-shard topics — plus the ONE shared binding, `messages`.
+#
+# Rendered per shard by deploy-shard.sh, which substitutes:
+#   SHARD        the shard id (e.g. 0, 1, 2). All names and topics carry it: postgres-SHARD,
+#                orchestrator-SHARD, upstream-SHARD, outbox-SHARD, downstream-SHARD, dead-letter-SHARD.
+#   ENGINE_IMAGE the published orchestrator image.
+#
+# Everything about a process lives on its shard by construction (§4a): its rows in postgres-SHARD, its
+# task/reply/outbox traffic on the -SHARD topics. The only cross-shard channel is `messages` (shared),
+# which every shard consumes under a PER-SHARD group so each receives every message and correlates it
+# locally. Add a shard = render+apply this for a new id and append the id to the registry ConfigMap;
+# drain = remove the id from the registry (new work stops) and delete this once its processes finish.
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-SHARD
+  namespace: ec-shard
+spec:
+  selector: { app: postgres-SHARD }
+  ports: [{ port: 5432, targetPort: 5432 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-SHARD
+  namespace: ec-shard
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector: { matchLabels: { app: postgres-SHARD } }
+  template:
+    metadata:
+      labels: { app: postgres-SHARD, shard: "SHARD", scale-role: infra }
+    spec:
+      # Dedicated-vCPU node for a non-throttled WAL fsync — the rung-2 storage lift, per shard.
+      nodeSelector:
+        node.kubernetes.io/instance-type: ccx23
+      securityContext: { runAsUser: 999, runAsGroup: 999, fsGroup: 999 }
+      containers:
+        - name: postgres
+          image: postgres:16
+          env:
+            - { name: POSTGRES_DB, value: eventconductor }
+            - { name: POSTGRES_USER, value: eventconductor }
+            - { name: POSTGRES_PASSWORD, value: eventconductor }
+            - { name: PGDATA, value: /var/lib/postgresql/data/pgdata }
+          args: [postgres, -c, shared_buffers=2GB, -c, max_connections=400, -c, synchronous_commit=on,
+                 -c, commit_delay=200, -c, commit_siblings=10, -c, max_wal_size=8GB,
+                 -c, checkpoint_timeout=15min, -c, wal_compression=on]
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities: { drop: ["ALL"] }
+            seccompProfile: { type: RuntimeDefault }
+            readOnlyRootFilesystem: true
+          ports: [{ containerPort: 5432 }]
+          resources:
+            requests: { cpu: "3", memory: "6Gi" }
+            limits: { memory: "8Gi" }
+          volumeMounts:
+            - { name: data, mountPath: /var/lib/postgresql/data }
+            - { name: run, mountPath: /var/run/postgresql }
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - { name: data, emptyDir: {} }
+        - { name: run, emptyDir: {} }
+        - { name: tmp, emptyDir: {} }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: orchestrator-SHARD
+  namespace: ec-shard
+spec:
+  selector: { app: orchestrator-SHARD }
+  ports: [{ port: 8080, targetPort: 8080 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orchestrator-SHARD
+  namespace: ec-shard
+spec:
+  replicas: 4
+  selector: { matchLabels: { app: orchestrator-SHARD } }
+  template:
+    metadata:
+      labels: { app: orchestrator-SHARD, shard: "SHARD", scale-role: engine }
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: /actuator/prometheus
+    spec:
+      securityContext: { runAsUser: 10001, runAsGroup: 10001, runAsNonRoot: true }
+      containers:
+        - name: orchestrator
+          image: ENGINE_IMAGE
+          env:
+            - { name: WORKFLOW_MODE, value: kafka }
+            - { name: WORKFLOW_PERSISTENCE, value: jpa }
+            # This shard's own database.
+            - { name: DB_URL, value: "jdbc:postgresql://postgres-SHARD.ec-shard.svc.cluster.local:5432/eventconductor" }
+            - { name: DB_USERNAME, value: eventconductor }
+            - { name: DB_PASSWORD, value: eventconductor }
+            - { name: KAFKA_BROKERS, value: "kafka-bootstrap.ec-shard.svc.cluster.local:9092" }
+            - { name: KAFKA_CONCURRENCY, value: "16" }
+            - { name: DB_POOL_SIZE, value: "30" }
+            - { name: DEFAULT_STEP_TIMEOUT_MS, value: "600000" }
+            - { name: DDL_AUTO, value: update }
+            - { name: JAVA_OPTS, value: "-XX:MaxRAMPercentage=70 -Dworkflow.outbox-poll-interval-ms=50" }
+            # --- sharding ---
+            - { name: WORKFLOW_SHARDING_ENABLED, value: "true" }
+            - { name: WORKFLOW_SHARDING_SHARD_ID, value: "SHARD" }
+            # The read model is what the command router and the ingress idempotency check read.
+            - { name: WORKFLOW_PROJECTION_ENABLED, value: "true" }
+            # The hot registry, mounted from the shard-registry ConfigMap (see registry-configmap.yaml).
+            - { name: WORKFLOW_SHARDING_REGISTRY_FILE, value: "/etc/eventconductor/shards/active" }
+            # Bind consumeMessages in addition to the usual three consumers.
+            - { name: SPRING_CLOUD_FUNCTION_DEFINITION, value: "consumeOutbox;consumeUpstream;consumeWorkerEvent;consumeMessages" }
+            # --- per-shard consumer bindings ---
+            - { name: SPRING_CLOUD_STREAM_BINDINGS_CONSUMEUPSTREAMIN0_DESTINATION, value: "upstream-SHARD" }
+            - { name: SPRING_CLOUD_STREAM_BINDINGS_CONSUMEOUTBOXIN0_DESTINATION, value: "outbox-SHARD" }
+            - { name: SPRING_CLOUD_STREAM_BINDINGS_CONSUMEWORKEREVENTIN0_DESTINATION, value: "downstream-SHARD" }
+            # The SHARED messages topic — same destination on every shard, but a UNIQUE group per shard
+            # so each shard is its own consumer group and receives EVERY message (not a partition split).
+            - { name: SPRING_CLOUD_STREAM_BINDINGS_CONSUMEMESSAGESIN0_DESTINATION, value: "messages" }
+            - { name: SPRING_CLOUD_STREAM_BINDINGS_CONSUMEMESSAGESIN0_GROUP, value: "orchestrator-messages-SHARD" }
+            # --- per-shard producer bindings ---
+            - { name: SPRING_CLOUD_STREAM_BINDINGS_UPSTREAM_DESTINATION, value: "upstream-SHARD" }
+            - { name: SPRING_CLOUD_STREAM_BINDINGS_DOWNSTREAM_DESTINATION, value: "downstream-SHARD" }
+            - { name: SPRING_CLOUD_STREAM_BINDINGS_OUTBOX_DESTINATION, value: "outbox-SHARD" }
+            - { name: SPRING_CLOUD_STREAM_BINDINGS_DEADLETTER_DESTINATION, value: "dead-letter-SHARD" }
+            # The shared messages producer (the ingress/command/message publishers write here).
+            - { name: SPRING_CLOUD_STREAM_BINDINGS_MESSAGES_DESTINATION, value: "messages" }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+            seccompProfile: { type: RuntimeDefault }
+            readOnlyRootFilesystem: true
+          ports: [{ containerPort: 8080 }]
+          readinessProbe:
+            httpGet: { path: /actuator/health/readiness, port: 8080 }
+            initialDelaySeconds: 20
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /actuator/health/liveness, port: 8080 }
+            initialDelaySeconds: 60
+            periodSeconds: 10
+          resources:
+            requests: { cpu: "1", memory: "1Gi" }
+            limits: { memory: "1500Mi" }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+            - { name: shard-registry, mountPath: /etc/eventconductor/shards, readOnly: true }
+      volumes:
+        - { name: tmp, emptyDir: {} }
+        # The hot shard registry: editing this ConfigMap re-points ingress within one refresh, no restart.
+        - name: shard-registry
+          configMap: { name: shard-registry }

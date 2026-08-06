@@ -23,24 +23,29 @@ public final class Benchmark {
         var config = BenchmarkConfig.fromSystemProperties();
         System.out.println("Starting benchmark: " + config.describe());
 
-        var jdbc = new JdbcTemplate(new DriverManagerDataSource(
-                config.jdbcUrl(), config.jdbcUser(), config.jdbcPassword()));
+        // Per-shard databases (a single-element list — the plain jdbcUrl — when not sharded). The first
+        // is where the soak driver writes its progress; the reconciler and installer span them all.
+        var shardJdbcUrls = config.shardJdbcUrls();
+        var jdbc = jdbcFor(shardJdbcUrls.get(0), config);
 
         if ("install".equals(config.role())) {
             // Writes a definition into the engine's database and exits. Its own role because
             // swapping a definition under running processes is a scenario, not a side effect of
-            // starting load.
+            // starting load. Sharded: each shard creates from its own definitions, so install on all.
             var resource = System.getProperty("bench.definition", "/workflows/bench-3-steps.json");
-            System.out.println("installed workflow definition "
-                    + io.mateu.workflowbench.soak.WorkflowInstaller.install(jdbc, resource)
-                    + " from " + resource);
+            for (var url : shardJdbcUrls) {
+                System.out.println("installed workflow definition "
+                        + io.mateu.workflowbench.soak.WorkflowInstaller.install(jdbcFor(url, config), resource)
+                        + " from " + resource + " on " + url);
+            }
             return;
         }
 
         if ("verify".equals(config.role())) {
             // The zero-loss verdict, computed from the database after a run has drained. Its own
-            // role, and an exit code, so an autonomous controller can gate on it.
-            var verdict = io.mateu.workflowbench.soak.Reconciler.verify(jdbc, config.soakPrefix());
+            // role, and an exit code, so an autonomous controller can gate on it. Fans out across shards.
+            var shardJdbcs = shardJdbcUrls.stream().map(url -> jdbcFor(url, config)).toList();
+            var verdict = io.mateu.workflowbench.soak.Reconciler.verifyAcrossShards(shardJdbcs, config.soakPrefix());
             System.out.println(verdict.render());
             try {
                 System.out.println("verdict-json " + new com.fasterxml.jackson.databind.ObjectMapper()
@@ -117,6 +122,10 @@ public final class Benchmark {
      * bean — the pods may be on another host entirely, and the database is the one thing every
      * role can see.
      */
+    private static JdbcTemplate jdbcFor(String url, BenchmarkConfig config) {
+        return new JdbcTemplate(new DriverManagerDataSource(url, config.jdbcUser(), config.jdbcPassword()));
+    }
+
     private static void awaitDefinition(JdbcTemplate jdbc) throws InterruptedException {
         var deadline = System.nanoTime() + 60_000_000_000L;
         while (System.nanoTime() < deadline) {

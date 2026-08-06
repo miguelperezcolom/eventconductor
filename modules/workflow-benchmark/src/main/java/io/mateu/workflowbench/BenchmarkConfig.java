@@ -13,7 +13,10 @@ record BenchmarkConfig(
         int consumerConcurrency, long outboxPollMillis, int outboxBatchSize, int poolSize,
         int ratePerSecond, String role,
         int soakMinutes, String soakPrefix,
-        String workload, int sagaWeightPct, int compPermil, int compFailPermil) {
+        String workload, int sagaWeightPct, int compPermil, int compFailPermil,
+        // Sharding (empty = single cluster, unchanged). `shards` is the active-shard list the driver
+        // round-robins over and the reconciler fans out across; `shard` is one worker's own shard.
+        String shards, String shard) {
 
     static BenchmarkConfig fromSystemProperties() {
         return new BenchmarkConfig(
@@ -63,7 +66,26 @@ record BenchmarkConfig(
                 // scale only: per-1000 saga processes that fail and roll back (→ COMPENSATED),
                 // and — a subset of those — whose compensation also fails (→ COMPENSATION_FAILED).
                 intProp("bench.scale.comp-permil", 100),
-                intProp("bench.scale.comp-fail-permil", 10));
+                intProp("bench.scale.comp-fail-permil", 10),
+                prop("bench.shards", ""),
+                prop("bench.shard", ""));
+    }
+
+    /** Active shards for the driver/reconciler; empty when not sharded. */
+    java.util.List<String> shardList() {
+        return (shards == null || shards.isBlank()) ? java.util.List.of()
+                : java.util.Arrays.stream(shards.split(",")).map(String::trim).filter(s -> !s.isBlank()).toList();
+    }
+
+    /** Per-shard jdbc urls: {@code jdbcUrl} with a {@code {shard}} placeholder expanded for each shard.
+     *  With no shards (or no placeholder) it is just the single {@code jdbcUrl} — the reconciler then
+     *  verifies one database exactly as before. */
+    java.util.List<String> shardJdbcUrls() {
+        var list = shardList();
+        if (list.isEmpty() || !jdbcUrl.contains("{shard}")) {
+            return java.util.List.of(jdbcUrl);
+        }
+        return list.stream().map(s -> jdbcUrl.replace("{shard}", s)).toList();
     }
 
     private static String hostname() {

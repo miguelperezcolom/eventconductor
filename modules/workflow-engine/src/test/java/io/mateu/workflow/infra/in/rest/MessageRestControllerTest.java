@@ -1,6 +1,6 @@
 package io.mateu.workflow.infra.in.rest;
 
-import io.mateu.workflow.application.out.UpstreamEventPublisher;
+import io.mateu.workflow.application.services.MessageDispatcher;
 import io.mateu.workflow.dtos.Variable;
 import io.mateu.workflow.dtos.events.integration.MessageReceived;
 import io.mateu.workflow.infra.config.MessageApiProperties;
@@ -24,7 +24,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 @ExtendWith(MockitoExtension.class)
 class MessageRestControllerTest {
 
-    @Mock UpstreamEventPublisher upstreamEventPublisher;
+    @Mock MessageDispatcher messageDispatcher;
 
     MessageApiProperties properties;
     MessageRestController controller;
@@ -32,7 +32,7 @@ class MessageRestControllerTest {
     @BeforeEach
     void setUp() {
         properties = new MessageApiProperties();
-        controller = new MessageRestController(properties, upstreamEventPublisher);
+        controller = new MessageRestController(properties, messageDispatcher);
     }
 
     @Test
@@ -41,7 +41,7 @@ class MessageRestControllerTest {
                 "payment-received", "res-123", Map.of("paymentId", "P-9")));
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
-        verify(upstreamEventPublisher).publish(new MessageReceived(
+        verify(messageDispatcher).dispatch(new MessageReceived(
                 "payment-received", "res-123", List.of(new Variable("paymentId", "P-9"))));
     }
 
@@ -49,7 +49,7 @@ class MessageRestControllerTest {
     void nullVariablesArePublishedAsEmptyList() {
         controller.sendMessage(null, new SendMessageRequest("payment-received", "res-123", null));
 
-        verify(upstreamEventPublisher).publish(new MessageReceived("payment-received", "res-123", List.of()));
+        verify(messageDispatcher).dispatch(new MessageReceived("payment-received", "res-123", List.of()));
     }
 
     @Test
@@ -58,7 +58,7 @@ class MessageRestControllerTest {
                 .isInstanceOf(ResponseStatusException.class)
                 .extracting(e -> ((ResponseStatusException) e).getStatusCode())
                 .isEqualTo(HttpStatus.BAD_REQUEST);
-        verifyNoInteractions(upstreamEventPublisher);
+        verifyNoInteractions(messageDispatcher);
     }
 
     @Test
@@ -67,7 +67,7 @@ class MessageRestControllerTest {
                 .isInstanceOf(ResponseStatusException.class)
                 .extracting(e -> ((ResponseStatusException) e).getStatusCode())
                 .isEqualTo(HttpStatus.BAD_REQUEST);
-        verifyNoInteractions(upstreamEventPublisher);
+        verifyNoInteractions(messageDispatcher);
     }
 
     @Test
@@ -81,7 +81,7 @@ class MessageRestControllerTest {
                     .extracting(e -> ((ResponseStatusException) e).getStatusCode())
                     .isEqualTo(HttpStatus.UNAUTHORIZED);
         }
-        verifyNoInteractions(upstreamEventPublisher);
+        verifyNoInteractions(messageDispatcher);
     }
 
     @Test
@@ -92,6 +92,6 @@ class MessageRestControllerTest {
                 new SendMessageRequest("payment-received", "res-123", null));
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
-        verify(upstreamEventPublisher).publish(new MessageReceived("payment-received", "res-123", List.of()));
+        verify(messageDispatcher).dispatch(new MessageReceived("payment-received", "res-123", List.of()));
     }
 }

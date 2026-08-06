@@ -24,6 +24,7 @@ class WorkflowMcpToolsSendMessageTest {
     @Mock io.mateu.workflow.application.usecases.process.retry.RetryProcessUseCase retryProcessUseCase;
     @Mock io.mateu.workflow.application.usecases.gitimport.ImportWorkflowDefinitionsFromGitUseCase importWorkflowDefinitionsFromGitUseCase;
     @Mock UpstreamEventPublisher upstreamEventPublisher;
+    @Mock io.mateu.workflow.application.services.MessageDispatcher messageDispatcher;
 
     @InjectMocks WorkflowMcpTools tools;
 
@@ -32,7 +33,7 @@ class WorkflowMcpToolsSendMessageTest {
         var result = tools.sendMessage("payment-received", "bk-1", Map.of("paymentId", "P-9"));
 
         ArgumentCaptor<MessageReceived> captor = ArgumentCaptor.forClass(MessageReceived.class);
-        verify(upstreamEventPublisher).publish(captor.capture());
+        verify(messageDispatcher).dispatch(captor.capture());
         assertThat(captor.getValue().messageName()).isEqualTo("payment-received");
         assertThat(captor.getValue().correlationKey()).isEqualTo("bk-1");
         assertThat(captor.getValue().variables()).containsExactly(new Variable("paymentId", "P-9"));
@@ -44,7 +45,7 @@ class WorkflowMcpToolsSendMessageTest {
         tools.sendMessage("payment-received", "bk-1", null);
 
         ArgumentCaptor<MessageReceived> captor = ArgumentCaptor.forClass(MessageReceived.class);
-        verify(upstreamEventPublisher).publish(captor.capture());
+        verify(messageDispatcher).dispatch(captor.capture());
         assertThat(captor.getValue().variables()).isEmpty();
     }
 }

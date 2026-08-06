@@ -2,7 +2,7 @@ package io.mateu.workflow.infra.in.ui.pages.process;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.mateu.workflow.application.out.UpstreamEventPublisher;
+import io.mateu.workflow.application.services.CommandDispatcher;
 import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
 import io.mateu.workflow.domain.aggregates.LogMessage;
 import io.mateu.workflow.domain.aggregates.Process;
@@ -176,26 +176,26 @@ class SimpleProcessViewModelTest {
 
     @Test
     void retryPublishesARetryRequestForThisProcessOnTheOwningPod() {
-        var publisher = mock(UpstreamEventPublisher.class);
+        var publisher = mock(CommandDispatcher.class);
         var view = new SimpleProcessViewModel(
                 publisher, null, null, null, null, null, null, null, null, null);
         view.id = "p-1";
 
         view.retryProcess();
 
-        verify(publisher).publish(new RetryProcessRequested("p-1"));
+        verify(publisher).dispatch(new RetryProcessRequested("p-1"));
     }
 
     @Test
     void restartPublishesARestartRequestForThisProcessOnTheOwningPod() {
-        var publisher = mock(UpstreamEventPublisher.class);
+        var publisher = mock(CommandDispatcher.class);
         var view = new SimpleProcessViewModel(
                 publisher, null, null, null, null, null, null, null, null, null);
         view.id = "p-1";
 
         view.restartProcess();
 
-        verify(publisher).publish(new RestartProcessRequested("p-1"));
+        verify(publisher).dispatch(new RestartProcessRequested("p-1"));
     }
 
     @Test

@@ -1,0 +1,76 @@
+# KEDA autoscaling for one shard's compute, on Kafka consumer-group LAG — the direct "falling behind"
+# signal for the pipeline (bottleneck: pipeline concurrency, not CPU — so lag, not CPU, is what to
+# scale on). SHARD-templated, applied per shard by deploy-shard.sh.
+#
+# Requires the KEDA operator on the cluster (`helm install keda kedacore/keda -n keda`). Compute is
+# already elastic via Kafka consumer-group rebalancing (add a pod → partitions reassign); KEDA just
+# decides WHEN to add/remove pods, per shard, from that shard's own lag.
+#
+# Replica ceiling and partitions: a consumer group cannot use more consumer THREADS than the topic has
+# partitions. Each pod runs KAFKA_CONCURRENCY (16) threads, and the shard's topics have 48–96
+# partitions, so maxReplicaCount is kept at partitions/concurrency (here 6 = 96/16). Raise both together.
+#
+# minReplicaCount is 1, not 0: while a shard exists it must keep draining its in-flight work even at
+# zero lag. Scale-to-zero is `deploy-shard.sh delete` (remove the whole stack), not KEDA.
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: orchestrator-SHARD
+  namespace: ec-shard
+spec:
+  scaleTargetRef:
+    name: orchestrator-SHARD
+  minReplicaCount: 1
+  maxReplicaCount: 6
+  # Give a rebalance time to settle before scaling again, so KEDA does not fight the consumer group.
+  cooldownPeriod: 180
+  pollingInterval: 15
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleDown:
+          stabilizationWindowSeconds: 300
+  triggers:
+    # The main domain-event flow (step/process progression) rides the outbox consumer.
+    - type: kafka
+      metadata:
+        bootstrapServers: kafka-bootstrap.ec-shard.svc.cluster.local:9092
+        consumerGroup: orchestrator-outbox
+        topic: outbox-SHARD
+        lagThreshold: "2000"
+        activationLagThreshold: "50"
+        offsetResetPolicy: latest
+    # Creations, commands and worker replies arrive on upstream.
+    - type: kafka
+      metadata:
+        bootstrapServers: kafka-bootstrap.ec-shard.svc.cluster.local:9092
+        consumerGroup: orchestrator-upstream
+        topic: upstream-SHARD
+        lagThreshold: "2000"
+        activationLagThreshold: "50"
+        offsetResetPolicy: latest
+---
+# Workers for this shard consume the task topic. The worker-SHARD Deployment is created by the
+# benchmark-side sharding increment; this ScaledObject scales it on task backlog once it exists.
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: worker-SHARD
+  namespace: ec-shard
+spec:
+  scaleTargetRef:
+    name: worker-SHARD
+  minReplicaCount: 1
+  maxReplicaCount: 6
+  cooldownPeriod: 180
+  pollingInterval: 15
+  triggers:
+    - type: kafka
+      metadata:
+        bootstrapServers: kafka-bootstrap.ec-shard.svc.cluster.local:9092
+        consumerGroup: worker-group
+        topic: downstream-SHARD
+        lagThreshold: "1000"
+        activationLagThreshold: "50"
+        offsetResetPolicy: latest

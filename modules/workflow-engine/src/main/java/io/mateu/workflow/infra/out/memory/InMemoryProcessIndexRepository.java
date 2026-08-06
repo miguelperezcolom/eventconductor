@@ -53,6 +53,11 @@ public class InMemoryProcessIndexRepository implements ProcessIndexRepository {
     }
 
     @Override
+    public Optional<ProcessIndexRow> findByProcessId(String processId) {
+        return Optional.ofNullable(byProcessId.get(processId));
+    }
+
+    @Override
     public Map<String, Long> countByStatus() {
         return byProcessId.values().stream()
                 .collect(Collectors.groupingBy(ProcessIndexRow::status, Collectors.counting()));

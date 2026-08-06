@@ -6,7 +6,6 @@ import io.mateu.workflow.ddd.DomainEvent;
 import io.mateu.workflow.ddd.DomainEventHandler;
 import io.mateu.workflow.dtos.events.domain.ProcessStatusChanged;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
@@ -28,9 +27,6 @@ public class ProcessStatusProjectionHandler implements DomainEventHandler<Proces
 
     private final ProcessIndexRepository processIndexRepository;
 
-    @Value("${workflow.shard-id:}")
-    private String shardId;
-
     @Override
     public Class<? extends DomainEvent> eventClass() {
         return ProcessStatusChanged.class;
@@ -40,8 +36,9 @@ public class ProcessStatusProjectionHandler implements DomainEventHandler<Proces
     public void handle(ProcessStatusChanged e) {
         // Order by the event's emit time, not now(): a single node can dispatch a freshly-created
         // process's events out of causal order (its creation cascade completes before the creation's
-        // own seed is dispatched), which a consume-time stamp would let clobber the final state.
-        processIndexRepository.upsert(ProcessIndexRow.from(e, e.occurredAt(),
-                shardId == null || shardId.isBlank() ? null : shardId));
+        // own seed is dispatched), which a consume-time stamp would let clobber the final state. The
+        // owning shard likewise rides the event (stamped on that shard), so a fanned-out projector
+        // records where the process lives rather than its own shard id.
+        processIndexRepository.upsert(ProcessIndexRow.from(e, e.occurredAt(), e.shardId()));
     }
 }
