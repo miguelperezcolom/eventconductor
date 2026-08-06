@@ -49,6 +49,22 @@ The registry ConfigMap is re-read every `workflow.sharding.registry-refresh-ms` 
 take effect without restarting any existing shard. Draining is bounded by the longest-running process,
 never by a data copy — the transient-process property that makes this elastic without migration.
 
+## Autoscaling (KEDA)
+
+The compute tier is already elastic via Kafka consumer-group rebalancing — add a pod and partitions
+reassign. KEDA (`keda.yaml`, applied per shard by `deploy-shard.sh add` when the operator is present)
+decides *when*, from each shard's own **consumer-group lag** — the direct "falling behind" signal,
+which matters because the bottleneck is pipeline concurrency, not CPU (rung 2). It scales:
+
+- **orchestrator-<i>** on `outbox-i` + `upstream-i` lag (the domain-event and creation/command/reply
+  flows), 1→6 replicas;
+- **worker-<i>** on `downstream-i` lag (once the benchmark-side worker deployment exists).
+
+`maxReplicaCount` is capped at partitions ÷ `KAFKA_CONCURRENCY` (a consumer group cannot use more
+threads than partitions); `minReplicaCount` is 1 so a shard keeps draining even at zero lag. Install:
+`helm install keda kedacore/keda -n keda --create-namespace`. Without KEDA the shards run at their
+manifest replica counts — autoscaling is skipped, nothing breaks.
+
 ## What the ENGINE gives you here vs. what the BENCHMARK still needs
 
 Everything above is **config only** — the engine re-points by env. To run the *benchmark suite*

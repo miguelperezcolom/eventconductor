@@ -30,6 +30,12 @@ case "$action" in
     sed -e "s#ENGINE_IMAGE#${ENGINE_IMAGE}#g" -e "s#SHARD#${shard}#g" "${HERE}/shard.yaml" | ${KUBECTL} apply -f -
     ${KUBECTL} -n "$NS" rollout status deploy/postgres-"$shard" --timeout=300s
     ${KUBECTL} -n "$NS" rollout status deploy/orchestrator-"$shard" --timeout=300s
+    # Autoscaling on Kafka lag, if KEDA is installed (harmless to skip otherwise).
+    if ${KUBECTL} get crd scaledobjects.keda.sh >/dev/null 2>&1; then
+      sed "s#SHARD#${shard}#g" "${HERE}/keda.yaml" | ${KUBECTL} apply -f -
+    else
+      echo "KEDA not installed (no scaledobjects.keda.sh CRD) — skipping autoscaling for shard $shard"
+    fi
     # Only announce it to the registry once it is up, so ingress never routes to a shard that is not ready.
     set_registry $(registry_now) "$shard"
     echo "shard $shard added and now active"
@@ -40,6 +46,7 @@ case "$action" in
     echo "shard $shard draining (removed from registry); delete it once its processes reach terminal"
     ;;
   delete)
+    sed "s#SHARD#${shard}#g" "${HERE}/keda.yaml" | ${KUBECTL} delete --ignore-not-found -f - 2>/dev/null || true
     sed -e "s#SHARD#${shard}#g" "${HERE}/shard.yaml" | ${KUBECTL} delete --ignore-not-found -f -
     echo "shard $shard deleted"
     ;;
