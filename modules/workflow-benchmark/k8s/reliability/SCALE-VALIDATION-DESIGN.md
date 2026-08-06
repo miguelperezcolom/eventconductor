@@ -190,6 +190,56 @@ ceiling is still an unacceptable wall-clock. (For reference, this is the same sh
 principle Temporal/Cadence use for history shards; EventConductor's Kafka-partition-per-process model
 just makes topic-per-shard the natural expression of it.)
 
+## 4b. Querying at scale — CQRS read models
+
+Sharding solves writes but breaks queries: "list every running process", the analytics dashboards,
+"find process by business key" now have to reach across N databases — and today those queries hit the
+**write** Postgres directly (the Mateu CRUD adapters and `ProcessAnalyticsService` go through
+`ProcessRepository`/`StepExecutionRepository`). Running list/analytics scans on the write shards would
+also contend with the very fsync-critical hot path we sharded to protect. CQRS separates the two:
+
+**Commands stay on the write side, queries move to a read model.**
+
+- **Write model** = the N sharded Postgres, tuned for per-process transactions and fsync throughput.
+  Commands (`start`, `cancel`, `retry`, `pause`) route to the owning shard by `hash(businessKey) % N` —
+  they must, for correctness (single-writer ownership).
+- **Read model** = query-optimised stores, in a **separate** system, kept current by a **projector**
+  that consumes the engine's domain-event stream **from all shards**. The events already exist and are
+  already on Kafka: `ProcessCreated` (id, business key, definition, variables), `StepExecutionStatus
+  Changed` (process, step, status), `ProcessCancellationRequested`. One projector consuming every
+  shard's event topics folds them into read stores chosen per query shape:
+  - **Process index** — a denormalised row per process (business key, definition, status, started/
+    finished, current-step summary). Serves the UI list/detail, "what is running", "what is stuck",
+    and business-key lookup. A single indexed table (or OpenSearch for rich search/filtering).
+  - **Analytics** — per-definition counts, completion/error rates, durations, bottlenecks, maintained
+    as materialised aggregates the projector updates on each terminal event. This is exactly what
+    `ProcessAnalyticsService` computes today from the write DB; CQRS moves it off the write path.
+  - **Operational metrics** — *already CQRS.* Micrometer → Prometheus → Grafana is a read model of the
+    aggregate counts (running, stalled, outbox pending, errored, compensations-failed). It already
+    answers "how many are in flight / stuck" across the fleet without touching the write DB.
+
+**Consistency, honestly.** The read model is eventually consistent — it trails the write by the event
+lag (ms to low seconds). That is fine for lists, dashboards and search. Two things stay authoritative
+on the write side: **commands** (always), and **single-process read-your-write detail** (point-read
+the owning shard directly by business key → shard; a point lookup, not a scan, so it does not
+threaten throughput). So the split is: lists / analytics / search → read model; one process's
+authoritative state + all mutations → its shard.
+
+**Making the projector trustworthy.** It must be idempotent and replayable — but the source events
+are already at-least-once and keyed by process, so the projector applies them last-write-wins by
+status (a redelivered `StepExecutionStatusChanged` is a no-op), and a read store can be **rebuilt**
+from scratch by replaying the event topics (or from a per-shard snapshot) with no impact on the write
+side. If the events do not carry a field a read model wants (deep variable/log detail), either enrich
+the event or feed that read store by **CDC** (Debezium on each shard's Postgres → the read store) —
+CDC captures the full row state with no engine change and is the pragmatic alternative to
+event-carried projection.
+
+**Why it matters beyond scale.** This read side is also what delivers the project's stated
+operability goal — *a stranger diagnoses why an instance is stuck* — as one aggregated, DSL-vocabulary
+view across all shards, instead of N databases to log into. CQRS is the companion to sharding: adopt
+it when you shard (cross-shard queries) or when read load starts contending with the write path;
+below that, querying the write DB directly (as today) is simpler and correct.
+
 ---
 
 ## 5. Realistic workload suite (new)
