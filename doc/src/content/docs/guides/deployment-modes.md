@@ -56,23 +56,39 @@ workflow.persistence=jpa
 spring.datasource.url=jdbc:postgresql://localhost:5432/workflow
 spring.datasource.username=workflow
 spring.datasource.password=secret
-spring.jpa.hibernate.ddl-auto=update
-spring.flyway.enabled=true
+spring.jpa.hibernate.ddl-auto=validate
 ```
 
-:::caution[Run the migrations, or the engine has no indexes]
+Add Flyway to the classpath and the engine applies its own schema at startup:
+
+```xml
+<dependency>
+  <groupId>org.flywaydb</groupId>
+  <artifactId>flyway-core</artifactId>
+</dependency>
+<dependency>
+  <groupId>org.flywaydb</groupId>
+  <artifactId>flyway-database-postgresql</artifactId>
+</dependency>
+```
+
+:::caution[Without the migrations the engine has no indexes]
 `ddl-auto=update` builds tables and columns and **emits no index DDL at all** — that is a
-limitation of Hibernate's update path, not a configuration mistake. The engine's indexes live in
-the Flyway migrations, so a schema built by `ddl-auto` alone has primary keys and nothing else, and
+limitation of Hibernate's update path, not a configuration mistake. The engine's indexes come only
+from its migrations, so a schema built by `ddl-auto` alone has primary keys and nothing else, and
 every deadline scan, outbox claim and message correlation degrades into a sequential scan. Measured
 on a cluster with ~9,000 live step rows, that pinned PostgreSQL at 75% of a core and cut throughput
 to a fraction.
 
-Enable Flyway (`spring.flyway.enabled=true`), which the standalone app and the Helm chart now do by
-default. It is safe over a schema `ddl-auto` already created: it baselines at V1 and every later
-migration is written to run over either shape of the schema — `DdlAutoToFlywayUpgradeTest` runs the
-whole chain over a Hibernate-built schema on every build, so this is checked rather than promised.
-Once the indexes are in place, move to `ddl-auto=validate` and let the migrations own the schema.
+The engine ships those migrations in its own jar and runs them itself, into its own history table —
+it does not touch `flyway_schema_history`, so your application's migrations are unaffected. All it
+needs is `flyway-core` on the classpath; with `persistence=jpa` and no Flyway it warns loudly at
+startup rather than running indexless in silence.
+
+It is safe over a schema `ddl-auto` already created: it baselines at 0 and every migration is
+written to run over either shape of the schema — `DdlAutoToFlywayUpgradeTest` runs the whole chain
+over a Hibernate-built schema on every build, so this is checked rather than promised. Once the
+indexes are in place, `ddl-auto=validate` lets the migrations own the schema outright.
 
 If your database already ran the migrations under 1.0-beta.015 or earlier, `V11` was corrected
 after the fact and its checksum changed, so run `flyway repair` once before starting the new
@@ -114,7 +130,6 @@ spring.datasource.url=jdbc:postgresql://localhost:5432/workflow
 spring.datasource.username=workflow
 spring.datasource.password=secret
 spring.jpa.hibernate.ddl-auto=validate
-spring.flyway.enabled=true
 
 spring.kafka.bootstrap-servers=localhost:9092
 ```
@@ -268,7 +283,7 @@ helm install ec charts/eventconductor --set postgres.existingSecret=ec-postgres
 | `orchestrator.extraEnv` | `{}` | Extra environment, injected verbatim (tracing endpoints, git import, …) |
 | `forms.replicas` / `rules.replicas` | `2` | Pod counts |
 | `*.image` / `*.imageTag` | see values | Image; the tag defaults to the chart's `appVersion` |
-| `*.flywayTable` | per app | Flyway history table. The three apps share one database and must not share one history table |
+| `*.flywayTable` | per app | Migration history table for that app's engine. The three apps share one database and must not share one history table |
 | `ingress.enabled` | `false` | Ingress for the three UIs |
 
 **Upgrade / uninstall:**

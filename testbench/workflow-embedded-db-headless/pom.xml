@@ -31,6 +31,15 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!-- The engine ships its own migrations and applies them at startup; flyway-core is what
+             lets it. Without this the schema is whatever ddl-auto builds, which has no indexes —
+             the engine says so in a startup warning. This is the one dependency an embedded,
+             durable EventConductor needs beyond the JPA stack. -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>io.mateu.workflow</groupId>
             <artifactId>workflow-engine</artifactId>

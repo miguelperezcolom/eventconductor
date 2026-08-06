@@ -1,2 +1,3 @@
 io.mateu.workflow.autoconfigure.FormsEngineAutoConfiguration
 io.mateu.workflow.autoconfigure.FormsMetricsAutoConfiguration
+io.mateu.workflow.autoconfigure.FormsSchemaAutoConfiguration

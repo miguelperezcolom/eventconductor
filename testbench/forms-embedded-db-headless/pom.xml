@@ -31,6 +31,13 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!-- The engine ships its own migrations and applies them at startup; flyway-core is what
+             lets it. Without this the schema is whatever ddl-auto builds, which has no indexes. -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>io.mateu.workflow</groupId>
             <artifactId>forms-engine</artifactId>
