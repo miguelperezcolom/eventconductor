@@ -24,6 +24,7 @@ public class ProcessDBRepository implements ProcessRepository {
     final OutboxMessageEntityRepository outboxMessageEntityRepository;
     final io.mateu.workflow.application.out.WorkflowTracing workflowTracing;
     final io.mateu.workflow.infra.out.async.OutboxSignal outboxSignal;
+    final io.mateu.workflow.application.services.ProcessStatusAnnouncer processStatusAnnouncer;
 
     @Override
     public Optional<Process> findById(String id) {
@@ -53,6 +54,15 @@ public class ProcessDBRepository implements ProcessRepository {
 
     @Override
     public String save(Process process) {
+        // Read-model event, emitted at the one point every status transition funnels through: if the
+        // read model is on and this save changes the status, ride a ProcessStatusChanged through the
+        // outbox alongside the other domain events. Off → no prior-status read, no event.
+        if (processStatusAnnouncer.isEnabled()) {
+            var previousStatus = processEntityRepository.findById(process.getId())
+                    .map(entity -> ProcessStatus.valueOf(entity.getStatus()))
+                    .orElse(null);
+            processStatusAnnouncer.announceIfChanged(process, previousStatus);
+        }
         // Normalize empty businessKey to null so the unique constraint does not
         // reject multiple processes that have no business key.
         var businessKey = (process.getBusinessKey() == null || process.getBusinessKey().isBlank())

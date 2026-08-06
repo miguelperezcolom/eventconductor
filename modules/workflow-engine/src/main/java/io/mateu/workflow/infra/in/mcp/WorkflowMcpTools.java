@@ -66,6 +66,7 @@ public class WorkflowMcpTools implements McpTools, McpSystemContext {
     private final ImportWorkflowDefinitionsFromGitUseCase importWorkflowDefinitionsFromGitUseCase;
     private final UpstreamEventPublisher upstreamEventPublisher;
     private final ProcessAnalyticsService processAnalyticsService;
+    private final io.mateu.workflow.application.readmodel.ProcessIndexQueryService processIndexQueryService;
 
     public record ProcessSummary(
             String id, String name, String businessKey,
@@ -118,6 +119,42 @@ public class WorkflowMcpTools implements McpTools, McpSystemContext {
         Process process = processRepository.findByBusinessKey(businessKey)
                 .orElseThrow(() -> new IllegalArgumentException("No process found for business key: " + businessKey));
         return getProcessDetails(process.getId());
+    }
+
+    public record ProcessIndexEntry(
+            String processId, String businessKey, String workflowDefinitionId,
+            String status, int completionPct, String created, String started, String finished,
+            String shardId) {}
+
+    @Tool(description = "List the processes currently in flight (PENDING, RUNNING or PAUSED) from the"
+            + " CQRS read model — a single indexed read, so it stays fast at scale and (unlike"
+            + " listProcesses) never scans the write tables. Optionally scope to one workflow"
+            + " definition by id. Returns empty unless the read model is enabled"
+            + " (workflow.projection.enabled); use listProcesses on deployments that keep it off.")
+    public List<ProcessIndexEntry> listInFlightProcesses(String workflowDefinitionId) {
+        log.info("Listing in-flight processes from the read model, definition=" + workflowDefinitionId);
+        var rows = (workflowDefinitionId == null || workflowDefinitionId.isBlank())
+                ? processIndexQueryService.findInFlight()
+                : processIndexQueryService.findInFlightByDefinition(workflowDefinitionId);
+        return rows.stream().map(WorkflowMcpTools::toIndexEntry).toList();
+    }
+
+    @Tool(description = "Count processes by status across the whole fleet from the CQRS read model —"
+            + " the operator's at-a-glance view (how many RUNNING/PENDING/ERROR/...). Returns empty"
+            + " unless the read model is enabled (workflow.projection.enabled).")
+    public Map<String, Long> countProcessesByStatus() {
+        log.info("Counting processes by status from the read model");
+        return processIndexQueryService.countByStatus();
+    }
+
+    private static ProcessIndexEntry toIndexEntry(io.mateu.workflow.application.readmodel.ProcessIndexRow row) {
+        return new ProcessIndexEntry(
+                row.processId(), row.businessKey(), row.workflowDefinitionId(),
+                row.status(), row.completionPercentage(),
+                row.created() != null ? row.created().toString() : null,
+                row.started() != null ? row.started().toString() : null,
+                row.finished() != null ? row.finished().toString() : null,
+                row.shardId());
     }
 
     @Tool(description = "Get log messages for a workflow process")
