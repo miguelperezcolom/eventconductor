@@ -58,8 +58,32 @@ terminal status.
 
 ---
 
-## Rung 2 — throughput ceiling (pending)
+## Rung 2 — throughput ceiling (2026-08-06, partial — storage-bound)
 
-_To run on a local-NVMe node: label it `eventconductor.io/storage=nvme`, then
-`./run-scale.sh --rate <sweep> --minutes 60` at increasing rates until `soak_progress.acked` stops
-tracking the arrival rate. The plateau is the sustained ceiling; 20M ÷ ceiling sizes rung 3._
+**Setup.** Full-ish footprint (postgres + 3-broker Kafka + 4 orchestrators + 2 workers) on the
+`mateu-fleet` CloudFleet NodePool, Postgres on `emptyDir` with `synchronous_commit=on`. Drove at
+200/s.
+
+**Result — a storage ceiling, not a compute one.** At 200/s the driver kept acking (broker fine)
+but the engine backed up immediately: ~24k steps stuck in `CREATED`, ~3.4k outbox `Pending`, ~1
+process completed in 100s. Bumping orchestrator CPU did **not** move it — the completion rate stayed
+~15-20 steps/s and Postgres held a **flat ~137 commits/s** (`xact_commit` delta). No errors: pure
+write-throughput saturation.
+
+**Conclusion: `emptyDir` on the default CloudFleet nodes is NOT fast local NVMe.** ~137 commits/s
+with `synchronous_commit=on` is block-storage class (slower even than the ~356 fsync/s the reliability
+FINDINGS measured), a fraction of the thousands/s local NVMe gives. On my laptop's real NVMe the same
+harness did ~120 steps/s in compose; here it is ~15-20. So the cluster's default node storage is
+network-backed, and the design's central lever — genuine local NVMe — is **not** delivered by
+`emptyDir` on this NodePool.
+
+**Next (a provisioning decision for the operator).** To get the hundreds-of-PI/s that put 20M in
+~1-2 days, provision a node with **genuine local NVMe** (a Hetzner instance type with a local NVMe
+disk, exposed to the pod via `hostPath`/local-path or the instance's ephemeral NVMe mount) and pin
+Postgres there — the `eventconductor.io/storage=nvme` selector is exactly for this. If a single NVMe
+node still can't hit the target rate, go to the sharded topology (design §4.3). Only then is the
+rung-2 ceiling sweep (and rung 3's 20M) meaningful — on this cluster's default storage 20M would take
+the block-storage-class weeks, which is the number this rung exists to avoid.
+
+**Rung 1 is unaffected:** it ran at 15/s, well under this ceiling, so its zero-loss + crash-recovery
+verdicts stand.
