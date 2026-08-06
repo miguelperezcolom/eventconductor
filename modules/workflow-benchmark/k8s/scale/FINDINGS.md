@@ -188,3 +188,27 @@ the levers are *parallelism and latency*: lower `workflow.outbox-poll-interval-m
 `KAFKA_CONCURRENCY` and partition count, more orchestrators, and ultimately **sharding** (§4.3, N
 independent pipelines). That, not storage, is what stands between ~8 days and the 1–2 day target — the
 real, corrected outcome of rung 2.
+
+### Rung 2b — pipeline tuning ~doubles the ceiling, confirming the diagnosis (2026-08-06)
+
+Same trimmed topology and 80/s drive, but with the three pipeline levers turned up together (nothing
+else changed):
+
+| Lever | Untuned (rung 2 above) | Tuned |
+|---|---|---|
+| `workflow.outbox-poll-interval-ms` | 500 | **50** (via `-D` in JAVA_OPTS — the dashed property name does not survive env-var relaxed binding) |
+| `KAFKA_CONCURRENCY` (per orchestrator) | 8 | **16** |
+| Kafka partitions per topic | 48 | **96** (so 4 orch × 16 threads aren't starved) |
+
+**Sustained ~56/s COMPLETED** (plateau; a driver-pod restart mid-run caused a transient dip + a ~90/s
+catch-up burst, ignored) — **~2× the untuned ~28/s**, still clean (147 ERROR / ~67k rows). This
+**confirms the bottleneck was pipeline concurrency + latency**: turning those knobs, and nothing else,
+doubled throughput. Resources still had headroom at ~56/s (Postgres ~1.0 vCPU of 3, busiest
+orchestrator ~0.9) — so the pipeline, not the hardware, was and remains the limit.
+
+**Projection now ~4 days for 20M** (was ~8 untuned, ~18 on shared disk). The remaining gap to the 1–2
+day target is more of the same lever plus horizontal pipeline width: higher concurrency, more
+orchestrators (needs the 24-vCPU cap lifted or the demo moved), and **sharding** (§4.3) — N independent
+outbox→Kafka→consumer pipelines, the only thing that scales this past one Kafka cluster's per-partition
+ordering. Rung-2 ladder, in one line: **shared disk ~13/s → dedicated-vCPU disk ~28/s → pipeline-tuned
+~56/s**, each step ~2×, none of them hardware-bound at the ceiling.
