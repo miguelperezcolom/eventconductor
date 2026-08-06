@@ -47,6 +47,7 @@ export default defineConfig({
 			description: 'Production-grade, event-driven workflow orchestration for the Java/Spring ecosystem.',
 			social: [
 				{ icon: 'github', label: 'GitHub', href: 'https://github.com/miguelperezcolom/eventconductor' },
+				{ icon: 'discord', label: 'Discord', href: 'https://discord.gg/2E34heWF' },
 			],
 			sidebar: [
 				{

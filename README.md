@@ -5,6 +5,7 @@
 [![CodeQL](https://github.com/miguelperezcolom/eventconductor/actions/workflows/codeql.yml/badge.svg)](https://github.com/miguelperezcolom/eventconductor/actions/workflows/codeql.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 [![Maven Central](https://img.shields.io/maven-central/v/io.mateu.workflow/workflow-engine.svg?label=Maven%20Central)](https://central.sonatype.com/artifact/io.mateu.workflow/workflow-engine)
+[![Discord](https://img.shields.io/badge/Discord-Join%20us-5865F2?logo=discord&logoColor=white)](https://discord.gg/2E34heWF)
 
 EventConductor is a production-grade, event-driven workflow orchestration platform for the
 Java/Spring ecosystem. It covers the full lifecycle of a business process — from definition
@@ -910,6 +911,17 @@ steps:
 ```shell
 mvn spring-boot:run
 ```
+
+## 💬 Community
+
+Questions, ideas, or wondering whether this fits your problem?
+
+👉 **Join the `#eventconductor` channel** on the Mateu Discord: https://discord.gg/2E34heWF
+
+Discord is the place for questions, design discussions and "is this a good idea?". **Bugs and
+feature requests belong in [GitHub issues](https://github.com/miguelperezcolom/eventconductor/issues)**,
+where they can be tracked, referenced from a commit and closed by one — a report in chat scrolls
+away. **Security vulnerabilities go through neither**: see [SECURITY.md](./SECURITY.md).
 
 ## Versioning & compatibility
 

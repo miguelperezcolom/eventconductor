@@ -4,6 +4,15 @@ Thanks for your interest in contributing! This document explains how to set
 up the project locally, what we expect in pull requests, and how the
 codebase is organized.
 
+## Where to ask
+
+- **A question, an idea, or "would you take a PR that does X?"** — the `#eventconductor` channel
+  on the Mateu Discord: https://discord.gg/2E34heWF. Asking before building is welcome and usually
+  cheaper for both of us than a PR that has to be turned around.
+- **A bug or a feature request** — [GitHub issues](https://github.com/miguelperezcolom/eventconductor/issues).
+  Discord scrolls; an issue can be tracked, referenced from a commit and closed by one.
+- **A security vulnerability** — neither of the above. See [SECURITY.md](./SECURITY.md).
+
 ## Getting started
 
 ### Prerequisites
