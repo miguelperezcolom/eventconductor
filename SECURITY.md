@@ -19,6 +19,10 @@ before the details become public.
 Preferred channel: **GitHub Security Advisories** —
 <https://github.com/miguelperezcolom/eventconductor/security/advisories/new>
 
+**Not on Discord.** The `#eventconductor` channel is public: posting a vulnerability there
+discloses it to everyone in the room before there is a fix, which is the one outcome this policy
+exists to avoid.
+
 Alternatively, you may email the maintainer directly. The address is
 available from the project's `pom.xml` and GitHub profile.
 
