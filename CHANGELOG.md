@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0-beta.025] - 2026-08-06
+
+The schema travels with the engine.
+
+A workflow engine you can embed has to bring its own tables, and this one did not: the migrations
+shipped with the standalone applications, so embedding it meant running on whatever `ddl-auto`
+built — which has no indexes at all. It was invisible, because nothing fails; it just gets slow.
+The engine now carries its schema in its own jar and applies it itself, into a history table of its
+own, and says so out loud when it cannot.
+
 ### Fixed
 - **The engine now ships and applies its own schema.** The Flyway migrations lived in
   `apps/*-standalone-app`, not in the engine modules, so they existed only for the deployment shape
