@@ -78,12 +78,25 @@ that is the migration-based variant and a separate, heavier project.
 
 ## The shard registry
 
-A small piece of dynamic state the ingress router and the command router read: the set of shards and
-each one's status (`active` | `draining`) and connection info. It must be updatable hot (that is the
-whole point) and observed by the routers quickly. Options, cheapest first: a Kubernetes ConfigMap
-watched by the routers; a compacted Kafka topic `shard-registry`; or a row set in a tiny coordination
-DB. The registry is low-write (only on scale events) and low-read-latency-critical (cache it, refresh
-on change), so a watched ConfigMap or compacted topic is plenty.
+A small piece of dynamic state the ingress router reads: the set of shards currently `active`
+(accepting new processes). It must be updatable hot — that is the whole point — and observed quickly.
+
+**Implemented as a watched file** (`ShardRegistry` port; `FileShardRegistry`, `@Primary` over the
+static `ConfigShardRegistry`). It reads the active-shard list from `workflow.sharding.registry-file`
+and re-reads it every `workflow.sharding.registry-refresh-ms` (default 5 s). In Kubernetes that file is
+a ConfigMap mounted as a volume: editing the ConfigMap propagates to the file and takes effect within
+one refresh, no restart, no Kubernetes-API dependency in the engine — and it works the same off
+Kubernetes. Draining a shard is removing its id from the list; adding one is appending it. File format
+is shard ids by comma and/or newline, `#` comments ignored.
+
+**Fail-safe:** a transient read failure (a ConfigMap volume mid-swap, a permissions blip) keeps the
+last known good list rather than reporting zero shards — draining the whole fleet because a file was
+briefly unreadable would be the worst failure mode. The registry only ever moves to a list it read.
+
+A compacted Kafka topic or a coordination-DB row would also serve (near-instant vs the file's
+refresh-interval latency); the file is the cheapest and needs no new infrastructure. Only the ingress
+router reads it today; the command router resolves an existing process's shard from the read-model
+`shard_id` instead, so it needs no registry.
 
 ## What actually has to be built
 
@@ -95,7 +108,7 @@ Almost all of it is config + ops; the engine surface is deliberately tiny.
 | Stamp `shardId` on a process at creation + carry it into the CQRS index | engine (index already has the column) | **code** (small) |
 | Ingress router: pick active shard, publish to `upstream-<shardId>` | driver / an ingress service | code (outside the engine hot path) |
 | Command router: `process-id → shard_id` via the index, route retry/cancel/pause | UI/MCP layer | code (small) |
-| Shard registry (active/draining) | ConfigMap or compacted topic | config + a watcher |
+| Shard registry (active shards, hot) — **done**: `FileShardRegistry` watches a file (a mounted ConfigMap), refreshes every few seconds, keeps last-good on read error | engine | **code** (done) |
 | Per-shard deployment (DB_URL, `upstream-i`/`downstream-i`/`outbox-i`/`dead-letter-i` bindings) | k8s | **config only** |
 | Fanout reconciler (Σ across shards) | benchmark | code (benchmark only) |
 
@@ -135,7 +148,7 @@ Each is gated/additive so `main` behaviour is unchanged until a deployment opts 
    deployment, so distinct group ids fall out naturally). Ships with a test proving a message sent from
    "shard A" wakes a waiter on "shard B" and is dropped everywhere else. **This is the reliability-
    critical piece — build and verify it in isolation first.**
-2. **Engine — stamp `shardId` at creation.** Read `workflow.shard-id`, put it on the process at
+2. **Engine — stamp `shardId` at creation.** Read `workflow.sharding.shard-id`, put it on the process at
    creation, and carry it into the CQRS index (the `shard_id` column already exists). No-op when unset.
 3. **Command routing.** UI/MCP retry/cancel/pause resolve `process-id → shard_id` from the process-index
    and route to `upstream-<shardId>`; fallback = broadcast to all shards (non-owners drop it, fail-closed).

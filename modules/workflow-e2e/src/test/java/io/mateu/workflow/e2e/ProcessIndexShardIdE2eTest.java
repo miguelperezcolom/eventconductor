@@ -11,12 +11,12 @@ import org.springframework.test.context.TestPropertySource;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Increment 2: the owning shard is stamped on every process's read-model row. Set {@code workflow.shard-id}
+ * Increment 2: the owning shard is stamped on every process's read-model row. Set {@code workflow.sharding.shard-id}
  * and every {@code ProcessStatusChanged} carries it, so the index records where the process lives — the
  * lookup a targeted command (retry/cancel/pause by id) uses to route back to the right shard. Stamped on
  * the event (not read by the projector), so it survives a fanned-out projector consuming across shards.
  */
-@TestPropertySource(properties = {"workflow.projection.enabled=true", "workflow.shard-id=shard-A"})
+@TestPropertySource(properties = {"workflow.projection.enabled=true", "workflow.sharding.shard-id=shard-A"})
 class ProcessIndexShardIdE2eTest extends AbstractE2eTest {
 
     @Autowired ProcessIndexQueryService processIndex;

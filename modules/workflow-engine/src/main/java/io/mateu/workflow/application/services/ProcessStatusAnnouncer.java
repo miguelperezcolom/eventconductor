@@ -33,7 +33,7 @@ public class ProcessStatusAnnouncer {
 
     public ProcessStatusAnnouncer(
             @Value("${workflow.projection.enabled:false}") boolean enabled,
-            @Value("${workflow.shard-id:}") String shardId) {
+            @Value("${workflow.sharding.shard-id:}") String shardId) {
         this.enabled = enabled;
         // Blank (the default, non-sharded) reads as null on the event and the index row.
         this.shardId = (shardId == null || shardId.isBlank()) ? null : shardId;
