@@ -1,0 +1,27 @@
+# Shared across all shards: the namespace, and the hot shard registry.
+#
+# Kafka is also shared (one cluster, per-shard topics + the one `messages` topic). Deploy it into this
+# namespace from ../20-kafka.yaml (RF=3) or ../20-kafka-sweep.yaml (1 broker), with the namespace
+# swapped to ec-shard. Topics are auto-created (KAFKA_AUTO_CREATE_TOPICS_ENABLE=true), so upstream-0,
+# outbox-0, …, and messages appear on first use — no per-topic manifest needed for the benchmark.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ec-shard
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: shard-registry
+  namespace: ec-shard
+data:
+  # The shards currently ACCEPTING NEW PROCESSES. FileShardRegistry re-reads this within one refresh
+  # (workflow.sharding.registry-refresh-ms, default 5s), so editing it scales the fleet hot:
+  #   scale up   → apply shard.yaml for the new id, then ADD the id here
+  #   scale down → REMOVE the id here (new work stops arriving), let the shard drain, then delete it
+  # Format: shard ids by comma and/or newline; `#` comments ignored. A removed shard keeps running its
+  # in-flight processes to completion — draining, not dropping.
+  active: |
+    0
+    1
