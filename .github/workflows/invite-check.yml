@@ -1,0 +1,57 @@
+# Checks that the Discord invite the README and the docs site advertise still resolves.
+#
+# This exists because it already happened: the invite those links carried was dead — Discord's
+# default invites expire, and nobody notices, because a bad invite fails in the reader's browser
+# and never in ours. The same rot had reached Mateu's README, unnoticed for however long.
+#
+# Weekly rather than per-PR on purpose. An invite dies with the passage of time, not with a commit,
+# so gating pull requests on a third-party API would only add a way for unrelated work to fail.
+name: Discord invite
+
+on:
+  schedule:
+    # Mondays, 07:00 UTC — a dead invite is found at the start of a week, not during one.
+    - cron: '0 7 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  invite:
+    name: The advertised invite still works
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve every discord.gg link we publish
+        run: |
+          set -uo pipefail
+          codes=$(grep -rhoE 'discord\.gg/[A-Za-z0-9]+' README.md CONTRIBUTING.md doc/astro.config.mjs \
+                  | cut -d/ -f2 | sort -u)
+          if [ -z "$codes" ]; then
+            echo "No discord.gg link found in README.md, CONTRIBUTING.md or doc/astro.config.mjs."
+            echo "If the invite was removed on purpose, delete this workflow too."
+            exit 1
+          fi
+
+          failed=0
+          for code in $codes; do
+            body=$(curl -sS "https://discord.com/api/v10/invites/$code")
+            if ! echo "$body" | grep -q '"code": *"'"$code"'"'; then
+              echo "::error::discord.gg/$code does not resolve: $body"
+              failed=1
+              continue
+            fi
+
+            expires=$(echo "$body" | sed -n 's/.*"expires_at": *"\([^"]*\)".*/\1/p')
+            if [ -n "$expires" ]; then
+              # It resolves today and will not later. Warn rather than fail, so the week it dies is
+              # not the first anyone hears of it.
+              echo "::warning::discord.gg/$code expires on $expires — regenerate it with Expire After: Never."
+              echo "discord.gg/$code resolves, but expires on $expires" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "discord.gg/$code resolves and does not expire." >> "$GITHUB_STEP_SUMMARY"
+            fi
+          done
+          exit $failed
