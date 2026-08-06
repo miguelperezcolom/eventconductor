@@ -228,14 +228,14 @@ javadoc says it is for. The list page offers Retry and Restart against a selecti
 workaround. The three specs above are written and disabled; they should pass unchanged once the
 toolbar renders them.
 
-**The engine did not apply its own schema in this application.**
-`WorkflowSchemaAutoConfiguration` loaded but its initializer was conditioned away —
-`@ConditionalOnSingleCandidate(DataSource.class)` found no bean at evaluation time even though
-`DataSourceAutoConfiguration` matched, meaning it is being ordered ahead of the data source rather
-than after it. The engine's own unmanaged-schema warning fired and `ddl-auto=validate` then failed
-on the missing tables, which is the sequence that warning exists to produce instead of silence.
-`UiE2eApplication` declares the initializer explicitly as a documented workaround so these tests
-still run on the real migrations.
+**The engine did not apply its own schema in this application.** `WorkflowSchemaAutoConfiguration`
+loaded but its initializer was conditioned away: `@ConditionalOnSingleCandidate(DataSource.class)`
+asks whether the data source's *bean definition* is visible when the condition runs, and it is not.
+The engine's own unmanaged-schema warning fired and `ddl-auto=validate` then failed on the missing
+tables, which is the sequence that warning exists to produce instead of silence. **Fixed** by
+PR #163, which found the same cause reached further than this — not one migration was being applied
+in any of the three standalone apps either. The workaround this module carried is gone; these tests
+run on the engine's own migrations.
 
 ### Running them
 
