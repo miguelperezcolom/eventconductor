@@ -113,6 +113,11 @@ spring:
     enabled: false
 
 forms:
+  # The forms engine reads its own `forms.persistence`, not `workflow.persistence` above; without
+  # this the engine falls back to its in-memory repositories and every form definition and task
+  # execution dies with the pod — while this app is wired to PostgreSQL, ships forms migrations and
+  # runs under DDL_AUTO=validate. Same opt-in as `rules.persistence` in rule-standalone-app.
+  persistence: ${FORMS_PERSISTENCE:jpa}
   schema:
     # The engine applies its own migrations at startup. They are the only place this app's indexes
     # come from — Hibernate's ddl-auto=update path emits no index DDL — and under the chart's

@@ -1,9 +1,12 @@
 package io.mateu.workflow.formsembeddeddbheadless;
 
+import io.mateu.uidl.data.FieldDataType;
+import io.mateu.uidl.data.FieldStereotype;
 import io.mateu.workflow.application.out.FormExecutionRepository;
 import io.mateu.workflow.application.out.FormRepository;
 import io.mateu.workflow.application.usecases.createtask.CreateTaskCommand;
 import io.mateu.workflow.application.usecases.createtask.CreateTaskUseCase;
+import io.mateu.workflow.domain.Field;
 import io.mateu.workflow.domain.Form;
 import io.mateu.workflow.domain.Variable;
 import lombok.RequiredArgsConstructor;
@@ -28,13 +31,21 @@ public class FormsStartupRunner implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
-        // Create a sample form in DB
+        // Create a sample form in DB. The fields are not decoration: a form is validated against
+        // form-schema.json on the way in, and the schema requires at least one.
         String formId = UUID.randomUUID().toString();
         formRepository.save(new Form(
                 formId,
                 "Contact Form",
                 "A simple contact form example",
-                List.of()
+                List.of(
+                        new Field("name", "Name", FieldDataType.string,
+                                FieldStereotype.regular, true, "Your full name"),
+                        new Field("email", "Email", FieldDataType.string,
+                                FieldStereotype.email, true, "Where we can reach you"),
+                        new Field("message", "Message", FieldDataType.string,
+                                FieldStereotype.textarea, false, "What would you like to tell us?")
+                )
         ));
         log.info("Persisted form in DB: {}", formId);
 

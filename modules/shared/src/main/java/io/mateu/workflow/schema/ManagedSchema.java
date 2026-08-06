@@ -53,6 +53,16 @@ public final class ManagedSchema {
         this.historyTable = historyTable;
     }
 
+    /** The engine this schema belongs to ({@code workflow}, {@code forms}, {@code rules}). */
+    public String engine() {
+        return engine;
+    }
+
+    /** The Flyway location these migrations are read from. */
+    public String location() {
+        return location;
+    }
+
     /**
      * Brings the engine's schema up to date on the given data source. Runs before the
      * {@code EntityManagerFactory} is built, so Hibernate always sees the finished schema.
