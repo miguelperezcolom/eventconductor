@@ -65,6 +65,7 @@ public class WorkflowMcpTools implements McpTools, McpSystemContext {
     private final ResumeWorkflowUseCase resumeWorkflowUseCase;
     private final ImportWorkflowDefinitionsFromGitUseCase importWorkflowDefinitionsFromGitUseCase;
     private final UpstreamEventPublisher upstreamEventPublisher;
+    private final io.mateu.workflow.application.services.MessageDispatcher messageDispatcher;
     private final ProcessAnalyticsService processAnalyticsService;
     private final io.mateu.workflow.application.readmodel.ProcessIndexQueryService processIndexQueryService;
 
@@ -230,7 +231,7 @@ public class WorkflowMcpTools implements McpTools, McpSystemContext {
         var messageVariables = variables == null ? List.<Variable>of() : variables.entrySet().stream()
                 .map(entry -> new Variable(entry.getKey(), entry.getValue()))
                 .toList();
-        upstreamEventPublisher.publish(new MessageReceived(messageName, correlationKey, messageVariables));
+        messageDispatcher.dispatch(new MessageReceived(messageName, correlationKey, messageVariables));
         return "Message '" + messageName + "' sent with correlation key '" + correlationKey + "'";
     }
 

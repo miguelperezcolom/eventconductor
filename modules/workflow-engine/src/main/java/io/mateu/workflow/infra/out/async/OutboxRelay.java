@@ -47,6 +47,12 @@ public class OutboxRelay {
     @org.springframework.beans.factory.annotation.Value("${workflow.outbox.batch-size:100}")
     int batchSize;
 
+    // When on, a SEND_MESSAGE step's MessageReceived (which rides this process's outbox) is relayed to
+    // the shared cross-shard `messages` topic instead of this shard's `outbox`, so it can reach a waiter
+    // on any shard. Off (default) → messages stay on `outbox`, single-cluster behaviour unchanged.
+    @org.springframework.beans.factory.annotation.Value("${workflow.messages.shared-topic:false}")
+    boolean sharedMessages;
+
     @PostConstruct
     public void iterate() {
         var thread = new Thread(() -> {
@@ -79,13 +85,23 @@ public class OutboxRelay {
             try {
                 OutboxDrain.Result result;
                 do {
-                    result = outboxDrain.drain(batchSize, payload ->
-                            PartitionedEvents.send(streamBridge, "outbox", payload));
+                    result = outboxDrain.drain(batchSize, event ->
+                            PartitionedEvents.send(streamBridge, bindingFor(event), event));
                 } while (result.claimed() >= batchSize && result.settled() > 0);
             } finally {
                 dbLockDialect.releaseRelayGate(con);
             }
             return null;
         });
+    }
+
+    /**
+     * The topic a relayed outbox event goes to: the shared {@code messages} topic for a
+     * {@link io.mateu.workflow.dtos.events.integration.MessageReceived} when cross-shard messaging is
+     * on, so it reaches a waiter on any shard; otherwise this shard's own {@code outbox}, unchanged.
+     */
+    private String bindingFor(io.mateu.workflow.ddd.DomainEvent event) {
+        return (sharedMessages && event instanceof io.mateu.workflow.dtos.events.integration.MessageReceived)
+                ? "messages" : "outbox";
     }
 }

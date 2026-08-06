@@ -45,7 +45,7 @@ import java.util.Map;
 public class MessageRestController {
 
     final MessageApiProperties messageApiProperties;
-    final UpstreamEventPublisher upstreamEventPublisher;
+    final io.mateu.workflow.application.services.MessageDispatcher messageDispatcher;
 
     public record SendMessageRequest(String messageName, String correlationKey, Map<String, String> variables) {
     }
@@ -68,7 +68,7 @@ public class MessageRestController {
                 .map(entry -> new Variable(entry.getKey(), entry.getValue()))
                 .toList();
         log.info("REST message '{}' received with correlation key '{}'", request.messageName(), request.correlationKey());
-        upstreamEventPublisher.publish(new MessageReceived(request.messageName(), request.correlationKey(), variables));
+        messageDispatcher.dispatch(new MessageReceived(request.messageName(), request.correlationKey(), variables));
 
         return ResponseEntity.accepted().body("message published");
     }
