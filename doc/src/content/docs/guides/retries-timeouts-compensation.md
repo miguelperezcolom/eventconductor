@@ -72,6 +72,21 @@ When a step times out:
 
 `timeout: 0` (or omitting it) means no timeout.
 
+:::note[The clock starts when the task reaches a worker]
+The timeout measures **execution**, not the wait before it. The engine starts it when the task
+actually leaves for a worker — after the dispatch has been relayed out of the outbox — not when the
+orchestrator decided the step was ready to run.
+
+That matters under load. A queue that grows is capacity, not failure: if queueing counted against
+the timeout, a backlog deeper than the timeout would expire steps before any worker had seen them,
+take their retries with them, and roll back their sagas — turning latency into business state left
+half-undone. A step waiting for capacity simply waits, and if it waits too long it shows up in
+`eventconductor.steps.stalled`, which is the signal built for exactly that.
+
+So `timeout` is a promise about your worker: how long it may take once it has the task. It is not a
+deadline on the process as a whole.
+:::
+
 ## Compensation (Saga pattern)
 
 For distributed transactions, use `rollbackable` + `compensationStepId` to define compensation logic:

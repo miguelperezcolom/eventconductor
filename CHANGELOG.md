@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **A step's timeout no longer counts the time it spent queued.** The clock started when the
+  orchestrator marked the step started and wrote its dispatch to the outbox, so everything before a
+  worker saw it — outbox residence, the relay, the broker — was charged against the step's own
+  execution budget. Under load that turns a backlog into failures rather than latency: once the
+  dispatch backlog outgrows the timeout, steps expire before anyone could have run them, their
+  retries expire with them, and their sagas roll back. A deliberate 120/s saturation run produced
+  12,517 `ERROR` and 3,035 `COMPENSATION_FAILED` that way — business state left half-undone, none of
+  it a worker doing anything wrong, while the outbox itself had lost nothing and drained cleanly
+  afterwards at ~240/s.
+
+  The clock now starts when the dispatch has actually been relayed out. Two published contracts
+  already described it this way and neither was true: `timeout` is "Maximum execution time" in the
+  definition schema, and `eventconductor.step.duration` is "from dispatch to final status" in the
+  observability reference. Both derive from the same field, so one fix makes both so — and step
+  duration now measures execution rather than execution plus queueing.
+
+  A queue is capacity, not failure: a step waiting for a worker now simply waits, and shows up in
+  `eventconductor.steps.stalled` if it waits too long, which is the signal built for it.
+
 ### Added
 - **Tests for the paths whose failure mode is silence.** The outbox drain (`OutboxDrain`), where
   delivering before marking Sent is what makes the at-least-once guarantee, and a refused delivery
