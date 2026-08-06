@@ -95,3 +95,66 @@ soak, which is exactly the outcome this rung exists to surface before booking th
 
 **Rung 1 is unaffected:** it ran at 15/s, well under this ceiling, so its zero-loss + crash-recovery
 verdicts stand.
+
+---
+
+## Rung 2 (cont.) — the storage lift is a dedicated-vCPU node, not exotic hardware (2026-08-06)
+
+Lever 1 tested directly. Provisioned one Hetzner **ccx23** (dedicated vCPU, AMD EPYC-Milan) via
+Karpenter and ran `pg_test_fsync` on its node-local `emptyDir` — the exact disk Postgres uses here:
+
+| Node (emptyDir, 8kB, single thread) | fdatasync ops/s | fsync ops/s |
+|---|---|---|
+| shared-vCPU `cx23`/`cx43` (rung-2 above) | ~890–1,600 | — |
+| **dedicated-vCPU `ccx23`** | **~8,250** | ~6,220 |
+
+**~5–9× on the same storage tier.** The ceiling was never inherent Hetzner storage — it was
+**noisy-neighbour CPU steal stalling the fsync syscall** on the shared-vCPU instances. A dedicated
+vCPU removes it; `fdatasync` (Postgres's Linux default `wal_sync_method`) reaches ~8.2k ops/s. This
+needs no local-NVMe StorageClass and no bare metal — just pinning Postgres to a CCX node, which the
+existing CloudFleet pool provisions on demand via an instance-type nodeSelector (see 10-postgres.yaml;
+CloudFleet blocks kubectl-created NodePools, so the `storage=nvme` label path needs the Fleet API).
+
+**Revised 20M projection.** If the engine holds its ~1/3-of-disk write efficiency, ~8.2k fsync/s →
+order-of ~2,700 commits/s → **~2–3 days for 20M** (was ~18). The exact figure needs the throughput
+**sweep** on ccx23-backed Postgres — the next step — because at this rate the bottleneck likely moves
+off the disk onto engine write-concurrency, Kafka, or CPU. Closing the engine's 1/3 gap (lever 2:
+write batching / more concurrent committers so group commit batches more per fsync) then compounds on
+top, and sharding (§4.3) remains the path past a single node.
+
+**Constraint for the sweep.** The `mateu-fleet` NodePool `limits.cpu` is 24 (Fleet-API-managed, not
+raisable via kubectl) and the live demo already uses part of it. A full RF=3 distributed sweep
+(Postgres 3 + Kafka 3×2 + 6 orchestrators + 3 workers ≈ 19 vCPU of requests) does not fit alongside
+the demo under that cap; it needs either the cap raised via the Fleet API or a trimmed topology
+(1-broker RF=1 Kafka + ~3 orchestrators) that fits the free headroom.
+
+### Throughput sweep on ccx23 — the disk stops being the bottleneck (2026-08-06)
+
+Ran the trimmed topology that fits the cap: **Postgres on `ccx23`** (the 8.2k-fsync/s node) +
+**1-broker Kafka RF=1** (`20-kafka-sweep.yaml`) + **4 orchestrators + 2 workers**, driver at a
+deliberately-saturating **120/s** (≈10× the old ceiling), then drained with arrivals off.
+
+| Phase | What the DB showed |
+|---|---|
+| Under 120/s load | Backlog exploded (live 2.8k → 36k), `outbox_unsent` climbed to ~24k, and COMPLETED/s **peaked ~15/s then collapsed** while ERROR/CANCELLED terminals rose. |
+| Drain (arrivals = 0) | Flat-out **~100–115 terminal transitions/s** (COMPLETED ~52/s + backlog's timed-out ERRORs ~40/s); `outbox_unsent` cleared 24k → ~0 in ~100s (**~240/s relay drain**). |
+
+**Reading it.**
+- **The ccx23 disk is no longer the ceiling.** Flat-out the system does **~4–9× the shared-disk
+  ~13/s** (COMPLETED ~52/s; terminal ~100–115/s). The storage lift translates into real throughput.
+- **120/s was over-saturated on purpose, and it exposed a real hazard:** once the dispatch backlog
+  exceeds `DEFAULT_STEP_TIMEOUT_MS` (30s here), steps start timing out *in the queue* → mass ERROR →
+  saga cancellations → a **timeout death spiral** that depresses useful (COMPLETED) throughput. Final
+  mix was 15,942 PENDING · 14,370 COMPLETED · 12,517 ERROR · 3,035 COMPENSATION_FAILED — an overload
+  artifact, not a clean-workload result. Lesson: **never sustain arrivals above capacity**, and for
+  high-throughput runs raise the step timeout well above worst-case dispatch latency.
+- **The single-broker outbox relay is not the hard limit** — it drained ~240/s once it stopped
+  competing with new commits. Under load the constraint is total write/CPU contention at this trimmed
+  scale (4 orchestrators, 1 Kafka broker), not the disk and not the relay.
+
+**Revised 20M projection.** Conservatively at the drain COMPLETED rate (~52/s) → **~4–5 days**; the
+~100/s terminal rate suggests **~2–3 days** is reachable with (a) a **rate-controlled** sweep whose
+arrivals sit just under capacity (no death spiral) + a higher step timeout, and (b) more topology
+(more orchestrators / a 3-broker Kafka / more partitions) once the 24-vCPU cap is lifted or the demo
+moved aside. That rate-controlled clean sweep is the next step; this run's job — show the disk lift is
+real and find where the bottleneck moved (engine/CPU + step-timeout dynamics, not storage) — is done.
