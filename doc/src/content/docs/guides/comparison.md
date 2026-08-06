@@ -153,6 +153,21 @@ a live multi-shard run at thousands-per-second has not yet been published — so
 throughput today, Zeebe and Temporal still have the track record. What has changed is that the ceiling
 is now what you provision, not one node's WAL.
 
+A different property matters when load is **bursty** rather than sustained. Every ingress — process
+creation, worker tasks, domain events — rides a durable Kafka log, so a spike above the ceiling is
+**absorbed as backlog and drained**, not rejected: arrival rate is decoupled from processing rate. A
+Black Friday or month-end peak queues durably and clears at the engine's steady rate — the trade is
+latency, not lost or refused work. It smooths spikes; it does not raise the *sustained* ceiling (that is
+what sharding is for), and Kafka's retention bounds how large a backlog can grow. This is a deliberate
+contrast with the dedicated clusters, which lean the other way to protect themselves under overload —
+Zeebe applies backpressure and rejects commands at ingress (`RESOURCE_EXHAUSTED`), Temporal rate-limits
+per namespace — pushing back on the caller rather than buffering for it. Neither approach is strictly
+better: buffering favours absorbing a transient burst without touching the client, backpressure favours
+bounded, predictable latency under sustained overload. And the gap is one of **defaults, not
+capability** — you could front Zeebe or Temporal with your own durable queue and get the same
+absorption, but that is a layer you design, build and operate; in EventConductor the buffer *is* the
+ingress bus, there by construction.
+
 EventConductor's published baseline comes from the distributed test suite (DIST-05 in [the test plan](https://github.com/miguelperezcolom/eventconductor/blob/main/TESTING.md), reproducible with `mvn -Pdist-e2e`). It creates **500 concurrent process instances** — three worker-executed steps each, i.e. 1,500 task executions — and asserts they all complete with **no lost or stuck instances**. The most recent run:
 
 | DIST-05 metric | Measured |

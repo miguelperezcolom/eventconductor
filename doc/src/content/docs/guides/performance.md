@@ -114,3 +114,21 @@ Two properties make it practical rather than a rewrite:
 
 So the ceiling is what you provision: one database's throughput, or N of them. What stays constant is
 that the engine adds nothing on top — a claim the harness lets you check either way.
+
+## Absorbing spikes
+
+That ceiling is a *sustained* rate. Bursty load behaves better than the raw number suggests, because
+every ingress — process creation, worker tasks, domain events — rides a durable Kafka log, so **arrival
+rate is decoupled from processing rate**. A spike above the ceiling is absorbed as backlog and drained
+at the engine's steady rate; the cost is latency, not lost or refused work. The throughput sweeps show
+it directly: driving well past the sustained rate grew the queue and it drained flat-out afterwards —
+nothing fell over, nothing was rejected.
+
+Two honest bounds. It smooths *transient* peaks; it does not raise the sustained ceiling — a load that
+stays above capacity grows the backlog without end (that is what sharding is for). And Kafka's retention
+bounds how large the backlog can get. Within those, a Black Friday or month-end burst queues durably and
+clears, instead of pushing back on the caller.
+
+This comes with the topology rather than being a feature to enable: the buffer *is* the ingress bus. You
+could put a durable queue in front of a dedicated cluster and get the same absorption — the difference is
+that here it is there by construction, not a layer you design and operate.
