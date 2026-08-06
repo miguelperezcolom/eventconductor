@@ -25,19 +25,19 @@ final class BenchmarkApps {
         props.put("spring.datasource.hikari.maximum-pool-size", String.valueOf(config.poolSize()));
         props.put("spring.jpa.hibernate.ddl-auto", "update");
         props.put("spring.jpa.open-in-view", "false");
-        props.put("spring.cloud.stream.bindings.consumeOutbox-in-0.destination", "outbox");
+        props.put("spring.cloud.stream.bindings.consumeOutbox-in-0.destination", topic("outbox", config.shard()));
         props.put("spring.cloud.stream.bindings.consumeOutbox-in-0.group", "orchestrator-outbox");
         props.put("spring.cloud.stream.bindings.consumeOutbox-in-0.consumer.batch-mode", "true");
         props.put("spring.cloud.stream.bindings.consumeOutbox-in-0.consumer.concurrency",
                 String.valueOf(config.consumerConcurrency()));
-        props.put("spring.cloud.stream.bindings.consumeUpstream-in-0.destination", "upstream");
+        props.put("spring.cloud.stream.bindings.consumeUpstream-in-0.destination", topic("upstream", config.shard()));
         props.put("spring.cloud.stream.bindings.consumeUpstream-in-0.group", "orchestrator-upstream");
         props.put("spring.cloud.stream.bindings.consumeUpstream-in-0.consumer.batch-mode", "true");
         props.put("spring.cloud.stream.bindings.consumeUpstream-in-0.consumer.concurrency",
                 String.valueOf(config.consumerConcurrency()));
-        props.put("spring.cloud.stream.bindings.outbox.destination", "outbox");
-        props.put("spring.cloud.stream.bindings.downstream.destination", "downstream");
-        props.put("spring.cloud.stream.bindings.deadLetter.destination", "dead-letter");
+        props.put("spring.cloud.stream.bindings.outbox.destination", topic("outbox", config.shard()));
+        props.put("spring.cloud.stream.bindings.downstream.destination", topic("downstream", config.shard()));
+        props.put("spring.cloud.stream.bindings.deadLetter.destination", topic("dead-letter", config.shard()));
         return run(io.mateu.workflowbench.orchestrator.BenchmarkOrchestratorApp.class, props);
     }
 
@@ -45,11 +45,16 @@ final class BenchmarkApps {
         var props = common(config);
         props.put("spring.application.name", "bench-worker");
         props.put("spring.cloud.function.definition", "consumeWorkerEvent");
-        props.put("spring.cloud.stream.bindings.consumeWorkerEvent-in-0.destination", "downstream");
+        props.put("spring.cloud.stream.bindings.consumeWorkerEvent-in-0.destination", topic("downstream", config.shard()));
         props.put("spring.cloud.stream.bindings.consumeWorkerEvent-in-0.group", "worker-group");
         props.put("spring.cloud.stream.bindings.consumeWorkerEvent-in-0.consumer.concurrency",
                 String.valueOf(config.workerConcurrency()));
         return run(io.mateu.workflowbench.worker.BenchmarkWorkerApp.class, props);
+    }
+
+    /** A shard's per-shard topic name ({@code base-shard}), or the plain base when not sharded. */
+    private static String topic(String base, String shard) {
+        return (shard == null || shard.isBlank()) ? base : base + "-" + shard;
     }
 
     private static Map<String, Object> common(BenchmarkConfig config) {
@@ -59,7 +64,7 @@ final class BenchmarkApps {
         props.put("workflow.mode", "kafka");
         props.put("workflow.persistence", "jpa");
         props.put("spring.cloud.stream.kafka.binder.brokers", config.kafkaBrokers());
-        props.put("spring.cloud.stream.bindings.upstream.destination", "upstream");
+        props.put("spring.cloud.stream.bindings.upstream.destination", topic("upstream", config.shard()));
         props.put("logging.level.root", "WARN");
         props.put("logging.level.io.mateu.workflow", "WARN");
         return props;

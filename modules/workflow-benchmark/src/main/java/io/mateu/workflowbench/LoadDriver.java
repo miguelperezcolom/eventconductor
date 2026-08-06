@@ -31,6 +31,12 @@ public final class LoadDriver implements AutoCloseable {
 
     private final ObjectMapper json = new ObjectMapper();
     private final KafkaProducer<byte[], String> producer;
+    // Ingress: the active shards to place new processes on (empty = single cluster, plain `upstream`).
+    // Round-robin, so adding a shard mid-run just widens the spread; each business key is created once,
+    // so a key never lands on two shards. The topic is chosen once per record, so a producer-level retry
+    // stays on the same shard.
+    private final List<String> shards;
+    private final java.util.concurrent.atomic.AtomicInteger shardCursor = new java.util.concurrent.atomic.AtomicInteger();
 
     LoadDriver(BenchmarkConfig config) {
         this(config, false);
@@ -63,6 +69,16 @@ public final class LoadDriver implements AutoCloseable {
             props.put(ProducerConfig.DELIVERY_TIMEOUT_MS_CONFIG, "600000");
         }
         producer = new KafkaProducer<>(props);
+        shards = config.shardList();
+    }
+
+    /** The upstream topic a new process is published to: an active shard's {@code upstream-<shard>}
+     *  round-robin, or plain {@code upstream} when not sharded. */
+    private String ingressTopic() {
+        if (shards.isEmpty()) {
+            return "upstream";
+        }
+        return "upstream-" + shards.get(Math.floorMod(shardCursor.getAndIncrement(), shards.size()));
     }
 
     void createProcess(String businessKey) {
@@ -82,7 +98,7 @@ public final class LoadDriver implements AutoCloseable {
                               Callback callback) {
         var event = new ProcessCreationRequested(
                 definitionId, businessKey, variables == null ? List.of() : variables, null);
-        producer.send(new ProducerRecord<>("upstream", key(event), serialize(event)), callback);
+        producer.send(new ProducerRecord<>(ingressTopic(), key(event), serialize(event)), callback);
     }
 
     public void flush() {

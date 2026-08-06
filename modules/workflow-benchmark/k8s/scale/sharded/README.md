@@ -67,26 +67,34 @@ manifest replica counts — autoscaling is skipped, nothing breaks.
 
 ## What the ENGINE gives you here vs. what the BENCHMARK still needs
 
-Everything above is **config only** — the engine re-points by env. To run the *benchmark suite*
-sharded, three benchmark-side pieces are still needed (they are code in `workflow-benchmark`, tracked
-as the next increments):
+Everything above is **config only** — the engine re-points by env. The benchmark image is now
+shard-aware too (three `bench.*` knobs, empty = single cluster, unchanged):
 
-- **Workers per shard.** `BenchmarkApps` hardcodes `downstream`/`upstream` destinations; a worker for
-  shard *i* must consume `downstream-i` and reply to `upstream-i`. Needs a `bench.shard` suffix on
-  those destinations.
-- **Driver ingress.** The load driver must hash-route each `ProcessCreationRequested` to `upstream-<i>`
-  for an active shard (the engine's `IngressRouter` does this for in-engine creation; the external
-  driver needs the same placement + registry read).
-- **Fan-out reconciler.** `Reconciler.verify` must run per shard and sum (Σ acked vs Σ present,
-  per-shard exactly-once/no-stuck/outbox unioned, saga histogram summed).
+- **Workers per shard** — `-Dbench.shard=<i>` makes a worker consume `downstream-i` and reply to
+  `upstream-i`.
+- **Driver ingress** — `-Dbench.shards=0,1,…` makes the load driver round-robin each creation to an
+  active shard's `upstream-<i>` (each business key is created once, so a key never lands on two shards).
+- **Fan-out reconciler** — `Reconciler.verifyAcrossShards` runs per shard and combines: R1 conservation
+  recomputed globally (Σ acked vs Σ present, so it does not false-fail because acked lives on one shard),
+  the rest summed. The verify/install roles expand a `{shard}` placeholder in `bench.jdbc.url` across
+  `bench.shards`.
 
-Also: **workflow definitions must be installed on every shard** (each shard creates from its own
-definitions), and **cron, if used, needs single cluster-wide evaluation** across shards (the per-shard
-advisory lock only guards within one DB) — out of scope for the throughput harness, which sets
-`cron-enabled=false`.
+### Run the benchmark sharded
+
+```bash
+# install definitions on every shard, drive across shards, verify across shards:
+-Dbench.jdbc.url=jdbc:postgresql://postgres-{shard}.ec-shard.svc.cluster.local:5432/eventconductor
+-Dbench.shards=0,1          # driver + reconciler + installer
+-Dbench.shard=0             # a worker's own shard (worker deployment per shard)
+```
+
+Still out of scope for the throughput harness: **workflow definitions installed on every shard** (the
+`install` role now loops over `bench.shards`), and **cron needs single cluster-wide evaluation** across
+shards (the per-shard advisory lock only guards within one DB) — the harness sets `cron-enabled=false`.
 
 ## Status
 
-Authored, not yet cluster-validated (like the 3-broker Kafka manifest was at first). The engine paths
-it exercises — shared-messages binding, command routing, ingress placement, the hot registry — are
-covered by unit + e2e tests; a live two-shard run is the validation once the benchmark-side pieces land.
+Authored, not yet cluster-validated (like the 3-broker Kafka manifest was at first). The engine paths —
+shared-messages binding, command routing, ingress placement, the hot registry — are covered by unit +
+e2e tests, and the reconciler fan-out merge by a unit test; a live two-shard run is the end-to-end
+validation, which needs the isolated/dedicated capacity the 1M-run findings called for.
