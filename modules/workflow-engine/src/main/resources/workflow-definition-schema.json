@@ -392,6 +392,22 @@
           ],
           "description": "JOIN only: how the join merges its incoming branches. AND (default) is a parallel/synchronizing join that waits for ALL branches to complete; XOR is an exclusive join that proceeds as soon as ANY one branch completes. Null is treated as AND.",
           "default": "AND"
+        },
+        "requiredScopes": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": { "type": "string" },
+          "description": "Flow authorization: the scopes the caller must ALL hold for this step to run, on top of the definition-level requirement. Evaluated against the process's creation snapshot. Empty/absent = no step-level restriction. Enforced only when workflow.security.flow-authorization.enabled."
+        },
+        "requiredRoles": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": { "type": "string" },
+          "description": "Flow authorization: the roles the caller must ALL hold for this step to run. See requiredScopes."
         }
       },
       "if": {

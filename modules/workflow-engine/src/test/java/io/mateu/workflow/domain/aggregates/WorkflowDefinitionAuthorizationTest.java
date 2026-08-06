@@ -26,4 +26,16 @@ class WorkflowDefinitionAuthorizationTest {
         assertThat(def.requiredScopes()).isEmpty();
         assertThat(def.requiredRoles()).isEmpty();
     }
+
+    @Test
+    void parsesStepLevelRequirements() {
+        var def = pojoFromJson(
+                "{\"name\":\"orders\",\"steps\":[{\"id\":\"approve\",\"type\":\"ACTION\",\"name\":\"Approve\","
+                        + "\"requiredScopes\":[\"orders:approve\"]}]}",
+                WorkflowDefinition.class);
+
+        var step = def.steps().get(0);
+        assertThat(step.requiredScopes()).containsExactly("orders:approve");
+        assertThat(step.requiredRoles()).isEmpty();
+    }
 }

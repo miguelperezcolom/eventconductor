@@ -138,8 +138,24 @@ public record Step(
          */
         @HiddenInList
         @Hidden("state['type'] != 'JOIN'")
-        JoinType joinType
+        JoinType joinType,
+        /**
+         * Flow-authorization for this step: the scopes and roles the caller must ALL hold for this
+         * step to run, evaluated against the process's creation snapshot ({@code AuthorizationContext}).
+         * A step-level gate on top of the definition-level one — e.g. an approval step that needs a
+         * scope the rest of the flow does not. Empty (the default) means the step adds no restriction.
+         * Enforced only when {@code workflow.security.flow-authorization.enabled}.
+         */
+        @HiddenInList
+        List<String> requiredScopes,
+        @HiddenInList
+        List<String> requiredRoles
 ) implements Identifiable {
+
+    public Step {
+        requiredScopes = requiredScopes == null ? List.of() : List.copyOf(requiredScopes);
+        requiredRoles = requiredRoles == null ? List.of() : List.copyOf(requiredRoles);
+    }
 
     /**
      * The shape this record had before links could carry their own guards, so that every caller
@@ -157,7 +173,7 @@ public record Step(
                 null, preconditionExpression, parallel, topic, formId, ruleId, childWorkflowDefinitionId,
                 outputVariables, duration, untilVariable, messageName, correlationExpression,
                 messageVariables, timeout, retries, rollbackable, compensationStepId,
-                maxSuccessfulExecutions, joinType);
+                maxSuccessfulExecutions, joinType, java.util.List.of(), java.util.List.of());
     }
 
     /**
