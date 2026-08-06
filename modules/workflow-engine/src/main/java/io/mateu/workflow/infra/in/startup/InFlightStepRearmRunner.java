@@ -68,7 +68,8 @@ public class InFlightStepRearmRunner implements ApplicationRunner {
         }
     }
 
-    private void rearmOnce() {
+    /** One pass. Package-private so a test can drive it without the retry thread around it. */
+    void rearmOnce() {
         var processIds = new LinkedHashSet<String>();
         for (var stepExecution : stepExecutionRepository.findPendingOrRunning()) {
             var process = processRepository.findById(stepExecution.getProcessId()).orElse(null);

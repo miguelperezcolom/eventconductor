@@ -88,7 +88,8 @@ public class ImportWorkflowDefinitionsFromGitUseCase {
      * The path is resolved and normalized against the clone root; a directory that escapes the
      * repo (e.g. "../etc") or does not exist is rejected.
      */
-    private Path resolveScanRoot(GitImportProperties.GitRepository repo, Path repoRoot) throws IOException {
+    /** Package-private so the escape guard below can be tested without cloning anything. */
+    Path resolveScanRoot(GitImportProperties.GitRepository repo, Path repoRoot) throws IOException {
         String directory = repo.getDirectory();
         if (directory == null || directory.isBlank()) {
             return repoRoot;
@@ -108,7 +109,7 @@ public class ImportWorkflowDefinitionsFromGitUseCase {
      * subdirectories, so the directory is folded into the key to keep their provenance
      * — and therefore pruning — independent.
      */
-    private static String pruneKey(GitImportProperties.GitRepository repo) {
+    static String pruneKey(GitImportProperties.GitRepository repo) {
         String directory = repo.getDirectory();
         if (directory == null || directory.isBlank()) {
             return repo.getUrl();

@@ -15,6 +15,9 @@
     <url>http://maven.apache.org</url>
 
     <properties>
+        <!-- Coverage floor for this module, just under what it measures today
+             (64.7% per-module; 81.1% once the e2e module's data is merged in). Raise it when the module improves; never lower it. -->
+        <jacoco.line.minimum>0.62</jacoco.line.minimum>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 

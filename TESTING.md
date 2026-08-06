@@ -18,6 +18,46 @@ The e2e tests drive the engine exclusively through its public surface: upstream 
 (`ProcessCreationRequested`, worker status callbacks), the `EmbeddedTaskExecutor` port, and the
 repositories for assertions. No engine internals are mocked.
 
+## Coverage, and what the number means
+
+The JaCoCo gate is a **floor per module**, set just under what that module measures today and
+raised as it improves. It is not a target, and it is deliberately not one number for the repository.
+
+| Module | Floor | Measured |
+|---|---|---|
+| `rule-runtime` | 0.87 | 89.2% |
+| `workflow-maven-plugin` | 0.87 | 89.5% |
+| `shared` | 0.85 | 87.9% |
+| `workflow-engine` | 0.62 | 64.7% alone — **81.1%** with the e2e module merged in |
+| `forms-engine` | 0.42 | 44.0% |
+| `rule-engine` | 0.40 | 42.8% |
+
+**Read those numbers with two things in mind.**
+
+*The gate used to measure far less than it appeared to.* It asked for 85% of lines, and passed,
+over a bundle that excluded the outbox, the schedulers, the JPA repositories, the message REST API,
+the MCP tools, the autoconfiguration and the Git import — most of what carries risk in production.
+The exclusion list is now two entries: generated protobuf/gRPC stubs, and the Vaadin view classes
+whose behaviour is the framework's rendering. Everything else is measured. Over that honest scope
+the repository sits at **65.7%** per module, **76.4%** aggregated.
+
+*Per-module figures undercount the engine.* JaCoCo attributes coverage to the module whose tests
+ran, and the 33 end-to-end tests live in `modules/workflow-e2e`, so everything they exercise in
+`workflow-engine` — the relay, the state machine, compensation, timers — counts for neither. The
+aggregated figure is the true one:
+
+```bash
+mvn -B -ntp test
+java -jar ~/.m2/repository/org/jacoco/org.jacoco.cli/0.8.13/org.jacoco.cli-0.8.13-nodeps.jar \
+  merge modules/*/target/jacoco.exec --destfile /tmp/merged.exec
+java -jar ~/.m2/repository/org/jacoco/org.jacoco.cli/0.8.13/org.jacoco.cli-0.8.13-nodeps.jar \
+  report /tmp/merged.exec --classfiles modules/workflow-engine/target/classes --html /tmp/coverage
+```
+
+Coverage is a floor against regression, not evidence of correctness. What the engine actually
+guarantees is specified below and in the reliability and scale runs under
+`modules/workflow-benchmark/k8s`, not by any percentage here.
+
 ## 1. Core orchestration (E2E, embedded + memory)
 
 | ID | Spec |
