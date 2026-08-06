@@ -143,7 +143,11 @@ runs the engine as N shared-nothing shards — each a full stack with its own da
 ceiling scales with the shard count, the same shard-your-storage principle Temporal uses. It is
 opt-in and config-only (a shard is the stock engine re-pointed by config; a single-database deployment
 is unchanged), and elastic: shards are added and removed *hot*, and because a process is transient the
-fleet rebalances by draining rather than migrating — no reshard, no data copy. Two things keep the
+fleet rebalances by draining rather than migrating — no reshard, no data copy. **And it does not cost
+you the single pane of glass:** the [CQRS process-index read model](/guides/process-index/) projects
+every shard's status changes into one queryable index, so "list everything running", the fleet counts,
+and lookups by business key still answer from one place across all N shards — sharding scales the write
+side without scattering the operational view. Two things keep the
 comparison honest: it is off by default, and while its engine paths are covered by unit and e2e tests,
 a live multi-shard run at thousands-per-second has not yet been published — so for *proven* extreme
 throughput today, Zeebe and Temporal still have the track record. What has changed is that the ceiling
@@ -176,25 +180,19 @@ so its natural unit of deployment is the service: one engine in billing with its
 in booking with its own, one in fulfilment. Separate WALs, separate ceilings, and total capacity
 that grows linearly with the number of contexts.
 
+For a peak inside a *single* context — booking alone on Black Friday — the complementary axis is
+[**sharding**](/reference/configuration/#sharding-advanced-opt-in): it spreads one context across N
+shared-nothing shards, so that context's ceiling grows with the shard count too. The two compose —
+bounded contexts grow capacity *across* domains, sharding grows it *within* one — and neither costs you
+the operational view: the [CQRS process-index](/guides/process-index/) still answers "what is running"
+across every shard from one place.
+
 This is the same reasoning that produced database-per-service, applied to orchestration. It is also
 why the comparison looks different from the other direction: running one Zeebe or Temporal cluster
 per domain is not something teams do, so a shared cluster with **multi-tenancy** is how those
 platforms partition workloads. EventConductor partitions by deployment instead. That is why
 multi-tenancy is absent from the feature matrix — the isolation boundary is the service, not a
 tenant inside a shared cluster.
-
-Two honest limits on this:
-
-- **It does not help with concentration.** Partitioning raises the ceiling on the *sum* of your
-  load, not on a peak inside one context. If booking alone needs 40 instances/second on Black
-  Friday, booking still has to clear 40 instances/second. The number to size against is the peak in
-  the busiest single context.
-- **There is no orchestrator of orchestrators.** A process that spans contexts — a booking that
-  triggers invoicing that triggers payment — is choreography between engines over events, not one
-  process. That is usually the right DDD answer, and the outbox already supports it, but end-to-end
-  visibility of the business flow then comes from your distributed tracing rather than from the
-  engine. Camunda call activities would give you that single unified view; this is a real
-  trade-off, not a technicality.
 
 ## Licensing & cost
 
