@@ -1,6 +1,6 @@
 package io.mateu.workflow.infra.in.scheduler;
 
-import io.mateu.workflow.application.out.UpstreamEventPublisher;
+import io.mateu.workflow.application.services.IngressRouter;
 import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -29,7 +29,7 @@ import java.util.concurrent.TimeUnit;
 public class InMemoryCronStartScheduler {
 
     final WorkflowDefinitionRepository workflowDefinitionRepository;
-    final UpstreamEventPublisher upstreamEventPublisher;
+    final IngressRouter ingressRouter;
 
     @org.springframework.beans.factory.annotation.Value("${workflow.cron-scan-interval-ms:10000}")
     long scanIntervalMs;
@@ -60,7 +60,7 @@ public class InMemoryCronStartScheduler {
 
     private void scan() {
         try {
-            CronStarts.fireDue(workflowDefinitionRepository, upstreamEventPublisher, lastFireTimes, LocalDateTime.now());
+            CronStarts.fireDue(workflowDefinitionRepository, ingressRouter, lastFireTimes, LocalDateTime.now());
         } catch (Throwable e) {
             log.error("Error checking cron process starts", e);
         }

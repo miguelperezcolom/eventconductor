@@ -1,6 +1,6 @@
 package io.mateu.workflow.infra.in.scheduler;
 
-import io.mateu.workflow.application.out.UpstreamEventPublisher;
+import io.mateu.workflow.application.services.IngressRouter;
 import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
 import io.mateu.workflow.domain.aggregates.WorkflowDefinition;
 import io.mateu.workflow.dtos.events.integration.ProcessCreationRequested;
@@ -30,7 +30,7 @@ class CronStarts {
     static final DateTimeFormatter BUSINESS_KEY_TIMESTAMP = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
 
     static void fireDue(WorkflowDefinitionRepository workflowDefinitionRepository,
-                        UpstreamEventPublisher upstreamEventPublisher,
+                        IngressRouter ingressRouter,
                         Map<String, LocalDateTime> lastFireTimes,
                         LocalDateTime now) {
         for (var definition : workflowDefinitionRepository.findAll()) {
@@ -50,7 +50,7 @@ class CronStarts {
             while (next != null && !next.isAfter(now)) {
                 var businessKey = definition.id() + "-cron-" + next.format(BUSINESS_KEY_TIMESTAMP);
                 log.info("Cron start for workflow definition '{}' (occurrence {})", definition.id(), next);
-                upstreamEventPublisher.publish(new ProcessCreationRequested(definition.id(), businessKey, List.of()));
+                ingressRouter.route(new ProcessCreationRequested(definition.id(), businessKey, List.of()));
                 last = next;
                 next = cron.next(last);
             }

@@ -1,6 +1,6 @@
 package io.mateu.workflow.infra.in.scheduler;
 
-import io.mateu.workflow.application.out.UpstreamEventPublisher;
+import io.mateu.workflow.application.services.IngressRouter;
 import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
 import io.mateu.workflow.infra.out.persistence.DbLockDialect;
 import jakarta.annotation.PostConstruct;
@@ -32,7 +32,7 @@ public class CronStartScheduler {
     private static final long LOCK_ID = 222333444L;
 
     final WorkflowDefinitionRepository workflowDefinitionRepository;
-    final UpstreamEventPublisher upstreamEventPublisher;
+    final IngressRouter ingressRouter;
     final JdbcTemplate jdbcTemplate;
     final DbLockDialect dbLockDialect;
 
@@ -56,7 +56,7 @@ public class CronStartScheduler {
                         jdbcTemplate.execute((org.springframework.jdbc.core.ConnectionCallback<Void>) con -> {
                             if (!dbLockDialect.tryLock(con, LOCK_ID)) return null;
                             try {
-                                CronStarts.fireDue(workflowDefinitionRepository, upstreamEventPublisher,
+                                CronStarts.fireDue(workflowDefinitionRepository, ingressRouter,
                                         lastFireTimes, LocalDateTime.now());
                             } finally {
                                 dbLockDialect.unlock(con, LOCK_ID);
