@@ -29,6 +29,36 @@ public class OrchestratorKafkaConsumerConfig {
     final TransactionTemplate transactionTemplate;
     final io.mateu.workflow.application.out.DeadLetterPublisher deadLetterPublisher;
 
+    /**
+     * Try a whole slice of a poll batch as one transaction before falling back to one per process.
+     *
+     * <p>Off by default. It changes nothing about what may be committed — see
+     * {@link #inOneTransaction} — but it is a change to the hot path of the engine's durability, and
+     * the number it moves is only visible on a cluster.
+     */
+    @org.springframework.beans.factory.annotation.Value("${workflow.consumer.batch-transaction:false}")
+    boolean batchTransaction;
+
+    /**
+     * How many processes one transaction may cover. Bounds how long it holds its rows and how much
+     * work a single failure throws away, which is the cost the fast path trades against fsyncs.
+     */
+    @org.springframework.beans.factory.annotation.Value("${workflow.consumer.batch-transaction-max-processes:32}")
+    int maxProcessesPerTransaction;
+
+    /**
+     * Slices to run per-process after the fast path fails, before trying it again.
+     *
+     * <p>Without this a partition carrying a permanently poisoned event would fail the fast path on
+     * every batch for good, paying for the attempt every time and never gaining anything. A
+     * conflict is rare and transient; a poison event is neither.
+     */
+    @org.springframework.beans.factory.annotation.Value("${workflow.consumer.batch-transaction-backoff:20}")
+    int backoffSlices;
+
+    private final java.util.concurrent.atomic.AtomicInteger fastPathPausedFor =
+            new java.util.concurrent.atomic.AtomicInteger();
+
     @Bean
     public Consumer<Message<List<DomainEvent>>> consumeOutbox() {
         return message -> perProcess(message.getPayload(), event ->
@@ -70,6 +100,11 @@ public class OrchestratorKafkaConsumerConfig {
      * <p>Events of a process stay in the order they arrived: Kafka orders them within a
      * partition, and the grouping preserves encounter order. Events with no process of their own
      * each get their own transaction.
+     *
+     * <p>With {@code workflow.consumer.batch-transaction} on, a slice of processes is first tried
+     * as a single transaction — one fsync instead of one per process — and falls back to this exact
+     * behaviour if that attempt does not commit. See {@link #inOneTransaction}: the fast path never
+     * commits part of a slice, so the fallback always begins where this would have begun.
      */
     private void perProcess(List<DomainEvent> events, Consumer<DomainEvent> handle) {
         perProcess(events, handle, "unknown");
@@ -85,10 +120,90 @@ public class OrchestratorKafkaConsumerConfig {
                     : event.partitionKey();
             byProcess.computeIfAbsent(key, k -> new java.util.ArrayList<>()).add(event);
         }
-        for (Map.Entry<String, List<DomainEvent>> group : byProcess.entrySet()) {
+        var groups = new java.util.ArrayList<>(byProcess.values());
+        for (var from = 0; from < groups.size(); from += maxProcessesPerTransaction) {
+            var slice = groups.subList(from, Math.min(from + maxProcessesPerTransaction, groups.size()));
+            if (!inOneTransaction(slice, handle)) {
+                onePerProcess(slice, handle, source);
+            }
+        }
+    }
+
+    /**
+     * Tries a whole slice as a single transaction, and says whether it committed.
+     *
+     * <p>Every process in the slice is one step of one process, and every step is a commit, so a
+     * batch of thirty processes costs thirty fsyncs on the database that gates the entire engine.
+     * Running them together costs one. The reason it was one transaction per process is real and
+     * unchanged — a single optimistic conflict marks a shared transaction rollback-only and takes
+     * every other process down with it — so this does not try to survive a failure. It has exactly
+     * two outcomes: the slice commits, or nothing in it does.
+     *
+     * <p>That is what makes it safe rather than clever. When it rolls back, the database is in the
+     * state it was in before, so {@link #onePerProcess} starts from the same place it would have
+     * started from had this never run — and {@code onePerProcess} is the code that shipped, with
+     * its retryable-versus-poison decision untouched. There is no third outcome to reason about,
+     * no partially-committed slice, and no new failure mode: only an attempt that either wins
+     * whole or leaves no trace.
+     *
+     * <p>Deliberately catches everything and classifies nothing. Deciding here whether a failure is
+     * retryable or poisoned would duplicate the one place that decision is made; failing and
+     * deferring keeps it in one place.
+     *
+     * <p>Note what this does <em>not</em> do: it does not reduce the commits a process costs over
+     * its life — that is still one per transition. It shares each transition's fsync with the other
+     * processes in the same slice, so the saving scales with how many distinct processes a poll
+     * batch carries, which is largest exactly when the engine is busiest.
+     *
+     * <h2>The one thing a rollback does not undo</h2>
+     *
+     * <p><b>Dispatching a task to a worker is a Kafka send, not a database write.</b>
+     * {@code StartStepExecutionUseCase} publishes downstream through {@code DownstreamEventPublisher}
+     * inside the same transaction, and no rollback recalls a published record. So a slice that rolls
+     * back may already have dispatched tasks for the processes it got through, and the fallback will
+     * dispatch them again.
+     *
+     * <p>Nothing is lost by that and nothing is new about it: the identical window exists today for
+     * a single process whose transaction fails after its dispatch, and the retryable path already
+     * redelivers whole batches over slices that committed — which is why the engine requires
+     * handlers and workers to be idempotent, and says so where it relies on it.
+     *
+     * <p>What changes is the <em>blast radius</em>. Today one failure can duplicate one process's
+     * dispatch; here it can duplicate up to a slice's worth. That is the real cost of this switch,
+     * it is bounded by {@code batch-transaction-max-processes}, and it is why the default is off:
+     * turning it on is a statement that worker idempotency holds at slice granularity, not merely
+     * at process granularity.
+     */
+    private boolean inOneTransaction(List<List<DomainEvent>> slice, Consumer<DomainEvent> handle) {
+        if (!batchTransaction || slice.size() < 2) {
+            // A single process is already a single transaction, so there is nothing to win and
+            // nothing to spend: it must not burn down the back-off either.
+            return false;
+        }
+        if (fastPathPausedFor.getAndUpdate(paused -> paused > 0 ? paused - 1 : 0) > 0) {
+            return false;
+        }
+        try {
+            transactionTemplate.executeWithoutResult(status ->
+                    slice.forEach(group -> group.forEach(event -> {
+                        log.debug("Processing {}", event);
+                        handle.accept(event);
+                    })));
+            return true;
+        } catch (Exception e) {
+            log.debug("Batch transaction over {} processes rolled back, falling back to one "
+                    + "transaction per process", slice.size(), e);
+            fastPathPausedFor.set(backoffSlices);
+            return false;
+        }
+    }
+
+    /** The original path, unchanged: one transaction per process, and it decides what a failure means. */
+    private void onePerProcess(List<List<DomainEvent>> slice, Consumer<DomainEvent> handle, String source) {
+        for (List<DomainEvent> group : slice) {
             try {
                 transactionTemplate.executeWithoutResult(status ->
-                        group.getValue().forEach(event -> {
+                        group.forEach(event -> {
                             log.debug("Processing {}", event);
                             handle.accept(event);
                         }));
@@ -102,7 +217,7 @@ public class OrchestratorKafkaConsumerConfig {
                 // This slice will fail the same way forever. Park its events where someone can
                 // look at them and replay them, and let the rest of the batch through — the
                 // alternative is a poison event stalling a partition for good.
-                group.getValue().forEach(event -> deadLetterPublisher.park(event, e, source));
+                group.forEach(event -> deadLetterPublisher.park(event, e, source));
             }
         }
     }
