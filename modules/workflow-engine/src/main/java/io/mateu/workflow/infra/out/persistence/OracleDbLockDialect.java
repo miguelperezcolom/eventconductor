@@ -50,4 +50,11 @@ public class OracleDbLockDialect implements DbLockDialect {
                 + "SELECT id FROM (SELECT id FROM outbox_message_entity WHERE status = 'Pending' "
                 + "ORDER BY timestamp) WHERE ROWNUM <= ?) FOR UPDATE SKIP LOCKED";
     }
+
+    /** No {@code LIMIT} here either — same {@code ROWNUM}-outside-the-sort shape as the claim. */
+    @Override
+    public String selectSentOutboxToPurgeSql() {
+        return "SELECT id FROM (SELECT id FROM outbox_message_entity "
+                + "WHERE status = 'Sent' AND timestamp < ? ORDER BY timestamp) WHERE ROWNUM <= ?";
+    }
 }
