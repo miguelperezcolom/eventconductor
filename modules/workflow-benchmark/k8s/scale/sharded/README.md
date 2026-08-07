@@ -81,20 +81,52 @@ shard-aware too (three `bench.*` knobs, empty = single cluster, unchanged):
 
 ### Run the benchmark sharded
 
+The benchmark side of a shard is three manifests (`SHARD`/`PREFIX`/`RATE`/`SHARDS`-templated like the
+engine's `shard.yaml`), applied after the shards are up and in the registry:
+
 ```bash
-# install definitions on every shard, drive across shards, verify across shards:
--Dbench.jdbc.url=jdbc:postgresql://postgres-{shard}.ec-shard.svc.cluster.local:5432/eventconductor
--Dbench.shards=0,1          # driver + reconciler + installer
--Dbench.shard=0             # a worker's own shard (worker deployment per shard)
+# one worker per shard — consumes downstream-<shard>, replies to upstream-<shard>:
+for i in 0 1; do sed -e "s#BENCH_IMAGE#$BENCH#g" -e "s#SHARD#$i#g" 70-worker-shard.yaml | kubectl apply -f -; done
+# the driver — round-robins creations across shards and installs the suite on each (bench.shards):
+sed -e "s#BENCH_IMAGE#$BENCH#g" -e 's/PREFIX/soak/;s/RATE/8/;s/SHARDS/0,1/' 80-driver.yaml | kubectl apply -f -
+# after the driver is stopped and every shard has drained, the fan-out verdict:
+sed -e "s#BENCH_IMAGE#$BENCH#g" -e 's/PREFIX/soak/;s/SHARDS/0,1/' 90-verify.yaml | kubectl apply -f -
 ```
 
-Still out of scope for the throughput harness: **workflow definitions installed on every shard** (the
-`install` role now loops over `bench.shards`), and **cron needs single cluster-wide evaluation** across
-shards (the per-shard advisory lock only guards within one DB) — the harness sets `cron-enabled=false`.
+The knobs those manifests set, and why each matters (each was a real bug the first cluster run surfaced):
+
+- **`bench.shards=0,1`** on the driver makes it install the whole suite on *every* shard's database and
+  round-robin creations to each shard's `upstream-<i>`. A shard creates only from its own definitions, so
+  one missing there dead-letters every process placed on it (`NoSuchElementException` in
+  `CreateProcessUseCase`). The `soak` role now installs on all shards, not just the first.
+- **`bench.shard=<i>`** on a worker binds it to one shard's `downstream-<i>`/`upstream-<i>`. Its reply
+  destination must be the HIGH-precedence ENV `SPRING_CLOUD_STREAM_BINDINGS_UPSTREAM_DESTINATION=upstream-<i>`
+  — StreamBridge's dynamic `send("upstream", …)` in the engine's `WorkerReply` does NOT honour a
+  low-precedence property, so without the ENV every reply lands on the plain `upstream` topic that no
+  sharded orchestrator consumes, and every step times out.
+- **`imagePullPolicy: Always`** on the bench pods — the tag is reused across iterations, so the default
+  `IfNotPresent` serves a stale image from the node cache.
+- Cron stays single-cluster (the per-shard advisory lock only guards within one DB); the harness leaves
+  `cron-enabled` at the engine default and drives every process explicitly, so it is not exercised.
 
 ## Status
 
-Authored, not yet cluster-validated (like the 3-broker Kafka manifest was at first). The engine paths —
-shared-messages binding, command routing, ingress placement, the hot registry — are covered by unit +
-e2e tests, and the reconciler fan-out merge by a unit test; a live two-shard run is the end-to-end
-validation, which needs the isolated/dedicated capacity the 1M-run findings called for.
+**Cluster-validated (2026-08-07): a live two-shard run PASSES all reliability invariants.** Driven at
+8/s to ~4,082 processes across two shards on cloudfleet-hetzner, then drained and verified:
+
+```
+PASS — reliability verdict for prefix 'shsmoke'   shards=2   acked=4082   present=4082
+  [ok] R1 conservation (Σacked == Σpresent, across shards)   [ok] R2 all terminal
+  [ok] R3a no live step after drain   [ok] R3b no silent-stall   [ok] R4 exactly-once
+  [ok] R5a outbox relayed   [ok] R5b no poison   [ok] R7 saga outcomes match injected intent
+```
+
+The core data plane is proven end to end: round-robin placement is even across shards, each shard's
+outbox→Kafka→worker→reply pipeline is independent, the shared `messages` channel and the fan-out
+reconciler (global R1) work, and there is zero loss. Getting there surfaced — and fixed — five real
+deployment bugs, all now folded into the manifests above and `shard.yaml`: the Kafka manifest's
+hardcoded `.ec-scale.svc` in its advertised listeners / KRaft quorum (needs a global namespace swap,
+not just `namespace:`); an orchestrator that raced its own Postgres and ran schema-less (fixed with a
+`wait-for-postgres` initContainer in `shard.yaml`); the suite installed on only the first shard; a
+stale node-cached image; and the worker reply-destination ENV described above. The engine's sharding
+code itself needed no change — every fix was deployment configuration.

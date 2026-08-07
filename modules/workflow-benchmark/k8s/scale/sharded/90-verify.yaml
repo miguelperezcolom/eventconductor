@@ -1,0 +1,42 @@
+# The sharded verdict — benchmark image, verify role, fanned out across shards.
+#
+# Reconciler.verifyAcrossShards runs the invariants per shard and combines them: R1 conservation is
+# recomputed GLOBALLY (Σ acked vs Σ present, so it does not false-fail because a business key's acked
+# count lives on the shard that created it), the rest summed. The {shard} placeholder in the jdbc url
+# is expanded across bench.shards. Exits non-zero on any failure, so `kubectl wait --for=complete`
+# gates on it. Run only after the driver is stopped and every shard has drained.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: verify
+  namespace: ec-shard
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      labels: { app: verify, scale-role: verify }
+    spec:
+      restartPolicy: Never
+      securityContext: { runAsUser: 1000, runAsGroup: 1000 }
+      containers:
+        - name: verify
+          image: BENCH_IMAGE
+          imagePullPolicy: Always
+          env:
+            - name: BENCH_OPTS
+              value: >-
+                -Dbench.role=verify
+                -Dbench.shards=SHARDS
+                -Dbench.soak.prefix=PREFIX
+                -Dbench.jdbc.url=jdbc:postgresql://postgres-{shard}.ec-shard.svc.cluster.local:5432/eventconductor
+                -XX:MaxRAMPercentage=70
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities: { drop: ["ALL"] }
+            seccompProfile: { type: RuntimeDefault }
+            readOnlyRootFilesystem: true
+          volumeMounts: [{ name: tmp, mountPath: /tmp }]
+          resources:
+            requests: { cpu: "500m", memory: "1Gi" }
+      volumes: [{ name: tmp, emptyDir: {} }]

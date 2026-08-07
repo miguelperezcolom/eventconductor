@@ -1,0 +1,57 @@
+# The sharded load driver — benchmark image, soak role, scale workload, spread across shards.
+#
+# bench.shards makes three things shard-aware at once: the INSTALLER loops the definition suite onto
+# every shard's DB, the DRIVER round-robins each creation to an active shard's upstream-<i> (each
+# business key created once, so a key never lands on two shards), and soak_progress (acked) is written
+# per shard for the reconciler to sum globally. The {shard} placeholder in the jdbc url is expanded
+# per shard by the install path.
+#
+# SHARDS (e.g. 0,1), PREFIX and RATE are substituted per run; scale it to 0 to stop the load before
+# the drain-and-verify.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: driver
+  namespace: ec-shard
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: driver } }
+  template:
+    metadata:
+      labels: { app: driver, scale-role: driver }
+      # A driver that Karpenter reschedules restarts its business-key sequence and collides with the
+      # keys it already created (idempotent creation then dedups them) — never move it mid-run.
+      annotations:
+        karpenter.sh/do-not-disrupt: "true"
+    spec:
+      terminationGracePeriodSeconds: 60
+      securityContext: { runAsUser: 1000, runAsGroup: 1000 }
+      containers:
+        - name: driver
+          image: BENCH_IMAGE
+          imagePullPolicy: Always
+          env:
+            - name: BENCH_OPTS
+              value: >-
+                -Dbench.role=soak
+                -Dbench.workload=scale
+                -Dbench.shards=SHARDS
+                -Dbench.soak.prefix=PREFIX
+                -Dbench.rate=RATE
+                -Dbench.scale.saga-weight-pct=40
+                -Dbench.scale.comp-permil=100
+                -Dbench.scale.comp-fail-permil=10
+                -Dbench.jdbc.url=jdbc:postgresql://postgres-{shard}.ec-shard.svc.cluster.local:5432/eventconductor
+                -Dbench.kafka.brokers=kafka-bootstrap.ec-shard.svc.cluster.local:9092
+                -XX:MaxRAMPercentage=70
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities: { drop: ["ALL"] }
+            seccompProfile: { type: RuntimeDefault }
+            readOnlyRootFilesystem: true
+          volumeMounts: [{ name: tmp, mountPath: /tmp }]
+          resources:
+            requests: { cpu: "500m", memory: "768Mi" }
+            limits: { memory: "1200Mi" }
+      volumes: [{ name: tmp, emptyDir: {} }]

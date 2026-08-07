@@ -95,6 +95,23 @@ spec:
         prometheus.io/path: /actuator/prometheus
     spec:
       securityContext: { runAsUser: 10001, runAsGroup: 10001, runAsNonRoot: true }
+      # The engine applies its Flyway migrations at startup; if it wins the race against its own
+      # Postgres (they deploy together) that migration fails non-fatally and the pod runs schema-less
+      # yet reports healthy. Gate startup on the database being ready so the schema is always created.
+      initContainers:
+        - name: wait-for-postgres
+          image: postgres:16
+          command: ["sh", "-c", "until pg_isready -h postgres-SHARD.ec-shard.svc.cluster.local -p 5432 -U eventconductor; do echo 'waiting for postgres-SHARD'; sleep 2; done"]
+          securityContext:
+            runAsUser: 999
+            runAsGroup: 999
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities: { drop: ["ALL"] }
+            seccompProfile: { type: RuntimeDefault }
+            readOnlyRootFilesystem: true
+          resources:
+            requests: { cpu: "50m", memory: "64Mi" }
       containers:
         - name: orchestrator
           image: ENGINE_IMAGE

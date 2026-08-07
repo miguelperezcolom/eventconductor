@@ -212,3 +212,41 @@ orchestrators (needs the 24-vCPU cap lifted or the demo moved), and **sharding**
 outbox→Kafka→consumer pipelines, the only thing that scales this past one Kafka cluster's per-partition
 ordering. Rung-2 ladder, in one line: **shared disk ~13/s → dedicated-vCPU disk ~28/s → pipeline-tuned
 ~56/s**, each step ~2×, none of them hardware-bound at the ceiling.
+
+## Elastic sharding — first cluster validation (2026-08-07)
+
+The 1M single-shard run above proved reliability at scale on one database; this proves the **sharded**
+topology (`sharded/`) end to end. Two trimmed shards (Postgres + 1 orchestrator each, no ccx23),
+1-broker Kafka, one worker per shard, driven at 8/s to ~4,082 processes, then drained and verified with
+`Reconciler.verifyAcrossShards`:
+
+```
+PASS — shards=2   acked=4082   present=4082   R1..R7 all [ok]
+```
+
+Zero loss across shards (global R1: Σacked == Σpresent), even round-robin placement (shard0 ≈ shard1),
+exactly-once over every step, and saga outcomes matching the injected intent — each shard running its
+own independent outbox→Kafka→worker→reply pipeline.
+
+**The engine's sharding code needed no change.** All five problems the run surfaced were deployment
+configuration, now fixed in `sharded/`:
+
+1. **Kafka DNS** — `20-kafka-sweep.yaml` hardcodes `.ec-scale.svc` in the advertised listeners and the
+   KRaft quorum voters; a `namespace:`-only swap leaves the broker unroutable. Use a global `ec-scale`→
+   target-namespace substitution.
+2. **Schema race** — `shard.yaml` deploys a shard's orchestrator and its Postgres together; the engine
+   applies its Flyway migrations at startup and, if it wins the race, that migration fails *non-fatally*
+   and the pod runs schema-less yet reports healthy — so every creation dead-letters. Fixed with a
+   `wait-for-postgres` initContainer.
+3. **Definitions per shard** — a shard creates only from its own definitions; the `soak` driver used to
+   install the suite on shard 0 only, so shard 1 dead-lettered every creation. `SoakDriver` now installs
+   the suite (and the progress table) on every shard's database.
+4. **Stale image** — the reused image tag plus the default `imagePullPolicy: IfNotPresent` served an old
+   image from the node cache; the bench manifests set `Always`.
+5. **Worker reply routing** — the engine's `WorkerReply.send("upstream", …)` is a StreamBridge dynamic
+   send that does not honour a low-precedence `bindings.upstream.destination` property, so replies landed
+   on the plain `upstream` topic no sharded orchestrator consumes and every step timed out. Fixed by
+   supplying the destination as the high-precedence ENV
+   `SPRING_CLOUD_STREAM_BINDINGS_UPSTREAM_DESTINATION=upstream-<shard>` on the worker — the same mechanism
+   the orchestrator already uses. The transferable lesson for a real sharded worker deployment: pass the
+   reply destination as an ENV, not a property.

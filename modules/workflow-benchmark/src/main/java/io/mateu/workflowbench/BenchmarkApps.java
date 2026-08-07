@@ -44,6 +44,14 @@ final class BenchmarkApps {
     static ConfigurableApplicationContext startWorker(BenchmarkConfig config) {
         var props = common(config);
         props.put("spring.application.name", "bench-worker");
+        // Sharded worker reply routing: the worker replies through StreamBridge.send("upstream", …) in
+        // the engine's WorkerReply. StreamBridge's dynamic send does NOT honour the low-precedence
+        // default property common() sets below, so on a sharded run the reply must instead carry the
+        // shard-suffixed destination as a high-precedence override. The worker deployment supplies it as
+        // the ENV `SPRING_CLOUD_STREAM_BINDINGS_UPSTREAM_DESTINATION=upstream-<shard>` (systemEnvironment),
+        // exactly as the orchestrator does — see k8s/scale/sharded/70-worker-shard.yaml. Without it every
+        // reply lands on the plain `upstream` topic that no sharded orchestrator consumes, and every step
+        // times out. Verified on a 2-shard cluster smoke: with the ENV, all invariants pass.
         props.put("spring.cloud.function.definition", "consumeWorkerEvent");
         props.put("spring.cloud.stream.bindings.consumeWorkerEvent-in-0.destination", topic("downstream", config.shard()));
         props.put("spring.cloud.stream.bindings.consumeWorkerEvent-in-0.group", "worker-group");
