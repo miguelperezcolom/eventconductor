@@ -78,6 +78,53 @@ public interface WorkflowMetrics {
      */
     default void stalledStepsObserved(long count) {}
 
+    /**
+     * How long a message sat in the outbox between being committed and being claimed by a relay.
+     *
+     * <p>The engine's throughput is (processes advancing at once) ÷ (latency per step), and both
+     * terms are waiting rather than working — which is why a cluster at its ceiling shows every pod
+     * idle. This is the first of the three waits, and the only one that can be attributed without
+     * a distributed trace.
+     *
+     * <p><b>Read the distribution, not the mean.</b> {@link io.mateu.workflow.infra.out.async.OutboxSignal}
+     * is a semaphore inside one JVM: it wakes the relay of the pod that wrote the row, and the poll
+     * interval is the fallback for every row written by some other pod, which this pod has no way
+     * of hearing about. So a healthy multi-pod cluster is expected to be <em>bimodal</em> — a fast
+     * mode of locally-signalled rows and a slow one gathered around half the poll interval. If the
+     * slow mode carries most of the messages, the fix is a cross-pod wakeup, and no amount of CPU
+     * or disk will move it.
+     *
+     * <p>Its count is also the write-amplification numerator: divide by processes started to get
+     * relayed events per process instance, which is what converts an events/s ceiling into PI/s.
+     */
+    default void outboxMessageRelayed(Duration ageAtClaim) {}
+
+    /**
+     * The messages in one relay batch, and the time spent inside their sends.
+     *
+     * <p>The number to look at before changing anything in the relay. Sends are synchronous by
+     * default (see {@code SynchronousProducerDefaults} — an asynchronous send cannot report a
+     * refusal, and the outbox contract depends on knowing) and the relay is a single thread, so
+     * this duration is messages × broker-ack latency, paid in series. If it dominates the draining
+     * time below, the ceiling is that serialization and not any resource: the same acks awaited as
+     * one barrier per batch rather than one per message would cost roughly a single round trip.
+     */
+    default void outboxBatchDelivered(int messages, Duration inDeliver) {}
+
+    /**
+     * One turn of the relay loop: time spent draining, then time spent waiting for work.
+     *
+     * <p>Together these give the relay's duty cycle — {@code draining / (draining + waiting)},
+     * computable as a ratio of the two rates. A duty cycle near 1 means the single relay thread
+     * never gets to wait, i.e. it <em>is</em> the ceiling, and every knob outside it (poll
+     * interval, partitions, consumer concurrency, faster disks) is aimed at the wrong thing.
+     *
+     * <p>Deliberately two durations from one call site rather than a gauge: a gauge would need a
+     * window, and a lifetime average of a pod that has been up for days answers no question anyone
+     * asked. Two timers let the window be chosen when the question is.
+     */
+    default void outboxRelayCycle(Duration draining, Duration waiting) {}
+
     enum RetryTrigger { AUTO, MANUAL }
 
     /**

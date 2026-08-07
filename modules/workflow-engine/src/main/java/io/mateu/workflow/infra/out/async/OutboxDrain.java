@@ -12,6 +12,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
@@ -47,6 +49,7 @@ public class OutboxDrain {
     final OutboxMessageEntityRepository outboxMessageEntityRepository;
 
     final io.mateu.workflow.application.out.WorkflowTracing workflowTracing;
+    final io.mateu.workflow.application.out.WorkflowMetrics workflowMetrics;
     final JdbcTemplate jdbcTemplate;
     final DbLockDialect dbLockDialect;
     final TransactionTemplate transactionTemplate;
@@ -72,7 +75,15 @@ public class OutboxDrain {
             }
             var sent = new ArrayList<OutboxMessageEntity>();
             var poisoned = new ArrayList<OutboxMessageEntity>();
+            // Time inside the sends only — not the claim, the deserialization or the marking. With
+            // synchronous sends this is the batch's acks awaited one after another, which is the
+            // measurement that decides whether a per-batch ack barrier is worth building.
+            long deliverNanos = 0;
+            var claimedAt = LocalDateTime.now();
             for (var message : outboxMessageEntityRepository.findAllById(ids)) {
+                if (message.getTimestamp() != null) {
+                    workflowMetrics.outboxMessageRelayed(Duration.between(message.getTimestamp(), claimedAt));
+                }
                 final DomainEvent payload;
                 try {
                     payload = (DomainEvent) pojoFromJson(message.getPayload(),
@@ -83,6 +94,7 @@ public class OutboxDrain {
                     poisoned.add(message);
                     continue;
                 }
+                var deliverStartedAt = System.nanoTime();
                 try {
                     log.debug("Relaying outbox message {}", message.getId());
                     // Delivered as a continuation of the trace that produced the event, not of the
@@ -96,8 +108,13 @@ public class OutboxDrain {
                     // Left Pending: the next pass picks it up again.
                     log.error("Failed to relay outbox message {}, will retry next cycle",
                             message.getId(), e);
+                } finally {
+                    // In the finally, so a refused send counts too: a broker that is timing out is
+                    // exactly when this number matters most.
+                    deliverNanos += System.nanoTime() - deliverStartedAt;
                 }
             }
+            workflowMetrics.outboxBatchDelivered(ids.size(), Duration.ofNanos(deliverNanos));
             sent.forEach(message -> message.setStatus(OutboxMessageStatus.Sent.name()));
             poisoned.forEach(message -> message.setStatus(OutboxMessageStatus.Error.name()));
             if (!sent.isEmpty() || !poisoned.isEmpty()) {
