@@ -16,6 +16,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import java.time.Duration;
+
 /**
  * Engine observability metrics, active only when Micrometer is on the classpath
  * AND the host application provides a {@code MeterRegistry} bean (typically via
@@ -32,6 +34,23 @@ import org.springframework.context.annotation.Configuration;
 @ConditionalOnBean(MeterRegistry.class)
 public class WorkflowMetricsAutoConfiguration {
 
+    /**
+     * How long a count gauge may reuse its last value. {@code PT0S} restores a query per scrape.
+     *
+     * <p>Read off the {@link org.springframework.core.env.Environment} and parsed here rather than
+     * injected with {@code @Value}: a placeholder on a {@code @Bean} parameter needs a
+     * {@code PropertySourcesPlaceholderConfigurer} in the context, which a real application has and
+     * a sliced test context does not — so the convenience would have made this auto-configuration
+     * fail to load in exactly the harness that tests it. {@code DurationStyle} is what Boot's own
+     * binder uses, so {@code 30s}, {@code PT30S} and {@code 2m} all work the same as anywhere else.
+     */
+    private static Duration gaugeTtl(org.springframework.core.env.Environment environment) {
+        var configured = environment.getProperty("workflow.metrics.gauge-ttl");
+        return configured == null || configured.isBlank()
+                ? Duration.ofSeconds(30)
+                : org.springframework.boot.convert.DurationStyle.detectAndParse(configured);
+    }
+
     @Bean
     @ConditionalOnMissingBean(WorkflowMetrics.class)
     MicrometerWorkflowMetrics micrometerWorkflowMetrics(MeterRegistry meterRegistry) {
@@ -43,12 +62,19 @@ public class WorkflowMetricsAutoConfiguration {
     // absent in applications that only embed the forms engine.
     @Bean
     SmartInitializingSingleton eventconductorRunningProcessesGauge(
-            MeterRegistry meterRegistry, ObjectProvider<ProcessRepository> processRepositories) {
-        return () -> processRepositories.ifAvailable(repository ->
-                Gauge.builder(MicrometerWorkflowMetrics.PROCESSES_RUNNING, repository,
-                                r -> r.countByStatus(ProcessStatus.RUNNING))
-                        .description("Workflow processes currently in RUNNING status")
-                        .register(meterRegistry));
+            MeterRegistry meterRegistry, ObjectProvider<ProcessRepository> processRepositories,
+            org.springframework.core.env.Environment environment) {
+        var gaugeTtl = gaugeTtl(environment);
+        return () -> processRepositories.ifAvailable(repository -> {
+            var cached = new CachedCount(() -> repository.countByStatus(ProcessStatus.RUNNING), gaugeTtl);
+            Gauge.builder(MicrometerWorkflowMetrics.PROCESSES_RUNNING, cached, CachedCount::value)
+                    .description("Workflow processes currently in RUNNING status. Sampled at most "
+                            + "once per workflow.metrics.gauge-ttl, because counting them costs one "
+                            + "index entry per running process on the engine's own database")
+                    // The gauge holds its source weakly, and this one is referenced by nothing else.
+                    .strongReference(true)
+                    .register(meterRegistry);
+        });
     }
 
     /**
@@ -68,12 +94,20 @@ public class WorkflowMetricsAutoConfiguration {
 
         @Bean
         SmartInitializingSingleton eventconductorPendingOutboxGauge(
-                MeterRegistry meterRegistry, ObjectProvider<OutboxMessageEntityRepository> outboxRepositories) {
-            return () -> outboxRepositories.ifAvailable(repository ->
-                    Gauge.builder(MicrometerWorkflowMetrics.OUTBOX_PENDING, repository,
-                                    r -> r.countByStatus(OutboxMessageStatus.Pending.name()))
-                            .description("Outbox messages waiting to be relayed")
-                            .register(meterRegistry));
+                MeterRegistry meterRegistry, ObjectProvider<OutboxMessageEntityRepository> outboxRepositories,
+                org.springframework.core.env.Environment environment) {
+            var gaugeTtl = gaugeTtl(environment);
+            return () -> outboxRepositories.ifAvailable(repository -> {
+                var cached = new CachedCount(
+                        () -> repository.countByStatus(OutboxMessageStatus.Pending.name()), gaugeTtl);
+                Gauge.builder(MicrometerWorkflowMetrics.OUTBOX_PENDING, cached, CachedCount::value)
+                        .description("Outbox messages waiting to be relayed. Sampled at most once per "
+                                + "workflow.metrics.gauge-ttl: this count is cheapest when the outbox is "
+                                + "drained and dearest when it is backed up, which is when the database "
+                                + "can least afford to answer it once per pod per scrape")
+                        .strongReference(true)
+                        .register(meterRegistry);
+            });
         }
     }
 }

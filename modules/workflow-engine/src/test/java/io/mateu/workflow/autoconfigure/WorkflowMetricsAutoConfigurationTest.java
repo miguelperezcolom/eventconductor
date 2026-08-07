@@ -12,6 +12,8 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class WorkflowMetricsAutoConfigurationTest {
@@ -91,6 +93,76 @@ class WorkflowMetricsAutoConfigurationTest {
                 .run(context -> {
                     var registry = context.getBean(MeterRegistry.class);
                     assertThat(registry.find(MicrometerWorkflowMetrics.OUTBOX_PENDING).gauge()).isNull();
+                });
+    }
+
+    @Test
+    void repeatedScrapesDoNotRepeatTheCountQuery() {
+        // Both gauges answer with a count against the database the engine is bottlenecked on, and
+        // the running-process one costs an index entry per running process — the very number it
+        // reports. Once per scrape per pod is observability that gets dearer as the system gets
+        // busier.
+        var processRepository = mock(ProcessRepository.class);
+        when(processRepository.countByStatus(ProcessStatus.RUNNING)).thenReturn(7L);
+        var outboxRepository = mock(OutboxMessageEntityRepository.class);
+        when(outboxRepository.countByStatus("Pending")).thenReturn(3L);
+
+        runner.withBean(SimpleMeterRegistry.class)
+                .withBean(ProcessRepository.class, () -> processRepository)
+                .withBean(OutboxMessageEntityRepository.class, () -> outboxRepository)
+                .run(context -> {
+                    var registry = context.getBean(MeterRegistry.class);
+                    var running = registry.get(MicrometerWorkflowMetrics.PROCESSES_RUNNING).gauge();
+                    var pending = registry.get(MicrometerWorkflowMetrics.OUTBOX_PENDING).gauge();
+
+                    for (var scrape = 0; scrape < 20; scrape++) {
+                        assertThat(running.value()).isEqualTo(7);
+                        assertThat(pending.value()).isEqualTo(3);
+                    }
+
+                    verify(processRepository, times(1)).countByStatus(ProcessStatus.RUNNING);
+                    verify(outboxRepository, times(1)).countByStatus("Pending");
+                });
+    }
+
+    @Test
+    void aTtlOfZeroRestoresCountingOnEveryScrape() {
+        // The escape hatch for anyone who wants the old behaviour back, and the proof that the
+        // caching is the TTL doing its job rather than the value being captured once at startup.
+        var processRepository = mock(ProcessRepository.class);
+        when(processRepository.countByStatus(ProcessStatus.RUNNING)).thenReturn(7L);
+
+        runner.withBean(SimpleMeterRegistry.class)
+                .withBean(ProcessRepository.class, () -> processRepository)
+                .withPropertyValues("workflow.metrics.gauge-ttl=PT0S")
+                .run(context -> {
+                    var gauge = context.getBean(MeterRegistry.class)
+                            .get(MicrometerWorkflowMetrics.PROCESSES_RUNNING).gauge();
+
+                    gauge.value();
+                    gauge.value();
+                    gauge.value();
+
+                    verify(processRepository, times(3)).countByStatus(ProcessStatus.RUNNING);
+                });
+    }
+
+    @Test
+    void theGaugeSurvivesGarbageCollectionOfEverythingButTheRegistry() {
+        // Micrometer holds a gauge's source weakly, and the cache it now reads through is
+        // referenced by nothing else. Without a strong reference the gauge would start reporting
+        // NaN at some unpredictable point after startup.
+        var processRepository = mock(ProcessRepository.class);
+        when(processRepository.countByStatus(ProcessStatus.RUNNING)).thenReturn(7L);
+
+        runner.withBean(SimpleMeterRegistry.class)
+                .withBean(ProcessRepository.class, () -> processRepository)
+                .run(context -> {
+                    var gauge = context.getBean(MeterRegistry.class)
+                            .get(MicrometerWorkflowMetrics.PROCESSES_RUNNING).gauge();
+                    System.gc();
+
+                    assertThat(gauge.value()).isEqualTo(7);
                 });
     }
 }

@@ -59,8 +59,8 @@ public class ProcessIndexDBRepository implements ProcessIndexRepository {
 
     @Override
     public Map<String, Long> countByStatus() {
-        return repository.findAll().stream()
-                .collect(Collectors.groupingBy(ProcessIndexEntity::getStatus, Collectors.counting()));
+        return repository.countGroupedByStatus().stream()
+                .collect(Collectors.toMap(row -> (String) row[0], row -> (Long) row[1]));
     }
 
     private ProcessIndexRow toRow(ProcessIndexEntity e) {
