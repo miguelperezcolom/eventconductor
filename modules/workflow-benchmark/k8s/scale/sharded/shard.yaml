@@ -126,6 +126,9 @@ spec:
             - { name: KAFKA_CONCURRENCY, value: "16" }
             - { name: DB_POOL_SIZE, value: "30" }
             - { name: DEFAULT_STEP_TIMEOUT_MS, value: "600000" }
+            # Per shard, same reason as the single-shard manifest: nothing deletes a sent outbox
+            # row unless this is set, and sharding divides the write rate, not the row count.
+            - { name: WORKFLOW_OUTBOX_RETENTION, value: "24h" }
             - { name: DDL_AUTO, value: update }
             - { name: JAVA_OPTS, value: "-XX:MaxRAMPercentage=70 -Dworkflow.outbox-poll-interval-ms=50" }
             # --- sharding ---

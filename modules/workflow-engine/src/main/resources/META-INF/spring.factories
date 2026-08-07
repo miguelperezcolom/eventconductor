@@ -1,3 +1,4 @@
 org.springframework.boot.env.EnvironmentPostProcessor=\
   io.mateu.workflow.autoconfigure.EmbeddedModeAutoConfigurationExcluder,\
-  io.mateu.workflow.autoconfigure.KafkaBindingDefaults
+  io.mateu.workflow.autoconfigure.KafkaBindingDefaults,\
+  io.mateu.workflow.autoconfigure.HibernateBatchingDefaults
