@@ -37,6 +37,12 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
     public static final String PROCESSES_RUNNING = "eventconductor.process.running";
     public static final String OUTBOX_PENDING = "eventconductor.outbox.pending";
 
+    public static final String OUTBOX_PICKUP_LATENCY = "eventconductor.outbox.pickup.latency";
+    public static final String OUTBOX_BATCH_DELIVER = "eventconductor.outbox.batch.deliver";
+    public static final String OUTBOX_BATCH_SIZE = "eventconductor.outbox.batch.size";
+    public static final String OUTBOX_RELAY_DRAINING = "eventconductor.outbox.relay.draining";
+    public static final String OUTBOX_RELAY_WAITING = "eventconductor.outbox.relay.waiting";
+
     public static final String TAG_WORKFLOW_DEFINITION_ID = "workflowDefinitionId";
     public static final String TAG_OUTCOME = "outcome";
     public static final String TAG_TRIGGER = "trigger";
@@ -134,6 +140,51 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
                 .tag("source", tagValue(source))
                 .register(registry)
                 .increment();
+    }
+
+    @Override
+    public void outboxMessageRelayed(Duration ageAtClaim) {
+        if (ageAtClaim == null || ageAtClaim.isNegative()) {
+            return;
+        }
+        Timer.builder(OUTBOX_PICKUP_LATENCY)
+                .description("Time a message waited in the outbox between commit and being claimed by a relay. "
+                        + "Expected to be bimodal across pods: rows this pod wrote are signalled, rows written "
+                        + "elsewhere wait for the poll")
+                .publishPercentileHistogram()
+                .register(registry)
+                .record(ageAtClaim);
+    }
+
+    @Override
+    public void outboxBatchDelivered(int messages, Duration inDeliver) {
+        io.micrometer.core.instrument.DistributionSummary.builder(OUTBOX_BATCH_SIZE)
+                .description("Messages claimed in one relay batch")
+                .register(registry)
+                .record(messages);
+        if (inDeliver != null && !inDeliver.isNegative()) {
+            Timer.builder(OUTBOX_BATCH_DELIVER)
+                    .description("Time spent inside the sends of one relay batch. With synchronous sends this is "
+                            + "messages x broker ack latency, paid in series on the single relay thread")
+                    .publishPercentileHistogram()
+                    .register(registry)
+                    .record(inDeliver);
+        }
+    }
+
+    @Override
+    public void outboxRelayCycle(Duration draining, Duration waiting) {
+        record(OUTBOX_RELAY_DRAINING, "Time the relay spent draining in one cycle. Its ratio to the waiting "
+                + "timer is the relay's duty cycle; near 1 means the single relay thread is the ceiling", draining);
+        record(OUTBOX_RELAY_WAITING, "Time the relay spent waiting for work in one cycle, either signalled by "
+                + "this pod's own commit or timed out on the poll interval", waiting);
+    }
+
+    private void record(String name, String description, Duration duration) {
+        if (duration == null || duration.isNegative()) {
+            return;
+        }
+        Timer.builder(name).description(description).register(registry).record(duration);
     }
 
     @jakarta.annotation.PostConstruct

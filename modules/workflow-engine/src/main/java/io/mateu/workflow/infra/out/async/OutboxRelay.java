@@ -37,6 +37,7 @@ public class OutboxRelay {
 
     final OutboxDrain outboxDrain;
     final OutboxSignal outboxSignal;
+    final io.mateu.workflow.application.out.WorkflowMetrics workflowMetrics;
     final StreamBridge streamBridge;
     final JdbcTemplate jdbcTemplate;
     final DbLockDialect dbLockDialect;
@@ -58,14 +59,22 @@ public class OutboxRelay {
         var thread = new Thread(() -> {
             try {
                 while (true) {
+                    var cycleStartedAt = System.nanoTime();
                     try {
                         drainUntilEmpty();
                     } catch (Throwable e) {
                         log.error("Error relaying outbox messages", e);
                     }
+                    var drainedAt = System.nanoTime();
                     // Woken by this pod's own writes, and falling back to the poll for rows
                     // written by other pods, which there is no way to hear about directly.
                     outboxSignal.awaitWork(pollIntervalMs);
+                    // Draining against waiting is this thread's duty cycle. It is one thread per
+                    // pod and every transition in kafka mode passes through it, so a duty cycle
+                    // that sits near 1 is the ceiling itself and not a symptom of one.
+                    workflowMetrics.outboxRelayCycle(
+                            java.time.Duration.ofNanos(drainedAt - cycleStartedAt),
+                            java.time.Duration.ofNanos(System.nanoTime() - drainedAt));
                 }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();

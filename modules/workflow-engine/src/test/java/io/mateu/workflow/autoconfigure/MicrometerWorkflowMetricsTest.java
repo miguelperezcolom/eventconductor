@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import java.time.Duration;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatNoException;
 
 class MicrometerWorkflowMetricsTest {
 
@@ -120,5 +121,57 @@ class MicrometerWorkflowMetricsTest {
 
         assertThat(registry.get(MicrometerWorkflowMetrics.PROCESSES_COMPLETED).counter().count()).isEqualTo(1);
         assertThat(registry.find(MicrometerWorkflowMetrics.PROCESS_DURATION).timer()).isNull();
+    }
+
+    @Test
+    void outboxPickupLatencyKeepsTheDistributionThatSeparatesLocalFromCrossPodWakeups() {
+        // The point of this timer is the shape, not the mean: rows a pod wrote are signalled and
+        // land in milliseconds, rows written elsewhere wait for the poll. A mean averages the two
+        // modes into a number that describes neither.
+        metrics.outboxMessageRelayed(Duration.ofMillis(2));
+        metrics.outboxMessageRelayed(Duration.ofMillis(248));
+
+        var timer = registry.get(MicrometerWorkflowMetrics.OUTBOX_PICKUP_LATENCY).timer();
+        assertThat(timer.count()).isEqualTo(2);
+        assertThat(timer.max(java.util.concurrent.TimeUnit.MILLISECONDS)).isEqualTo(248);
+    }
+
+    @Test
+    void outboxBatchRecordsBothTheSizeAndTheTimeSpentInsideTheSends() {
+        metrics.outboxBatchDelivered(100, Duration.ofMillis(300));
+
+        assertThat(registry.get(MicrometerWorkflowMetrics.OUTBOX_BATCH_SIZE).summary().totalAmount()).isEqualTo(100);
+        assertThat(registry.get(MicrometerWorkflowMetrics.OUTBOX_BATCH_DELIVER).timer()
+                .totalTime(java.util.concurrent.TimeUnit.MILLISECONDS)).isEqualTo(300);
+    }
+
+    @Test
+    void anEmptyBatchStillRecordsItsSizeSoIdlePassesAreVisible() {
+        // A relay waking to find nothing is the signal that a wakeup was spent for nothing, which
+        // is what a poll-driven cross-pod pickup looks like from this side.
+        metrics.outboxBatchDelivered(0, Duration.ZERO);
+
+        assertThat(registry.get(MicrometerWorkflowMetrics.OUTBOX_BATCH_SIZE).summary().count()).isEqualTo(1);
+    }
+
+    @Test
+    void relayCycleRecordsDrainingAndWaitingSeparatelySoDutyCycleIsComputable() {
+        metrics.outboxRelayCycle(Duration.ofMillis(90), Duration.ofMillis(10));
+
+        assertThat(registry.get(MicrometerWorkflowMetrics.OUTBOX_RELAY_DRAINING).timer()
+                .totalTime(java.util.concurrent.TimeUnit.MILLISECONDS)).isEqualTo(90);
+        assertThat(registry.get(MicrometerWorkflowMetrics.OUTBOX_RELAY_WAITING).timer()
+                .totalTime(java.util.concurrent.TimeUnit.MILLISECONDS)).isEqualTo(10);
+    }
+
+    @Test
+    void theOutboxMetersAreNoOpsWithoutAMetricsBackend() {
+        // The engine has to run identically with no MeterRegistry, and these are on the hot path
+        // of every transition in kafka mode.
+        assertThatNoException().isThrownBy(() -> {
+            WorkflowMetrics.NOOP.outboxMessageRelayed(Duration.ofMillis(1));
+            WorkflowMetrics.NOOP.outboxBatchDelivered(10, Duration.ofMillis(1));
+            WorkflowMetrics.NOOP.outboxRelayCycle(Duration.ofMillis(1), Duration.ofMillis(1));
+        });
     }
 }

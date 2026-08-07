@@ -1,6 +1,7 @@
 package io.mateu.workflow.infra.out.async;
 
 import io.mateu.core.infra.JsonSerializer;
+import io.mateu.workflow.application.out.WorkflowMetrics;
 import io.mateu.workflow.application.out.WorkflowTracing;
 import io.mateu.workflow.ddd.DomainEvent;
 import io.mateu.workflow.dtos.events.domain.ProcessCreated;
@@ -60,8 +61,8 @@ class OutboxDrainTest {
         when(transactionTemplate.execute(any())).thenAnswer(invocation ->
                 invocation.getArgument(0, TransactionCallback.class).doInTransaction(null));
         when(dbLockDialect.claimPendingOutboxSql()).thenReturn("select id from outbox ...");
-        return new OutboxDrain(repository, WorkflowTracing.NOOP, jdbcTemplate, dbLockDialect,
-                transactionTemplate);
+        return new OutboxDrain(repository, WorkflowTracing.NOOP, WorkflowMetrics.NOOP, jdbcTemplate,
+                dbLockDialect, transactionTemplate);
     }
 
     private void claims(String... ids) {
@@ -198,8 +199,8 @@ class OutboxDrainTest {
     void aRolledBackPassReportsNoProgress() {
         when(transactionTemplate.execute(any())).thenReturn(null);
         when(dbLockDialect.claimPendingOutboxSql()).thenReturn("select id from outbox ...");
-        var drain = new OutboxDrain(repository, WorkflowTracing.NOOP, jdbcTemplate, dbLockDialect,
-                transactionTemplate);
+        var drain = new OutboxDrain(repository, WorkflowTracing.NOOP, WorkflowMetrics.NOOP, jdbcTemplate,
+                dbLockDialect, transactionTemplate);
 
         var result = drain.drain(100, e -> {});
 
