@@ -137,14 +137,13 @@ class OutboxDrainAckBarrierTest {
 
         var activePerKey = new java.util.concurrent.ConcurrentHashMap<String, AtomicInteger>();
         var peakForP1 = new AtomicInteger();
-        var sawOthers = new AtomicInteger();
+        var threads = java.util.concurrent.ConcurrentHashMap.<String>newKeySet();
         drainWithConcurrency(4).drain(100, e -> {
             var key = ((Keyed) e).key();
+            threads.add(Thread.currentThread().getName());
             var active = activePerKey.computeIfAbsent(key, k -> new AtomicInteger()).incrementAndGet();
             if ("p-1".equals(key)) {
                 peakForP1.accumulateAndGet(active, Math::max);
-                sawOthers.accumulateAndGet(
-                        activePerKey.getOrDefault("p-2", new AtomicInteger()).get(), Math::max);
             }
             try {
                 Thread.sleep(40);
@@ -155,8 +154,12 @@ class OutboxDrainAckBarrierTest {
         });
 
         assertThat(peakForP1).hasValue(1);
-        // And it really was running under the pool rather than taking the single-group shortcut.
-        assertThat(sawOthers).hasValueGreaterThan(0);
+        // And it really ran under the pool rather than taking the single-group inline shortcut,
+        // or the assertion above would hold for the boring reason. Asserted on the thread the
+        // sends happened on: whether two keys overlap in time is the scheduler's business, and an
+        // earlier version of this test asked that question and failed on a loaded CI runner while
+        // the engine was behaving perfectly.
+        assertThat(threads).anyMatch(name -> name.startsWith("outbox-send"));
     }
 
     @Test
@@ -167,7 +170,7 @@ class OutboxDrainAckBarrierTest {
                 message("m2", event("p-2"), 2),
                 message("m3", event("p-3"), 3));
 
-        assertThat(peakConcurrentSends(drainWithConcurrency(3))).isGreaterThan(1);
+        assertThat(sendsThatMetEachOther(drainWithConcurrency(3), 3)).isEqualTo(3);
     }
 
     @Test
@@ -179,22 +182,32 @@ class OutboxDrainAckBarrierTest {
                 message("m1", new Unkeyed("a"), 1),
                 message("m2", new Unkeyed("b"), 2));
 
-        assertThat(peakConcurrentSends(drainWithConcurrency(2))).isGreaterThan(1);
+        assertThat(sendsThatMetEachOther(drainWithConcurrency(2), 2)).isEqualTo(2);
     }
 
-    private int peakConcurrentSends(OutboxDrain drain) {
-        var active = new AtomicInteger();
-        var peak = new AtomicInteger();
+    /**
+     * Every send announces itself and then waits for the others to arrive.
+     *
+     * <p>A rendezvous rather than "sleep and see how many overlapped": whether two sends happen to
+     * overlap is up to the scheduler, so sampling it is a test that fails on a loaded machine for
+     * no reason. Here concurrency is what makes the wait return at all — if the sends were
+     * serialized the first one would sit out its timeout with nobody coming, and the count could
+     * never reach the expected number. Correct code passes in microseconds.
+     */
+    private int sendsThatMetEachOther(OutboxDrain drain, int expected) {
+        var rendezvous = new java.util.concurrent.CountDownLatch(expected);
+        var met = new AtomicInteger();
         drain.drain(100, e -> {
-            peak.accumulateAndGet(active.incrementAndGet(), Math::max);
+            rendezvous.countDown();
             try {
-                Thread.sleep(40);
+                if (rendezvous.await(5, java.util.concurrent.TimeUnit.SECONDS)) {
+                    met.incrementAndGet();
+                }
             } catch (InterruptedException interrupted) {
                 Thread.currentThread().interrupt();
             }
-            active.decrementAndGet();
         });
-        return peak.get();
+        return met.get();
     }
 
     @Test
