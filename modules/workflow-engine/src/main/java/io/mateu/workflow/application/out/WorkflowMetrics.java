@@ -102,12 +102,15 @@ public interface WorkflowMetrics {
     /**
      * The messages in one relay batch, and the time spent inside their sends.
      *
-     * <p>The number to look at before changing anything in the relay. Sends are synchronous by
-     * default (see {@code SynchronousProducerDefaults} — an asynchronous send cannot report a
-     * refusal, and the outbox contract depends on knowing) and the relay is a single thread, so
-     * this duration is messages × broker-ack latency, paid in series. If it dominates the draining
-     * time below, the ceiling is that serialization and not any resource: the same acks awaited as
-     * one barrier per batch rather than one per message would cost roughly a single round trip.
+     * <p>The number to look at before changing anything in the relay. Sends are synchronous (see
+     * {@code SynchronousProducerDefaults} — an asynchronous send cannot report a refusal, and the
+     * outbox contract depends on knowing), so with the relay's concurrency at its default of 1 this
+     * duration is messages × broker-ack latency, paid in series. If it dominates the draining time
+     * below, that serialization is the ceiling and no resource will move it.
+     *
+     * <p>It is wall-clock across the batch, not the sum of its sends, so it stays the right number
+     * once the batch runs its partition keys concurrently: the gap that opens between this and
+     * messages × ack latency is exactly what the barrier bought.
      */
     default void outboxBatchDelivered(int messages, Duration inDeliver) {}
 
