@@ -65,9 +65,12 @@ public final class Benchmark {
                             config.sagaWeightPct(), config.compPermil(), config.compFailPermil())
                     : io.mateu.workflowbench.soak.Workload.linear();
             System.out.println("soak workload=" + config.workload());
+            // The suite must exist on every shard — a shard creates from its own definitions, so one
+            // missing there dead-letters every process placed on it. Progress still lives on shard 0.
+            var installTargets = shardJdbcUrls.stream().map(url -> jdbcFor(url, config)).toList();
             try (var driver = new LoadDriver(config, true)) {
                 new io.mateu.workflowbench.soak.SoakDriver(
-                        jdbc, config.soakPrefix(), config.ratePerSecond(),
+                        jdbc, installTargets, config.soakPrefix(), config.ratePerSecond(),
                         java.time.Duration.ofMinutes(config.soakMinutes()), workload)
                         .run(driver);
             }

@@ -1,0 +1,50 @@
+# A worker bound to ONE shard: it consumes that shard's task topic (downstream-SHARD) and replies on
+# its creation topic (upstream-SHARD) via bench.shard. One worker deployment per shard — SHARD is
+# substituted like the engine's shard.yaml. Everything a worker touches stays on its shard.
+#
+# replicas x bench.worker.concurrency must be >= the shard's topic partition count or partitions go
+# unconsumed and their processes stall. The smoke Kafka uses 12 partitions; 1 x 16 covers it.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker-SHARD
+  namespace: ec-shard
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: worker-SHARD } }
+  template:
+    metadata:
+      labels: { app: worker-SHARD, shard: "SHARD", scale-role: worker }
+    spec:
+      securityContext: { runAsUser: 1000, runAsGroup: 1000 }
+      containers:
+        - name: worker
+          image: BENCH_IMAGE
+          imagePullPolicy: Always
+          env:
+            # The engine's WorkerReply does StreamBridge.send("upstream", …). Set the binding's
+            # destination as a high-precedence ENV (systemEnvironment), exactly as the orchestrator does
+            # (SPRING_CLOUD_STREAM_BINDINGS_UPSTREAM_DESTINATION) — the benchmark's low-precedence
+            # default-property form is not honoured by StreamBridge's dynamic send, so replies would
+            # otherwise land on the plain `upstream` topic and never reach the owning shard.
+            - name: SPRING_CLOUD_STREAM_BINDINGS_UPSTREAM_DESTINATION
+              value: "upstream-SHARD"
+            - name: BENCH_OPTS
+              value: >-
+                -Dbench.role=worker
+                -Dbench.shard=SHARD
+                -Dbench.worker.concurrency=16
+                -Dbench.worker.think-ms=5
+                -Dbench.kafka.brokers=kafka-bootstrap.ec-shard.svc.cluster.local:9092
+                -XX:MaxRAMPercentage=70
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities: { drop: ["ALL"] }
+            seccompProfile: { type: RuntimeDefault }
+            readOnlyRootFilesystem: true
+          volumeMounts: [{ name: tmp, mountPath: /tmp }]
+          resources:
+            requests: { cpu: "500m", memory: "768Mi" }
+            limits: { memory: "1200Mi" }
+      volumes: [{ name: tmp, emptyDir: {} }]

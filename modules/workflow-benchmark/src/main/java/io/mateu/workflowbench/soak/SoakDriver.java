@@ -5,6 +5,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -52,6 +53,15 @@ public final class SoakDriver {
               updated_at = excluded.updated_at""";
 
     private final JdbcTemplate jdbc;
+    /**
+     * Every shard's database. The suite is installed on all of them — each shard creates processes
+     * from its OWN definitions, so a definition missing on one shard dead-letters every creation
+     * placed there — and the progress table is created on all so the per-shard verifier never reads
+     * a missing table. The acknowledged count is still written only to {@link #jdbc} (shard 0); the
+     * reconciler sums acked across shards, so one writer is enough. Single-element (just {@code jdbc})
+     * when not sharded.
+     */
+    private final List<JdbcTemplate> installTargets;
     private final String prefix;
     private final int ratePerSecond;
     private final Duration duration;
@@ -66,7 +76,13 @@ public final class SoakDriver {
 
     public SoakDriver(JdbcTemplate jdbc, String prefix, int ratePerSecond, Duration duration,
                       Workload workload) {
+        this(jdbc, List.of(jdbc), prefix, ratePerSecond, duration, workload);
+    }
+
+    public SoakDriver(JdbcTemplate jdbc, List<JdbcTemplate> installTargets, String prefix,
+                      int ratePerSecond, Duration duration, Workload workload) {
         this.jdbc = jdbc;
+        this.installTargets = installTargets.isEmpty() ? List.of(jdbc) : installTargets;
         this.prefix = prefix;
         this.ratePerSecond = ratePerSecond;
         this.duration = duration;
@@ -189,9 +205,11 @@ public final class SoakDriver {
     private void prepare() throws InterruptedException {
         for (var attempt = 0; ; attempt++) {
             try {
-                jdbc.execute(CREATE_TABLE);
-                for (var definition : workload.definitions()) {
-                    WorkflowInstaller.install(jdbc, definition);
+                for (var target : installTargets) {
+                    target.execute(CREATE_TABLE);
+                    for (var definition : workload.definitions()) {
+                        WorkflowInstaller.install(target, definition);
+                    }
                 }
                 return;
             } catch (RuntimeException e) {
