@@ -31,6 +31,24 @@ import java.util.Map;
  * wins. It should be a considered decision though, because it is the difference between a
  * transactional outbox and a hopeful one.
  *
+ * <p><b>The three Kafka settings beside it are the other half of the same guarantee, and they are
+ * pinned rather than inherited.</b> {@code enable.idempotence=true}, {@code acks=all} and
+ * {@code max.in.flight.requests.per.connection=5} are the client's own defaults on Kafka 3.0 and
+ * later, so until now the engine got them by luck: undeclared, unasserted, and one
+ * {@code enable.idempotence=false} in somebody's YAML away from disappearing. Two things break
+ * quietly if they do. Without {@code acks=all} a send is acknowledged by a leader that has not
+ * replicated it, so a broker failover loses messages the relay has already marked Sent — the same
+ * silent loss the synchronous send exists to prevent, arriving by a different door. And without
+ * idempotence a retried send can be delivered out of order, which would undo the per-process
+ * ordering that keying events by process bought: a retry is invisible and asynchronous, so the
+ * reordering would surface only under broker stress, in production, as a process that took a
+ * transition twice or took them backwards.
+ *
+ * <p>They are also the precondition for ever batching the relay's sends. Awaiting one barrier per
+ * batch instead of one ack per message means more than one request in flight, and more than one
+ * request in flight is safe <em>only</em> under an idempotent producer. Fixing them here is what
+ * makes that change a tuning decision rather than a correctness gamble.
+ *
  * <p>Contributed unconditionally, deliberately. It used to apply only when
  * {@code workflow.mode=kafka}, which is fine for an application that runs the engine and wrong
  * for one that only answers it: a worker turns the binder on by having it on the classpath, not
@@ -45,14 +63,24 @@ public class SynchronousProducerDefaults implements EnvironmentPostProcessor, Or
 
     private static final String SYNC = "spring.cloud.stream.kafka.default.producer.sync";
 
+    private static final String CONFIG = "spring.cloud.stream.kafka.default.producer.configuration.";
+
+    static final String IDEMPOTENCE = CONFIG + "enable.idempotence";
+    static final String ACKS = CONFIG + "acks";
+    static final String MAX_IN_FLIGHT = CONFIG + "max.in.flight.requests.per.connection";
+
     @Override
     public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {
         var sources = environment.getPropertySources();
         if (sources.contains(NAME)) {
             return;
         }
-        // addLast, so an application that sets this explicitly — anywhere — still wins.
-        sources.addLast(new MapPropertySource(NAME, Map.of(SYNC, "true")));
+        // addLast, so an application that sets these explicitly — anywhere — still wins.
+        sources.addLast(new MapPropertySource(NAME, Map.of(
+                SYNC, "true",
+                IDEMPOTENCE, "true",
+                ACKS, "all",
+                MAX_IN_FLIGHT, "5")));
     }
 
     @Override

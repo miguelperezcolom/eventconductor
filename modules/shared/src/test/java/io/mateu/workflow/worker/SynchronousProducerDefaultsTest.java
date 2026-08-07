@@ -85,6 +85,45 @@ class SynchronousProducerDefaultsTest {
     }
 
     @Test
+    void pinsTheDeliveryGuaranteesInsteadOfInheritingThemFromTheKafkaClient() {
+        // These are the client's own defaults on Kafka 3.0+, which is exactly the problem: the
+        // engine's ordering and no-loss guarantees rested on a default nobody had declared, and a
+        // client upgrade or one line of somebody's YAML would have removed them silently.
+        var environment = new MockEnvironment().withProperty("workflow.mode", "kafka");
+
+        postProcessor.postProcessEnvironment(environment, null);
+
+        assertThat(environment.getProperty(SynchronousProducerDefaults.IDEMPOTENCE)).isEqualTo("true");
+        assertThat(environment.getProperty(SynchronousProducerDefaults.ACKS)).isEqualTo("all");
+        assertThat(environment.getProperty(SynchronousProducerDefaults.MAX_IN_FLIGHT)).isEqualTo("5");
+    }
+
+    @Test
+    void keepsIdempotenceCompatibleWithTheInFlightLimitItRequires() {
+        // Kafka refuses to build an idempotent producer with more than five requests in flight, so
+        // these two are one decision and not two. A future change that raises the limit for
+        // throughput has to lower idempotence deliberately, and this fails when it does not.
+        var environment = new MockEnvironment();
+
+        postProcessor.postProcessEnvironment(environment, null);
+
+        assertThat(Integer.parseInt(environment.getProperty(SynchronousProducerDefaults.MAX_IN_FLIGHT)))
+                .isLessThanOrEqualTo(5);
+    }
+
+    @Test
+    void neverOverridesAnApplicationThatPinnedTheGuaranteesItself() {
+        var environment = new MockEnvironment()
+                .withProperty(SynchronousProducerDefaults.ACKS, "1")
+                .withProperty(SynchronousProducerDefaults.IDEMPOTENCE, "false");
+
+        postProcessor.postProcessEnvironment(environment, null);
+
+        assertThat(environment.getProperty(SynchronousProducerDefaults.ACKS)).isEqualTo("1");
+        assertThat(environment.getProperty(SynchronousProducerDefaults.IDEMPOTENCE)).isEqualTo("false");
+    }
+
+    @Test
     void isIdempotentWhenSeveralModulesOnTheClasspathRegisterIt() {
         var environment = new MockEnvironment().withProperty("workflow.mode", "kafka");
 
