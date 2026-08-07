@@ -11,6 +11,7 @@ import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -24,17 +25,43 @@ class WorkflowMetricsAutoConfigurationTest {
                     WorkflowEngineAutoConfiguration.class));
 
     @Test
-    void withoutMeterRegistryFallsBackToNoop() {
+    void withoutMeterRegistryDegradesToNoop() {
         runner.run(context -> {
             assertThat(context).hasSingleBean(WorkflowMetrics.class);
-            assertThat(context.getBean(WorkflowMetrics.class))
-                    .isNotInstanceOf(MicrometerWorkflowMetrics.class);
+            var metrics = context.getBean(WorkflowMetrics.class);
+            // The registry is resolved lazily, so with none present every call resolves nothing and is a
+            // no-op that must not throw — the behaviour that matters, whatever the bean's concrete type.
+            assertThatCode(() -> {
+                metrics.processStarted("orders");
+                metrics.stepExecutionFinished("orders", null, java.time.Duration.ofMillis(1));
+                metrics.outboxRelayCycle(java.time.Duration.ofMillis(1), java.time.Duration.ofMillis(1));
+                metrics.stalledStepsObserved(3);
+            }).doesNotThrowAnyException();
         });
     }
 
     @Test
     void withMeterRegistryProvidesMicrometerImplementation() {
         runner.withBean(SimpleMeterRegistry.class)
+                .run(context -> {
+                    assertThat(context).hasSingleBean(WorkflowMetrics.class);
+                    assertThat(context.getBean(WorkflowMetrics.class))
+                            .isInstanceOf(MicrometerWorkflowMetrics.class);
+                });
+    }
+
+    @Test
+    void micrometerImplementationWinsWhenBothConfigsAreComponentScanned() {
+        // An application whose @SpringBootApplication sits at io.mateu.workflow scans this package and
+        // registers both auto-configurations as plain @Configuration, where @AutoConfiguration(before=)
+        // ordering is not honoured and the beans resolve in class-name order — WorkflowEngine before
+        // WorkflowMetrics — so the no-op used to register first and shadow the Micrometer implementation.
+        // Registering them as *user* configurations reproduces that (AutoConfigurations.of would impose
+        // the ordering the real app lacks). The no-op is now gated on MeterRegistry being absent, so with
+        // it present the Micrometer implementation wins whatever the order.
+        new ApplicationContextRunner()
+                .withUserConfiguration(WorkflowEngineAutoConfiguration.class, WorkflowMetricsAutoConfiguration.class)
+                .withBean(SimpleMeterRegistry.class)
                 .run(context -> {
                     assertThat(context).hasSingleBean(WorkflowMetrics.class);
                     assertThat(context.getBean(WorkflowMetrics.class))
