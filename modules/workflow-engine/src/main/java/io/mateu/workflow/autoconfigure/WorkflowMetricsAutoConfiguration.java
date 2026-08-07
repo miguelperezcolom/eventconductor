@@ -55,9 +55,10 @@ public class WorkflowMetricsAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean(WorkflowMetrics.class)
-    WorkflowMetrics workflowMetrics(ObjectProvider<MeterRegistry> meterRegistry) {
-        var registry = meterRegistry.getIfAvailable();
-        return registry != null ? new MicrometerWorkflowMetrics(registry) : WorkflowMetrics.NOOP;
+    MicrometerWorkflowMetrics micrometerWorkflowMetrics(ObjectProvider<MeterRegistry> meterRegistry) {
+        // The provider, not a resolved registry: MicrometerWorkflowMetrics resolves it on first use,
+        // by when the registry exists. Resolving here would run too early and pin the no-op forever.
+        return new MicrometerWorkflowMetrics(meterRegistry);
     }
 
     // Registered after all singletons exist so it does not depend on bean ordering:

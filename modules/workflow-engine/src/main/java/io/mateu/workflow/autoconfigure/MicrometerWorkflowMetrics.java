@@ -5,7 +5,7 @@ import io.mateu.workflow.domain.aggregates.StepExecutionStatus;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.ObjectProvider;
 
 import java.time.Duration;
 
@@ -13,11 +13,13 @@ import java.time.Duration;
  * Micrometer-backed {@link WorkflowMetrics}. Meters are created lazily per tag
  * combination; the registry caches them, so repeated calls are cheap.
  *
- * Only instantiated by {@code WorkflowMetricsAutoConfiguration} when Micrometer is
- * on the classpath and a {@code MeterRegistry} bean exists — do not reference this
- * class from code that must run without Micrometer.
+ * <p>The {@link MeterRegistry} is resolved on first use, not when this object is built. The bean is
+ * wired early — the engine's outbox relay and process lifecycle depend on it — and asking for the
+ * registry then can lose the race and get {@code null} (the composite is not primary yet), which is
+ * exactly how the counters and timers silently fell back to no-ops. By the time the first process
+ * starts or the relay turns, the registry is there; until it is (or if there is none at all, in an
+ * app without Actuator), every method is a no-op.
  */
-@RequiredArgsConstructor
 public class MicrometerWorkflowMetrics implements WorkflowMetrics {
 
     public static final String PROCESSES_STARTED = "eventconductor.process.started";
@@ -50,11 +52,37 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
     private static final String UNKNOWN = "unknown";
 
     private final java.util.concurrent.atomic.AtomicLong stalledSteps = new java.util.concurrent.atomic.AtomicLong();
+    private volatile boolean stalledGaugeRegistered;
 
-    private final MeterRegistry registry;
+    private final java.util.function.Supplier<MeterRegistry> registrySupplier;
+    private volatile MeterRegistry resolvedRegistry;
+
+    /** Eager: the registry is already in hand (tests, and the case where wiring order happens to work). */
+    public MicrometerWorkflowMetrics(MeterRegistry registry) {
+        this.registrySupplier = () -> registry;
+    }
+
+    /** Lazy: the registry is resolved on first use, dodging the bean-creation-order race. */
+    public MicrometerWorkflowMetrics(ObjectProvider<MeterRegistry> registryProvider) {
+        this.registrySupplier = registryProvider::getIfAvailable;
+    }
+
+    /** The registry once it exists, else {@code null}. Resolves each call until one appears, then caches. */
+    private MeterRegistry registry() {
+        var r = resolvedRegistry;
+        if (r == null) {
+            r = registrySupplier.get();
+            if (r != null) {
+                resolvedRegistry = r;
+            }
+        }
+        return r;
+    }
 
     @Override
     public void processStarted(String workflowDefinitionId) {
+        var registry = registry();
+        if (registry == null) return;
         Counter.builder(PROCESSES_STARTED)
                 .description("Workflow processes started")
                 .tag(TAG_WORKFLOW_DEFINITION_ID, tagValue(workflowDefinitionId))
@@ -79,6 +107,8 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
 
     @Override
     public void stepExecutionFinished(String workflowDefinitionId, StepExecutionStatus outcome, Duration duration) {
+        var registry = registry();
+        if (registry == null) return;
         var outcomeTag = outcome != null ? outcome.name() : UNKNOWN;
         Counter.builder(STEP_EXECUTIONS)
                 .description("Step executions finished, by outcome")
@@ -98,6 +128,8 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
 
     @Override
     public void retryPerformed(String workflowDefinitionId, RetryTrigger trigger) {
+        var registry = registry();
+        if (registry == null) return;
         Counter.builder(STEP_RETRIES)
                 .description("Step execution retries performed")
                 .tag(TAG_WORKFLOW_DEFINITION_ID, tagValue(workflowDefinitionId))
@@ -108,6 +140,8 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
 
     @Override
     public void compensationTriggered(String workflowDefinitionId) {
+        var registry = registry();
+        if (registry == null) return;
         Counter.builder(STEP_COMPENSATIONS)
                 .description("Compensation steps triggered after retries were exhausted")
                 .tag(TAG_WORKFLOW_DEFINITION_ID, tagValue(workflowDefinitionId))
@@ -117,6 +151,8 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
 
     @Override
     public void compensationFailed(String workflowDefinitionId) {
+        var registry = registry();
+        if (registry == null) return;
         Counter.builder(COMPENSATIONS_FAILED)
                 .description("Saga rollbacks that could not complete: a compensation step itself failed, "
                         + "leaving the process partially rolled back (COMPENSATION_FAILED)")
@@ -127,6 +163,8 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
 
     @Override
     public void concurrentWriteRejected(String processId) {
+        var registry = registry();
+        if (registry == null) return;
         Counter.builder(CONCURRENT_WRITES_REJECTED)
                 .description("Writes rejected by optimistic locking because another writer had the process")
                 .register(registry)
@@ -135,6 +173,8 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
 
     @Override
     public void eventDeadLettered(String source) {
+        var registry = registry();
+        if (registry == null) return;
         Counter.builder(EVENTS_DEAD_LETTERED)
                 .description("Events parked on the dead-letter destination as unprocessable")
                 .tag("source", tagValue(source))
@@ -144,7 +184,8 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
 
     @Override
     public void outboxMessageRelayed(Duration ageAtClaim) {
-        if (ageAtClaim == null || ageAtClaim.isNegative()) {
+        var registry = registry();
+        if (registry == null || ageAtClaim == null || ageAtClaim.isNegative()) {
             return;
         }
         Timer.builder(OUTBOX_PICKUP_LATENCY)
@@ -158,6 +199,8 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
 
     @Override
     public void outboxBatchDelivered(int messages, Duration inDeliver) {
+        var registry = registry();
+        if (registry == null) return;
         io.micrometer.core.instrument.DistributionSummary.builder(OUTBOX_BATCH_SIZE)
                 .description("Messages claimed in one relay batch")
                 .register(registry)
@@ -181,32 +224,39 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
     }
 
     private void record(String name, String description, Duration duration) {
-        if (duration == null || duration.isNegative()) {
+        var registry = registry();
+        if (registry == null || duration == null || duration.isNegative()) {
             return;
         }
         Timer.builder(name).description(description).register(registry).record(duration);
     }
 
-    @jakarta.annotation.PostConstruct
-    void registerGauges() {
-        io.micrometer.core.instrument.Gauge
-                .builder(STALLED_STEPS, stalledSteps, java.util.concurrent.atomic.AtomicLong::doubleValue)
-                .description("Live step executions with no deadline that nothing will ever time out")
-                .register(registry);
-    }
-
     /**
      * A gauge, not a counter: the question is how many steps are stuck right now, and a counter
-     * of observations would answer a question nobody asked. The registry holds the reference and
-     * reads it when scraped, so the scheduler's loop just writes the latest count.
+     * of observations would answer a question nobody asked. Registered on the first observation
+     * rather than at construction, so it lands on the real registry once it exists rather than
+     * being lost to a not-yet-resolved one. The registry holds the reference and reads it when
+     * scraped, so the scheduler's loop just writes the latest count.
      */
     @Override
     public void stalledStepsObserved(long count) {
         stalledSteps.set(count);
+        if (!stalledGaugeRegistered) {
+            var registry = registry();
+            if (registry != null) {
+                io.micrometer.core.instrument.Gauge
+                        .builder(STALLED_STEPS, stalledSteps, java.util.concurrent.atomic.AtomicLong::doubleValue)
+                        .description("Live step executions with no deadline that nothing will ever time out")
+                        .register(registry);
+                stalledGaugeRegistered = true;
+            }
+        }
     }
 
     private void processFinished(String counterName, String description, String outcome,
                                  String workflowDefinitionId, Duration duration) {
+        var registry = registry();
+        if (registry == null) return;
         Counter.builder(counterName)
                 .description(description)
                 .tag(TAG_WORKFLOW_DEFINITION_ID, tagValue(workflowDefinitionId))
