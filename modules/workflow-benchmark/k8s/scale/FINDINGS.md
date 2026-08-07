@@ -213,6 +213,53 @@ outbox→Kafka→consumer pipelines, the only thing that scales this past one Ka
 ordering. Rung-2 ladder, in one line: **shared disk ~13/s → dedicated-vCPU disk ~28/s → pipeline-tuned
 ~56/s**, each step ~2×, none of them hardware-bound at the ceiling.
 
+## Rung 2 — the clean 1M run (2026-08-07)
+
+**1,001,309 processes on a single shard. PASS 8/8: zero loss, exactly-once.** This is the
+reliability-at-scale result rung 2 was defined to produce — the sweeps above measured where the
+ceiling is and why, and this is the run that says the engine keeps its guarantees for a million
+processes rather than for the sixty-odd thousand any single sweep touched.
+
+### What this record is, and what it is not
+
+The run was executed and reported the verdict above. **Its artifact is not in this repository.** No
+verify-job output, no per-invariant table and no resource samples were committed with it, and the
+figure `1001309` appears in no other file on any branch. Everything below marked *not recorded* is a
+hole in the evidence — not a measurement that came back empty.
+
+| | |
+|---|---|
+| Processes | 1,001,309 |
+| Shards | 1 (one database) |
+| Verdict | PASS 8/8 |
+| Conservation (R1) — Σacked == Σpresent | reported ok |
+| Exactly-once over every step | reported ok |
+| Topology: node classes, brokers, orchestrators, workers | **not recorded** |
+| Drive rate, and whether it was rate-controlled | **not recorded** |
+| Wall-clock duration | **not recorded** |
+| Per-invariant breakdown (R1–R7) and which check is the eighth | **not recorded** |
+| Terminal mix: COMPLETED / ERROR / COMPENSATION_FAILED / dead letters | **not recorded** |
+| Resource samples (`kubectl top`) at the sustained rate | **not recorded** |
+
+### Why the gap is worth writing down rather than quietly filling in
+
+Every other result in this file carries the number that produced it, and several of them exist
+because a first reading was wrong: rung 2's `137/s` turned out to be a broken-Kafka artifact, the
+flat-out drain rate turned out to be a pre-staged backlog, and the honest sustained ceiling came in
+at half what the burst suggested. A verdict with no numbers under it cannot be re-examined that way.
+
+It also happens to be the claim the GA rests on, and the one a reader is most likely to check. Until
+this section existed, someone opening this file found ~67k rows as the largest volume on record and,
+in the sharding section below, a sentence citing "the 1M single-shard run above" that referred to
+nothing.
+
+### Closing it
+
+The run's own tables are the source: `Reconciler`'s output, the `invariants.sql` results per
+invariant, the driver's acked count, and the terminal-status mix. Re-attach them here from the
+cluster while `ec-scale` still holds them; if the namespace is gone, the number to re-establish is
+conservation at a million on one shard, and it is worth a rerun before the GA rather than after.
+
 ## Elastic sharding — first cluster validation (2026-08-07)
 
 The 1M single-shard run above proved reliability at scale on one database; this proves the **sharded**
