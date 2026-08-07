@@ -71,11 +71,24 @@ The harness prints this caveat itself on any run where the roles are not split a
 
 Not the engine, in most deployments, and usually not the database either.
 
-Sweeping the harness at 40 PI/s: PostgreSQL absorbed 40% more traffic for 7% more throughput, so it
-was nowhere near its limit. Adding consumer threads and partitions made things slightly *worse*.
-What moved the number was removing waiting — the outbox relay used to be found by a poll, and at the
-old 500 ms default that alone was ~500 ms of every transition, since a transition crosses the relay
-twice. It is now woken by the write.
+Sweeping the harness at 40 PI/s **on a single machine**: PostgreSQL absorbed 40% more traffic for 7%
+more throughput, so it was nowhere near its limit. Adding consumer threads and partitions made things
+slightly *worse*. What moved the number was removing waiting — the outbox relay used to be found by a
+poll, and at the old 500 ms default that alone was ~500 ms of every transition, since a transition
+crosses the relay twice. It is now woken by the write.
+
+That single-machine sweep understates two levers, though, because one laptop has no room to use them.
+**On a multi-pod cluster, partitions × consumer threads is a first-order lever, not a rounding error.**
+A process is pinned to a partition by its key, so the partition count caps how many processes can be in
+flight at once; more pods and threads is more of them being *worked* rather than queued. Measured on a
+dedicated-vCPU cluster driving a saturating load: raising `KAFKA_CONCURRENCY` 8→16 and partitions 48→96,
+with the poll dropped to 50 ms, **roughly doubled** the sustained rate (~28 → ~56 PI/s) with CPU and
+disk still idle at the ceiling — the opposite of the laptop, where the same knobs only contend for the
+same few cores. The poll interval matters here too, for a reason the single machine hides: the relay's
+wake signal is *per-pod*, so a row written by one pod is picked up by another only on that other pod's
+next poll — and across pods, that handoff is most of the traffic. (Pass it as a JVM `-D` system
+property, not an env var: the dashed `workflow.outbox-poll-interval-ms` does not survive env-var
+relaxed binding.)
 
 The practical order for tuning, once your workers are not the bottleneck:
 
@@ -84,9 +97,15 @@ The practical order for tuning, once your workers are not the bottleneck:
    every other item here combined.
 2. **One consumer group per binding**, or Kafka leaves partitions unconsumed and processes stall
    while pods sit idle.
-3. **Add pods.** Events are keyed by process, so partitions spread the work and the relay drains
-   from every pod.
-4. Only then start moving poll intervals and batch sizes.
+3. **Add pods, partitions and consumer threads together.** Events are keyed by process, so partitions
+   spread the work and the relay drains from every pod — but only up to the partition count, so raise
+   the three in step. On one machine this does little (nothing to parallelise onto); on a cluster it is
+   the main lever, as above.
+4. **Shorten the poll interval** once handoffs cross pods, and only then move batch sizes.
+
+Past a single pipeline's ceiling — a process is pinned to one partition for ordering, so one
+outbox→Kafka→worker→reply pipeline is finite however you tune it — the only lever left is horizontal:
+run more of them. That is [sharding](#scaling-past-one-database), below.
 
 ## Scaling past one database
 
