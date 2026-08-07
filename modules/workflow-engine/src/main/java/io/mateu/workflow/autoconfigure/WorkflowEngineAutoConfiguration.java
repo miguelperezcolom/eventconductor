@@ -25,11 +25,14 @@ public class WorkflowEngineAutoConfiguration {
         return WorkflowMetrics.NOOP;
     }
 
-    // Same shape as the metrics fallback: WorkflowTracingAutoConfiguration runs before this and
-    // wins when a Tracer is available; with no tracing on the classpath the engine describes
-    // nothing and costs nothing.
+    // Same shape as the metrics fallback, and gated the same way: only when Micrometer tracing is
+    // not on the classpath, so it never races WorkflowTracingAutoConfiguration's real implementation
+    // under component scan. With the tracing classes present, MicrometerWorkflowTracing resolves its
+    // tracer lazily and runs untraced until one exists (or forever, if no bridge is configured), so
+    // this no-op is only needed when the engine carries no tracing dependency at all.
     @org.springframework.context.annotation.Bean
     @org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean(io.mateu.workflow.application.out.WorkflowTracing.class)
+    @ConditionalOnMissingClass("io.micrometer.tracing.Tracer")
     io.mateu.workflow.application.out.WorkflowTracing workflowTracing() {
         return io.mateu.workflow.application.out.WorkflowTracing.NOOP;
     }

@@ -4,8 +4,8 @@ import io.mateu.workflow.application.out.WorkflowTracing;
 import io.micrometer.tracing.Span;
 import io.micrometer.tracing.Tracer;
 import io.micrometer.tracing.propagation.Propagator;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 
 import java.util.Map;
 import java.util.function.Supplier;
@@ -13,16 +13,20 @@ import java.util.function.Supplier;
 /**
  * Micrometer-backed {@link WorkflowTracing}, bridged to OpenTelemetry by whatever the host brings.
  *
- * <p>Only instantiated by {@code WorkflowTracingAutoConfiguration} when Micrometer tracing is on
- * the classpath and a {@code Tracer} bean exists — do not reference this class from code that must
- * run without it.
+ * <p>The {@link Tracer} and {@link Propagator} are resolved on first use, not when this object is
+ * built. The bean is wired early — the outbox relay and step dispatch depend on it — and the tracer
+ * is created by a Spring Boot auto-configuration that a host which component-scans this package (its
+ * {@code @SpringBootApplication} sits at {@code io.mateu.workflow}) has not run yet at that point,
+ * so asking for it then gets {@code null}, which is exactly how the whole bridge silently fell back
+ * to the no-op. By the time the first process starts or the relay turns, the tracer is there; until
+ * it is (or if there is none — an app carrying the tracing classes but no configured bridge), every
+ * method is a no-op that runs the work untraced.
  *
- * <p>Every method swallows its own failures. Tracing is a description of the work, and a
+ * <p>Every method also swallows its own failures. Tracing is a description of the work, and a
  * description that goes wrong must not stop the work: an exporter that is down, a context that
  * cannot be parsed or a span that cannot be started leaves the process running exactly as it would
  * have without any of this.
  */
-@RequiredArgsConstructor
 @Slf4j
 public class MicrometerWorkflowTracing implements WorkflowTracing {
 
@@ -31,11 +35,54 @@ public class MicrometerWorkflowTracing implements WorkflowTracing {
 
     private static final String TRACEPARENT = "traceparent";
 
-    final Tracer tracer;
-    final Propagator propagator;
+    private final Supplier<Tracer> tracerSupplier;
+    private final Supplier<Propagator> propagatorSupplier;
+    private volatile Tracer resolvedTracer;
+    private volatile Propagator resolvedPropagator;
+
+    /** Eager: the beans are already in hand (tests, and the case where wiring order happens to work). */
+    public MicrometerWorkflowTracing(Tracer tracer, Propagator propagator) {
+        this.tracerSupplier = () -> tracer;
+        this.propagatorSupplier = () -> propagator;
+    }
+
+    /** Lazy: the tracer and propagator are resolved on first use, dodging the bean-creation-order race. */
+    public MicrometerWorkflowTracing(ObjectProvider<Tracer> tracerProvider,
+                                     ObjectProvider<Propagator> propagatorProvider) {
+        this.tracerSupplier = tracerProvider::getIfAvailable;
+        this.propagatorSupplier = propagatorProvider::getIfAvailable;
+    }
+
+    /** The tracer once it exists, else {@code null}. Resolves each call until one appears, then caches. */
+    private Tracer tracer() {
+        var t = resolvedTracer;
+        if (t == null) {
+            t = tracerSupplier.get();
+            if (t != null) {
+                resolvedTracer = t;
+            }
+        }
+        return t;
+    }
+
+    /** The propagator once it exists, else {@code null}. */
+    private Propagator propagator() {
+        var p = resolvedPropagator;
+        if (p == null) {
+            p = propagatorSupplier.get();
+            if (p != null) {
+                resolvedPropagator = p;
+            }
+        }
+        return p;
+    }
 
     @Override
     public String currentTraceParent() {
+        var tracer = tracer();
+        if (tracer == null) {
+            return null;
+        }
         try {
             var span = tracer.currentSpan();
             if (span == null) {
@@ -55,7 +102,9 @@ public class MicrometerWorkflowTracing implements WorkflowTracing {
 
     @Override
     public void continuing(String traceParent, String spanName, Runnable work) {
-        if (traceParent == null || traceParent.isBlank()) {
+        var tracer = tracer();
+        var propagator = propagator();
+        if (traceParent == null || traceParent.isBlank() || tracer == null || propagator == null) {
             work.run();
             return;
         }
@@ -80,6 +129,10 @@ public class MicrometerWorkflowTracing implements WorkflowTracing {
 
     @Override
     public <T> T span(String name, Map<String, String> tags, Supplier<T> work) {
+        var tracer = tracer();
+        if (tracer == null) {
+            return work.get();
+        }
         Span span = null;
         try {
             span = tracer.nextSpan().name(name);
