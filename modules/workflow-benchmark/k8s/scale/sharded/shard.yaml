@@ -161,6 +161,14 @@ spec:
             seccompProfile: { type: RuntimeDefault }
             readOnlyRootFilesystem: true
           ports: [{ containerPort: 8080 }]
+          # Hold liveness/readiness off until the app has actually started. On a loaded cluster the
+          # engine's Flyway + Kafka-join + Spring + MCP startup can exceed the liveness window (60s +
+          # 3x10s), and a killed-mid-boot pod restarts into the same contention — a crashloop that
+          # leaves a shard short of orchestrators. Up to 300s to boot, then the fast probes take over.
+          startupProbe:
+            httpGet: { path: /actuator/health/liveness, port: 8080 }
+            periodSeconds: 10
+            failureThreshold: 30
           readinessProbe:
             httpGet: { path: /actuator/health/readiness, port: 8080 }
             initialDelaySeconds: 20
