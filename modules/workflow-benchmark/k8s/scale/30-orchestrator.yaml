@@ -40,8 +40,13 @@ spec:
             - { name: KAFKA_BROKERS, value: "kafka-bootstrap.ec-scale.svc.cluster.local:9092" }
             - { name: KAFKA_CONCURRENCY, value: "8" }
             - { name: DB_POOL_SIZE, value: "30" }
-            # Above the slowest task. Chaos injects delays, so give it headroom (30s here).
-            - { name: DEFAULT_STEP_TIMEOUT_MS, value: "30000" }
+            # Above BOTH the slowest task AND the longest chaos fault. At the old 30s this exactly
+            # matched the 30s Kafka partition in chaos/scale-chaos.yaml, so a step in flight when the
+            # partition hit timed out DURING it instead of riding it out and retrying — turning every
+            # transient fault into an ERROR/COMPENSATED process (R2/R3a/R7 failed; ~1102 spurious
+            # ERRORs) even though nothing was lost. Ride out the fault: keep this well over the
+            # partition duration. 600000 = the value the clean 1M run used.
+            - { name: DEFAULT_STEP_TIMEOUT_MS, value: "600000" }
             # A 20M run leaves order of 500M outbox rows, and nothing deletes a sent one unless
             # this is set. Long enough to keep a run's recent history for forensics, short enough
             # that the table stops growing before the disk does. Underscore-free on purpose: a
