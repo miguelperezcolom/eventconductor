@@ -63,8 +63,8 @@ ${KUBECTL} -n "$NS" rollout status statefulset/kafka --timeout=300s
 echo "== deploy engine + workers =="
 apply "${HERE}/30-orchestrator.yaml"
 apply "${HERE}/40-worker.yaml"
-${KUBECTL} -n "$NS" rollout status deploy/orchestrator --timeout=300s
-${KUBECTL} -n "$NS" rollout status deploy/worker --timeout=300s
+${KUBECTL} -n "$NS" rollout status deploy/orchestrator --timeout=600s
+${KUBECTL} -n "$NS" rollout status deploy/worker --timeout=600s
 
 echo "== start load (the driver installs the definition suite on boot) =="
 apply "${HERE}/50-driver.yaml"
