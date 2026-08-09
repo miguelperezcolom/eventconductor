@@ -243,3 +243,12 @@ processUpstreamEventUseCase.handle(new ProcessUpstreamEventCommand(
 ```
 
 Neither is accepted for a `COMPLETED` or `COMPENSATED` process, or for one still running.
+
+## What this saves you
+
+The three mechanisms on this page — a timeout and bounded retries per step, and compensation
+declared as `rollbackable` plus `compensationStepId` — are fields of a step here because the engine
+fixes how they behave. Expressing the same behaviour in a notation that assumes nothing costs a
+great deal more: the
+[comparison page](/guides/comparison/#what-the-diagram-costs-an-asynchronous-compensating-saga)
+models this very saga in both, side by side, with both definitions downloadable.

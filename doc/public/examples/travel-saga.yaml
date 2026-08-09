@@ -1,0 +1,100 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/miguelperezcolom/eventconductor/main/modules/workflow-engine/src/main/resources/workflow-definition-schema.json
+id: travel-saga
+name: Trip booking
+version: 1
+description: >
+  Flight, stay, transfer and excursions. Each reservation is dispatched to its
+  worker by publishing TaskExecutionRequested on the step's topic; the worker
+  answers with TaskStatusChanged. If anything fails after exhausting its retries,
+  every service already booked is undone, in reverse order, over the same event
+  path. This is the definition compared against travel-saga.bpmn in the
+  "Camunda & Temporal" comparison page.
+steps:
+
+  - id: start
+    type: START
+    name: Trip requested
+
+  - id: reserve-flight
+    type: ACTION
+    name: Reserve flight
+    topic: flight-service
+    preconditionStepId: start
+    timeout: PT2M
+    retries: 3
+    rollbackable: true
+    compensationStepId: cancel-flight
+
+  - id: reserve-stay
+    type: ACTION
+    name: Reserve stay
+    topic: hotel-service
+    preconditionStepId: reserve-flight
+    timeout: PT2M
+    retries: 3
+    rollbackable: true
+    compensationStepId: cancel-stay
+
+  - id: reserve-transfer
+    type: ACTION
+    name: Reserve transfer
+    topic: transfer-service
+    preconditionStepId: reserve-stay
+    timeout: PT1M
+    retries: 3
+    rollbackable: true
+    compensationStepId: cancel-transfer
+
+  - id: reserve-excursions
+    type: ACTION
+    name: Reserve excursions
+    topic: excursion-service
+    preconditionStepId: reserve-transfer
+    timeout: PT1M
+    retries: 3
+    rollbackable: true
+    compensationStepId: cancel-excursions
+
+  - id: confirm
+    type: ACTION
+    name: Confirm to customer
+    topic: notification-service
+    preconditionStepId: reserve-excursions
+    timeout: PT1M
+    retries: 5
+
+  - id: end
+    type: END
+    name: Trip booked
+    preconditionStepId: confirm
+
+  # Compensations: no preconditions of their own — the rollback pipeline starts
+  # them, in reverse order of actual completion.
+
+  - id: cancel-excursions
+    type: ACTION
+    name: Cancel excursions
+    topic: excursion-service
+    timeout: PT1M
+    retries: 5
+
+  - id: cancel-transfer
+    type: ACTION
+    name: Cancel transfer
+    topic: transfer-service
+    timeout: PT1M
+    retries: 5
+
+  - id: cancel-stay
+    type: ACTION
+    name: Cancel stay
+    topic: hotel-service
+    timeout: PT2M
+    retries: 5
+
+  - id: cancel-flight
+    type: ACTION
+    name: Cancel flight
+    topic: flight-service
+    timeout: PT2M
+    retries: 5
