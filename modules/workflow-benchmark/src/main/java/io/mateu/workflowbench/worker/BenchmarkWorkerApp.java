@@ -34,8 +34,9 @@ import java.util.function.Consumer;
  *   <li>{@code ok} — every step completes → process {@code COMPLETED}.</li>
  *   <li>{@code comp} — the {@code risky-*} step fails every attempt, its retries exhaust, the saga
  *       rolls back and the compensations succeed → process {@code COMPENSATED}.</li>
- *   <li>{@code compfail} — as above, but the {@code refund} compensation itself fails → process
- *       {@code COMPENSATION_FAILED} (the beta.023 path, otherwise never exercised under load).</li>
+ *   <li>{@code compfail} — as above, but the {@code cancel-reserve} compensation (of the step that
+ *       succeeded) itself fails → process {@code COMPENSATION_FAILED} (the beta.023 path, otherwise
+ *       never exercised under load).</li>
  * </ul>
  * Transient (retry-then-succeed) faults are provided by the chaos scenarios, not the worker — a
  * broker/DB/pod fault mid-task is exactly a transient failure, and modelling it here would need
@@ -73,8 +74,11 @@ public class BenchmarkWorkerApp {
                 WorkerReply.failed(streamBridge, task, task.variables());
                 return;
             }
-            // Fail the first compensation too, to drive the process to COMPENSATION_FAILED.
-            if ("compfail".equals(outcome) && "refund".equals(step)) {
+            // Fail a compensation too, to drive the process to COMPENSATION_FAILED. It must be the
+            // compensation of a step that SUCCEEDED (`cancel-reserve`, for the completed `reserve`),
+            // not of the failed `risky-*` step: the engine only compensates steps that committed
+            // work, so `risky-*`'s own compensation never runs and failing it would be a no-op.
+            if ("compfail".equals(outcome) && "cancel-reserve".equals(step)) {
                 WorkerReply.failed(streamBridge, task, task.variables());
                 return;
             }
