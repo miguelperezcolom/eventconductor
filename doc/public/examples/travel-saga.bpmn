@@ -1,0 +1,771 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Defs_TravelSaga" targetNamespace="http://mateu.io/bpmn/travel-saga">
+  <bpmn:message id="Msg_trip_requested" name="trip.requested"/>
+  <bpmn:message id="Msg_flight_book" name="flight.book"/>
+  <bpmn:message id="Msg_flight_booked" name="flight.booked"/>
+  <bpmn:message id="Msg_flight_rejected" name="flight.rejected"/>
+  <bpmn:message id="Msg_flight_cancel" name="flight.cancel"/>
+  <bpmn:message id="Msg_flight_cancelled" name="flight.cancelled"/>
+  <bpmn:message id="Msg_stay_book" name="stay.book"/>
+  <bpmn:message id="Msg_stay_booked" name="stay.booked"/>
+  <bpmn:message id="Msg_stay_rejected" name="stay.rejected"/>
+  <bpmn:message id="Msg_stay_cancel" name="stay.cancel"/>
+  <bpmn:message id="Msg_stay_cancelled" name="stay.cancelled"/>
+  <bpmn:message id="Msg_transfer_book" name="transfer.book"/>
+  <bpmn:message id="Msg_transfer_booked" name="transfer.booked"/>
+  <bpmn:message id="Msg_transfer_rejected" name="transfer.rejected"/>
+  <bpmn:message id="Msg_transfer_cancel" name="transfer.cancel"/>
+  <bpmn:message id="Msg_transfer_cancelled" name="transfer.cancelled"/>
+  <bpmn:message id="Msg_excursions_book" name="excursions.book"/>
+  <bpmn:message id="Msg_excursions_booked" name="excursions.booked"/>
+  <bpmn:message id="Msg_excursions_rejected" name="excursions.rejected"/>
+  <bpmn:message id="Msg_excursions_cancel" name="excursions.cancel"/>
+  <bpmn:message id="Msg_excursions_cancelled" name="excursions.cancelled"/>
+  <bpmn:message id="Msg_confirmation_send" name="confirmation.send"/>
+  <bpmn:message id="Msg_confirmation_sent" name="confirmation.sent"/>
+  <bpmn:error id="Err_Paso" name="Step exhausted" errorCode="STEP_EXHAUSTED"/>
+  <bpmn:escalation id="Esc_Comp" name="Compensation failed" escalationCode="COMPENSATION_FAILED"/>
+  <bpmn:process id="TravelSaga" name="Trip booking saga (BPMN)" isExecutable="true">
+    <bpmn:startEvent id="Start" name="Trip requested">
+      <bpmn:outgoing>In_Flight</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MED_Start" messageRef="Msg_trip_requested"/>
+    </bpmn:startEvent>
+    <bpmn:subProcess id="SP_Flight" name="Reserve flight (flight-service)">
+      <bpmn:incoming>In_Flight</bpmn:incoming>
+      <bpmn:outgoing>In_Stay</bpmn:outgoing>
+      <bpmn:startEvent id="Start_Flight"><bpmn:outgoing>Flight1</bpmn:outgoing></bpmn:startEvent>
+      <bpmn:sendTask id="Send_Flight" name="Publish flight.book" messageRef="Msg_flight_book">
+        <bpmn:incoming>Flight1</bpmn:incoming><bpmn:incoming>Flight10</bpmn:incoming>
+        <bpmn:outgoing>Flight2</bpmn:outgoing>
+      </bpmn:sendTask>
+      <bpmn:eventBasedGateway id="Gwe_Flight" name="Wait for the worker">
+        <bpmn:incoming>Flight2</bpmn:incoming>
+        <bpmn:outgoing>Flight3</bpmn:outgoing>
+        <bpmn:outgoing>Flight4</bpmn:outgoing>
+        <bpmn:outgoing>Flight5</bpmn:outgoing>
+      </bpmn:eventBasedGateway>
+      <bpmn:intermediateCatchEvent id="C_Flight_ok" name="flight.booked">
+        <bpmn:incoming>Flight3</bpmn:incoming><bpmn:outgoing>Flight6</bpmn:outgoing>
+        <bpmn:messageEventDefinition id="MED_Flight_ok" messageRef="Msg_flight_booked"/>
+      </bpmn:intermediateCatchEvent>
+      <bpmn:endEvent id="E_Flight_ok" name="Done"><bpmn:incoming>Flight6</bpmn:incoming></bpmn:endEvent>
+      <bpmn:intermediateCatchEvent id="C_Flight_to" name="2 min without a reply">
+        <bpmn:incoming>Flight4</bpmn:incoming><bpmn:outgoing>Flight7</bpmn:outgoing>
+        <bpmn:timerEventDefinition id="TED_Flight"><bpmn:timeDuration>PT2M</bpmn:timeDuration></bpmn:timerEventDefinition>
+      </bpmn:intermediateCatchEvent>
+      <bpmn:intermediateCatchEvent id="C_Flight_ko" name="flight.rejected">
+        <bpmn:incoming>Flight5</bpmn:incoming><bpmn:outgoing>Flight8</bpmn:outgoing>
+        <bpmn:messageEventDefinition id="MED_Flight_ko" messageRef="Msg_flight_rejected"/>
+      </bpmn:intermediateCatchEvent>
+      <bpmn:exclusiveGateway id="Gwr_Flight" name="Retries left?" default="Flight11">
+        <bpmn:incoming>Flight7</bpmn:incoming>
+        <bpmn:incoming>Flight8</bpmn:incoming>
+        <bpmn:outgoing>Flight9</bpmn:outgoing><bpmn:outgoing>Flight11</bpmn:outgoing>
+      </bpmn:exclusiveGateway>
+      <bpmn:scriptTask id="T_Flight_inc" name="attempts + 1" scriptFormat="javascript">
+        <bpmn:incoming>Flight9</bpmn:incoming><bpmn:outgoing>Flight10</bpmn:outgoing>
+        <bpmn:script>attempts_Flight = attempts_Flight + 1;</bpmn:script>
+      </bpmn:scriptTask>
+      <bpmn:endEvent id="E_Flight_fail" name="Out of retries">
+        <bpmn:incoming>Flight11</bpmn:incoming>
+        <bpmn:errorEventDefinition id="EED_Flight" errorRef="Err_Paso"/>
+      </bpmn:endEvent>
+      <bpmn:sequenceFlow id="Flight1" sourceRef="Start_Flight" targetRef="Send_Flight"/>
+      <bpmn:sequenceFlow id="Flight2" sourceRef="Send_Flight" targetRef="Gwe_Flight"/>
+      <bpmn:sequenceFlow id="Flight3" sourceRef="Gwe_Flight" targetRef="C_Flight_ok"/>
+      <bpmn:sequenceFlow id="Flight4" sourceRef="Gwe_Flight" targetRef="C_Flight_to"/>
+      <bpmn:sequenceFlow id="Flight6" sourceRef="C_Flight_ok" targetRef="E_Flight_ok"/>
+      <bpmn:sequenceFlow id="Flight7" sourceRef="C_Flight_to" targetRef="Gwr_Flight"/>
+      <bpmn:sequenceFlow id="Flight9" sourceRef="Gwr_Flight" targetRef="T_Flight_inc"><bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${attempts_Flight &lt; 3}</bpmn:conditionExpression></bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="Flight10" sourceRef="T_Flight_inc" targetRef="Send_Flight"/>
+      <bpmn:sequenceFlow id="Flight11" sourceRef="Gwr_Flight" targetRef="E_Flight_fail"/>
+      <bpmn:sequenceFlow id="Flight5" sourceRef="Gwe_Flight" targetRef="C_Flight_ko"/>
+      <bpmn:sequenceFlow id="Flight8" sourceRef="C_Flight_ko" targetRef="Gwr_Flight"/>
+    </bpmn:subProcess>
+    <bpmn:boundaryEvent id="Bnd_Flight_comp" name="compensar" attachedToRef="SP_Flight" cancelActivity="false">
+      <bpmn:compensateEventDefinition id="CED_Flight"/>
+    </bpmn:boundaryEvent>
+    <bpmn:subProcess id="SP_CancelFlight" name="Cancel flight (flight-service)" isForCompensation="true">
+      <bpmn:startEvent id="Start_CancelFlight"><bpmn:outgoing>CancelFlight1</bpmn:outgoing></bpmn:startEvent>
+      <bpmn:sendTask id="Send_CancelFlight" name="Publish flight.cancel" messageRef="Msg_flight_cancel">
+        <bpmn:incoming>CancelFlight1</bpmn:incoming><bpmn:incoming>CancelFlight10</bpmn:incoming>
+        <bpmn:outgoing>CancelFlight2</bpmn:outgoing>
+      </bpmn:sendTask>
+      <bpmn:eventBasedGateway id="Gwe_CancelFlight" name="Wait for the worker">
+        <bpmn:incoming>CancelFlight2</bpmn:incoming>
+        <bpmn:outgoing>CancelFlight3</bpmn:outgoing>
+        <bpmn:outgoing>CancelFlight4</bpmn:outgoing>
+      </bpmn:eventBasedGateway>
+      <bpmn:intermediateCatchEvent id="C_CancelFlight_ok" name="flight.cancelled">
+        <bpmn:incoming>CancelFlight3</bpmn:incoming><bpmn:outgoing>CancelFlight6</bpmn:outgoing>
+        <bpmn:messageEventDefinition id="MED_CancelFlight_ok" messageRef="Msg_flight_cancelled"/>
+      </bpmn:intermediateCatchEvent>
+      <bpmn:endEvent id="E_CancelFlight_ok" name="Done"><bpmn:incoming>CancelFlight6</bpmn:incoming></bpmn:endEvent>
+      <bpmn:intermediateCatchEvent id="C_CancelFlight_to" name="2 min without a reply">
+        <bpmn:incoming>CancelFlight4</bpmn:incoming><bpmn:outgoing>CancelFlight7</bpmn:outgoing>
+        <bpmn:timerEventDefinition id="TED_CancelFlight"><bpmn:timeDuration>PT2M</bpmn:timeDuration></bpmn:timerEventDefinition>
+      </bpmn:intermediateCatchEvent>
+      <bpmn:exclusiveGateway id="Gwr_CancelFlight" name="Retries left?" default="CancelFlight11">
+        <bpmn:incoming>CancelFlight7</bpmn:incoming>
+        <bpmn:outgoing>CancelFlight9</bpmn:outgoing><bpmn:outgoing>CancelFlight11</bpmn:outgoing>
+      </bpmn:exclusiveGateway>
+      <bpmn:scriptTask id="T_CancelFlight_inc" name="attempts + 1" scriptFormat="javascript">
+        <bpmn:incoming>CancelFlight9</bpmn:incoming><bpmn:outgoing>CancelFlight10</bpmn:outgoing>
+        <bpmn:script>attempts_CancelFlight = attempts_CancelFlight + 1;</bpmn:script>
+      </bpmn:scriptTask>
+      <bpmn:endEvent id="E_CancelFlight_fail" name="Compensation failed: page operations">
+        <bpmn:incoming>CancelFlight11</bpmn:incoming>
+        <bpmn:escalationEventDefinition id="ESD_CancelFlight" escalationRef="Esc_Comp"/>
+      </bpmn:endEvent>
+      <bpmn:sequenceFlow id="CancelFlight1" sourceRef="Start_CancelFlight" targetRef="Send_CancelFlight"/>
+      <bpmn:sequenceFlow id="CancelFlight2" sourceRef="Send_CancelFlight" targetRef="Gwe_CancelFlight"/>
+      <bpmn:sequenceFlow id="CancelFlight3" sourceRef="Gwe_CancelFlight" targetRef="C_CancelFlight_ok"/>
+      <bpmn:sequenceFlow id="CancelFlight4" sourceRef="Gwe_CancelFlight" targetRef="C_CancelFlight_to"/>
+      <bpmn:sequenceFlow id="CancelFlight6" sourceRef="C_CancelFlight_ok" targetRef="E_CancelFlight_ok"/>
+      <bpmn:sequenceFlow id="CancelFlight7" sourceRef="C_CancelFlight_to" targetRef="Gwr_CancelFlight"/>
+      <bpmn:sequenceFlow id="CancelFlight9" sourceRef="Gwr_CancelFlight" targetRef="T_CancelFlight_inc"><bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${attempts_CancelFlight &lt; 5}</bpmn:conditionExpression></bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="CancelFlight10" sourceRef="T_CancelFlight_inc" targetRef="Send_CancelFlight"/>
+      <bpmn:sequenceFlow id="CancelFlight11" sourceRef="Gwr_CancelFlight" targetRef="E_CancelFlight_fail"/>
+    </bpmn:subProcess>
+    <bpmn:association id="Assoc_Flight" associationDirection="One" sourceRef="Bnd_Flight_comp" targetRef="SP_CancelFlight"/>
+    <bpmn:boundaryEvent id="Bnd_Flight_err" name="error" attachedToRef="SP_Flight">
+      <bpmn:outgoing>Err_Flight</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="EBD_Flight"/>
+    </bpmn:boundaryEvent>
+    <bpmn:subProcess id="SP_Stay" name="Reserve stay (hotel-service)">
+      <bpmn:incoming>In_Stay</bpmn:incoming>
+      <bpmn:outgoing>In_Transfer</bpmn:outgoing>
+      <bpmn:startEvent id="Start_Stay"><bpmn:outgoing>Stay1</bpmn:outgoing></bpmn:startEvent>
+      <bpmn:sendTask id="Send_Stay" name="Publish stay.book" messageRef="Msg_stay_book">
+        <bpmn:incoming>Stay1</bpmn:incoming><bpmn:incoming>Stay10</bpmn:incoming>
+        <bpmn:outgoing>Stay2</bpmn:outgoing>
+      </bpmn:sendTask>
+      <bpmn:eventBasedGateway id="Gwe_Stay" name="Wait for the worker">
+        <bpmn:incoming>Stay2</bpmn:incoming>
+        <bpmn:outgoing>Stay3</bpmn:outgoing>
+        <bpmn:outgoing>Stay4</bpmn:outgoing>
+        <bpmn:outgoing>Stay5</bpmn:outgoing>
+      </bpmn:eventBasedGateway>
+      <bpmn:intermediateCatchEvent id="C_Stay_ok" name="stay.booked">
+        <bpmn:incoming>Stay3</bpmn:incoming><bpmn:outgoing>Stay6</bpmn:outgoing>
+        <bpmn:messageEventDefinition id="MED_Stay_ok" messageRef="Msg_stay_booked"/>
+      </bpmn:intermediateCatchEvent>
+      <bpmn:endEvent id="E_Stay_ok" name="Done"><bpmn:incoming>Stay6</bpmn:incoming></bpmn:endEvent>
+      <bpmn:intermediateCatchEvent id="C_Stay_to" name="2 min without a reply">
+        <bpmn:incoming>Stay4</bpmn:incoming><bpmn:outgoing>Stay7</bpmn:outgoing>
+        <bpmn:timerEventDefinition id="TED_Stay"><bpmn:timeDuration>PT2M</bpmn:timeDuration></bpmn:timerEventDefinition>
+      </bpmn:intermediateCatchEvent>
+      <bpmn:intermediateCatchEvent id="C_Stay_ko" name="stay.rejected">
+        <bpmn:incoming>Stay5</bpmn:incoming><bpmn:outgoing>Stay8</bpmn:outgoing>
+        <bpmn:messageEventDefinition id="MED_Stay_ko" messageRef="Msg_stay_rejected"/>
+      </bpmn:intermediateCatchEvent>
+      <bpmn:exclusiveGateway id="Gwr_Stay" name="Retries left?" default="Stay11">
+        <bpmn:incoming>Stay7</bpmn:incoming>
+        <bpmn:incoming>Stay8</bpmn:incoming>
+        <bpmn:outgoing>Stay9</bpmn:outgoing><bpmn:outgoing>Stay11</bpmn:outgoing>
+      </bpmn:exclusiveGateway>
+      <bpmn:scriptTask id="T_Stay_inc" name="attempts + 1" scriptFormat="javascript">
+        <bpmn:incoming>Stay9</bpmn:incoming><bpmn:outgoing>Stay10</bpmn:outgoing>
+        <bpmn:script>attempts_Stay = attempts_Stay + 1;</bpmn:script>
+      </bpmn:scriptTask>
+      <bpmn:endEvent id="E_Stay_fail" name="Out of retries">
+        <bpmn:incoming>Stay11</bpmn:incoming>
+        <bpmn:errorEventDefinition id="EED_Stay" errorRef="Err_Paso"/>
+      </bpmn:endEvent>
+      <bpmn:sequenceFlow id="Stay1" sourceRef="Start_Stay" targetRef="Send_Stay"/>
+      <bpmn:sequenceFlow id="Stay2" sourceRef="Send_Stay" targetRef="Gwe_Stay"/>
+      <bpmn:sequenceFlow id="Stay3" sourceRef="Gwe_Stay" targetRef="C_Stay_ok"/>
+      <bpmn:sequenceFlow id="Stay4" sourceRef="Gwe_Stay" targetRef="C_Stay_to"/>
+      <bpmn:sequenceFlow id="Stay6" sourceRef="C_Stay_ok" targetRef="E_Stay_ok"/>
+      <bpmn:sequenceFlow id="Stay7" sourceRef="C_Stay_to" targetRef="Gwr_Stay"/>
+      <bpmn:sequenceFlow id="Stay9" sourceRef="Gwr_Stay" targetRef="T_Stay_inc"><bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${attempts_Stay &lt; 3}</bpmn:conditionExpression></bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="Stay10" sourceRef="T_Stay_inc" targetRef="Send_Stay"/>
+      <bpmn:sequenceFlow id="Stay11" sourceRef="Gwr_Stay" targetRef="E_Stay_fail"/>
+      <bpmn:sequenceFlow id="Stay5" sourceRef="Gwe_Stay" targetRef="C_Stay_ko"/>
+      <bpmn:sequenceFlow id="Stay8" sourceRef="C_Stay_ko" targetRef="Gwr_Stay"/>
+    </bpmn:subProcess>
+    <bpmn:boundaryEvent id="Bnd_Stay_comp" name="compensar" attachedToRef="SP_Stay" cancelActivity="false">
+      <bpmn:compensateEventDefinition id="CED_Stay"/>
+    </bpmn:boundaryEvent>
+    <bpmn:subProcess id="SP_CancelStay" name="Cancel stay (hotel-service)" isForCompensation="true">
+      <bpmn:startEvent id="Start_CancelStay"><bpmn:outgoing>CancelStay1</bpmn:outgoing></bpmn:startEvent>
+      <bpmn:sendTask id="Send_CancelStay" name="Publish stay.cancel" messageRef="Msg_stay_cancel">
+        <bpmn:incoming>CancelStay1</bpmn:incoming><bpmn:incoming>CancelStay10</bpmn:incoming>
+        <bpmn:outgoing>CancelStay2</bpmn:outgoing>
+      </bpmn:sendTask>
+      <bpmn:eventBasedGateway id="Gwe_CancelStay" name="Wait for the worker">
+        <bpmn:incoming>CancelStay2</bpmn:incoming>
+        <bpmn:outgoing>CancelStay3</bpmn:outgoing>
+        <bpmn:outgoing>CancelStay4</bpmn:outgoing>
+      </bpmn:eventBasedGateway>
+      <bpmn:intermediateCatchEvent id="C_CancelStay_ok" name="stay.cancelled">
+        <bpmn:incoming>CancelStay3</bpmn:incoming><bpmn:outgoing>CancelStay6</bpmn:outgoing>
+        <bpmn:messageEventDefinition id="MED_CancelStay_ok" messageRef="Msg_stay_cancelled"/>
+      </bpmn:intermediateCatchEvent>
+      <bpmn:endEvent id="E_CancelStay_ok" name="Done"><bpmn:incoming>CancelStay6</bpmn:incoming></bpmn:endEvent>
+      <bpmn:intermediateCatchEvent id="C_CancelStay_to" name="2 min without a reply">
+        <bpmn:incoming>CancelStay4</bpmn:incoming><bpmn:outgoing>CancelStay7</bpmn:outgoing>
+        <bpmn:timerEventDefinition id="TED_CancelStay"><bpmn:timeDuration>PT2M</bpmn:timeDuration></bpmn:timerEventDefinition>
+      </bpmn:intermediateCatchEvent>
+      <bpmn:exclusiveGateway id="Gwr_CancelStay" name="Retries left?" default="CancelStay11">
+        <bpmn:incoming>CancelStay7</bpmn:incoming>
+        <bpmn:outgoing>CancelStay9</bpmn:outgoing><bpmn:outgoing>CancelStay11</bpmn:outgoing>
+      </bpmn:exclusiveGateway>
+      <bpmn:scriptTask id="T_CancelStay_inc" name="attempts + 1" scriptFormat="javascript">
+        <bpmn:incoming>CancelStay9</bpmn:incoming><bpmn:outgoing>CancelStay10</bpmn:outgoing>
+        <bpmn:script>attempts_CancelStay = attempts_CancelStay + 1;</bpmn:script>
+      </bpmn:scriptTask>
+      <bpmn:endEvent id="E_CancelStay_fail" name="Compensation failed: page operations">
+        <bpmn:incoming>CancelStay11</bpmn:incoming>
+        <bpmn:escalationEventDefinition id="ESD_CancelStay" escalationRef="Esc_Comp"/>
+      </bpmn:endEvent>
+      <bpmn:sequenceFlow id="CancelStay1" sourceRef="Start_CancelStay" targetRef="Send_CancelStay"/>
+      <bpmn:sequenceFlow id="CancelStay2" sourceRef="Send_CancelStay" targetRef="Gwe_CancelStay"/>
+      <bpmn:sequenceFlow id="CancelStay3" sourceRef="Gwe_CancelStay" targetRef="C_CancelStay_ok"/>
+      <bpmn:sequenceFlow id="CancelStay4" sourceRef="Gwe_CancelStay" targetRef="C_CancelStay_to"/>
+      <bpmn:sequenceFlow id="CancelStay6" sourceRef="C_CancelStay_ok" targetRef="E_CancelStay_ok"/>
+      <bpmn:sequenceFlow id="CancelStay7" sourceRef="C_CancelStay_to" targetRef="Gwr_CancelStay"/>
+      <bpmn:sequenceFlow id="CancelStay9" sourceRef="Gwr_CancelStay" targetRef="T_CancelStay_inc"><bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${attempts_CancelStay &lt; 5}</bpmn:conditionExpression></bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="CancelStay10" sourceRef="T_CancelStay_inc" targetRef="Send_CancelStay"/>
+      <bpmn:sequenceFlow id="CancelStay11" sourceRef="Gwr_CancelStay" targetRef="E_CancelStay_fail"/>
+    </bpmn:subProcess>
+    <bpmn:association id="Assoc_Stay" associationDirection="One" sourceRef="Bnd_Stay_comp" targetRef="SP_CancelStay"/>
+    <bpmn:boundaryEvent id="Bnd_Stay_err" name="error" attachedToRef="SP_Stay">
+      <bpmn:outgoing>Err_Stay</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="EBD_Stay"/>
+    </bpmn:boundaryEvent>
+    <bpmn:subProcess id="SP_Transfer" name="Reserve transfer (transfer-service)">
+      <bpmn:incoming>In_Transfer</bpmn:incoming>
+      <bpmn:outgoing>In_Excursions</bpmn:outgoing>
+      <bpmn:startEvent id="Start_Transfer"><bpmn:outgoing>Transfer1</bpmn:outgoing></bpmn:startEvent>
+      <bpmn:sendTask id="Send_Transfer" name="Publish transfer.book" messageRef="Msg_transfer_book">
+        <bpmn:incoming>Transfer1</bpmn:incoming><bpmn:incoming>Transfer10</bpmn:incoming>
+        <bpmn:outgoing>Transfer2</bpmn:outgoing>
+      </bpmn:sendTask>
+      <bpmn:eventBasedGateway id="Gwe_Transfer" name="Wait for the worker">
+        <bpmn:incoming>Transfer2</bpmn:incoming>
+        <bpmn:outgoing>Transfer3</bpmn:outgoing>
+        <bpmn:outgoing>Transfer4</bpmn:outgoing>
+        <bpmn:outgoing>Transfer5</bpmn:outgoing>
+      </bpmn:eventBasedGateway>
+      <bpmn:intermediateCatchEvent id="C_Transfer_ok" name="transfer.booked">
+        <bpmn:incoming>Transfer3</bpmn:incoming><bpmn:outgoing>Transfer6</bpmn:outgoing>
+        <bpmn:messageEventDefinition id="MED_Transfer_ok" messageRef="Msg_transfer_booked"/>
+      </bpmn:intermediateCatchEvent>
+      <bpmn:endEvent id="E_Transfer_ok" name="Done"><bpmn:incoming>Transfer6</bpmn:incoming></bpmn:endEvent>
+      <bpmn:intermediateCatchEvent id="C_Transfer_to" name="1 min without a reply">
+        <bpmn:incoming>Transfer4</bpmn:incoming><bpmn:outgoing>Transfer7</bpmn:outgoing>
+        <bpmn:timerEventDefinition id="TED_Transfer"><bpmn:timeDuration>PT1M</bpmn:timeDuration></bpmn:timerEventDefinition>
+      </bpmn:intermediateCatchEvent>
+      <bpmn:intermediateCatchEvent id="C_Transfer_ko" name="transfer.rejected">
+        <bpmn:incoming>Transfer5</bpmn:incoming><bpmn:outgoing>Transfer8</bpmn:outgoing>
+        <bpmn:messageEventDefinition id="MED_Transfer_ko" messageRef="Msg_transfer_rejected"/>
+      </bpmn:intermediateCatchEvent>
+      <bpmn:exclusiveGateway id="Gwr_Transfer" name="Retries left?" default="Transfer11">
+        <bpmn:incoming>Transfer7</bpmn:incoming>
+        <bpmn:incoming>Transfer8</bpmn:incoming>
+        <bpmn:outgoing>Transfer9</bpmn:outgoing><bpmn:outgoing>Transfer11</bpmn:outgoing>
+      </bpmn:exclusiveGateway>
+      <bpmn:scriptTask id="T_Transfer_inc" name="attempts + 1" scriptFormat="javascript">
+        <bpmn:incoming>Transfer9</bpmn:incoming><bpmn:outgoing>Transfer10</bpmn:outgoing>
+        <bpmn:script>attempts_Transfer = attempts_Transfer + 1;</bpmn:script>
+      </bpmn:scriptTask>
+      <bpmn:endEvent id="E_Transfer_fail" name="Out of retries">
+        <bpmn:incoming>Transfer11</bpmn:incoming>
+        <bpmn:errorEventDefinition id="EED_Transfer" errorRef="Err_Paso"/>
+      </bpmn:endEvent>
+      <bpmn:sequenceFlow id="Transfer1" sourceRef="Start_Transfer" targetRef="Send_Transfer"/>
+      <bpmn:sequenceFlow id="Transfer2" sourceRef="Send_Transfer" targetRef="Gwe_Transfer"/>
+      <bpmn:sequenceFlow id="Transfer3" sourceRef="Gwe_Transfer" targetRef="C_Transfer_ok"/>
+      <bpmn:sequenceFlow id="Transfer4" sourceRef="Gwe_Transfer" targetRef="C_Transfer_to"/>
+      <bpmn:sequenceFlow id="Transfer6" sourceRef="C_Transfer_ok" targetRef="E_Transfer_ok"/>
+      <bpmn:sequenceFlow id="Transfer7" sourceRef="C_Transfer_to" targetRef="Gwr_Transfer"/>
+      <bpmn:sequenceFlow id="Transfer9" sourceRef="Gwr_Transfer" targetRef="T_Transfer_inc"><bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${attempts_Transfer &lt; 3}</bpmn:conditionExpression></bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="Transfer10" sourceRef="T_Transfer_inc" targetRef="Send_Transfer"/>
+      <bpmn:sequenceFlow id="Transfer11" sourceRef="Gwr_Transfer" targetRef="E_Transfer_fail"/>
+      <bpmn:sequenceFlow id="Transfer5" sourceRef="Gwe_Transfer" targetRef="C_Transfer_ko"/>
+      <bpmn:sequenceFlow id="Transfer8" sourceRef="C_Transfer_ko" targetRef="Gwr_Transfer"/>
+    </bpmn:subProcess>
+    <bpmn:boundaryEvent id="Bnd_Transfer_comp" name="compensar" attachedToRef="SP_Transfer" cancelActivity="false">
+      <bpmn:compensateEventDefinition id="CED_Transfer"/>
+    </bpmn:boundaryEvent>
+    <bpmn:subProcess id="SP_CancelTransfer" name="Cancel transfer (transfer-service)" isForCompensation="true">
+      <bpmn:startEvent id="Start_CancelTransfer"><bpmn:outgoing>CancelTransfer1</bpmn:outgoing></bpmn:startEvent>
+      <bpmn:sendTask id="Send_CancelTransfer" name="Publish transfer.cancel" messageRef="Msg_transfer_cancel">
+        <bpmn:incoming>CancelTransfer1</bpmn:incoming><bpmn:incoming>CancelTransfer10</bpmn:incoming>
+        <bpmn:outgoing>CancelTransfer2</bpmn:outgoing>
+      </bpmn:sendTask>
+      <bpmn:eventBasedGateway id="Gwe_CancelTransfer" name="Wait for the worker">
+        <bpmn:incoming>CancelTransfer2</bpmn:incoming>
+        <bpmn:outgoing>CancelTransfer3</bpmn:outgoing>
+        <bpmn:outgoing>CancelTransfer4</bpmn:outgoing>
+      </bpmn:eventBasedGateway>
+      <bpmn:intermediateCatchEvent id="C_CancelTransfer_ok" name="transfer.cancelled">
+        <bpmn:incoming>CancelTransfer3</bpmn:incoming><bpmn:outgoing>CancelTransfer6</bpmn:outgoing>
+        <bpmn:messageEventDefinition id="MED_CancelTransfer_ok" messageRef="Msg_transfer_cancelled"/>
+      </bpmn:intermediateCatchEvent>
+      <bpmn:endEvent id="E_CancelTransfer_ok" name="Done"><bpmn:incoming>CancelTransfer6</bpmn:incoming></bpmn:endEvent>
+      <bpmn:intermediateCatchEvent id="C_CancelTransfer_to" name="1 min without a reply">
+        <bpmn:incoming>CancelTransfer4</bpmn:incoming><bpmn:outgoing>CancelTransfer7</bpmn:outgoing>
+        <bpmn:timerEventDefinition id="TED_CancelTransfer"><bpmn:timeDuration>PT1M</bpmn:timeDuration></bpmn:timerEventDefinition>
+      </bpmn:intermediateCatchEvent>
+      <bpmn:exclusiveGateway id="Gwr_CancelTransfer" name="Retries left?" default="CancelTransfer11">
+        <bpmn:incoming>CancelTransfer7</bpmn:incoming>
+        <bpmn:outgoing>CancelTransfer9</bpmn:outgoing><bpmn:outgoing>CancelTransfer11</bpmn:outgoing>
+      </bpmn:exclusiveGateway>
+      <bpmn:scriptTask id="T_CancelTransfer_inc" name="attempts + 1" scriptFormat="javascript">
+        <bpmn:incoming>CancelTransfer9</bpmn:incoming><bpmn:outgoing>CancelTransfer10</bpmn:outgoing>
+        <bpmn:script>attempts_CancelTransfer = attempts_CancelTransfer + 1;</bpmn:script>
+      </bpmn:scriptTask>
+      <bpmn:endEvent id="E_CancelTransfer_fail" name="Compensation failed: page operations">
+        <bpmn:incoming>CancelTransfer11</bpmn:incoming>
+        <bpmn:escalationEventDefinition id="ESD_CancelTransfer" escalationRef="Esc_Comp"/>
+      </bpmn:endEvent>
+      <bpmn:sequenceFlow id="CancelTransfer1" sourceRef="Start_CancelTransfer" targetRef="Send_CancelTransfer"/>
+      <bpmn:sequenceFlow id="CancelTransfer2" sourceRef="Send_CancelTransfer" targetRef="Gwe_CancelTransfer"/>
+      <bpmn:sequenceFlow id="CancelTransfer3" sourceRef="Gwe_CancelTransfer" targetRef="C_CancelTransfer_ok"/>
+      <bpmn:sequenceFlow id="CancelTransfer4" sourceRef="Gwe_CancelTransfer" targetRef="C_CancelTransfer_to"/>
+      <bpmn:sequenceFlow id="CancelTransfer6" sourceRef="C_CancelTransfer_ok" targetRef="E_CancelTransfer_ok"/>
+      <bpmn:sequenceFlow id="CancelTransfer7" sourceRef="C_CancelTransfer_to" targetRef="Gwr_CancelTransfer"/>
+      <bpmn:sequenceFlow id="CancelTransfer9" sourceRef="Gwr_CancelTransfer" targetRef="T_CancelTransfer_inc"><bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${attempts_CancelTransfer &lt; 5}</bpmn:conditionExpression></bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="CancelTransfer10" sourceRef="T_CancelTransfer_inc" targetRef="Send_CancelTransfer"/>
+      <bpmn:sequenceFlow id="CancelTransfer11" sourceRef="Gwr_CancelTransfer" targetRef="E_CancelTransfer_fail"/>
+    </bpmn:subProcess>
+    <bpmn:association id="Assoc_Transfer" associationDirection="One" sourceRef="Bnd_Transfer_comp" targetRef="SP_CancelTransfer"/>
+    <bpmn:boundaryEvent id="Bnd_Transfer_err" name="error" attachedToRef="SP_Transfer">
+      <bpmn:outgoing>Err_Transfer</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="EBD_Transfer"/>
+    </bpmn:boundaryEvent>
+    <bpmn:subProcess id="SP_Excursions" name="Reserve excursions (excursion-service)">
+      <bpmn:incoming>In_Excursions</bpmn:incoming>
+      <bpmn:outgoing>In_Confirm</bpmn:outgoing>
+      <bpmn:startEvent id="Start_Excursions"><bpmn:outgoing>Excursions1</bpmn:outgoing></bpmn:startEvent>
+      <bpmn:sendTask id="Send_Excursions" name="Publish excursions.book" messageRef="Msg_excursions_book">
+        <bpmn:incoming>Excursions1</bpmn:incoming><bpmn:incoming>Excursions10</bpmn:incoming>
+        <bpmn:outgoing>Excursions2</bpmn:outgoing>
+      </bpmn:sendTask>
+      <bpmn:eventBasedGateway id="Gwe_Excursions" name="Wait for the worker">
+        <bpmn:incoming>Excursions2</bpmn:incoming>
+        <bpmn:outgoing>Excursions3</bpmn:outgoing>
+        <bpmn:outgoing>Excursions4</bpmn:outgoing>
+        <bpmn:outgoing>Excursions5</bpmn:outgoing>
+      </bpmn:eventBasedGateway>
+      <bpmn:intermediateCatchEvent id="C_Excursions_ok" name="excursions.booked">
+        <bpmn:incoming>Excursions3</bpmn:incoming><bpmn:outgoing>Excursions6</bpmn:outgoing>
+        <bpmn:messageEventDefinition id="MED_Excursions_ok" messageRef="Msg_excursions_booked"/>
+      </bpmn:intermediateCatchEvent>
+      <bpmn:endEvent id="E_Excursions_ok" name="Done"><bpmn:incoming>Excursions6</bpmn:incoming></bpmn:endEvent>
+      <bpmn:intermediateCatchEvent id="C_Excursions_to" name="1 min without a reply">
+        <bpmn:incoming>Excursions4</bpmn:incoming><bpmn:outgoing>Excursions7</bpmn:outgoing>
+        <bpmn:timerEventDefinition id="TED_Excursions"><bpmn:timeDuration>PT1M</bpmn:timeDuration></bpmn:timerEventDefinition>
+      </bpmn:intermediateCatchEvent>
+      <bpmn:intermediateCatchEvent id="C_Excursions_ko" name="excursions.rejected">
+        <bpmn:incoming>Excursions5</bpmn:incoming><bpmn:outgoing>Excursions8</bpmn:outgoing>
+        <bpmn:messageEventDefinition id="MED_Excursions_ko" messageRef="Msg_excursions_rejected"/>
+      </bpmn:intermediateCatchEvent>
+      <bpmn:exclusiveGateway id="Gwr_Excursions" name="Retries left?" default="Excursions11">
+        <bpmn:incoming>Excursions7</bpmn:incoming>
+        <bpmn:incoming>Excursions8</bpmn:incoming>
+        <bpmn:outgoing>Excursions9</bpmn:outgoing><bpmn:outgoing>Excursions11</bpmn:outgoing>
+      </bpmn:exclusiveGateway>
+      <bpmn:scriptTask id="T_Excursions_inc" name="attempts + 1" scriptFormat="javascript">
+        <bpmn:incoming>Excursions9</bpmn:incoming><bpmn:outgoing>Excursions10</bpmn:outgoing>
+        <bpmn:script>attempts_Excursions = attempts_Excursions + 1;</bpmn:script>
+      </bpmn:scriptTask>
+      <bpmn:endEvent id="E_Excursions_fail" name="Out of retries">
+        <bpmn:incoming>Excursions11</bpmn:incoming>
+        <bpmn:errorEventDefinition id="EED_Excursions" errorRef="Err_Paso"/>
+      </bpmn:endEvent>
+      <bpmn:sequenceFlow id="Excursions1" sourceRef="Start_Excursions" targetRef="Send_Excursions"/>
+      <bpmn:sequenceFlow id="Excursions2" sourceRef="Send_Excursions" targetRef="Gwe_Excursions"/>
+      <bpmn:sequenceFlow id="Excursions3" sourceRef="Gwe_Excursions" targetRef="C_Excursions_ok"/>
+      <bpmn:sequenceFlow id="Excursions4" sourceRef="Gwe_Excursions" targetRef="C_Excursions_to"/>
+      <bpmn:sequenceFlow id="Excursions6" sourceRef="C_Excursions_ok" targetRef="E_Excursions_ok"/>
+      <bpmn:sequenceFlow id="Excursions7" sourceRef="C_Excursions_to" targetRef="Gwr_Excursions"/>
+      <bpmn:sequenceFlow id="Excursions9" sourceRef="Gwr_Excursions" targetRef="T_Excursions_inc"><bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${attempts_Excursions &lt; 3}</bpmn:conditionExpression></bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="Excursions10" sourceRef="T_Excursions_inc" targetRef="Send_Excursions"/>
+      <bpmn:sequenceFlow id="Excursions11" sourceRef="Gwr_Excursions" targetRef="E_Excursions_fail"/>
+      <bpmn:sequenceFlow id="Excursions5" sourceRef="Gwe_Excursions" targetRef="C_Excursions_ko"/>
+      <bpmn:sequenceFlow id="Excursions8" sourceRef="C_Excursions_ko" targetRef="Gwr_Excursions"/>
+    </bpmn:subProcess>
+    <bpmn:boundaryEvent id="Bnd_Excursions_comp" name="compensar" attachedToRef="SP_Excursions" cancelActivity="false">
+      <bpmn:compensateEventDefinition id="CED_Excursions"/>
+    </bpmn:boundaryEvent>
+    <bpmn:subProcess id="SP_CancelExcursions" name="Cancel excursions (excursion-service)" isForCompensation="true">
+      <bpmn:startEvent id="Start_CancelExcursions"><bpmn:outgoing>CancelExcursions1</bpmn:outgoing></bpmn:startEvent>
+      <bpmn:sendTask id="Send_CancelExcursions" name="Publish excursions.cancel" messageRef="Msg_excursions_cancel">
+        <bpmn:incoming>CancelExcursions1</bpmn:incoming><bpmn:incoming>CancelExcursions10</bpmn:incoming>
+        <bpmn:outgoing>CancelExcursions2</bpmn:outgoing>
+      </bpmn:sendTask>
+      <bpmn:eventBasedGateway id="Gwe_CancelExcursions" name="Wait for the worker">
+        <bpmn:incoming>CancelExcursions2</bpmn:incoming>
+        <bpmn:outgoing>CancelExcursions3</bpmn:outgoing>
+        <bpmn:outgoing>CancelExcursions4</bpmn:outgoing>
+      </bpmn:eventBasedGateway>
+      <bpmn:intermediateCatchEvent id="C_CancelExcursions_ok" name="excursions.cancelled">
+        <bpmn:incoming>CancelExcursions3</bpmn:incoming><bpmn:outgoing>CancelExcursions6</bpmn:outgoing>
+        <bpmn:messageEventDefinition id="MED_CancelExcursions_ok" messageRef="Msg_excursions_cancelled"/>
+      </bpmn:intermediateCatchEvent>
+      <bpmn:endEvent id="E_CancelExcursions_ok" name="Done"><bpmn:incoming>CancelExcursions6</bpmn:incoming></bpmn:endEvent>
+      <bpmn:intermediateCatchEvent id="C_CancelExcursions_to" name="1 min without a reply">
+        <bpmn:incoming>CancelExcursions4</bpmn:incoming><bpmn:outgoing>CancelExcursions7</bpmn:outgoing>
+        <bpmn:timerEventDefinition id="TED_CancelExcursions"><bpmn:timeDuration>PT1M</bpmn:timeDuration></bpmn:timerEventDefinition>
+      </bpmn:intermediateCatchEvent>
+      <bpmn:exclusiveGateway id="Gwr_CancelExcursions" name="Retries left?" default="CancelExcursions11">
+        <bpmn:incoming>CancelExcursions7</bpmn:incoming>
+        <bpmn:outgoing>CancelExcursions9</bpmn:outgoing><bpmn:outgoing>CancelExcursions11</bpmn:outgoing>
+      </bpmn:exclusiveGateway>
+      <bpmn:scriptTask id="T_CancelExcursions_inc" name="attempts + 1" scriptFormat="javascript">
+        <bpmn:incoming>CancelExcursions9</bpmn:incoming><bpmn:outgoing>CancelExcursions10</bpmn:outgoing>
+        <bpmn:script>attempts_CancelExcursions = attempts_CancelExcursions + 1;</bpmn:script>
+      </bpmn:scriptTask>
+      <bpmn:endEvent id="E_CancelExcursions_fail" name="Compensation failed: page operations">
+        <bpmn:incoming>CancelExcursions11</bpmn:incoming>
+        <bpmn:escalationEventDefinition id="ESD_CancelExcursions" escalationRef="Esc_Comp"/>
+      </bpmn:endEvent>
+      <bpmn:sequenceFlow id="CancelExcursions1" sourceRef="Start_CancelExcursions" targetRef="Send_CancelExcursions"/>
+      <bpmn:sequenceFlow id="CancelExcursions2" sourceRef="Send_CancelExcursions" targetRef="Gwe_CancelExcursions"/>
+      <bpmn:sequenceFlow id="CancelExcursions3" sourceRef="Gwe_CancelExcursions" targetRef="C_CancelExcursions_ok"/>
+      <bpmn:sequenceFlow id="CancelExcursions4" sourceRef="Gwe_CancelExcursions" targetRef="C_CancelExcursions_to"/>
+      <bpmn:sequenceFlow id="CancelExcursions6" sourceRef="C_CancelExcursions_ok" targetRef="E_CancelExcursions_ok"/>
+      <bpmn:sequenceFlow id="CancelExcursions7" sourceRef="C_CancelExcursions_to" targetRef="Gwr_CancelExcursions"/>
+      <bpmn:sequenceFlow id="CancelExcursions9" sourceRef="Gwr_CancelExcursions" targetRef="T_CancelExcursions_inc"><bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${attempts_CancelExcursions &lt; 5}</bpmn:conditionExpression></bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="CancelExcursions10" sourceRef="T_CancelExcursions_inc" targetRef="Send_CancelExcursions"/>
+      <bpmn:sequenceFlow id="CancelExcursions11" sourceRef="Gwr_CancelExcursions" targetRef="E_CancelExcursions_fail"/>
+    </bpmn:subProcess>
+    <bpmn:association id="Assoc_Excursions" associationDirection="One" sourceRef="Bnd_Excursions_comp" targetRef="SP_CancelExcursions"/>
+    <bpmn:boundaryEvent id="Bnd_Excursions_err" name="error" attachedToRef="SP_Excursions">
+      <bpmn:outgoing>Err_Excursions</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="EBD_Excursions"/>
+    </bpmn:boundaryEvent>
+    <bpmn:subProcess id="SP_Confirm" name="Confirm to customer (notification-service)">
+      <bpmn:incoming>In_Confirm</bpmn:incoming>
+      <bpmn:outgoing>Out_Confirm</bpmn:outgoing>
+      <bpmn:startEvent id="Start_Confirm"><bpmn:outgoing>Confirm1</bpmn:outgoing></bpmn:startEvent>
+      <bpmn:sendTask id="Send_Confirm" name="Publish confirmation.send" messageRef="Msg_confirmation_send">
+        <bpmn:incoming>Confirm1</bpmn:incoming><bpmn:incoming>Confirm10</bpmn:incoming>
+        <bpmn:outgoing>Confirm2</bpmn:outgoing>
+      </bpmn:sendTask>
+      <bpmn:eventBasedGateway id="Gwe_Confirm" name="Wait for the worker">
+        <bpmn:incoming>Confirm2</bpmn:incoming>
+        <bpmn:outgoing>Confirm3</bpmn:outgoing>
+        <bpmn:outgoing>Confirm4</bpmn:outgoing>
+      </bpmn:eventBasedGateway>
+      <bpmn:intermediateCatchEvent id="C_Confirm_ok" name="confirmation.sent">
+        <bpmn:incoming>Confirm3</bpmn:incoming><bpmn:outgoing>Confirm6</bpmn:outgoing>
+        <bpmn:messageEventDefinition id="MED_Confirm_ok" messageRef="Msg_confirmation_sent"/>
+      </bpmn:intermediateCatchEvent>
+      <bpmn:endEvent id="E_Confirm_ok" name="Done"><bpmn:incoming>Confirm6</bpmn:incoming></bpmn:endEvent>
+      <bpmn:intermediateCatchEvent id="C_Confirm_to" name="1 min without a reply">
+        <bpmn:incoming>Confirm4</bpmn:incoming><bpmn:outgoing>Confirm7</bpmn:outgoing>
+        <bpmn:timerEventDefinition id="TED_Confirm"><bpmn:timeDuration>PT1M</bpmn:timeDuration></bpmn:timerEventDefinition>
+      </bpmn:intermediateCatchEvent>
+      <bpmn:exclusiveGateway id="Gwr_Confirm" name="Retries left?" default="Confirm11">
+        <bpmn:incoming>Confirm7</bpmn:incoming>
+        <bpmn:outgoing>Confirm9</bpmn:outgoing><bpmn:outgoing>Confirm11</bpmn:outgoing>
+      </bpmn:exclusiveGateway>
+      <bpmn:scriptTask id="T_Confirm_inc" name="attempts + 1" scriptFormat="javascript">
+        <bpmn:incoming>Confirm9</bpmn:incoming><bpmn:outgoing>Confirm10</bpmn:outgoing>
+        <bpmn:script>attempts_Confirm = attempts_Confirm + 1;</bpmn:script>
+      </bpmn:scriptTask>
+      <bpmn:endEvent id="E_Confirm_fail" name="Out of retries">
+        <bpmn:incoming>Confirm11</bpmn:incoming>
+        <bpmn:errorEventDefinition id="EED_Confirm" errorRef="Err_Paso"/>
+      </bpmn:endEvent>
+      <bpmn:sequenceFlow id="Confirm1" sourceRef="Start_Confirm" targetRef="Send_Confirm"/>
+      <bpmn:sequenceFlow id="Confirm2" sourceRef="Send_Confirm" targetRef="Gwe_Confirm"/>
+      <bpmn:sequenceFlow id="Confirm3" sourceRef="Gwe_Confirm" targetRef="C_Confirm_ok"/>
+      <bpmn:sequenceFlow id="Confirm4" sourceRef="Gwe_Confirm" targetRef="C_Confirm_to"/>
+      <bpmn:sequenceFlow id="Confirm6" sourceRef="C_Confirm_ok" targetRef="E_Confirm_ok"/>
+      <bpmn:sequenceFlow id="Confirm7" sourceRef="C_Confirm_to" targetRef="Gwr_Confirm"/>
+      <bpmn:sequenceFlow id="Confirm9" sourceRef="Gwr_Confirm" targetRef="T_Confirm_inc"><bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${attempts_Confirm &lt; 5}</bpmn:conditionExpression></bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="Confirm10" sourceRef="T_Confirm_inc" targetRef="Send_Confirm"/>
+      <bpmn:sequenceFlow id="Confirm11" sourceRef="Gwr_Confirm" targetRef="E_Confirm_fail"/>
+    </bpmn:subProcess>
+    <bpmn:boundaryEvent id="Bnd_Confirm_err" name="error" attachedToRef="SP_Confirm">
+      <bpmn:outgoing>Err_Confirm</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="EBD_Confirm"/>
+    </bpmn:boundaryEvent>
+    <bpmn:endEvent id="End_Ok" name="Trip booked"><bpmn:incoming>Out_Confirm</bpmn:incoming></bpmn:endEvent>
+    <bpmn:exclusiveGateway id="Gw_Fallo" name="Failure">
+      <bpmn:incoming>Err_Flight</bpmn:incoming>
+      <bpmn:incoming>Err_Stay</bpmn:incoming>
+      <bpmn:incoming>Err_Transfer</bpmn:incoming>
+      <bpmn:incoming>Err_Excursions</bpmn:incoming>
+      <bpmn:incoming>Err_Confirm</bpmn:incoming>
+      <bpmn:outgoing>Fal1</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:intermediateThrowEvent id="Throw_Comp" name="Undo what was booked">
+      <bpmn:incoming>Fal1</bpmn:incoming><bpmn:outgoing>Fal2</bpmn:outgoing>
+      <bpmn:compensateEventDefinition id="CTD"/>
+    </bpmn:intermediateThrowEvent>
+    <bpmn:endEvent id="End_Ko" name="Trip not booked"><bpmn:incoming>Fal2</bpmn:incoming></bpmn:endEvent>
+    <bpmn:sequenceFlow id="In_Flight" sourceRef="Start" targetRef="SP_Flight"/>
+    <bpmn:sequenceFlow id="In_Stay" sourceRef="SP_Flight" targetRef="SP_Stay"/>
+    <bpmn:sequenceFlow id="In_Transfer" sourceRef="SP_Stay" targetRef="SP_Transfer"/>
+    <bpmn:sequenceFlow id="In_Excursions" sourceRef="SP_Transfer" targetRef="SP_Excursions"/>
+    <bpmn:sequenceFlow id="In_Confirm" sourceRef="SP_Excursions" targetRef="SP_Confirm"/>
+    <bpmn:sequenceFlow id="Out_Confirm" sourceRef="SP_Confirm" targetRef="End_Ok"/>
+    <bpmn:sequenceFlow id="Fal1" sourceRef="Gw_Fallo" targetRef="Throw_Comp"/>
+    <bpmn:sequenceFlow id="Fal2" sourceRef="Throw_Comp" targetRef="End_Ko"/>
+    <bpmn:sequenceFlow id="Err_Flight" sourceRef="Bnd_Flight_err" targetRef="Gw_Fallo"/>
+    <bpmn:sequenceFlow id="Err_Stay" sourceRef="Bnd_Stay_err" targetRef="Gw_Fallo"/>
+    <bpmn:sequenceFlow id="Err_Transfer" sourceRef="Bnd_Transfer_err" targetRef="Gw_Fallo"/>
+    <bpmn:sequenceFlow id="Err_Excursions" sourceRef="Bnd_Excursions_err" targetRef="Gw_Fallo"/>
+    <bpmn:sequenceFlow id="Err_Confirm" sourceRef="Bnd_Confirm_err" targetRef="Gw_Fallo"/>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="D">
+    <bpmndi:BPMNPlane id="Plane_Root" bpmnElement="TravelSaga">
+      <bpmndi:BPMNShape id="S_Start" bpmnElement="Start"><dc:Bounds x="160" y="162" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_SP_Flight" bpmnElement="SP_Flight" isExpanded="false"><dc:Bounds x="250" y="140" width="140" height="80"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_Bnd_Flight_err" bpmnElement="Bnd_Flight_err"><dc:Bounds x="352" y="202" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="E_Err_Flight" bpmnElement="Err_Flight"><di:waypoint x="370" y="238"/><di:waypoint x="370" y="560"/><di:waypoint x="1090" y="560"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="S_Bnd_Flight_comp" bpmnElement="Bnd_Flight_comp"><dc:Bounds x="272" y="202" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_SP_CancelFlight" bpmnElement="SP_CancelFlight" isExpanded="false"><dc:Bounds x="220" y="340" width="140" height="80"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="E_Assoc_Flight" bpmnElement="Assoc_Flight"><di:waypoint x="290" y="238"/><di:waypoint x="290" y="340"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="S_SP_Stay" bpmnElement="SP_Stay" isExpanded="false"><dc:Bounds x="460" y="140" width="140" height="80"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_Bnd_Stay_err" bpmnElement="Bnd_Stay_err"><dc:Bounds x="562" y="202" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="E_Err_Stay" bpmnElement="Err_Stay"><di:waypoint x="580" y="238"/><di:waypoint x="580" y="560"/><di:waypoint x="1090" y="560"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="S_Bnd_Stay_comp" bpmnElement="Bnd_Stay_comp"><dc:Bounds x="482" y="202" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_SP_CancelStay" bpmnElement="SP_CancelStay" isExpanded="false"><dc:Bounds x="430" y="340" width="140" height="80"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="E_Assoc_Stay" bpmnElement="Assoc_Stay"><di:waypoint x="500" y="238"/><di:waypoint x="500" y="340"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="S_SP_Transfer" bpmnElement="SP_Transfer" isExpanded="false"><dc:Bounds x="670" y="140" width="140" height="80"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_Bnd_Transfer_err" bpmnElement="Bnd_Transfer_err"><dc:Bounds x="772" y="202" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="E_Err_Transfer" bpmnElement="Err_Transfer"><di:waypoint x="790" y="238"/><di:waypoint x="790" y="560"/><di:waypoint x="1090" y="560"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="S_Bnd_Transfer_comp" bpmnElement="Bnd_Transfer_comp"><dc:Bounds x="692" y="202" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_SP_CancelTransfer" bpmnElement="SP_CancelTransfer" isExpanded="false"><dc:Bounds x="640" y="340" width="140" height="80"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="E_Assoc_Transfer" bpmnElement="Assoc_Transfer"><di:waypoint x="710" y="238"/><di:waypoint x="710" y="340"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="S_SP_Excursions" bpmnElement="SP_Excursions" isExpanded="false"><dc:Bounds x="880" y="140" width="140" height="80"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_Bnd_Excursions_err" bpmnElement="Bnd_Excursions_err"><dc:Bounds x="982" y="202" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="E_Err_Excursions" bpmnElement="Err_Excursions"><di:waypoint x="1000" y="238"/><di:waypoint x="1000" y="560"/><di:waypoint x="1090" y="560"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="S_Bnd_Excursions_comp" bpmnElement="Bnd_Excursions_comp"><dc:Bounds x="902" y="202" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_SP_CancelExcursions" bpmnElement="SP_CancelExcursions" isExpanded="false"><dc:Bounds x="850" y="340" width="140" height="80"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="E_Assoc_Excursions" bpmnElement="Assoc_Excursions"><di:waypoint x="920" y="238"/><di:waypoint x="920" y="340"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="S_SP_Confirm" bpmnElement="SP_Confirm" isExpanded="false"><dc:Bounds x="1090" y="140" width="140" height="80"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_Bnd_Confirm_err" bpmnElement="Bnd_Confirm_err"><dc:Bounds x="1192" y="202" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="E_Err_Confirm" bpmnElement="Err_Confirm"><di:waypoint x="1210" y="238"/><di:waypoint x="1210" y="560"/><di:waypoint x="1090" y="560"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_In_Flight" bpmnElement="In_Flight"><di:waypoint x="196" y="180"/><di:waypoint x="250" y="180"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_In_Stay" bpmnElement="In_Stay"><di:waypoint x="390" y="180"/><di:waypoint x="460" y="180"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_In_Transfer" bpmnElement="In_Transfer"><di:waypoint x="600" y="180"/><di:waypoint x="670" y="180"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_In_Excursions" bpmnElement="In_Excursions"><di:waypoint x="810" y="180"/><di:waypoint x="880" y="180"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_In_Confirm" bpmnElement="In_Confirm"><di:waypoint x="1020" y="180"/><di:waypoint x="1090" y="180"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="S_End_Ok" bpmnElement="End_Ok"><dc:Bounds x="1300" y="162" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="E_Out_Confirm" bpmnElement="Out_Confirm"><di:waypoint x="1230" y="180"/><di:waypoint x="1300" y="180"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="S_Gw_Fallo" bpmnElement="Gw_Fallo" isMarkerVisible="true"><dc:Bounds x="1090" y="535" width="50" height="50"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_Throw_Comp" bpmnElement="Throw_Comp"><dc:Bounds x="1200" y="542" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_End_Ko" bpmnElement="End_Ko"><dc:Bounds x="1300" y="542" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="E_Fal1" bpmnElement="Fal1"><di:waypoint x="1140" y="560"/><di:waypoint x="1200" y="560"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_Fal2" bpmnElement="Fal2"><di:waypoint x="1236" y="560"/><di:waypoint x="1300" y="560"/></bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+  <bpmndi:BPMNDiagram id="D_Plane_Flight">
+    <bpmndi:BPMNPlane id="Plane_Flight" bpmnElement="SP_Flight">
+      <bpmndi:BPMNShape id="S_Start_Flight" bpmnElement="Start_Flight"><dc:Bounds x="160" y="182" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_Send_Flight" bpmnElement="Send_Flight"><dc:Bounds x="250" y="160" width="140" height="80"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_Gwe_Flight" bpmnElement="Gwe_Flight"><dc:Bounds x="440" y="175" width="50" height="50"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_C_Flight_ok" bpmnElement="C_Flight_ok"><dc:Bounds x="560" y="102" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_E_Flight_ok" bpmnElement="E_Flight_ok"><dc:Bounds x="700" y="102" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_C_Flight_to" bpmnElement="C_Flight_to"><dc:Bounds x="560" y="262" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="E_Flight1" bpmnElement="Flight1"><di:waypoint x="196" y="200"/><di:waypoint x="250" y="200"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_Flight2" bpmnElement="Flight2"><di:waypoint x="390" y="200"/><di:waypoint x="440" y="200"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_Flight3" bpmnElement="Flight3"><di:waypoint x="465" y="175"/><di:waypoint x="465" y="120"/><di:waypoint x="560" y="120"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_Flight6" bpmnElement="Flight6"><di:waypoint x="596" y="120"/><di:waypoint x="700" y="120"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_Flight4" bpmnElement="Flight4"><di:waypoint x="465" y="225"/><di:waypoint x="465" y="280"/><di:waypoint x="560" y="280"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_Flight7" bpmnElement="Flight7"><di:waypoint x="596" y="280"/><di:waypoint x="685" y="280"/><di:waypoint x="685" y="340"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="S_C_Flight_ko" bpmnElement="C_Flight_ko"><dc:Bounds x="560" y="182" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="E_Flight5" bpmnElement="Flight5"><di:waypoint x="490" y="200"/><di:waypoint x="560" y="200"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_Flight8" bpmnElement="Flight8"><di:waypoint x="596" y="200"/><di:waypoint x="685" y="200"/><di:waypoint x="685" y="340"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="S_Gwr_Flight" bpmnElement="Gwr_Flight" isMarkerVisible="true"><dc:Bounds x="660" y="340" width="50" height="50"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_T_Flight_inc" bpmnElement="T_Flight_inc"><dc:Bounds x="380" y="335" width="120" height="60"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_E_Flight_fail" bpmnElement="E_Flight_fail"><dc:Bounds x="667" y="452" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="E_Flight9" bpmnElement="Flight9"><di:waypoint x="660" y="365"/><di:waypoint x="500" y="365"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_Flight10" bpmnElement="Flight10"><di:waypoint x="380" y="365"/><di:waypoint x="320" y="365"/><di:waypoint x="320" y="240"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_Flight11" bpmnElement="Flight11"><di:waypoint x="685" y="390"/><di:waypoint x="685" y="452"/></bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+  <bpmndi:BPMNDiagram id="D_Plane_Stay">
+    <bpmndi:BPMNPlane id="Plane_Stay" bpmnElement="SP_Stay">
+      <bpmndi:BPMNShape id="S_Start_Stay" bpmnElement="Start_Stay"><dc:Bounds x="160" y="182" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_Send_Stay" bpmnElement="Send_Stay"><dc:Bounds x="250" y="160" width="140" height="80"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_Gwe_Stay" bpmnElement="Gwe_Stay"><dc:Bounds x="440" y="175" width="50" height="50"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_C_Stay_ok" bpmnElement="C_Stay_ok"><dc:Bounds x="560" y="102" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_E_Stay_ok" bpmnElement="E_Stay_ok"><dc:Bounds x="700" y="102" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_C_Stay_to" bpmnElement="C_Stay_to"><dc:Bounds x="560" y="262" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="E_Stay1" bpmnElement="Stay1"><di:waypoint x="196" y="200"/><di:waypoint x="250" y="200"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_Stay2" bpmnElement="Stay2"><di:waypoint x="390" y="200"/><di:waypoint x="440" y="200"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_Stay3" bpmnElement="Stay3"><di:waypoint x="465" y="175"/><di:waypoint x="465" y="120"/><di:waypoint x="560" y="120"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_Stay6" bpmnElement="Stay6"><di:waypoint x="596" y="120"/><di:waypoint x="700" y="120"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_Stay4" bpmnElement="Stay4"><di:waypoint x="465" y="225"/><di:waypoint x="465" y="280"/><di:waypoint x="560" y="280"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_Stay7" bpmnElement="Stay7"><di:waypoint x="596" y="280"/><di:waypoint x="685" y="280"/><di:waypoint x="685" y="340"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="S_C_Stay_ko" bpmnElement="C_Stay_ko"><dc:Bounds x="560" y="182" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="E_Stay5" bpmnElement="Stay5"><di:waypoint x="490" y="200"/><di:waypoint x="560" y="200"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_Stay8" bpmnElement="Stay8"><di:waypoint x="596" y="200"/><di:waypoint x="685" y="200"/><di:waypoint x="685" y="340"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="S_Gwr_Stay" bpmnElement="Gwr_Stay" isMarkerVisible="true"><dc:Bounds x="660" y="340" width="50" height="50"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_T_Stay_inc" bpmnElement="T_Stay_inc"><dc:Bounds x="380" y="335" width="120" height="60"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_E_Stay_fail" bpmnElement="E_Stay_fail"><dc:Bounds x="667" y="452" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="E_Stay9" bpmnElement="Stay9"><di:waypoint x="660" y="365"/><di:waypoint x="500" y="365"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_Stay10" bpmnElement="Stay10"><di:waypoint x="380" y="365"/><di:waypoint x="320" y="365"/><di:waypoint x="320" y="240"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_Stay11" bpmnElement="Stay11"><di:waypoint x="685" y="390"/><di:waypoint x="685" y="452"/></bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+  <bpmndi:BPMNDiagram id="D_Plane_Transfer">
+    <bpmndi:BPMNPlane id="Plane_Transfer" bpmnElement="SP_Transfer">
+      <bpmndi:BPMNShape id="S_Start_Transfer" bpmnElement="Start_Transfer"><dc:Bounds x="160" y="182" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_Send_Transfer" bpmnElement="Send_Transfer"><dc:Bounds x="250" y="160" width="140" height="80"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_Gwe_Transfer" bpmnElement="Gwe_Transfer"><dc:Bounds x="440" y="175" width="50" height="50"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_C_Transfer_ok" bpmnElement="C_Transfer_ok"><dc:Bounds x="560" y="102" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_E_Transfer_ok" bpmnElement="E_Transfer_ok"><dc:Bounds x="700" y="102" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_C_Transfer_to" bpmnElement="C_Transfer_to"><dc:Bounds x="560" y="262" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="E_Transfer1" bpmnElement="Transfer1"><di:waypoint x="196" y="200"/><di:waypoint x="250" y="200"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_Transfer2" bpmnElement="Transfer2"><di:waypoint x="390" y="200"/><di:waypoint x="440" y="200"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_Transfer3" bpmnElement="Transfer3"><di:waypoint x="465" y="175"/><di:waypoint x="465" y="120"/><di:waypoint x="560" y="120"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_Transfer6" bpmnElement="Transfer6"><di:waypoint x="596" y="120"/><di:waypoint x="700" y="120"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_Transfer4" bpmnElement="Transfer4"><di:waypoint x="465" y="225"/><di:waypoint x="465" y="280"/><di:waypoint x="560" y="280"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_Transfer7" bpmnElement="Transfer7"><di:waypoint x="596" y="280"/><di:waypoint x="685" y="280"/><di:waypoint x="685" y="340"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="S_C_Transfer_ko" bpmnElement="C_Transfer_ko"><dc:Bounds x="560" y="182" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="E_Transfer5" bpmnElement="Transfer5"><di:waypoint x="490" y="200"/><di:waypoint x="560" y="200"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_Transfer8" bpmnElement="Transfer8"><di:waypoint x="596" y="200"/><di:waypoint x="685" y="200"/><di:waypoint x="685" y="340"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="S_Gwr_Transfer" bpmnElement="Gwr_Transfer" isMarkerVisible="true"><dc:Bounds x="660" y="340" width="50" height="50"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_T_Transfer_inc" bpmnElement="T_Transfer_inc"><dc:Bounds x="380" y="335" width="120" height="60"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_E_Transfer_fail" bpmnElement="E_Transfer_fail"><dc:Bounds x="667" y="452" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="E_Transfer9" bpmnElement="Transfer9"><di:waypoint x="660" y="365"/><di:waypoint x="500" y="365"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_Transfer10" bpmnElement="Transfer10"><di:waypoint x="380" y="365"/><di:waypoint x="320" y="365"/><di:waypoint x="320" y="240"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_Transfer11" bpmnElement="Transfer11"><di:waypoint x="685" y="390"/><di:waypoint x="685" y="452"/></bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+  <bpmndi:BPMNDiagram id="D_Plane_Excursions">
+    <bpmndi:BPMNPlane id="Plane_Excursions" bpmnElement="SP_Excursions">
+      <bpmndi:BPMNShape id="S_Start_Excursions" bpmnElement="Start_Excursions"><dc:Bounds x="160" y="182" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_Send_Excursions" bpmnElement="Send_Excursions"><dc:Bounds x="250" y="160" width="140" height="80"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_Gwe_Excursions" bpmnElement="Gwe_Excursions"><dc:Bounds x="440" y="175" width="50" height="50"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_C_Excursions_ok" bpmnElement="C_Excursions_ok"><dc:Bounds x="560" y="102" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_E_Excursions_ok" bpmnElement="E_Excursions_ok"><dc:Bounds x="700" y="102" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_C_Excursions_to" bpmnElement="C_Excursions_to"><dc:Bounds x="560" y="262" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="E_Excursions1" bpmnElement="Excursions1"><di:waypoint x="196" y="200"/><di:waypoint x="250" y="200"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_Excursions2" bpmnElement="Excursions2"><di:waypoint x="390" y="200"/><di:waypoint x="440" y="200"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_Excursions3" bpmnElement="Excursions3"><di:waypoint x="465" y="175"/><di:waypoint x="465" y="120"/><di:waypoint x="560" y="120"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_Excursions6" bpmnElement="Excursions6"><di:waypoint x="596" y="120"/><di:waypoint x="700" y="120"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_Excursions4" bpmnElement="Excursions4"><di:waypoint x="465" y="225"/><di:waypoint x="465" y="280"/><di:waypoint x="560" y="280"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_Excursions7" bpmnElement="Excursions7"><di:waypoint x="596" y="280"/><di:waypoint x="685" y="280"/><di:waypoint x="685" y="340"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="S_C_Excursions_ko" bpmnElement="C_Excursions_ko"><dc:Bounds x="560" y="182" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="E_Excursions5" bpmnElement="Excursions5"><di:waypoint x="490" y="200"/><di:waypoint x="560" y="200"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_Excursions8" bpmnElement="Excursions8"><di:waypoint x="596" y="200"/><di:waypoint x="685" y="200"/><di:waypoint x="685" y="340"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="S_Gwr_Excursions" bpmnElement="Gwr_Excursions" isMarkerVisible="true"><dc:Bounds x="660" y="340" width="50" height="50"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_T_Excursions_inc" bpmnElement="T_Excursions_inc"><dc:Bounds x="380" y="335" width="120" height="60"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_E_Excursions_fail" bpmnElement="E_Excursions_fail"><dc:Bounds x="667" y="452" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="E_Excursions9" bpmnElement="Excursions9"><di:waypoint x="660" y="365"/><di:waypoint x="500" y="365"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_Excursions10" bpmnElement="Excursions10"><di:waypoint x="380" y="365"/><di:waypoint x="320" y="365"/><di:waypoint x="320" y="240"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_Excursions11" bpmnElement="Excursions11"><di:waypoint x="685" y="390"/><di:waypoint x="685" y="452"/></bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+  <bpmndi:BPMNDiagram id="D_Plane_Confirm">
+    <bpmndi:BPMNPlane id="Plane_Confirm" bpmnElement="SP_Confirm">
+      <bpmndi:BPMNShape id="S_Start_Confirm" bpmnElement="Start_Confirm"><dc:Bounds x="160" y="182" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_Send_Confirm" bpmnElement="Send_Confirm"><dc:Bounds x="250" y="160" width="140" height="80"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_Gwe_Confirm" bpmnElement="Gwe_Confirm"><dc:Bounds x="440" y="175" width="50" height="50"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_C_Confirm_ok" bpmnElement="C_Confirm_ok"><dc:Bounds x="560" y="102" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_E_Confirm_ok" bpmnElement="E_Confirm_ok"><dc:Bounds x="700" y="102" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_C_Confirm_to" bpmnElement="C_Confirm_to"><dc:Bounds x="560" y="262" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="E_Confirm1" bpmnElement="Confirm1"><di:waypoint x="196" y="200"/><di:waypoint x="250" y="200"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_Confirm2" bpmnElement="Confirm2"><di:waypoint x="390" y="200"/><di:waypoint x="440" y="200"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_Confirm3" bpmnElement="Confirm3"><di:waypoint x="465" y="175"/><di:waypoint x="465" y="120"/><di:waypoint x="560" y="120"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_Confirm6" bpmnElement="Confirm6"><di:waypoint x="596" y="120"/><di:waypoint x="700" y="120"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_Confirm4" bpmnElement="Confirm4"><di:waypoint x="465" y="225"/><di:waypoint x="465" y="280"/><di:waypoint x="560" y="280"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_Confirm7" bpmnElement="Confirm7"><di:waypoint x="596" y="280"/><di:waypoint x="685" y="280"/><di:waypoint x="685" y="340"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="S_Gwr_Confirm" bpmnElement="Gwr_Confirm" isMarkerVisible="true"><dc:Bounds x="660" y="340" width="50" height="50"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_T_Confirm_inc" bpmnElement="T_Confirm_inc"><dc:Bounds x="380" y="335" width="120" height="60"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_E_Confirm_fail" bpmnElement="E_Confirm_fail"><dc:Bounds x="667" y="452" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="E_Confirm9" bpmnElement="Confirm9"><di:waypoint x="660" y="365"/><di:waypoint x="500" y="365"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_Confirm10" bpmnElement="Confirm10"><di:waypoint x="380" y="365"/><di:waypoint x="320" y="365"/><di:waypoint x="320" y="240"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_Confirm11" bpmnElement="Confirm11"><di:waypoint x="685" y="390"/><di:waypoint x="685" y="452"/></bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+  <bpmndi:BPMNDiagram id="D_Plane_CancelFlight">
+    <bpmndi:BPMNPlane id="Plane_CancelFlight" bpmnElement="SP_CancelFlight">
+      <bpmndi:BPMNShape id="S_Start_CancelFlight" bpmnElement="Start_CancelFlight"><dc:Bounds x="160" y="182" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_Send_CancelFlight" bpmnElement="Send_CancelFlight"><dc:Bounds x="250" y="160" width="140" height="80"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_Gwe_CancelFlight" bpmnElement="Gwe_CancelFlight"><dc:Bounds x="440" y="175" width="50" height="50"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_C_CancelFlight_ok" bpmnElement="C_CancelFlight_ok"><dc:Bounds x="560" y="102" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_E_CancelFlight_ok" bpmnElement="E_CancelFlight_ok"><dc:Bounds x="700" y="102" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_C_CancelFlight_to" bpmnElement="C_CancelFlight_to"><dc:Bounds x="560" y="262" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="E_CancelFlight1" bpmnElement="CancelFlight1"><di:waypoint x="196" y="200"/><di:waypoint x="250" y="200"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_CancelFlight2" bpmnElement="CancelFlight2"><di:waypoint x="390" y="200"/><di:waypoint x="440" y="200"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_CancelFlight3" bpmnElement="CancelFlight3"><di:waypoint x="465" y="175"/><di:waypoint x="465" y="120"/><di:waypoint x="560" y="120"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_CancelFlight6" bpmnElement="CancelFlight6"><di:waypoint x="596" y="120"/><di:waypoint x="700" y="120"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_CancelFlight4" bpmnElement="CancelFlight4"><di:waypoint x="465" y="225"/><di:waypoint x="465" y="280"/><di:waypoint x="560" y="280"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_CancelFlight7" bpmnElement="CancelFlight7"><di:waypoint x="596" y="280"/><di:waypoint x="685" y="280"/><di:waypoint x="685" y="340"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="S_Gwr_CancelFlight" bpmnElement="Gwr_CancelFlight" isMarkerVisible="true"><dc:Bounds x="660" y="340" width="50" height="50"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_T_CancelFlight_inc" bpmnElement="T_CancelFlight_inc"><dc:Bounds x="380" y="335" width="120" height="60"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_E_CancelFlight_fail" bpmnElement="E_CancelFlight_fail"><dc:Bounds x="667" y="452" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="E_CancelFlight9" bpmnElement="CancelFlight9"><di:waypoint x="660" y="365"/><di:waypoint x="500" y="365"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_CancelFlight10" bpmnElement="CancelFlight10"><di:waypoint x="380" y="365"/><di:waypoint x="320" y="365"/><di:waypoint x="320" y="240"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_CancelFlight11" bpmnElement="CancelFlight11"><di:waypoint x="685" y="390"/><di:waypoint x="685" y="452"/></bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+  <bpmndi:BPMNDiagram id="D_Plane_CancelStay">
+    <bpmndi:BPMNPlane id="Plane_CancelStay" bpmnElement="SP_CancelStay">
+      <bpmndi:BPMNShape id="S_Start_CancelStay" bpmnElement="Start_CancelStay"><dc:Bounds x="160" y="182" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_Send_CancelStay" bpmnElement="Send_CancelStay"><dc:Bounds x="250" y="160" width="140" height="80"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_Gwe_CancelStay" bpmnElement="Gwe_CancelStay"><dc:Bounds x="440" y="175" width="50" height="50"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_C_CancelStay_ok" bpmnElement="C_CancelStay_ok"><dc:Bounds x="560" y="102" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_E_CancelStay_ok" bpmnElement="E_CancelStay_ok"><dc:Bounds x="700" y="102" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_C_CancelStay_to" bpmnElement="C_CancelStay_to"><dc:Bounds x="560" y="262" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="E_CancelStay1" bpmnElement="CancelStay1"><di:waypoint x="196" y="200"/><di:waypoint x="250" y="200"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_CancelStay2" bpmnElement="CancelStay2"><di:waypoint x="390" y="200"/><di:waypoint x="440" y="200"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_CancelStay3" bpmnElement="CancelStay3"><di:waypoint x="465" y="175"/><di:waypoint x="465" y="120"/><di:waypoint x="560" y="120"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_CancelStay6" bpmnElement="CancelStay6"><di:waypoint x="596" y="120"/><di:waypoint x="700" y="120"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_CancelStay4" bpmnElement="CancelStay4"><di:waypoint x="465" y="225"/><di:waypoint x="465" y="280"/><di:waypoint x="560" y="280"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_CancelStay7" bpmnElement="CancelStay7"><di:waypoint x="596" y="280"/><di:waypoint x="685" y="280"/><di:waypoint x="685" y="340"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="S_Gwr_CancelStay" bpmnElement="Gwr_CancelStay" isMarkerVisible="true"><dc:Bounds x="660" y="340" width="50" height="50"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_T_CancelStay_inc" bpmnElement="T_CancelStay_inc"><dc:Bounds x="380" y="335" width="120" height="60"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_E_CancelStay_fail" bpmnElement="E_CancelStay_fail"><dc:Bounds x="667" y="452" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="E_CancelStay9" bpmnElement="CancelStay9"><di:waypoint x="660" y="365"/><di:waypoint x="500" y="365"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_CancelStay10" bpmnElement="CancelStay10"><di:waypoint x="380" y="365"/><di:waypoint x="320" y="365"/><di:waypoint x="320" y="240"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_CancelStay11" bpmnElement="CancelStay11"><di:waypoint x="685" y="390"/><di:waypoint x="685" y="452"/></bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+  <bpmndi:BPMNDiagram id="D_Plane_CancelTransfer">
+    <bpmndi:BPMNPlane id="Plane_CancelTransfer" bpmnElement="SP_CancelTransfer">
+      <bpmndi:BPMNShape id="S_Start_CancelTransfer" bpmnElement="Start_CancelTransfer"><dc:Bounds x="160" y="182" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_Send_CancelTransfer" bpmnElement="Send_CancelTransfer"><dc:Bounds x="250" y="160" width="140" height="80"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_Gwe_CancelTransfer" bpmnElement="Gwe_CancelTransfer"><dc:Bounds x="440" y="175" width="50" height="50"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_C_CancelTransfer_ok" bpmnElement="C_CancelTransfer_ok"><dc:Bounds x="560" y="102" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_E_CancelTransfer_ok" bpmnElement="E_CancelTransfer_ok"><dc:Bounds x="700" y="102" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_C_CancelTransfer_to" bpmnElement="C_CancelTransfer_to"><dc:Bounds x="560" y="262" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="E_CancelTransfer1" bpmnElement="CancelTransfer1"><di:waypoint x="196" y="200"/><di:waypoint x="250" y="200"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_CancelTransfer2" bpmnElement="CancelTransfer2"><di:waypoint x="390" y="200"/><di:waypoint x="440" y="200"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_CancelTransfer3" bpmnElement="CancelTransfer3"><di:waypoint x="465" y="175"/><di:waypoint x="465" y="120"/><di:waypoint x="560" y="120"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_CancelTransfer6" bpmnElement="CancelTransfer6"><di:waypoint x="596" y="120"/><di:waypoint x="700" y="120"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_CancelTransfer4" bpmnElement="CancelTransfer4"><di:waypoint x="465" y="225"/><di:waypoint x="465" y="280"/><di:waypoint x="560" y="280"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_CancelTransfer7" bpmnElement="CancelTransfer7"><di:waypoint x="596" y="280"/><di:waypoint x="685" y="280"/><di:waypoint x="685" y="340"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="S_Gwr_CancelTransfer" bpmnElement="Gwr_CancelTransfer" isMarkerVisible="true"><dc:Bounds x="660" y="340" width="50" height="50"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_T_CancelTransfer_inc" bpmnElement="T_CancelTransfer_inc"><dc:Bounds x="380" y="335" width="120" height="60"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_E_CancelTransfer_fail" bpmnElement="E_CancelTransfer_fail"><dc:Bounds x="667" y="452" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="E_CancelTransfer9" bpmnElement="CancelTransfer9"><di:waypoint x="660" y="365"/><di:waypoint x="500" y="365"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_CancelTransfer10" bpmnElement="CancelTransfer10"><di:waypoint x="380" y="365"/><di:waypoint x="320" y="365"/><di:waypoint x="320" y="240"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_CancelTransfer11" bpmnElement="CancelTransfer11"><di:waypoint x="685" y="390"/><di:waypoint x="685" y="452"/></bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+  <bpmndi:BPMNDiagram id="D_Plane_CancelExcursions">
+    <bpmndi:BPMNPlane id="Plane_CancelExcursions" bpmnElement="SP_CancelExcursions">
+      <bpmndi:BPMNShape id="S_Start_CancelExcursions" bpmnElement="Start_CancelExcursions"><dc:Bounds x="160" y="182" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_Send_CancelExcursions" bpmnElement="Send_CancelExcursions"><dc:Bounds x="250" y="160" width="140" height="80"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_Gwe_CancelExcursions" bpmnElement="Gwe_CancelExcursions"><dc:Bounds x="440" y="175" width="50" height="50"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_C_CancelExcursions_ok" bpmnElement="C_CancelExcursions_ok"><dc:Bounds x="560" y="102" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_E_CancelExcursions_ok" bpmnElement="E_CancelExcursions_ok"><dc:Bounds x="700" y="102" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_C_CancelExcursions_to" bpmnElement="C_CancelExcursions_to"><dc:Bounds x="560" y="262" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="E_CancelExcursions1" bpmnElement="CancelExcursions1"><di:waypoint x="196" y="200"/><di:waypoint x="250" y="200"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_CancelExcursions2" bpmnElement="CancelExcursions2"><di:waypoint x="390" y="200"/><di:waypoint x="440" y="200"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_CancelExcursions3" bpmnElement="CancelExcursions3"><di:waypoint x="465" y="175"/><di:waypoint x="465" y="120"/><di:waypoint x="560" y="120"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_CancelExcursions6" bpmnElement="CancelExcursions6"><di:waypoint x="596" y="120"/><di:waypoint x="700" y="120"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_CancelExcursions4" bpmnElement="CancelExcursions4"><di:waypoint x="465" y="225"/><di:waypoint x="465" y="280"/><di:waypoint x="560" y="280"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_CancelExcursions7" bpmnElement="CancelExcursions7"><di:waypoint x="596" y="280"/><di:waypoint x="685" y="280"/><di:waypoint x="685" y="340"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="S_Gwr_CancelExcursions" bpmnElement="Gwr_CancelExcursions" isMarkerVisible="true"><dc:Bounds x="660" y="340" width="50" height="50"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_T_CancelExcursions_inc" bpmnElement="T_CancelExcursions_inc"><dc:Bounds x="380" y="335" width="120" height="60"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="S_E_CancelExcursions_fail" bpmnElement="E_CancelExcursions_fail"><dc:Bounds x="667" y="452" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="E_CancelExcursions9" bpmnElement="CancelExcursions9"><di:waypoint x="660" y="365"/><di:waypoint x="500" y="365"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_CancelExcursions10" bpmnElement="CancelExcursions10"><di:waypoint x="380" y="365"/><di:waypoint x="320" y="365"/><di:waypoint x="320" y="240"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="E_CancelExcursions11" bpmnElement="CancelExcursions11"><di:waypoint x="685" y="390"/><di:waypoint x="685" y="452"/></bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

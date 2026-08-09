@@ -239,6 +239,45 @@ On exhausted retries, compensation steps for previously completed `rollbackable`
 
 **Temporal** — in code, with the finest-grained control of the three: per-activity retry policies (initial interval, backoff, max attempts, non-retryable error types), multiple timeout types (schedule-to-start, start-to-close, heartbeat), and sagas implemented as explicit compensation logic in the workflow function. Maximum flexibility; you write and test it yourself.
 
+## What the diagram costs: an asynchronous, compensating saga
+
+The section above says *where* each engine expresses failure handling. This one measures what it costs, by modelling the same process twice.
+
+The process is a travel booking: reserve a flight, a stay, a transfer and some excursions, confirm to the customer, and undo everything already booked if any step fails. Two constraints, both ordinary in an event-driven shop:
+
+- every unit of work is handed to a worker by **publishing an event**, and the step finishes when the worker's event comes back — compensations included;
+- **every step has a timeout** and a bounded number of retries, because a step waiting for a reply that will never arrive is not a slow step, it is an invisible one.
+
+Both definitions are downloadable and directly comparable: [`travel-saga.yaml`](/examples/travel-saga.yaml) and [`travel-saga.bpmn`](/examples/travel-saga.bpmn) (BPMN 2.0 with diagram interchange; it opens in Camunda Modeler or [bpmn.io](https://demo.bpmn.io)).
+
+| | EventConductor | BPMN 2.0 |
+|---|---|---|
+| **Definition** | 100 lines, 11 steps | 771 lines, 214 elements |
+| **Per service** | 1 step | 1 sub-process containing 10 nodes |
+| **Message declarations** | none — the topic plus the `TaskExecutionRequested` / `TaskStatusChanged` contract are the engine's | 23 |
+| **Drawing planes to maintain** | none — the graph is a derived view | 10 |
+| **Elements that say something about the business** | 11 of 11 | **14 of 214 (7%)** |
+
+The other 200 elements are mechanics: 9 send tasks, 9 event-based gateways, 22 catch events, 9 "retries left?" gateways, 9 script tasks whose entire job is `attempts + 1`, 9 boundary events, and 106 sequence flows.
+
+### Why the gap is that wide
+
+Standard BPMN has no first-class notion of *work handed to an external worker*. It can send a message and it can wait for one, so an asynchronous call becomes a send task, an event-based gateway, one catch event per possible answer, and a timer for the case where no answer arrives. Bounded retries have no declarative form at all, so they become a counter variable, a gateway and a loop back. Compensation is the one of the four where BPMN *is* declarative — a boundary event and a handler — and it is also the only one that does not multiply.
+
+And because each of those is a node, they all carry the same visual weight: `Reserve flight` and `attempts + 1` are drawn as the same box, on the same line. The notation has no altitude, so a reader cannot separate intent from plumbing, and a reviewer has to read all 214 elements to find the 14 that matter.
+
+### The trade is the one Maven and Spring Boot make
+
+Nothing above is a defect in BPMN; it is the difference between a notation that assumes nothing and one that fixes its conventions. Maven simplified builds by deciding where sources live and what a lifecycle is; Spring Boot simplified applications by deciding how things are wired. EventConductor decides that work is dispatched asynchronously to a worker, that a failed step waits out a backoff and retries, and that a failed saga is undone in reverse order of actual completion — so none of that has to be expressed, and none of it can be expressed *wrong*. The plumbing is not modelled, so it cannot be mis-modelled.
+
+The same sentence carries the cost, as it does for Maven and Spring Boot: conventions are a gift while you are inside them and a fight when you step outside. BPMN can put a deadline on a *group* of steps with one timer boundary event on a sub-process, cancel a whole block from the outside, or compensate only one sub-scope. EventConductor has no scopes: timeouts are per step, and compensation is process-wide. When you need those, the verbose notation is the one that can say it.
+
+### Two honest counterweights
+
+**This measures standard BPMN with the messaging modelled explicitly.** Accept Camunda's job-worker protocol — a service task plus an external worker — and each service is one node again: roughly 20 nodes in a single plane, and a clean diagram. But then the asynchrony, the timeout and the retries live in vendor attributes (`zeebe:` / `camunda:`) rather than in the standard, which is the same trade EventConductor makes, minus the portability. If a Camunda deployment is a given, its diagram will be clean too; the point is that *portable* BPMN cannot describe asynchronous workers without drawing them.
+
+**And this is not two diagrams being compared.** In EventConductor the definition is a list of steps and the graph is derived from it, so there are no coordinates to lay out, no planes to keep in sync, and nothing to lay out wrongly. That is a real reduction in what has to be maintained, but it is a declaration being compared against a diagram, not like against like.
+
 ## Human tasks & forms
 
 This is where the three diverge most sharply:
