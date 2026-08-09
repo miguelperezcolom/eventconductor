@@ -361,8 +361,16 @@
             "boolean",
             "null"
           ],
-          "description": "Whether this step must be compensated (undone) when the process fails. When any step fails after exhausting its retries, the compensations of ALL executed compensable steps run sequentially in reverse execution order (saga rollback), and the process ends COMPENSATED.",
+          "description": "Whether this step must be compensated (undone) when the process fails. When a step fails after exhausting its retries, the compensations of every compensable step that COMPLETED SUCCESSFULLY run sequentially in reverse execution order (saga rollback) — the step that failed is not compensated, having committed nothing to undo — and the process ends COMPENSATED.",
           "default": false
+        },
+        "rollbackable": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "deprecated": true,
+          "description": "Deprecated alias for `compensable`, kept so definitions written before the rename still validate. Use `compensable`."
         },
         "compensationStepId": {
           "type": [
