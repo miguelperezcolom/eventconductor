@@ -90,6 +90,30 @@ next poll — and across pods, that handoff is most of the traffic. (Pass it as 
 property, not an env var: the dashed `workflow.outbox-poll-interval-ms` does not survive env-var
 relaxed binding.)
 
+**At that cluster ceiling, nothing is saturated.** Driving a single pipeline flat out on
+dedicated-vCPU nodes, the sustained rate held around 90–110 PI/s with PostgreSQL near a third of one
+core, a handful of active queries against a connection pool sized in the hundreds, the outbox
+drained, and Kafka idle. That is the signature of a *latency*-bound system, not a resource-bound
+one. A transition is a chain of asynchronous round trips — the dispatch written to the outbox and
+relayed to the worker, the worker's reply, and the resulting status change re-consumed from the
+outbox to decide what happens next — and each hop is a poll cycle plus a network round trip: cheap
+in CPU, costly in wall-clock. Those hops are not waste to remove; they are what makes a transition
+durable, ordered, exactly-once and single-writer (see [Reliability](/guides/reliability/)). So
+throughput is `in-flight concurrency ÷ per-transition latency`, and the only two levers that do not
+fight that design are to put more transitions in flight, or to make each hop faster.
+
+**More in flight, inside a pod.** A pod works one poll batch at a time and, by default, commits the
+batch's processes one after another — so a pod's own parallelism is its partition count. Setting
+`workflow.consumer.process-parallelism` above 1 works a batch's independent processes on a small
+pool instead, so a pod can have more processes in flight than it owns partitions. It only ever runs
+*distinct* processes concurrently — a single process's events share a partition, arrive in order and
+land in one group that one thread drains, so ordering and single-writer are untouched — and each
+concurrent process still commits in its own transaction, so keep the value at or below the
+connection pool (`DB_POOL_SIZE`). It is a modest, situational lever: it earns its keep when a pod
+owns few partitions relative to the work in each batch, and does little once partitions already
+exceed the useful concurrency, where adding partitions and pods is the better spend. Default 1 is
+the original behaviour.
+
 The practical order for tuning, once your workers are not the bottleneck:
 
 1. **Run the migrations.** A schema built by `ddl-auto` alone has no indexes at all and every scan
@@ -121,6 +145,13 @@ Zeebe (a partitioned log, no database in the hot path) and Temporal (storage sha
 the shard count — the same shard-your-storage principle Temporal uses. It falls out of the design
 almost for free: a process is keyed to a partition and lives entirely on one shard, so shards never
 coordinate.
+
+This is measured, not just argued. On the same dedicated-vCPU cluster, holding the *total* compute
+fixed and only varying how it is split, a single pipeline saturated around 90 PI/s while two shards
+absorbed everything the load generator could produce — past 115 PI/s — without saturating at all.
+The reason is exactly the ceiling above: a single pipeline is latency-bound, and a second shard is a
+second independent pipeline — its own database, outbox relay, topics and consumer group — so it adds
+in-flight capacity that tuning one pipeline cannot buy, no matter how idle its resources look.
 
 Two properties make it practical rather than a rewrite:
 
