@@ -1,0 +1,11 @@
+-- Rename step_entity.rollbackable -> compensable.
+--
+-- The DSL field was renamed for terminology: a saga step is "compensable", and compensation only
+-- ever reverses a step that SUCCEEDED (a failed step committed nothing to undo). The runtime reads
+-- the value out of the serialised stepJson via a @JsonAlias, so definitions and in-flight JSON
+-- written as `rollbackable` still deserialise; this only realigns the definition table's column.
+--
+-- A plain RENAME (not an add/drop) so the existing values carry across. Flyway runs before JPA, so
+-- the baseline's `rollbackable` column is always present when this migration runs. Portable across
+-- PostgreSQL and H2 (the schema-validation harness applies every migration on H2).
+ALTER TABLE step_entity RENAME COLUMN rollbackable TO compensable;

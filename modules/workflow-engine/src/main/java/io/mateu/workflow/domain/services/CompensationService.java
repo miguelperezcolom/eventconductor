@@ -16,10 +16,11 @@ import static io.mateu.core.infra.JsonSerializer.pojoFromJson;
  * Decides, from the current step executions of a process, which compensation to run next.
  *
  * <p>Implements process-level saga rollback: once a step has finally failed (its retries
- * exhausted), EVERY step that has executed and declares a compensation is compensated,
- * sequentially, in <b>reverse execution order</b> (the latest-executed step is undone first).
- * The failed step itself is compensated too — it attempted its work, and this keeps the
- * single-step saga a special case of the cascade.
+ * exhausted), every step that <b>completed successfully</b> and declares a compensation is
+ * compensated, sequentially, in <b>reverse execution order</b> (the latest-completed step is
+ * undone first). The failed step itself is <b>not</b> compensated — its work never succeeded, so
+ * there is nothing committed to undo. Compensation reverses work that happened; a step that ended
+ * in ERROR or TIMEOUT triggers the rollback but is not part of it.
  *
  * <p>Pure and side-effect free: it derives the next action entirely from persisted state, so
  * the caller can invoke it on every terminal event and it stays idempotent under redelivery
@@ -63,19 +64,21 @@ public class CompensationService {
             byStepId.put(execution.getStepId(), execution);
         }
 
-        // Steps that ran (completed, or finally failed) and declare a compensation, ordered
-        // latest-executed first so we undo them in reverse.
+        // Steps that COMPLETED successfully and declare a compensation, ordered latest-completed
+        // first so we undo them in reverse. A step that failed (ERROR/TIMEOUT) is deliberately
+        // excluded: it committed nothing to undo, so compensating it would reverse work that never
+        // happened.
         var toCompensate = executions.stream()
-                .filter(e -> hasRun(e.getStatus()))
+                .filter(e -> succeeded(e.getStatus()))
                 .map(e -> new Compensable(e, step(e)))
-                .filter(c -> c.step().rollbackable()
+                .filter(c -> c.step().compensable()
                         && c.step().compensationStepId() != null
                         && !c.step().compensationStepId().isBlank())
                 .sorted(REVERSE_EXECUTION_ORDER)
                 .toList();
 
         if (toCompensate.isEmpty()) {
-            // Failed, but no rollbackable step ran: a plain error, not a rollback.
+            // Failed, but no compensable step ran: a plain error, not a rollback.
             return Decision.of(Outcome.NONE);
         }
 
@@ -103,8 +106,8 @@ public class CompensationService {
 
     private record Compensable(StepExecution execution, Step step) {}
 
-    // finishedAt DESC (latest-executed first), tie-broken by definition order DESC. finishedAt
-    // is always set for hasRun() steps (terminal statuses stamp it); nullsLast is defensive.
+    // finishedAt DESC (latest-completed first), tie-broken by definition order DESC. finishedAt
+    // is always set for a COMPLETED step (the terminal status stamps it); nullsFirst is defensive.
     private static final Comparator<Compensable> REVERSE_EXECUTION_ORDER = Comparator
             .comparing((Compensable c) -> c.execution().getFinishedAt(),
                     Comparator.nullsFirst(Comparator.naturalOrder()))
@@ -115,10 +118,8 @@ public class CompensationService {
         return status == StepExecutionStatus.ERROR || status == StepExecutionStatus.TIMEOUT;
     }
 
-    private static boolean hasRun(StepExecutionStatus status) {
-        return status == StepExecutionStatus.COMPLETED
-                || status == StepExecutionStatus.ERROR
-                || status == StepExecutionStatus.TIMEOUT;
+    private static boolean succeeded(StepExecutionStatus status) {
+        return status == StepExecutionStatus.COMPLETED;
     }
 
     private static Step step(StepExecution execution) {

@@ -25,7 +25,7 @@ None of the three is universally "better" — they optimize for different teams 
 | **Visual designer** | Drag-and-drop workflow & form editors (persist back to JSON) | Best-in-class BPMN Modeler (desktop & web) | None (code is the source of truth) |
 | **Operations UI** | Built-in management UI | Operate + Optimize | Temporal Web UI |
 | **Retries / timeouts** | Declarative per step (`retries`, `timeout`) | BPMN error/timer events + job retries | Retry policies & timeouts in code (very fine-grained) |
-| **Saga / compensation** | Declarative (`rollbackable` + `compensationStepId`, reverse-order execution) | BPMN compensation events | Coded manually (saga pattern in workflow code) |
+| **Saga / compensation** | Declarative (`compensable` + `compensationStepId`, reverse-order execution) | BPMN compensation events | Coded manually (saga pattern in workflow code) |
 | **Worker languages** | Java/Spring first-class; any language via Kafka in distributed mode | Polyglot job workers over gRPC (Java, Node, Go, ...) | Go, Java, TypeScript, Python, .NET, PHP, Ruby SDKs |
 | **AI integration** | Native MCP servers in every module + bundled AI agent service | AI Agent connector, MCP client & A2A (8.8+), API MCP server | MCP server, OpenAI Agents SDK & Google ADK integrations |
 | **Maturity & community** | Young open-source project | Very mature (company founded 2008, large ecosystem) | Mature (2019, from Uber's Cadence; large community) |
@@ -229,11 +229,11 @@ All three handle failure well — the difference is *where* you express it.
   topic: flight-service
   timeout: PT30S
   retries: 2
-  rollbackable: true
+  compensable: true
   compensationStepId: cancel-flight
 ```
 
-On exhausted retries, compensation steps for previously completed `rollbackable` steps run automatically in reverse order — the saga pattern without writing saga code.
+On exhausted retries, compensation steps for previously completed `compensable` steps run automatically in reverse order — the saga pattern without writing saga code.
 
 **Camunda** — via BPMN constructs: job retries on service tasks, timer boundary events for timeouts, error boundary events, and BPMN compensation events with compensation handlers. Complete and standard, but spread across diagram elements and their technical bindings.
 

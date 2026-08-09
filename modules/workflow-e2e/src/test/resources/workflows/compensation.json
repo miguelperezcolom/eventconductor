@@ -13,10 +13,19 @@
       "type": "ACTION",
       "name": "Charge card",
       "topic": "work",
-      "retries": 0,
-      "rollbackable": true,
+      "compensable": true,
       "compensationStepId": "refund",
       "preconditionStepId": "start"
+    },
+    {
+      "id": "ship",
+      "type": "ACTION",
+      "name": "Ship order",
+      "topic": "work",
+      "retries": 0,
+      "compensable": true,
+      "compensationStepId": "unship",
+      "preconditionStepId": "charge"
     },
     {
       "id": "refund",
@@ -25,10 +34,16 @@
       "topic": "work"
     },
     {
+      "id": "unship",
+      "type": "ACTION",
+      "name": "Unship",
+      "topic": "work"
+    },
+    {
       "id": "end",
       "type": "END",
       "name": "End",
-      "preconditionStepId": "charge"
+      "preconditionStepId": "ship"
     }
   ]
 }

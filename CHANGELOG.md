@@ -7,7 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **The step property `rollbackable` is now `compensable`.** The engine calls it compensation, so
+  the field that turns it on now matches. Definitions and in-flight state written with `rollbackable`
+  keep working unchanged — the field is read through a `@JsonAlias`, so old JSON still deserialises,
+  and a migration renames the definition table's column — but new definitions should use
+  `compensable`, and the JSON schema, examples and docs now use it throughout.
+
 ### Fixed
+- **Compensation no longer runs for the step that failed.** A saga rolls back by undoing the work
+  that *committed*, in reverse — so it compensates the steps that completed successfully before the
+  failure, and not the one that failed, which by definition committed nothing to undo. The engine
+  used to compensate the failed step as well (treating "it attempted its work" as enough), which
+  could reverse work that never happened. Now only `COMPLETED` steps are compensated; a step that
+  ends in `ERROR` or `TIMEOUT` triggers the rollback but is not part of it and keeps its terminal
+  status as the record of why the process rolled back.
+
 - **A step's timeout no longer counts the time it spent queued.** The clock started when the
   orchestrator marked the step started and wrote its dispatch to the outbox, so everything before a
   worker saw it — outbox residence, the relay, the broker — was charged against the step's own
@@ -924,13 +939,13 @@ Tagged without release notes at the time; written down here after the fact.
   node-avoiding, non-overlapping, shape-fitting edge routing; and drawing precondition lines by
   Shift+drag. The same built bundle is reused by both IDE plugins.
 - **Whole-process saga rollback in reverse execution order.** When any step fails or times out
-  after exhausting its retries, the engine now compensates **every executed rollbackable step**
+  after exhausting its retries, the engine now compensates **every executed compensable step**
   (completed steps plus the one that just failed) — not only the failed step's own
   compensation — running them **sequentially, in reverse execution order**: the latest-executed
   step is undone first, and each compensation starts only once the previous one completes. The
   next compensation is derived purely from persisted step-execution state (new
   `CompensationService`), so it is idempotent under redelivery and across restarts. A single
-  failed rollbackable step is just the degenerate case of this cascade. See the new
+  failed compensable step is just the degenerate case of this cascade. See the new
   `COMPENSATED` terminal state under Changed.
 - **Git reload webhook: multiple providers, targeted reload and pruning.** The
   `POST /{engine}/webhooks/{provider}` endpoint (workflow, forms and rule engines) now accepts

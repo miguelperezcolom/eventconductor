@@ -480,7 +480,7 @@ steps:
     preconditionStepId: start
     timeout: PT30S
     retries: 2
-    rollbackable: true
+    compensable: true
     compensationStepId: step-compensate
 
   - id: step-2
@@ -528,7 +528,7 @@ because nothing would ever start it.
       "preconditionStepId": "start",
       "timeout": 30000,
       "retries": 2,
-      "rollbackable": true,
+      "compensable": true,
       "compensationStepId": "step-compensate"
     },
     {
@@ -593,8 +593,8 @@ order is irrelevant. Every step with no preconditions must be a `START` or a
 | `messageVariables` | string[] | — | Names of the process variables the outgoing message carries; empty/absent = none (SEND_MESSAGE only) |
 | `timeout` | integer (ms) | `0` | Max execution time; `0` = no timeout |
 | `retries` | integer | `0` | Auto-retry attempts on ERROR or TIMEOUT |
-| `rollbackable` | boolean | `false` | Trigger compensation step on failure |
-| `compensationStepId` | string | — | Step to run as compensation (requires `rollbackable: true`) |
+| `compensable` | boolean | `false` | Trigger compensation step on failure |
+| `compensationStepId` | string | — | Step to run as compensation (requires `compensable: true`) |
 | `maxSuccessfulExecutions` | integer | `0` | Cap on successful runs of this step per process instance (loop backstop); `0` inherits the workflow's `defaultMaxStepExecutions` |
 
 ### Workflow-level fields

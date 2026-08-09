@@ -6,11 +6,11 @@
     { "id": "start", "type": "START", "name": "Start" },
 
     { "id": "reserve", "type": "ACTION", "name": "Reserve stock", "topic": "bench",
-      "preconditionStepId": "start", "rollbackable": true, "compensationStepId": "cancel-reserve" },
+      "preconditionStepId": "start", "compensable": true, "compensationStepId": "cancel-reserve" },
 
     { "id": "risky-charge", "type": "ACTION", "name": "Charge card", "topic": "bench",
       "preconditionStepId": "reserve", "retries": 2,
-      "rollbackable": true, "compensationStepId": "refund" },
+      "compensable": true, "compensationStepId": "refund" },
 
     { "id": "confirm", "type": "ACTION", "name": "Confirm order", "topic": "bench",
       "preconditionStepId": "risky-charge" },

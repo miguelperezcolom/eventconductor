@@ -875,7 +875,7 @@ function q1(C) {
 }
 function Y0e(C) {
   const P = /* @__PURE__ */ new Set();
-  for (const R of C) R.rollbackable && R.compensationStepId && P.add(R.compensationStepId);
+  for (const R of C) R.compensable && R.compensationStepId && P.add(R.compensationStepId);
   return P;
 }
 function jLn(C) {
@@ -884,7 +884,7 @@ function jLn(C) {
     if (!R.has(qe.id))
       for (const Mn of q1(qe))
         P.has(Mn) && ((K[Mn] ??= []).push(qe.id), _.add(qe.id));
-    qe.rollbackable && qe.compensationStepId && P.has(qe.compensationStepId) && ((K[qe.id] ??= []).push(qe.compensationStepId), _.add(qe.compensationStepId));
+    qe.compensable && qe.compensationStepId && P.has(qe.compensationStepId) && ((K[qe.id] ??= []).push(qe.compensationStepId), _.add(qe.compensationStepId));
   }
   const be = C.map((qe) => qe.id).filter((qe) => !_.has(qe)), k = [], ln = 200, Le = (qe, Mn, nt) => {
     if (k.length >= ln) return;
@@ -1021,7 +1021,7 @@ let Lu = class extends cx {
       sources: [be],
       targets: [_.id],
       layoutOptions: { "elk.layered.priority.direction": "10" }
-    }))), K = C.filter((_) => _.rollbackable && _.compensationStepId && P.has(_.compensationStepId)).map((_) => ({
+    }))), K = C.filter((_) => _.compensable && _.compensationStepId && P.has(_.compensationStepId)).map((_) => ({
       id: `${_.id}~>${_.compensationStepId}`,
       sources: [_.id],
       targets: [_.compensationStepId],
@@ -1118,12 +1118,12 @@ let Lu = class extends cx {
    *
    * <p>A step id is referenced from three places, and a leftover in any of them is a definition
    * that no longer loads: {@code preconditionStepId}, {@code preconditionStepIds}, and the
-   * {@code compensationStepId} of a rollbackable step. The last one used to be missed, which
+   * {@code compensationStepId} of a compensable step. The last one used to be missed, which
    * left a step pointing its rollback at something that was not there any more.
    *
    * <p>An emptied precondition list drops the field rather than persisting as `[]`, so deleting
    * the only input of a step leaves the same JSON as never having given it one. {@code
-   * rollbackable} is left alone: whether the step still means to roll back is the author's call,
+   * compensable} is left alone: whether the step still means to roll back is the author's call,
    * and the dangling half — the id — is what had to go.
    */
   deleteStep(C) {
@@ -1285,7 +1285,7 @@ let Lu = class extends cx {
       if (!P.has(Le.id))
         for (const qe of q1(Le)) this.boxForId(qe) && this.boxForId(Le.id) && R.push({ from: qe, to: Le.id, comp: !1 });
     for (const Le of C)
-      Le.rollbackable && Le.compensationStepId && this.boxForId(Le.id) && this.boxForId(Le.compensationStepId) && R.push({ from: Le.id, to: Le.compensationStepId, comp: !0 });
+      Le.compensable && Le.compensationStepId && this.boxForId(Le.id) && this.boxForId(Le.compensationStepId) && R.push({ from: Le.id, to: Le.compensationStepId, comp: !0 });
     const K = (Le, qe, Mn) => {
       const nt = qe - Le.x, vn = Mn - Le.y;
       return Math.abs(nt) >= Math.abs(vn) ? nt >= 0 ? "R" : "L" : vn >= 0 ? "B" : "T";
@@ -1493,7 +1493,7 @@ let Lu = class extends cx {
     const Qa = /* @__PURE__ */ new Set();
     for (let Wt = 1; Wt < be.length; Wt++) {
       const Cc = qn.get(be[Wt - 1]);
-      Cc && Cc.rollbackable && Cc.compensationStepId === be[Wt] && Qa.add(be[Wt - 1]);
+      Cc && Cc.compensable && Cc.compensationStepId === be[Wt] && Qa.add(be[Wt - 1]);
     }
     for (const Wt of wi)
       jo >= Wt.d && !this.pulsedThisPath.has(Wt.id) && (this.pulseAt[Wt.id] = C, this.pulseColor[Wt.id] = Qa.has(Wt.id) ? "#dc2626" : "", this.pulsedThisPath.add(Wt.id));
@@ -1610,7 +1610,7 @@ let Lu = class extends cx {
     return !!P && P !== "PENDING";
   }
   /**
-   * True when this step ran as a compensation — it is some rollbackable step's
+   * True when this step ran as a compensation — it is some compensable step's
    * {@link WorkflowStep.compensationStepId} and this process actually reached it.
    *
    * <p>Worth its own colour because the state alone misreads: a compensation that completes is
@@ -2036,11 +2036,11 @@ let Lu = class extends cx {
                                .value="${String(C.retries ?? 0)}"
                                @change="${R ? Ai : (_) => this.updateStep(C.id, { retries: Number(_.target.value) })}"/>`)}
                     <div class="field row">
-                        <label class="field-label">Rollbackable</label>
-                        <input type="checkbox" ?checked="${C.rollbackable}" ?disabled="${R}"
-                               @change="${R ? Ai : (_) => this.updateStep(C.id, { rollbackable: _.target.checked })}"/>
+                        <label class="field-label">Compensable</label>
+                        <input type="checkbox" ?checked="${C.compensable}" ?disabled="${R}"
+                               @change="${R ? Ai : (_) => this.updateStep(C.id, { compensable: _.target.checked })}"/>
                     </div>
-                    ${C.rollbackable ? K("Compensation step", mr`
+                    ${C.compensable ? K("Compensation step", mr`
                         <select class="inp" ?disabled="${R}"
                                 @change="${R ? Ai : (_) => this.updateStep(C.id, { compensationStepId: _.target.value || void 0 })}">
                             <option value="">— none —</option>

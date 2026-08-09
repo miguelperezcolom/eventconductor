@@ -89,7 +89,7 @@ class StepTimeoutDefaultsTest {
                 null,               // messageVariables
                 timeout,
                 0,                  // retries
-                false,              // rollbackable
+                false,              // compensable
                 null,               // compensationStepId
                 0,                  // maxSuccessfulExecutions
                 null);              // joinType

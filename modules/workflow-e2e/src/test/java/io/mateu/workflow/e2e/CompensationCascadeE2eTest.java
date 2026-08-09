@@ -13,19 +13,19 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * E2E-COMP-02: a whole-process saga rollback. When a step finally fails, the compensations of
- * every executed rollbackable step run sequentially in reverse execution order, and the
- * process ends COMPENSATED.
+ * every step that <b>completed successfully</b> run sequentially in reverse execution order, and
+ * the process ends COMPENSATED. The failed step is not compensated — it committed nothing to undo.
  */
 class CompensationCascadeE2eTest extends AbstractE2eTest {
 
     @Test
-    void compensatesAllExecutedStepsInReverseOrder() {
+    void compensatesTheCompletedStepsInReverseOrderButNotTheFailedOne() {
         worker.on("a", TestWorker.succeed());
         worker.on("b", TestWorker.succeed());
         worker.on("c", TestWorker.fail());          // retries=0 → fails immediately
         worker.on("comp-a", TestWorker.succeed());
         worker.on("comp-b", TestWorker.succeed());
-        worker.on("comp-c", TestWorker.succeed());
+        worker.on("comp-c", TestWorker.succeed());   // wired, but must never be asked to run
 
         createProcess("compensation-cascade", "cascade-1");
 
@@ -34,18 +34,19 @@ class CompensationCascadeE2eTest extends AbstractE2eTest {
         assertThat(step("cascade-1", "b").getStatus()).isEqualTo(StepExecutionStatus.COMPLETED);
         assertThat(step("cascade-1", "c").getStatus()).isEqualTo(StepExecutionStatus.ERROR);
 
-        // Every executed rollbackable step was compensated.
+        // The two steps that succeeded were compensated; c's compensation was never started, because
+        // c never committed anything to undo.
         assertThat(step("cascade-1", "comp-a").getStatus()).isEqualTo(StepExecutionStatus.COMPLETED);
         assertThat(step("cascade-1", "comp-b").getStatus()).isEqualTo(StepExecutionStatus.COMPLETED);
-        assertThat(step("cascade-1", "comp-c").getStatus()).isEqualTo(StepExecutionStatus.COMPLETED);
+        assertThat(worker.invocationsOf("comp-c")).isZero();
 
-        // …in reverse execution order: c, then b, then a were executed, so their compensations
-        // run comp-c → comp-b → comp-a.
+        // …in reverse execution order: b, then a were the completed steps, so their compensations
+        // run comp-b → comp-a (and comp-c is absent).
         List<String> compensationOrder = worker.received().stream()
                 .map(TaskExecutionRequested::stepId)
                 .filter(id -> id.startsWith("comp-"))
                 .toList();
-        assertThat(compensationOrder).containsExactly("comp-c", "comp-b", "comp-a");
+        assertThat(compensationOrder).containsExactly("comp-b", "comp-a");
 
         // The process rolled back cleanly.
         assertThat(process("cascade-1").getStatus()).isEqualTo(ProcessStatus.COMPENSATED);

@@ -13,7 +13,7 @@
       "type": "ACTION",
       "name": "A",
       "topic": "work",
-      "rollbackable": true,
+      "compensable": true,
       "compensationStepId": "comp-a",
       "preconditionStepId": "start"
     },
@@ -22,7 +22,7 @@
       "type": "ACTION",
       "name": "B",
       "topic": "work",
-      "rollbackable": true,
+      "compensable": true,
       "compensationStepId": "comp-b",
       "preconditionStepId": "a"
     },
@@ -32,7 +32,7 @@
       "name": "C",
       "topic": "work",
       "retries": 0,
-      "rollbackable": true,
+      "compensable": true,
       "compensationStepId": "comp-c",
       "preconditionStepId": "b"
     },

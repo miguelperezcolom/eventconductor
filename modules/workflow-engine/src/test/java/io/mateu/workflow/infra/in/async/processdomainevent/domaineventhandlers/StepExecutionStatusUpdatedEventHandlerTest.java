@@ -63,18 +63,33 @@ class StepExecutionStatusUpdatedEventHandlerTest {
         lenient().when(processRepository.findById(any())).thenReturn(Optional.of(proc));
     }
 
-    private Step step(int retries, boolean rollbackable, String compensationStepId) {
+    private Step step(int retries, boolean compensable, String compensationStepId) {
         return new Step("s1", "wd-1", StepType.ACTION, "Step", null, null, null, null, false, "topic",
-                null, null, null, null, 0, null, null, null, null, 0, retries, rollbackable, compensationStepId, 0, null);
+                null, null, null, null, 0, null, null, null, null, 0, retries, compensable, compensationStepId, 0, null);
     }
 
-    private StepExecution se(int attemptCount, int retries, boolean rollbackable, String compensationStepId) {
-        Step step = step(retries, rollbackable, compensationStepId);
+    private StepExecution se(int attemptCount, int retries, boolean compensable, String compensationStepId) {
+        Step step = step(retries, compensable, compensationStepId);
         return StepExecution.builder()
                 .id("se-1").processId("p-1").workflowDefinitionId("wd-1").stepId("s1")
                 .stepJson(JsonSerializer.toJson(step))
                 .attemptCount(attemptCount)
                 .status(StepExecutionStatus.ERROR)
+                .variables(List.of()).build();
+    }
+
+    // A step that COMPLETED successfully and declares a compensation ("comp-step") — the one a
+    // rollback actually reverses. The failed step (`se(...)`, ERROR) triggers the rollback but,
+    // having committed nothing, is never compensated itself, so the compensable work has to come
+    // from a step that succeeded.
+    private StepExecution completedCompensable() {
+        var step = new Step("orig", "wd-1", StepType.ACTION, "Orig", null, null, null, null, false, "topic",
+                null, null, null, null, 0, null, null, null, null, 0, 0, true, "comp-step", 0, null);
+        return StepExecution.builder()
+                .id("se-orig").processId("p-1").workflowDefinitionId("wd-1").stepId("orig")
+                .stepJson(JsonSerializer.toJson(step))
+                .status(StepExecutionStatus.COMPLETED)
+                .finishedAt(java.time.LocalDateTime.of(2026, 1, 1, 0, 0))
                 .variables(List.of()).build();
     }
 
@@ -127,7 +142,7 @@ class StepExecutionStatusUpdatedEventHandlerTest {
     }
 
     @Test
-    void triggersCompensationWhenRollbackable() {
+    void triggersCompensationWhenCompensable() {
         var se = se(1, 1, true, "comp-step");
         var compensationStep = step(0, false, null).withId("comp-step");
         var compensationSe = StepExecution.builder()
@@ -137,19 +152,21 @@ class StepExecutionStatusUpdatedEventHandlerTest {
                 .variables(List.of()).build();
 
         when(stepExecutionRepository.findById("se-1")).thenReturn(Optional.of(se));
-        when(stepExecutionRepository.findByProcess(proc)).thenReturn(List.of(se, compensationSe));
+        when(stepExecutionRepository.findByProcess(proc))
+                .thenReturn(List.of(completedCompensable(), se, compensationSe));
 
         handler.handle(new StepExecutionStatusChanged("se-1", TaskStatus.ERROR, List.of()));
 
-        // The failed rollbackable step's own compensation is the latest-executed, so it runs first.
+        // The completed step is compensated; the failed step (se-1) triggers the rollback but is not.
         verify(stepExecutionRepository).save(compensationSe);
         verify(workflowMetrics).compensationTriggered("wd-1");
     }
 
     @Test
     void marksProcessCompensatedWhenRollbackChainCompletes() {
-        // A rollbackable step that failed, whose compensation has already COMPLETED: the chain
-        // is done, so the completion event flips the process to COMPENSATED.
+        // A completed compensable step whose compensation has already COMPLETED: the chain is
+        // done, so the completion event flips the process to COMPENSATED. (se-1 is the failure that
+        // triggered the rollback; it is not itself compensated.)
         var failed = se(1, 1, true, "comp-step");
         var compensationStep = step(0, false, null).withId("comp-step");
         var compensationSe = StepExecution.builder()
@@ -159,7 +176,8 @@ class StepExecutionStatusUpdatedEventHandlerTest {
                 .variables(List.of()).build();
 
         when(stepExecutionRepository.findById("comp-se")).thenReturn(Optional.of(compensationSe));
-        when(stepExecutionRepository.findByProcess(proc)).thenReturn(List.of(failed, compensationSe));
+        when(stepExecutionRepository.findByProcess(proc))
+                .thenReturn(List.of(completedCompensable(), failed, compensationSe));
 
         handler.handle(new StepExecutionStatusChanged("comp-se", TaskStatus.COMPLETED, List.of()));
 
@@ -174,7 +192,8 @@ class StepExecutionStatusUpdatedEventHandlerTest {
         var compensationSe = compensationExecution(StepExecutionStatus.COMPLETED);
 
         when(stepExecutionRepository.findById("comp-se")).thenReturn(Optional.of(compensationSe));
-        when(stepExecutionRepository.findByProcess(proc)).thenReturn(List.of(failed, compensationSe));
+        when(stepExecutionRepository.findByProcess(proc))
+                .thenReturn(List.of(completedCompensable(), failed, compensationSe));
 
         handler.handle(new StepExecutionStatusChanged("comp-se", TaskStatus.COMPLETED, List.of()));
 
@@ -196,7 +215,7 @@ class StepExecutionStatusUpdatedEventHandlerTest {
 
         when(stepExecutionRepository.findById("comp-se")).thenReturn(Optional.of(compensationSe));
         when(stepExecutionRepository.findByProcess(proc))
-                .thenReturn(List.of(failed, compensationSe, neverRan));
+                .thenReturn(List.of(completedCompensable(), failed, compensationSe, neverRan));
 
         handler.handle(new StepExecutionStatusChanged("comp-se", TaskStatus.COMPLETED, List.of()));
 
@@ -226,7 +245,7 @@ class StepExecutionStatusUpdatedEventHandlerTest {
 
         when(stepExecutionRepository.findById("comp-se")).thenReturn(Optional.of(compensationSe));
         when(stepExecutionRepository.findByProcess(proc))
-                .thenReturn(List.of(failed, compensationSe, running, neverDispatched));
+                .thenReturn(List.of(completedCompensable(), failed, compensationSe, running, neverDispatched));
 
         handler.handle(new StepExecutionStatusChanged("comp-se", TaskStatus.COMPLETED, List.of()));
 
@@ -239,14 +258,15 @@ class StepExecutionStatusUpdatedEventHandlerTest {
 
     @Test
     void marksProcessCompensationFailedWhenACompensationItselfFails() {
-        // A rollbackable step failed and its compensation was run — but the compensation itself
+        // A compensable step failed and its compensation was run — but the compensation itself
         // errored (retries=0). The rollback cannot complete: the process must reach the distinct,
         // sticky COMPENSATION_FAILED terminal (never left in ERROR) and the failure must be metered.
         var failed = se(1, 1, true, "comp-step");
         var compensationSe = compensationExecution(StepExecutionStatus.ERROR);
 
         when(stepExecutionRepository.findById("comp-se")).thenReturn(Optional.of(compensationSe));
-        when(stepExecutionRepository.findByProcess(proc)).thenReturn(List.of(failed, compensationSe));
+        when(stepExecutionRepository.findByProcess(proc))
+                .thenReturn(List.of(completedCompensable(), failed, compensationSe));
 
         handler.handle(new StepExecutionStatusChanged("comp-se", TaskStatus.ERROR, List.of()));
 

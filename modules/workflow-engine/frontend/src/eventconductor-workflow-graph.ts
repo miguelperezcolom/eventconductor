@@ -32,7 +32,7 @@ interface WorkflowStep {
     childWorkflowDefinitionId?: string;
     timeout?: number;
     retries?: number;
-    rollbackable?: boolean;
+    compensable?: boolean;
     compensationStepId?: string;
     /** JOIN only: "AND" (default, wait all) or "XOR" (proceed on any one). */
     joinType?: "AND" | "XOR";
@@ -542,10 +542,10 @@ function preconditionsOf(step: WorkflowStep): string[] {
  * path-by-path token animation. Roots are steps with no precondition; sinks are steps nothing
  * depends on. Capped, and cycle-guarded, so a pathological graph can't blow up.
  */
-/** Step ids that are some rollbackable step's compensationStepId. */
+/** Step ids that are some compensable step's compensationStepId. */
 function compTargets(steps: WorkflowStep[]): Set<string> {
     const t = new Set<string>();
-    for (const s of steps) if (s.rollbackable && s.compensationStepId) t.add(s.compensationStepId);
+    for (const s of steps) if (s.compensable && s.compensationStepId) t.add(s.compensationStepId);
     return t;
 }
 
@@ -564,8 +564,8 @@ function allPaths(steps: WorkflowStep[]): string[][] {
                 hasIncoming.add(s.id);
             }
         }
-        // Compensation edge — the error case: a rollbackable step can go to its compensation.
-        if (s.rollbackable && s.compensationStepId && ids.has(s.compensationStepId)) {
+        // Compensation edge — the error case: a compensable step can go to its compensation.
+        if (s.compensable && s.compensationStepId && ids.has(s.compensationStepId)) {
             (outgoing[s.id] ??= []).push(s.compensationStepId);
             hasIncoming.add(s.compensationStepId);
         }
@@ -891,7 +891,7 @@ export class MateuWorkflowElk extends LitElement {
                     layoutOptions: {"elk.layered.priority.direction": "10"},
                 } as ElkExtendedEdge)));
         const rollback = steps
-            .filter(s => s.rollbackable && s.compensationStepId && ids.has(s.compensationStepId))
+            .filter(s => s.compensable && s.compensationStepId && ids.has(s.compensationStepId))
             .map(s => ({
                 id: `${s.id}~>${s.compensationStepId}`,
                 sources: [s.id],
@@ -1033,12 +1033,12 @@ export class MateuWorkflowElk extends LitElement {
      *
      * <p>A step id is referenced from three places, and a leftover in any of them is a definition
      * that no longer loads: {@code preconditionStepId}, {@code preconditionStepIds}, and the
-     * {@code compensationStepId} of a rollbackable step. The last one used to be missed, which
+     * {@code compensationStepId} of a compensable step. The last one used to be missed, which
      * left a step pointing its rollback at something that was not there any more.
      *
      * <p>An emptied precondition list drops the field rather than persisting as `[]`, so deleting
      * the only input of a step leaves the same JSON as never having given it one. {@code
-     * rollbackable} is left alone: whether the step still means to roll back is the author's call,
+     * compensable} is left alone: whether the step still means to roll back is the author's call,
      * and the dangling half — the id — is what had to go.
      */
     private deleteStep(id: string) {
@@ -1358,7 +1358,7 @@ export class MateuWorkflowElk extends LitElement {
             for (const f of preconditionsOf(s)) if (this.boxForId(f) && this.boxForId(s.id)) raw.push({from: f, to: s.id, comp: false});
         }
         for (const s of steps) {
-            if (s.rollbackable && s.compensationStepId && this.boxForId(s.id) && this.boxForId(s.compensationStepId)) {
+            if (s.compensable && s.compensationStepId && this.boxForId(s.id) && this.boxForId(s.compensationStepId)) {
                 raw.push({from: s.id, to: s.compensationStepId, comp: true});
             }
         }
@@ -1697,12 +1697,12 @@ export class MateuWorkflowElk extends LitElement {
         token.style.opacity = (elapsed <= schedMs && !crossingNode && !dwellId) ? "1" : "0";
 
         // On an error/compensation path (its last edge is a compensation edge), only the failing
-        // rollbackable node pings red to flag the failure. The compensation step is the
+        // compensable node pings red to flag the failure. The compensation step is the
         // (successful) recovery, so it — and the token — keep their normal colour.
         const errorNodes = new Set<string>();
         for (let i = 1; i < path.length; i++) {
             const s = byId.get(path[i - 1]);
-            if (s && s.rollbackable && s.compensationStepId === path[i]) errorNodes.add(path[i - 1]);
+            if (s && s.compensable && s.compensationStepId === path[i]) errorNodes.add(path[i - 1]);
         }
 
         // Ping each node once, as the token reaches it (red only on the failing node)…
@@ -1865,7 +1865,7 @@ export class MateuWorkflowElk extends LitElement {
     }
 
     /**
-     * True when this step ran as a compensation — it is some rollbackable step's
+     * True when this step ran as a compensation — it is some compensable step's
      * {@link WorkflowStep.compensationStepId} and this process actually reached it.
      *
      * <p>Worth its own colour because the state alone misreads: a compensation that completes is
@@ -2403,11 +2403,11 @@ export class MateuWorkflowElk extends LitElement {
                                .value="${String(step.retries ?? 0)}"
                                @change="${ro ? nothing : (e: Event) => this.updateStep(step.id, {retries: Number((e.target as HTMLInputElement).value)})}"/>`)}
                     <div class="field row">
-                        <label class="field-label">Rollbackable</label>
-                        <input type="checkbox" ?checked="${step.rollbackable}" ?disabled="${ro}"
-                               @change="${ro ? nothing : (e: Event) => this.updateStep(step.id, {rollbackable: (e.target as HTMLInputElement).checked})}"/>
+                        <label class="field-label">Compensable</label>
+                        <input type="checkbox" ?checked="${step.compensable}" ?disabled="${ro}"
+                               @change="${ro ? nothing : (e: Event) => this.updateStep(step.id, {compensable: (e.target as HTMLInputElement).checked})}"/>
                     </div>
-                    ${step.rollbackable ? field("Compensation step", html`
+                    ${step.compensable ? field("Compensation step", html`
                         <select class="inp" ?disabled="${ro}"
                                 @change="${ro ? nothing : (e: Event) => this.updateStep(step.id, {compensationStepId: (e.target as HTMLSelectElement).value || undefined})}">
                             <option value="">— none —</option>

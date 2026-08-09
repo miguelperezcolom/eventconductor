@@ -9,34 +9,44 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * E2E-COMP-01. The {@code compensation} definition declares {@code refund} with no preconditions
- * at all — a compensation is declared on the step it undoes, and the rollback pipeline starts it,
- * so it needs no way in of its own. ({@code compensation-cascade} still anchors its compensations
- * with a permanently false guard, which is how this had to be written before and still works.)
+ * E2E-COMP-01. The {@code compensation} definition is a two-step saga: {@code charge} (compensated
+ * by {@code refund}) then {@code ship} (compensated by {@code unship}). {@code charge} succeeds and
+ * {@code ship} fails, so the rollback undoes the step that <b>committed</b> work — charge, via
+ * refund — and never the step that failed. The compensations declare no preconditions of their own:
+ * a compensation is declared on the step it undoes, and the rollback pipeline starts it.
  */
 class CompensationE2eTest extends AbstractE2eTest {
 
     @Test
-    void failingRollbackableStepTriggersCompensation() {
-        worker.on("charge", TestWorker.fail());     // retries=0 → fails immediately
-        worker.on("refund", TestWorker.succeed());  // compensation
+    void aLaterFailureCompensatesTheCompletedStepButNotTheFailedOne() {
+        worker.on("charge", TestWorker.succeed());
+        worker.on("ship", TestWorker.fail());       // retries=0 → fails immediately, triggers rollback
+        worker.on("refund", TestWorker.succeed());  // charge's compensation
+        worker.on("unship", TestWorker.succeed());  // wired, but ship failed so it must never run
 
         createProcess("compensation", "comp-1");
 
-        assertThat(step("comp-1", "charge").getStatus()).isEqualTo(StepExecutionStatus.ERROR);
+        assertThat(step("comp-1", "charge").getStatus()).isEqualTo(StepExecutionStatus.COMPLETED);
+        assertThat(step("comp-1", "ship").getStatus()).isEqualTo(StepExecutionStatus.ERROR);
+        // The completed step is compensated…
         assertThat(worker.invocationsOf("refund"))
-                .as("compensation step must run when a rollbackable step exhausts retries")
+                .as("the compensation of a completed step must run when a later step fails")
                 .isEqualTo(1);
         assertThat(step("comp-1", "refund").getStatus()).isEqualTo(StepExecutionStatus.COMPLETED);
-        // A single failed rollbackable step is the degenerate cascade: its compensation runs
-        // and the process ends fully rolled back (COMPENSATED), not left in ERROR.
+        // …the failed step is not: it committed nothing to undo.
+        assertThat(worker.invocationsOf("unship"))
+                .as("the compensation of the failed step must never run")
+                .isZero();
+        // The process rolled back cleanly to COMPENSATED, not left in ERROR.
         assertThat(process("comp-1").getStatus()).isEqualTo(ProcessStatus.COMPENSATED);
     }
 
     @Test
     void aRolledBackProcessIsFinished_notLeftLookingLikeItIsStillGoing() {
-        worker.on("charge", TestWorker.fail());
+        worker.on("charge", TestWorker.succeed());
+        worker.on("ship", TestWorker.fail());
         worker.on("refund", TestWorker.succeed());
+        worker.on("unship", TestWorker.succeed());
 
         createProcess("compensation", "comp-3");
 
@@ -46,17 +56,18 @@ class CompensationE2eTest extends AbstractE2eTest {
         // And nothing is left looking like it is waiting its turn: 'end' never ran and never will.
         assertThat(step("comp-3", "end").getStatus()).isEqualTo(StepExecutionStatus.CANCELLED);
         // The step that failed keeps its ERROR — it is the record of why this happened.
-        assertThat(step("comp-3", "charge").getStatus()).isEqualTo(StepExecutionStatus.ERROR);
+        assertThat(step("comp-3", "ship").getStatus()).isEqualTo(StepExecutionStatus.ERROR);
     }
 
     @Test
     void aFailedCompensationReachesCompensationFailed_notSilentlyWedged() {
-        worker.on("charge", TestWorker.fail());   // rollbackable step fails → triggers rollback
+        worker.on("charge", TestWorker.succeed());
+        worker.on("ship", TestWorker.fail());     // triggers rollback of the completed charge
         worker.on("refund", TestWorker.fail());   // the compensation itself fails (retries=0)
 
         createProcess("compensation", "comp-4");
 
-        assertThat(step("comp-4", "charge").getStatus()).isEqualTo(StepExecutionStatus.ERROR);
+        assertThat(step("comp-4", "ship").getStatus()).isEqualTo(StepExecutionStatus.ERROR);
         assertThat(step("comp-4", "refund").getStatus()).isEqualTo(StepExecutionStatus.ERROR);
         // The whole point of the fix: a saga whose compensation fails must reach the distinct,
         // sticky COMPENSATION_FAILED terminal — never left in ERROR, half-rolled-back and silent.
@@ -71,7 +82,9 @@ class CompensationE2eTest extends AbstractE2eTest {
     @Test
     void aCompensationDoesNotRunWhenNothingWentWrong() {
         worker.on("charge", TestWorker.succeed());
+        worker.on("ship", TestWorker.succeed());
         worker.on("refund", TestWorker.succeed());
+        worker.on("unship", TestWorker.succeed());
 
         createProcess("compensation", "comp-2");
 
@@ -79,7 +92,9 @@ class CompensationE2eTest extends AbstractE2eTest {
         // refund every successful charge, and — being an ordinary step — carry the flow on past
         // itself while it was at it.
         assertThat(worker.invocationsOf("refund")).isZero();
+        assertThat(worker.invocationsOf("unship")).isZero();
         assertThat(step("comp-2", "refund").getStatus()).isEqualTo(StepExecutionStatus.CANCELLED);
+        assertThat(step("comp-2", "unship").getStatus()).isEqualTo(StepExecutionStatus.CANCELLED);
         assertThat(process("comp-2").getStatus()).isEqualTo(ProcessStatus.COMPLETED);
     }
 }

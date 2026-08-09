@@ -102,7 +102,7 @@ Dispatches a task to a worker microservice (or embedded bean). The workflow paus
   "preconditionStepId": "start",
   "timeout": 30000,
   "retries": 3,
-  "rollbackable": true,
+  "compensable": true,
   "compensationStepId": "refund-payment"
 }
 ```
@@ -425,6 +425,6 @@ An `END` step is recommended, but not enforced: the engine also completes a proc
 | `outputVariables` | string[] | — | PROCESS only: child variables copied back into the parent on completion; empty/absent = none |
 | `timeout` | integer (ms) | `0` | Max execution time; `0` = no timeout |
 | `retries` | integer | `0` | Auto-retry attempts on ERROR or TIMEOUT |
-| `rollbackable` | boolean | `false` | Trigger compensation step on failure |
-| `compensationStepId` | string | — | Step to run as compensation. **Required when `rollbackable: true`** (enforced by the JSON schema) |
+| `compensable` | boolean | `false` | Trigger compensation step on failure |
+| `compensationStepId` | string | — | Step to run as compensation. **Required when `compensable: true`** (enforced by the JSON schema) |
 | `maxSuccessfulExecutions` | integer | `0` | Cap on how many times this step may successfully run within one process instance (backstop against runaway loops). `0` inherits the workflow-level `defaultMaxStepExecutions`; both `0` = unbounded. Validated design metadata today — the engine runs each step once, and the cap will be enforced when step re-execution lands |

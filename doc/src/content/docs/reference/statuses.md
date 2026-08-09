@@ -11,8 +11,8 @@ description: All status values for process instances and step executions.
 | `RUNNING` | At least one step is currently executing |
 | `PAUSED` | Held by an operator (or a paused definition) — no new steps start, clocks are frozen |
 | `COMPLETED` | All steps finished successfully |
-| `ERROR` | A step failed after exhausting all retries, and the process was left as it fell (no rollback, or nothing rollbackable had run) |
-| `COMPENSATED` | The process failed and every executed rollbackable step was successfully compensated in reverse execution order (saga rollback) |
+| `ERROR` | A step failed after exhausting all retries, and the process was left as it fell (no rollback, or nothing compensable had run) |
+| `COMPENSATED` | The process failed and every executed compensable step was successfully compensated in reverse execution order (saga rollback) |
 | `COMPENSATION_FAILED` | The process failed and a saga rollback started, but a compensation step itself failed after its own retries — the process is **partially rolled back** and needs manual resolution |
 | `CANCELLED` | Process was cancelled by an operator or a cancellation event |
 

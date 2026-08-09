@@ -89,7 +89,7 @@ deadline on the process as a whole.
 
 ## Compensation (Saga pattern)
 
-For distributed transactions, use `rollbackable` + `compensationStepId` to define compensation logic:
+For distributed transactions, use `compensable` + `compensationStepId` to define compensation logic:
 
 ```json
 {
@@ -105,7 +105,7 @@ For distributed transactions, use `rollbackable` + `compensationStepId` to defin
       "name": "Reserve Hotel",
       "topic": "hotel-service",
       "preconditionStepId": "start",
-      "rollbackable": true,
+      "compensable": true,
       "compensationStepId": "cancel-hotel",
       "retries": 2
     },
@@ -115,7 +115,7 @@ For distributed transactions, use `rollbackable` + `compensationStepId` to defin
       "name": "Reserve Flight",
       "topic": "flight-service",
       "preconditionStepId": "reserve-hotel",
-      "rollbackable": true,
+      "compensable": true,
       "compensationStepId": "cancel-flight"
     },
     {
@@ -165,7 +165,7 @@ any step fails after exhausting its retries:
    `eventconductor.compensations.failed` metric (the one compensation metric to alert on) and logs
    loudly, so an operator can find the process and resolve the inconsistent state by hand.
 
-A single failed rollbackable step is just the degenerate case of this cascade: its one
+A single failed compensable step is just the degenerate case of this cascade: its one
 compensation runs and the process ends `COMPENSATED`.
 
 ## Conditional skipping
@@ -247,7 +247,7 @@ Neither is accepted for a `COMPLETED` or `COMPENSATED` process, or for one still
 ## What this saves you
 
 The three mechanisms on this page — a timeout and bounded retries per step, and compensation
-declared as `rollbackable` plus `compensationStepId` — are fields of a step here because the engine
+declared as `compensable` plus `compensationStepId` — are fields of a step here because the engine
 fixes how they behave. Expressing the same behaviour in a notation that assumes nothing costs a
 great deal more: the
 [comparison page](/guides/comparison/#what-the-diagram-costs-an-asynchronous-compensating-saga)
