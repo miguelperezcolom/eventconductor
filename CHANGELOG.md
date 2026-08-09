@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-08-09
+
+First stable release. The formats, configuration and metrics documented here are the frozen 1.0
+public API.
+
 ### Changed
 - **The step property `rollbackable` is now `compensable`.** The engine calls it compensation, so
   the field that turns it on now matches. Definitions and in-flight state written with `rollbackable`
