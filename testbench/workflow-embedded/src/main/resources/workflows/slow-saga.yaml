@@ -14,7 +14,7 @@ steps:
     name: Reserve the room
     topic: work
     preconditionStepId: start
-    rollbackable: true
+    compensable: true
     compensationStepId: cancelReservation
   - id: settle
     type: TIMER

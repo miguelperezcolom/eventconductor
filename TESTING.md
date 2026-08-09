@@ -82,7 +82,7 @@ guarantees is specified below and in the reliability and scale runs under
 | E2E-RET-03 | **Manual step retry.** Retrying a failed step (operator action) resets it, re-dispatches it and — if it then succeeds — the process resumes and completes. |
 | E2E-RET-04 | **Manual process retry.** `RetryProcessUseCase` resets all ERROR/TIMEOUT steps and resumes the flow. |
 | E2E-RET-05 | **Retry cannot revive a cancelled process.** Retrying a failed step of a CANCELLED process is a no-op. |
-| E2E-COMP-01 | **Compensation (saga).** A `rollbackable` step that exhausts retries triggers its `compensationStepId` step; the compensation executes and the process ends `ERROR`. |
+| E2E-COMP-01 | **Compensation (saga).** A `compensable` step that exhausts retries triggers its `compensationStepId` step; the compensation executes and the process ends `ERROR`. |
 | E2E-TIME-01 | **Step timeout.** A step with `timeout` whose worker never responds transitions to `TIMEOUT` via the timeout scheduler (works in memory mode too), the worker receives `TaskCancellationRequested`, and retry/failure semantics engage. |
 | E2E-CANC-01 | **Cancellation mid-flight.** Cancelling a RUNNING process marks it CANCELLED first, cancels non-terminal steps, publishes `TaskCancellationRequested` for in-flight ones, and never dispatches new steps during cancellation. |
 | E2E-CANC-02 | **Late worker report after cancellation.** A `COMPLETED` report arriving for an already-CANCELLED step is ignored (terminal-state guard). |

@@ -25,7 +25,7 @@ public class StepEntity {
 
     String variables;
 
-    boolean rollbackable;
+    boolean compensable;
 
     long timeout;
 

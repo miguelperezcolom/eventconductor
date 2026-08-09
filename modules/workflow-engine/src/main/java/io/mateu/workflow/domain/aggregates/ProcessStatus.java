@@ -8,7 +8,7 @@ public enum ProcessStatus {
     CANCELLED,
     ERROR,
     /**
-     * Terminal state reached when a process failed and every executed rollbackable step was
+     * Terminal state reached when a process failed and every executed compensable step was
      * successfully compensated (saga rollback), in reverse execution order. Distinct from
      * {@link #ERROR} — which means the process failed and did NOT (fully) roll back — and
      * sticky like it: nothing may transition a COMPENSATED process back to RUNNING/ERROR.

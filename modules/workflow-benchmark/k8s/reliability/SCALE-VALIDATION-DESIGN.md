@@ -250,7 +250,7 @@ role) and selected per-process by the driver (weighted business-key prefixes):
 
 | Definition | Exercises | ~weight |
 |---|---|---|
-| `order-saga` | ACTION→RULE→ACTION with `rollbackable` steps + `compensationStepId` — a payment/booking saga | 40% |
+| `order-saga` | ACTION→RULE→ACTION with `compensable` steps + `compensationStepId` — a payment/booking saga | 40% |
 | `fanout` | FORK → k parallel ACTIONs → JOIN | 15% |
 | `timed` | ACTION → TIMER (short) → ACTION (durable wait across restarts) | 15% |
 | `message` | ACTION → WAIT_FOR_MESSAGE ⇢ SEND_MESSAGE from a sibling process (correlation) | 10% |

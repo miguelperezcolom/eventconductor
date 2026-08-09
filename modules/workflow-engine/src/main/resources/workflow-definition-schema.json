@@ -356,12 +356,12 @@
           "minimum": 0,
           "default": 0
         },
-        "rollbackable": {
+        "compensable": {
           "type": [
             "boolean",
             "null"
           ],
-          "description": "Whether this step must be compensated (undone) when the process fails. When any step fails after exhausting its retries, the compensations of ALL executed rollbackable steps run sequentially in reverse execution order (saga rollback), and the process ends COMPENSATED.",
+          "description": "Whether this step must be compensated (undone) when the process fails. When any step fails after exhausting its retries, the compensations of ALL executed compensable steps run sequentially in reverse execution order (saga rollback), and the process ends COMPENSATED.",
           "default": false
         },
         "compensationStepId": {
@@ -369,7 +369,7 @@
             "string",
             "null"
           ],
-          "description": "ID of the step that undoes this step's effect. Run during saga rollback (in reverse execution order) when the process fails. Only relevant when rollbackable is true. The compensation step needs no preconditions of its own: being named here is what makes it reachable, and the rollback pipeline starts it directly. (Definitions written before that anchor it to a precondition and guard it with preconditionExpression 'false'; still supported.)"
+          "description": "ID of the step that undoes this step's effect. Run during saga rollback (in reverse execution order) when the process fails. Only relevant when compensable is true. The compensation step needs no preconditions of its own: being named here is what makes it reachable, and the rollback pipeline starts it directly. (Definitions written before that anchor it to a precondition and guard it with preconditionExpression 'false'; still supported.)"
         },
         "maxSuccessfulExecutions": {
           "type": [
@@ -542,12 +542,12 @@
         {
           "if": {
             "properties": {
-              "rollbackable": {
+              "compensable": {
                 "const": true
               }
             },
             "required": [
-              "rollbackable"
+              "compensable"
             ]
           },
           "then": {

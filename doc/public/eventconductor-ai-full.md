@@ -156,7 +156,7 @@ definition, add one `START` and point the old first steps at it.
 ```json
 { "id": "charge", "type": "ACTION", "name": "Charge Payment", "topic": "payment-service",
   "preconditionStepId": "start",
-  "timeout": "PT30S", "retries": 3, "rollbackable": true, "compensationStepId": "refund" }
+  "timeout": "PT30S", "retries": 3, "compensable": true, "compensationStepId": "refund" }
 ```
 - **Kafka mode:** `topic` is the destination; a `TaskExecutionRequested` is published there. Required.
 - **Embedded mode:** `topic` is ignored — all ACTION steps route to the single `EmbeddedTaskExecutor` bean. May be omitted.
@@ -262,8 +262,8 @@ Exactly one per workflow. Transitions the process to `COMPLETED`. With parallel 
 | `messageVariables` | string[] | — | Process-variable names the outgoing message carries (SEND_MESSAGE); empty/absent = none |
 | `timeout` | duration | `0` | ISO-8601 (`PT30S`, `PT5M`, `PT1H30M`) or ms integer; `0` = none |
 | `retries` | integer | `0` | Auto-retry attempts on ERROR/TIMEOUT |
-| `rollbackable` | boolean | `false` | Enable saga compensation on failure |
-| `compensationStepId` | string | — | Compensation step (needs `rollbackable: true`) |
+| `compensable` | boolean | `false` | Enable saga compensation on failure |
+| `compensationStepId` | string | — | Compensation step (needs `compensable: true`) |
 | `maxSuccessfulExecutions` | integer | `0` | Cap on successful executions of this step (validated metadata; not enforced at runtime today) |
 
 ---
@@ -434,7 +434,7 @@ Worker outputs are **merged into process variables** (overwriting same-named one
 
 - `retries: N` — retry a step up to N times on `ERROR` or `TIMEOUT`.
 - `timeout` — on expiry the step goes `TIMEOUT`, then retries if attempts remain, else `ERROR`. A process in `ERROR` (after retries exhausted) can be retried, transitioning back to `RUNNING`.
-- **Saga**: mark steps `rollbackable: true` with a `compensationStepId`. When any step fails after exhausting retries, the engine runs the compensations of **every executed rollbackable step** (completed steps plus the one that just failed) **sequentially, in reverse execution order** — latest-executed undone first, each starting only once the previous compensation completes. When the whole chain finishes the process ends in the terminal **`COMPENSATED`** state; if a compensation itself fails after its own retries, the chain halts and the process stays `ERROR`. Define compensation steps as ordinary `ACTION` steps with **no preconditions** — being named as a `compensationStepId` is what makes them reachable, and the dataflow never starts a step that has nothing to wait for. (Older definitions anchor them with `"preconditionExpression": "false"`; still supported. An anchor without the guard is a live branch of the happy path.)
+- **Saga**: mark steps `compensable: true` with a `compensationStepId`. When any step fails after exhausting retries, the engine runs the compensations of **every executed compensable step** (completed steps plus the one that just failed) **sequentially, in reverse execution order** — latest-executed undone first, each starting only once the previous compensation completes. When the whole chain finishes the process ends in the terminal **`COMPENSATED`** state; if a compensation itself fails after its own retries, the chain halts and the process stays `ERROR`. Define compensation steps as ordinary `ACTION` steps with **no preconditions** — being named as a `compensationStepId` is what makes them reachable, and the dataflow never starts a step that has nothing to wait for. (Older definitions anchor them with `"preconditionExpression": "false"`; still supported. An anchor without the guard is a live branch of the happy path.)
 
 ```json
 {
@@ -443,10 +443,10 @@ Worker outputs are **merged into process variables** (overwriting same-named one
     { "id": "start", "type": "START", "name": "Start" },
     { "id": "reserve-hotel",  "type": "ACTION", "topic": "hotel-service",
       "preconditionStepId": "start",
-      "rollbackable": true, "compensationStepId": "cancel-hotel", "retries": 2 },
+      "compensable": true, "compensationStepId": "cancel-hotel", "retries": 2 },
     { "id": "reserve-flight", "type": "ACTION", "topic": "flight-service",
       "preconditionStepId": "reserve-hotel",
-      "rollbackable": true, "compensationStepId": "cancel-flight" },
+      "compensable": true, "compensationStepId": "cancel-flight" },
     { "id": "cancel-hotel",  "type": "ACTION", "topic": "hotel-service" },
     { "id": "cancel-flight", "type": "ACTION", "topic": "flight-service" },
     { "id": "end", "type": "END", "preconditionStepId": "reserve-flight" }

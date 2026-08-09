@@ -119,9 +119,12 @@ public record Step(
         long timeout,
         @HiddenInList
         int retries,
+        // @JsonAlias keeps definitions and in-flight step JSON written before the rename (the field
+        // was `rollbackable`) deserialising unchanged — the value lives in the persisted stepJson.
         @HiddenInList
-        boolean rollbackable,
-        @Hidden("!state['rollbackable']")
+        @com.fasterxml.jackson.annotation.JsonAlias("rollbackable")
+        boolean compensable,
+        @Hidden("!state['compensable']")
         @Lookup(bubble = true)
         String compensationStepId,
         /**
@@ -167,12 +170,12 @@ public record Step(
                 boolean parallel, String topic, String formId, String ruleId,
                 String childWorkflowDefinitionId, List<String> outputVariables, long duration,
                 String untilVariable, String messageName, String correlationExpression,
-                List<String> messageVariables, long timeout, int retries, boolean rollbackable,
+                List<String> messageVariables, long timeout, int retries, boolean compensable,
                 String compensationStepId, int maxSuccessfulExecutions, JoinType joinType) {
         this(id, workflowDefinitionId, type, name, description, preconditionStepId, preconditionStepIds,
                 null, preconditionExpression, parallel, topic, formId, ruleId, childWorkflowDefinitionId,
                 outputVariables, duration, untilVariable, messageName, correlationExpression,
-                messageVariables, timeout, retries, rollbackable, compensationStepId,
+                messageVariables, timeout, retries, compensable, compensationStepId,
                 maxSuccessfulExecutions, joinType, java.util.List.of(), java.util.List.of());
     }
 

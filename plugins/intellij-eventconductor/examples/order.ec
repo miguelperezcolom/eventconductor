@@ -16,7 +16,7 @@ steps:
     preconditionStepId: validate
     timeout: 30000
     retries: 2
-    rollbackable: true
+    compensable: true
     compensationStepId: refund
   - id: refund
     type: ACTION

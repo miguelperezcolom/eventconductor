@@ -22,7 +22,7 @@ steps:
     preconditionStepId: start
     timeout: PT2M
     retries: 3
-    rollbackable: true
+    compensable: true
     compensationStepId: cancel-flight
 
   - id: reserve-stay
@@ -32,7 +32,7 @@ steps:
     preconditionStepId: reserve-flight
     timeout: PT2M
     retries: 3
-    rollbackable: true
+    compensable: true
     compensationStepId: cancel-stay
 
   - id: reserve-transfer
@@ -42,7 +42,7 @@ steps:
     preconditionStepId: reserve-stay
     timeout: PT1M
     retries: 3
-    rollbackable: true
+    compensable: true
     compensationStepId: cancel-transfer
 
   - id: reserve-excursions
@@ -52,7 +52,7 @@ steps:
     preconditionStepId: reserve-transfer
     timeout: PT1M
     retries: 3
-    rollbackable: true
+    compensable: true
     compensationStepId: cancel-excursions
 
   - id: confirm

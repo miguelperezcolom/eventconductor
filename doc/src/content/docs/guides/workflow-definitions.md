@@ -230,8 +230,8 @@ archiving.
 | `messageVariables` | string[] | — | SEND_MESSAGE only: names of the process variables the outgoing message carries. Empty or absent = none — process state is never sent implicitly |
 | `timeout` | duration | `0` | Max execution time. ISO 8601 string (`PT30S`, `PT5M`, `PT1H30M`) or integer milliseconds. `0` = no timeout |
 | `retries` | integer | `0` | Auto-retry attempts on ERROR or TIMEOUT |
-| `rollbackable` | boolean | `false` | Trigger compensation step on failure |
-| `compensationStepId` | string | — | Step to run as compensation (required when `rollbackable: true`) |
+| `compensable` | boolean | `false` | Trigger compensation step on failure |
+| `compensationStepId` | string | — | Step to run as compensation (required when `compensable: true`) |
 | `maxSuccessfulExecutions` | integer | `0` | Cap on successful runs of this step per process instance; `0` inherits the workflow's `defaultMaxStepExecutions` |
 | `joinType` | enum | `AND` | JOIN only: `AND` (default) is a synchronizing join that waits for **all** incoming branches; `XOR` is an exclusive join that proceeds on **any one**. Null/absent = `AND` |
 
@@ -480,7 +480,7 @@ steps:
       "name": "Reserve Hotel",
       "topic": "hotel-service",
       "preconditionStepId": "start",
-      "rollbackable": true,
+      "compensable": true,
       "compensationStepId": "cancel-hotel",
       "retries": 2
     },
@@ -490,7 +490,7 @@ steps:
       "name": "Reserve Flight",
       "topic": "flight-service",
       "preconditionStepId": "reserve-hotel",
-      "rollbackable": true,
+      "compensable": true,
       "compensationStepId": "cancel-flight"
     },
     {
@@ -521,5 +521,5 @@ steps:
 
 Compensation steps are anchored to the step they compensate and guarded with
 `"preconditionExpression": "false"`: the normal dataflow never starts them (the guard is
-falsy), but the compensation pipeline starts them directly when the rollbackable step exhausts
+falsy), but the compensation pipeline starts them directly when the compensable step exhausts
 its retries — it does not evaluate the guard. The anchor satisfies the roots rule.

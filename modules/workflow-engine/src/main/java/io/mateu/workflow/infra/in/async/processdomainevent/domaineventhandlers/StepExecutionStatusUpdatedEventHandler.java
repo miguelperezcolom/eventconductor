@@ -109,7 +109,7 @@ public class StepExecutionStatusUpdatedEventHandler implements DomainEventHandle
 
     /**
      * Advances process-level saga rollback. When the process has finally failed, the
-     * compensations of every executed rollbackable step run sequentially in reverse execution
+     * compensations of every executed compensable step run sequentially in reverse execution
      * order: the failing event starts the first (latest-executed) compensation, and each
      * compensation's own completion event starts the next. Called on every terminal event and
      * kept idempotent by deriving the next action purely from persisted state

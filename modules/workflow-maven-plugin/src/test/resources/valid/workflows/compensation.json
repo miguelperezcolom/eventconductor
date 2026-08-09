@@ -9,7 +9,7 @@
       "type": "ACTION",
       "name": "Charge card",
       "topic": "work",
-      "rollbackable": true,
+      "compensable": true,
       "compensationStepId": "refund",
       "preconditionStepId": "start"
     },
