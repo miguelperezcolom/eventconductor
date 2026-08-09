@@ -36,6 +36,7 @@ class StepOverProcessUseCaseTest {
     @Mock WorkflowMetrics              workflowMetrics;
     @Mock NotifyParentStepService      notifyParentStepService;
     @Mock CancelChildProcessService    cancelChildProcessService;
+    @Mock io.mateu.workflow.application.out.DownstreamEventPublisher downstreamEventPublisher;
     @Spy  WorkflowOrchestrationService workflowOrchestrationService = new WorkflowOrchestrationService();
 
     // The real no-op, not a mock: a mocked span() would swallow the work it is meant to wrap.
@@ -140,6 +141,34 @@ class StepOverProcessUseCaseTest {
         verify(cancelChildProcessService).stepReachedTerminalStatus(
                 argThat(saved -> "end".equals(saved.getStepId())
                         && saved.getStatus() == StepExecutionStatus.COMPLETED));
+    }
+
+    @Test
+    void theWorkerOfAStepCancelledByAnEndTransitionIsToldToStop() {
+        // A branch dispatched to a worker while another branch reaches END: the transition
+        // cancels the row and the worker heard nothing, so it finished and reported a task done
+        // on a process that was already over.
+        var process = process("p-1");
+        var start = se("se-0", "start", StepType.START, StepExecutionStatus.COMPLETED, 0);
+        var running = se("se-run", "branch", StepType.ACTION, StepExecutionStatus.RUNNING, 1, "start");
+        var waiting = se("se-wait", "waiting", StepType.ACTION, StepExecutionStatus.CREATED, 2, "branch");
+        Step endStep = new Step("end", "wd-1", StepType.END, "end", null, "start", null, null, false, null, null, null, null, null, 0, null, null, null, null, 0, 0, false, null, 0, null);
+        var end = StepExecution.builder()
+                .id("se-end").processId("p-1").workflowDefinitionId("wd-1")
+                .stepId("end").stepJson(JsonSerializer.toJson(endStep))
+                .status(StepExecutionStatus.CREATED).order(3).variables(List.of()).build();
+
+        when(processRepository.findById("p-1")).thenReturn(Optional.of(process));
+        when(stepExecutionRepository.findByProcess(process))
+                .thenReturn(List.of(start, running, waiting, end));
+
+        useCase.handle(new StepOverProcessCommand("p-1"));
+
+        verify(downstreamEventPublisher).publish(
+                new io.mateu.workflow.dtos.events.integration.TaskCancellationRequested("se-run"));
+        // The one that never left the engine has no worker to tell.
+        verify(downstreamEventPublisher, never()).publish(
+                new io.mateu.workflow.dtos.events.integration.TaskCancellationRequested("se-wait"));
     }
 
     @Test

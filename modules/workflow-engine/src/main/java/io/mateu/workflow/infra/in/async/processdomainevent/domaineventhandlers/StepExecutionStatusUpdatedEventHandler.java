@@ -206,10 +206,26 @@ public class StepExecutionStatusUpdatedEventHandler implements DomainEventHandle
      * Cancels whatever is still live once the rollback is done — the same set an END transition
      * cancels when the flow reaches one. Nothing here can run any more: the frontier is held by a
      * failed step and the process is terminal.
+     *
+     * <p>"Still live" is not only rows waiting their turn. On a parallel flow, one branch failing
+     * leaves its siblings dispatched and running at their workers, and flipping their row to
+     * CANCELLED tells the worker nothing: it goes on and books a reservation for a saga that is
+     * already rolled back — the very thing the rollback just finished undoing. So the in-flight
+     * ones are cancelled the way {@code CancelProcessUseCase} has always cancelled them, with a
+     * {@link TaskCancellationRequested}. The two paths do the same thing to a step and had no
+     * business behaving differently.
+     *
+     * <p>The event is a request, not a guarantee: it races with the work, so a worker's handler
+     * still has to be idempotent, and a worker that ignores the event is no worse off than before.
+     * A step that timed out was already cancelled where the timeout was handled, and TIMEOUT is
+     * terminal, so it never reaches this loop twice.
      */
     private void cancelStepsThatNeverRan(List<StepExecution> executions) {
         for (var execution : executions) {
             if (CANCELLABLE_AT_THE_END.contains(execution.getStatus())) {
+                if (execution.getStatus().isInFlightAtAWorker()) {
+                    downstreamEventPublisher.publish(new TaskCancellationRequested(execution.getId()));
+                }
                 execution.updateStatus(StepExecutionStatus.CANCELLED);
                 stepExecutionRepository.save(execution);
             }

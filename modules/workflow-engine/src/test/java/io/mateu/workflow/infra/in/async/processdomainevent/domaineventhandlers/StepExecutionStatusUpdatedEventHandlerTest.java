@@ -207,6 +207,37 @@ class StepExecutionStatusUpdatedEventHandlerTest {
     }
 
     @Test
+    void theWorkerOfASiblingStillRunningIsToldToStop() {
+        // On a parallel flow the rollback ends with siblings still dispatched. Flipping their row
+        // to CANCELLED reaches nobody: the worker goes on and books a reservation for a saga that
+        // has just been undone. CancelProcessUseCase has always sent this event; this path did not.
+        var failed = se(1, 1, true, "comp-step");
+        var compensationSe = compensationExecution(StepExecutionStatus.COMPLETED);
+        var running = StepExecution.builder()
+                .id("se-sibling").processId("p-1").workflowDefinitionId("wd-1").stepId("sibling")
+                .stepJson(JsonSerializer.toJson(step(0, false, null).withId("sibling")))
+                .status(StepExecutionStatus.RUNNING)
+                .variables(List.of()).build();
+        var neverDispatched = StepExecution.builder()
+                .id("se-later").processId("p-1").workflowDefinitionId("wd-1").stepId("later")
+                .stepJson(JsonSerializer.toJson(step(0, false, null).withId("later")))
+                .status(StepExecutionStatus.CREATED)
+                .variables(List.of()).build();
+
+        when(stepExecutionRepository.findById("comp-se")).thenReturn(Optional.of(compensationSe));
+        when(stepExecutionRepository.findByProcess(proc))
+                .thenReturn(List.of(failed, compensationSe, running, neverDispatched));
+
+        handler.handle(new StepExecutionStatusChanged("comp-se", TaskStatus.COMPLETED, List.of()));
+
+        verify(downstreamEventPublisher).publish(new TaskCancellationRequested("se-sibling"));
+        // The one that was never dispatched has no worker to tell — only the row is cancelled.
+        verify(downstreamEventPublisher, never()).publish(new TaskCancellationRequested("se-later"));
+        assertThat(running.getStatus()).isEqualTo(StepExecutionStatus.CANCELLED);
+        assertThat(neverDispatched.getStatus()).isEqualTo(StepExecutionStatus.CANCELLED);
+    }
+
+    @Test
     void marksProcessCompensationFailedWhenACompensationItselfFails() {
         // A rollbackable step failed and its compensation was run — but the compensation itself
         // errored (retries=0). The rollback cannot complete: the process must reach the distinct,

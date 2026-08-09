@@ -5,8 +5,12 @@ import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.out.WorkflowMetrics;
 import io.mateu.workflow.application.usecases.process.childcancel.CancelChildProcessService;
+import io.mateu.workflow.application.out.DownstreamEventPublisher;
 import io.mateu.workflow.application.usecases.process.parentnotify.NotifyParentStepService;
+import io.mateu.workflow.domain.aggregates.StepExecution;
+import io.mateu.workflow.domain.aggregates.StepExecutionStatus;
 import io.mateu.workflow.domain.services.WorkflowOrchestrationService;
+import io.mateu.workflow.dtos.events.integration.TaskCancellationRequested;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -23,6 +27,7 @@ public class StepOverProcessUseCase {
     final WorkflowOrchestrationService workflowOrchestrationService;
     final NotifyParentStepService notifyParentStepService;
     final CancelChildProcessService cancelChildProcessService;
+    final DownstreamEventPublisher downstreamEventPublisher;
     final io.mateu.workflow.application.out.WorkflowTracing workflowTracing;
 
     public void handle(StepOverProcessCommand command) {
@@ -50,8 +55,24 @@ public class StepOverProcessUseCase {
             processRepository.save(result.getUpdatedProcess());
         }
 
+        // Status as it was before the transition decided anything. The orchestration service is
+        // pure and hands back copies (@With), so the list read above still holds the old values —
+        // which is the only way to tell a step that was merely waiting its turn from one a worker
+        // is running right now.
+        var statusBefore = stepExecutions.stream()
+                .collect(java.util.stream.Collectors.toMap(StepExecution::getId, StepExecution::getStatus));
+
         result.getStepsToSave().forEach(stepExecution -> {
             stepExecutionRepository.save(stepExecution);
+            // A branch still running at a worker when another branch reaches END is cancelled here
+            // by a plain status flip, which reaches nobody: the worker finishes and reports on a
+            // process that is already over. Same reasoning — and same event — as the saga rollback
+            // path and CancelProcessUseCase.
+            var before = statusBefore.get(stepExecution.getId());
+            if (StepExecutionStatus.CANCELLED.equals(stepExecution.getStatus())
+                    && before != null && before.isInFlightAtAWorker()) {
+                downstreamEventPublisher.publish(new TaskCancellationRequested(stepExecution.getId()));
+            }
             // END-transition and implicit-completion cancellations (and start-time errors)
             // flow through here — a PROCESS step ending CANCELLED/ERROR must take its
             // still-running child down with it.

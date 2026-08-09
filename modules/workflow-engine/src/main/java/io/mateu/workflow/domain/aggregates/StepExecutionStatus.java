@@ -20,4 +20,17 @@ public enum StepExecutionStatus {
     public boolean isTerminal() {
         return this == COMPLETED || this == CANCELLED || this == ERROR || this == TIMEOUT;
     }
+
+    /**
+     * Whether a worker may be working on this step right now: PENDING was dispatched to it and
+     * RUNNING was acknowledged by it. CREATED was never sent to anyone, and AWAITING_RETRY is
+     * parked between attempts — its previous attempt already reported back.
+     *
+     * <p>Cancelling a step in one of these two states is the only case where the engine owes the
+     * worker a {@code TaskCancellationRequested}: for every other status there is nothing out
+     * there to stop.
+     */
+    public boolean isInFlightAtAWorker() {
+        return this == PENDING || this == RUNNING;
+    }
 }
