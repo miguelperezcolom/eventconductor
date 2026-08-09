@@ -19,7 +19,7 @@ class WorkflowTracingAutoConfigurationTest {
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(
                     WorkflowTracingAutoConfiguration.class,
-                    WorkflowEngineAutoConfiguration.class));
+                    WorkflowTracingFallbackAutoConfiguration.class));
 
     @Test
     void withoutATracerDegradesToNoop() {
@@ -60,7 +60,7 @@ class WorkflowTracingAutoConfigurationTest {
         // Registering them as *user* configurations reproduces that. The no-op is now gated on the
         // Tracer class being absent, so with it present the Micrometer bridge wins whatever the order.
         new ApplicationContextRunner()
-                .withUserConfiguration(WorkflowEngineAutoConfiguration.class, WorkflowTracingAutoConfiguration.class)
+                .withUserConfiguration(WorkflowTracingAutoConfiguration.class, WorkflowTracingFallbackAutoConfiguration.class)
                 .withBean(Tracer.class, () -> mock(Tracer.class))
                 .withBean(Propagator.class, () -> mock(Propagator.class))
                 .run(context -> {

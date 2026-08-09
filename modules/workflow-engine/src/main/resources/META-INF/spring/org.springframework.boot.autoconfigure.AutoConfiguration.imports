@@ -1,5 +1,7 @@
 io.mateu.workflow.autoconfigure.WorkflowEngineAutoConfiguration
 io.mateu.workflow.autoconfigure.WorkflowMetricsAutoConfiguration
+io.mateu.workflow.autoconfigure.WorkflowMetricsFallbackAutoConfiguration
 io.mateu.workflow.autoconfigure.WorkflowTracingAutoConfiguration
+io.mateu.workflow.autoconfigure.WorkflowTracingFallbackAutoConfiguration
 io.mateu.workflow.autoconfigure.WorkflowSchemaAutoConfiguration
 io.mateu.workflow.autoconfigure.WorkflowSchemaWarningAutoConfiguration
