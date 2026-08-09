@@ -130,7 +130,12 @@ public final class DistInfra {
         props.put("spring.cloud.stream.bindings.downstream.destination", "downstream");
         props.put("spring.cloud.stream.bindings.outbox.destination", "outbox");
         props.put("spring.cloud.stream.bindings.deadLetter.destination", "dead-letter");
-        // No actuator/MeterRegistry in the test classpath.
+        // These tests assert distributed behaviour, not metrics, so the engine's Micrometer
+        // instrumentation is switched off — which also keeps this suite as the standing proof that
+        // excluding it is survivable. It was not: Micrometer *is* on this classpath (spring-cloud-
+        // stream pulls micrometer-core in transitively), the no-op fallback was gated on the class
+        // being absent, and so nothing provided WorkflowMetrics at all. Every one of these tests
+        // failed to boot a context, for days, on an exclusion that reads like a preference.
         props.put("spring.autoconfigure.exclude",
                 "io.mateu.workflow.autoconfigure.WorkflowMetricsAutoConfiguration");
         props.put("logging.level.io.mateu.workflow", "WARN");

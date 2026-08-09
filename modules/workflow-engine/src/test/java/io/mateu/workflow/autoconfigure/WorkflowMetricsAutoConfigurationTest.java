@@ -22,7 +22,7 @@ class WorkflowMetricsAutoConfigurationTest {
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(
                     WorkflowMetricsAutoConfiguration.class,
-                    WorkflowEngineAutoConfiguration.class));
+                    WorkflowMetricsFallbackAutoConfiguration.class));
 
     @Test
     void withoutMeterRegistryDegradesToNoop() {
@@ -60,7 +60,7 @@ class WorkflowMetricsAutoConfigurationTest {
         // the ordering the real app lacks). The no-op is now gated on MeterRegistry being absent, so with
         // it present the Micrometer implementation wins whatever the order.
         new ApplicationContextRunner()
-                .withUserConfiguration(WorkflowEngineAutoConfiguration.class, WorkflowMetricsAutoConfiguration.class)
+                .withUserConfiguration(WorkflowMetricsAutoConfiguration.class, WorkflowMetricsFallbackAutoConfiguration.class)
                 .withBean(SimpleMeterRegistry.class)
                 .run(context -> {
                     assertThat(context).hasSingleBean(WorkflowMetrics.class);
