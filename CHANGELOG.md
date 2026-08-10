@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-08-10
+
+### Added
+- **Failed steps are badged in the process diagram.** A completed step carries a green check in its
+  bottom-right corner; a failed (`ERROR`) step used to be marked only by its red border. It now gets
+  a matching badge — a white cross in a red circle — so a failure reads as clearly as a success at a
+  glance. Cancelled steps stay unbadged, and a compensation keeps its undo arrow.
+
 ## [1.0.0] - 2026-08-09
 
 First stable release. The formats, configuration and metrics documented here are the frozen 1.0
