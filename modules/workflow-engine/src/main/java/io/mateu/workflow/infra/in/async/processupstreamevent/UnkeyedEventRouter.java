@@ -68,4 +68,27 @@ public class UnkeyedEventRouter {
                 event.taskExecutionId(), event.status(), event.variables(), processId));
         return true;
     }
+
+    /**
+     * The same single-writer guard for a {@link io.mateu.workflow.dtos.events.integration.StepsInjected}
+     * reply. A DYNAMIC step always echoes its process, so this event is never unkeyed and this only
+     * ever returns false — the method exists so the handler reads exactly like the others and the
+     * routing symmetry is honoured, not because there is a legacy worker to route back.
+     */
+    public boolean rerouted(io.mateu.workflow.dtos.events.integration.StepsInjected event) {
+        if (!"kafka".equals(mode) || event.processId() != null) {
+            return false;
+        }
+        var processId = stepExecutionRepository.findById(event.taskExecutionId())
+                .map(stepExecution -> stepExecution.getProcessId())
+                .orElse(null);
+        if (processId == null) {
+            return false;
+        }
+        log.debug("Re-routing unkeyed steps-injected for step {} to the owner of process {}",
+                event.taskExecutionId(), processId);
+        upstreamEventPublisher.publish(new io.mateu.workflow.dtos.events.integration.StepsInjected(
+                event.taskExecutionId(), processId, event.stepsJson()));
+        return true;
+    }
 }
