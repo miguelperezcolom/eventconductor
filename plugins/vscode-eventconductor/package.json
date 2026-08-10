@@ -2,7 +2,7 @@
   "name": "eventconductor-vscode",
   "displayName": "EventConductor",
   "description": "Edit EventConductor workflow definitions (.ec) as an interactive graph or as YAML/JSON with schema validation.",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "publisher": "miguelperezcolom",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -36,7 +36,8 @@
       {
         "id": "yaml",
         "extensions": [
-          ".ec"
+          ".ec",
+          ".form"
         ]
       }
     ],

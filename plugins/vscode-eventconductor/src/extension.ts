@@ -26,8 +26,9 @@ export function activate(context: vscode.ExtensionContext) {
 export function deactivate() {}
 
 /**
- * Bind the bundled JSON schema to `*.ec` through the Red Hat YAML extension's API, so YAML (and
- * JSON, a YAML subset) `.ec` files get validation and completion in the text view.
+ * Bind the bundled JSON schemas through the Red Hat YAML extension's API, so YAML (and JSON, a
+ * YAML subset) definition files get validation and completion in the text view: `*.ec` against the
+ * workflow-definition schema, `*.form` against the form schema.
  */
 async function registerYamlSchema(context: vscode.ExtensionContext) {
   try {
@@ -35,10 +36,15 @@ async function registerYamlSchema(context: vscode.ExtensionContext) {
     if (!yamlExt) return;
     const api = await yamlExt.activate();
     if (!api || typeof api.registerContributor !== "function") return;
-    const schemaUri = vscode.Uri.joinPath(context.extensionUri, "schema", "ec.schema.json").toString();
+    const ecSchemaUri = vscode.Uri.joinPath(context.extensionUri, "schema", "ec.schema.json").toString();
+    const formSchemaUri = vscode.Uri.joinPath(context.extensionUri, "schema", "form-schema.json").toString();
     api.registerContributor(
       "eventconductor",
-      (resource: string) => (resource.endsWith(".ec") ? schemaUri : undefined),
+      (resource: string) => {
+        if (resource.endsWith(".ec")) return ecSchemaUri;
+        if (resource.endsWith(".form")) return formSchemaUri;
+        return undefined;
+      },
       () => undefined
     );
   } catch {

@@ -14,17 +14,20 @@
     <depends>org.jetbrains.plugins.yaml</depends>
 
     <extensions defaultExtensionNs="com.intellij">
-        <!-- Parse .ec as YAML (a JSON superset) so it gets highlighting and, together with the
-             schema provider below, validation. Without a file-type association it is plain text
-             and the JSON-schema engine has no PSI to validate. -->
-        <fileType name="YAML" extensions="ec"/>
-        <!-- A split editor: text (YAML/JSON) on one side, the interactive graph (JCEF) on the other. -->
+        <!-- Parse .ec and .form as YAML (a JSON superset) so they get highlighting and, together
+             with the schema providers below, validation. Without a file-type association they are
+             plain text and the JSON-schema engine has no PSI to validate. Multiple extensions are
+             semicolon-separated. -->
+        <fileType name="YAML" extensions="ec;form"/>
+        <!-- A split editor: text (YAML/JSON) on one side, the interactive graph (JCEF) on the other.
+             Bound to .ec only — .form is text-only in this phase (no graph editor). -->
         <fileEditorProvider implementation="com.eventconductor.intellij.EcFileEditorProvider"/>
     </extensions>
 
-    <!-- Validate/complete .ec against the workflow-definition JSON schema (applies to YAML too).
+    <!-- Validate/complete .ec and .form against their JSON schemas (applies to YAML too).
          The JSON-schema provider EP lives in the JavaScript namespace. -->
     <extensions defaultExtensionNs="JavaScript">
         <JsonSchema.ProviderFactory implementation="com.eventconductor.intellij.EcJsonSchemaProviderFactory"/>
+        <JsonSchema.ProviderFactory implementation="com.eventconductor.intellij.FormJsonSchemaProviderFactory"/>
     </extensions>
 </idea-plugin>

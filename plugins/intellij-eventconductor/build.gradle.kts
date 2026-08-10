@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "com.eventconductor"
-version = "0.1.5"
+version = "0.1.6"
 
 repositories {
     mavenCentral()
@@ -72,6 +72,9 @@ val syncSchema by tasks.registering(Copy::class) {
     val repo = rootProject.projectDir.resolve("../..")
     from(repo.resolve("modules/workflow-engine/src/main/resources/workflow-definition-schema.json")) {
         rename { "ec.schema.json" }
+    }
+    from(repo.resolve("modules/forms-engine/src/main/resources/form-schema.json")) {
+        rename { "form.schema.json" }
     }
     into(layout.projectDirectory.dir("src/main/resources/schema"))
 }

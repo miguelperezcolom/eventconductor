@@ -1,5 +1,5 @@
-// Copies the shared graph bundle and the workflow-definition JSON schema into the extension,
-// so it ships a self-contained copy. Run automatically by `npm run compile`.
+// Copies the shared graph bundle and the workflow-definition + form JSON schemas into the
+// extension, so it ships self-contained copies. Run automatically by `npm run compile`.
 const fs = require("fs");
 const path = require("path");
 
@@ -14,6 +14,10 @@ const assets = [
   {
     from: path.join(repo, "modules/workflow-engine/src/main/resources/workflow-definition-schema.json"),
     to: path.join(root, "schema/ec.schema.json"),
+  },
+  {
+    from: path.join(repo, "modules/forms-engine/src/main/resources/form-schema.json"),
+    to: path.join(root, "schema/form-schema.json"),
   },
 ];
 
