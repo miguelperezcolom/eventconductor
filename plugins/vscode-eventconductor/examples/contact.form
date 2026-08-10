@@ -1,0 +1,21 @@
+name: Contact form
+description: Collects a person's contact details.
+fields:
+  - id: fullName
+    label: Full name
+    dataType: string
+    required: true
+  - id: email
+    label: Email
+    dataType: string
+    stereotype: email
+    required: true
+  - id: message
+    label: Message
+    dataType: string
+    stereotype: textarea
+    description: Tell us how we can help.
+  - id: subscribe
+    label: Subscribe to the newsletter
+    dataType: bool
+    stereotype: checkbox
