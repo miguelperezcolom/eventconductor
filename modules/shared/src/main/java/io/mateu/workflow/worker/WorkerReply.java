@@ -1,6 +1,7 @@
 package io.mateu.workflow.worker;
 
 import io.mateu.workflow.dtos.Variable;
+import io.mateu.workflow.dtos.events.integration.StepsInjected;
 import io.mateu.workflow.dtos.events.integration.TaskExecutionRequested;
 import io.mateu.workflow.dtos.events.integration.TaskStatus;
 import io.mateu.workflow.dtos.events.integration.TaskStatusChanged;
@@ -72,6 +73,49 @@ public final class WorkerReply {
     }
 
     /**
+     * Injects new steps into the running process — the DYNAMIC step's one extra move.
+     *
+     * <p>Only a {@code DYNAMIC} step may inject; the engine rejects the message from any other
+     * type. It is <b>add-only</b>: the steps in {@code stepsJson} are materialised alongside the
+     * ones already there, never rewriting or removing them. The worker supplies each step
+     * <em>with its own preconditions</em> — the relations that make it reachable — because there is
+     * no default wiring: an injected step with no precondition is simply unreachable, which is a
+     * visible bug in the graph rather than something the engine papers over.
+     *
+     * <p>The batch is validated engine-side as a whole — unique ids that do not collide with the
+     * process's existing steps, every precondition reference resolved, no cycle introduced, within
+     * the step budget — and if any of that fails the <b>whole batch is rejected and the DYNAMIC
+     * step is failed</b> with the reason (it surfaces on the process's Errors tab). So a rejected
+     * injection is a failed step, not a silently dropped one.
+     *
+     * <p>{@code stepsJson} is a JSON array of step objects in the same schema a workflow definition
+     * uses — see the dynamic-workflows guide. Sent through the same synchronous, retry-or-throw
+     * path as every other reply, so a broker that will not take it fails the listener and the task
+     * is redelivered.
+     */
+    public static void inject(StreamOperations streamBridge, TaskExecutionRequested task,
+                              String stepsJson) {
+        send(streamBridge, new StepsInjected(
+                task.taskExecutionId(), task.processId(), stepsJson));
+    }
+
+    /**
+     * Injects the steps, then completes the DYNAMIC step — the common "generate the sub-flow, then
+     * finish" reply.
+     *
+     * <p>Inject first, on purpose: the injected steps must exist before the DYNAMIC step's
+     * completion advances the process, or the very steps just added would not yet be there for the
+     * engine to consider. Both sends go through the retry-or-throw path; if the injection is
+     * refused this throws before the completion is sent, so the task is redelivered rather than the
+     * process advanced past an injection that never landed.
+     */
+    public static void injectAndComplete(StreamOperations streamBridge, TaskExecutionRequested task,
+                                         String stepsJson, List<Variable> variables) {
+        inject(streamBridge, task, stepsJson);
+        completed(streamBridge, task, variables);
+    }
+
+    /**
      * Publishes the reply, retrying a refused send, and throws if the broker never takes it.
      *
      * @throws ReplyNotAcceptedException so the caller's listener fails and the offset is not
@@ -79,6 +123,28 @@ public final class WorkerReply {
      *                                   bug this class exists to prevent.
      */
     public static void send(StreamOperations streamBridge, TaskStatusChanged reply) {
+        publish(streamBridge, reply,
+                cause -> new ReplyNotAcceptedException(reply, cause));
+    }
+
+    /**
+     * Publishes a step injection on the same synchronous, retry-or-throw path as a status reply —
+     * a refused send is retried and, if the broker still will not take it, throws so the task is
+     * redelivered rather than the injection lost.
+     */
+    public static void send(StreamOperations streamBridge, StepsInjected reply) {
+        publish(streamBridge, reply,
+                cause -> new ReplyNotAcceptedException(reply, cause));
+    }
+
+    /**
+     * The shared retry loop behind every reply. Kept generic over the payload because a status
+     * change and a step injection are the same delivery problem — publish on {@code upstream},
+     * retry a refusal, throw if it never takes — differing only in the exception they raise, which
+     * the caller supplies with the last failure as its cause.
+     */
+    private static void publish(StreamOperations streamBridge, Object reply,
+                                java.util.function.Function<RuntimeException, ReplyNotAcceptedException> onExhausted) {
         RuntimeException lastFailure = null;
         for (var attempt = 1; attempt <= ATTEMPTS; attempt++) {
             try {
@@ -95,7 +161,7 @@ public final class WorkerReply {
                 break;
             }
         }
-        throw new ReplyNotAcceptedException(reply, lastFailure);
+        throw onExhausted.apply(lastFailure);
     }
 
     /** @return false if the wait was interrupted, in which case there is no point retrying. */
@@ -112,6 +178,12 @@ public final class WorkerReply {
     public static class ReplyNotAcceptedException extends RuntimeException {
         public ReplyNotAcceptedException(TaskStatusChanged reply, Throwable cause) {
             super("The broker did not accept the " + reply.status() + " reply for task "
+                    + reply.taskExecutionId() + " after " + ATTEMPTS
+                    + " attempts; the task will be redelivered", cause);
+        }
+
+        public ReplyNotAcceptedException(StepsInjected reply, Throwable cause) {
+            super("The broker did not accept the step injection for task "
                     + reply.taskExecutionId() + " after " + ATTEMPTS
                     + " attempts; the task will be redelivered", cause);
         }

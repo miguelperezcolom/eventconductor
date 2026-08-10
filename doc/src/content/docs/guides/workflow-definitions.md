@@ -77,6 +77,7 @@ steps: [...]
 | `enqueueOnLimit` | boolean | Queue new instances when limit reached |
 | `cronExpression` | string | Spring cron expression (six fields, seconds first). Unless the definition is disabled or archived, the engine creates a process instance at each occurrence. `null` = no scheduled starts |
 | `defaultMaxStepExecutions` | integer | Default cap on how many times each step may successfully run within one process instance; a step's own `maxSuccessfulExecutions` overrides it. `0` or `null` = unbounded |
+| `maxSteps` | integer | Cap on the total number of step executions one process instance may ever hold, runtime injections included (see [Dynamic Workflows](/guides/dynamic-workflows/)). `0` or `null` falls back to the engine-wide `workflow.dynamic.max-steps-per-process` default; any positive value overrides it for this definition's processes |
 
 ### Runtime state
 
@@ -211,7 +212,7 @@ archiving.
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `id` | string | — | Unique identifier within the workflow |
-| `type` | enum | — | `START` \| `ACTION` \| `USER_TASK` \| `PROCESS` \| `FORK` \| `JOIN` \| `END` \| `TIMER` \| `WAIT_FOR_MESSAGE` \| `SEND_MESSAGE` \| `RULE` |
+| `type` | enum | — | `START` \| `ACTION` \| `USER_TASK` \| `PROCESS` \| `FORK` \| `JOIN` \| `END` \| `TIMER` \| `WAIT_FOR_MESSAGE` \| `SEND_MESSAGE` \| `RULE` \| `DYNAMIC` |
 | `name` | string | — | Human-readable name |
 | `description` | string | — | Optional description |
 | `preconditionStepId` | string | — | Single step that must complete before this one starts |

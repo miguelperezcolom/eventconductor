@@ -71,6 +71,7 @@ export default defineConfig({
 						{ label: 'IDE Plugins (VS Code & IntelliJ)', slug: 'guides/ide-plugins' },
 						{ label: 'Starting a Process', slug: 'guides/starting-a-process' },
 						{ label: 'Implementing Workers', slug: 'guides/workers' },
+						{ label: 'Dynamic Workflows', slug: 'guides/dynamic-workflows' },
 						{ label: 'Retries, Timeouts & Compensation', slug: 'guides/retries-timeouts-compensation' },
 						{ label: 'Process Analytics', slug: 'guides/analytics' },
 						{ label: 'Process Index (CQRS Read Model)', slug: 'guides/process-index' },

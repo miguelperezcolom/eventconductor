@@ -190,6 +190,27 @@ updateStepExecution.handle(new UpdateStepExecutionCommand(
 ));
 ```
 
+## Injecting steps (DYNAMIC workers)
+
+A worker handling a [`DYNAMIC`](/reference/step-types/) step can do one thing an `ACTION` worker
+cannot: return new steps to add to the running process. Reply through `WorkerReply.inject(...)` (or
+`injectAndComplete(...)`) with a JSON array of steps in the workflow-definition step schema:
+
+```java
+String stepsJson = """
+    [
+      {"id":"task-a","type":"ACTION","name":"Task A","topic":"work","preconditionStepId":"plan"},
+      {"id":"task-b","type":"ACTION","name":"Task B","topic":"work","preconditionStepId":"plan"},
+      {"id":"merge","type":"JOIN","name":"Merge","preconditionStepIds":["task-a","task-b"]}
+    ]
+    """;
+WorkerReply.injectAndComplete(streamBridge, request, stepsJson, List.of());
+```
+
+Injection is add-only, the worker supplies each step's preconditions (there is no default wiring),
+and the engine validates the whole batch and fails the `DYNAMIC` step if it is rejected. See
+[Dynamic Workflows](/guides/dynamic-workflows/) for the full picture and the runaway guards.
+
 ## Asynchronous workers
 
 For long-running tasks, the worker can return immediately and report completion later. `UpdateStepExecutionUseCase` is a Spring bean available anywhere in the application context:

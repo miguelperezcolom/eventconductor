@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Dynamic workflows: a step that grows the running process.** A new `DYNAMIC` step type is
+  dispatched to a worker like an `ACTION`, but its reply may return a batch of new steps to add to
+  the process it is running in — so a flow can decide its own shape at runtime (a fan-out whose
+  width is only known once the work starts, a plan a worker computes and then executes). The worker
+  sends them with [`WorkerReply.inject(...)`](https://eventconductor.io/reference/java-api/) (or
+  `injectAndComplete(...)`); the message is `StepsInjected`. Injection is **add-only** — it never
+  rewrites or removes existing steps — and the worker supplies each step *with its own
+  preconditions*, because there is no default wiring: an injected step with no precondition is
+  simply unreachable, a visible bug in the graph rather than something the engine papers over. The
+  batch is validated engine-side as a whole (unique ids that do not collide with the process's
+  steps, every precondition reference resolved, no cycle introduced) and, if anything fails, the
+  **whole batch is rejected and the `DYNAMIC` step is failed** with the reason — so a bad injection
+  is a failed step, not a silently dropped one. Only a `DYNAMIC` step may inject. Recursion is
+  allowed (an injected step may itself be `DYNAMIC`) but bounded by two step-budget guards: the
+  engine-wide `workflow.dynamic.max-steps-per-process` (default `500`) and a per-definition
+  `maxSteps` override. Injected steps are marked in the process diagram — a dashed accent border and
+  a ⚡ corner badge — and carry their provenance (`injectedByStepExecutionId`, the `DYNAMIC` step
+  execution that added them), which also makes a re-delivered injection exactly idempotent. See the
+  [Dynamic Workflows guide](https://eventconductor.io/guides/dynamic-workflows/).
+
 ## [1.0.1] - 2026-08-10
 
 ### Added

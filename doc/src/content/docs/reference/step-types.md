@@ -410,6 +410,26 @@ An `END` step is recommended, but not enforced: the engine also completes a proc
 
 ---
 
+## DYNAMIC
+
+Dispatches a task to a worker like an [`ACTION`](#action), but the worker's reply may **inject new steps into the running process** — the steps, and their preconditions, that the worker decided are needed at runtime. This is how a workflow decides part of its own shape: a fan-out whose width is only known once the work starts, a plan a worker computes and then executes.
+
+```json
+{
+  "id": "plan",
+  "type": "DYNAMIC",
+  "name": "Plan the work",
+  "topic": "work",
+  "preconditionStepId": "start"
+}
+```
+
+**Required fields (Kafka mode):** `topic` — same as `ACTION`.
+
+The worker injects with `WorkerReply.inject(...)` / `injectAndComplete(...)` (message `StepsInjected`). Injection is **add-only**, the worker supplies each step's own preconditions (there is no default wiring — an unreachable injected step is a visible bug, not something the engine fixes up), and the engine validates the whole batch (unique ids, resolved references, no cycle, within the [step budget](/guides/dynamic-workflows/#runaway-guards)) and **fails the `DYNAMIC` step** if it is rejected. Only a `DYNAMIC` step may inject. See [Dynamic Workflows](/guides/dynamic-workflows/) for the full picture.
+
+---
+
 ## Common fields (all step types)
 
 | Field | Type | Default | Description |
