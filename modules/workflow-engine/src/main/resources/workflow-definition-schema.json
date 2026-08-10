@@ -124,6 +124,15 @@
       "minimum": 0,
       "default": 0
     },
+    "maxSteps": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "description": "Cap on the total number of step executions one process instance of this definition may ever hold, runtime injections included (a DYNAMIC step's worker can inject new steps at runtime). 0 or null falls back to the engine-wide workflow.dynamic.max-steps-per-process default; any positive value overrides it for this definition's processes. A backstop against runaway injection.",
+      "minimum": 0,
+      "default": 0
+    },
     "requiredScopes": {
       "type": [
         "array",
@@ -186,7 +195,8 @@
             "TIMER",
             "WAIT_FOR_MESSAGE",
             "SEND_MESSAGE",
-            "RULE"
+            "RULE",
+            "DYNAMIC"
           ]
         },
         "name": {

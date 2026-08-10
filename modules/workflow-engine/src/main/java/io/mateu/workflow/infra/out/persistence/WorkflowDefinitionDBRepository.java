@@ -42,7 +42,7 @@ public class WorkflowDefinitionDBRepository implements WorkflowDefinitionReposit
                 entity.isPaused(),
                 WorkflowStatus.of(entity.getDeclaredStatus(), false, false),
                 WorkflowStatus.of(entity.getRuntimeStatus(), false, false)
-        );
+        ).withMaxSteps(entity.getMaxSteps());
     }
 
     @Override
@@ -63,6 +63,7 @@ public class WorkflowDefinitionDBRepository implements WorkflowDefinitionReposit
                 workflowDefinition.enqueueOnLimit(),
                 workflowDefinition.cronExpression(),
                 workflowDefinition.defaultMaxStepExecutions(),
+                workflowDefinition.maxSteps(),
                 workflowDefinition.paused(),
                 workflowDefinition.declaredStatus().name(),
                 workflowDefinition.runtimeStatus().name()

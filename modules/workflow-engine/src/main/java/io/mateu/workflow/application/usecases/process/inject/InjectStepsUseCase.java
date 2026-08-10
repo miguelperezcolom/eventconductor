@@ -3,6 +3,7 @@ package io.mateu.workflow.application.usecases.process.inject;
 import io.mateu.workflow.application.out.LogMessageRepository;
 import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
+import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
 import io.mateu.workflow.application.usecases.process.stepover.StepOverProcessCommand;
 import io.mateu.workflow.application.usecases.process.stepover.StepOverProcessUseCase;
 import io.mateu.workflow.domain.aggregates.LogMessage;
@@ -55,14 +56,16 @@ public class InjectStepsUseCase {
 
     final StepExecutionRepository stepExecutionRepository;
     final ProcessRepository processRepository;
+    final WorkflowDefinitionRepository workflowDefinitionRepository;
     final LogMessageRepository logMessageRepository;
     final StepOverProcessUseCase stepOverProcessUseCase;
 
     /**
-     * Runaway guard: the most step executions one process may ever hold, injections included. A
-     * DYNAMIC step whose worker injects more steps — each of which could be DYNAMIC and inject
-     * again — is an unbounded loop without this. A per-definition override is a later PR; today
-     * this one global cap applies to every process.
+     * Runaway guard: the engine-wide default cap on how many step executions one process may ever
+     * hold, injections included. A DYNAMIC step whose worker injects more steps — each of which
+     * could be DYNAMIC and inject again — is an unbounded loop without this. A definition may raise
+     * or lower it for its own processes via {@link io.mateu.workflow.domain.aggregates.WorkflowDefinition#maxSteps()};
+     * this is the fallback when the definition declares none (0).
      */
     @Value("${workflow.dynamic.max-steps-per-process:500}")
     int maxStepsPerProcess;
@@ -113,7 +116,15 @@ public class InjectStepsUseCase {
             return;
         }
 
-        var rejection = validate(injectedSteps, existingExecutions);
+        // Effective step budget: the definition's own maxSteps when it declares one (> 0), else the
+        // engine-wide default. The definition is loaded from the same process it owns; if it has
+        // gone missing, fall back to the global default rather than block a live injection on it.
+        int effectiveBudget = workflowDefinitionRepository.findById(process.getWorkflowDefinitionId())
+                .map(io.mateu.workflow.domain.aggregates.WorkflowDefinition::maxSteps)
+                .filter(maxSteps -> maxSteps > 0)
+                .orElse(maxStepsPerProcess);
+
+        var rejection = validate(injectedSteps, existingExecutions, effectiveBudget);
         if (rejection != null) {
             reject(injectingStep, rejection);
             return;
@@ -146,7 +157,7 @@ public class InjectStepsUseCase {
      * Validates the batch as a whole, returning a rejection reason or null when it is safe to
      * inject. Nothing is written before this passes.
      */
-    private String validate(List<Step> injectedSteps, List<StepExecution> existingExecutions) {
+    private String validate(List<Step> injectedSteps, List<StepExecution> existingExecutions, int budget) {
         var existingIds = new HashSet<String>();
         for (var execution : existingExecutions) {
             existingIds.add(execution.getStepId());
@@ -178,10 +189,11 @@ public class InjectStepsUseCase {
             }
         }
 
-        // Runaway guard: the process's total step budget, injections included.
-        if (existingExecutions.size() + injectedSteps.size() > maxStepsPerProcess) {
+        // Runaway guard: the process's total step budget, injections included. The budget is the
+        // definition's own maxSteps when it declares one, else the engine-wide default.
+        if (existingExecutions.size() + injectedSteps.size() > budget) {
             return "step budget exceeded: " + existingExecutions.size() + " existing + "
-                    + injectedSteps.size() + " injected > " + maxStepsPerProcess;
+                    + injectedSteps.size() + " injected > " + budget;
         }
 
         // No cycles over the combined edge set (existing precondition -> step, plus injected).

@@ -7,7 +7,7 @@ import {neutralButtonStyles, iconCog, iconPlus, iconSitemap, iconFit} from "./ne
 
 type StepType =
     | "START" | "ACTION" | "USER_TASK" | "RULE" | "TIMER"
-    | "WAIT_FOR_MESSAGE" | "SEND_MESSAGE" | "FORK" | "JOIN" | "PROCESS" | "END";
+    | "WAIT_FOR_MESSAGE" | "SEND_MESSAGE" | "FORK" | "JOIN" | "PROCESS" | "END" | "DYNAMIC";
 /** Whether a workflow is open for business. DRAFT is an older value that meant nothing. */
 type WorkflowStatus = "ACTIVE" | "DISABLED" | "ARCHIVED" | "DRAFT";
 
@@ -107,6 +107,10 @@ interface StepOverlay {
     startedAt?: string;
     worker?: string;
     variables?: { name: string; value: string }[];
+    /** True when a DYNAMIC step injected this step into the process at runtime (not declared). */
+    injected?: boolean;
+    /** The DYNAMIC step execution that injected it — provenance, for tooling that traces it back. */
+    injectedBy?: string;
 }
 
 interface NodePos { x: number; y: number; }
@@ -122,7 +126,7 @@ const PAD = 60;
 
 const STEP_TYPES: StepType[] = [
     "START", "ACTION", "USER_TASK", "RULE", "TIMER",
-    "WAIT_FOR_MESSAGE", "SEND_MESSAGE", "FORK", "JOIN", "PROCESS", "END",
+    "WAIT_FOR_MESSAGE", "SEND_MESSAGE", "FORK", "JOIN", "PROCESS", "END", "DYNAMIC",
 ];
 
 /**
@@ -146,6 +150,10 @@ const NODE_STYLE: Record<StepType, NodeStyle> = {
     JOIN:             {fill: "#fffbeb", stroke: "#b45309", symbol: "flow"},
     PROCESS:          {fill: "#eef2ff", stroke: "#4f46e5", symbol: "component"},
     END:              {fill: "#fef2f2", stroke: "#dc2626", symbol: "event"},
+    // A generator step: its worker may inject new steps into the running process. Teal task node
+    // with a spark glyph, distinct from the ACTION/RULE indigos so "this one grows the graph" reads
+    // at a glance.
+    DYNAMIC:          {fill: "#ecfeff", stroke: "#0d9488", symbol: "spark"},
 };
 const DEFAULT_STYLE: NodeStyle = {fill: "#ffffff", stroke: "#94a3b8", symbol: "process"};
 const styleOf = (t: StepType): NodeStyle => NODE_STYLE[t] ?? DEFAULT_STYLE;
@@ -170,6 +178,8 @@ const SYMBOLS: Record<string, ReturnType<typeof svg>> = {
     clock:     svg`<circle cx="6" cy="6" r="4.4"/><path d="M6 3.4 L6 6 L7.9 7.4" stroke-linecap="round"/>`,
     event:     svg`<circle cx="6" cy="6" r="5"/><circle cx="6" cy="6" r="2.6"/>`,
     component: svg`<rect x="3.5" y="0.5" width="8" height="11" rx="1"/><rect x="0.5" y="2.5" width="6" height="2.6"/><rect x="0.5" y="6.9" width="6" height="2.6"/>`,
+    // A lightning spark — the generator step that grows the graph at runtime.
+    spark:     svg`<path d="M6.5 0.5 L2 6.5 H5.5 L4.5 11.5 L9.5 5 H6 Z"/>`,
 };
 
 /** Short caption shown above each node — the step's salient reference, modux-style. */
@@ -183,6 +193,7 @@ function badgeOf(step: WorkflowStep): string {
         case "FORK": return "⑃ FORK";
         case "JOIN": return "⨝ JOIN";
         case "PROCESS": return "⚙ " + (step.childWorkflowDefinitionId || "subprocess");
+        case "DYNAMIC": return "⚡ " + (step.topic ? "→ " + step.topic : "DYNAMIC");
         default: return step.type; // START, TIMER, END
     }
 }
@@ -2241,7 +2252,11 @@ export class MateuWorkflowElk extends LitElement {
         // A step that ran as a compensation is coloured for what it did, not for how it ended:
         // 'ov-undone' comes after the state class so amber wins over the state's own colour.
         const undone = this.ranAsCompensation(step.id) ? "ov-undone" : "";
-        const ovCls = ov ? `${ov.active ? "ov-active" : ""} ${ov.state ? "ov-" + ov.state.toLowerCase() : ""} ${undone}` : "";
+        // A step a DYNAMIC step added at runtime — not one the definition declared. Marked with a
+        // dashed accent border (the class) and a small ⚡ corner badge (below), so an operator can
+        // tell what the running process grew from what its author wrote.
+        const injected = ov?.injected ? "ov-injected" : "";
+        const ovCls = ov ? `${ov.active ? "ov-active" : ""} ${ov.state ? "ov-" + ov.state.toLowerCase() : ""} ${undone} ${injected}` : "";
         // With the heatmap on the badge narrows to the tasks inside the chosen last-N-days window.
         const count = heatOn ? this.heatValue(step.id) : (ov?.count ?? 0);
         const badge = count > 0 ? svg`
@@ -2268,6 +2283,14 @@ export class MateuWorkflowElk extends LitElement {
                 <path class="ov-cross" d="M -4.2 -4.2 L 4.2 4.2 M 4.2 -4.2 L -4.2 4.2"/>
             </g>` : nothing;
 
+        // A runtime-injected step wears a ⚡ badge in its top-left corner (clear of the count badge
+        // top-right and the done/fail badge bottom-right).
+        const injectedBadge = ov?.injected ? svg`
+            <g class="ov-injected-badge" transform="translate(6, 6)">
+                <circle r="9"/>
+                <path class="ov-spark" d="M 1 -5 L -3 1 H 0 L -1 5 L 4 -1 H 1 Z"/>
+            </g>` : nothing;
+
         const linkCls = `${this.linkHoverId === step.id ? "link-target" : ""} ${this.linkingFrom === step.id ? "link-source" : ""}`;
         const monDim = this.hasStateOverlay() && !this.isVisited(step.id) ? "mon-dim" : "";
         const focusDim = this.focusPaint && !this.focusPaint.nodes.has(step.id) ? "focus-dim" : "";
@@ -2283,6 +2306,7 @@ export class MateuWorkflowElk extends LitElement {
                 ${badge}
                 ${done}
                 ${failed}
+                ${injectedBadge}
             </g>
         `;
     }
@@ -2631,6 +2655,14 @@ export class MateuWorkflowElk extends LitElement {
         .ov-done .ov-undo {fill: none; stroke: #fff; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round;}
         .ov-fail circle {fill: #dc2626; stroke: var(--ec-surface); stroke-width: 2;}
         .ov-fail .ov-cross {fill: none; stroke: #fff; stroke-width: 2.8; stroke-linecap: round; stroke-linejoin: round;}
+        /* runtime-injected step (a DYNAMIC step added it): a dashed accent border and a ⚡ corner
+           badge, subtle so it reads as a mark ON the node rather than a new state. Only the dash is
+           set here (last, so it wins over the state rules) — the state keeps its own stroke colour,
+           so an injected step still shows red when it failed, green when it completed. --ec-* tokens
+           only, so it dresses correctly inside the IDE plugins' dark theme too. */
+        .node.ov-injected .node-shape {stroke-dasharray: 3 3 !important;}
+        .ov-injected-badge circle {fill: #0d9488; stroke: var(--ec-surface); stroke-width: 1.5;}
+        .ov-injected-badge .ov-spark {fill: #fff; stroke: none;}
         /* parts the process hasn't reached yet fade back */
         .node.mon-dim {opacity: .3;}
         .edge.mon-dim, .comp-edge.mon-dim {opacity: .18;}

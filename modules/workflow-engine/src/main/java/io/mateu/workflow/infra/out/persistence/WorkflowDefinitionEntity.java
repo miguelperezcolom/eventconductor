@@ -38,6 +38,13 @@ public class WorkflowDefinitionEntity {
     @ColumnDefault("0")
     int defaultMaxStepExecutions;
 
+    /**
+     * Cap on total step executions per process instance, runtime injections included. 0 (the
+     * default) falls back to the engine-wide {@code workflow.dynamic.max-steps-per-process}.
+     */
+    @ColumnDefault("0")
+    int maxSteps;
+
     /** Runtime pause flag: while true all this definition's processes are held. */
     @ColumnDefault("false")
     boolean paused;
