@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-08-10
+
 ### Added
 - **Dynamic workflows: a step that grows the running process.** A new `DYNAMIC` step type is
   dispatched to a worker like an `ACTION`, but its reply may return a batch of new steps to add to
