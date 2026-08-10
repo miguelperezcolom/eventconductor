@@ -186,7 +186,7 @@ public class ImportWorkflowDefinitionsFromGitUseCase {
                     definition.cronExpression(),
                     definition.defaultMaxStepExecutions(),
                     definition.steps()
-            );
+            ).withMaxSteps(definition.maxSteps());
         }
 
         // What the file says about being disabled or archived is a declaration, not a runtime
@@ -256,7 +256,8 @@ public class ImportWorkflowDefinitionsFromGitUseCase {
                 fromFile.limitConcurrentExecutions(), fromFile.maxConcurrentExecutions(),
                 fromFile.enqueueOnLimit(), fromFile.cronExpression(),
                 fromFile.defaultMaxStepExecutions(), fromFile.steps(),
-                false, fromFile.declaredStatus(), WorkflowStatus.ACTIVE);
+                false, fromFile.declaredStatus(), WorkflowStatus.ACTIVE)
+                .withMaxSteps(fromFile.maxSteps());
     }
 
     /**

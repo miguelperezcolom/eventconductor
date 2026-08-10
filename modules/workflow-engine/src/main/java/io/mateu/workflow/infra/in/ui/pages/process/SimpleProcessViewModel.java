@@ -202,7 +202,13 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
         byStep.forEach((stepId, se) -> overlay.put(stepId, overlayEntry(se, latestErrorByExec.get(se.id()))));
         var attrs = new HashMap<String, String>();
         attrs.put("import", GRAPH_MODULE);
-        attrs.put("value", toJson(def));
+        // The diagram must show the process's ACTUAL step set, not just the definition: steps a
+        // DYNAMIC step injected at runtime are not in the definition, so a value built from it alone
+        // would render a graph the running process never had. Feed the union — declared steps plus
+        // the injected ones (each execution carries its own frozen stepJson) — so injected nodes
+        // render with their real preconditions. The plain definition-editor view is untouched: it
+        // renders the definition directly and never comes through here.
+        attrs.put("value", toJson(withInjectedSteps(def, stepExecutions)));
         attrs.put("readonly", "true");
         if (!overlay.isEmpty()) attrs.put("overlay", toJson(overlay));
         // Give the graph a tall, viewport-sized box. Inside a tab the host has no height context and
@@ -213,6 +219,37 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
                 .content("")
                 .style("display: block; height: 68vh; min-height: 460px;")
                 .build();
+    }
+
+    /**
+     * The definition augmented with the steps a DYNAMIC step injected into this process at runtime.
+     *
+     * <p>Injected steps are not in the definition — each lives only as a step execution carrying its
+     * own frozen {@code stepJson} and marked with {@code injectedByStepExecutionId}. This appends
+     * those (deserialised back to {@link io.mateu.workflow.domain.aggregates.Step}s) after the
+     * declared steps, so the graph value is the process's real topology. When nothing was injected
+     * the definition is returned untouched, so the common case pays nothing and behaves exactly as
+     * before.
+     */
+    static io.mateu.workflow.domain.aggregates.WorkflowDefinition withInjectedSteps(
+            io.mateu.workflow.domain.aggregates.WorkflowDefinition def, List<StepExecution> stepExecutions) {
+        var declaredIds = def.steps().stream()
+                .map(io.mateu.workflow.domain.aggregates.Step::id)
+                .collect(java.util.stream.Collectors.toSet());
+        // One entry per injected step id (retries share it), in execution order, skipping any id the
+        // definition already carries so an injected step never doubles a declared one.
+        var injectedById = new java.util.LinkedHashMap<String, io.mateu.workflow.domain.aggregates.Step>();
+        for (var se : stepExecutions) {
+            if (se.getInjectedByStepExecutionId() == null) continue;
+            var step = safeStep(se.getStepJson());
+            if (step == null || step.id() == null) continue;
+            if (declaredIds.contains(step.id()) || injectedById.containsKey(step.id())) continue;
+            injectedById.put(step.id(), step);
+        }
+        if (injectedById.isEmpty()) return def;
+        var allSteps = new ArrayList<>(def.steps());
+        allSteps.addAll(injectedById.values());
+        return def.withSteps(allSteps);
     }
 
     /** Overlay state token understood by the graph component. */
@@ -254,6 +291,13 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
         var entry = new HashMap<String, Object>();
         entry.put("state", overlayState(status));
         entry.put("reason", reasonFor(se, step, error));
+        // A step a DYNAMIC step added at runtime, not one the definition declared. The graph badges
+        // these so an operator can tell what the running process grew from what its author wrote;
+        // the injector id is carried too, for tooling that wants to trace it back.
+        if (se.getInjectedByStepExecutionId() != null) {
+            entry.put("injected", true);
+            entry.put("injectedBy", se.getInjectedByStepExecutionId());
+        }
         if (status == StepExecutionStatus.RUNNING) entry.put("active", true);
         if (error != null) entry.put("error", error);
         if (se.getAttemptCount() > 0) entry.put("attempt", se.getAttemptCount());

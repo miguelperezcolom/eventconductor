@@ -4,6 +4,7 @@ import io.mateu.core.infra.JsonSerializer;
 import io.mateu.workflow.application.out.LogMessageRepository;
 import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
+import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
 import io.mateu.workflow.application.usecases.process.stepover.StepOverProcessCommand;
 import io.mateu.workflow.application.usecases.process.stepover.StepOverProcessUseCase;
 import io.mateu.workflow.domain.aggregates.Process;
@@ -12,6 +13,7 @@ import io.mateu.workflow.domain.aggregates.Step;
 import io.mateu.workflow.domain.aggregates.StepExecution;
 import io.mateu.workflow.domain.aggregates.StepExecutionStatus;
 import io.mateu.workflow.domain.aggregates.StepType;
+import io.mateu.workflow.domain.aggregates.WorkflowDefinition;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -34,6 +36,7 @@ class InjectStepsUseCaseTest {
 
     @Mock StepExecutionRepository stepExecutionRepository;
     @Mock ProcessRepository processRepository;
+    @Mock WorkflowDefinitionRepository workflowDefinitionRepository;
     @Mock LogMessageRepository logMessageRepository;
     @Mock StepOverProcessUseCase stepOverProcessUseCase;
 
@@ -69,10 +72,22 @@ class InjectStepsUseCaseTest {
                 .status(ProcessStatus.RUNNING).variables(List.of()).build();
     }
 
+    /** A minimal definition carrying the given per-process step cap (0 = fall back to the global default). */
+    private WorkflowDefinition definition(int maxSteps) {
+        return new WorkflowDefinition(WD_ID, "wd", 1, null, false, 0, false, null, 0, List.of())
+                .withMaxSteps(maxSteps);
+    }
+
     private void wire(StepExecution injecting, List<StepExecution> existing) {
+        wire(injecting, existing, 0);
+    }
+
+    private void wire(StepExecution injecting, List<StepExecution> existing, int definitionMaxSteps) {
         when(stepExecutionRepository.findById(injecting.id())).thenReturn(Optional.of(injecting));
         lenient().when(processRepository.findById(PROCESS_ID)).thenReturn(Optional.of(process()));
         lenient().when(stepExecutionRepository.findByProcess(any())).thenReturn(existing);
+        lenient().when(workflowDefinitionRepository.findById(WD_ID))
+                .thenReturn(Optional.of(definition(definitionMaxSteps)));
     }
 
     private String json(Step... steps) {
@@ -166,16 +181,44 @@ class InjectStepsUseCaseTest {
     }
 
     @Test
-    void rejectsWhenBudgetWouldBeExceeded() {
-        // Drop the cap so a tiny fixture trips it: existing(1) + injected(2) > 2.
+    void rejectsWhenGlobalBudgetWouldBeExceeded() {
+        // Definition declares no cap (maxSteps 0) → the engine-wide default applies. Drop it to 2 so
+        // a tiny fixture trips it: existing(1) + injected(2) > 2.
         org.springframework.test.util.ReflectionTestUtils.setField(useCase, "maxStepsPerProcess", 2);
         var injecting = se("se-dyn", "dyn", StepType.DYNAMIC, StepExecutionStatus.COMPLETED, 1);
-        wire(injecting, List.of(injecting));
+        wire(injecting, List.of(injecting), 0);
 
         useCase.handle(new InjectStepsCommand("se-dyn",
                 json(step("a", StepType.ACTION, "dyn"), step("b", StepType.ACTION, "dyn"))));
 
         assertNothingInjectedAndSourceErrored(injecting);
+    }
+
+    @Test
+    void perDefinitionMaxStepsOverridesTheGlobalDefault() {
+        // Global default is generous (500, set in @BeforeEach) — this batch is only rejected because
+        // the definition declares its own tighter cap of 2: existing(1) + injected(2) > 2.
+        var injecting = se("se-dyn", "dyn", StepType.DYNAMIC, StepExecutionStatus.COMPLETED, 1);
+        wire(injecting, List.of(injecting), 2);
+
+        useCase.handle(new InjectStepsCommand("se-dyn",
+                json(step("a", StepType.ACTION, "dyn"), step("b", StepType.ACTION, "dyn"))));
+
+        assertNothingInjectedAndSourceErrored(injecting);
+    }
+
+    @Test
+    void perDefinitionMaxStepsAllowsInjectionTheGlobalDefaultWouldReject() {
+        // The mirror case: the global default is tight (1), but the definition raises its own cap to
+        // 10, so existing(1) + injected(1) = 2 is allowed and the injection goes through.
+        org.springframework.test.util.ReflectionTestUtils.setField(useCase, "maxStepsPerProcess", 1);
+        var injecting = se("se-dyn", "dyn", StepType.DYNAMIC, StepExecutionStatus.COMPLETED, 1);
+        wire(injecting, List.of(injecting), 10);
+
+        useCase.handle(new InjectStepsCommand("se-dyn", json(step("a", StepType.ACTION, "dyn"))));
+
+        verify(stepExecutionRepository).save(any());
+        verify(stepOverProcessUseCase).handle(new StepOverProcessCommand(PROCESS_ID));
     }
 
     // --- idempotency --------------------------------------------------------------------------

@@ -198,6 +198,76 @@ class SimpleProcessViewModelTest {
         verify(publisher).dispatch(new RestartProcessRequested("p-1"));
     }
 
+    // --- runtime-injected steps in the diagram --------------------------------------------------
+
+    private io.mateu.workflow.domain.aggregates.Step stepDef(String id, io.mateu.workflow.domain.aggregates.StepType type, String preconditionStepId) {
+        return new io.mateu.workflow.domain.aggregates.Step(id, "wd-1", type, id, null, preconditionStepId,
+                null, null, false, "topic", null, null, null, null, 0, null, null, null, null, 0, 0, false, null, 0, null);
+    }
+
+    /** A real (non-mock) execution carrying its own stepJson and, optionally, the injected marker. */
+    private StepExecution exec(String stepId, StepExecutionStatus status, int order, String injectedBy) {
+        return StepExecution.builder()
+                .id("se-" + stepId).processId("p-1").workflowDefinitionId("wd-1")
+                .stepId(stepId).stepJson(io.mateu.core.infra.JsonSerializer.toJson(stepDef(stepId,
+                        io.mateu.workflow.domain.aggregates.StepType.ACTION, "plan")))
+                .status(status).order(order).variables(List.of())
+                .injectedByStepExecutionId(injectedBy).build();
+    }
+
+    @Test
+    void graphValueIncludesRuntimeInjectedStepsNotInTheDefinition() throws Exception {
+        // Definition declares only start -> plan(DYNAMIC); 'task-a' was injected at runtime.
+        var def = new WorkflowDefinition("wd-1", "P", 1, null, false, 0, false, null, 0, List.of(
+                stepDef("start", io.mateu.workflow.domain.aggregates.StepType.START, null),
+                stepDef("plan", io.mateu.workflow.domain.aggregates.StepType.DYNAMIC, "start")));
+        var defs = mock(WorkflowDefinitionRepository.class);
+        when(defs.findById("wd-1")).thenReturn(Optional.of(def));
+        var process = mock(Process.class);
+        when(process.getWorkflowDefinitionId()).thenReturn("wd-1");
+
+        var element = view(defs).buildDiagram(process, List.of(
+                exec("start", StepExecutionStatus.COMPLETED, 1, null),
+                exec("plan", StepExecutionStatus.COMPLETED, 2, null),
+                exec("task-a", StepExecutionStatus.RUNNING, 3, "se-plan")), List.of());
+
+        // The graph value carries the injected step, with its real precondition — a value built from
+        // the definition alone would omit it entirely.
+        JsonNode value = mapper.readTree(element.attributes().get("value"));
+        var stepIds = new java.util.ArrayList<String>();
+        value.get("steps").forEach(s -> stepIds.add(s.get("id").asText()));
+        assertThat(stepIds).containsExactly("start", "plan", "task-a");
+        var injectedStep = java.util.stream.StreamSupport.stream(value.get("steps").spliterator(), false)
+                .filter(s -> "task-a".equals(s.get("id").asText())).findFirst().orElseThrow();
+        assertThat(injectedStep.get("preconditionStepId").asText()).isEqualTo("plan");
+
+        // The overlay flags the injected step (frontend badge data), and not the declared ones.
+        JsonNode overlay = mapper.readTree(element.attributes().get("overlay"));
+        assertThat(overlay.get("task-a").get("injected").asBoolean()).isTrue();
+        assertThat(overlay.get("task-a").get("injectedBy").asText()).isEqualTo("se-plan");
+        assertThat(overlay.get("plan").has("injected")).isFalse();
+    }
+
+    @Test
+    void graphValueIsTheDefinitionUntouchedWhenNothingWasInjected() throws Exception {
+        var def = new WorkflowDefinition("wd-1", "P", 1, null, false, 0, false, null, 0, List.of(
+                stepDef("start", io.mateu.workflow.domain.aggregates.StepType.START, null),
+                stepDef("plan", io.mateu.workflow.domain.aggregates.StepType.DYNAMIC, "start")));
+        var defs = mock(WorkflowDefinitionRepository.class);
+        when(defs.findById("wd-1")).thenReturn(Optional.of(def));
+        var process = mock(Process.class);
+        when(process.getWorkflowDefinitionId()).thenReturn("wd-1");
+
+        var element = view(defs).buildDiagram(process, List.of(
+                exec("start", StepExecutionStatus.COMPLETED, 1, null),
+                exec("plan", StepExecutionStatus.RUNNING, 2, null)), List.of());
+
+        JsonNode value = mapper.readTree(element.attributes().get("value"));
+        var stepIds = new java.util.ArrayList<String>();
+        value.get("steps").forEach(s -> stepIds.add(s.get("id").asText()));
+        assertThat(stepIds).containsExactly("start", "plan");
+    }
+
     @Test
     void ranksRunningAndErrorAboveCompleted() {
         assertThat(SimpleProcessViewModel.statusRank(StepExecutionStatus.ERROR))
