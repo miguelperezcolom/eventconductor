@@ -102,8 +102,29 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
     @With(AccessLevel.NONE)
     private Integer version;
 
+    /**
+     * The id of the DYNAMIC step execution that injected this one at runtime, or null for a step
+     * materialised the ordinary way (from the definition, at process creation).
+     *
+     * <p>The exact idempotency key for injection: a re-delivered {@code StepsInjected} finds the
+     * children it already created marked with the injecting step's id and injects nothing more.
+     * Also the record of provenance the graph and tooling read to show which steps a running
+     * process grew that its definition never declared.
+     */
+    private String injectedByStepExecutionId;
+
 
     public static StepExecution create(Step step, String processId, int position) {
+        return create(step, processId, position, null);
+    }
+
+    /**
+     * Materialises a step execution, optionally marked as injected by a DYNAMIC step. Normal
+     * creation passes null; runtime injection passes the injecting step execution's id, which is
+     * what makes a re-delivered injection idempotent and what the graph reads as provenance.
+     */
+    public static StepExecution create(Step step, String processId, int position,
+                                       String injectedByStepExecutionId) {
         var stepExecution = StepExecution.builder()
                 .id(UUID.randomUUID().toString())
                 .processId(processId)
@@ -113,6 +134,7 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
                 .variables(List.of())
                 .status(StepExecutionStatus.CREATED)
                 .order(position)
+                .injectedByStepExecutionId(injectedByStepExecutionId)
                 .build();
         return stepExecution;
     }

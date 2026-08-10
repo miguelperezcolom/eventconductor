@@ -1,0 +1,19 @@
+{
+  "id": "dynamic-inject",
+  "name": "Dynamic step injection",
+  "version": 1,
+  "steps": [
+    {
+      "id": "start",
+      "type": "START",
+      "name": "Start"
+    },
+    {
+      "id": "plan",
+      "type": "DYNAMIC",
+      "name": "Plan the work",
+      "topic": "work",
+      "preconditionStepId": "start"
+    }
+  ]
+}

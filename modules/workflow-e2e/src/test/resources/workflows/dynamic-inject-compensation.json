@@ -1,0 +1,19 @@
+{
+  "id": "dynamic-inject-compensation",
+  "name": "Dynamic injection with a compensable injected step",
+  "version": 1,
+  "steps": [
+    {
+      "id": "start",
+      "type": "START",
+      "name": "Start"
+    },
+    {
+      "id": "plan",
+      "type": "DYNAMIC",
+      "name": "Plan the work",
+      "topic": "work",
+      "preconditionStepId": "start"
+    }
+  ]
+}
