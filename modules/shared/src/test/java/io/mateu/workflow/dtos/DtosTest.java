@@ -111,8 +111,11 @@ class DtosTest {
     }
 
     @Test
-    void stepExecutionsCreationRequestedHoldsFields() {
-        var event = new StepExecutionsCreationRequested("se-1", TaskStatus.PENDING);
+    void stepsInjectedHoldsFieldsAndKeysOnProcess() {
+        var event = new StepsInjected("se-1", "process-1", "[]");
         assertThat(event.taskExecutionId()).isEqualTo("se-1");
+        assertThat(event.processId()).isEqualTo("process-1");
+        assertThat(event.stepsJson()).isEqualTo("[]");
+        assertThat(event.partitionKey()).isEqualTo("process-1");
     }
 }

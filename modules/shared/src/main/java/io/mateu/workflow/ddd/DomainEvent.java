@@ -15,7 +15,7 @@ import io.mateu.workflow.dtos.events.integration.*;
         @JsonSubTypes.Type(value = ProcessStatusChanged.class, name = "process-status-changed"),
         @JsonSubTypes.Type(value = ProcessCancellationRequested.class, name = "process-cancellation-requested"),
         @JsonSubTypes.Type(value = StepExecutionStatusChanged.class, name = "step-execution-status-changed"),
-        @JsonSubTypes.Type(value = StepExecutionsCreationRequested.class, name = "step-execution-creation-requested"),
+        @JsonSubTypes.Type(value = StepsInjected.class, name = "steps-injected"),
         @JsonSubTypes.Type(value = TaskExecutionRequested.class, name = "task-execution-requested"),
         @JsonSubTypes.Type(value = TaskCancellationRequested.class, name = "task-cancellation-requested"),
         @JsonSubTypes.Type(value = TaskLogEmitted.class, name = "task-log-emitted"),
