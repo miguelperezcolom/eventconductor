@@ -1,6 +1,7 @@
 package io.mateu.workflow.worker;
 
 import io.mateu.workflow.dtos.Variable;
+import io.mateu.workflow.dtos.events.integration.StepsInjected;
 import io.mateu.workflow.dtos.events.integration.TaskExecutionRequested;
 import io.mateu.workflow.dtos.events.integration.TaskStatus;
 import io.mateu.workflow.dtos.events.integration.TaskStatusChanged;
@@ -57,6 +58,49 @@ class WorkerReplyTest {
 
         assertThat(((TaskStatusChanged) bridge.payloads.getFirst()).status())
                 .isEqualTo(TaskStatus.ERROR);
+    }
+
+    @Test
+    void injectSendsAWellFormedStepsInjectedOnTheUpstreamBinding() {
+        var bridge = new RecordingBridge(true);
+        var stepsJson = "[{\"id\":\"task-a\",\"type\":\"ACTION\",\"name\":\"Task A\","
+                + "\"topic\":\"work\",\"preconditionStepId\":\"plan\"}]";
+
+        WorkerReply.inject(bridge, TASK, stepsJson);
+
+        assertThat(bridge.bindings).containsExactly("upstream");
+        var injection = (StepsInjected) bridge.payloads.getFirst();
+        assertThat(injection.taskExecutionId()).isEqualTo("task-1");
+        // Keyed on the process, like every other reply, so it reaches the pod that owns it.
+        assertThat(injection.processId()).isEqualTo("process-1");
+        assertThat(injection.partitionKey()).isEqualTo("process-1");
+        assertThat(injection.stepsJson()).isEqualTo(stepsJson);
+    }
+
+    @Test
+    void injectAndCompleteInjectsFirstThenCompletes() {
+        // Order matters: the injected steps must exist before the DYNAMIC step's completion advances
+        // the process, so the injection is sent before the completion.
+        var bridge = new RecordingBridge(true);
+
+        WorkerReply.injectAndComplete(bridge, TASK, "[]", List.of(new Variable("k", "v")));
+
+        assertThat(bridge.payloads).hasSize(2);
+        assertThat(bridge.payloads.get(0)).isInstanceOf(StepsInjected.class);
+        var completion = (TaskStatusChanged) bridge.payloads.get(1);
+        assertThat(completion.status()).isEqualTo(TaskStatus.COMPLETED);
+        assertThat(completion.variables()).extracting(Variable::name).containsExactly("k");
+    }
+
+    @Test
+    void throwsWhenTheBrokerNeverAcceptsAnInjection() {
+        var bridge = new RecordingBridge(false);
+
+        assertThatThrownBy(() -> WorkerReply.inject(bridge, TASK, "[]"))
+                .isInstanceOf(WorkerReply.ReplyNotAcceptedException.class)
+                .hasMessageContaining("step injection")
+                .hasMessageContaining("task-1")
+                .hasMessageContaining("redelivered");
     }
 
     @Test
