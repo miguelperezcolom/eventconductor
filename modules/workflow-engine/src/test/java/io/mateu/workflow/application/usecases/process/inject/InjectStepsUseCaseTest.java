@@ -98,6 +98,9 @@ class InjectStepsUseCaseTest {
         assertThat(saved).extracting(StepExecution::getOrder).containsExactly(6L, 7L);
         assertThat(saved).allSatisfy(se ->
                 assertThat(se.getStatus()).isEqualTo(StepExecutionStatus.CREATED));
+        // every injected step is stamped with the injecting DYNAMIC step's id (the idempotency key).
+        assertThat(saved).allSatisfy(se ->
+                assertThat(se.getInjectedByStepExecutionId()).isEqualTo("se-dyn"));
         // preconditions survive the round-trip.
         var stepB = JsonSerializer.pojoFromJson(saved.get(1).getStepJson(), Step.class);
         assertThat(stepB.preconditionIds()).containsExactly("a");
@@ -180,14 +183,15 @@ class InjectStepsUseCaseTest {
     @Test
     void redeliveryDoesNotDoubleInject() {
         var injecting = se("se-dyn", "dyn", StepType.DYNAMIC, StepExecutionStatus.COMPLETED, 5);
-        // A child already exists: a step ordered after the DYNAMIC one that waits on it.
-        var alreadyInjected = se("se-a", "a", StepType.ACTION, StepExecutionStatus.CREATED, 6);
+        // A child already exists: a step stamped as injected by this DYNAMIC step. The exact marker
+        // is what makes the redelivery a no-op — no reliance on the precondition graph.
         var childStep = step("a", StepType.ACTION, "dyn");
-        var withPrecondition = StepExecution.builder()
+        var alreadyInjected = StepExecution.builder()
                 .id("se-a").processId(PROCESS_ID).workflowDefinitionId(WD_ID)
                 .stepId("a").stepJson(JsonSerializer.toJson(childStep))
-                .status(StepExecutionStatus.CREATED).order(6).variables(List.of()).build();
-        wire(injecting, List.of(injecting, withPrecondition));
+                .status(StepExecutionStatus.CREATED).order(6).variables(List.of())
+                .injectedByStepExecutionId("se-dyn").build();
+        wire(injecting, List.of(injecting, alreadyInjected));
 
         useCase.handle(new InjectStepsCommand("se-dyn", json(step("a", StepType.ACTION, "dyn"))));
 

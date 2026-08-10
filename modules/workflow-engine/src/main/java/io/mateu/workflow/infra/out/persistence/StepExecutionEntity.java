@@ -87,4 +87,12 @@ public class StepExecutionEntity {
     @jakarta.persistence.Version
     Integer version;
 
+    /**
+     * The id of the DYNAMIC step execution that injected this row at runtime, or null for a step
+     * created the ordinary way from the definition. Nullable and unindexed: it is read only when
+     * walking a single process's steps (which is already an indexed lookup), never queried across
+     * processes.
+     */
+    String injectedByStepExecutionId;
+
 }

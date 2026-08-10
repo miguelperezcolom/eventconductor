@@ -43,6 +43,10 @@ import static io.mateu.core.infra.JsonSerializer.pojoFromJson;
  * <p>Injected steps get no default wiring: one with no preconditions is simply unreachable, which
  * is a visible programming error in the graph, not something to paper over by auto-attaching it to
  * the entry point.
+ *
+ * <p>Idempotency is exact: every injected step execution is stamped with the injecting DYNAMIC
+ * step's id ({@code injectedByStepExecutionId}), and a re-delivered {@code StepsInjected} for a
+ * step that already has such children injects nothing more.
  */
 @Service
 @RequiredArgsConstructor
@@ -90,9 +94,9 @@ public class InjectStepsUseCase {
 
         var existingExecutions = stepExecutionRepository.findByProcess(process);
 
-        // Idempotency: a re-delivered StepsInjected must not inject twice. The injecting DYNAMIC
-        // step is the key — if it already produced children (a step execution injected by this one),
-        // this is a redelivery and there is nothing more to do.
+        // Idempotency: a re-delivered StepsInjected must not inject twice. Exact — every injected
+        // step is stamped with the injecting step's id, so a redelivery finds those children and
+        // does nothing more.
         if (alreadyInjected(injectingStep, existingExecutions)) {
             log.info("StepsInjected for step {} already applied — skipping duplicate injection",
                     command.taskExecutionId());
@@ -129,16 +133,13 @@ public class InjectStepsUseCase {
     }
 
     /**
-     * Whether this DYNAMIC step already has children from a prior injection. A step execution
-     * created after the injecting one, whose step lists it as a precondition, is such a child — no
-     * persisted marker is needed (that is a later PR). Matching on the injecting step's own id is
-     * enough because injected ids are validated unique across the process.
+     * Whether this DYNAMIC step already has children from a prior injection. Exact: a child carries
+     * the injecting step's id in {@code injectedByStepExecutionId}, stamped at materialisation, so
+     * this is a direct match rather than a heuristic over the precondition graph.
      */
     private boolean alreadyInjected(StepExecution injectingStep, List<StepExecution> existingExecutions) {
         return existingExecutions.stream()
-                .filter(execution -> execution.getOrder() > injectingStep.getOrder())
-                .map(execution -> pojoFromJson(execution.getStepJson(), Step.class))
-                .anyMatch(step -> step.preconditionIds().contains(injectingStep.getStepId()));
+                .anyMatch(execution -> injectingStep.id().equals(execution.getInjectedByStepExecutionId()));
     }
 
     /**
@@ -248,7 +249,7 @@ public class InjectStepsUseCase {
         long maxOrder = existingExecutions.stream().mapToLong(StepExecution::getOrder).max().orElse(0);
         var position = new AtomicInteger((int) maxOrder + 1);
         injectedSteps.stream()
-                .map(step -> StepExecution.create(step, processId, position.getAndIncrement()))
+                .map(step -> StepExecution.create(step, processId, position.getAndIncrement(), injectingStep.id()))
                 .forEach(stepExecutionRepository::save);
         log.info("Injected {} step(s) into process {} from DYNAMIC step {}",
                 injectedSteps.size(), processId, injectingStep.getStepId());

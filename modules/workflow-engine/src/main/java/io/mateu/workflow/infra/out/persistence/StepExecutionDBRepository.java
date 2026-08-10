@@ -50,7 +50,8 @@ public class StepExecutionDBRepository implements StepExecutionRepository {
                 entity.getDeadlineAt(),
                 entity.getAwaitingMessageName(),
                 entity.getAwaitingCorrelationKey(),
-                entity.getVersion()
+                entity.getVersion(),
+                entity.getInjectedByStepExecutionId()
         );
     }
 
@@ -73,7 +74,8 @@ public class StepExecutionDBRepository implements StepExecutionRepository {
                 stepExecution.getDeadlineAt(),
                 stepExecution.getAwaitingMessageName(),
                 stepExecution.getAwaitingCorrelationKey(),
-                stepExecution.getVersion()
+                stepExecution.getVersion(),
+                stepExecution.getInjectedByStepExecutionId()
         ));
 
         // Captured here, at the one moment the event and the context that produced it are both
