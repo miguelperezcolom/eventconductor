@@ -2260,6 +2260,14 @@ export class MateuWorkflowElk extends LitElement {
                     : svg`<path class="ov-check" d="M -6 0.5 L -1.5 5 L 6 -4.5"/>`}
             </g>` : nothing;
 
+        // A cross on failed (ERROR) steps, in the same corner as the check — so a failure gets its
+        // own badge that reads as clearly as a success, not just the node's red border.
+        const failed = ov?.state === "ERROR" ? svg`
+            <g class="ov-fail" transform="translate(${w - 6}, ${h - 6})">
+                <circle r="12"/>
+                <path class="ov-cross" d="M -4.2 -4.2 L 4.2 4.2 M 4.2 -4.2 L -4.2 4.2"/>
+            </g>` : nothing;
+
         const linkCls = `${this.linkHoverId === step.id ? "link-target" : ""} ${this.linkingFrom === step.id ? "link-source" : ""}`;
         const monDim = this.hasStateOverlay() && !this.isVisited(step.id) ? "mon-dim" : "";
         const focusDim = this.focusPaint && !this.focusPaint.nodes.has(step.id) ? "focus-dim" : "";
@@ -2274,6 +2282,7 @@ export class MateuWorkflowElk extends LitElement {
                 <g class="node-inner" data-inner="${step.id}">${shape}</g>
                 ${badge}
                 ${done}
+                ${failed}
             </g>
         `;
     }
@@ -2620,6 +2629,8 @@ export class MateuWorkflowElk extends LitElement {
         .ov-done circle {fill: #16a34a; stroke: var(--ec-surface); stroke-width: 2;}
         .ov-done .ov-check {fill: none; stroke: #fff; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round;}
         .ov-done .ov-undo {fill: none; stroke: #fff; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round;}
+        .ov-fail circle {fill: #dc2626; stroke: var(--ec-surface); stroke-width: 2;}
+        .ov-fail .ov-cross {fill: none; stroke: #fff; stroke-width: 2.8; stroke-linecap: round; stroke-linejoin: round;}
         /* parts the process hasn't reached yet fade back */
         .node.mon-dim {opacity: .3;}
         .edge.mon-dim, .comp-edge.mon-dim {opacity: .18;}
