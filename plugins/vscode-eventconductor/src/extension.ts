@@ -1,25 +1,31 @@
 import * as vscode from "vscode";
 import * as yaml from "js-yaml";
 
-const VIEW_TYPE = "eventconductor.graphEditor";
+const GRAPH_VIEW_TYPE = "eventconductor.graphEditor";
+const FORM_VIEW_TYPE = "eventconductor.formEditor";
 
 export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
-    vscode.window.registerCustomEditorProvider(VIEW_TYPE, new EcEditorProvider(context), {
+    // The .ec graph editor and the .form visual editor share the same webview machinery, differing
+    // only in the component they host and the default new-document body — see EditorConfig.
+    vscode.window.registerCustomEditorProvider(GRAPH_VIEW_TYPE, new EventConductorEditorProvider(context, GRAPH_CONFIG), {
       webviewOptions: { retainContextWhenHidden: true },
       supportsMultipleEditorsPerDocument: false,
     }),
-    vscode.commands.registerCommand("eventconductor.openAsText", () =>
-      reopenActive("default")
-    ),
-    vscode.commands.registerCommand("eventconductor.openAsGraph", () =>
-      reopenActive(VIEW_TYPE)
-    ),
-    vscode.commands.registerCommand("eventconductor.showTextBeside", () =>
-      openActiveBeside()
-    )
+    vscode.window.registerCustomEditorProvider(FORM_VIEW_TYPE, new EventConductorEditorProvider(context, FORM_CONFIG), {
+      webviewOptions: { retainContextWhenHidden: true },
+      supportsMultipleEditorsPerDocument: false,
+    }),
+    // .ec graph editor commands.
+    vscode.commands.registerCommand("eventconductor.openAsText", () => reopenActive("default")),
+    vscode.commands.registerCommand("eventconductor.openAsGraph", () => reopenActive(GRAPH_VIEW_TYPE)),
+    vscode.commands.registerCommand("eventconductor.showTextBeside", () => openActiveBeside()),
+    // .form visual editor commands (mirrors the .ec ones).
+    vscode.commands.registerCommand("eventconductor.form.openAsText", () => reopenActive("default")),
+    vscode.commands.registerCommand("eventconductor.form.openAsForm", () => reopenActive(FORM_VIEW_TYPE)),
+    vscode.commands.registerCommand("eventconductor.form.showTextBeside", () => openActiveBeside())
   );
-  // Validate .ec (YAML or JSON) against the bundled workflow-definition schema.
+  // Validate .ec / .form (YAML or JSON) against their bundled schemas.
   registerYamlSchema(context);
 }
 
@@ -52,7 +58,7 @@ async function registerYamlSchema(context: vscode.ExtensionContext) {
   }
 }
 
-/** The .ec file shown in the active tab (custom-editor tabs expose their uri on the input). */
+/** The file shown in the active tab (custom-editor tabs expose their uri on the input). */
 function activeUri(): vscode.Uri | undefined {
   const input = vscode.window.tabGroups.activeTabGroup.activeTab?.input as
     | { uri?: vscode.Uri }
@@ -60,20 +66,58 @@ function activeUri(): vscode.Uri | undefined {
   return input?.uri;
 }
 
-/** Reopen the .ec file in the active tab with the given editor (text = "default", graph = view type). */
+/** Reopen the file in the active tab with the given editor (text = "default", visual = view type). */
 function reopenActive(viewType: string) {
   const uri = activeUri();
   if (uri) vscode.commands.executeCommand("vscode.openWith", uri, viewType);
 }
 
-/** Open the .ec's raw YAML/JSON in a text editor beside the graph, so both show the same file. */
+/** Open the raw YAML/JSON in a text editor beside the visual editor, so both show the same file. */
 function openActiveBeside() {
   const uri = activeUri();
   if (uri) vscode.commands.executeCommand("vscode.openWith", uri, "default", vscode.ViewColumn.Beside);
 }
 
-class EcEditorProvider implements vscode.CustomTextEditorProvider {
-  constructor(private readonly context: vscode.ExtensionContext) {}
+/**
+ * What differs between the .ec graph editor and the .form visual editor: the hosted web component,
+ * the bundle + bridge scripts, the new-document body and the labels shown to the user. Everything
+ * else (the YAML<->JSON round-trip, the document sync, the CSP) is identical and lives in the
+ * provider below.
+ */
+interface EditorConfig {
+  /** The custom-element tag hosted in the webview. */
+  tag: string;
+  /** The component bundle in media/. */
+  bundle: string;
+  /** The webview bridge script in media/. */
+  main: string;
+  /** File extension, for error messages. */
+  ext: string;
+  /** Body for a new/empty document, so drawing in an empty file yields a sensible default. */
+  emptyValue: () => unknown;
+}
+
+const GRAPH_CONFIG: EditorConfig = {
+  tag: "eventconductor-workflow-graph",
+  bundle: "workflow-graph.js",
+  main: "main.js",
+  ext: ".ec",
+  emptyValue: () => ({ name: "New Workflow", steps: [] }),
+};
+
+const FORM_CONFIG: EditorConfig = {
+  tag: "eventconductor-form-editor",
+  bundle: "form-editor.js",
+  main: "form-main.js",
+  ext: ".form",
+  emptyValue: () => ({ name: "New Form", fields: [] }),
+};
+
+class EventConductorEditorProvider implements vscode.CustomTextEditorProvider {
+  constructor(
+    private readonly context: vscode.ExtensionContext,
+    private readonly config: EditorConfig
+  ) {}
 
   resolveCustomTextEditor(
     document: vscode.TextDocument,
@@ -86,8 +130,8 @@ class EcEditorProvider implements vscode.CustomTextEditorProvider {
     };
     webview.html = this.getHtml(webview);
 
-    // The graph component speaks JSON; the .ec file may be YAML — remember which so edits round-trip
-    // back into the author's chosen format.
+    // The component speaks JSON; the file may be YAML — remember which so edits round-trip back
+    // into the author's chosen format.
     let docIsYaml = looksLikeYaml(document.getText());
     let applyingOwnEdit = false;
 
@@ -95,7 +139,7 @@ class EcEditorProvider implements vscode.CustomTextEditorProvider {
       const text = document.getText();
       docIsYaml = looksLikeYaml(text);
       try {
-        const obj = text.trim() ? parseDefinition(text) : { name: "New Workflow", steps: [] };
+        const obj = text.trim() ? parseDefinition(text) : this.config.emptyValue();
         webview.postMessage({ type: "setValue", value: JSON.stringify(obj, null, 2) });
       } catch (e) {
         webview.postMessage({ type: "parseError", message: String(e) });
@@ -137,8 +181,9 @@ class EcEditorProvider implements vscode.CustomTextEditorProvider {
   private getHtml(webview: vscode.Webview): string {
     const media = (name: string) =>
       webview.asWebviewUri(vscode.Uri.joinPath(this.context.extensionUri, "media", name));
-    const bundle = media("workflow-graph.js");
-    const main = media("main.js");
+    const bundle = media(this.config.bundle);
+    const main = media(this.config.main);
+    const tag = this.config.tag;
     const nonce = getNonce();
     const csp =
       `default-src 'none'; img-src ${webview.cspSource} data:; ` +
@@ -154,7 +199,7 @@ class EcEditorProvider implements vscode.CustomTextEditorProvider {
   <style>
     html, body { height: 100%; margin: 0; padding: 0; }
     body { display: flex; }
-    eventconductor-workflow-graph { flex: 1 1 auto; min-height: 0; }
+    ${tag} { flex: 1 1 auto; min-height: 0; }
     #error { display: none; position: absolute; top: 8px; left: 8px; right: 8px;
              padding: 6px 10px; border-radius: 6px; font: 12px/1.4 var(--vscode-font-family);
              background: var(--vscode-inputValidation-errorBackground, #5a1d1d);
@@ -165,7 +210,7 @@ class EcEditorProvider implements vscode.CustomTextEditorProvider {
 <body>
   <div id="error"></div>
   <!-- no-expand: the custom editor already fills the pane, so expanding it means nothing -->
-  <eventconductor-workflow-graph no-expand></eventconductor-workflow-graph>
+  <${tag} no-expand></${tag}>
   <script nonce="${nonce}" type="module" src="${bundle}"></script>
   <script nonce="${nonce}" src="${main}"></script>
 </body>
@@ -174,9 +219,9 @@ class EcEditorProvider implements vscode.CustomTextEditorProvider {
 }
 
 /**
- * A .ec body is YAML unless it clearly starts as JSON (a leading '{' or '[').
+ * A .ec / .form body is YAML unless it clearly starts as JSON (a leading '{' or '[').
  *
- * An empty file is YAML too: there is nothing to sniff, and a new .ec that the graph editor fills
+ * An empty file is YAML too: there is nothing to sniff, and a new file that the visual editor fills
  * in should come out looking like the ones in the documentation and the examples, all of which are
  * YAML. It used to answer JSON here, so creating a file and drawing in it produced JSON — a format
  * nobody chose, from a file that had not said anything.

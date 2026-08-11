@@ -4,9 +4,10 @@
     <vendor url="https://github.com/miguelperezcolom/eventconductor">EventConductor</vendor>
 
     <description><![CDATA[
-        Edit EventConductor workflow definitions (<code>.ec</code> files) as an interactive graph
-        or as YAML/JSON with schema validation. The graph is the same component used inside the
-        EventConductor app, embedded via JCEF, backed by the text document so both views stay in sync.
+        Edit EventConductor workflow definitions (<code>.ec</code>) as an interactive graph and form
+        definitions (<code>.form</code>) as a visual editor, or as YAML/JSON with schema validation.
+        The graph and form editors are the same components used inside the EventConductor app,
+        embedded via JCEF, backed by the text document so both views stay in sync.
     ]]></description>
 
     <depends>com.intellij.modules.platform</depends>
@@ -19,9 +20,11 @@
              plain text and the JSON-schema engine has no PSI to validate. Multiple extensions are
              semicolon-separated. -->
         <fileType name="YAML" extensions="ec;form"/>
-        <!-- A split editor: text (YAML/JSON) on one side, the interactive graph (JCEF) on the other.
-             Bound to .ec only — .form is text-only in this phase (no graph editor). -->
+        <!-- Split editors: text (YAML/JSON) on one side, the interactive JCEF view on the other.
+             .ec gets the workflow graph; .form gets the visual form editor. Each provider's accept()
+             is scoped to its own extension. -->
         <fileEditorProvider implementation="com.eventconductor.intellij.EcFileEditorProvider"/>
+        <fileEditorProvider implementation="com.eventconductor.intellij.FormFileEditorProvider"/>
     </extensions>
 
     <!-- Validate/complete .ec and .form against their JSON schemas (applies to YAML too).
