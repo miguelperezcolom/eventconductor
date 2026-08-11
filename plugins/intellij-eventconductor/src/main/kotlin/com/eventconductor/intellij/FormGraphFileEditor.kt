@@ -26,7 +26,7 @@ import java.util.Base64
 import javax.swing.JComponent
 
 /**
- * The visual half of the split editor for `.form` files: a JCEF browser hosting the shared
+ * The visual half of the split editor for `.ecform` files: a JCEF browser hosting the shared
  * form-editor web component, kept in sync with the file's document. The web page owns the
  * JSON<->YAML conversion (it has js-yaml), so this class only shuttles the raw file text in and
  * out. Mirrors {@link EcGraphFileEditor}.

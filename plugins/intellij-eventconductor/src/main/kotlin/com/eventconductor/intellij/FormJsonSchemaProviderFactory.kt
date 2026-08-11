@@ -6,7 +6,7 @@ import com.jetbrains.jsonSchema.extension.JsonSchemaFileProvider
 import com.jetbrains.jsonSchema.extension.JsonSchemaProviderFactory
 import com.jetbrains.jsonSchema.extension.SchemaType
 
-/** Associates the bundled form JSON schema with every `.form` file (JSON or YAML). */
+/** Associates the bundled form JSON schema with every `.ecform` file (JSON or YAML). */
 class FormJsonSchemaProviderFactory : JsonSchemaProviderFactory {
     override fun getProviders(project: Project): List<JsonSchemaFileProvider> = listOf(FormSchemaProvider())
 }
@@ -14,7 +14,7 @@ class FormJsonSchemaProviderFactory : JsonSchemaProviderFactory {
 class FormSchemaProvider : JsonSchemaFileProvider {
 
     override fun isAvailable(file: VirtualFile): Boolean =
-        file.extension?.equals("form", ignoreCase = true) == true
+        file.extension?.equals("ecform", ignoreCase = true) == true
 
     override fun getName(): String = "EventConductor Form"
 

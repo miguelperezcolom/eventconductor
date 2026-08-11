@@ -1,8 +1,8 @@
 {
   "name": "eventconductor-vscode",
   "displayName": "EventConductor",
-  "description": "Edit EventConductor workflow definitions (.ec) as an interactive graph and form definitions (.form) as a visual editor, or as YAML/JSON with schema validation.",
-  "version": "0.1.6",
+  "description": "Edit EventConductor workflow definitions (.ec) as an interactive graph and form definitions (.ecform) as a visual editor, or as YAML/JSON with schema validation.",
+  "version": "0.1.7",
   "publisher": "miguelperezcolom",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -26,7 +26,7 @@
   "capabilities": {
     "untrustedWorkspaces": {
       "supported": true,
-      "description": "The graph and form editors only read and rewrite the .ec / .form file you open."
+      "description": "The graph and form editors only read and rewrite the .ec / .ecform file you open."
     }
   },
   "extensionPack": [
@@ -38,7 +38,7 @@
         "id": "yaml",
         "extensions": [
           ".ec",
-          ".form"
+          ".ecform"
         ]
       }
     ],
@@ -58,7 +58,7 @@
         "displayName": "EventConductor Form",
         "selector": [
           {
-            "filenamePattern": "*.form"
+            "filenamePattern": "*.ecform"
           }
         ],
         "priority": "default"

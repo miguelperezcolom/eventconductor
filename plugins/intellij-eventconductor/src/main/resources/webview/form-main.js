@@ -9,7 +9,7 @@
   var fileIsYaml = false;
   var applying = false;
 
-  // An empty file is YAML: there is nothing to sniff, and a new .form the visual editor fills in
+  // An empty file is YAML: there is nothing to sniff, and a new .ecform the visual editor fills in
   // should look like the ones in the docs and examples, which are all YAML. Answering JSON here
   // meant creating a file and editing it produced JSON, a format nobody chose.
   function looksLikeYaml(t) {
