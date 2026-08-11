@@ -14,7 +14,7 @@
     <name>forms-embedded</name>
     <description>EventConductor forms — embedded mode with in-memory persistence and web UI</description>
     <properties>
-        <mateu.version>3.0-alpha.287</mateu.version>
+        <mateu.version>3.0-alpha.288</mateu.version>
         <java.version>21</java.version>
     </properties>
     <dependencies>
@@ -51,6 +51,19 @@
             <groupId>io.mateu</groupId>
             <artifactId>vaadin-lit</artifactId>
             <version>${mateu.version}</version>
+        </dependency>
+
+        <!-- The forms UI reads the JPA entity repositories directly (the forms/tasks lists), so it
+             only runs on the JPA side — memory mode dies with NoClassDefFoundError: JpaRepository.
+             H2 in memory keeps it a single command with nothing to install. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>runtime</scope>
         </dependency>
 
         <dependency>
