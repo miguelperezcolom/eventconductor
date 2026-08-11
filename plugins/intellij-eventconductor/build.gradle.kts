@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "com.eventconductor"
-version = "0.1.6"
+version = "0.1.7"
 
 repositories {
     mavenCentral()
@@ -61,11 +61,12 @@ kotlin {
     jvmToolchain(21)
 }
 
-// Copy the shared graph bundle and the JSON schema from the main repo into plugin resources,
-// so the plugin ships the current component. Runs before resources are processed.
+// Copy the shared graph + form-editor bundles and the JSON schemas from the main repo into plugin
+// resources, so the plugin ships the current components. Runs before resources are processed.
 val syncBundle by tasks.registering(Copy::class) {
     val repo = rootProject.projectDir.resolve("../..")
     from(repo.resolve("modules/workflow-engine/src/main/resources/META-INF/resources/eventconductor/workflow-graph.js"))
+    from(repo.resolve("modules/forms-engine/src/main/resources/META-INF/resources/eventconductor/form-editor.js"))
     into(layout.projectDirectory.dir("src/main/resources/webview"))
 }
 val syncSchema by tasks.registering(Copy::class) {

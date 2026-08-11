@@ -1,8 +1,8 @@
 {
   "name": "eventconductor-vscode",
   "displayName": "EventConductor",
-  "description": "Edit EventConductor workflow definitions (.ec) as an interactive graph or as YAML/JSON with schema validation.",
-  "version": "0.1.5",
+  "description": "Edit EventConductor workflow definitions (.ec) as an interactive graph and form definitions (.form) as a visual editor, or as YAML/JSON with schema validation.",
+  "version": "0.1.6",
   "publisher": "miguelperezcolom",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -20,12 +20,13 @@
   },
   "main": "./out/extension.js",
   "activationEvents": [
-    "onCustomEditor:eventconductor.graphEditor"
+    "onCustomEditor:eventconductor.graphEditor",
+    "onCustomEditor:eventconductor.formEditor"
   ],
   "capabilities": {
     "untrustedWorkspaces": {
       "supported": true,
-      "description": "The graph editor only reads and rewrites the .ec file you open."
+      "description": "The graph and form editors only read and rewrite the .ec / .form file you open."
     }
   },
   "extensionPack": [
@@ -51,6 +52,16 @@
           }
         ],
         "priority": "default"
+      },
+      {
+        "viewType": "eventconductor.formEditor",
+        "displayName": "EventConductor Form",
+        "selector": [
+          {
+            "filenamePattern": "*.form"
+          }
+        ],
+        "priority": "default"
       }
     ],
     "jsonValidation": [
@@ -72,6 +83,19 @@
         "command": "eventconductor.showTextBeside",
         "title": "EventConductor: Show YAML/JSON side-by-side",
         "icon": "$(split-horizontal)"
+      },
+      {
+        "command": "eventconductor.form.openAsText",
+        "title": "EventConductor: Open Form as Text (YAML/JSON)"
+      },
+      {
+        "command": "eventconductor.form.openAsForm",
+        "title": "EventConductor: Open as Form"
+      },
+      {
+        "command": "eventconductor.form.showTextBeside",
+        "title": "EventConductor: Show YAML/JSON side-by-side",
+        "icon": "$(split-horizontal)"
       }
     ],
     "menus": {
@@ -84,6 +108,16 @@
         {
           "command": "eventconductor.openAsText",
           "when": "activeCustomEditorId == eventconductor.graphEditor",
+          "group": "navigation@2"
+        },
+        {
+          "command": "eventconductor.form.showTextBeside",
+          "when": "activeCustomEditorId == eventconductor.formEditor",
+          "group": "navigation@1"
+        },
+        {
+          "command": "eventconductor.form.openAsText",
+          "when": "activeCustomEditorId == eventconductor.formEditor",
           "group": "navigation@2"
         }
       ]
