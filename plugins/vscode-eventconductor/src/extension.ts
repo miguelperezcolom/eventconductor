@@ -6,7 +6,7 @@ const FORM_VIEW_TYPE = "eventconductor.formEditor";
 
 export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
-    // The .ec graph editor and the .form visual editor share the same webview machinery, differing
+    // The .ec graph editor and the .ecform visual editor share the same webview machinery, differing
     // only in the component they host and the default new-document body — see EditorConfig.
     vscode.window.registerCustomEditorProvider(GRAPH_VIEW_TYPE, new EventConductorEditorProvider(context, GRAPH_CONFIG), {
       webviewOptions: { retainContextWhenHidden: true },
@@ -20,12 +20,12 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand("eventconductor.openAsText", () => reopenActive("default")),
     vscode.commands.registerCommand("eventconductor.openAsGraph", () => reopenActive(GRAPH_VIEW_TYPE)),
     vscode.commands.registerCommand("eventconductor.showTextBeside", () => openActiveBeside()),
-    // .form visual editor commands (mirrors the .ec ones).
+    // .ecform visual editor commands (mirrors the .ec ones).
     vscode.commands.registerCommand("eventconductor.form.openAsText", () => reopenActive("default")),
     vscode.commands.registerCommand("eventconductor.form.openAsForm", () => reopenActive(FORM_VIEW_TYPE)),
     vscode.commands.registerCommand("eventconductor.form.showTextBeside", () => openActiveBeside())
   );
-  // Validate .ec / .form (YAML or JSON) against their bundled schemas.
+  // Validate .ec / .ecform (YAML or JSON) against their bundled schemas.
   registerYamlSchema(context);
 }
 
@@ -34,7 +34,7 @@ export function deactivate() {}
 /**
  * Bind the bundled JSON schemas through the Red Hat YAML extension's API, so YAML (and JSON, a
  * YAML subset) definition files get validation and completion in the text view: `*.ec` against the
- * workflow-definition schema, `*.form` against the form schema.
+ * workflow-definition schema, `*.ecform` against the form schema.
  */
 async function registerYamlSchema(context: vscode.ExtensionContext) {
   try {
@@ -48,7 +48,7 @@ async function registerYamlSchema(context: vscode.ExtensionContext) {
       "eventconductor",
       (resource: string) => {
         if (resource.endsWith(".ec")) return ecSchemaUri;
-        if (resource.endsWith(".form")) return formSchemaUri;
+        if (resource.endsWith(".ecform")) return formSchemaUri;
         return undefined;
       },
       () => undefined
@@ -79,7 +79,7 @@ function openActiveBeside() {
 }
 
 /**
- * What differs between the .ec graph editor and the .form visual editor: the hosted web component,
+ * What differs between the .ec graph editor and the .ecform visual editor: the hosted web component,
  * the bundle + bridge scripts, the new-document body and the labels shown to the user. Everything
  * else (the YAML<->JSON round-trip, the document sync, the CSP) is identical and lives in the
  * provider below.
@@ -109,7 +109,7 @@ const FORM_CONFIG: EditorConfig = {
   tag: "eventconductor-form-editor",
   bundle: "form-editor.js",
   main: "form-main.js",
-  ext: ".form",
+  ext: ".ecform",
   emptyValue: () => ({ name: "New Form", fields: [] }),
 };
 
@@ -219,7 +219,7 @@ class EventConductorEditorProvider implements vscode.CustomTextEditorProvider {
 }
 
 /**
- * A .ec / .form body is YAML unless it clearly starts as JSON (a leading '{' or '[').
+ * A .ec / .ecform body is YAML unless it clearly starts as JSON (a leading '{' or '[').
  *
  * An empty file is YAML too: there is nothing to sniff, and a new file that the visual editor fills
  * in should come out looking like the ones in the documentation and the examples, all of which are

@@ -27,7 +27,7 @@
         setTimeout(() => { applying = false; }, 0);
       }
     } else if (msg.type === "parseError") {
-      errorBox.textContent = "Could not parse this .form file: " + msg.message;
+      errorBox.textContent = "Could not parse this .ecform file: " + msg.message;
       errorBox.style.display = "block";
     }
   });
