@@ -134,8 +134,6 @@ public class MyApplication {
 
 ```java
 @WorkflowEmbeddedApplication
-@EnableJpaRepositories(basePackages = "io.mateu.workflow.infra.out.persistence")
-@AutoConfigurationPackage(basePackages = "io.mateu.workflow.infra.out.persistence")
 public class MyApplication {
     public static void main(String[] args) {
         SpringApplication.run(MyApplication.class, args);
@@ -143,7 +141,7 @@ public class MyApplication {
 }
 ```
 
-`@WorkflowEmbeddedApplication` is provided by the `workflow-engine` module. It combines `@SpringBootConfiguration`, `@EnableAutoConfiguration`, and a `@ComponentScan` scoped to `io.mateu.workflow` with the UI adapter layer excluded.
+`@WorkflowEmbeddedApplication` is provided by the `workflow-engine` module. It combines `@SpringBootConfiguration`, `@EnableAutoConfiguration`, and a `@ComponentScan` scoped to `io.mateu.workflow` with the UI adapter layer excluded, and it registers the required persistence packages automatically.
 
 ### Forms engine
 
@@ -164,8 +162,6 @@ public class MyApplication {
 
 ```java
 @FormsEmbeddedApplication
-@EnableJpaRepositories(basePackages = "io.mateu.workflow.infra.out.persistence")
-@AutoConfigurationPackage(basePackages = "io.mateu.workflow.infra.out.persistence")
 public class MyApplication {
     public static void main(String[] args) {
         SpringApplication.run(MyApplication.class, args);

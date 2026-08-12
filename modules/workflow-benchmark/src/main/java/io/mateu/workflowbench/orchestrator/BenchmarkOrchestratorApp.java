@@ -5,7 +5,6 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.springframework.boot.persistence.autoconfigure.EntityScan;
 import org.springframework.context.annotation.Bean;
-import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
 /**
  * An orchestrator pod, wired exactly as apps/orchestrator-standalone-app is.
@@ -17,8 +16,6 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
  * manager for a database it does not have.
  */
 @WorkflowEmbeddedApplication
-@EntityScan("io.mateu.workflow")
-@EnableJpaRepositories("io.mateu.workflow")
 public class BenchmarkOrchestratorApp {
 
     /** Stands in for the MeterRegistry the standalone app gets from Actuator. */

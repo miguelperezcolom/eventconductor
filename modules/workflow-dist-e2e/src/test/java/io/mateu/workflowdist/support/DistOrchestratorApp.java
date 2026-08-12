@@ -16,8 +16,6 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
  * repository packages must be pointed at the engine explicitly.
  */
 @WorkflowEmbeddedApplication
-@EntityScan("io.mateu.workflow")
-@EnableJpaRepositories("io.mateu.workflow")
 public class DistOrchestratorApp {
 
     /** Stands in for the MeterRegistry the standalone app gets from Actuator. */

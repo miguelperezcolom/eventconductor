@@ -100,12 +100,10 @@ this engine in production.
 
 > Kafka autoconfiguration classes are excluded **automatically** by `workflow-engine` when `workflow.mode=embedded`.
 
-Use `@WorkflowEmbeddedApplication` (which handles component scanning) plus `@EnableJpaRepositories` and `@AutoConfigurationPackage` pointing at the engine's persistence package, so Spring Data JPA and Hibernate find the repositories and entities regardless of where your main class lives:
+Use `@WorkflowEmbeddedApplication` (which handles component scanning and automatically sets up JPA entity and repository registration for the engine's persistence package, so Spring Data JPA and Hibernate find them regardless of where your main class lives):
 
 ```java
 @WorkflowEmbeddedApplication
-@EnableJpaRepositories(basePackages = "io.mateu.workflow.infra.out.persistence")
-@AutoConfigurationPackage(basePackages = "io.mateu.workflow.infra.out.persistence")
 public class MyApplication {
     public static void main(String[] args) {
         SpringApplication.run(MyApplication.class, args);
