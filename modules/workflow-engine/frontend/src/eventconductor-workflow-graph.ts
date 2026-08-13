@@ -1,13 +1,13 @@
 import {customElement, property, state} from "lit/decorators.js";
 import {css, html, LitElement, nothing, svg} from "lit";
 import type {ELK, ElkNode, ElkExtendedEdge} from "elkjs/lib/elk.bundled.js";
-import {neutralButtonStyles, iconCog, iconPlus, iconSitemap, iconFit} from "./neutralChrome";
+import {neutralButtonStyles, iconCog, iconSitemap, iconFit} from "./neutralChrome";
 
 // ── Domain types ─────────────────────────────────────────────────────────────
 
 type StepType =
     | "START" | "ACTION" | "USER_TASK" | "RULE" | "TIMER"
-    | "WAIT_FOR_MESSAGE" | "SEND_MESSAGE" | "FORK" | "JOIN" | "PROCESS" | "END" | "DYNAMIC";
+    | "WAIT_FOR_MESSAGE" | "SEND_MESSAGE" | "FORK" | "JOIN" | "CHOICE" | "PROCESS" | "END" | "DYNAMIC";
 /** Whether a workflow is open for business. DRAFT is an older value that meant nothing. */
 type WorkflowStatus = "ACTIVE" | "DISABLED" | "ARCHIVED" | "DRAFT";
 
@@ -126,7 +126,7 @@ const PAD = 60;
 
 const STEP_TYPES: StepType[] = [
     "START", "ACTION", "USER_TASK", "RULE", "TIMER",
-    "WAIT_FOR_MESSAGE", "SEND_MESSAGE", "FORK", "JOIN", "PROCESS", "END", "DYNAMIC",
+    "WAIT_FOR_MESSAGE", "SEND_MESSAGE", "FORK", "JOIN", "CHOICE", "PROCESS", "END", "DYNAMIC",
 ];
 
 /**
@@ -145,9 +145,11 @@ const NODE_STYLE: Record<StepType, NodeStyle> = {
     TIMER:            {fill: "#ffffff", stroke: "#d97706", symbol: "clock"},
     WAIT_FOR_MESSAGE: {fill: "#ffffff", stroke: "#0891b2", symbol: "event"},
     SEND_MESSAGE:     {fill: "#ffffff", stroke: "#0891b2", symbol: "flow"},
-    // BPMN parallel gateways: amber diamonds with a "+".
+    // BPMN parallel gateways: amber diamonds with a "+". CHOICE is the exclusive split gateway
+    // (an "×"), the split counterpart of the XOR join.
     FORK:             {fill: "#fffbeb", stroke: "#b45309", symbol: "flow"},
     JOIN:             {fill: "#fffbeb", stroke: "#b45309", symbol: "flow"},
+    CHOICE:           {fill: "#fffbeb", stroke: "#b45309", symbol: "flow"},
     PROCESS:          {fill: "#eef2ff", stroke: "#4f46e5", symbol: "component"},
     END:              {fill: "#fef2f2", stroke: "#dc2626", symbol: "event"},
     // A generator step: its worker may inject new steps into the running process. Teal task node
@@ -161,7 +163,11 @@ const styleOf = (t: StepType): NodeStyle => NODE_STYLE[t] ?? DEFAULT_STYLE;
 /** BPMN events (START/END) and gateways (FORK/JOIN) are compact squares; the rest are tasks. */
 const EVENT_SIZE = 56;
 function isEventType(t: StepType): boolean { return t === "START" || t === "END"; }
-function isGatewayType(t: StepType): boolean { return t === "FORK" || t === "JOIN"; }
+function isGatewayType(t: StepType): boolean { return t === "FORK" || t === "JOIN" || t === "CHOICE"; }
+/** Only these step types do work worth undoing, so only they may declare a compensation. */
+function isCompensableType(t: StepType): boolean {
+    return t === "ACTION" || t === "PROCESS" || t === "WAIT_FOR_MESSAGE" || t === "DYNAMIC";
+}
 function sizeOf(t: StepType): {w: number; h: number} {
     return (isEventType(t) || isGatewayType(t)) ? {w: EVENT_SIZE, h: EVENT_SIZE} : {w: NODE_W, h: NODE_H};
 }
@@ -181,6 +187,37 @@ const SYMBOLS: Record<string, ReturnType<typeof svg>> = {
     // A lightning spark — the generator step that grows the graph at runtime.
     spark:     svg`<path d="M6.5 0.5 L2 6.5 H5.5 L4.5 11.5 L9.5 5 H6 Z"/>`,
 };
+
+/**
+ * A 22×22 icon of a step type as it appears on the canvas — the same shape (event circle, gateway
+ * diamond, or task card) in the type's own colours, with its glyph. Used in the palette so each
+ * item reads as the node it drops.
+ */
+function paletteIcon(t: StepType) {
+    const st = styleOf(t);
+    if (isEventType(t)) {
+        return svg`<svg class="palette-icon" viewBox="0 0 22 22" width="22" height="22" aria-hidden="true">
+            <circle cx="11" cy="11" r="8.5" fill="${st.fill}" stroke="${st.stroke}"
+                    stroke-width="${t === "END" ? 2.6 : 1.6}"/>
+        </svg>`;
+    }
+    if (isGatewayType(t)) {
+        const exclusive = t === "CHOICE";
+        const glyph = exclusive
+            ? svg`<path d="M7,7 L15,15 M15,7 L7,15" stroke="${st.stroke}" stroke-width="1.7" stroke-linecap="round"/>`
+            : svg`<path d="M5.5,11 H16.5 M11,5.5 V16.5" stroke="${st.stroke}" stroke-width="1.7" stroke-linecap="round"/>`;
+        return svg`<svg class="palette-icon" viewBox="0 0 22 22" width="22" height="22" aria-hidden="true">
+            <polygon points="11,2 20,11 11,20 2,11" fill="${st.fill}" stroke="${st.stroke}" stroke-width="1.5"/>
+            ${glyph}
+        </svg>`;
+    }
+    return svg`<svg class="palette-icon" viewBox="0 0 22 22" width="22" height="22" aria-hidden="true">
+        <rect x="1.5" y="4.5" width="19" height="13" rx="3.2" fill="${st.fill}" stroke="${st.stroke}"
+              stroke-width="1.5" stroke-dasharray="${st.dashed ? "3 2" : "0"}"/>
+        <g transform="translate(5, 5)" fill="none" stroke="${st.stroke}" stroke-width="1.2"
+           stroke-linejoin="round">${SYMBOLS[st.symbol] ?? svg``}</g>
+    </svg>`;
+}
 
 /** Short caption shown above each node — the step's salient reference, modux-style. */
 function badgeOf(step: WorkflowStep): string {
@@ -649,14 +686,25 @@ export class MateuWorkflowElk extends LitElement {
      * and unticking a precondition.
      */
     @state() private selectedEdge: {from: string; to: string; comp: boolean} | null = null;
+    /** The step type being dragged out of the palette, while a pointer drag is in flight. */
+    @state() private palettePlacing: StepType | null = null;
+    /** Viewport coords of the drag ghost that follows the cursor during a palette drag. */
+    @state() private paletteGhost: Pt | null = null;
+    /** The node the cursor is over during a palette drag — dropping there connects the new node. */
+    @state() private paletteHoverNode: string | null = null;
     /** Node the pointer is over in monitoring view — drives the diagnostic hover tooltip. */
     @state() private hoverId: string | null = null;
     @state() private showMeta = false;
+    /** Whether the editing-gestures help popover is open. */
+    @state() private showHelp = false;
     @state() private layoutError: string | null = null;
     /** When true, the graph overlays the whole viewport (expand button). */
     @state() private fullscreen = false;
-    /** When true, animated tokens flow along the sequence edges (BPMN token simulation). */
-    @state() private flowOn = true;
+    /**
+     * When true, animated tokens flow along the sequence edges (BPMN token simulation). Off on
+     * open — a workflow arrives paused, and the viewbar play button starts the animation.
+     */
+    @state() private flowOn = false;
     /** Token speed in px/second, adjustable via the viewbar slider. */
     @state() private flowSpeed = 260;
     /** Definition view: when on, nodes are tinted by their stopped/waiting task count (heatmap). */
@@ -676,8 +724,10 @@ export class MateuWorkflowElk extends LitElement {
     private pulsedThisPath = new Set<string>();
     /** nodeId → timestamp of the last token arrival, for the ping effect. */
     private pulseAt: Record<string, number> = {};
-    /** nodeId → ping colour ("" = default/primary, red on an error/compensation path). */
+    /** nodeId → ping colour ("" = default/primary, red on a failed attempt / error path). */
     private pulseColor: Record<string, string> = {};
+    /** nodeId → how many times it has pinged on this pass (retry simulation counts attempts). */
+    private pulseCount: Record<string, number> = {};
     /** the token's distance along the path on the previous frame, to detect guard-crossings once. */
     private flowPrevPosD = 0;
 
@@ -710,9 +760,11 @@ export class MateuWorkflowElk extends LitElement {
      *  re-layout genuinely new nodes, not ones the user has repositioned. */
     private elkPositioned = new Set<string>();
 
-    // ── Edge drawing (ctrl+drag from a node to another) ─────────────────────────
-    /** The source node id while dragging a new precondition line, else null. */
+    // ── Edge drawing (shift+drag = precondition, alt+drag = compensation) ────────
+    /** The source node id while dragging a new line, else null. */
     private linkingFrom: string | null = null;
+    /** Whether the line being drawn is a compensation link (alt+drag) rather than a precondition. */
+    @state() private linkingComp = false;
     /** Live cursor position (scene coords) while drawing, for the rubber-band line. */
     @state() private linkCursor: Pt | null = null;
     /** The node currently hovered as a drop target while drawing. */
@@ -1021,22 +1073,103 @@ export class MateuWorkflowElk extends LitElement {
         });
     }
 
-    private addStep() {
+    /**
+     * Creates a step of a chosen type at a scene point — how the palette makes nodes. It keeps the
+     * drop position: the node is pinned there (added to {@code elkPositioned}) so the layout run
+     * that follows the edit routes edges around it instead of relaying the whole graph out from
+     * under the author's hand.
+     */
+    private addStepOfType(type: StepType, at: Pt) {
         const id = newId();
-        const step: WorkflowStep = {id, type: "ACTION", name: "New Step"};
+        const pretty = type.charAt(0) + type.slice(1).toLowerCase().replace(/_/g, " ");
+        const step: WorkflowStep = {id, type, name: "New " + pretty};
         this.wf = {...this.wf, steps: [...(this.wf.steps ?? []), step]};
-        // Position new step to the right of the rightmost existing node until ELK runs
-        const xs = Object.values(this.positions).map(p => p.x);
+        const {w, h} = sizeOf(type);
         this.positions = {
             ...this.positions,
-            [id]: {x: xs.length ? Math.max(...xs) + NODE_W + 80 : PAD, y: PAD},
+            [id]: {x: Math.max(0, at.x - w / 2), y: Math.max(0, at.y - h / 2)},
         };
+        this.elkPositioned.add(id);   // the author placed it — ELK must not move it
+        this.selectedEdge = null;
         this.selectedId = id;
-        // Re-run ELK for the new node (don't lock old positions so the whole
-        // graph gets a clean layout with the new node included)
-        this.elkPositioned.clear();
-        this.runElkLayout();
         this.emit();
+    }
+
+    /**
+     * Creates a step linked as a successor of an existing node — a palette drop onto that node.
+     * The new node gets a precondition on the target, so a line runs target → new, and is placed
+     * just to its right (pinned, so a later layout run leaves it there).
+     */
+    private addStepConnectedTo(fromId: string, type: StepType) {
+        const from = this.wf.steps.find(s => s.id === fromId);
+        if (!from) return;
+        const id = newId();
+        const pretty = type.charAt(0) + type.slice(1).toLowerCase().replace(/_/g, " ");
+        const step: WorkflowStep = {id, type, name: "New " + pretty};
+        // START never has an incoming link; everything else is wired as a successor of the target.
+        if (type !== "START") step.preconditions = [{stepId: fromId}];
+        this.wf = {...this.wf, steps: [...(this.wf.steps ?? []), step]};
+        const fromPos = this.positions[fromId];
+        if (fromPos) {
+            const fs = sizeOf(from.type);
+            const ns = sizeOf(type);
+            this.positions = {
+                ...this.positions,
+                [id]: {x: fromPos.x + fs.w + 90, y: Math.max(0, fromPos.y + (fs.h - ns.h) / 2)},
+            };
+            this.elkPositioned.add(id);   // placed by the author relative to its predecessor
+        }
+        this.selectedEdge = null;
+        this.selectedId = id;
+        this.emit();
+    }
+
+    /**
+     * Begins a pointer-driven palette drag. Native HTML5 drag-and-drop is unreliable inside the
+     * IntelliJ JCEF webview, so the palette places nodes with plain mouse events instead — which
+     * work identically in both the VSCode webview and JCEF.
+     */
+    private startPaletteDrag(e: MouseEvent, type: StepType) {
+        if (this.readOnly) return;
+        e.preventDefault();
+        this.palettePlacing = type;
+        this.paletteGhost = {x: e.clientX, y: e.clientY};
+        this.paletteHoverNode = null;
+        this.svgEl = (this.renderRoot as ParentNode).querySelector("svg.canvas") as SVGSVGElement | null;
+        window.addEventListener("mousemove", this.onPaletteMove);
+        window.addEventListener("mouseup", this.onPaletteUp);
+    }
+
+    private onPaletteMove = (e: MouseEvent) => {
+        if (!this.palettePlacing) return;
+        this.paletteGhost = {x: e.clientX, y: e.clientY};
+        this.paletteHoverNode = this.svgEl ? this.nodeAtPoint(this.toSvgPoint(e)) : null;
+    };
+
+    private onPaletteUp = (e: MouseEvent) => {
+        const type = this.palettePlacing;
+        const overNode = this.paletteHoverNode;
+        window.removeEventListener("mousemove", this.onPaletteMove);
+        window.removeEventListener("mouseup", this.onPaletteUp);
+        this.palettePlacing = null;
+        this.paletteGhost = null;
+        this.paletteHoverNode = null;
+        if (!type || !this.svgEl) return;
+        const rect = this.svgEl.getBoundingClientRect();
+        const inside = e.clientX >= rect.left && e.clientX <= rect.right
+                    && e.clientY >= rect.top && e.clientY <= rect.bottom;
+        if (!inside) return;                                   // released off the canvas — no-op
+        if (overNode) this.addStepConnectedTo(overNode, type);
+        else this.addStepOfType(type, this.toSvgPoint(e));
+    };
+
+    /** The node whose box contains a scene point, or null. */
+    private nodeAtPoint(pt: Pt): string | null {
+        for (const s of this.wf.steps ?? []) {
+            const b = this.boxForId(s.id);
+            if (b && Math.abs(pt.x - b.x) <= b.w / 2 && Math.abs(pt.y - b.y) <= b.h / 2) return s.id;
+        }
+        return null;
     }
 
     /**
@@ -1087,7 +1220,8 @@ export class MateuWorkflowElk extends LitElement {
      */
     private deleteEdge(edge: {from: string; to: string; comp: boolean}) {
         if (edge.comp) {
-            this.updateStep(edge.from, {compensationStepId: undefined});
+            // Drop the whole compensation: the pointer and the flag that says there is one.
+            this.updateStep(edge.from, {compensationStepId: undefined, compensable: undefined});
         } else {
             const target = this.wf.steps.find(s => s.id === edge.to);
             if (target) {
@@ -1122,9 +1256,15 @@ export class MateuWorkflowElk extends LitElement {
     // ── Drag & drop ───────────────────────────────────────────────────────────
 
     private onNodeMouseDown(e: MouseEvent, id: string) {
-        if (e.shiftKey) { if (!this.readOnly) this.startLink(e, id); return; } // shift+drag = draw a line
+        // shift+drag draws a precondition line; alt+drag draws a compensation line, but only from a
+        // step type that can actually be compensated.
+        if (e.shiftKey) { if (!this.readOnly) this.startLink(e, id, false); return; }
+        if (e.altKey) {
+            const type = this.wf.steps.find(s => s.id === id)?.type;
+            if (!this.readOnly && type && isCompensableType(type)) this.startLink(e, id, true);
+            return;
+        }
         if (this.readOnly) return;
-        if (e.altKey) return; // alt is a focus click (handled on click), not a drag
         e.preventDefault();
         this.draggingId = id;
         const pos = this.positions[id] ?? {x: 0, y: 0};
@@ -1157,11 +1297,12 @@ export class MateuWorkflowElk extends LitElement {
 
     // ── Edge drawing ────────────────────────────────────────────────────────────
 
-    private startLink(e: MouseEvent, id: string) {
+    private startLink(e: MouseEvent, id: string, comp: boolean) {
         e.preventDefault();
         e.stopPropagation(); // don't let the canvas start a pan
         this.svgEl = (e.currentTarget as SVGElement).closest("svg") as SVGSVGElement;
         this.linkingFrom = id;
+        this.linkingComp = comp;
         this.linkCursor = this.toSvgPoint(e);
         this.linkHoverId = null;
         window.addEventListener("mousemove", this.onLinkMove);
@@ -1175,13 +1316,17 @@ export class MateuWorkflowElk extends LitElement {
     };
 
     private onLinkUp = () => {
-        const from = this.linkingFrom, to = this.linkHoverId;
+        const from = this.linkingFrom, to = this.linkHoverId, comp = this.linkingComp;
         this.linkingFrom = null;
+        this.linkingComp = false;
         this.linkCursor = null;
         this.linkHoverId = null;
         window.removeEventListener("mousemove", this.onLinkMove);
         window.removeEventListener("mouseup", this.onLinkUp);
-        if (from && to && from !== to) this.createLink(from, to);
+        if (from && to && from !== to) {
+            if (comp) this.createCompensationLink(from, to);
+            else this.createLink(from, to);
+        }
     };
 
     /** The step whose box contains the point (for the drop target), excluding the link source. */
@@ -1208,6 +1353,17 @@ export class MateuWorkflowElk extends LitElement {
         if (preconditionsOf(fromStep).includes(to)) return;      // reverse line already exists
         if (this.ancestorsOf(from).has(to)) return;              // would close a cycle
         this.togglePrecondition(toStep, from, true);
+    }
+
+    /**
+     * Make {@code to} the compensation of {@code from} (alt+drag). Only a compensable step type may
+     * carry one; a step has a single compensation, so a new line replaces any previous one, and a
+     * step is never its own compensation.
+     */
+    private createCompensationLink(from: string, to: string) {
+        const fromStep = this.wf.steps.find(s => s.id === from);
+        if (!fromStep || from === to || !isCompensableType(fromStep.type)) return;
+        this.updateStep(from, {compensable: true, compensationStepId: to});
     }
 
     /** All transitive preconditions (ancestors) of a step. */
@@ -1620,6 +1776,7 @@ export class MateuWorkflowElk extends LitElement {
         this.flowRaf = 0;
         this.pulseAt = {};
         this.pulseColor = {};
+        this.pulseCount = {};
         this.pulsedThisPath = new Set();
         const root = this.renderRoot as unknown as ParentNode;
         root.querySelectorAll?.("[data-pulse]").forEach(el => (el as SVGElement).setAttribute("opacity", "0"));
@@ -1649,12 +1806,12 @@ export class MateuWorkflowElk extends LitElement {
         const pausePx = 55;        // brief gap between paths
         const DWELL_MS = 1800;     // a long-running node holds the token this long…
         const PING_MS = 600;       // …re-pinging at this cadence (≈3 pulses) to signal "this takes a while"
-        const SLOW_TIMEOUT_MS = 30000;
 
         const byId = new Map((this.wf.steps ?? []).map(s => [s.id, s] as const));
-        // Long-running steps — the token pauses on them and the node pulses several times:
-        // USER_TASK (a human is in the loop), WAIT_FOR_MESSAGE / TIMER (they wait by nature),
-        // and any step with a high timeout (assumed slow).
+        // Long-running steps — the token pauses on them and the node pulses several times: only the
+        // types that wait by nature, USER_TASK (a human is in the loop) and WAIT_FOR_MESSAGE / TIMER.
+        // A big `timeout` is NOT one of these: it is a deadline, not a wait — a normal ACTION with a
+        // 30s timeout should ping once, like any other step, not three times as if it were slow.
         const SLOW_TYPES = new Set<StepType>(["USER_TASK", "WAIT_FOR_MESSAGE", "TIMER"]);
         // An AND-join synchronises: it waits for ALL its incoming branches. Treat it as a dwell
         // node so the token pauses there and we can light up the branches it is waiting for.
@@ -1664,12 +1821,23 @@ export class MateuWorkflowElk extends LitElement {
         };
         const isSlow = (id: string) => {
             const s = byId.get(id);
-            return !!s && (SLOW_TYPES.has(s.type) || (s.timeout ?? 0) >= SLOW_TIMEOUT_MS || isAndJoin(id));
+            return !!s && (SLOW_TYPES.has(s.type) || isAndJoin(id));
         };
+        // How many times a step tries — a step with `retries: N` runs up to N+1 times, simulating N
+        // failures before it succeeds. That is the retry animation: N red pings then one normal.
+        const attemptsOf = (id: string) => Math.max(0, byId.get(id)?.retries ?? 0) + 1;
+        // A node holds the token (the animation lingers there): a retrying step for one ping per
+        // attempt, a slow step for a single, longer dwell. Everything else just passes through.
+        const dwellMsOf = (id: string) => {
+            if (attemptsOf(id) > 1) return attemptsOf(id) * PING_MS;   // one ping per attempt
+            if (isSlow(id)) return DWELL_MS;                           // a single, lingering ping
+            return 0;
+        };
+        const dwells = (id: string) => dwellMsOf(id) > 0;
 
         const stops = geo.marks;
         let schedMs = (len / speed) * 1000;
-        for (const m of stops) if (isSlow(m.id)) schedMs += DWELL_MS;
+        for (const m of stops) if (dwells(m.id)) schedMs += dwellMsOf(m.id);
         const pauseMs = (pausePx / speed) * 1000;
         const elapsed = now - this.flowStartTs;
 
@@ -1690,9 +1858,10 @@ export class MateuWorkflowElk extends LitElement {
             const segMs = ((m.d - prevD) / speed) * 1000;
             if (elapsed < acc + segMs) { posD = prevD + (segMs <= 0 ? 0 : (elapsed - acc) / segMs) * (m.d - prevD); break; }
             acc += segMs;
-            if (isSlow(m.id)) {
-                if (elapsed < acc + DWELL_MS) { posD = m.d; dwellId = m.id; break; }
-                acc += DWELL_MS;
+            if (dwells(m.id)) {
+                const dm = dwellMsOf(m.id);
+                if (elapsed < acc + dm) { posD = m.d; dwellId = m.id; break; }
+                acc += dm;
             }
             prevD = m.d;
             posD = m.d;
@@ -1707,8 +1876,8 @@ export class MateuWorkflowElk extends LitElement {
         const crossingNode = geo.hidden.some(hr => clamped >= hr.from && clamped <= hr.to);
         token.style.opacity = (elapsed <= schedMs && !crossingNode && !dwellId) ? "1" : "0";
 
-        // On an error/compensation path (its last edge is a compensation edge), only the failing
-        // compensable node pings red to flag the failure. The compensation step is the
+        // On an error/compensation path (its last edge is a compensation edge), the failing
+        // compensable node ultimately fails — every attempt reds. The compensation step is the
         // (successful) recovery, so it — and the token — keep their normal colour.
         const errorNodes = new Set<string>();
         for (let i = 1; i < path.length; i++) {
@@ -1716,11 +1885,22 @@ export class MateuWorkflowElk extends LitElement {
             if (s && s.compensable && s.compensationStepId === path[i]) errorNodes.add(path[i - 1]);
         }
 
-        // Ping each node once, as the token reaches it (red only on the failing node)…
+        // Fire attempt `n` (1-based) of a node's ping, choosing its colour. A retrying step's failed
+        // attempts (all but the last) ping red; the last attempt is the success (normal) — unless the
+        // step is on a compensation path, where even the last attempt fails. A non-retrying step reds
+        // only on the compensation path.
+        const firePing = (id: string, n: number) => {
+            this.pulseAt[id] = now;
+            this.pulseCount[id] = n;
+            const attempts = attemptsOf(id);
+            const failing = attempts > 1 ? (n < attempts || errorNodes.has(id)) : errorNodes.has(id);
+            this.pulseColor[id] = failing ? "#dc2626" : "";
+        };
+
+        // Ping each node as the token reaches it — the first attempt.
         for (const m of stops) {
             if (posD >= m.d && !this.pulsedThisPath.has(m.id)) {
-                this.pulseAt[m.id] = now;
-                this.pulseColor[m.id] = errorNodes.has(m.id) ? "#dc2626" : "";
+                firePing(m.id, 1);
                 this.pulsedThisPath.add(m.id);
             }
         }
@@ -1742,9 +1922,12 @@ export class MateuWorkflowElk extends LitElement {
             }
         }
         this.flowPrevPosD = posD;
-        // …but a long-running node keeps re-pinging while the token dwells inside it.
-        if (dwellId && now - (this.pulseAt[dwellId] ?? 0) >= PING_MS) {
-            this.pulseAt[dwellId] = now;
+        // A retrying node re-pings once per PING_MS while the token dwells — the next attempt, red
+        // until the last. A slow (non-retrying) node dwells but pings only once: it is slow, not
+        // failing, so the token just lingers there.
+        if (dwellId && attemptsOf(dwellId) > 1 && now - (this.pulseAt[dwellId] ?? 0) >= PING_MS) {
+            const n = (this.pulseCount[dwellId] ?? 1) + 1;
+            if (n <= attemptsOf(dwellId)) firePing(dwellId, n);
         }
 
         // The currently-animated path's edges (brightest) and, in a focus mode, the "universe"
@@ -1798,8 +1981,9 @@ export class MateuWorkflowElk extends LitElement {
             if (!ring) continue;
             const t0 = this.pulseAt[s.id];
             const dt = t0 ? (now - t0) / 1000 : Infinity;
-            // A failing node trembles briefly while its red ping is fresh (CSS @keyframes ec-shake).
-            if (g) g.classList.toggle("err", errorNodes.has(s.id) && dt < 0.5);
+            // A node trembles briefly while a red ping is fresh — a failed attempt (retry) or a
+            // failure that triggers compensation (CSS @keyframes ec-shake).
+            if (g) g.classList.toggle("err", this.pulseColor[s.id] === "#dc2626" && dt < 0.5);
             if (dt > 0.6) { ring.setAttribute("opacity", "0"); continue; }
             const k = dt / 0.6;
             const base = Math.max(sizeOf(s.type).w, sizeOf(s.type).h) / 2;
@@ -1817,7 +2001,7 @@ export class MateuWorkflowElk extends LitElement {
         const b = this.boxForId(this.linkingFrom);
         if (!b) return nothing;
         const start = borderTowards(b, this.linkCursor.x, this.linkCursor.y);
-        return svg`<line class="link-draft" x1="${start.x}" y1="${start.y}"
+        return svg`<line class="link-draft ${this.linkingComp ? "comp" : ""}" x1="${start.x}" y1="${start.y}"
                          x2="${this.linkCursor.x}" y2="${this.linkCursor.y}"/>`;
     }
 
@@ -1982,18 +2166,23 @@ export class MateuWorkflowElk extends LitElement {
                 ${this.showMeta ? this.renderMeta() : ""}
                 ${this.layoutError ? html`<div class="error">⚠ ${this.layoutError}</div>` : ""}
                 <div class="workspace">
+                    ${this.readOnly ? nothing : this.renderPalette()}
                     <div class="canvas-wrap">
                         ${this.renderViewbar()}
                         <svg width="100%" height="100%" class="canvas ${this.panning ? "panning" : ""}"
                              @mousedown="${this.onCanvasMouseDown}">
                             <defs>
-                                <!-- The arrowhead is what tells you which way a line runs, and at
-                                     1:1 zoom the old one was a smudge on a 1.6px line: present,
-                                     unreadable. Half again as long, wider at the base, and it
-                                     reads as an arrow at the zoom people actually work at. -->
-                                <marker id="ec-arrow" markerWidth="13" markerHeight="13"
-                                        refX="11" refY="4.5" orient="auto" markerUnits="userSpaceOnUse">
-                                    <path d="M0,0 L0,9 L11.5,4.5 z" fill="context-stroke"/>
+                                <!-- The arrowhead is what tells you which way a line runs. Filled
+                                     via CSS rather than context-stroke (which JCEF does not render),
+                                     so the head shows in both the VSCode webview and IntelliJ: a
+                                     sequence line gets the edge colour, a compensation line red. -->
+                                <marker id="ec-arrow" markerWidth="15" markerHeight="15"
+                                        refX="12" refY="5" orient="auto" markerUnits="userSpaceOnUse">
+                                    <path d="M0,0 L0,10 L13,5 z"/>
+                                </marker>
+                                <marker id="ec-arrow-comp" markerWidth="15" markerHeight="15"
+                                        refX="12" refY="5" orient="auto" markerUnits="userSpaceOnUse">
+                                    <path d="M0,0 L0,10 L13,5 z"/>
                                 </marker>
                                 <filter id="ec-shadow" x="-20%" y="-20%" width="140%" height="150%">
                                     <feDropShadow dx="0" dy="1" stdDeviation="1.2" flood-color="#0f172a"
@@ -2012,6 +2201,75 @@ export class MateuWorkflowElk extends LitElement {
                         ${this.renderOverlayTooltip()}
                     </div>
                     ${this.selectedId && !this.readOnly ? this.renderPanel() : ""}
+                    ${this.selectedEdge && !this.readOnly ? this.renderEdgePanel() : ""}
+                </div>
+                ${this.palettePlacing && this.paletteGhost ? html`
+                    <div class="palette-ghost" style="left:${this.paletteGhost.x}px; top:${this.paletteGhost.y}px">
+                        ${this.paletteHoverNode ? "＋ connect " : "＋ "}${this.palettePlacing}
+                    </div>` : nothing}
+            </div>
+        `;
+    }
+
+    /** The left rail: one draggable chip per step type. Drag a chip onto the canvas to create it. */
+    private renderPalette() {
+        return html`
+            <div class="palette" aria-label="Step palette">
+                <div class="palette-title">Palette</div>
+                ${STEP_TYPES.map(t => html`
+                    <div class="palette-item"
+                         title="Drag onto the canvas to add a ${t} step (drop on a node to connect it)"
+                         @mousedown="${(e: MouseEvent) => this.startPaletteDrag(e, t)}">
+                        ${paletteIcon(t)}
+                        <span class="palette-label">${t}</span>
+                    </div>`)}
+            </div>
+        `;
+    }
+
+    /**
+     * The panel for a selected connection: edit the condition (guard) that gates arriving at the
+     * target step by THIS route. Compensation links carry no condition — they are rollback wiring,
+     * not flow — so that case only says so.
+     */
+    private renderEdgePanel() {
+        const edge = this.selectedEdge;
+        if (!edge) return "";
+        const from = this.wf.steps.find(s => s.id === edge.from);
+        const to = this.wf.steps.find(s => s.id === edge.to);
+        if (!from || !to) return "";
+        return html`
+            <div class="properties">
+                <div class="prop-header">
+                    <span>Connection</span>
+                    <button class="del-btn" title="Delete connection"
+                            @click="${() => this.deleteEdge(edge)}">🗑</button>
+                    <button class="close-btn" title="Close"
+                            @click="${() => this.selectedEdge = null}">✕</button>
+                </div>
+                <div class="prop-body">
+                    <div class="edge-route">
+                        <span class="edge-node">${from.name}</span>
+                        <span class="edge-arrow">→</span>
+                        <span class="edge-node">${to.name}</span>
+                    </div>
+                    ${edge.comp ? html`
+                        <p class="edge-note">A compensation link: it wires ${from.name}'s rollback,
+                            not flow, so it carries no condition.</p>
+                    ` : html`
+                        <div class="field">
+                            <label class="field-label">Precondition — take this route only when…</label>
+                            <textarea class="inp" rows="3"
+                                      placeholder="JEXL, e.g. status == 'vip'. Leave blank for the default/else branch."
+                                      .value="${guardOf(to, from.id) ?? ""}"
+                                      @change="${(e: Event) => this.setGuard(to, from.id, (e.target as HTMLTextAreaElement).value)}"></textarea>
+                        </div>
+                        ${from.type === "CHOICE" ? html`
+                            <p class="edge-note">This is a CHOICE branch. At runtime the branches are
+                                tried from the longest condition to the shortest, and the first that
+                                holds is taken — exclusively. A blank condition is the default (else),
+                                taken only when no other holds.</p>` : nothing}
+                    `}
                 </div>
             </div>
         `;
@@ -2058,11 +2316,34 @@ export class MateuWorkflowElk extends LitElement {
                         ${iconCog}
                         Settings
                     </button>
-                    <button class="nbtn primary" @click="${() => this.addStep()}">
-                        ${iconPlus}
-                        Add Step
+                    <button class="nbtn ${this.showHelp ? "on" : ""}" title="Editing gestures"
+                            @click="${() => this.showHelp = !this.showHelp}">
+                        <span class="help-q">?</span>
+                        Help
                     </button>
                 ` : nothing}
+            </div>
+            ${this.showHelp && !this.readOnly ? this.renderHelp() : nothing}
+        `;
+    }
+
+    /** A small legend of the editor's mouse/keyboard gestures — they are otherwise undiscoverable. */
+    private renderHelp() {
+        const row = (keys: string, what: string) => html`
+            <div class="help-row"><span class="help-keys">${keys}</span><span>${what}</span></div>`;
+        return html`
+            <div class="help-popover">
+                <div class="help-head">
+                    <span>Editing gestures</span>
+                    <button class="close-btn" title="Close" @click="${() => this.showHelp = false}">✕</button>
+                </div>
+                ${row("Drag from palette", "add a step where you drop it")}
+                ${row("Drop onto a node", "add the step connected as its successor")}
+                ${row("Shift + drag", "draw a precondition line (node → node)")}
+                ${row("Alt + drag", "draw a compensation line (from a compensable step)")}
+                ${row("Click a line", "edit that link's precondition")}
+                ${row("Delete", "remove the selected step or line")}
+                ${row("Drag a node", "move it · drag the canvas to pan · wheel to zoom")}
             </div>
         `;
     }
@@ -2131,7 +2412,7 @@ export class MateuWorkflowElk extends LitElement {
             const sel = this.isEdgeSelected(e) ? "sel" : "";
             out.push(e.comp
                 ? svg`<path class="comp-edge ${monDim} ${focusDim} ${sel}" data-comp="${e.from}" data-edge="${e.key}"
-                             d="${d}" marker-end="url(#ec-arrow)"/>`
+                             d="${d}" marker-end="url(#ec-arrow-comp)"/>`
                 : svg`<path class="edge ${monDim} ${focusDim} ${sel}" data-edge="${e.key}"
                              d="${d}" marker-end="url(#ec-arrow)"/>`);
             // A 1.6px line is not a click target. This invisible one rides on top of the painted
@@ -2218,11 +2499,12 @@ export class MateuWorkflowElk extends LitElement {
                         fill="${st.fill}" stroke="${st.stroke}"/>
                 <text class="node-caption" x="${w / 2}" y="${h + 15}" text-anchor="middle">${label}</text>`;
         } else if (isGatewayType(step.type)) {
-            // BPMN gateway diamond. Parallel (FORK / AND-JOIN) shows "+", exclusive (XOR-JOIN) "×".
+            // BPMN gateway diamond. Parallel (FORK / AND-JOIN) shows "+", exclusive (XOR-JOIN and
+            // CHOICE, the exclusive split) "×".
             const cx = w / 2, cy = h / 2;
             const pts = `${cx},2 ${w - 2},${cy} ${cx},${h - 2} 2,${cy}`;
-            const xor = step.type === "JOIN" && step.joinType === "XOR";
-            const glyph = xor
+            const exclusive = (step.type === "JOIN" && step.joinType === "XOR") || step.type === "CHOICE";
+            const glyph = exclusive
                 ? svg`<path class="gw-plus" d="M${cx - 8},${cy - 8} L${cx + 8},${cy + 8} M${cx + 8},${cy - 8} L${cx - 8},${cy + 8}" stroke="${st.stroke}"/>`
                 : svg`<path class="gw-plus" d="M${cx - 9},${cy} H${cx + 9} M${cx},${cy - 9} V${cy + 9}" stroke="${st.stroke}"/>`;
             shape = svg`
@@ -2291,7 +2573,7 @@ export class MateuWorkflowElk extends LitElement {
                 <path class="ov-spark" d="M 1 -5 L -3 1 H 0 L -1 5 L 4 -1 H 1 Z"/>
             </g>` : nothing;
 
-        const linkCls = `${this.linkHoverId === step.id ? "link-target" : ""} ${this.linkingFrom === step.id ? "link-source" : ""}`;
+        const linkCls = `${(this.linkHoverId === step.id || this.paletteHoverNode === step.id) ? "link-target" : ""} ${this.linkingFrom === step.id ? "link-source" : ""}`;
         const monDim = this.hasStateOverlay() && !this.isVisited(step.id) ? "mon-dim" : "";
         const focusDim = this.focusPaint && !this.focusPaint.nodes.has(step.id) ? "focus-dim" : "";
         return svg`
@@ -2365,7 +2647,6 @@ export class MateuWorkflowElk extends LitElement {
     private renderPanel() {
         const step = this.wf.steps.find(s => s.id === this.selectedId);
         if (!step) return "";
-        const others = this.wf.steps.filter(s => s.id !== step.id);
         const ro = this.readOnly;
 
         const field = (label: string, body: unknown) => html`
@@ -2389,11 +2670,11 @@ export class MateuWorkflowElk extends LitElement {
                     ${field("Name", html`<input class="inp" ?readonly="${ro}" .value="${step.name}"
                         @change="${ro ? nothing : (e: Event) => this.updateStep(step.id, {name: (e.target as HTMLInputElement).value})}"/>`)}
                     ${field("Type", html`
-                        <select class="inp" ?disabled="${ro}"
-                                @change="${ro ? nothing : (e: Event) => this.updateStep(step.id, {type: (e.target as HTMLSelectElement).value as StepType})}">
-                            ${STEP_TYPES.map(t => html`
-                                <option value="${t}" ?selected="${step.type === t}">${t}</option>`)}
-                        </select>`)}
+                        <!-- The type is fixed at creation: drop a palette item to choose it, and
+                             change it afterwards only by editing the YAML. A live re-type would leave
+                             type-specific fields (topic, formId, guards…) dangling or silently dropped. -->
+                        <input class="inp" readonly .value="${step.type}"
+                               title="Set when the step is created; edit the YAML to change it"/>`)}
                     ${field("Description", html`<textarea class="inp" rows="2" ?readonly="${ro}"
                         .value="${step.description ?? ""}"
                         @change="${ro ? nothing : (e: Event) => this.updateStep(step.id, {description: (e.target as HTMLTextAreaElement).value})}"></textarea>`)}
@@ -2403,30 +2684,11 @@ export class MateuWorkflowElk extends LitElement {
                             <option value="AND" ?selected="${(step.joinType ?? "AND") === "AND"}">AND — wait for all</option>
                             <option value="XOR" ?selected="${step.joinType === "XOR"}">XOR — any one</option>
                         </select>`) : nothing}
-                    ${field("Preconditions (all must complete)", html`
-                        <div class="checklist">
-                            ${others.length === 0 ? html`<span class="check-empty">no other steps</span>`
-                                : others.map(s => html`
-                                <label class="check">
-                                    <input type="checkbox" ?disabled="${ro}"
-                                           ?checked="${preconditionsOf(step).includes(s.id)}"
-                                           @change="${ro ? nothing : (e: Event) => this.togglePrecondition(step, s.id, (e.target as HTMLInputElement).checked)}"/>
-                                    <span>${s.name} <em>(${s.id})</em></span>
-                                </label>
-                                ${preconditionsOf(step).includes(s.id) ? html`
-                                    <!-- The condition belongs to this link, not to the step: it
-                                         says when arriving from THIS step counts. -->
-                                    <input class="inp link-guard" ?readonly="${ro}"
-                                           placeholder="only when… (JEXL, optional)"
-                                           title="Condition on the link from ${s.name}"
-                                           .value="${guardOf(step, s.id) ?? ""}"
-                                           @change="${ro ? nothing : (e: Event) => this.setGuard(step, s.id, (e.target as HTMLInputElement).value)}"/>`
-                                    : nothing}`)}
-                        </div>`)}
-                    ${field("Step condition (gates the step however it is reached)", html`
-                        <input class="inp" placeholder="JEXL expression" ?readonly="${ro}"
-                               .value="${step.preconditionExpression ?? ""}"
-                               @change="${ro ? nothing : (e: Event) => this.updateStep(step.id, {preconditionExpression: (e.target as HTMLInputElement).value || undefined})}"/>`)}
+                    <!-- Conditions live on connections, not on the step: draw a line to add an
+                         incoming link, select a line to set its precondition (the Connection panel),
+                         press Delete to remove it. The legacy step-level condition is not edited
+                         here — only through the YAML. -->
+
                     ${field("Timeout (ms)", html`
                         <input class="inp" type="number" min="0" ?readonly="${ro}"
                                .value="${String(step.timeout ?? 0)}"
@@ -2435,20 +2697,9 @@ export class MateuWorkflowElk extends LitElement {
                         <input class="inp" type="number" min="0" ?readonly="${ro}"
                                .value="${String(step.retries ?? 0)}"
                                @change="${ro ? nothing : (e: Event) => this.updateStep(step.id, {retries: Number((e.target as HTMLInputElement).value)})}"/>`)}
-                    <div class="field row">
-                        <label class="field-label">Compensable</label>
-                        <input type="checkbox" ?checked="${step.compensable}" ?disabled="${ro}"
-                               @change="${ro ? nothing : (e: Event) => this.updateStep(step.id, {compensable: (e.target as HTMLInputElement).checked})}"/>
-                    </div>
-                    ${step.compensable ? field("Compensation step", html`
-                        <select class="inp" ?disabled="${ro}"
-                                @change="${ro ? nothing : (e: Event) => this.updateStep(step.id, {compensationStepId: (e.target as HTMLSelectElement).value || undefined})}">
-                            <option value="">— none —</option>
-                            ${others.map(s => html`
-                                <option value="${s.id}" ?selected="${step.compensationStepId === s.id}">
-                                    ${s.name} (${s.id})
-                                </option>`)}
-                        </select>`) : ""}
+                    <!-- Compensation is wired on the graph, not here: alt+drag from a compensable
+                         step (ACTION / PROCESS / WAIT_FOR_MESSAGE / DYNAMIC) to the step that undoes
+                         it; select the dashed line and press Delete to remove it. -->
                     ${step.type === "ACTION" ? field("Topic", html`
                         <input class="inp" placeholder="kafka.topic.name" ?readonly="${ro}"
                                .value="${step.topic ?? ""}"
@@ -2567,6 +2818,29 @@ export class MateuWorkflowElk extends LitElement {
             border-bottom: 1px solid var(--ec-border);
         }
         .wf-name {font-weight: 600; font-size: 1rem; color: var(--ec-text);}
+        .nbtn.on {background: var(--ec-hover); border-color: var(--ec-primary);}
+        .help-q {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 15px; height: 15px; border-radius: 50%; font-size: .68rem; font-weight: 700;
+            border: 1.4px solid currentColor; line-height: 1;
+        }
+        .help-popover {
+            position: absolute; top: 46px; right: 10px; z-index: 900; width: 320px;
+            background: var(--ec-surface); color: var(--ec-text);
+            border: 1px solid var(--ec-border); border-radius: 8px;
+            box-shadow: 0 6px 24px rgba(15, 23, 42, .18); padding: .5rem .3rem .55rem;
+            font-size: .78rem;
+        }
+        .help-head {
+            display: flex; align-items: center; justify-content: space-between;
+            font-weight: 600; padding: 0 .5rem .4rem; margin-bottom: .3rem;
+            border-bottom: 1px solid var(--ec-border);
+        }
+        .help-row {display: flex; gap: .6rem; padding: .22rem .5rem; align-items: baseline;}
+        .help-row span:last-child {color: var(--ec-text-dim); flex: 1;}
+        .help-keys {
+            flex-shrink: 0; width: 118px; font-weight: 600; color: var(--ec-text);
+        }
         .badge {
             font-size: .7rem; font-weight: 600; padding: .15rem .5rem;
             border-radius: 9999px; text-transform: uppercase; letter-spacing: .04em;
@@ -2594,6 +2868,42 @@ export class MateuWorkflowElk extends LitElement {
         /* workspace */
         .workspace {display: flex; flex: 1; overflow: hidden;}
         .canvas-wrap {flex: 1; overflow: hidden; position: relative; background: var(--ec-canvas-bg);}
+
+        /* Left palette: one draggable chip per step type. */
+        .palette {
+            width: 132px; flex-shrink: 0; overflow-y: auto;
+            border-right: 1px solid var(--ec-border); background: var(--ec-surface);
+            display: flex; flex-direction: column; gap: .2rem; padding: .5rem .4rem;
+        }
+        .palette-title {
+            font-size: .7rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em;
+            color: var(--ec-text-dim); padding: .1rem .3rem .3rem;
+        }
+        .palette-item {
+            display: flex; align-items: center; gap: .45rem; padding: .3rem .4rem;
+            border-radius: 6px; cursor: grab; font-size: .74rem; color: var(--ec-text);
+            user-select: none; border: 1px solid transparent;
+        }
+        .palette-item:hover {background: var(--ec-hover); border-color: var(--ec-border);}
+        .palette-item:active {cursor: grabbing;}
+        .palette-ghost {
+            position: fixed; z-index: 1000; pointer-events: none;
+            transform: translate(12px, 12px);
+            padding: .2rem .5rem; border-radius: 6px; font-size: .72rem; white-space: nowrap;
+            background: var(--ec-surface); color: var(--ec-text);
+            border: 1px solid var(--ec-primary); box-shadow: 0 2px 8px rgba(15, 23, 42, .18); opacity: .96;
+        }
+        .palette-icon {flex-shrink: 0; display: block;}
+        .palette-label {white-space: nowrap; overflow: hidden; text-overflow: ellipsis;}
+
+        /* Connection (edge) properties panel. */
+        .edge-route {
+            display: flex; align-items: center; gap: .4rem; flex-wrap: wrap;
+            font-size: .82rem; font-weight: 600; color: var(--ec-text);
+        }
+        .edge-arrow {color: var(--ec-text-dim);}
+        .edge-node {padding: .15rem .4rem; background: var(--ec-hover); border-radius: 5px;}
+        .edge-note {font-size: .74rem; color: var(--ec-text-dim); line-height: 1.35; margin: 0;}
         .canvas {display: block; width: 100%; height: 100%; cursor: grab; touch-action: none;}
         .canvas.panning {cursor: grabbing;}
         .scene {will-change: transform;}
@@ -2748,6 +3058,10 @@ export class MateuWorkflowElk extends LitElement {
 
         /* drawing a new precondition line (ctrl+drag) */
         .link-draft {stroke: var(--ec-primary); stroke-width: 2; stroke-dasharray: 5 4; fill: none; pointer-events: none;}
+        .link-draft.comp {stroke: #dc2626; stroke-dasharray: 6 5;}
+        /* Arrowheads filled here (not via context-stroke, which JCEF ignores). */
+        marker#ec-arrow > path {fill: var(--ec-edge);}
+        marker#ec-arrow-comp > path {fill: #dc2626;}
         .node.link-source .node-shape {stroke: var(--ec-primary) !important;}
         .node.link-target .node-shape {
             stroke: var(--ec-primary) !important; stroke-width: 3 !important; stroke-dasharray: 0 !important;

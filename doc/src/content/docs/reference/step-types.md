@@ -393,6 +393,73 @@ on a guarded step.
 
 ---
 
+## CHOICE
+
+An **exclusive split**: the branch counterpart of the `XOR` join. Where a `FORK` takes *every*
+eligible successor, a `CHOICE` takes exactly **one** — the first whose guard holds. No worker is
+involved; like `FORK` and `JOIN` it completes instantly when it starts, and the decision is made
+from the guards on its outgoing links.
+
+The branches are evaluated **from the longest guard expression to the shortest** — most specific
+first, down to the most general — and the **first** one that holds is taken; the rest are
+discarded. A successor whose link carries **no guard** is the default (`else`): being the shortest,
+it is tried last, and it always holds, so it is taken only when nothing more specific did. Guards
+live on the link (a `preconditions` entry with an `expression`), so a `CHOICE` reads the same
+per-route conditions the graph shows.
+
+```json
+{
+  "id": "route",
+  "type": "CHOICE",
+  "name": "Route by customer tier",
+  "preconditionStepId": "score-customer"
+},
+{
+  "id": "handle-vip",
+  "type": "ACTION",
+  "name": "White-glove path",
+  "topic": "vip-service",
+  "preconditions": [{ "stepId": "route", "expression": "tier == 'gold' && region == 'EU'" }]
+},
+{
+  "id": "handle-priority",
+  "type": "ACTION",
+  "name": "Priority path",
+  "topic": "priority-service",
+  "preconditions": [{ "stepId": "route", "expression": "tier == 'gold'" }]
+},
+{
+  "id": "handle-standard",
+  "type": "ACTION",
+  "name": "Standard path",
+  "topic": "standard-service",
+  "preconditions": [{ "stepId": "route" }]
+}
+```
+
+Here a `gold`/`EU` customer takes `handle-vip` (longest guard, evaluated first); any other `gold`
+customer takes `handle-priority`; everyone else falls through to the unguarded `handle-standard`.
+
+The pick **latches**: once a branch has started, a later change to the variables a guard reads
+cannot hand the split to a different branch. The `CHOICE` decides when it completes and does not
+wait — unlike an ordinary guarded link, a branch it did not take is *discarded*, not held.
+
+**Converge exclusive branches with an `XOR` [`JOIN`](#join), not an `AND` join.** This is the
+split↔join pairing — `FORK` with an `AND` join, `CHOICE` with an `XOR` join. A `CHOICE` runs only
+one branch, so an `AND` join downstream would wait for the branches that never ran and **never
+fire**; the process then completes implicitly, cancelling the join and everything after it (the
+same mechanism as [*JOIN on a guarded branch*](#join) above). An `XOR` join proceeds on the one
+branch that did run.
+
+:::caution[No default branch]
+If every guard is false at runtime and there is **no** unguarded default, a `CHOICE` takes **no**
+branch at all — a valid but easily-unintended dead end. The engine's topology validation and the
+[Maven plugin](/reference/maven-plugin/) warn when a `CHOICE` has no default branch. Ties on guard
+length are broken deterministically by step id.
+:::
+
+---
+
 ## END
 
 Marks the workflow as complete. The process transitions to `COMPLETED`.

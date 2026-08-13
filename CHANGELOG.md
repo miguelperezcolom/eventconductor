@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-08-13
+
+### Added
+- **`CHOICE` — an exclusive-split gateway.** Where a `FORK` takes every eligible branch, a `CHOICE`
+  takes exactly one: the first successor whose per-link guard holds, evaluating them from the longest
+  guard expression to the shortest (most specific first), with an unguarded successor as the default
+  (`else`), tried last. The pick **latches** — once a branch has started, a later change to the
+  variables a guard reads cannot hand the split to another — and a `CHOICE` whose guards are all false
+  with no default takes no branch and lets the process complete (a build-time warning flags the
+  missing default). It is the split counterpart of the `XOR` join, which is how its branches should
+  reconverge, and renders as the amber "×" gateway. See the
+  [step types reference](https://eventconductor.io/reference/step-types/#choice).
+
+### Changed
+- **The graph editor is now a proper diagramming surface.** A left palette carries one item per step
+  type, each drawn as the node it drops. Drag a palette item onto the canvas to create a node, or onto
+  an existing node to create it connected as a successor. A step's **type is fixed at creation** (edit
+  the YAML to change it). Preconditions and compensation are wired on the graph rather than in a form:
+  **shift+drag** draws a precondition line, **alt+drag** draws a compensation line (only from a
+  compensable step — `ACTION`/`PROCESS`/`WAIT_FOR_MESSAGE`/`DYNAMIC`), and selecting a connection edits
+  that link's precondition — and a `?` **Help** button in the toolbar lists these gestures so they are
+  discoverable. Connections are drawn as arrows. The token-flow animation opens paused; a retrying step
+  pulses red once per failed attempt before it succeeds, and a slow step (a human task, a wait, an
+  AND-join) lingers with a single ping instead of repeating. The same editor ships in the VSCode and
+  IntelliJ plugins.
+
 ## [1.1.0] - 2026-08-10
 
 ### Added

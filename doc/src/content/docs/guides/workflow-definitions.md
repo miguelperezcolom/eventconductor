@@ -280,9 +280,10 @@ Beyond the JSON schema, the engine checks these invariants when a definition is 
 The [Maven plugin](/reference/maven-plugin/) mirrors the structural checks (duplicate/dangling/self references, the roots rule, START-without-preconditions, multi-edge cycle detection, the PROCESS child id) at build time; the TIMER/message value checks are only verified at engine load.
 
 :::tip[Gateway-model guidance (warnings, not errors)]
-The engine also logs non-fatal **warnings** nudging you toward the FORK/JOIN gateway model: a
-normal step with more than one incoming flow should be a `JOIN` (so its AND/XOR semantics are
-explicit), and one with more than one outgoing flow should be a `FORK`. These are compensation-aware
+The engine also logs non-fatal **warnings** nudging you toward the gateway model: a normal step
+with more than one incoming flow should be a `JOIN` (so its AND/XOR semantics are explicit), and
+one with more than one outgoing flow should be a `FORK` (a parallel split — every guarded branch
+runs) or a `CHOICE` (an exclusive split — exactly one branch runs). These are compensation-aware
 (the false-guarded anchor edge into a compensation step is excluded) and never block a definition.
 :::
 

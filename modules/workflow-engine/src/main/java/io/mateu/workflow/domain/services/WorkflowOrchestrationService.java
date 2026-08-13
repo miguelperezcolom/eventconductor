@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -106,12 +107,21 @@ public class WorkflowOrchestrationService {
 
     private boolean shouldRunStep(StepExecution stepExecution, Process process, List<StepExecution> stepExecutions, Map<String, Step> cache) {
         Step step = getStep(stepExecution, cache);
-        return checkPreconditionStep(step, process, stepExecutions) && evaluatePreconditionExpression(step, process);
+        return checkPreconditionStep(step, process, stepExecutions, cache) && evaluatePreconditionExpression(step, process);
     }
 
-    private boolean checkPreconditionStep(Step step, Process process, List<StepExecution> stepExecutions) {
+    private boolean checkPreconditionStep(Step step, Process process, List<StepExecution> stepExecutions, Map<String, Step> cache) {
         if (step.resolvedPreconditions().isEmpty()) {
             return isAnEntryPoint(step);
+        }
+
+        // A CHOICE is an exclusive split: of its successors it takes exactly one. A successor of a
+        // CHOICE therefore runs only if it is the branch that CHOICE picks — and the pick latches, so
+        // once a sibling has left the starting gate a variable changing later cannot hand the branch
+        // to another. See pickedChoiceBranch for the ordering.
+        var choiceLink = choiceLinkInto(step, stepExecutions, cache);
+        if (choiceLink != null) {
+            return isPickedChoiceBranch(step, choiceLink.stepId(), process, stepExecutions, cache);
         }
         // A precondition is satisfied once its step has a COMPLETED execution AND its own guard,
         // if it declares one, holds. An XOR join proceeds as soon as ANY incoming branch is
@@ -133,6 +143,102 @@ public class WorkflowOrchestrationService {
         return xorJoin
                 ? step.resolvedPreconditions().stream().anyMatch(satisfied)
                 : step.resolvedPreconditions().stream().allMatch(satisfied);
+    }
+
+    /** The incoming link of {@code step} that comes from a CHOICE, or null when none does. */
+    private Precondition choiceLinkInto(Step step, List<StepExecution> stepExecutions, Map<String, Step> cache) {
+        return step.resolvedPreconditions().stream()
+                .filter(precondition -> {
+                    Step predecessor = stepById(precondition.stepId(), stepExecutions, cache);
+                    return predecessor != null && predecessor.type() == StepType.CHOICE;
+                })
+                .findFirst()
+                .orElse(null);
+    }
+
+    /**
+     * Whether {@code step} is the one branch its CHOICE takes.
+     *
+     * <p>The CHOICE must have completed. Then, among its successors whose guard on the CHOICE link
+     * holds right now, the winner is the one with the LONGEST guard expression — most specific first,
+     * evaluated down to the shortest, so an unguarded successor (length 0) is the else branch, tried
+     * last. Ties break on step id for a stable, deterministic pick.
+     *
+     * <p>The pick latches: if any sibling has already left the starting gate (any status past
+     * CREATED that is not a plain CANCELLED), this branch cannot start, so the split stays exclusive
+     * even if the variables a guard reads change after the CHOICE completed.
+     */
+    private boolean isPickedChoiceBranch(Step step, String choiceId, Process process,
+                                         List<StepExecution> stepExecutions, Map<String, Step> cache) {
+        boolean choiceCompleted = stepExecutions.stream()
+                .filter(se -> choiceId.equals(se.getStepId()))
+                .anyMatch(se -> StepExecutionStatus.COMPLETED.equals(se.getStatus()));
+        if (!choiceCompleted) {
+            return false;
+        }
+
+        List<String> successorIds = stepExecutions.stream()
+                .map(se -> getStep(se, cache))
+                .filter(candidate -> candidate.resolvedPreconditions().stream()
+                        .anyMatch(p -> choiceId.equals(p.stepId())))
+                .map(Step::id)
+                .distinct()
+                .toList();
+
+        boolean aSiblingAlreadyTaken = successorIds.stream()
+                .filter(id -> !id.equals(step.id()))
+                .anyMatch(id -> hasLeftTheStartingGate(id, stepExecutions));
+        if (aSiblingAlreadyTaken) {
+            return false;
+        }
+
+        String winner = successorIds.stream()
+                .filter(id -> choiceGuardHolds(choiceId, id, process, stepExecutions, cache))
+                .min(Comparator
+                        .comparingInt((String id) -> -choiceGuardLength(choiceId, id, stepExecutions, cache))
+                        .thenComparing(Comparator.naturalOrder()))
+                .orElse(null);
+        return step.id().equals(winner);
+    }
+
+    /** The precondition on successor {@code stepId} that links it back to {@code choiceId}. */
+    private Precondition choiceLinkOf(String choiceId, String stepId, List<StepExecution> stepExecutions, Map<String, Step> cache) {
+        Step step = stepById(stepId, stepExecutions, cache);
+        if (step == null) {
+            return null;
+        }
+        return step.resolvedPreconditions().stream()
+                .filter(p -> choiceId.equals(p.stepId()))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private boolean choiceGuardHolds(String choiceId, String stepId, Process process,
+                                     List<StepExecution> stepExecutions, Map<String, Step> cache) {
+        Step step = stepById(stepId, stepExecutions, cache);
+        Precondition link = choiceLinkOf(choiceId, stepId, stepExecutions, cache);
+        return step != null && link != null && evaluateGuard(link, step, process);
+    }
+
+    private int choiceGuardLength(String choiceId, String stepId, List<StepExecution> stepExecutions, Map<String, Step> cache) {
+        Precondition link = choiceLinkOf(choiceId, stepId, stepExecutions, cache);
+        return link != null && link.hasGuard() ? link.expression().length() : 0;
+    }
+
+    private boolean hasLeftTheStartingGate(String stepId, List<StepExecution> stepExecutions) {
+        return stepExecutions.stream()
+                .filter(se -> stepId.equals(se.getStepId()))
+                .anyMatch(se -> !StepExecutionStatus.CREATED.equals(se.getStatus())
+                        && !StepExecutionStatus.CANCELLED.equals(se.getStatus()));
+    }
+
+    /** Any step definition carrying {@code stepId}; all executions of a step share one definition. */
+    private Step stepById(String stepId, List<StepExecution> stepExecutions, Map<String, Step> cache) {
+        return stepExecutions.stream()
+                .filter(se -> stepId.equals(se.getStepId()))
+                .findFirst()
+                .map(se -> getStep(se, cache))
+                .orElse(null);
     }
 
     /**
@@ -282,6 +388,12 @@ public class WorkflowOrchestrationService {
             return false;
         }
         var step = getStep(stepExecution, cache);
+        // A CHOICE branch is never "held waiting to be released": the split decides the moment the
+        // CHOICE completes and does not wait for a straggler guard to flip. A branch it did not take
+        // is discarded, not held, so it must not keep the process from completing.
+        if (choiceLinkInto(step, stepExecutions, cache) != null) {
+            return false;
+        }
         var links = step.resolvedPreconditions();
         if (links.isEmpty() || links.stream().noneMatch(Precondition::hasGuard)) {
             return false;

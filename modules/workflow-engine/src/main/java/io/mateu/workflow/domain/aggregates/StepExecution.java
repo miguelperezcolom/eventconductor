@@ -234,10 +234,11 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
         // without a moment to fire at.
         this.deadlineAt = computeDeadline();
         if (StepType.START.equals(step.type()) || StepType.FORK.equals(step.type())
-                || StepType.JOIN.equals(step.type())) {
+                || StepType.JOIN.equals(step.type()) || StepType.CHOICE.equals(step.type())) {
             // Pure control-flow nodes involve no worker: START marks the entry point, FORK's
-            // fan-out and JOIN's barrier are entirely the orchestrator's eligibility rules
-            // (preconditions), so the node itself just completes instantly when started.
+            // fan-out, JOIN's barrier and CHOICE's exclusive split are entirely the orchestrator's
+            // eligibility rules (preconditions), so the node itself just completes instantly when
+            // started.
             send(new TaskLogEmitted(id, MessageType.Info,
                     step.type() + " step " + step.name() + " passed through."));
             updateStatus(StepExecutionStatus.COMPLETED);
