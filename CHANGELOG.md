@@ -27,10 +27,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the YAML to change it). Preconditions and compensation are wired on the graph rather than in a form:
   **shift+drag** draws a precondition line, **alt+drag** draws a compensation line (only from a
   compensable step — `ACTION`/`PROCESS`/`WAIT_FOR_MESSAGE`/`DYNAMIC`), and selecting a connection edits
-  that link's precondition. Connections are drawn as arrows. The token-flow animation opens paused; a
-  retrying step pulses red once per failed attempt before it succeeds, and a slow step (a human task, a
-  wait, an AND-join) lingers with a single ping instead of repeating. The same editor ships in the
-  VSCode and IntelliJ plugins.
+  that link's precondition — and a `?` **Help** button in the toolbar lists these gestures so they are
+  discoverable. Connections are drawn as arrows. The token-flow animation opens paused; a retrying step
+  pulses red once per failed attempt before it succeeds, and a slow step (a human task, a wait, an
+  AND-join) lingers with a single ping instead of repeating. The same editor ships in the VSCode and
+  IntelliJ plugins.
 
 ## [1.1.0] - 2026-08-10
 

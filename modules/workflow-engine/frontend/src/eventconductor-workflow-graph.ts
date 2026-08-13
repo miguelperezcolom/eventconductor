@@ -695,6 +695,8 @@ export class MateuWorkflowElk extends LitElement {
     /** Node the pointer is over in monitoring view — drives the diagnostic hover tooltip. */
     @state() private hoverId: string | null = null;
     @state() private showMeta = false;
+    /** Whether the editing-gestures help popover is open. */
+    @state() private showHelp = false;
     @state() private layoutError: string | null = null;
     /** When true, the graph overlays the whole viewport (expand button). */
     @state() private fullscreen = false;
@@ -2314,7 +2316,34 @@ export class MateuWorkflowElk extends LitElement {
                         ${iconCog}
                         Settings
                     </button>
+                    <button class="nbtn ${this.showHelp ? "on" : ""}" title="Editing gestures"
+                            @click="${() => this.showHelp = !this.showHelp}">
+                        <span class="help-q">?</span>
+                        Help
+                    </button>
                 ` : nothing}
+            </div>
+            ${this.showHelp && !this.readOnly ? this.renderHelp() : nothing}
+        `;
+    }
+
+    /** A small legend of the editor's mouse/keyboard gestures — they are otherwise undiscoverable. */
+    private renderHelp() {
+        const row = (keys: string, what: string) => html`
+            <div class="help-row"><span class="help-keys">${keys}</span><span>${what}</span></div>`;
+        return html`
+            <div class="help-popover">
+                <div class="help-head">
+                    <span>Editing gestures</span>
+                    <button class="close-btn" title="Close" @click="${() => this.showHelp = false}">✕</button>
+                </div>
+                ${row("Drag from palette", "add a step where you drop it")}
+                ${row("Drop onto a node", "add the step connected as its successor")}
+                ${row("Shift + drag", "draw a precondition line (node → node)")}
+                ${row("Alt + drag", "draw a compensation line (from a compensable step)")}
+                ${row("Click a line", "edit that link's precondition")}
+                ${row("Delete", "remove the selected step or line")}
+                ${row("Drag a node", "move it · drag the canvas to pan · wheel to zoom")}
             </div>
         `;
     }
@@ -2789,6 +2818,29 @@ export class MateuWorkflowElk extends LitElement {
             border-bottom: 1px solid var(--ec-border);
         }
         .wf-name {font-weight: 600; font-size: 1rem; color: var(--ec-text);}
+        .nbtn.on {background: var(--ec-hover); border-color: var(--ec-primary);}
+        .help-q {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 15px; height: 15px; border-radius: 50%; font-size: .68rem; font-weight: 700;
+            border: 1.4px solid currentColor; line-height: 1;
+        }
+        .help-popover {
+            position: absolute; top: 46px; right: 10px; z-index: 900; width: 320px;
+            background: var(--ec-surface); color: var(--ec-text);
+            border: 1px solid var(--ec-border); border-radius: 8px;
+            box-shadow: 0 6px 24px rgba(15, 23, 42, .18); padding: .5rem .3rem .55rem;
+            font-size: .78rem;
+        }
+        .help-head {
+            display: flex; align-items: center; justify-content: space-between;
+            font-weight: 600; padding: 0 .5rem .4rem; margin-bottom: .3rem;
+            border-bottom: 1px solid var(--ec-border);
+        }
+        .help-row {display: flex; gap: .6rem; padding: .22rem .5rem; align-items: baseline;}
+        .help-row span:last-child {color: var(--ec-text-dim); flex: 1;}
+        .help-keys {
+            flex-shrink: 0; width: 118px; font-weight: 600; color: var(--ec-text);
+        }
         .badge {
             font-size: .7rem; font-weight: 600; padding: .15rem .5rem;
             border-radius: 9999px; text-transform: uppercase; letter-spacing: .04em;
