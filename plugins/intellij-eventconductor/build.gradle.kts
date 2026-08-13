@@ -61,6 +61,15 @@ kotlin {
     jvmToolchain(21)
 }
 
+java {
+    // Compile against JDK 21 too, so `java`-plugin tasks match the Kotlin toolchain and the daemon
+    // (pinned to 21 in gradle/gradle-daemon-jvm.properties) — the build no longer depends on which
+    // JDK happens to be the machine default.
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
 // Copy the shared graph + form-editor bundles and the JSON schemas from the main repo into plugin
 // resources, so the plugin ships the current components. Runs before resources are processed.
 val syncBundle by tasks.registering(Copy::class) {
