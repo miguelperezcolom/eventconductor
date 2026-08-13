@@ -2,7 +2,7 @@ package io.mateu.workflow.autoconfigure;
 
 import com.example.customapp.MyCustomApp;
 import com.example.customapp.MyCustomApp.MyCustomUserComponent;
-import com.example.customapp.MyCustomAppWithExclusion;
+import com.example.customappwithexclusion.MyCustomAppWithExclusion;
 import io.mateu.customapp.MyAncestorApp;
 import io.mateu.customapp.MyAncestorApp.MyAncestorUserComponent;
 import org.junit.jupiter.api.Test;
@@ -18,7 +18,6 @@ class WorkflowEmbeddedApplicationTest {
     @Test
     void customAppCorrectlyScansUserPackageAndRegistersAutoConfigurationPackages() {
         new ApplicationContextRunner()
-                .withPropertyValues("spring.main.allow-bean-definition-overriding=true")
                 .withUserConfiguration(MyCustomApp.class)
                 .withBean(io.mateu.workflow.application.out.EmbeddedTaskExecutor.class, () -> request -> {})
                 .run(context -> {
@@ -36,7 +35,6 @@ class WorkflowEmbeddedApplicationTest {
     @Test
     void customAppSupportsAutoConfigurationExclusions() {
         new ApplicationContextRunner()
-                .withPropertyValues("spring.main.allow-bean-definition-overriding=true")
                 .withUserConfiguration(MyCustomAppWithExclusion.class)
                 .withBean(io.mateu.workflow.application.out.EmbeddedTaskExecutor.class, () -> request -> {})
                 .run(context -> {
@@ -48,7 +46,6 @@ class WorkflowEmbeddedApplicationTest {
     @Test
     void customAppInAncestorPackageCorrectlyScansAndExcludesUi() {
         new ApplicationContextRunner()
-                .withPropertyValues("spring.main.allow-bean-definition-overriding=true")
                 .withUserConfiguration(MyAncestorApp.class)
                 .withBean(io.mateu.workflow.application.out.EmbeddedTaskExecutor.class, () -> request -> {})
                 .run(context -> {

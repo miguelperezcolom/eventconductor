@@ -1,4 +1,4 @@
-package com.example.customapp;
+package com.example.customappwithexclusion;
 
 import io.mateu.workflow.autoconfigure.WorkflowEmbeddedApplication;
 import io.mateu.workflow.autoconfigure.WorkflowTracingAutoConfiguration;
