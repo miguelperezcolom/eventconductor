@@ -3,6 +3,8 @@ package io.mateu.workflow.autoconfigure;
 import com.example.customapp.MyCustomApp;
 import com.example.customapp.MyCustomApp.MyCustomUserComponent;
 import com.example.customapp.MyCustomAppWithExclusion;
+import io.mateu.customapp.MyAncestorApp;
+import io.mateu.customapp.MyAncestorApp.MyAncestorUserComponent;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurationPackages;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -40,6 +42,21 @@ class WorkflowEmbeddedApplicationTest {
                 .run(context -> {
                     // 3. Verify WorkflowTracingAutoConfiguration was excluded via @AliasFor (Point 3)
                     assertThat(context).doesNotHaveBean(WorkflowTracingAutoConfiguration.class);
+                });
+    }
+
+    @Test
+    void customAppInAncestorPackageCorrectlyScansAndExcludesUi() {
+        new ApplicationContextRunner()
+                .withPropertyValues("spring.main.allow-bean-definition-overriding=true")
+                .withUserConfiguration(MyAncestorApp.class)
+                .withBean(io.mateu.workflow.application.out.EmbeddedTaskExecutor.class, () -> request -> {})
+                .run(context -> {
+                    // 1. Verify user's own ancestor package bean was scanned
+                    assertThat(context).hasSingleBean(MyAncestorUserComponent.class);
+
+                    // 2. Verify that no UI package beans (like WorkflowHome) were registered
+                    assertThat(context).doesNotHaveBean("workflowHome");
                 });
     }
 }

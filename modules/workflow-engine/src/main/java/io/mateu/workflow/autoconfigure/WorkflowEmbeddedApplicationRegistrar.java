@@ -11,6 +11,9 @@ import org.springframework.context.annotation.ImportBeanDefinitionRegistrar;
 import org.springframework.core.env.Environment;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.core.type.AnnotationMetadata;
+import org.springframework.core.type.filter.RegexPatternTypeFilter;
+
+import java.util.regex.Pattern;
 
 /**
  * Custom registrar for {@link WorkflowEmbeddedApplication}.
@@ -49,10 +52,13 @@ public class WorkflowEmbeddedApplicationRegistrar implements
         if (lastDot > 0) {
             String packageName = className.substring(0, lastDot);
 
+            // Determine package relationship: check if user package is already "io.mateu.workflow" or a subpackage of it
+            boolean isEnginePackageOrSubpackage = packageName.equals("io.mateu.workflow") || packageName.startsWith("io.mateu.workflow.");
+
             // 1. Register base package and persistence package for AutoConfiguration Packages.
             // This enables Hibernate entity scan and Spring Data JPA repository scan to find both custom
             // user entities/repositories and internal EventConductor components.
-            if (!packageName.startsWith("io.mateu.workflow")) {
+            if (!isEnginePackageOrSubpackage) {
                 if (!AutoConfigurationPackages.has(this.beanFactory) || !AutoConfigurationPackages.get(this.beanFactory).contains(packageName)) {
                     AutoConfigurationPackages.register(registry, packageName);
                 }
@@ -63,8 +69,19 @@ public class WorkflowEmbeddedApplicationRegistrar implements
 
             // 2. Scan the user's base package for stereotype components (@Component, @Service, @Repository, @Controller).
             // Prevents custom user components from being silently ignored.
-            if (!packageName.startsWith("io.mateu.workflow")) {
+            // We skip scanning programmatically if the user's package is equal to or under "io.mateu.workflow" (since the annotation's ComponentScan already covers it).
+            if (!isEnginePackageOrSubpackage) {
                 ClassPathBeanDefinitionScanner scanner = new ClassPathBeanDefinitionScanner(registry, true);
+
+                // CRITICAL SECURITY GUARD (Review feedback from @miguelperezcolom):
+                // If the user's package is an ancestor of "io.mateu.workflow" (e.g. "io.mateu" or "io"),
+                // scanning it would overlap and scan "io.mateu.workflow.infra.in.ui" which contains servlet/JPA UI components
+                // that must not be loaded in headless/embedded deployments. 
+                // We always configure the scanner with a regex exclusion filter to guarantee the UI package is never scanned.
+                scanner.addExcludeFilter(new RegexPatternTypeFilter(
+                        Pattern.compile("io\\.mateu\\.workflow\\.infra\\.in\\.ui\\..*")
+                ));
+
                 if (this.environment != null) {
                     scanner.setEnvironment(this.environment);
                 }
