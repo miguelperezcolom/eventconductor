@@ -128,6 +128,19 @@ public record Step(
         @Lookup(bubble = true)
         String compensationStepId,
         /**
+         * The step to run when THIS step times out — its {@code timeout} elapses with the step still
+         * unfinished, after any retries are exhausted. A native alternative to racing the step against
+         * a parallel TIMER: instead of the timeout failing the process, flow routes to this step (the
+         * step's own on-timeout branch). The timed-out step ends {@code TIMEOUT} (terminal) and, while
+         * it carries this, is not counted as a process failure. Compensation cannot express this —
+         * compensation only undoes steps that <em>succeeded</em>, and a timed-out step never did, so it
+         * has nothing to compensate; this routes forward instead of rolling back.
+         */
+        @HiddenInList
+        @Hidden("state['timeout'] == 0")
+        @Lookup(bubble = true)
+        String onTimeoutStepId,
+        /**
          * Cap on how many times this step may SUCCESSFULLY run within one process instance — a
          * runtime backstop against runaway loops. 0 inherits the workflow's
          * {@code defaultMaxStepExecutions}; both 0 = unbounded. (Design metadata today: the engine
@@ -175,7 +188,7 @@ public record Step(
         this(id, workflowDefinitionId, type, name, description, preconditionStepId, preconditionStepIds,
                 null, preconditionExpression, parallel, topic, formId, ruleId, childWorkflowDefinitionId,
                 outputVariables, duration, untilVariable, messageName, correlationExpression,
-                messageVariables, timeout, retries, compensable, compensationStepId,
+                messageVariables, timeout, retries, compensable, compensationStepId, null,
                 maxSuccessfulExecutions, joinType, java.util.List.of(), java.util.List.of());
     }
 

@@ -8,8 +8,11 @@ import io.mateu.workflow.application.usecases.process.parentnotify.NotifyParentS
 import io.mateu.workflow.domain.aggregates.LogMessage;
 import io.mateu.workflow.domain.aggregates.Process;
 import io.mateu.workflow.domain.aggregates.ProcessStatus;
+import io.mateu.workflow.domain.aggregates.Step;
 import io.mateu.workflow.domain.aggregates.StepExecution;
 import io.mateu.workflow.domain.aggregates.StepExecutionStatus;
+
+import static io.mateu.core.infra.JsonSerializer.pojoFromJson;
 import io.mateu.workflow.dtos.MessageType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -59,7 +62,15 @@ public class ProcessUpdateStepExecutionUpdateUseCase {
                 case PENDING, RUNNING, AWAITING_RETRY -> anyLive = true;
                 // A step in a final failure state (retries already exhausted — a step with retries
                 // left is parked in AWAITING_RETRY, counted as live above) means the process failed.
-                case ERROR, TIMEOUT -> anyFailed = true;
+                case ERROR -> anyFailed = true;
+                case TIMEOUT -> {
+                    // A timeout the step routes to an on-timeout step is handled forward (flow moves
+                    // to that step), not a process failure.
+                    var step = pojoFromJson(execution.getStepJson(), Step.class);
+                    if (step.onTimeoutStepId() == null || step.onTimeoutStepId().isBlank()) {
+                        anyFailed = true;
+                    }
+                }
                 default -> { /* CREATED / CANCELLED do not move the process status */ }
             }
         }

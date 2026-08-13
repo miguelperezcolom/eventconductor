@@ -514,4 +514,5 @@ The worker injects with `WorkerReply.inject(...)` / `injectAndComplete(...)` (me
 | `retries` | integer | `0` | Auto-retry attempts on ERROR or TIMEOUT |
 | `compensable` | boolean | `false` | Trigger compensation step on failure |
 | `compensationStepId` | string | — | Step to run as compensation. **Required when `compensable: true`** (enforced by the JSON schema) |
+| `onTimeoutStepId` | string | — | Step to route to when this step times out (after `retries` are exhausted) instead of failing the process — the step's own on-timeout branch. See [On-timeout routing](/guides/retries-timeouts-compensation/#on-timeout-routing) |
 | `maxSuccessfulExecutions` | integer | `0` | Cap on how many times this step may successfully run within one process instance (backstop against runaway loops). `0` inherits the workflow-level `defaultMaxStepExecutions`; both `0` = unbounded. Validated design metadata today — the engine runs each step once, and the cap will be enforced when step re-execution lands |

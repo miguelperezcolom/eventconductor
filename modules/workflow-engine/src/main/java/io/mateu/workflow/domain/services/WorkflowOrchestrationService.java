@@ -56,8 +56,12 @@ public class WorkflowOrchestrationService {
             return new TransitionResult(process, List.of(), false, false);
         }
 
+        // Parse each step's JSON at most once per call: getStep is hit 2-3× per candidate
+        // (eligibility, END detection, END transition) and pojoFromJson is not free.
+        var stepCache = new HashMap<String, Step>();
+
         for (StepExecution stepExecution : stepExecutions) {
-            if (isBlockingError(stepExecution)) {
+            if (isBlockingError(stepExecution, stepCache)) {
                 // A step that failed blocks the flow: don't schedule successors or complete the process.
                 Process updatedProcess = process;
                 boolean processErrored = false;
@@ -68,10 +72,6 @@ public class WorkflowOrchestrationService {
                 return new TransitionResult(updatedProcess, List.of(), false, processErrored);
             }
         }
-
-        // Parse each step's JSON at most once per call: getStep is hit 2-3× per candidate
-        // (eligibility, END detection, END transition) and pojoFromJson is not free.
-        var stepCache = new HashMap<String, Step>();
 
         // Pure dataflow: every CREATED step whose preconditions are ALL satisfied (and whose
         // guard expression is truthy) starts now, concurrently. There is no ordering between
@@ -91,9 +91,17 @@ public class WorkflowOrchestrationService {
         return handleStandardOrImplicitCompletionTransition(process, stepExecutions, executableSteps, stepCache);
     }
 
-    private boolean isBlockingError(StepExecution stepExecution) {
-        return StepExecutionStatus.ERROR.equals(stepExecution.getStatus())
-                || StepExecutionStatus.TIMEOUT.equals(stepExecution.getStatus());
+    private boolean isBlockingError(StepExecution stepExecution, Map<String, Step> cache) {
+        if (StepExecutionStatus.ERROR.equals(stepExecution.getStatus())) {
+            return true;
+        }
+        if (StepExecutionStatus.TIMEOUT.equals(stepExecution.getStatus())) {
+            // A timeout the step routes to an on-timeout step is handled, not a failure: flow moves
+            // to that step (see shouldRunStep) instead of blocking the process.
+            var step = getStep(stepExecution, cache);
+            return step.onTimeoutStepId() == null || step.onTimeoutStepId().isBlank();
+        }
+        return false;
     }
 
     private boolean isCreated(StepExecution stepExecution) {
@@ -107,7 +115,20 @@ public class WorkflowOrchestrationService {
 
     private boolean shouldRunStep(StepExecution stepExecution, Process process, List<StepExecution> stepExecutions, Map<String, Step> cache) {
         Step step = getStep(stepExecution, cache);
+        // A step reached by another step's on-timeout branch runs regardless of its normal
+        // preconditions (its predecessor timed out rather than completing, so those are never met).
+        if (isOnTimeoutTargetTriggered(step, stepExecutions, cache)) {
+            return true;
+        }
         return checkPreconditionStep(step, process, stepExecutions, cache) && evaluatePreconditionExpression(step, process);
+    }
+
+    /** True when some step that names {@code step} as its {@code onTimeoutStepId} has timed out. */
+    private boolean isOnTimeoutTargetTriggered(Step step, List<StepExecution> stepExecutions, Map<String, Step> cache) {
+        return stepExecutions.stream()
+                .filter(se -> StepExecutionStatus.TIMEOUT.equals(se.getStatus()))
+                .map(se -> getStep(se, cache))
+                .anyMatch(source -> step.id().equals(source.onTimeoutStepId()));
     }
 
     private boolean checkPreconditionStep(Step step, Process process, List<StepExecution> stepExecutions, Map<String, Step> cache) {
