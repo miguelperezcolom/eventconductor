@@ -16,25 +16,24 @@ import java.lang.annotation.Target;
 
 /**
  * Drop-in replacement for {@code @SpringBootApplication} for embedded-mode EventConductor apps.
- * Scans the full {@code io.mateu.workflow} package tree while excluding the UI adapter layer,
- * which requires a servlet web context and JPA persistence and must not be loaded in headless
- * or in-memory deployments.
+ * <p>
+ * Performs standard Spring Boot component scanning over the calling application's packages
+ * while strictly excluding the UI adapter layer, and automatically imports the EventConductor
+ * core engine classes and registers necessary auto-configuration packages.
  *
  * <p>Uses {@code @SpringBootConfiguration + @EnableAutoConfiguration} instead of
  * {@code @SpringBootApplication} to avoid the duplicate {@code @ComponentScan} that
  * {@code @SpringBootApplication} would add, which would pick up UI classes before
  * the exclusion filter can prevent it.
  *
- * <p>Integrates with {@link WorkflowEmbeddedApplicationRegistrar} to automatically scan the
- * user's application package for standard Spring components and register auto-configuration packages
- * for JPA/Hibernate entities and Spring Data repositories.
+ * <p>Delegates engine-specific scanning to {@link WorkflowEngineComponentScanConfiguration}
+ * and JPA auto-configuration mapping to {@link WorkflowEmbeddedApplicationRegistrar}.
  */
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
 @SpringBootConfiguration
 @EnableAutoConfiguration
 @ComponentScan(
-        basePackages = "io.mateu.workflow",
         excludeFilters = {
                 @ComponentScan.Filter(type = FilterType.CUSTOM, classes = TypeExcludeFilter.class),
                 @ComponentScan.Filter(type = FilterType.CUSTOM, classes = AutoConfigurationExcludeFilter.class),
@@ -44,7 +43,10 @@ import java.lang.annotation.Target;
                 )
         }
 )
-@Import(WorkflowEmbeddedApplicationRegistrar.class)
+@Import({
+        WorkflowEngineComponentScanConfiguration.class,
+        WorkflowEmbeddedApplicationRegistrar.class
+})
 public @interface WorkflowEmbeddedApplication {
 
     /**
@@ -66,7 +68,7 @@ public @interface WorkflowEmbeddedApplication {
      * @return the base packages to scan
      */
     @AliasFor(annotation = ComponentScan.class, attribute = "basePackages")
-    String[] scanBasePackages() default {"io.mateu.workflow"};
+    String[] scanBasePackages() default {};
 
     /**
      * Type-safe alternative to {@link #scanBasePackages()} for specifying the packages
