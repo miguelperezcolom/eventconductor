@@ -358,4 +358,36 @@ class WorkflowOrchestrationServiceTest {
         assertThat(result.getStepsToSave()).extracting(StepExecution::getStepId).containsExactly("wait");
         assertThat(result.getStepsToSave().get(0).getStatus()).isEqualTo(StepExecutionStatus.PENDING);
     }
+
+    // ── on-timeout → step: a timed-out step routes forward instead of failing ──
+
+    @Test
+    void aTimedOutStepRoutesToItsOnTimeoutStepInsteadOfFailingTheProcess() {
+        var start = se(step("start", StepType.START, null, null), StepExecutionStatus.COMPLETED);
+        // verify timed out (retries exhausted). It names 'cancel' as its on-timeout branch.
+        var verify = se(step("verify", StepType.USER_TASK, "start", null).withOnTimeoutStepId("cancel"),
+                StepExecutionStatus.TIMEOUT);
+        var cancel = se(step("cancel", StepType.ACTION, null, null), StepExecutionStatus.CREATED);
+
+        var result = service.calculateNextTransitions(process(), List.of(start, verify, cancel));
+
+        // The timeout is handled by routing to 'cancel' — which starts — not by erroring the process.
+        assertThat(result.isProcessErrored()).isFalse();
+        assertThat(result.getUpdatedProcess().getStatus()).isNotEqualTo(ProcessStatus.ERROR);
+        assertThat(result.getStepsToSave()).extracting(StepExecution::getStepId).contains("cancel");
+        assertThat(result.getStepsToSave()).filteredOn(se -> "cancel".equals(se.getStepId()))
+                .allMatch(se -> StepExecutionStatus.PENDING.equals(se.getStatus()));
+    }
+
+    @Test
+    void aTimedOutStepWithNoOnTimeoutStepStillFailsTheProcess() {
+        var start = se(step("start", StepType.START, null, null), StepExecutionStatus.COMPLETED);
+        var verify = se(step("verify", StepType.USER_TASK, "start", null), StepExecutionStatus.TIMEOUT);
+
+        var result = service.calculateNextTransitions(process(), List.of(start, verify));
+
+        // Without an on-timeout branch a timeout is still a blocking failure (unchanged behaviour).
+        assertThat(result.getUpdatedProcess().getStatus()).isEqualTo(ProcessStatus.ERROR);
+        assertThat(result.getStepsToSave()).isEmpty();
+    }
 }

@@ -87,6 +87,48 @@ So `timeout` is a promise about your worker: how long it may take once it has th
 deadline on the process as a whole.
 :::
 
+## On-timeout routing
+
+By default a timeout, once retries are exhausted, is a **failure**: the step ends `TIMEOUT` and the
+process errors (and any *already-succeeded* compensable steps roll back). But a timeout is often not
+an error to abort on — it is an *outcome to route on*. A payment-verification task nobody actions in
+30 seconds should **cancel the booking**, not fail the process.
+
+Set `onTimeoutStepId` to route forward on timeout instead of failing:
+
+```json
+{
+  "id": "verify-payment",
+  "type": "USER_TASK",
+  "formId": "verify-payment",
+  "timeout": "PT30S",
+  "onTimeoutStepId": "cancel-booking",
+  "preconditionStepId": "start"
+},
+{
+  "id": "cancel-booking",
+  "type": "ACTION",
+  "topic": "booking",
+  "preconditions": [ { "stepId": "verify-payment", "expression": "paymentReceived == false" } ]
+}
+```
+
+When `verify-payment` times out (after any retries), the flow moves to `cancel-booking`; the timed-out
+step ends `TIMEOUT` but is **not** counted as a process failure. Here `cancel-booking` is reached two
+ways — a human rejection (its precondition guard) or the timeout (`onTimeoutStepId`) — so both paths
+converge on the same step. The pending task is cancelled when the process moves on (it disappears from
+the worker/forms inbox).
+
+**On-timeout vs compensation.** They are duals. Compensation runs the undo of steps that already
+*succeeded*, in reverse, when a process fails — it rolls **backward**. On-timeout routes **forward**
+to a step of your choosing, because a step that timed out never succeeded, so there is nothing of *its*
+to compensate. Reach for `onTimeoutStepId` when a deadline has a defined next move (cancel, escalate,
+take the default); reach for compensation when a failure must unwind committed work. A step can carry
+both a `timeout` and a `compensationStepId` for the steps *before* it.
+
+In the graph editor, draw an on-timeout line with **shift+alt+drag** from the timing-out step to its
+target (it renders amber with a ⏱ clock chip showing the timeout).
+
 ## Compensation (Saga pattern)
 
 For distributed transactions, use `compensable` + `compensationStepId` to define compensation logic:

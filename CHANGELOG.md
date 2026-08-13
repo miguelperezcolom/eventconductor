@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-08-14
+
+### Added
+- **`onTimeoutStepId` — route a step's timeout forward instead of failing.** By default a step that
+  times out (after any retries) is a failure: it ends `TIMEOUT` and the process errors. A step may
+  now name an `onTimeoutStepId` — its own on-timeout branch — and the flow routes there instead; the
+  timed-out step ends `TIMEOUT` but is **not** counted as a process failure. It is the forward-routing
+  dual of compensation: compensation rolls *backward* over steps that already **succeeded**, while
+  on-timeout routes *forward* because a step that timed out never succeeded (there is nothing of its
+  own to compensate). This is the native way to say "if nobody actions this human task in 30s, cancel
+  the booking" — previously only expressible by racing the step against a parallel `TIMER`/`FORK`. In
+  the graph editor an on-timeout line is drawn with **shift+alt+drag** (from a task step), rendered
+  amber with a ⏱ clock chip showing the timeout, and the token-flow animation follows it. See
+  [On-timeout routing](https://eventconductor.io/guides/retries-timeouts-compensation/#on-timeout-routing).
+
+### Changed
+- **A `USER_TASK` (and `RULE`) can now declare a compensation.** The editor's compensation gesture was
+  restricted to `ACTION`/`PROCESS`/`WAIT_FOR_MESSAGE`/`DYNAMIC`; it now covers every **task step** —
+  `ACTION`, `USER_TASK`, `RULE`, `WAIT_FOR_MESSAGE`, `PROCESS`, `DYNAMIC` — since a completed human task
+  or rule has an effect worth undoing. The same set is what may carry an `onTimeoutStepId`.
+
 ## [1.2.0] - 2026-08-13
 
 ### Added

@@ -390,6 +390,13 @@
           ],
           "description": "ID of the step that undoes this step's effect. Run during saga rollback (in reverse execution order) when the process fails. Only relevant when compensable is true. The compensation step needs no preconditions of its own: being named here is what makes it reachable, and the rollback pipeline starts it directly. (Definitions written before that anchor it to a precondition and guard it with preconditionExpression 'false'; still supported.)"
         },
+        "onTimeoutStepId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "ID of the step to run when THIS step times out (its timeout elapses with the step unfinished, after retries are exhausted). Instead of failing the process, flow routes to this step — the step's own on-timeout branch, a native alternative to racing the step against a parallel TIMER. The timed-out step ends TIMEOUT and is not counted as a process failure while it carries this. Unlike compensationStepId, which undoes steps that already succeeded, this routes forward (a timed-out step never succeeded, so there is nothing to compensate)."
+        },
         "maxSuccessfulExecutions": {
           "type": [
             "integer",
