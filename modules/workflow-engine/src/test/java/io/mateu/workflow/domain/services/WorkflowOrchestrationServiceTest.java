@@ -242,6 +242,106 @@ class WorkflowOrchestrationServiceTest {
         assertThat(result.isProcessCompleted()).isTrue();
     }
 
+    // ── CHOICE: exclusive split, longest satisfied guard first, unguarded default last ──
+
+    private Process processWith(String... nameThenValue) {
+        var vars = new java.util.ArrayList<io.mateu.workflow.domain.aggregates.Variable>();
+        for (int i = 0; i < nameThenValue.length; i += 2) {
+            vars.add(new io.mateu.workflow.domain.aggregates.Variable(
+                    nameThenValue[i], nameThenValue[i + 1]));
+        }
+        return Process.builder().id("p-1").status(ProcessStatus.RUNNING).variables(vars).build();
+    }
+
+    /** A successor reached from a CHOICE by a link carrying {@code guard} (null = the default branch). */
+    private StepExecution choiceSuccessor(String id, String choiceId, String guard, StepExecutionStatus status) {
+        var step = step(id, StepType.ACTION, null, null)
+                .withPreconditions(List.of(new io.mateu.workflow.domain.aggregates.Precondition(choiceId, guard)));
+        return se(step, status);
+    }
+
+    @Test
+    void choiceTakesTheSuccessorWithTheLongestSatisfiedGuard() {
+        var choice = se(step("choice", StepType.CHOICE, "start", null), StepExecutionStatus.COMPLETED);
+        var specific = choiceSuccessor("specific", "choice", "status == 'vip' && tier == 'gold'", StepExecutionStatus.CREATED);
+        var general = choiceSuccessor("general", "choice", "status == 'vip'", StepExecutionStatus.CREATED);
+
+        var result = service.calculateNextTransitions(
+                processWith("status", "vip", "tier", "gold"), List.of(choice, specific, general));
+
+        // Both guards hold, but the longer (more specific) one is evaluated first and wins — and it
+        // is the ONLY branch taken.
+        assertThat(result.getStepsToSave()).extracting(StepExecution::getStepId).containsExactly("specific");
+        assertThat(result.getStepsToSave().get(0).getStatus()).isEqualTo(StepExecutionStatus.PENDING);
+    }
+
+    @Test
+    void choiceFallsBackToTheUnguardedDefaultWhenNoGuardHolds() {
+        var choice = se(step("choice", StepType.CHOICE, "start", null), StepExecutionStatus.COMPLETED);
+        var guarded = choiceSuccessor("guarded", "choice", "status == 'vip'", StepExecutionStatus.CREATED);
+        var fallback = choiceSuccessor("fallback", "choice", null, StepExecutionStatus.CREATED);
+
+        var result = service.calculateNextTransitions(processWith("status", "regular"), List.of(choice, guarded, fallback));
+
+        // The guarded branch is false; the unguarded branch is the else, tried last, and taken.
+        assertThat(result.getStepsToSave()).extracting(StepExecution::getStepId).containsExactly("fallback");
+    }
+
+    @Test
+    void choiceWithNoMatchingGuardAndNoDefaultTakesNoBranchAndLetsTheProcessComplete() {
+        var start = se(step("start", StepType.START, null, null), StepExecutionStatus.COMPLETED);
+        var choice = se(step("choice", StepType.CHOICE, "start", null), StepExecutionStatus.COMPLETED);
+        var only = choiceSuccessor("only", "choice", "status == 'vip'", StepExecutionStatus.CREATED);
+
+        var result = service.calculateNextTransitions(processWith("status", "regular"), List.of(start, choice, only));
+
+        // No guard holds and there is no default: the split takes nothing. The discarded successor
+        // is not "held waiting for its guard", so the process completes and cancels it.
+        var byStepId = result.getStepsToSave().stream()
+                .collect(java.util.stream.Collectors.toMap(StepExecution::getStepId, StepExecution::getStatus));
+        assertThat(byStepId).containsEntry("only", StepExecutionStatus.CANCELLED);
+        assertThat(result.isProcessCompleted()).isTrue();
+    }
+
+    @Test
+    void choicePickLatchesOnceASiblingHasLeftTheStartingGate() {
+        var choice = se(step("choice", StepType.CHOICE, "start", null), StepExecutionStatus.COMPLETED);
+        // 'general' already started on an earlier cycle; 'specific' only now carries the longer guard.
+        var general = choiceSuccessor("general", "choice", "status == 'vip'", StepExecutionStatus.PENDING);
+        var specific = choiceSuccessor("specific", "choice", "status == 'vip' && tier == 'gold'", StepExecutionStatus.CREATED);
+
+        var result = service.calculateNextTransitions(
+                processWith("status", "vip", "tier", "gold"), List.of(choice, general, specific));
+
+        // The pick latches: even though 'specific' would now win the length race, a sibling has
+        // already been taken, so nothing new starts and the split stays exclusive.
+        assertThat(result.getStepsToSave()).isEmpty();
+    }
+
+    @Test
+    void choiceBreaksGuardLengthTiesDeterministicallyByStepId() {
+        var choice = se(step("choice", StepType.CHOICE, "start", null), StepExecutionStatus.COMPLETED);
+        var bravo = choiceSuccessor("bravo", "choice", "x == '1'", StepExecutionStatus.CREATED);
+        var alfa = choiceSuccessor("alfa", "choice", "y == '2'", StepExecutionStatus.CREATED);
+
+        var result = service.calculateNextTransitions(
+                processWith("x", "1", "y", "2"), List.of(choice, bravo, alfa));
+
+        // Equal-length guards, both true: the smaller step id wins, so the pick is stable.
+        assertThat(result.getStepsToSave()).extracting(StepExecution::getStepId).containsExactly("alfa");
+    }
+
+    @Test
+    void choiceSuccessorsWaitUntilTheChoiceItselfCompletes() {
+        var choice = se(step("choice", StepType.CHOICE, "start", null), StepExecutionStatus.PENDING);
+        var a = choiceSuccessor("a", "choice", "status == 'vip'", StepExecutionStatus.CREATED);
+
+        var result = service.calculateNextTransitions(processWith("status", "vip"), List.of(choice, a));
+
+        // The CHOICE has not completed, so it has not decided anything yet.
+        assertThat(result.getStepsToSave()).isEmpty();
+    }
+
     @Test
     void aMessageStartStillArmsItselfWithNoPreconditions() {
         // The exception that keeps its reason: a flow entered by a message has to be subscribed

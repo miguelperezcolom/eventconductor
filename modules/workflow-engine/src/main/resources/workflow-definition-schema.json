@@ -189,6 +189,7 @@
             "ACTION",
             "JOIN",
             "FORK",
+            "CHOICE",
             "END",
             "USER_TASK",
             "PROCESS",

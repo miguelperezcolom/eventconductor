@@ -430,9 +430,38 @@ public record WorkflowDefinition(
                         + " — merge branches through a JOIN so its semantics (all vs any) are explicit.");
             }
             int out = realOut.getOrDefault(step.id(), 0);
-            if (out > 1 && step.type() != StepType.FORK) {
+            if (out > 1 && step.type() != StepType.FORK && step.type() != StepType.CHOICE) {
                 warnings.add("Step '" + step.id() + "' has " + out + " outgoing flows but is not a FORK"
                         + " — split through a FORK to keep the graph unambiguous.");
+            }
+        }
+        warnings.addAll(choiceWithoutDefaultWarnings());
+        return warnings;
+    }
+
+    /**
+     * A CHOICE takes the single successor whose guard is the first to hold, evaluating them from the
+     * longest guard expression to the shortest. A successor with no guard is the default: it always
+     * holds, and being the shortest it is tried last, so it is the else branch. Without one, a CHOICE
+     * whose guards are all false at runtime takes no branch at all — a valid but easily-unintended
+     * dead end — so warn the author, matching the "no match, no output" runtime behaviour.
+     */
+    private List<String> choiceWithoutDefaultWarnings() {
+        if (steps == null || steps.isEmpty()) return List.of();
+        var warnings = new java.util.ArrayList<String>();
+        for (var choice : steps) {
+            if (choice.id() == null || choice.type() != StepType.CHOICE) continue;
+            var successors = steps.stream()
+                    .filter(s -> s.resolvedPreconditions().stream()
+                            .anyMatch(p -> choice.id().equals(p.stepId())))
+                    .toList();
+            boolean hasDefault = successors.stream()
+                    .flatMap(s -> s.resolvedPreconditions().stream())
+                    .filter(p -> choice.id().equals(p.stepId()))
+                    .anyMatch(p -> !p.hasGuard());
+            if (!successors.isEmpty() && !hasDefault) {
+                warnings.add("CHOICE '" + choice.id() + "' has no default branch (a successor whose"
+                        + " link carries no guard). If no guard holds at runtime it takes no branch.");
             }
         }
         return warnings;

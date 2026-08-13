@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "com.eventconductor"
-version = "0.1.8"
+version = "0.1.9"
 
 repositories {
     mavenCentral()
@@ -82,4 +82,12 @@ val syncSchema by tasks.registering(Copy::class) {
 
 tasks.named("processResources") {
     dependsOn(syncBundle, syncSchema)
+}
+
+// Manual testing helper: open a project on start with
+// `./gradlew runIde -PecOpenProject=/absolute/path/to/project`. No-op without the property.
+tasks.named<org.jetbrains.intellij.platform.gradle.tasks.RunIdeTask>("runIde") {
+    providers.gradleProperty("ecOpenProject").orNull?.let { projectPath ->
+        argumentProviders.add(org.gradle.process.CommandLineArgumentProvider { listOf(projectPath) })
+    }
 }
