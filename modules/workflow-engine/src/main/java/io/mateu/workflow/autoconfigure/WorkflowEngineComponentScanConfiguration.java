@@ -21,6 +21,14 @@ import org.springframework.context.annotation.FilterType;
                 @ComponentScan.Filter(
                         type = FilterType.REGEX,
                         pattern = "io\\.mateu\\.workflow\\.infra\\.in\\.ui\\..*"
+                ),
+                @ComponentScan.Filter(
+                        type = FilterType.REGEX,
+                        pattern = "io\\.mateu\\.workflow\\.autoconfigure\\..*"
+                ),
+                @ComponentScan.Filter(
+                        type = FilterType.REGEX,
+                        pattern = "io\\.mateu\\.workflow\\.TestApplication"
                 )
         }
 )

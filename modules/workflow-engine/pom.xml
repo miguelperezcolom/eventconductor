@@ -49,6 +49,12 @@
         </dependency>
 
         <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-autoconfigure</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <dependency>
             <!-- The engine applies its own migrations (see WorkflowSchemaAutoConfiguration). Optional
                  for the same reason the JPA starter is: a run with workflow.persistence=memory needs
                  no database and should not carry a migration tool. Whoever opts into the durable

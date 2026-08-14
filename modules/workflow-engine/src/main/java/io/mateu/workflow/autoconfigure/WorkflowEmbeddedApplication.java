@@ -3,6 +3,7 @@ package io.mateu.workflow.autoconfigure;
 import org.springframework.boot.SpringBootConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigurationExcludeFilter;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
+import org.springframework.boot.persistence.autoconfigure.EntityScan;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.FilterType;
 import org.springframework.context.annotation.Import;
@@ -20,7 +21,7 @@ import java.lang.annotation.Target;
  * <p>
  * Performs standard Spring Boot component scanning over the calling application's packages
  * while strictly excluding the UI adapter layer, and automatically imports the EventConductor
- * core engine classes, registers necessary JPA repositories, and configures exclusions.
+ * core engine classes, registers necessary JPA repositories and entities, and configures exclusions.
  *
  * <p>Uses {@code @SpringBootConfiguration + @EnableAutoConfiguration} instead of
  * {@code @SpringBootApplication} to avoid the duplicate {@code @ComponentScan} that
@@ -41,13 +42,21 @@ import java.lang.annotation.Target;
                 @ComponentScan.Filter(
                         type = FilterType.REGEX,
                         pattern = "io\\.mateu\\.workflow\\.infra\\.in\\.ui\\..*"
+                ),
+                @ComponentScan.Filter(
+                        type = FilterType.REGEX,
+                        pattern = "io\\.mateu\\.workflow\\.autoconfigure\\..*"
+                ),
+                @ComponentScan.Filter(
+                        type = FilterType.REGEX,
+                        pattern = "io\\.mateu\\.workflow\\.TestApplication"
                 )
         }
 )
 @EnableJpaRepositories(basePackages = "io.mateu.workflow.infra.out.persistence")
+@EntityScan(basePackages = "io.mateu.workflow")
 @Import({
-        WorkflowEngineComponentScanConfiguration.class,
-        WorkflowEmbeddedApplicationRegistrar.class
+        WorkflowEngineComponentScanConfiguration.class
 })
 public @interface WorkflowEmbeddedApplication {
 
@@ -86,4 +95,11 @@ public @interface WorkflowEmbeddedApplication {
      */
     @AliasFor(annotation = EnableJpaRepositories.class, attribute = "basePackages")
     String[] jpaRepositoryBasePackages() default {"io.mateu.workflow.infra.out.persistence"};
+
+    /**
+     * Base packages to scan for annotated entities.
+     * @return the base packages to scan for JPA entities
+     */
+    @AliasFor(annotation = EntityScan.class, attribute = "basePackages")
+    String[] entityScanBasePackages() default {"io.mateu.workflow"};
 }
