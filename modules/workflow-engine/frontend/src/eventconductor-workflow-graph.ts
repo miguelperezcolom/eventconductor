@@ -615,6 +615,23 @@ function compTargets(steps: WorkflowStep[]): Set<string> {
     return t;
 }
 
+/**
+ * The incoming links of a step that are not flow: the legacy anchor a compensation step needed
+ * back when a step with no preconditions never ran, wired to some step it had no relationship
+ * with and guarded with a literal `false` so the dataflow would stay away from it.
+ *
+ * <p>Only that shape is hidden. A compensation target is not otherwise a special node: a link
+ * into it that carries no such guard is flow the engine will honour — nothing in eligibility
+ * knows the step is also someone's rollback pointer — so drawing the step but not the lines
+ * that lead to it said the opposite of what the file says. It also made alt+drag look
+ * destructive: naming a step as a compensation appeared to delete its preconditions.
+ */
+function flowLinksOf(step: WorkflowStep, targets: Set<string>): Precondition[] {
+    const links = linksOf(step);
+    if (!targets.has(step.id)) return links;
+    return links.filter(l => (l.expression ?? step.preconditionExpression)?.trim() !== "false");
+}
+
 function allPaths(steps: WorkflowStep[]): string[][] {
     const ids = new Set(steps.map(s => s.id));
     const targets = compTargets(steps);
@@ -622,13 +639,11 @@ function allPaths(steps: WorkflowStep[]): string[][] {
     const hasIncoming = new Set<string>();
     for (const s of steps) {
         // Normal sequence edges — but not the false-guarded anchor that keeps a compensation
-        // step valid at load: a compensation step is only entered through its compensation edge.
-        if (!targets.has(s.id)) {
-            for (const from of preconditionsOf(s)) {
-                if (!ids.has(from)) continue;
-                (outgoing[from] ??= []).push(s.id);
-                hasIncoming.add(s.id);
-            }
+        // step valid at load: nothing ever arrives by it, so no token walks it.
+        for (const {stepId: from} of flowLinksOf(s, targets)) {
+            if (!ids.has(from)) continue;
+            (outgoing[from] ??= []).push(s.id);
+            hasIncoming.add(s.id);
         }
         // Compensation edge — the error case: a compensable step can go to its compensation.
         if (s.compensable && s.compensationStepId && ids.has(s.compensationStepId)) {
@@ -967,8 +982,10 @@ export class MateuWorkflowElk extends LitElement {
      */
     private layoutEdges(steps: WorkflowStep[]): ElkExtendedEdge[] {
         const ids = new Set(steps.map(s => s.id));
+        const targets = compTargets(steps);
         const flow = steps.flatMap(s =>
-            preconditionsOf(s)
+            flowLinksOf(s, targets)
+                .map(l => l.stepId)
                 .filter(from => ids.has(from))
                 .map(from => ({
                     id: `${from}->${s.id}`,
@@ -1567,8 +1584,9 @@ export class MateuWorkflowElk extends LitElement {
         const targets = compTargets(steps);
         const raw: {from: string; to: string; comp: boolean; timeout: boolean}[] = [];
         for (const s of steps) {
-            if (targets.has(s.id)) continue;
-            for (const f of preconditionsOf(s)) if (this.boxForId(f) && this.boxForId(s.id)) raw.push({from: f, to: s.id, comp: false, timeout: false});
+            for (const {stepId: f} of flowLinksOf(s, targets)) {
+                if (this.boxForId(f) && this.boxForId(s.id)) raw.push({from: f, to: s.id, comp: false, timeout: false});
+            }
         }
         for (const s of steps) {
             if (s.compensable && s.compensationStepId && this.boxForId(s.id) && this.boxForId(s.compensationStepId)) {
@@ -2527,7 +2545,9 @@ export class MateuWorkflowElk extends LitElement {
         if (!to) return svg``;
         const chips: unknown[] = [];
 
-        for (const link of linksOf(step)) {
+        // Only the links that are drawn: a chip on the undrawn compensation anchor would float
+        // over the canvas attached to nothing.
+        for (const link of flowLinksOf(step, this.compensationTargets())) {
             const expr = link.expression?.trim();
             if (!expr) continue;
             const edgeKey = `${link.stepId}->${step.id}`;
