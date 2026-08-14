@@ -53,3 +53,7 @@ Both use `keycloak.local:8080`:
   model); the status read reloads and polls until the row leaves `Pending`.
 - The Bookings grid loads rows lazily and has a leading (blank) selection column, so the status is
   read as the first known status value after the guest's name cell, not by a fixed column offset.
+- **Cold start:** the first run right after `docker compose up` can flake (the timeout journey's
+  reservation ends up confirmed) because the Kafka consumer groups are fresh and start at
+  `auto-offset-reset: latest`, so early events cross wires while they stabilize. Re-run once the stack
+  is warm — it's deterministic then.
