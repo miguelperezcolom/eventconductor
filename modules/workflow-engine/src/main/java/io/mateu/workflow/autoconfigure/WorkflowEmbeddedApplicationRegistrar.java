@@ -13,8 +13,8 @@ import org.springframework.core.type.AnnotationMetadata;
  * Custom registrar for {@link WorkflowEmbeddedApplication}.
  * <p>
  * Ensures that the user's base package and EventConductor's internal persistence package are both
- * registered as auto-configuration packages so that Hibernate and Spring Data JPA can resolve
- * entity and repository mappings seamlessly without manual intervention.
+ * registered as auto-configuration packages so that Hibernate can resolve entity mappings
+ * seamlessly without manual intervention (using Spring Boot's native AutoConfigurationPackages mechanism).
  */
 public class WorkflowEmbeddedApplicationRegistrar implements
         ImportBeanDefinitionRegistrar, BeanFactoryAware {
@@ -45,13 +45,14 @@ public class WorkflowEmbeddedApplicationRegistrar implements
         }
 
         // 1. Register EventConductor's persistence package for AutoConfiguration Packages.
-        // This is load-bearing and must always run, regardless of where the user's main class lives.
+        // This is load-bearing and must always run so Hibernate can scan internal entities,
+        // regardless of where the user's main class lives.
         if (!AutoConfigurationPackages.has(this.beanFactory) || !AutoConfigurationPackages.get(this.beanFactory).contains("io.mateu.workflow.infra.out.persistence")) {
             AutoConfigurationPackages.register(registry, "io.mateu.workflow.infra.out.persistence");
         }
 
         // 2. If the user is NOT using the default package, and their package is not the engine package itself,
-        // register the user's package for AutoConfiguration Packages.
+        // register the user's package for AutoConfiguration Packages (enabling entity scanning of their own entities).
         if (!packageName.isEmpty()) {
             boolean isEnginePackageOrSubpackage = packageName.equals("io.mateu.workflow") || packageName.startsWith("io.mateu.workflow.");
             if (!isEnginePackageOrSubpackage) {

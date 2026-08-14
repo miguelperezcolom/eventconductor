@@ -8,6 +8,7 @@ import org.springframework.context.annotation.FilterType;
 import org.springframework.context.annotation.Import;
 import org.springframework.boot.context.TypeExcludeFilter;
 import org.springframework.core.annotation.AliasFor;
+import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -19,7 +20,7 @@ import java.lang.annotation.Target;
  * <p>
  * Performs standard Spring Boot component scanning over the calling application's packages
  * while strictly excluding the UI adapter layer, and automatically imports the EventConductor
- * core engine classes and registers necessary auto-configuration packages.
+ * core engine classes, registers necessary JPA repositories, and configures exclusions.
  *
  * <p>Uses {@code @SpringBootConfiguration + @EnableAutoConfiguration} instead of
  * {@code @SpringBootApplication} to avoid the duplicate {@code @ComponentScan} that
@@ -27,7 +28,7 @@ import java.lang.annotation.Target;
  * the exclusion filter can prevent it.
  *
  * <p>Delegates engine-specific scanning to {@link WorkflowEngineComponentScanConfiguration}
- * and JPA auto-configuration mapping to {@link WorkflowEmbeddedApplicationRegistrar}.
+ * and JPA entity auto-configuration mapping to {@link WorkflowEmbeddedApplicationRegistrar}.
  */
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
@@ -43,6 +44,7 @@ import java.lang.annotation.Target;
                 )
         }
 )
+@EnableJpaRepositories(basePackages = "io.mateu.workflow.infra.out.persistence")
 @Import({
         WorkflowEngineComponentScanConfiguration.class,
         WorkflowEmbeddedApplicationRegistrar.class
@@ -77,4 +79,11 @@ public @interface WorkflowEmbeddedApplication {
      */
     @AliasFor(annotation = ComponentScan.class, attribute = "basePackageClasses")
     Class<?>[] scanBasePackageClasses() default {};
+
+    /**
+     * Base packages to scan for annotated JPA repositories.
+     * @return the base packages to scan for JPA repositories
+     */
+    @AliasFor(annotation = EnableJpaRepositories.class, attribute = "basePackages")
+    String[] jpaRepositoryBasePackages() default {"io.mateu.workflow.infra.out.persistence"};
 }

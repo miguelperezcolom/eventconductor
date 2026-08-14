@@ -3,7 +3,6 @@ package io.mateu.workflowbench.orchestrator;
 import io.mateu.workflow.autoconfigure.WorkflowEmbeddedApplication;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
-import org.springframework.boot.persistence.autoconfigure.EntityScan;
 import org.springframework.context.annotation.Bean;
 
 /**

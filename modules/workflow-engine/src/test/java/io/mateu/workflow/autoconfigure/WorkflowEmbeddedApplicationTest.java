@@ -15,9 +15,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class WorkflowEmbeddedApplicationTest {
 
+    private static final String EXCLUDES_PROP = "spring.autoconfigure.exclude=" +
+            "org.springframework.cloud.stream.config.BindingServiceConfiguration," +
+            "org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration";
+
     @Test
     void customAppCorrectlyScansUserPackageAndRegistersAutoConfigurationPackages() {
         new ApplicationContextRunner()
+                .withPropertyValues(EXCLUDES_PROP)
                 .withUserConfiguration(MyCustomApp.class)
                 .withBean(io.mateu.workflow.application.out.EmbeddedTaskExecutor.class, () -> request -> {})
                 .run(context -> {
@@ -35,6 +40,7 @@ class WorkflowEmbeddedApplicationTest {
     @Test
     void customAppSupportsAutoConfigurationExclusions() {
         new ApplicationContextRunner()
+                .withPropertyValues(EXCLUDES_PROP)
                 .withUserConfiguration(MyCustomAppWithExclusion.class)
                 .withBean(io.mateu.workflow.application.out.EmbeddedTaskExecutor.class, () -> request -> {})
                 .run(context -> {
@@ -46,6 +52,7 @@ class WorkflowEmbeddedApplicationTest {
     @Test
     void customAppInAncestorPackageCorrectlyScansAndExcludesUi() {
         new ApplicationContextRunner()
+                .withPropertyValues(EXCLUDES_PROP)
                 .withUserConfiguration(MyAncestorApp.class)
                 .withBean(io.mateu.workflow.application.out.EmbeddedTaskExecutor.class, () -> request -> {})
                 .run(context -> {

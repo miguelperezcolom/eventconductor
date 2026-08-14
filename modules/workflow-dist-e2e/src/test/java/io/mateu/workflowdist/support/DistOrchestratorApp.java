@@ -1,8 +1,6 @@
 package io.mateu.workflowdist.support;
 
 import io.mateu.workflow.autoconfigure.WorkflowEmbeddedApplication;
-import org.springframework.boot.persistence.autoconfigure.EntityScan;
-import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
 /**
  * Boots a full orchestrator instance for the distributed suite. Despite the annotation's
