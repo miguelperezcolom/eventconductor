@@ -1,0 +1,10 @@
+# Playwright / Maven build output
+e2e/target/
+
+# wf-repo and forms-repo are tracked here as plain files; setup.sh turns each into a local git repo
+# because the orchestrator/forms import them via file://. Those local .git dirs are not part of the
+# eventconductor repo.
+wf-repo/.git/
+forms-repo/.git/
+
+.DS_Store

@@ -1,0 +1,53 @@
+{
+  "realm": "mateu",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "loginTheme": "keycloak",
+  "roles": {
+    "realm": [
+      { "name": "user", "description": "Demo user role" },
+      { "name": "admin", "description": "Demo admin role" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "demo",
+      "name": "Mateu demo shell",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "rootUrl": "https://app.mateu.io",
+      "baseUrl": "https://app.mateu.io",
+      "redirectUris": [
+        "https://app.mateu.io/*",
+        "http://localhost:*"
+      ],
+      "webOrigins": [
+        "https://app.mateu.io",
+        "http://localhost:8101",
+        "http://localhost:8191",
+        "*"
+      ],
+      "attributes": {
+        "post.logout.redirect.uris": "+",
+        "pkce.code.challenge.method": "S256"
+      }
+    }
+  ],
+  "users": [
+    {
+      "username": "demo",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "demo@mateu.io",
+      "firstName": "Demo",
+      "lastName": "User",
+      "credentials": [
+        { "type": "password", "value": "demo", "temporary": false }
+      ],
+      "realmRoles": ["user", "admin"]
+    }
+  ]
+}
