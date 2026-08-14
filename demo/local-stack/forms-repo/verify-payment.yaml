@@ -1,0 +1,8 @@
+id: verify-payment
+name: Verify payment
+description: Confirm whether the customer's payment was received.
+fields:
+  - id: paymentReceived
+    label: Payment received
+    dataType: bool
+    stereotype: checkbox
