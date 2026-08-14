@@ -116,6 +116,11 @@ Drives the whole journey headless with Playwright-Java. Needs the stack up and t
 cd e2e && mvn test            # HEADED=1 mvn test to watch it
 ```
 
+> **Cold start:** the very first run right after `docker compose up` can flake (a reservation that
+> should time out ends up confirmed) — the Kafka consumer groups are fresh and start at
+> `auto-offset-reset: latest`, so early events cross wires while they stabilize. Re-run once the stack
+> is warm and it's deterministic (3/3).
+
 ## Layout & internals
 
 - `docker-compose.yml` — the stack. `keycloak.local` is a network alias on the keycloak service so the
