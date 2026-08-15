@@ -2,7 +2,7 @@
   "name": "eventconductor-vscode",
   "displayName": "EventConductor",
   "description": "Edit EventConductor workflow definitions (.ec) as an interactive graph and form definitions (.ecform) as a visual editor, or as YAML/JSON with schema validation.",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "publisher": "miguelperezcolom",
   "license": "MIT",
   "icon": "media/icon.png",
