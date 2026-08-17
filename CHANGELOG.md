@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **A worker in kafka mode can finally say *why* a task failed.** `1.0-beta.022` fixed "a failing
+  step recorded that it failed, and nothing about why" — but only on one side. In embedded mode the
+  engine catches the worker's exception on its behalf and fills the `log` field of
+  `UpdateStepExecutionCommand`, so the reason lands on the process. In kafka mode the worker answers
+  with a `TaskStatusChanged`, which carries a status and variables and **no message**: there was
+  nowhere to put the reason. So every kafka-mode failure reached the process log as "Task status
+  changed to ERROR" and the explanation existed only in the worker's own stdout, if it logged at
+  all. Whoever opened a rolled-back saga saw that it rolled back and nothing about what went wrong.
+
+  `WorkerReply.failed(streamBridge, task, variables, reason)` publishes the reason as a
+  `TaskLogEmitted` alongside the failure, so a failure reads the same in both modes. The reason goes
+  **first**, and that ordering is the point: both sends are on the existing retry-or-throw path, so a
+  broker that will not take the log line throws before anything has been reported at all and the
+  task is simply redelivered. Reporting a failure and then losing its explanation would leave the
+  engine acting on something nobody can account for, which is the state this exists to end. A null
+  or blank reason sends nothing extra and behaves exactly like the three-argument overload, which
+  stays — this is purely additive.
+
+  The event was already accepted from `upstream` and recorded by `TaskLogEmittedEventHandler`; what
+  was missing was any way to reach it from the API workers actually use. `WorkerReply.send(…,
+  TaskLogEmitted)` is now public too, for a worker that wants to log progress rather than a failure.
+
+### Changed
+- **The worker guide no longer teaches the bug.** Its example caught `Exception e` and called the
+  three-argument `failed(...)`, discarding `e` without so much as logging it locally — the exact
+  shape that makes a failed step unexplainable, copied from the documentation into real workers. It
+  now logs and passes the reason.
+
 ## [1.3.0] - 2026-08-14
 
 ### Added
