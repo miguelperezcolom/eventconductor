@@ -1,8 +1,10 @@
 package io.mateu.workflow.worker;
 
+import io.mateu.workflow.dtos.MessageType;
 import io.mateu.workflow.dtos.Variable;
 import io.mateu.workflow.dtos.events.integration.StepsInjected;
 import io.mateu.workflow.dtos.events.integration.TaskExecutionRequested;
+import io.mateu.workflow.dtos.events.integration.TaskLogEmitted;
 import io.mateu.workflow.dtos.events.integration.TaskStatus;
 import io.mateu.workflow.dtos.events.integration.TaskStatusChanged;
 import org.springframework.cloud.stream.function.StreamOperations;
@@ -73,6 +75,40 @@ public final class WorkerReply {
     }
 
     /**
+     * Fails the task <b>and says why</b>, which the three-argument overload cannot.
+     *
+     * <p>A worker in kafka mode had no way to put the reason anywhere the engine reads. Its reply
+     * is a {@link TaskStatusChanged}, which carries a status and variables and no message, so the
+     * process log said "Task status changed to ERROR" and the reason existed only in the worker's
+     * own stdout — if the worker logged it at all. Embedded mode never had the problem: the engine
+     * catches the exception on the worker's behalf and fills the {@code log} field of its update
+     * command. This closes the same hole on the other side, so a failure reads the same in both
+     * modes.
+     *
+     * <p>The reason goes out <b>first</b>, as a {@link TaskLogEmitted}, and that order is the
+     * point. Both sends are on the retry-or-throw path, so a broker that will not take the log
+     * line throws before anything has been reported at all — the task is simply redelivered and
+     * done again, which is clean. Reporting the failure first and then losing the reason would
+     * leave the engine acting on a failure nobody can explain, which is the state this exists to
+     * end. A blank or null reason sends nothing extra and behaves exactly like the three-argument
+     * overload.
+     *
+     * <p>Pass something a reader can act on — {@code e.toString()} at minimum, which keeps the
+     * exception type. The message is truncated by the engine's log column, so put the useful part
+     * first.
+     *
+     * @param reason why the task failed; null or blank to send no log line
+     */
+    public static void failed(StreamOperations streamBridge, TaskExecutionRequested task,
+                              List<Variable> variables, String reason) {
+        if (reason != null && !reason.isBlank()) {
+            send(streamBridge, new TaskLogEmitted(
+                    task.taskExecutionId(), MessageType.Error, reason));
+        }
+        failed(streamBridge, task, variables);
+    }
+
+    /**
      * Injects new steps into the running process — the DYNAMIC step's one extra move.
      *
      * <p>Only a {@code DYNAMIC} step may inject; the engine rejects the message from any other
@@ -128,6 +164,18 @@ public final class WorkerReply {
     }
 
     /**
+     * Publishes a log line against the task, on the same retry-or-throw path as a status reply.
+     *
+     * <p>The engine records it on the process through {@code RegisterLogMessageUseCase}, keyed by
+     * the task execution — so unlike a status change it mutates no aggregate, and it is harmless
+     * that a worker's reply arrives unkeyed and is handled by whichever pod receives it.
+     */
+    public static void send(StreamOperations streamBridge, TaskLogEmitted reply) {
+        publish(streamBridge, reply,
+                cause -> new ReplyNotAcceptedException(reply, cause));
+    }
+
+    /**
      * Publishes a step injection on the same synchronous, retry-or-throw path as a status reply —
      * a refused send is retried and, if the broker still will not take it, throws so the task is
      * redelivered rather than the injection lost.
@@ -178,6 +226,12 @@ public final class WorkerReply {
     public static class ReplyNotAcceptedException extends RuntimeException {
         public ReplyNotAcceptedException(TaskStatusChanged reply, Throwable cause) {
             super("The broker did not accept the " + reply.status() + " reply for task "
+                    + reply.taskExecutionId() + " after " + ATTEMPTS
+                    + " attempts; the task will be redelivered", cause);
+        }
+
+        public ReplyNotAcceptedException(TaskLogEmitted reply, Throwable cause) {
+            super("The broker did not accept the log line for task "
                     + reply.taskExecutionId() + " after " + ATTEMPTS
                     + " attempts; the task will be redelivered", cause);
         }

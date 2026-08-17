@@ -1,8 +1,10 @@
 package io.mateu.workflow.worker;
 
+import io.mateu.workflow.dtos.MessageType;
 import io.mateu.workflow.dtos.Variable;
 import io.mateu.workflow.dtos.events.integration.StepsInjected;
 import io.mateu.workflow.dtos.events.integration.TaskExecutionRequested;
+import io.mateu.workflow.dtos.events.integration.TaskLogEmitted;
 import io.mateu.workflow.dtos.events.integration.TaskStatus;
 import io.mateu.workflow.dtos.events.integration.TaskStatusChanged;
 import org.junit.jupiter.api.Test;
@@ -58,6 +60,50 @@ class WorkerReplyTest {
 
         assertThat(((TaskStatusChanged) bridge.payloads.getFirst()).status())
                 .isEqualTo(TaskStatus.ERROR);
+    }
+
+    /**
+     * The reason has to travel, because until this overload existed it could not: the reply
+     * carries a status and variables and no message, so a kafka-mode failure reached the process
+     * log as "Task status changed to ERROR" and nothing else.
+     */
+    @Test
+    void failedWithAReasonSendsTheReasonAsALogLineBeforeTheFailure() {
+        var bridge = new RecordingBridge(true);
+
+        WorkerReply.failed(bridge, TASK, List.of(), "IllegalArgumentException: no handler for 'greet'");
+
+        assertThat(bridge.bindings).containsExactly("upstream", "upstream");
+        assertThat(bridge.payloads).hasSize(2);
+        // The log first: both sends throw on a refusal, so a broker that will not take the reason
+        // fails before anything has been reported at all, and the task is simply redelivered.
+        var log = (TaskLogEmitted) bridge.payloads.get(0);
+        assertThat(log.taskExecutionId()).isEqualTo("task-1");
+        assertThat(log.messageType()).isEqualTo(MessageType.Error);
+        assertThat(log.message()).isEqualTo("IllegalArgumentException: no handler for 'greet'");
+        assertThat(((TaskStatusChanged) bridge.payloads.get(1)).status()).isEqualTo(TaskStatus.ERROR);
+    }
+
+    @Test
+    void failedWithABlankReasonBehavesLikeTheThreeArgumentOverload() {
+        var bridge = new RecordingBridge(true);
+
+        WorkerReply.failed(bridge, TASK, List.of(), "   ");
+
+        assertThat(bridge.payloads).hasSize(1);
+        assertThat(((TaskStatusChanged) bridge.payloads.getFirst()).status()).isEqualTo(TaskStatus.ERROR);
+    }
+
+    @Test
+    void aRefusedLogLineThrowsBeforeTheFailureIsReported() {
+        // Nothing must reach the engine when the reason cannot be published: a failure the engine
+        // acts on and nobody can explain is the state this overload exists to end.
+        var bridge = new RecordingBridge(false);
+
+        assertThatThrownBy(() -> WorkerReply.failed(bridge, TASK, List.of(), "boom"))
+                .isInstanceOf(WorkerReply.ReplyNotAcceptedException.class);
+
+        assertThat(bridge.payloads).allMatch(TaskLogEmitted.class::isInstance);
     }
 
     @Test
