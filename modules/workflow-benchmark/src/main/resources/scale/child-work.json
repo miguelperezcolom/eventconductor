@@ -4,7 +4,7 @@
   "version": 1,
   "steps": [
     { "id": "start", "type": "START", "name": "Start" },
-    { "id": "work", "type": "ACTION", "name": "Do child work", "topic": "bench", "preconditionStepId": "start" },
+    { "id": "work", "type": "ACTION", "name": "Do child work", "preconditionStepId": "start" },
     { "id": "end", "type": "END", "name": "End", "preconditionStepId": "work" }
   ]
 }
