@@ -138,7 +138,7 @@ class StepExecutionStatusUpdatedEventHandlerTest {
 
         handler.handle(new StepExecutionStatusChanged("se-1", TaskStatus.TIMEOUT, List.of()));
 
-        verify(downstreamEventPublisher).publish(any(TaskCancellationRequested.class));
+        verify(downstreamEventPublisher).publish(any(TaskCancellationRequested.class), any());
     }
 
     @Test
@@ -249,9 +249,9 @@ class StepExecutionStatusUpdatedEventHandlerTest {
 
         handler.handle(new StepExecutionStatusChanged("comp-se", TaskStatus.COMPLETED, List.of()));
 
-        verify(downstreamEventPublisher).publish(new TaskCancellationRequested("se-sibling"));
+        verify(downstreamEventPublisher).publish(eq(new TaskCancellationRequested("se-sibling")), any());
         // The one that was never dispatched has no worker to tell — only the row is cancelled.
-        verify(downstreamEventPublisher, never()).publish(new TaskCancellationRequested("se-later"));
+        verify(downstreamEventPublisher, never()).publish(eq(new TaskCancellationRequested("se-later")), any());
         assertThat(running.getStatus()).isEqualTo(StepExecutionStatus.CANCELLED);
         assertThat(neverDispatched.getStatus()).isEqualTo(StepExecutionStatus.CANCELLED);
     }

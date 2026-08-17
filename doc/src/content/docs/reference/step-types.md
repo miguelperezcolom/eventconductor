@@ -107,9 +107,24 @@ Dispatches a task to a worker microservice (or embedded bean). The workflow paus
 }
 ```
 
-**Required fields (Kafka mode):** `topic`
+**Required fields:** none beyond `id`, `type` and `name`.
 
-The `topic` field specifies the Kafka topic to which `TaskExecutionRequested` is published in **Kafka mode**. In **embedded mode** the field is ignored — all ACTION steps are routed to the single registered `EmbeddedTaskExecutor` bean regardless of its value. It may be omitted when targeting embedded-only workflows.
+`topic` is **optional** and names the destination this step's task is dispatched to, which is how a
+step is handed to a worker pool of its own. Omitted — the usual case — it means the shared
+`downstream` destination, where every task goes unless told otherwise.
+
+In **Kafka mode** the topic is the binding the task is sent on. A topic with no binding of its own
+is a dynamic destination: Spring Cloud Stream creates it on first use, so naming one needs no
+configuration in the application. Whatever consumes that topic must, of course, exist — a task sent
+where nobody is listening is not refused by anything, and shows up only as a step that sits until
+its `timeout`.
+
+In **embedded mode** the field is ignored: there is one in-process `EmbeddedTaskExecutor` and no
+transport to route over, so it takes every ACTION step whatever the topic says.
+
+A step's cancellation (`TaskCancellationRequested`, sent when a process is cancelled, stepped over
+or a task times out) is addressed to the **same** topic the task was dispatched to, so a worker pool
+of its own still hears about work it should stop.
 
 ---
 
@@ -491,7 +506,7 @@ Dispatches a task to a worker like an [`ACTION`](#action), but the worker's repl
 }
 ```
 
-**Required fields (Kafka mode):** `topic` — same as `ACTION`.
+**Required fields:** none beyond `id`, `type` and `name`. `topic` is optional and routes the task — same as `ACTION`.
 
 The worker injects with `WorkerReply.inject(...)` / `injectAndComplete(...)` (message `StepsInjected`). Injection is **add-only**, the worker supplies each step's own preconditions (there is no default wiring — an unreachable injected step is a visible bug, not something the engine fixes up), and the engine validates the whole batch (unique ids, resolved references, no cycle, within the [step budget](/guides/dynamic-workflows/#runaway-guards)) and **fails the `DYNAMIC` step** if it is rejected. Only a `DYNAMIC` step may inject. See [Dynamic Workflows](/guides/dynamic-workflows/) for the full picture.
 

@@ -276,7 +276,8 @@
             "string",
             "null"
           ],
-          "description": "Kafka topic (or logical destination) to dispatch the task to. Required for ACTION steps."
+          "default": "downstream",
+          "description": "Logical destination this step's task is dispatched to, so a step may be handed to a worker pool of its own. Optional: omitted (the default) means the shared 'downstream' destination, where every task went before per-step routing existed. In Kafka mode a topic with no binding of its own becomes a dynamic destination, created on first use. Embedded mode has one in-process executor and no transport to route over, so it takes every task whatever this says. The step's cancellation follows its task to the same destination."
         },
         "formId": {
           "type": [
@@ -435,21 +436,6 @@
           "items": { "type": "string" },
           "description": "Flow authorization: the roles the caller must ALL hold for this step to run. See requiredScopes."
         }
-      },
-      "if": {
-        "properties": {
-          "type": {
-            "const": "ACTION"
-          }
-        },
-        "required": [
-          "type"
-        ]
-      },
-      "then": {
-        "required": [
-          "topic"
-        ]
       },
       "allOf": [
         {

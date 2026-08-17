@@ -147,7 +147,12 @@ public class EmbeddedDownstreamEventPublisher implements DownstreamEventPublishe
     }
 
     @Override
-    public void publish(DomainEvent event) {
+    public void publish(DomainEvent event, String topic) {
+        // topic is ignored, and that is the mode rather than an omission: embedded dispatch has
+        // one EmbeddedTaskExecutor and no transport to route over, so every task goes to it
+        // whatever its step names. Routing to several in-process pools would be a different
+        // feature from naming a destination.
+        //
         // Cancellations (and any future downstream event type) also flow through here;
         // casting blindly would throw ClassCastException on TaskCancellationRequested.
         // Embedded executors run in this JVM, so there is no remote in-flight work to cancel.

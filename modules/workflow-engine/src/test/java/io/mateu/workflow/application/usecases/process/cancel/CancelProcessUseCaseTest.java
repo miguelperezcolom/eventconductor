@@ -102,7 +102,7 @@ class CancelProcessUseCaseTest {
 
         useCase.handle(new CancelProcessCommand("p-1"));
 
-        verify(downstreamEventPublisher).publish(any(TaskCancellationRequested.class));
+        verify(downstreamEventPublisher).publish(any(TaskCancellationRequested.class), any());
     }
 
     @Test
@@ -115,7 +115,7 @@ class CancelProcessUseCaseTest {
 
         useCase.handle(new CancelProcessCommand("p-1"));
 
-        verify(downstreamEventPublisher).publish(any(TaskCancellationRequested.class));
+        verify(downstreamEventPublisher).publish(any(TaskCancellationRequested.class), any());
     }
 
     @Test

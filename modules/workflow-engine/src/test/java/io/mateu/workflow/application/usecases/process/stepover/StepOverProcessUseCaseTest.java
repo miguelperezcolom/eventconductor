@@ -165,10 +165,10 @@ class StepOverProcessUseCaseTest {
         useCase.handle(new StepOverProcessCommand("p-1"));
 
         verify(downstreamEventPublisher).publish(
-                new io.mateu.workflow.dtos.events.integration.TaskCancellationRequested("se-run"));
+                eq(new io.mateu.workflow.dtos.events.integration.TaskCancellationRequested("se-run")), any());
         // The one that never left the engine has no worker to tell.
         verify(downstreamEventPublisher, never()).publish(
-                new io.mateu.workflow.dtos.events.integration.TaskCancellationRequested("se-wait"));
+                eq(new io.mateu.workflow.dtos.events.integration.TaskCancellationRequested("se-wait")), any());
     }
 
     @Test

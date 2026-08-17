@@ -71,7 +71,8 @@ public class StepOverProcessUseCase {
             var before = statusBefore.get(stepExecution.getId());
             if (StepExecutionStatus.CANCELLED.equals(stepExecution.getStatus())
                     && before != null && before.isInFlightAtAWorker()) {
-                downstreamEventPublisher.publish(new TaskCancellationRequested(stepExecution.getId()));
+                downstreamEventPublisher.publish(new TaskCancellationRequested(stepExecution.getId()),
+                        stepExecution.topic());
             }
             // END-transition and implicit-completion cancellations (and start-time errors)
             // flow through here — a PROCESS step ending CANCELLED/ERROR must take its
