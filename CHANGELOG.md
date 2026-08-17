@@ -8,6 +8,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`topic` routes a step to a worker pool of its own.** The field has been in the definition
+  schema since the beginning, described as "the Kafka topic to dispatch the task to" — and nothing
+  read it. `Step.topic()` had no callers anywhere in the engine, and `KafkaDownstreamEventPublisher`
+  sent every task to a hard-coded `"downstream"`, so a step naming `order-validator` went exactly
+  where a step naming nothing went. It now goes to `order-validator`.
+
+  A topic with no binding of its own is a dynamic destination, created by Spring Cloud Stream on
+  first use, so naming one costs the application no configuration. A step that names none keeps
+  going to `downstream`, which is the default and the overwhelmingly common case.
+
+  **The step's cancellation follows its task.** `TaskCancellationRequested` — sent when a process is
+  cancelled, when a step is stepped over, and when a task times out — goes to the topic that task
+  was dispatched to, not to the default. Sent to the default while the task ran on a pool of its
+  own it would reach nobody, and the step would run to its `timeout` instead of stopping: a failure
+  with no error in it, which is why `KafkaDownstreamEventPublisherTest` asserts the address rather
+  than only the payload. The destination is read from the step frozen on the `StepExecution`, not
+  from the current definition, so a task already at a worker is cancelled where it actually went
+  even if the definition has been re-imported since.
+
+  `DownstreamEventPublisher.publish` takes the destination as a parameter rather than defaulting it,
+  so a new call site has to say where its event goes. Embedded mode ignores it: there is one
+  in-process `EmbeddedTaskExecutor` and no transport to route over, so it takes every task whatever
+  the step says — routing to several in-process pools would be a different feature from naming a
+  destination, and `java-api` no longer claims the bean name is matched against the topic, which it
+  never was.
+
+  **No migration.** The field already survives the database: steps are stored as JSON
+  (`workflow_definition_entity.steps_json`, `step_execution_entity.step_json`), and both already
+  carried `topic`. The `step_entity` table, which has no `topic` column, turned out to have no
+  writers at all — `StepEntityRepository` has no callers — so it played no part in this.
+
 - **A worker in kafka mode can finally say *why* a task failed.** `1.0-beta.022` fixed "a failing
   step recorded that it failed, and nothing about why" — but only on one side. In embedded mode the
   engine catches the worker's exception on its behalf and fills the `log` field of
@@ -31,10 +62,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   TaskLogEmitted)` is now public too, for a worker that wants to log progress rather than a failure.
 
 ### Changed
+- **`topic` is no longer required on an `ACTION`.** It was required by the schema while nothing read
+  it, which made it a field every author had to write on every ACTION step for no effect. The
+  requirement did not even hold where it mattered: `WorkflowDefinitionValidator` validates the
+  **serialised** definition, and Jackson writes `"topic": null`, which satisfies a JSON Schema
+  `required`. A definition omitting it imported cleanly and only the IDE plugins complained — the
+  rule nagged the author and protected nothing. It is now optional with a documented default of
+  `downstream`, in the engine schema and in the copies the VSCode and IntelliJ plugins bundle.
+
 - **The worker guide no longer teaches the bug.** Its example caught `Exception e` and called the
   three-argument `failed(...)`, discarding `e` without so much as logging it locally — the exact
   shape that makes a failed step unexplainable, copied from the documentation into real workers. It
   now logs and passes the reason.
+
+### Migration
+- **A step that names a `topic` other than `downstream` now goes there.** Until this release its
+  value was ignored and its task arrived on `downstream` regardless, so a definition carrying a
+  decorative topic — written against the documentation, or copied from the example in the AI
+  reference, which gave two steps two different topics — has been working only because the field
+  did nothing. Such a step will now be dispatched to a destination nobody consumes, and a task sent
+  where no worker listens fails silently: nothing refuses it, and the step sits until its `timeout`.
+  Before upgrading, either point each `topic` at a destination a worker really consumes, or remove
+  it so the step goes to `downstream` as it has been doing. Steps with no `topic` are unaffected.
 
 ## [1.3.0] - 2026-08-14
 

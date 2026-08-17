@@ -91,7 +91,7 @@ class EmbeddedDownstreamEventPublisherTest {
         var ranOn = new AtomicReference<Thread>();
         var publisher = inline(request -> ranOn.set(Thread.currentThread()));
 
-        publisher.publish(aTask());
+        publisher.publish(aTask(), null);
 
         assertThat(ranOn.get()).isSameAs(Thread.currentThread());
     }
@@ -110,7 +110,7 @@ class EmbeddedDownstreamEventPublisherTest {
         }, 2, 10);
 
         try {
-            publisher.publish(aTask());
+            publisher.publish(aTask(), null);
 
             // The point of the whole change: publish() came back although the worker has not.
             assertThat(workerStarted.await(TIMEOUT_SECONDS, TimeUnit.SECONDS)).isTrue();
@@ -137,8 +137,8 @@ class EmbeddedDownstreamEventPublisherTest {
         }, 2, 10);
 
         try {
-            publisher.publish(aTask("step-execution-1"));
-            publisher.publish(aTask("step-execution-2"));
+            publisher.publish(aTask("step-execution-1"), null);
+            publisher.publish(aTask("step-execution-2"), null);
 
             assertThat(secondRan.await(TIMEOUT_SECONDS, TimeUnit.SECONDS)).isTrue();
         } finally {
@@ -154,7 +154,7 @@ class EmbeddedDownstreamEventPublisherTest {
             throw new IllegalStateException("no reservation service");
         });
 
-        publisher.publish(aTask());
+        publisher.publish(aTask(), null);
 
         assertThat(captured.get()).isNotNull();
         assertThat(captured.get().stepId()).isEqualTo("step-execution-1");
@@ -170,7 +170,7 @@ class EmbeddedDownstreamEventPublisherTest {
             throw new IllegalStateException("no reservation service");
         }, 1, 10);
 
-        publisher.publish(aTask());
+        publisher.publish(aTask(), null);
 
         assertThat(reported.await(TIMEOUT_SECONDS, TimeUnit.SECONDS)).isTrue();
         assertThat(captured.get().status()).isEqualTo(StepExecutionStatus.ERROR);
@@ -184,7 +184,7 @@ class EmbeddedDownstreamEventPublisherTest {
 
         // The environment, not the step: turning this into a failed step would fail work that
         // has not been attempted, and the message deserves another go instead.
-        assertThatThrownBy(() -> publisher.publish(aTask()))
+        assertThatThrownBy(() -> publisher.publish(aTask(), null))
                 .isInstanceOf(CannotCreateTransactionException.class);
         verifyNoInteractions(updateStepExecution);
     }
@@ -202,8 +202,8 @@ class EmbeddedDownstreamEventPublisherTest {
             secondRan.countDown();
         }, 1, 10);
 
-        publisher.publish(aTask("step-execution-1"));
-        publisher.publish(aTask("step-execution-2"));
+        publisher.publish(aTask("step-execution-1"), null);
+        publisher.publish(aTask("step-execution-2"), null);
 
         assertThat(secondRan.await(TIMEOUT_SECONDS, TimeUnit.SECONDS)).isTrue();
     }
@@ -222,12 +222,12 @@ class EmbeddedDownstreamEventPublisherTest {
         }, 1, 1);
 
         try {
-            publisher.publish(aTask("occupies-the-thread"));
+            publisher.publish(aTask("occupies-the-thread"), null);
             assertThat(occupied.await(TIMEOUT_SECONDS, TimeUnit.SECONDS)).isTrue();
-            publisher.publish(aTask("fills-the-queue"));
+            publisher.publish(aTask("fills-the-queue"), null);
 
             var rejection = org.assertj.core.api.Assertions
-                    .catchThrowable(() -> publisher.publish(aTask("no-room-left")));
+                    .catchThrowable(() -> publisher.publish(aTask("no-room-left"), null));
 
             assertThat(rejection).isInstanceOf(RejectedExecutionException.class);
             // Backpressure, not a defect: parked as Error the task would never run again.
@@ -250,7 +250,7 @@ class EmbeddedDownstreamEventPublisherTest {
             finished.countDown();
         }, 1, 10);
 
-        publisher.publish(aTask());
+        publisher.publish(aTask(), null);
         publisher.stop();
 
         assertThat(finished.getCount()).isZero();
@@ -261,7 +261,7 @@ class EmbeddedDownstreamEventPublisherTest {
         var dispatched = new AtomicReference<TaskExecutionRequested>();
         var publisher = inline(dispatched::set);
 
-        publisher.publish(new TaskCancellationRequested("step-execution-1"));
+        publisher.publish(new TaskCancellationRequested("step-execution-1"), null);
 
         assertThat(dispatched.get()).isNull();
     }

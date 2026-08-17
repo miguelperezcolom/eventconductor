@@ -63,7 +63,7 @@ In `embedded`+`memory` mode, definitions are loaded from `classpath:/workflows/`
 | Type | Purpose | Key field |
 |---|---|---|
 | `START` | Entry point: no worker, completes instantly at process creation; must have **no** preconditions; several STARTs = concurrent entry branches | — |
-| `ACTION` | Dispatch a task to a worker | `topic` (Kafka mode) |
+| `ACTION` | Dispatch a task to a worker | — (`topic` optional: routes to a worker pool of its own) |
 | `USER_TASK` | Pause for a human to submit a form | `formId` |
 | `RULE` | Evaluate a business rule; outputs become process variables | `ruleId` |
 | `TIMER` | Durable wait for a duration or until a date from a variable | `duration` / `untilVariable` |
@@ -76,7 +76,7 @@ In `embedded`+`memory` mode, definitions are loaded from `classpath:/workflows/`
 
 ### Step fields
 
-`id`, `type`, `name`, `description`, `preconditionStepId` (single), `preconditionStepIds` (string array — ALL must complete; wins over the singular when non-empty), `preconditionExpression` (JEXL), `parallel` (bool, **deprecated/ignored**), `topic` (ACTION), `formId` (USER_TASK), `ruleId` (RULE), `childWorkflowDefinitionId` (PROCESS), `outputVariables` (PROCESS: string array of child variables copied back to the parent; absent = none), `duration` (TIMER: ISO-8601 or ms), `untilVariable` (TIMER: variable holding an ISO-8601 date/date-time; wins over `duration`), `messageName` + `correlationExpression` (WAIT_FOR_MESSAGE / SEND_MESSAGE, both **required**), `messageVariables` (SEND_MESSAGE: string array of process-variable names the outgoing message carries; empty/absent = none), `timeout` (ISO-8601 `PT30S`/`PT1H30M` or ms int; `0`=none), `retries` (int), `compensable` (bool), `compensationStepId`, `maxSuccessfulExecutions` (int).
+`id`, `type`, `name`, `description`, `preconditionStepId` (single), `preconditionStepIds` (string array — ALL must complete; wins over the singular when non-empty), `preconditionExpression` (JEXL), `parallel` (bool, **deprecated/ignored**), `topic` (ACTION, optional — the destination the task and its cancellation are dispatched to; defaults to `downstream`; Kafka mode only), `formId` (USER_TASK), `ruleId` (RULE), `childWorkflowDefinitionId` (PROCESS), `outputVariables` (PROCESS: string array of child variables copied back to the parent; absent = none), `duration` (TIMER: ISO-8601 or ms), `untilVariable` (TIMER: variable holding an ISO-8601 date/date-time; wins over `duration`), `messageName` + `correlationExpression` (WAIT_FOR_MESSAGE / SEND_MESSAGE, both **required**), `messageVariables` (SEND_MESSAGE: string array of process-variable names the outgoing message carries; empty/absent = none), `timeout` (ISO-8601 `PT30S`/`PT1H30M` or ms int; `0`=none), `retries` (int), `compensable` (bool), `compensationStepId`, `maxSuccessfulExecutions` (int).
 
 A workflow definition can also declare a `cronExpression` (Spring syntax) to start a new process instance at each occurrence, with deterministic business keys so multiple pods never duplicate an occurrence, and a `defaultMaxStepExecutions` (int). Note: `defaultMaxStepExecutions` / `maxSuccessfulExecutions` are today validated metadata, not enforced at runtime.
 
@@ -175,7 +175,7 @@ Report `RUNNING` for progress (resets the timeout clock). Long tasks can return 
 - **Exactly one `END`.** Parallel branches must funnel through a `JOIN` (its `preconditionStepIds` = the branch ends) before `END`.
 - **Report with `taskExecutionId`**, the value from `TaskExecutionRequested` — not the workflow `stepId`.
 - **Variables are strings.** JEXL numeric comparisons operate on the string value (`amount > 1000`).
-- In **embedded mode** the `topic` field is ignored (single executor); in **Kafka mode** `topic` is required for `ACTION`.
+- The `topic` field is **optional**, defaulting to the shared `downstream` destination. In **Kafka mode** it is the binding the task is sent on — an unbound topic becomes a dynamic destination, created on first use — and the step's `TaskCancellationRequested` follows it to the same place. In **embedded mode** it is ignored: one `EmbeddedTaskExecutor` takes every task. Within one topic, workers branch on `request.stepId()`.
 - Human steps (`USER_TASK`) need the `forms-engine` dependency and a form with matching `formId`.
 
 Full reference: `eventconductor-ai-full.md`. Canonical docs: `doc/src/content/docs/`.

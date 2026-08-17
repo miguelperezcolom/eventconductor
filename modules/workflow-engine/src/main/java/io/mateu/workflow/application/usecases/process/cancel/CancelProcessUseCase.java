@@ -43,7 +43,8 @@ public class CancelProcessUseCase {
             if (!StepExecutionStatus.ERROR.equals(stepExecution.getStatus()) && !StepExecutionStatus.COMPLETED.equals(stepExecution.getStatus())
                     && !StepExecutionStatus.CANCELLED.equals(stepExecution.getStatus())) {
                 if (stepExecution.getStatus().isInFlightAtAWorker()) {
-                    downstreamEventPublisher.publish(new TaskCancellationRequested(stepExecution.getId()));
+                    downstreamEventPublisher.publish(new TaskCancellationRequested(stepExecution.getId()),
+                            stepExecution.topic());
                 }
                 stepExecution.updateStatus(StepExecutionStatus.CANCELLED);
                 stepExecutionRepository.save(stepExecution);

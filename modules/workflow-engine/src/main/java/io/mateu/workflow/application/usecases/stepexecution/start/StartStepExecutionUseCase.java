@@ -78,7 +78,7 @@ public class StartStepExecutionUseCase {
                 stepExecution.getVariables().stream()
                         .map(variable -> new Variable(variable.name(), variable.value()))
                         .toList()
-        ));
+        ), step.topic());
     }
 
 }

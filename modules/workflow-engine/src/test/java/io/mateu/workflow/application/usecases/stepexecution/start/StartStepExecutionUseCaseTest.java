@@ -52,8 +52,44 @@ class StartStepExecutionUseCaseTest {
         useCase.handle(new StartStepExecutionCommand("se-1"));
 
         ArgumentCaptor<TaskExecutionRequested> captor = ArgumentCaptor.forClass(TaskExecutionRequested.class);
-        verify(downstreamEventPublisher).publish(captor.capture());
+        verify(downstreamEventPublisher).publish(captor.capture(), any());
         assertThat(captor.getValue().taskId()).isEmpty();
+    }
+
+    /**
+     * The dispatch carries the step's destination, and the step frozen on the execution is where it
+     * comes from. Asserted separately from the event itself because the topic is not in the event:
+     * it is how the event is addressed, and a wrong address fails silently — the send succeeds and
+     * only the worker's silence, later, says anything went wrong.
+     */
+    @Test
+    void dispatchesToTheTopicTheStepNames() {
+        var se = seWith(StepExecutionStatus.PENDING, StepType.ACTION, null);
+        when(stepExecutionRepository.findById("se-1")).thenReturn(Optional.of(se));
+
+        useCase.handle(new StartStepExecutionCommand("se-1"));
+
+        ArgumentCaptor<String> topic = ArgumentCaptor.forClass(String.class);
+        verify(downstreamEventPublisher).publish(any(), topic.capture());
+        assertThat(topic.getValue()).isEqualTo("topic");
+    }
+
+    @Test
+    void dispatchesWithNoTopicWhenTheStepNamesNone() {
+        Step step = new Step("s1", "wd-1", StepType.ACTION, "Step", null, null, null, null, false, null, null, null, null, null, 0, null, null, null, null, 0, 0, false, null, 0, null);
+        var se = StepExecution.builder()
+                .id("se-1").processId("p-1").workflowDefinitionId("wd-1").stepId("s1")
+                .stepJson(JsonSerializer.toJson(step))
+                .status(StepExecutionStatus.PENDING).variables(List.of()).build();
+        when(stepExecutionRepository.findById("se-1")).thenReturn(Optional.of(se));
+
+        useCase.handle(new StartStepExecutionCommand("se-1"));
+
+        ArgumentCaptor<String> topic = ArgumentCaptor.forClass(String.class);
+        verify(downstreamEventPublisher).publish(any(), topic.capture());
+        // Null rather than "downstream": resolving the default belongs to the publisher, so an
+        // embedded run is not handed a Kafka binding name it has no use for.
+        assertThat(topic.getValue()).isNull();
     }
 
     @Test
@@ -64,7 +100,7 @@ class StartStepExecutionUseCaseTest {
         useCase.handle(new StartStepExecutionCommand("se-1"));
 
         ArgumentCaptor<TaskExecutionRequested> captor = ArgumentCaptor.forClass(TaskExecutionRequested.class);
-        verify(downstreamEventPublisher).publish(captor.capture());
+        verify(downstreamEventPublisher).publish(captor.capture(), any());
         assertThat(captor.getValue().taskId()).isEqualTo("complete-form");
     }
 
@@ -76,7 +112,7 @@ class StartStepExecutionUseCaseTest {
         useCase.handle(new StartStepExecutionCommand("se-1"));
 
         ArgumentCaptor<TaskExecutionRequested> captor = ArgumentCaptor.forClass(TaskExecutionRequested.class);
-        verify(downstreamEventPublisher).publish(captor.capture());
+        verify(downstreamEventPublisher).publish(captor.capture(), any());
         assertThat(captor.getValue().taskId()).isEqualTo("evaluate-rule");
     }
 
@@ -87,7 +123,7 @@ class StartStepExecutionUseCaseTest {
 
         useCase.handle(new StartStepExecutionCommand("se-1"));
 
-        verify(downstreamEventPublisher, never()).publish(any());
+        verify(downstreamEventPublisher, never()).publish(any(), any());
     }
 
     @Test
@@ -97,7 +133,7 @@ class StartStepExecutionUseCaseTest {
 
         useCase.handle(new StartStepExecutionCommand("se-1"));
 
-        verify(downstreamEventPublisher, never()).publish(any());
+        verify(downstreamEventPublisher, never()).publish(any(), any());
     }
 
     /** A step marked started some time ago and only now reaching a worker — a queued dispatch. */

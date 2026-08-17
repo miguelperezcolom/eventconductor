@@ -219,7 +219,7 @@ archiving.
 | `preconditionStepIds` | string[] | — | Steps that must **all** complete before this one starts; takes precedence over the singular `preconditionStepId` when non-empty |
 | `preconditionExpression` | string | — | JEXL expression; the step does not run while it evaluates to `false` |
 | `parallel` | boolean | `false` | **Deprecated and ignored** — every eligible step runs concurrently; kept only so old definition files keep deserializing |
-| `topic` | string | — | Worker topic/destination (ACTION only) |
+| `topic` | string | `downstream` | Destination this step's task (and its cancellation) is dispatched to, so a step may go to a worker pool of its own. Kafka mode only; embedded mode has one executor and ignores it |
 | `formId` | string | — | Form identifier (USER_TASK only) |
 | `childWorkflowDefinitionId` | string | — | Child workflow ID (PROCESS only, required; must differ from the workflow's own id) |
 | `outputVariables` | string[] | — | PROCESS only: names of the child process variables copied back into the parent when the child completes; empty/absent = none |
