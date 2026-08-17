@@ -164,7 +164,17 @@ public final class DistInfra {
         props.put("workflow.mode", "kafka");
         props.put("spring.cloud.function.definition", "consumeWorkerEvent");
         props.put("spring.cloud.stream.kafka.binder.brokers", kafka.getBootstrapServers());
-        props.put("spring.cloud.stream.bindings.consumeWorkerEvent-in-0.destination", "downstream");
+        // "work", not "downstream": every definition in src/test/resources/workflows names
+        // `"topic": "work"` on its ACTION steps, and the engine now dispatches to the topic a step
+        // names. Pointing the worker at what the fixtures actually ask for is also the only
+        // end-to-end cover per-step routing has — it is exercised here over a real broker, on every
+        // one of these tests, rather than only in a unit test of the publisher.
+        //
+        // The suite found this itself: with the worker on "downstream" and the definitions naming
+        // "work", eleven of twelve tests timed out at 120s with nothing completing. That is exactly
+        // the failure a topic pointed at a destination nobody consumes produces in production, and
+        // exactly why the change ships with a migration note.
+        props.put("spring.cloud.stream.bindings.consumeWorkerEvent-in-0.destination", "work");
         props.put("spring.cloud.stream.bindings.consumeWorkerEvent-in-0.group", "worker-group");
         props.put("spring.cloud.stream.bindings.consumeWorkerEvent-in-0.consumer.concurrency", "3");
         props.put("spring.cloud.stream.bindings.upstream.destination", "upstream");
