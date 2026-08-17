@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-08-17
+
+The first MAJOR since 1.0, for one reason: a field that did nothing now does what it always said it
+did, and a definition that names a `topic` other than `downstream` will be dispatched somewhere
+else than before. See **Migration** below — it is short, and it only concerns definitions that set
+the field.
+
+The **definition format is unchanged and stays at schema version 1**
+(`urn:eventconductor:workflow-definition-schema:1`). Every document that validated against 1.3.0
+still validates: `topic` went from required to optional, which only relaxes. The MAJOR is about
+behaviour, not format, and nothing needs rewriting to be *accepted* — only steps that named a topic
+need looking at to keep going where they were going.
+
 ### Added
 - **`topic` routes a step to a worker pool of its own.** The field has been in the definition
   schema since the beginning, described as "the Kafka topic to dispatch the task to" — and nothing
