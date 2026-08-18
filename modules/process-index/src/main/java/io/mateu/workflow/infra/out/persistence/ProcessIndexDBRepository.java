@@ -2,7 +2,6 @@ package io.mateu.workflow.infra.out.persistence;
 
 import io.mateu.workflow.application.out.ProcessIndexRepository;
 import io.mateu.workflow.application.readmodel.ProcessIndexRow;
-import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
@@ -15,10 +14,13 @@ import java.util.stream.Collectors;
 /** Process-index read store on the relational database (jpa persistence). */
 @Service
 @ConditionalOnProperty(name = "workflow.persistence", havingValue = "jpa")
-@RequiredArgsConstructor
 public class ProcessIndexDBRepository implements ProcessIndexRepository {
 
     private final ProcessIndexEntityRepository repository;
+
+    public ProcessIndexDBRepository(ProcessIndexEntityRepository repository) {
+        this.repository = repository;
+    }
 
     @Override
     public void upsert(ProcessIndexRow row) {

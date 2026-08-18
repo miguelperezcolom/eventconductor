@@ -1,0 +1,70 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>io.mateu.workflow</groupId>
+        <artifactId>eventconductor</artifactId>
+        <version>1.0-SNAPSHOT</version>
+        <relativePath>../../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>process-index</artifactId>
+    <packaging>jar</packaging>
+
+    <name>process-index</name>
+    <description>
+        The CQRS process-index read model, as a module of its own so that a projector can be run
+        outside the engine. It depends on `shared` and nothing else: an out-of-process projector must
+        not drag the engine, its beans or its write-side schema into a service whose entire purpose is
+        not to have them.
+    </description>
+
+    <properties>
+        <!-- Coverage floor for this module, just under what it measures today (64.0% per-module).
+             The gap is the JPA adapter and its entity, which are exercised by the e2e module
+             (ProcessIndexProjectionJpaE2eTest) rather than here — a persistence unit is not something
+             this module builds for itself. Raise it when the module improves; never lower it. -->
+        <jacoco.line.minimum>0.62</jacoco.line.minimum>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>io.mateu.workflow</groupId>
+            <artifactId>shared</artifactId>
+            <version>1.0-SNAPSHOT</version>
+            <scope>compile</scope>
+        </dependency>
+
+        <!-- Optional for the same reason they are in the engine: a memory-persistence run needs no
+             database, and the read model's in-heap adapter must not carry a JPA stack with it. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-autoconfigure</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <!-- Test scope only: the module ships the migration, the host applies it (the engine
+                 through its own schema autoconfiguration, the projector through ManagedSchema). The
+                 store's tests apply it the same way, so the SQL is tested against the shipped schema. -->
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>
