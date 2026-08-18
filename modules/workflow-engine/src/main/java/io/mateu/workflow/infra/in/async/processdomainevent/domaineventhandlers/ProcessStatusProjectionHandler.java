@@ -20,9 +20,14 @@ import org.springframework.stereotype.Service;
  * what the standalone projector runs when it consumes the shared projection topic across sharded
  * databases; the event carries the whole projected shape precisely so it needs no access to the write
  * side.
+ *
+ * <p>Absent in {@code workflow.projection.mode=remote}: there the relay diverts
+ * {@link ProcessStatusChanged} to the shared projection topic, so this handler would never see one
+ * anyway — and were it to, it would write a second, partial index into the write database.
  */
 @Service
 @ConditionalOnProperty(name = "workflow.projection.enabled", havingValue = "true")
+@ConditionalOnProperty(name = "workflow.projection.mode", havingValue = "embedded", matchIfMissing = true)
 @RequiredArgsConstructor
 public class ProcessStatusProjectionHandler implements DomainEventHandler<ProcessStatusChanged> {
 
