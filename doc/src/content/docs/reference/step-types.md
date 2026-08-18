@@ -126,6 +126,18 @@ A step's cancellation (`TaskCancellationRequested`, sent when a process is cance
 or a task times out) is addressed to the **same** topic the task was dispatched to, so a worker pool
 of its own still hears about work it should stop.
 
+:::caution[It does not compose with sharding on its own]
+A shard suffixes its destinations through binding properties —
+`spring.cloud.stream.bindings.downstream.destination=downstream-<shard>`. A step's `topic` is used
+as the **binding name**, so a topic with no binding of its own becomes a dynamic destination named
+exactly what the step says, with no suffix: every shard's tasks for that step land on one topic.
+
+Sharded deployments therefore either leave `topic` unset, so tasks go through the shard-mapped
+`downstream` binding, or declare a binding per topic per shard
+(`spring.cloud.stream.bindings.<topic>.destination=<topic>-<shard>`) on the orchestrator and point
+that shard's workers at the same name.
+:::
+
 ---
 
 ## USER_TASK

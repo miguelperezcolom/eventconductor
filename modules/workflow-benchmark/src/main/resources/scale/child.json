@@ -4,7 +4,7 @@
   "version": 1,
   "steps": [
     { "id": "start", "type": "START", "name": "Start" },
-    { "id": "prep", "type": "ACTION", "name": "Prepare", "topic": "bench", "preconditionStepId": "start" },
+    { "id": "prep", "type": "ACTION", "name": "Prepare", "preconditionStepId": "start" },
     { "id": "sub", "type": "PROCESS", "name": "Run sub-workflow",
       "childWorkflowDefinitionId": "child-work", "preconditionStepId": "prep" },
     { "id": "end", "type": "END", "name": "End", "preconditionStepId": "sub" }
