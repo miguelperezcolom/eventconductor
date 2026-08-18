@@ -1,0 +1,27 @@
+{
+  "id": "dist-sim-timeout",
+  "name": "One step that times out, answered by the test worker",
+  "version": 1,
+  "steps": [
+    {
+      "id": "start",
+      "type": "START",
+      "name": "Start"
+    },
+    {
+      "id": "notify",
+      "type": "ACTION",
+      "name": "Notify the traveller",
+      "topic": "sim-work",
+      "timeout": 3000,
+      "retries": 0,
+      "preconditionStepId": "start"
+    },
+    {
+      "id": "end",
+      "type": "END",
+      "name": "End",
+      "preconditionStepId": "notify"
+    }
+  ]
+}

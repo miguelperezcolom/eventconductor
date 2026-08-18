@@ -317,12 +317,13 @@ eventconductor/
 │   ├── workflow-maven-plugin/ Build-time validator for workflow/form/rule definitions
 │   ├── workflow-e2e/          End-to-end test suite (embedded + JPA/H2 modes)
 │   ├── workflow-dist-e2e/     Distributed test suite (Testcontainers: Postgres + Kafka)
-│   └── sample-worker/         Hello-world worker example
+│   ├── sample-worker/         Hello-world worker example
+│   └── test-worker/           Scenario-driven worker for testing workflows
 ├── apps/                      Runnable standalone apps + docker-compose.yml
 │   ├── orchestrator-standalone-app/  Workflow engine (UI, REST, MCP)
 │   ├── forms-standalone-app/  Forms engine
 │   ├── rule-standalone-app/   Rule catalog (REST + gRPC + UI + MCP)
-│   ├── worker-standalone-app/ Kafka worker
+│   ├── worker-standalone-app/ Test worker (scenario playback + UI)
 │   └── dev-app/               All engines in one JVM for development
 ├── testbench/                 Minimal single-purpose apps (embedded workflow/forms/rules)
 ├── demo/                      Example multi-service system (own Maven reactor,
@@ -697,6 +698,12 @@ processUpstreamEventUseCase.handle(new ProcessUpstreamEventCommand(
 
 A worker receives `TaskExecutionRequested` events, performs work, and reports back
 `TaskStatusChanged`.
+
+> **Testing a workflow without writing one:** `apps/worker-standalone-app` is a worker that does no
+> work — it plays back whatever scenario the process asks for in a `TEST_CONFIG` variable
+> (durations, log lines, failures, variables, retries, timeouts), records every task it is given,
+> and offers a UI at `/_worker` for changing what a task replies next time. See
+> [The Test Worker](doc/src/content/docs/guides/test-worker.md).
 
 ### Kafka worker
 

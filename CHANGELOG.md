@@ -7,6 +7,90 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **The worker app is now a test instrument: it plays back whatever scenario you ask for.** Testing
+  a workflow meant answering its tasks, and answering its tasks meant writing a worker — one per
+  scenario, or one with a branch per scenario, until the scaffolding outnumbered the workflow under
+  test. The worker app now does no work at all. A process states what its tasks should do in a
+  `TEST_CONFIG` variable, and the worker plays it:
+
+  ```json
+  {
+    "default": { "durationMs": 200, "outcome": "COMPLETED" },
+    "tasks": {
+      "reserve-seat": { "durationMs": 500, "variables": [{ "name": "seatId", "value": "12A" }] },
+      "charge-card":  { "outcome": "ERROR", "reason": "card declined" },
+      "notify":       { "outcome": "NO_REPLY" }
+    }
+  }
+  ```
+
+  The keys are step ids — the engine sends an empty task id for every `ACTION` step, filling that
+  field only for `USER_TASK` and `RULE`. A task can state its duration, its outcome, the reason it
+  failed, the log lines it emits and when, the variables it hands back, how many of the first
+  attempts to fail before succeeding, how many times to send its reply, and whether to ignore a
+  cancellation. Three of those exist for states no
+  ordinary worker can be asked to produce on demand: `NO_REPLY` is a worker that took the task and
+  hung, which is what the step timeout is written for; a duplicate reply and a reply after
+  cancellation are workers misbehaving, and what the engine does with them is a property of the
+  engine worth being able to point at.
+
+  Unknown properties and malformed JSON fail the task with the parse error as its reason, on the
+  process you started. A misspelled `durationMS` quietly meaning "two seconds" would turn a test
+  that proves nothing into a test that looks like it passed.
+
+  It also records every task it is given, and offers a UI at `/_worker` for browsing them and
+  canning a different reply for next time — for the processes you cannot edit. `TEST_CONFIG` always
+  wins over a stored override: a suite whose result depends on a table someone edited by hand last
+  Tuesday is not a suite. Every recorded row says which of the two answered it, because that is the
+  first question anyone asks when a run surprises them.
+
+  New module `modules/test-worker`, deliberately outside the `io.mateu.workflow` package tree so
+  that everything which scans the engine's packages does not sweep up a worker binding and two JPA
+  stores from any classpath that happens to contain it. `modules/sample-worker` is untouched and
+  stays what it was — the hundred-line worker people copy.
+
+  `DIST-13` (`Dist13TestWorkerScenariosTest`) drives the whole thing against a real orchestrator
+  over real PostgreSQL and Kafka: a saga completed, a saga rolled back, a flaky step retried, a
+  silent step timed out, and two processes disagreeing about the same task at once. It earned its
+  place twice on the first run — the worker had assumed a retry arrives as a new task execution
+  (the engine re-dispatches the same one, so the count never left 1 and a flaky step failed
+  forever), and had led with task ids in a protocol that sends them empty.
+
+### Fixed
+- **Annotation processing was on by accident, and pruning a dependency turned it off.** Since JDK 23
+  javac no longer runs processors found on the classpath, and maven-compiler-plugin follows it, so
+  whether a module got Lombok and Mateu's UI registrations was decided by whether some dependency
+  happened to pull a processor in. `sample-worker` is where it surfaced — dropping the Mateu UI
+  dependencies it never used cost its `@Slf4j` classes their `log` field, reported as a missing
+  symbol rather than as "nothing was processed" — but every module was one dependency change away
+  from the same silence. The parent pom now says `<proc>full</proc>`.
+- **The worker image could never have been built from its Dockerfile.** Two independent reasons:
+  the builder stage ran `mvn dependency:go-offline` against a pom depending on
+  `io.mateu.workflow:*:1.0-SNAPSHOT`, which is published nowhere, so it failed on the first line it
+  ran; and the `COPY` named `app-*.jar` while the artifact is `worker-standalone-app-*.jar`, left
+  over from the template the file was copied from. Neither had ever run — the image on Docker Hub
+  was pushed by hand from a laptop. It is now runtime-only, from a jar the reactor built, which is
+  the same shape as the `demo/*/Dockerfile.runtime` files the images that do get built come from.
+- **The worker's healthcheck probed an endpoint the app did not serve.** `HEALTHCHECK` called
+  `/actuator/health` with no actuator on the classpath, on a hardcoded `8080` rather than
+  `${SERVER_PORT}`, and the entrypoint activated a `prod` profile that has never existed.
+- **The worker's context test tested a different application.** It declared an H2 datasource and
+  `workflow.persistence=jpa` — a property that app does not read — while the app itself ran with no
+  database at all, so the context it proved could start was not the application's. It now starts the
+  real configuration, and asserts the binding, the stores and the pages are actually there.
+- **`failuresBeforeSuccess` could never let a step through, and DIST-13 is how that was found.** The
+  worker counted a step's attempts by counting its rows within the process, on the assumption that
+  the engine retries by issuing a new task execution. It does not: it re-dispatches the *same*
+  `taskExecutionId` and keeps the count itself. So the retry overwrote the very row being counted,
+  every attempt looked like the first, and a step told to fail twice failed until the engine ran out
+  of retries. It now counts deliveries of the task execution, which is what the engine's model
+  actually offers.
+- **`sample-worker` pulled 70 MB of native library into every image built from it.** It depended on
+  `spring-cloud-stream-binder-kafka-streams`, which brings `rocksdbjni`, and on Mateu's UI — none of
+  it imported by any class in the module, and nothing anywhere in the repository uses Kafka Streams.
+  The worker app's jar went from 176 MB to 54 MB.
+
 ## [2.1.1] - 2026-08-18
 
 ### Fixed

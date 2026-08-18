@@ -23,6 +23,14 @@
 
 
 
+    <!--
+      This module is the worker people copy, so its dependency list is an example whether it means
+      to be one or not. It used to carry Mateu's UI (annotation-processor-mvc, mvc-core,
+      vaadin-lit) and the Kafka Streams binder, none of which any class here imports and none of
+      which a worker needs — a worker answers task requests, it renders nothing and builds no
+      topology. The Streams binder was the expensive one: it brings rocksdbjni, 70 MB of native
+      library, into every image built from this.
+    -->
     <dependencies>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -57,32 +65,12 @@
         </dependency>
 
         <dependency>
-            <groupId>io.mateu</groupId>
-            <artifactId>annotation-processor-mvc</artifactId>
-            <version>${mateu.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>io.mateu</groupId>
-            <artifactId>mvc-core</artifactId>
-            <version>${mateu.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>io.mateu</groupId>
-            <artifactId>vaadin-lit</artifactId>
-            <version>${mateu.version}</version>
-        </dependency>
-
-        <dependency>
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-stream-kafka</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-stream</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.cloud</groupId>
-            <artifactId>spring-cloud-stream-binder-kafka-streams</artifactId>
         </dependency>
         <dependency>
             <groupId>io.mateu.workflow</groupId>
@@ -93,23 +81,4 @@
 
     </dependencies>
 
-    <build>
-        <plugins>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.15.0</version>
-                <configuration>
-                    <annotationProcessorPaths>
-                        <path>
-                            <groupId>io.mateu</groupId>
-                            <artifactId>annotation-processor-mvc</artifactId>
-                            <version>${mateu.version}</version>
-                        </path>
-                        <!-- other annotation processors -->
-                    </annotationProcessorPaths>
-                </configuration>
-            </plugin>
-        </plugins>
-    </build>
 </project>

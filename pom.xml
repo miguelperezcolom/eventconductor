@@ -40,6 +40,7 @@
       <module>modules/rule-engine</module>
       <module>modules/workflow-maven-plugin</module>
       <module>modules/sample-worker</module>
+      <module>modules/test-worker</module>
       <module>apps/orchestrator-standalone-app</module>
       <module>apps/projector-standalone-app</module>
       <module>apps/forms-standalone-app</module>
@@ -50,7 +51,7 @@
   </modules>
 
   <properties>
-    <mateu.version>3.0-alpha.289</mateu.version>
+    <mateu.version>3.0-alpha.291</mateu.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <java.version>21</java.version>
     <!-- Per-module line-coverage floor, overridden in each module's own pom. A floor,
@@ -150,6 +151,17 @@
         <version>3.15.0</version>
         <configuration>
           <release>${maven.compiler.release}</release>
+          <!--
+            Run the annotation processors that are on the classpath — Lombok, and Mateu's UI
+            registration processor. Since JDK 23 javac no longer does that on its own, and the
+            plugin follows it, so whether a module gets processing has been decided by accident:
+            it worked wherever some dependency happened to pull a processor in, and stopped the
+            moment one was pruned. sample-worker is where that surfaced — its @Slf4j classes lost
+            their `log` field when the module dropped dependencies it genuinely did not need — but
+            every module here was one dependency change away from the same silence, and the
+            failure reads as a missing symbol rather than as "nothing was processed".
+          -->
+          <proc>full</proc>
         </configuration>
       </plugin>
 
@@ -242,6 +254,10 @@
                          the framework's rendering, which needs a browser runtime to exercise. The
                          query services and adapters behind them are NOT excluded. -->
                     <exclude>io/mateu/workflow/infra/in/ui/**</exclude>
+                    <!-- Same rule, same reason, for the test worker's pages: it lives under its
+                         own package root rather than sharing io.mateu.workflow.infra with the
+                         engine, so the pattern above does not reach it. -->
+                    <exclude>io/mateu/testworker/infra/in/ui/**</exclude>
                 </excludes>
             </configuration>
             <executions>

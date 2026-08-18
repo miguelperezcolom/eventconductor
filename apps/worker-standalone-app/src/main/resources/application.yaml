@@ -1,20 +1,24 @@
 server:
-  port: 8091
+  # SERVER_PORT wins over this default, which is what the Dockerfile and the compose file set.
+  port: ${SERVER_PORT:8091}
 
-# Stateless worker: no engine, no datasource. Exclude JDBC/JPA autoconfig (data-jpa is on the
-# classpath transitively) so nothing tries to open a DB connection.
-# Kafka mode (external worker); memory persistence activates the Spring Cloud Stream wiring
-# (StreamBridge) without needing a database.
-workflow:
-  mode: ${WORKFLOW_MODE:kafka}
-  persistence: ${WORKFLOW_PERSISTENCE:memory}
+# ── The simulator ─────────────────────────────────────────────────────────────
+worker:
+  # How long a task takes when nothing says otherwise. Every scenario can override it per task.
+  task-duration: ${WORKER_TASK_DURATION:2s}
+  # jpa keeps received tasks and overrides in PostgreSQL, which is what the UI browses and edits.
+  # memory keeps them in a bounded map and needs no database — run with the `memory` profile
+  # below, which also stops Boot opening a connection it would have no use for.
+  persistence: ${WORKER_PERSISTENCE:jpa}
+  received-tasks:
+    # Only read under worker.persistence=memory: how many tasks the map remembers before the
+    # oldest is dropped. A worker pointed at a load test must not end it by exhausting the heap.
+    remembered: ${WORKER_RECEIVED_TASKS_REMEMBERED:5000}
 
 spring:
   application:
     name: worker
-  autoconfigure:
-    exclude:
-      - org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration
+
   cloud:
     function:
       definition: consumeWorkerEvent
@@ -27,29 +31,65 @@ spring:
           configuration:
             default.api.timeout.ms: 15000
             request.timeout.ms: 10000
-        default:
-          producer:
-            # A worker's reply is the only record that a task was done. Asynchronously, send()
-            # returns true the moment the record is buffered, so a reply the broker never accepts
-            # is indistinguishable from one it did — the offset is committed and the engine waits
-            # for an answer that no longer exists. Synchronous, WorkerReply sees the refusal,
-            # retries, and finally throws so the task is redelivered instead of lost.
-            #
-            # An application that also embeds the engine gets this default from the engine
-            # (SynchronousProducerDefaults); a standalone worker has to declare it, as here.
-            sync: true
       bindings:
-        # Consume TaskExecutionRequested published by the engine on `downstream`.
+        # TaskExecutionRequested and TaskCancellationRequested, published by the engine.
         consumeWorkerEvent-in-0:
           destination: downstream
           group: worker-app-group
           consumer:
             start-offset: earliest
-        # StreamBridge target the worker uses to report TaskStatusChanged.
+        # StreamBridge target for TaskStatusChanged and TaskLogEmitted.
         upstream:
           destination: upstream
+
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://127.0.0.1:5432/workflow}
+    username: ${DB_USERNAME:user_app}
+    password: ${DB_PASSWORD}
+    driver-class-name: ${DB_DRIVER:org.postgresql.Driver}
+    hikari:
+      connection-timeout: ${DB_CONNECTION_TIMEOUT:20000}
+      maximum-pool-size: ${DB_POOL_SIZE:8}
+
+  jpa:
+    database-platform: ${JPA_DIALECT:org.hibernate.dialect.PostgreSQLDialect}
+    hibernate:
+      # update rather than validate, and unlike the engine's apps that is the right default here:
+      # this worker owns its two tables outright, ships no migrations, and is a test instrument
+      # whose schema should appear when someone points it at an empty database.
+      ddl-auto: ${DDL_AUTO:update}
+    show-sql: false
+
+# A worker's reply is the only record that a task was done, so its sends are synchronous —
+# together with acks=all and enable.idempotence. That arrives from SynchronousProducerDefaults in
+# `shared`, contributed to every application that can reply to the engine, so there is nothing to
+# declare here.
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
 
 logging:
   level:
     org.springframework.kafka: warn
     org.springframework.cloud.stream: warn
+
+---
+# Run with --spring.profiles.active=memory (or SPRING_PROFILES_ACTIVE=memory) for a worker with no
+# database at all: scenarios come from TEST_CONFIG, the UI still lists what arrived, and nothing
+# survives a restart. It is the shape a CI suite wants — one container, no volume.
+spring:
+  config:
+    activate:
+      on-profile: memory
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration
+worker:
+  persistence: memory

@@ -1,0 +1,60 @@
+{
+  "id": "dist-sim-saga",
+  "name": "Booking saga, answered by the test worker",
+  "version": 1,
+  "steps": [
+    {
+      "id": "start",
+      "type": "START",
+      "name": "Start"
+    },
+    {
+      "id": "reserve-seat",
+      "type": "ACTION",
+      "name": "Reserve seat",
+      "topic": "sim-work",
+      "compensable": true,
+      "compensationStepId": "release-seat",
+      "preconditionStepId": "start"
+    },
+    {
+      "id": "charge-card",
+      "type": "ACTION",
+      "name": "Charge card",
+      "topic": "sim-work",
+      "retries": 0,
+      "compensable": true,
+      "compensationStepId": "refund-card",
+      "preconditionStepId": "reserve-seat"
+    },
+    {
+      "id": "notify",
+      "type": "ACTION",
+      "name": "Notify the traveller",
+      "topic": "sim-work",
+      "preconditionStepId": "charge-card"
+    },
+    {
+      "id": "release-seat",
+      "type": "ACTION",
+      "name": "Release the seat",
+      "topic": "sim-work",
+      "preconditionExpression": "false",
+      "preconditionStepId": "start"
+    },
+    {
+      "id": "refund-card",
+      "type": "ACTION",
+      "name": "Refund the card",
+      "topic": "sim-work",
+      "preconditionExpression": "false",
+      "preconditionStepId": "start"
+    },
+    {
+      "id": "end",
+      "type": "END",
+      "name": "End",
+      "preconditionStepId": "notify"
+    }
+  ]
+}

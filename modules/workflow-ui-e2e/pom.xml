@@ -26,6 +26,15 @@
             <artifactId>workflow-engine</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!-- The test worker's own pages are part of the product's UI surface, and they are the
+             half of that worker nothing else can check: its scenario engine is unit-tested and
+             DIST-13 drives it over Kafka, but "the grid shows what the worker recorded" and "this
+             button changes what the next task replies" only exist in a browser. -->
+        <dependency>
+            <groupId>io.mateu.workflow</groupId>
+            <artifactId>test-worker</artifactId>
+            <version>${project.version}</version>
+        </dependency>
         <!-- The UI is a web application and reads the JPA entity repositories directly, so it
              only runs on the jpa persistence path. H2 keeps that a real database with nothing
              to install. -->
