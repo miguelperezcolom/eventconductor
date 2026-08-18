@@ -23,12 +23,20 @@ spec:
           image: BENCH_IMAGE
           imagePullPolicy: Always
           env:
+            # bench.fleet.jdbc.url adds the fleet checks: the standalone projector's read model and
+            # the placement claim, reached by a different path from the shards' own tables — which is
+            # the only reason that answer means anything. Remove it to verify the shards alone (a
+            # fleet running the in-process projector has no fleet database).
+            #
+            # NOTE: `value: >-` below is a folded scalar, so a `#` INSIDE it is not a comment — it
+            # would be passed to the JVM as an argument. Comments about these flags go here.
             - name: BENCH_OPTS
               value: >-
                 -Dbench.role=verify
                 -Dbench.shards=SHARDS
                 -Dbench.soak.prefix=PREFIX
                 -Dbench.jdbc.url=jdbc:postgresql://postgres-{shard}.ec-shard.svc.cluster.local:5432/eventconductor
+                -Dbench.fleet.jdbc.url=jdbc:postgresql://postgres-fleet.ec-shard.svc.cluster.local:5432/eventconductor_fleet
                 -XX:MaxRAMPercentage=70
           securityContext:
             allowPrivilegeEscalation: false

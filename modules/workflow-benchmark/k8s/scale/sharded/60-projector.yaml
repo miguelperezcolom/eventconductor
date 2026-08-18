@@ -1,0 +1,92 @@
+# The standalone projector: one deployment, consuming the shared `process-index` topic that every
+# shard produces to, maintaining the fleet-wide read model in the fleet database.
+#
+# Rendered with:
+#   PROJECTOR_IMAGE  the published projector image (apps/projector-standalone-app)
+#
+# ONE consumer group for the whole deployment — every event projected once, by whichever instance owns
+# its partition. This is the opposite of the shards' `messages` binding, where each shard needs a group
+# of its own precisely so that all of them see every message. Getting these two backwards is the
+# easiest mistake to make here: a per-instance group would project everything N times (harmless, the
+# upsert is idempotent, but N times the write load), and a shared group on `messages` would deliver
+# each message to exactly one shard, which is usually not the one that owns the waiter.
+#
+# Stateless: its state is its offsets. Scale it in its group up to the topic's partition count.
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: projector
+  namespace: ec-shard
+spec:
+  selector: { app: projector }
+  ports: [{ port: 8095, targetPort: 8095 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: projector
+  namespace: ec-shard
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: projector } }
+  template:
+    metadata:
+      labels: { app: projector, scale-role: projector }
+    spec:
+      initContainers:
+        # The projector applies its own schema at startup and dies if the database is not there yet.
+        # Same lesson as the shards' orchestrator: a pod that races its own Postgres does not fail
+        # loudly, it runs schema-less.
+        - name: wait-for-fleet-db
+          image: postgres:16
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              until pg_isready -h postgres-fleet.ec-shard.svc.cluster.local -p 5432 -U eventconductor; do
+                echo "waiting for the fleet database"; sleep 2;
+              done
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 999
+            capabilities: { drop: ["ALL"] }
+            seccompProfile: { type: RuntimeDefault }
+            readOnlyRootFilesystem: true
+      containers:
+        - name: projector
+          image: PROJECTOR_IMAGE
+          imagePullPolicy: Always
+          env:
+            - { name: SERVER_PORT, value: "8095" }
+            - { name: DB_URL, value: "jdbc:postgresql://postgres-fleet.ec-shard.svc.cluster.local:5432/eventconductor_fleet" }
+            - { name: DB_USERNAME, value: eventconductor }
+            - { name: DB_PASSWORD, value: eventconductor }
+            - { name: DB_POOL_SIZE, value: "8" }
+            - { name: KAFKA_BROKERS, value: "kafka-bootstrap.ec-shard.svc.cluster.local:9092" }
+            - { name: PROJECTION_TOPIC, value: "process-index" }
+            - { name: PROJECTION_GROUP, value: "process-index-projector" }
+            - { name: JAVA_OPTS, value: "-XX:MaxRAMPercentage=70" }
+          ports: [{ containerPort: 8095 }]
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 10001
+            capabilities: { drop: ["ALL"] }
+            seccompProfile: { type: RuntimeDefault }
+            readOnlyRootFilesystem: true
+          resources:
+            requests: { cpu: "500m", memory: "512Mi" }
+            limits: { memory: "1Gi" }
+          readinessProbe:
+            httpGet: { path: /actuator/health/readiness, port: 8095 }
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /actuator/health/liveness, port: 8095 }
+            initialDelaySeconds: 60
+            periodSeconds: 20
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - { name: tmp, emptyDir: {} }
