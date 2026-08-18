@@ -4,7 +4,7 @@ Runs the **booking-saga demo** end to end on your machine with docker-compose: a
 (shell + booking) driven by an EventConductor workflow, with **Keycloak** login and an **api-gw** in
 front. It's the same journey the Playwright e2e exercises (see [`e2e/`](e2e/README.md)).
 
-The engine (orchestrator + forms) runs from the **public 1.3.0 images**; only the demo's own services
+The engine (orchestrator + forms) runs from the **public 2.0.0 images**; only the demo's own services
 (shell, api-gw, booking) are built locally from the `eventconductor` repo, because those images are
 private.
 
