@@ -10,6 +10,8 @@ description: Complete reference for all EventConductor configuration properties.
 | `workflow.mode` | `kafka` \| `embedded` | `embedded` | Event dispatch mode |
 | `workflow.persistence` | `jpa` \| `memory` | `memory` | Workflow state persistence mode |
 | `workflow.projection.enabled` | `true` \| `false` | `false` | Turn on the [process-index read model](/guides/process-index/): emit `ProcessStatusChanged` from `ProcessRepository.save` and run the projector that maintains the `process_index` table. Off = no prior-status read, no event, no projector bean; the write path is unchanged |
+| `workflow.projection.mode` | `embedded` \| `remote` | `embedded` | Where the read model is maintained. `embedded`: in-process, in the engine's own database — unchanged. `remote`: the outbox relay diverts `ProcessStatusChanged` to the shared `process-index` topic, the in-process projector is not created, and a [standalone projector](/guides/process-index/#running-a-standalone-projector) maintains one fleet-wide index in a read database |
+| `workflow.projection.datasource.url` / `.username` / `.password` / `.pool-size` | | — / — / — / `4` | The read database, in `remote` mode. Opened **read-only**: there the projector is the index's only writer |
 | `forms.persistence` | `jpa` \| `memory` | `memory` | Forms state persistence mode. Read only by the forms engine — `workflow.persistence` does not cover it, so an app that embeds both engines has to set both. The standalone forms app overrides the default to `jpa` (`FORMS_PERSISTENCE`) |
 | `workflow.timeout-scan-interval-ms` | ms | `10000` | How often the scheduler looks for expired step timeouts and due `TIMER` steps. The lookup is an indexed query on the step's materialised deadline, so its cost tracks the work that is due — normally none — and not how many steps are waiting; lowering it tightens firing latency without a scan penalty |
 | `workflow.retry.backoff-base-ms` | ms | `1000` | Auto-retry backoff for the first retry. A failed step with retries left is parked in `AWAITING_RETRY` and re-dispatched only after this delay, so a worker that fails fast is never hammered in a tight loop |
@@ -346,11 +348,13 @@ never touches any of this. Design and deployment: `k8s/scale/sharded/README.md` 
 | `workflow.sharding.active-shards` | csv | — | Static list of active shard ids the ingress router places new processes across (round-robin). Overridden by `registry-file` when set |
 | `workflow.sharding.registry-file` | path | — | Path to a file listing the active shard ids (comma/newline separated, `#` comments). Re-read on an interval, so editing it — in Kubernetes, a mounted ConfigMap — scales the fleet hot, no restart. Keeps the last good list on a read error. When set, it is the active-shard source instead of `active-shards` |
 | `workflow.sharding.registry-refresh-ms` | ms | `5000` | How often `registry-file` is re-read |
+| `workflow.sharding.placement.datasource.url` / `.username` / `.password` / `.pool-size` | | — / — / — / `4` | The database holding the **placement claims** — which shard each business key is placed on, decided once and synchronously before the creation is published. Usually the same database as the read model, separate pool (this one must be writable). **Setting the URL is what switches the claim on**; without it the ingress router falls back to the eventually-consistent read model and the engine warns at startup that a redelivered creation can be placed a second time. See [placement](/guides/process-index/#placement-the-synchronous-half) |
 
 Each shard is the stock engine re-pointed by config: its own `DB_URL`, per-shard Kafka bindings
 (`upstream-<i>`/`downstream-<i>`/`outbox-<i>`/`dead-letter-<i>` via `spring.cloud.stream.bindings.*.destination`),
-and the one shared `messages` topic consumed under a **per-shard consumer group**. See the sharded
-manifests for the full set of overrides.
+and two shared topics — `messages`, consumed under a **per-shard consumer group** so every shard sees
+every message, and `process-index`, produced to by every shard and consumed by the projector under
+**one** group. See the sharded manifests for the full set of overrides.
 
 ## Complete configurations by mode
 

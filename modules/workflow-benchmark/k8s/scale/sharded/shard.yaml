@@ -136,6 +136,22 @@ spec:
             - { name: WORKFLOW_SHARDING_SHARD_ID, value: "SHARD" }
             # The read model is what the command router and the ingress idempotency check read.
             - { name: WORKFLOW_PROJECTION_ENABLED, value: "true" }
+            # REMOTE projection: the relay diverts ProcessStatusChanged to the shared `process-index`
+            # topic instead of this shard's outbox, the in-process projector is not created, and the
+            # engine reads the index from the fleet database — where, for the first time, "what is
+            # running" has a fleet-wide answer instead of this shard's answer.
+            - { name: WORKFLOW_PROJECTION_MODE, value: "remote" }
+            - { name: WORKFLOW_PROJECTION_DATASOURCE_URL, value: "jdbc:postgresql://postgres-fleet.ec-shard.svc.cluster.local:5432/eventconductor_fleet" }
+            - { name: WORKFLOW_PROJECTION_DATASOURCE_USERNAME, value: eventconductor }
+            - { name: WORKFLOW_PROJECTION_DATASOURCE_PASSWORD, value: eventconductor }
+            # The placement claim: where a business key is placed, decided once and synchronously.
+            # Without it the ingress router falls back to the read model, which is eventually
+            # consistent — a creation redelivered before the projection catches up would be placed a
+            # SECOND time, on another shard, and the fleet would run two processes for one key. Same
+            # database as the index, separate pool: this one has to be writable, that one is read-only.
+            - { name: WORKFLOW_SHARDING_PLACEMENT_DATASOURCE_URL, value: "jdbc:postgresql://postgres-fleet.ec-shard.svc.cluster.local:5432/eventconductor_fleet" }
+            - { name: WORKFLOW_SHARDING_PLACEMENT_DATASOURCE_USERNAME, value: eventconductor }
+            - { name: WORKFLOW_SHARDING_PLACEMENT_DATASOURCE_PASSWORD, value: eventconductor }
             # The hot registry, mounted from the shard-registry ConfigMap (see registry-configmap.yaml).
             - { name: WORKFLOW_SHARDING_REGISTRY_FILE, value: "/etc/eventconductor/shards/active" }
             # Bind consumeMessages in addition to the usual three consumers.
@@ -155,6 +171,12 @@ spec:
             - { name: SPRING_CLOUD_STREAM_BINDINGS_DEADLETTER_DESTINATION, value: "dead-letter-SHARD" }
             # The shared messages producer (the ingress/command/message publishers write here).
             - { name: SPRING_CLOUD_STREAM_BINDINGS_MESSAGES_DESTINATION, value: "messages" }
+            # The shared, fleet-wide projection channel is NOT overridden here on purpose: the engine
+            # already defaults `processIndex` to the `process-index` topic (KafkaBindingDefaults), and
+            # an env var cannot express a camelCase binding name reliably — SPRING_..._PROCESSINDEX_...
+            # is a different map key from `processIndex`, and the failure mode is silent (every status
+            # change lands on a topic the projector does not read, and the fleet index just stays
+            # empty). Shared like `messages` and for the same reason: no shard count appears in it.
           securityContext:
             allowPrivilegeEscalation: false
             capabilities: { drop: ["ALL"] }

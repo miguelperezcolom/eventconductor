@@ -1,7 +1,7 @@
 package io.mateu.workflow.infra.in.async.processdomainevent.domaineventhandlers;
 
 import io.mateu.workflow.application.out.ProcessIndexRepository;
-import io.mateu.workflow.application.readmodel.ProcessIndexRow;
+import io.mateu.workflow.application.readmodel.ProcessIndexProjection;
 import io.mateu.workflow.ddd.DomainEvent;
 import io.mateu.workflow.ddd.DomainEventHandler;
 import io.mateu.workflow.dtos.events.domain.ProcessStatusChanged;
@@ -16,12 +16,18 @@ import org.springframework.stereotype.Service;
  * disabled deployment nothing.
  *
  * <p>Runs in-process here, sharing the engine's domain-event dispatch — the non-sharded default,
- * where the index lives in the same database. The same projection (this upsert of one event) is what
- * a standalone projector runs when it consumes the domain-event topics across sharded databases; the
- * event carries the whole projected shape precisely so it needs no access to the write side.
+ * where the index lives in the same database. The same projection ({@code ProcessIndexProjection}) is
+ * what the standalone projector runs when it consumes the shared projection topic across sharded
+ * databases; the event carries the whole projected shape precisely so it needs no access to the write
+ * side.
+ *
+ * <p>Absent in {@code workflow.projection.mode=remote}: there the relay diverts
+ * {@link ProcessStatusChanged} to the shared projection topic, so this handler would never see one
+ * anyway — and were it to, it would write a second, partial index into the write database.
  */
 @Service
 @ConditionalOnProperty(name = "workflow.projection.enabled", havingValue = "true")
+@ConditionalOnProperty(name = "workflow.projection.mode", havingValue = "embedded", matchIfMissing = true)
 @RequiredArgsConstructor
 public class ProcessStatusProjectionHandler implements DomainEventHandler<ProcessStatusChanged> {
 
@@ -34,11 +40,9 @@ public class ProcessStatusProjectionHandler implements DomainEventHandler<Proces
 
     @Override
     public void handle(ProcessStatusChanged e) {
-        // Order by the event's emit time, not now(): a single node can dispatch a freshly-created
-        // process's events out of causal order (its creation cascade completes before the creation's
-        // own seed is dispatched), which a consume-time stamp would let clobber the final state. The
-        // owning shard likewise rides the event (stamped on that shard), so a fanned-out projector
-        // records where the process lives rather than its own shard id.
-        processIndexRepository.upsert(ProcessIndexRow.from(e, e.occurredAt(), e.shardId()));
+        // The projection itself lives in ProcessIndexProjection, shared with the standalone
+        // projector: this handler is the engine's *host* for it (domain-event dispatch, in-process,
+        // same database), not a second copy of the rules.
+        ProcessIndexProjection.apply(processIndexRepository, e);
     }
 }

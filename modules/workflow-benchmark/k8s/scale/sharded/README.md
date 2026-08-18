@@ -17,21 +17,60 @@ The stock orchestrator image and a Postgres, re-pointed by config — no new bui
 - **One shared `messages` topic**, consumed by every shard under a **per-shard group**
   (`orchestrator-messages-<i>`) so each shard receives *every* message and correlates it locally — the
   single cross-shard channel (`SEND_MESSAGE` → `WAIT_FOR_MESSAGE`).
+- **The shared `process-index` topic**, produced to by every shard in `WORKFLOW_PROJECTION_MODE=remote`
+  and consumed by the standalone projector — the fleet-wide read model. Shared for the same reason
+  `messages` is: no shard count appears in it, so adding or draining a shard changes nothing about it.
 - `WORKFLOW_SHARDING_ENABLED=true`, `WORKFLOW_SHARDING_SHARD_ID=<i>`, `WORKFLOW_PROJECTION_ENABLED=true`
-  (the read model backs the command router and the ingress idempotency check), and the hot registry
-  mounted from a ConfigMap.
+  + `WORKFLOW_PROJECTION_MODE=remote` (the read model backs the command router), the **placement claim**
+  pointed at the fleet database (`WORKFLOW_SHARDING_PLACEMENT_DATASOURCE_URL` — this is what makes ingress
+  idempotency correct across shards; without it the router falls back to the eventually-consistent index
+  and the engine says so at startup), and the hot registry mounted from a ConfigMap.
 
 Files: `00-shared.yaml` (namespace + registry ConfigMap), `shard.yaml` (one shard, `SHARD`-templated),
-`deploy-shard.sh` (render/apply/drain/delete + registry edits).
+`deploy-shard.sh` (render/apply/drain/delete + registry edits, plus `fleet` and `backfill`).
+
+## The fleet half
+
+Besides the shards there is one small shared stack, and both halves of it exist because a sharded write
+side cannot answer a question a single one could:
+
+- **`postgres-fleet`** (`50-fleet-db.yaml`) — one database holding two tables that could not be more
+  different. `process_index` is the CQRS read model: derived, disposable, rebuilt by replaying the topic.
+  `process_placement` records which shard each business key is placed on: authoritative, not derived, and
+  restored from backup or a re-run of the backfill Job. They share a database for convenience only — back
+  it up for the placements; you would not bother for the index.
+- **the compacted `process-index` topic** (`55-process-index-topic.yaml`) — every shard produces to it,
+  the projector consumes it. Compaction is what makes the read database rebuildable: it keeps the last
+  event per process forever at bounded size. Under time retention a rebuild silently loses everything
+  older than the window.
+- **the projector** (`60-projector.yaml`) — one deployment, **one** consumer group, so every event is
+  projected once. The opposite of the shards' `messages` binding, which needs a group *per shard* so that
+  all of them see every message. Getting those two backwards is the easiest mistake here.
+
+Sizing: `postgres-fleet` is not a shard and does not want a shard's node. A shard absorbs the per-step
+write stream; this takes one insert per process from the router plus the projector's upserts. That ratio —
+roughly the step count of a workflow — is why one of these serves the whole fleet without becoming the
+bottleneck sharding removed.
 
 ## Deploy
 
 ```bash
 export ENGINE_IMAGE=miguelperezcolom/orchestrator-standalone-app:<tag>
+export PROJECTOR_IMAGE=miguelperezcolom/projector-standalone-app:<tag>
 # Shared Kafka (one cluster) into ec-shard — reuse ../20-kafka.yaml with the namespace swapped:
 sed 's/namespace: ec-scale/namespace: ec-shard/' ../20-kafka.yaml | kubectl --context cloudfleet-hetzner apply -f -
+# The fleet half FIRST: a shard in remote projection mode reads the fleet database at startup and
+# claims a placement on the creation path, so it must already be there.
+./deploy-shard.sh fleet
 ./deploy-shard.sh add 0
 ./deploy-shard.sh add 1
+```
+
+Adopting this on a fleet that already has processes? Seed the fleet database from the shards' own
+databases first — the one step in the whole design that needs the shard list:
+
+```bash
+./deploy-shard.sh backfill 0,1
 ```
 
 `add` applies the shard, waits for it to be ready, then appends its id to the registry — so ingress
@@ -78,6 +117,11 @@ shard-aware too (three `bench.*` knobs, empty = single cluster, unchanged):
   recomputed globally (Σ acked vs Σ present, so it does not false-fail because acked lives on one shard),
   the rest summed. The verify/install roles expand a `{shard}` placeholder in `bench.jdbc.url` across
   `bench.shards`.
+- **Fleet checks** — with `bench.fleet.jdbc.url` set, the verdict also runs `FleetIndexReconciler`:
+  R8a the index is complete per shard, R8b it agrees with the shards on status (which is where an
+  ordering bug shows up and nowhere else), R8c no business key is running on two shards. Deliberately
+  **added** to the per-shard verdict rather than replacing it — a read model verified by reading the read
+  model proves nothing, so the two sides have to be reached by different paths.
 
 ### Run the benchmark sharded
 

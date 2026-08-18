@@ -16,7 +16,10 @@ record BenchmarkConfig(
         String workload, int sagaWeightPct, int compPermil, int compFailPermil,
         // Sharding (empty = single cluster, unchanged). `shards` is the active-shard list the driver
         // round-robins over and the reconciler fans out across; `shard` is one worker's own shard.
-        String shards, String shard) {
+        String shards, String shard,
+        // The fleet database (index + placements), when a standalone projector runs. Empty = no fleet
+        // checks; the per-shard verdict is unchanged either way.
+        String fleetJdbcUrl) {
 
     static BenchmarkConfig fromSystemProperties() {
         return new BenchmarkConfig(
@@ -68,7 +71,8 @@ record BenchmarkConfig(
                 intProp("bench.scale.comp-permil", 100),
                 intProp("bench.scale.comp-fail-permil", 10),
                 prop("bench.shards", ""),
-                prop("bench.shard", ""));
+                prop("bench.shard", ""),
+                prop("bench.fleet.jdbc.url", ""));
     }
 
     /** Active shards for the driver/reconciler; empty when not sharded. */

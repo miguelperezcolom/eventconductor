@@ -1,0 +1,68 @@
+# The FLEET database — the one database the shards share, holding two tables that could not be more
+# different from each other:
+#
+#   process_index      the CQRS read model. DERIVED and DISPOSABLE: written only by the projector,
+#                      rebuilt by replaying the compacted process-index topic from its earliest offset.
+#   process_placement  which shard each business key is placed on. AUTHORITATIVE and NOT derived:
+#                      written synchronously by the ingress router before a creation is published, and
+#                      restored from backup (or from a re-run of the backfill Job) — never rebuilt from
+#                      a topic, because nothing replays it.
+#
+# They live together for operational convenience only. Back this database up for the placements; you
+# would not bother for the index.
+#
+# Sizing note: this is NOT a shard, and does not want a shard's node. A shard absorbs the per-step
+# write stream (tens of fsync-bound writes per process); this one takes one small insert per process
+# from the router plus the projector's upserts. That ratio — roughly the step count of a workflow — is
+# why one of these serves a fleet of shards without becoming the bottleneck sharding removed.
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-fleet
+  namespace: ec-shard
+spec:
+  selector: { app: postgres-fleet }
+  ports: [{ port: 5432, targetPort: 5432 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-fleet
+  namespace: ec-shard
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector: { matchLabels: { app: postgres-fleet } }
+  template:
+    metadata:
+      labels: { app: postgres-fleet, scale-role: infra }
+    spec:
+      securityContext: { runAsUser: 999, runAsGroup: 999, fsGroup: 999 }
+      containers:
+        - name: postgres
+          image: postgres:16
+          env:
+            - { name: POSTGRES_DB, value: eventconductor_fleet }
+            - { name: POSTGRES_USER, value: eventconductor }
+            - { name: POSTGRES_PASSWORD, value: eventconductor }
+            - { name: PGDATA, value: /var/lib/postgresql/data/pgdata }
+          args: [postgres, -c, shared_buffers=512MB, -c, max_connections=200]
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities: { drop: ["ALL"] }
+            seccompProfile: { type: RuntimeDefault }
+            readOnlyRootFilesystem: true
+          ports: [{ containerPort: 5432 }]
+          resources:
+            requests: { cpu: "1", memory: "1Gi" }
+            limits: { memory: "2Gi" }
+          volumeMounts:
+            - { name: data, mountPath: /var/lib/postgresql/data }
+            - { name: run, mountPath: /var/run/postgresql }
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - { name: data, emptyDir: {} }
+        - { name: run, emptyDir: {} }
+        - { name: tmp, emptyDir: {} }

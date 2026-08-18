@@ -54,6 +54,13 @@ public class OutboxRelay {
     @org.springframework.beans.factory.annotation.Value("${workflow.sharding.enabled:false}")
     boolean sharedMessages;
 
+    // In remote projection mode the read model is maintained by a standalone projector against a read
+    // database this shard does not own, so ProcessStatusChanged is relayed to the shared projection
+    // topic instead of this shard's `outbox`. Embedded (the default) → it stays on `outbox` and the
+    // in-process projector handles it, exactly as before.
+    @org.springframework.beans.factory.annotation.Value("${workflow.projection.mode:embedded}")
+    String projectionMode;
+
     @PostConstruct
     public void iterate() {
         var thread = new Thread(() -> {
@@ -104,13 +111,8 @@ public class OutboxRelay {
         });
     }
 
-    /**
-     * The topic a relayed outbox event goes to: the shared {@code messages} topic for a
-     * {@link io.mateu.workflow.dtos.events.integration.MessageReceived} when cross-shard messaging is
-     * on, so it reaches a waiter on any shard; otherwise this shard's own {@code outbox}, unchanged.
-     */
+    /** See {@link RelayDestination} — where a relayed event goes, and why anything leaves `outbox`. */
     private String bindingFor(io.mateu.workflow.ddd.DomainEvent event) {
-        return (sharedMessages && event instanceof io.mateu.workflow.dtos.events.integration.MessageReceived)
-                ? "messages" : "outbox";
+        return RelayDestination.bindingFor(event, sharedMessages, "remote".equals(projectionMode));
     }
 }

@@ -1,0 +1,55 @@
+# Makes the shared projection topic COMPACTED, once, before the projector consumes it.
+#
+# This is the difference between a read database that can be rebuilt and one that only looks like it
+# can. Under compaction the topic keeps the last event per processId forever at bounded size, so a
+# fresh consumer group replaying from the earliest offset reconstructs the whole index. Under the
+# default time retention the same replay silently loses every process older than the window — a
+# rebuild that appears to succeed and returns an index missing exactly the oldest work, discovered on
+# the day it is needed.
+#
+# The topic itself is auto-created by the shards' binder on first use; this Job only changes its
+# cleanup policy, and is safe to re-run (alter is idempotent) and to run before the topic exists (it
+# creates it first).
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: process-index-topic
+  namespace: ec-shard
+spec:
+  backoffLimit: 6
+  template:
+    metadata:
+      labels: { scale-role: infra }
+    spec:
+      securityContext: { runAsUser: 1000, runAsGroup: 1000, runAsNonRoot: true }
+      restartPolicy: OnFailure
+      containers:
+        - name: kafka-configs
+          image: apache/kafka:3.9.0
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities: { drop: ["ALL"] }
+            seccompProfile: { type: RuntimeDefault }
+            readOnlyRootFilesystem: true
+          env:
+            # kafka-run-class.sh writes into $base_dir/logs unless told otherwise, which a read-only
+            # root refuses. Point it at the writable volume instead.
+            - { name: LOG_DIR, value: /tmp }
+          volumeMounts: [{ name: tmp, mountPath: /tmp }]
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+              BOOTSTRAP=kafka-bootstrap.ec-shard.svc.cluster.local:9092
+              /opt/kafka/bin/kafka-topics.sh --bootstrap-server $BOOTSTRAP \
+                --create --if-not-exists --topic process-index --partitions 6 --replication-factor 3
+              /opt/kafka/bin/kafka-configs.sh --bootstrap-server $BOOTSTRAP \
+                --alter --entity-type topics --entity-name process-index \
+                --add-config cleanup.policy=compact,min.cleanable.dirty.ratio=0.1,segment.ms=600000
+              echo "process-index is compacted:"
+              /opt/kafka/bin/kafka-configs.sh --bootstrap-server $BOOTSTRAP \
+                --describe --entity-type topics --entity-name process-index
+      volumes:
+        - { name: tmp, emptyDir: {} }

@@ -1,0 +1,69 @@
+server:
+  port: ${SERVER_PORT:8095}
+
+spring:
+  application:
+    name: process-index-projector
+
+  # The READ database. The projector is its only writer; the shards connect to it read-only.
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/eventconductor_index}
+    username: ${DB_USERNAME:eventconductor}
+    password: ${DB_PASSWORD:eventconductor}
+    driver-class-name: ${DB_DRIVER:org.postgresql.Driver}
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:8}
+      connection-timeout: ${DB_CONNECTION_TIMEOUT:20000}
+
+  # Boot's own Flyway stays off: the schema is owned by the read model and applied through
+  # ManagedSchema, with its own migration set and its own history table (see ProjectorConfiguration).
+  flyway:
+    enabled: false
+
+  cloud:
+    function:
+      definition: consumeProcessIndex
+    stream:
+      # Rebind every 10s so the projector attaches as soon as a broker that was down at startup
+      # appears, instead of never rebinding.
+      bindingRetryInterval: 10
+      kafka:
+        binder:
+          brokers: ${KAFKA_BROKERS:localhost:9092}
+          auto-create-topics: true
+          # Keyed by processId, so partitions are what bounds how many projector instances can share
+          # the load. The topic is normally provisioned by the shards' own binder; this is the floor.
+          min-partition-count: ${KAFKA_MIN_PARTITIONS:6}
+          configuration:
+            default.api.timeout.ms: 15000
+            request.timeout.ms: 10000
+      bindings:
+        consumeProcessIndex-in-0:
+          destination: ${PROJECTION_TOPIC:process-index}
+          # One group for the whole projector deployment: every event must be projected once, by
+          # whichever instance owns its partition. (Contrast the shards' `messages` binding, where
+          # each shard needs a group of its own precisely so that all of them see every message.)
+          group: ${PROJECTION_GROUP:process-index-projector}
+          consumer:
+            # batch-mode: the functions take a List. Without it the payload arrives as a byte[] and
+            # the very first event dies with ClassCastException.
+            batch-mode: true
+            # From the beginning of a compacted topic, so a projector starting against an empty read
+            # database rebuilds the whole index rather than indexing only what happens next.
+            start-offset: earliest
+            max-attempts: 3
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+logging:
+  level:
+    org.springframework.kafka: warn
+    org.springframework.cloud.stream: warn

@@ -150,11 +150,112 @@ would plug in for a sharded deployment.
 | `workflow.projection.enabled` | `true` \| `false` | `false` | Turn the read model on: emit `ProcessStatusChanged` and run the projector. |
 | `workflow.sharding.shard-id` | string | *(empty)* | Recorded on each row as provenance in a sharded deployment; leave unset when non-sharded. See [Sharding configuration](/reference/configuration/#sharding-advanced-opt-in). |
 
-## Relationship to sharding
+## Running a standalone projector
 
-The read model is the query answer to a sharded **write** side. Sharding splits processes across N
-shared-nothing write stacks so writes scale horizontally; once it does, no single database can answer
-"what is running across the fleet". Because `ProcessStatusChanged` carries the full projected shape and is
-delivered over the shared event bus, a single projector (or a read database fed by one) can maintain a
-**fleet-wide** index across all shards — the same projection you already run in-process when non-sharded.
-See the scale-validation design for the sharding and CQRS blueprints.
+Everything above describes the **embedded** mode: the projector runs in-process and writes the index into
+the engine's own database. That is right for a single cluster, and it is exactly wrong for a sharded one —
+each shard would index only its own processes, so "what is running" would have as many partial answers as
+there are shards, and none for the fleet.
+
+Set `workflow.projection.mode=remote` and three things change:
+
+- the outbox relay **diverts** `ProcessStatusChanged` to a shared, fleet-wide `process-index` topic
+  instead of the shard's own `outbox`;
+- the in-process projector is not created (it would never see one anyway — and if it did, it would write
+  a second, partial index that looks like a complete one);
+- the engine **reads** the index from a read database instead of its own, so `findByBusinessKey`,
+  `listInFlightProcesses`, `countProcessesByStatus` and the command router's `processId → shardId` lookup
+  all answer for the whole fleet.
+
+```properties
+workflow.projection.enabled=true
+workflow.projection.mode=remote
+workflow.projection.datasource.url=jdbc:postgresql://postgres-fleet:5432/eventconductor_fleet
+workflow.projection.datasource.username=eventconductor
+workflow.projection.datasource.password=...
+```
+
+The projector itself is a small service of its own — `apps/projector-standalone-app`. It depends on the
+read model and the event, and deliberately **not** on the engine: `ProcessStatusChanged` carries the whole
+projected shape precisely so a projector needs no entities, no write schema and no engine beans. What that
+buys is a service small enough to scale, restart and rebuild on its own.
+
+:::note[The topic must be compacted]
+`process-index` is keyed by `processId` and should be created with `cleanup.policy=compact`. Under
+compaction it retains the last event per process forever at bounded size, so a projector replaying from
+the earliest offset reconstructs the entire index — which is what makes the read database *disposable*.
+Under the default time retention the same replay silently loses every process older than the window: a
+rebuild that appears to succeed and returns an index missing exactly the oldest work.
+:::
+
+### It is not on the critical path
+
+If the projector is down, nothing stops. The index goes stale; creations are unaffected (see placement,
+below); a targeted command falls back to the local `upstream`, where the owner-only handler throws on the
+wrong shard so the command is redelivered or dead-lettered rather than dropped. When the projector comes
+back it catches up from its committed offsets.
+
+## Placement: the synchronous half
+
+The read model does **not** decide where a new process goes, and the reason is worth being explicit about,
+because the obvious design is wrong.
+
+Placement has to be idempotent: a business key must be placed on exactly one shard, and every redelivery of
+that creation must return to it, or the per-shard creation guard cannot collapse the duplicate and the
+fleet runs two processes — two sets of side effects, on two shards, that nobody is watching for. An
+eventually-consistent index cannot promise that. A creation redelivered before the projection catches up
+finds nothing, gets round-robined again, and lands somewhere else.
+
+So placement is claimed synchronously, in one atomic statement, in a table of its own:
+
+```properties
+workflow.sharding.placement.datasource.url=jdbc:postgresql://postgres-fleet:5432/eventconductor_fleet
+workflow.sharding.placement.datasource.username=eventconductor
+workflow.sharding.placement.datasource.password=...
+```
+
+Usually the same database as the read model — they are deployed together — but a separate connection pool,
+because the index is opened read-only and the placement store must be writable.
+
+|  | Placement claim | Process index |
+|---|---|---|
+| Written by | the ingress router, **synchronously** | the projector, **asynchronously** |
+| Consistency | strongly consistent | eventually consistent |
+| Volume | **one insert per process** | one upsert per status change |
+| On the critical path | yes — a creation blocks on it | no |
+| If lost | restore from backup, or re-run the backfill | replay the compacted topic |
+
+**It does not reintroduce the bottleneck sharding removed.** Sharding exists because a single database
+cannot absorb the *per-step* write stream — every transition plus its outbox row, tens of fsync-bound
+writes per process. A claim is one small insert per *process*. The ratio between them is the average step
+count of a workflow, and that is the ratio by which one placement database serves many shards.
+
+**It fails closed.** If the claim cannot be made, the creation fails rather than being routed anyway. The
+reasoning is asymmetric: a failed creation is retryable at its source (a Kafka redelivery, a 503, a cron
+re-fire), while a duplicated process is not repairable. Fail-open would trade a recoverable outage for an
+unrecoverable data problem.
+
+**Do not prune it casually.** A placement row must outlive the window in which a duplicate creation can
+still arrive. Pruned early, a late redelivery is placed fresh on another shard — exactly the duplicate the
+table exists to prevent, reintroduced by housekeeping. The default is not to prune.
+
+## Cutover and rebuild
+
+Adopting the fleet-wide read model on a running sharded deployment:
+
+1. Deploy the read database and the projector; create `process-index` compacted.
+2. **Backfill** — the projector image doubles as the cutover job:
+   ```bash
+   java -jar app.jar --backfill.shards=0,1      --backfill.jdbc.url='jdbc:postgresql://postgres-{shard}:5432/eventconductor'
+   ```
+   It seeds both tables from each shard's write database: the index (so the fleet view is complete from
+   the first query) and the placements (so the claim knows where existing keys already live). Idempotent,
+   and safe on a live fleet — a backfilled row is stamped with the process's own `created`, so any real
+   transition from the topic outranks it. This is the **only** step in the design that needs the shard
+   list, and it is run by an operator who has it.
+3. Roll the shards to `workflow.projection.mode=remote`. Mixed modes during the roll are safe.
+4. Point the ingress router at the placement claim.
+
+To rebuild after losing the read database: recreate the schema and start the projector with a new consumer
+group from the earliest offset. The index reconstructs itself. `process_placement` does **not** — it is
+synchronous state, not a projection — so it is restored from backup or re-seeded by the same backfill job.

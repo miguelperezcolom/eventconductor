@@ -1,0 +1,37 @@
+FROM eclipse-temurin:21-jre-alpine
+# Patch OS packages to pick up Alpine security fixes not yet in the base image tag
+# (Trivy gates the release on fixable HIGH/CRITICAL CVEs).
+RUN apk upgrade --no-cache
+RUN addgroup -S app && adduser -S -G app -u 10001 app
+WORKDIR /opt/app
+
+# Jar is pre-built by the CI pipeline (mvn install) before this image is built.
+COPY --chown=app:app target/projector-standalone-app-*.jar app.jar
+
+# ── Server ────────────────────────────────────────────────────────────────────
+# Actuator probes only; the projector serves no application traffic.
+ENV SERVER_PORT=8095
+
+# ── Read database ─────────────────────────────────────────────────────────────
+# The projector is this database's only writer. DB_PASSWORD must be provided at
+# runtime (no default).
+ENV DB_URL=jdbc:postgresql://localhost:5432/eventconductor_fleet \
+    DB_USERNAME=eventconductor \
+    DB_DRIVER=org.postgresql.Driver \
+    DB_POOL_SIZE=8 \
+    DB_CONNECTION_TIMEOUT=20000
+
+# ── Kafka ─────────────────────────────────────────────────────────────────────
+# The shared projection topic, and ONE group for the whole deployment so every
+# event is projected exactly once.
+ENV KAFKA_BROKERS=localhost:9092 \
+    PROJECTION_TOPIC=process-index \
+    PROJECTION_GROUP=process-index-projector
+
+USER app
+EXPOSE 8095
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+  CMD wget -qO- http://127.0.0.1:${SERVER_PORT}/actuator/health || exit 1
+
+ENTRYPOINT ["java", "-jar", "app.jar"]
