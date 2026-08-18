@@ -3,11 +3,14 @@ package io.mateu.workflow.infra.in.ui.pages;
 import io.mateu.core.infra.JwtExtractor;
 import io.mateu.uidl.annotations.Title;
 import io.mateu.uidl.data.Button;
+import io.mateu.uidl.data.DeclaredRestSource;
+import io.mateu.uidl.data.RestSourceKind;
 import io.mateu.uidl.data.ButtonColor;
 import io.mateu.uidl.data.Details;
 import io.mateu.uidl.data.FieldDataType;
 import io.mateu.uidl.data.FormField;
 import io.mateu.uidl.data.HorizontalLayout;
+import io.mateu.uidl.data.Option;
 import io.mateu.uidl.data.Text;
 import io.mateu.uidl.data.TextContainer;
 import io.mateu.uidl.data.Validation;
@@ -18,6 +21,7 @@ import io.mateu.uidl.fluent.Component;
 import io.mateu.uidl.interfaces.ActionHandler;
 import io.mateu.uidl.interfaces.ComponentTreeSupplier;
 import io.mateu.uidl.interfaces.HttpRequest;
+import io.mateu.uidl.interfaces.RestSourceSupplier;
 import io.mateu.uidl.interfaces.StateSupplier;
 import io.mateu.uidl.interfaces.ValidationSupplier;
 import io.mateu.workflow.application.out.FormRepository;
@@ -56,7 +60,8 @@ import static io.mateu.core.infra.JsonSerializer.listFromJson;
 @Slf4j
 @Title("Tasks v2")
 @RequiredArgsConstructor
-public class TasksV2 implements ComponentTreeSupplier, StateSupplier, ActionHandler, ActionSupplier, ValidationSupplier {
+public class TasksV2 implements ComponentTreeSupplier, StateSupplier, ActionHandler, ActionSupplier,
+        ValidationSupplier, RestSourceSupplier {
 
     static final int MAX_TASKS = 50;
     static final String COMPLETE = "complete:";
@@ -80,6 +85,34 @@ public class TasksV2 implements ComponentTreeSupplier, StateSupplier, ActionHand
 
     private Optional<Form> form(String formId, Map<String, Optional<Form>> cache) {
         return cache.computeIfAbsent(formId, formRepository::findById);
+    }
+
+    /**
+     * What the fields of the forms on this page fetch their choices from, under the same composite
+     * ids they render with, so a proxy fetch resolves against the stored definitions rather than an
+     * annotation this page does not have.
+     *
+     * <p>Not narrowed to the tasks this user can see, unlike the rendering above: this method has no
+     * request to read a user from, and it is not a listing of anything — a declaration is an
+     * allow-list entry saying "this field may fetch this url", and the urls are the ones the form
+     * definitions already declare, the same for everyone. What matters is what it does NOT read:
+     * anything the client sent.
+     */
+    @Override
+    public List<DeclaredRestSource> declaredRestSources() {
+        var formCache = new HashMap<String, Optional<Form>>();
+        var declarations = new ArrayList<DeclaredRestSource>();
+        for (var task : repository.findByStatusIn(
+                List.of(FormExecutionStatus.PENDING.name(), FormExecutionStatus.COMPLETED.name()),
+                PageRequest.of(0, MAX_TASKS, Sort.by("id"))).getContent()) {
+            form(task.getFormId(), formCache).ifPresent(form -> form.fields().stream()
+                    .filter(field -> field.optionsSource() != null)
+                    .forEach(field -> declarations.add(new DeclaredRestSource(
+                            RestSourceKind.OPTIONS,
+                            task.getId() + SEPARATOR + field.id(),
+                            Task.optionsSource(field)))));
+        }
+        return declarations;
     }
 
     @Override
@@ -118,6 +151,10 @@ public class TasksV2 implements ComponentTreeSupplier, StateSupplier, ActionHand
                 .required(field.required())
                 .readOnly(completed || !mine)
                 .description(field.description())
+                .options(field.options().stream()
+                        .map(option -> new Option(option.value(), option.label()))
+                        .toList())
+                .optionsSource(Task.optionsSource(field))
                 .build()));
 
         var buttons = new ArrayList<Component>();

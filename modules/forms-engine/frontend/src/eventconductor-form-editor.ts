@@ -26,6 +26,33 @@ const STEREOTYPES = [
 type Stereotype = typeof STEREOTYPES[number];
 const DEFAULT_STEREOTYPE: Stereotype = "regular";
 
+/**
+ * Stereotypes that pick from a fixed list, and so are the ones a field's choices are for. Kept in
+ * sync with the engine's form schema (…/form-schema.json → $defs/Field/properties/options).
+ */
+const OPTION_STEREOTYPES: readonly Stereotype[] = ["radio", "select", "combobox", "listBox", "choice"];
+
+/** One choice of a field that picks from a list: what is submitted, and what the user reads. */
+interface FormOption {
+    value: string;
+    label?: string | null;
+}
+
+/**
+ * Where a field's choices are fetched from instead of listing them: a REST endpoint the browser
+ * calls as the form renders (…/form-schema.json → $defs/Field/properties/optionsSource).
+ */
+interface FormOptionsSource {
+    url: string;
+    method?: string | null;
+    headers?: Record<string, string> | null;
+    body?: string | null;
+    itemsPath?: string | null;
+    valuePath?: string | null;
+    labelPath?: string | null;
+    proxy?: boolean | null;
+}
+
 interface FormField {
     id: string;
     label: string;
@@ -33,6 +60,8 @@ interface FormField {
     stereotype?: Stereotype | null;
     required?: boolean | null;
     description?: string | null;
+    options?: FormOption[] | null;
+    optionsSource?: FormOptionsSource | null;
 }
 
 interface FormDefinition {
@@ -110,6 +139,36 @@ export class EventConductorFormEditor extends LitElement {
         const fields = this.form.fields.map((f, i) => (i === index ? { ...f, ...patch } : f));
         this.form = { ...this.form, fields };
         this.emit();
+    }
+
+    /** Every option edit goes through here, so one path patches the list and emits. */
+    private updateOptions(fieldIndex: number, mutate: (options: FormOption[]) => FormOption[]) {
+        if (this.readOnly) return;
+        const field = this.form.fields[fieldIndex];
+        this.updateField(fieldIndex, { options: mutate([...(field.options ?? [])]) });
+    }
+
+    private addOption(fieldIndex: number) {
+        this.updateOptions(fieldIndex, options => [...options, { value: "" }]);
+    }
+
+    private updateOption(fieldIndex: number, index: number, patch: Partial<FormOption>) {
+        this.updateOptions(fieldIndex, options =>
+            options.map((option, j) => (j === index ? { ...option, ...patch } : option)));
+    }
+
+    private removeOption(fieldIndex: number, index: number) {
+        this.updateOptions(fieldIndex, options => options.filter((_, j) => j !== index));
+    }
+
+    private moveOption(fieldIndex: number, index: number, delta: number) {
+        this.updateOptions(fieldIndex, options => {
+            const to = index + delta;
+            if (to < 0 || to >= options.length) return options;
+            const [moved] = options.splice(index, 1);
+            options.splice(to, 0, moved);
+            return options;
+        });
     }
 
     private addField() {
@@ -279,7 +338,106 @@ export class EventConductorFormEditor extends LitElement {
                 <label class="lbl">Description</label>
                 <textarea class="inp" rows="2" ?readonly="${ro}" .value="${f.description ?? ""}"
                           @input="${(e: Event) => this.updateField(i, { description: (e.target as HTMLTextAreaElement).value })}"></textarea>
+                ${OPTION_STEREOTYPES.includes(f.stereotype ?? DEFAULT_STEREOTYPE)
+                    ? this.renderChoices(f, i, ro) : nothing}
             </div>`;
+    }
+
+    /**
+     * The choices a picking field offers. Shown only for the stereotypes that take them, so the
+     * panel says what the field actually has: switching a field to "radio" is what reveals it.
+     */
+    private renderChoices(f: FormField, i: number, ro: boolean) {
+        const options = f.options ?? [];
+        const fromRest = !!f.optionsSource;
+        return html`
+            <div class="choices">
+                <div class="section-head">
+                    <span class="lbl">Choices</span>
+                    <select class="inp mode" ?disabled="${ro}" .value="${fromRest ? "rest" : "fixed"}"
+                            @change="${(e: Event) => this.setChoicesMode(i, (e.target as HTMLSelectElement).value)}">
+                        <option value="fixed" ?selected="${!fromRest}">listed here</option>
+                        <option value="rest" ?selected="${fromRest}">from a REST endpoint</option>
+                    </select>
+                </div>
+                ${fromRest ? this.renderOptionsSource(f.optionsSource!, i, ro) : this.renderFixedChoices(options, i, ro)}
+            </div>`;
+    }
+
+    /** The endpoint descriptor. A field declares this or its own list, never both. */
+    private renderOptionsSource(source: FormOptionsSource, i: number, ro: boolean) {
+        const patch = (p: Partial<FormOptionsSource>) =>
+            this.updateField(i, { optionsSource: { ...source, ...p }, options: undefined });
+        return html`
+            <label class="lbl">URL</label>
+            <input class="inp" placeholder="https://api.example.com/countries" ?readonly="${ro}"
+                   .value="${source.url ?? ""}"
+                   @input="${(e: Event) => patch({ url: (e.target as HTMLInputElement).value })}"/>
+            <div class="grid2">
+                <div>
+                    <label class="lbl">Items path</label>
+                    <input class="inp" placeholder="(response root)" ?readonly="${ro}"
+                           .value="${source.itemsPath ?? ""}"
+                           @input="${(e: Event) => patch({ itemsPath: (e.target as HTMLInputElement).value })}"/>
+                </div>
+                <div>
+                    <label class="lbl">Method</label>
+                    <input class="inp" placeholder="GET" ?readonly="${ro}" .value="${source.method ?? ""}"
+                           @input="${(e: Event) => patch({ method: (e.target as HTMLInputElement).value })}"/>
+                </div>
+                <div>
+                    <label class="lbl">Value path</label>
+                    <input class="inp" placeholder="value" ?readonly="${ro}" .value="${source.valuePath ?? ""}"
+                           @input="${(e: Event) => patch({ valuePath: (e.target as HTMLInputElement).value })}"/>
+                </div>
+                <div>
+                    <label class="lbl">Label path</label>
+                    <input class="inp" placeholder="label" ?readonly="${ro}" .value="${source.labelPath ?? ""}"
+                           @input="${(e: Event) => patch({ labelPath: (e.target as HTMLInputElement).value })}"/>
+                </div>
+            </div>
+            <label class="checkline">
+                <input type="checkbox" ?disabled="${ro}" .checked="${!!source.proxy}"
+                       @change="${(e: Event) => patch({ proxy: (e.target as HTMLInputElement).checked })}"/>
+                Fetch through the server (no CORS, secrets stay server-side)
+            </label>
+            <div class="hint">${source.proxy
+                ? "The server calls the endpoint. A ${secret.X} placeholder in the url or a header is resolved there and never reaches the browser."
+                : "The browser calls the endpoint: it must be reachable from there and allow CORS, and a header written here is one the browser can read."}</div>`;
+    }
+
+    private renderFixedChoices(options: FormOption[], i: number, ro: boolean) {
+        return html`
+            <div class="section-head">
+                <span class="lbl">${options.length} listed</span>
+                ${ro ? nothing : html`
+                    <button class="nbtn" @click="${() => this.addOption(i)}">${iconPlus} Add choice</button>`}
+            </div>
+                ${options.length === 0
+                    ? html`<div class="empty">No choices yet.${ro ? "" : " The field will render empty."}</div>`
+                    : options.map((option, j) => html`
+                        <div class="choice-row">
+                            <input class="inp" placeholder="value" ?readonly="${ro}" .value="${option.value ?? ""}"
+                                   @input="${(e: Event) => this.updateOption(i, j, { value: (e.target as HTMLInputElement).value })}"/>
+                            <input class="inp" placeholder="${option.value || "label"}" ?readonly="${ro}"
+                                   .value="${option.label ?? ""}"
+                                   @input="${(e: Event) => this.updateOption(i, j, { label: (e.target as HTMLInputElement).value })}"/>
+                            ${ro ? nothing : html`
+                                <button class="icon-btn" title="Move up" ?disabled="${j === 0}"
+                                        @click="${() => this.moveOption(i, j, -1)}">${iconUp}</button>
+                                <button class="icon-btn" title="Move down" ?disabled="${j === options.length - 1}"
+                                        @click="${() => this.moveOption(i, j, 1)}">${iconDown}</button>
+                                <button class="icon-btn danger" title="Remove"
+                                        @click="${() => this.removeOption(i, j)}">${iconClose}</button>`}
+                        </div>`)}`;
+    }
+
+    /** Switching mode drops the other side, so the saved field only ever carries one of the two. */
+    private setChoicesMode(index: number, mode: string) {
+        if (this.readOnly) return;
+        this.updateField(index, mode === "rest"
+            ? { optionsSource: { url: "", valuePath: "value", labelPath: "label" }, options: undefined }
+            : { optionsSource: undefined, options: [] });
     }
 
     // ── Live preview ───────────────────────────────────────────────────────────
@@ -318,12 +476,27 @@ export class EventConductorFormEditor extends LitElement {
         if (s === "textarea" || s === "richText" || s === "html" || s === "markdown" || f.dataType === "component") {
             return html`<textarea class="pv-inp" rows="3" disabled placeholder="${ph}"></textarea>`;
         }
+        if (f.optionsSource) {
+            return html`<select class="pv-inp" disabled><option>${
+                f.optionsSource.url ? "From " + f.optionsSource.url : "From a REST endpoint…"}</option></select>`;
+        }
+        const options = (f.options ?? []).filter(option => option?.value);
         if (s === "select" || s === "combobox" || s === "listBox" || s === "choice" || s === "menu"
             || f.dataType === "status" || f.dataType === "menu") {
-            return html`<select class="pv-inp" disabled><option>Select…</option></select>`;
+            return html`<select class="pv-inp" disabled>
+                ${options.length === 0
+                    ? html`<option>Select…</option>`
+                    : options.map(option => html`<option>${option.label || option.value}</option>`)}
+            </select>`;
         }
         if (s === "radio") {
-            return html`<div class="pv-radio"><label><input type="radio" disabled/> Option A</label><label><input type="radio" disabled/> Option B</label></div>`;
+            // Placeholders only until the field declares its own: an empty radio group would read
+            // as "this field has nothing to pick", which is the one thing it never means.
+            const choices = options.length === 0
+                ? [{ value: "a", label: "Option A" }, { value: "b", label: "Option B" }]
+                : options;
+            return html`<div class="pv-radio">${choices.map(option =>
+                html`<label><input type="radio" disabled/> ${option.label || option.value}</label>`)}</div>`;
         }
         if (s === "slider" || s === "range" || f.dataType === "range") {
             return html`<input class="pv-inp" type="range" disabled/>`;
@@ -448,6 +621,11 @@ export class EventConductorFormEditor extends LitElement {
         .icon-btn.danger:hover { color: var(--ec-danger); }
         .icon-btn:disabled { opacity: .35; cursor: default; background: transparent; }
         .field-body { padding: .2rem .6rem .6rem; border-top: 1px solid var(--ec-border); }
+        .choices { margin-top: .5rem; padding-top: .4rem; border-top: 1px dashed var(--ec-border); }
+        .choice-row { display: flex; align-items: center; gap: .3rem; margin-bottom: .25rem; }
+        .choice-row .inp { flex: 1; min-width: 0; }
+        .inp.mode { width: auto; margin: 0; padding: .1rem .3rem; font-size: .72rem; }
+        .hint { font-size: .72rem; color: var(--ec-text-dim); margin-top: .35rem; }
 
         /* preview */
         .preview-card { max-width: 30rem; }
@@ -490,6 +668,10 @@ function normaliseField(f: FormField): FormField {
         stereotype: f?.stereotype ?? undefined,
         required: f?.required ?? undefined,
         description: f?.description ?? undefined,
+        options: Array.isArray(f?.options)
+            ? f.options.map(option => ({ value: option?.value ?? "", label: option?.label ?? undefined }))
+            : undefined,
+        optionsSource: f?.optionsSource ? { ...f.optionsSource } : undefined,
     };
 }
 
@@ -506,5 +688,27 @@ function serialiseField(f: FormField): FormField {
     if (f.stereotype != null && f.stereotype !== "") out.stereotype = f.stereotype;
     if (f.required) out.required = true;
     if (f.description != null && f.description !== "") out.description = f.description;
+    // A choice with no value is one being typed, not one the form offers, and a label equal to the
+    // value is the default — neither belongs in the saved definition.
+    const options = (f.options ?? []).filter(option => option.value)
+        .map(option => (option.label != null && option.label !== "" && option.label !== option.value
+            ? { value: option.value, label: option.label }
+            : { value: option.value }));
+    if (options.length > 0) out.options = options;
+    // A source with no url is one being typed. Blank optionals are dropped so the saved field takes
+    // the engine's defaults rather than pinning them.
+    const source = f.optionsSource;
+    if (source?.url) {
+        const kept: FormOptionsSource = { url: source.url };
+        if (source.method) kept.method = source.method;
+        if (source.headers && Object.keys(source.headers).length > 0) kept.headers = source.headers;
+        if (source.body) kept.body = source.body;
+        if (source.itemsPath) kept.itemsPath = source.itemsPath;
+        if (source.valuePath) kept.valuePath = source.valuePath;
+        if (source.labelPath) kept.labelPath = source.labelPath;
+        if (source.proxy) kept.proxy = true;
+        out.optionsSource = kept;
+        delete out.options;
+    }
     return out;
 }
