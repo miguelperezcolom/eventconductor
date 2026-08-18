@@ -34,6 +34,7 @@ spec:
     metadata:
       labels: { app: projector, scale-role: projector }
     spec:
+      securityContext: { runAsUser: 10001, runAsGroup: 10001, runAsNonRoot: true }
       initContainers:
         # The projector applies its own schema at startup and dies if the database is not there yet.
         # Same lesson as the shards' orchestrator: a pod that races its own Postgres does not fail

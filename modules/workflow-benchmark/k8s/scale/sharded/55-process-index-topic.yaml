@@ -22,10 +22,22 @@ spec:
     metadata:
       labels: { scale-role: infra }
     spec:
+      securityContext: { runAsUser: 1000, runAsGroup: 1000, runAsNonRoot: true }
       restartPolicy: OnFailure
       containers:
         - name: kafka-configs
           image: apache/kafka:3.9.0
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities: { drop: ["ALL"] }
+            seccompProfile: { type: RuntimeDefault }
+            readOnlyRootFilesystem: true
+          env:
+            # kafka-run-class.sh writes into $base_dir/logs unless told otherwise, which a read-only
+            # root refuses. Point it at the writable volume instead.
+            - { name: LOG_DIR, value: /tmp }
+          volumeMounts: [{ name: tmp, mountPath: /tmp }]
           command: ["/bin/sh", "-c"]
           args:
             - |
@@ -39,3 +51,5 @@ spec:
               echo "process-index is compacted:"
               /opt/kafka/bin/kafka-configs.sh --bootstrap-server $BOOTSTRAP \
                 --describe --entity-type topics --entity-name process-index
+      volumes:
+        - { name: tmp, emptyDir: {} }

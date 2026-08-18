@@ -24,6 +24,7 @@ spec:
     metadata:
       labels: { scale-role: projector }
     spec:
+      securityContext: { runAsUser: 10001, runAsGroup: 10001, runAsNonRoot: true }
       restartPolicy: OnFailure
       containers:
         - name: backfill
