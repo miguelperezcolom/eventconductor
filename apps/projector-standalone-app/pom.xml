@@ -32,6 +32,17 @@
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
+            <!-- Security override — pull the driver up to its CVE-fixed version. This app parents off
+                 spring-boot-starter-parent, NOT the eventconductor root, so the root's security
+                 overrides do not reach it and the Boot BOM's own version wins. Every other app here
+                 repeats the same block for the same reason. Trivy gates the release on it: the image
+                 published for 2.1.0 shipped 42.7.11 and CVE-2026-54291 because this was missing.
+                 Drop when the Boot BOM catches up. -->
+            <dependency>
+                <groupId>org.postgresql</groupId>
+                <artifactId>postgresql</artifactId>
+                <version>42.7.12</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 

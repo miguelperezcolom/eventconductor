@@ -13,18 +13,18 @@ It scales from a single JVM with no external dependencies up to a multi-pod Kube
 <dependency>
   <groupId>io.mateu.workflow</groupId>
   <artifactId>workflow-engine</artifactId>
-  <version>2.0.0</version>
+  <version>2.1.1</version>
 </dependency>
 
 <!-- only if you use USER_TASK steps (human forms) -->
 <dependency>
   <groupId>io.mateu.workflow</groupId>
   <artifactId>forms-engine</artifactId>
-  <version>2.0.0</version>
+  <version>2.1.1</version>
 </dependency>
 ```
 
-2.0.0 is the latest release at the time of writing — check the Maven Central badge in the README / `CHANGELOG.md` for the newest one (artifacts under `io.mateu.workflow`).
+2.1.1 is the latest release at the time of writing — check the Maven Central badge in the README / `CHANGELOG.md` for the newest one (artifacts under `io.mateu.workflow`).
 
 Prebuilt standalone Docker images exist: `orchestrator-standalone-app`, `forms-standalone-app`, `worker-standalone-app`, `rule-standalone-app`.
 

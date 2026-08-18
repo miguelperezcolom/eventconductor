@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.1] - 2026-08-18
+
+### Fixed
+- **The `projector-standalone-app` image shipped a vulnerable PostgreSQL driver.** 2.1.0's image
+  bundled `org.postgresql:postgresql` 42.7.11 (CVE-2026-54291, HIGH — SCRAM-SHA-256-PLUS downgrade
+  defeating man-in-the-middle protection) instead of the 42.7.12 every other artifact here uses.
+
+  The app parents off `spring-boot-starter-parent` rather than the EventConductor root, so the root's
+  security overrides never reached it and the Boot BOM's own version won. Every other app repeats
+  those overrides for exactly this reason; the new one did not, and the release pipeline scans images
+  *after* pushing them, so 2.1.0's projector image reached Docker Hub before the gate caught it.
+
+  **If you pulled `projector-standalone-app:2.1.0` or `:latest` before this release, re-pull.** No
+  other image and no Maven Central artifact is affected: the driver is bundled only in that
+  application's fat jar, and the application itself is not published to Central.
+
 ## [2.1.0] - 2026-08-18
 
 Finishes the read side of sharding. Sharding shipped in 2.0.0 with the write side proven on a
