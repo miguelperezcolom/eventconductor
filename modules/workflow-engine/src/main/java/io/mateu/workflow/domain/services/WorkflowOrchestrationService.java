@@ -120,7 +120,10 @@ public class WorkflowOrchestrationService {
         if (isOnTimeoutTargetTriggered(step, stepExecutions, cache)) {
             return true;
         }
-        return checkPreconditionStep(step, process, stepExecutions, cache) && evaluatePreconditionExpression(step, process);
+        // One question, asked once: a step-level preconditionExpression has already been folded
+        // into the step's links by resolvedPreconditions(), so there is nothing left to evaluate
+        // separately except on a step that has no links at all.
+        return checkPreconditionStep(step, process, stepExecutions, cache);
     }
 
     /** True when some step that names {@code step} as its {@code onTimeoutStepId} has timed out. */
@@ -133,7 +136,9 @@ public class WorkflowOrchestrationService {
 
     private boolean checkPreconditionStep(Step step, Process process, List<StepExecution> stepExecutions, Map<String, Step> cache) {
         if (step.resolvedPreconditions().isEmpty()) {
-            return isAnEntryPoint(step);
+            // Nothing to wait for, so nothing to fold a step-level guard into: here — and only
+            // here — that expression is still read as the step's own gate.
+            return isAnEntryPoint(step) && evaluatePreconditionExpression(step, process);
         }
 
         // A CHOICE is an exclusive split: of its successors it takes exactly one. A successor of a
@@ -296,9 +301,9 @@ public class WorkflowOrchestrationService {
     }
 
     /**
-     * The step-level gate, which is about the step rather than about any one route into it. Still
-     * evaluated when the links carry their own guards: the two ask different questions, and every
-     * definition written before links could carry guards says it here.
+     * The step-level gate, for the one step that has no link to fold it into: an entry point.
+     * Everywhere else {@link Step#resolvedPreconditions()} has already ANDed it onto the links,
+     * and it is {@link #evaluateGuard} that reads it.
      */
     private boolean evaluatePreconditionExpression(Step step, Process process) {
         if (step.preconditionExpression() == null || step.preconditionExpression().isEmpty()) {
@@ -416,14 +421,18 @@ public class WorkflowOrchestrationService {
             return false;
         }
         var links = step.resolvedPreconditions();
-        if (links.isEmpty() || links.stream().noneMatch(Precondition::hasGuard)) {
+        // Only a guard that means "wait" holds anything. A DISCARD guard — what a step-level
+        // preconditionExpression folds into — says the flow did not come this way, so the step is
+        // a branch not taken, and the process finishing around it is exactly right.
+        if (links.isEmpty() || links.stream().noneMatch(Precondition::holdsWhenFalse)) {
             return false;
         }
         boolean everyLinkStepCompleted = links.stream().allMatch(link -> stepExecutions.stream()
                 .filter(se -> link.stepId().equals(se.getStepId()))
                 .anyMatch(se -> StepExecutionStatus.COMPLETED.equals(se.getStatus())));
         return everyLinkStepCompleted
-                && links.stream().anyMatch(link -> !evaluateGuard(link, step, process));
+                && links.stream().filter(Precondition::holdsWhenFalse)
+                        .anyMatch(link -> !evaluateGuard(link, step, process));
     }
 
     private boolean hasNoActiveStepsRemaining(List<StepExecution> stepExecutions) {

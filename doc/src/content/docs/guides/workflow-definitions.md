@@ -217,7 +217,8 @@ archiving.
 | `description` | string | — | Optional description |
 | `preconditionStepId` | string | — | Single step that must complete before this one starts |
 | `preconditionStepIds` | string[] | — | Steps that must **all** complete before this one starts; takes precedence over the singular `preconditionStepId` when non-empty |
-| `preconditionExpression` | string | — | JEXL expression; the step does not run while it evaluates to `false` |
+| `preconditions` | object[] | — | The incoming links, each `{ "stepId": …, "expression": …, "onFalse": … }` — a condition that says when arriving *by that route* counts. Takes precedence over `preconditionStepIds`/`preconditionStepId`. A link whose condition is false is not satisfied; `onFalse` says what that means — `WAIT` (default) holds the step, `DISCARD` makes it a branch not taken. See [Step Types](/reference/step-types/#what-a-false-condition-means-onfalse) |
+| `preconditionExpression` | string | — | JEXL expression; the step does not run while it evaluates to `false`. The older, step-wide spelling: it is folded into every one of the step's links, and a step it holds back is **skipped** rather than held — see [Step Types](/reference/step-types/) |
 | `parallel` | boolean | `false` | **Deprecated and ignored** — every eligible step runs concurrently; kept only so old definition files keep deserializing |
 | `topic` | string | `downstream` | Destination this step's task (and its cancellation) is dispatched to, so a step may go to a worker pool of its own. Kafka mode only; embedded mode has one executor and ignores it |
 | `formId` | string | — | Form identifier (USER_TASK only) |
@@ -241,8 +242,9 @@ See [Step Types](/reference/step-types/) for the semantics of each type.
 ## Execution model: pure dataflow
 
 Steps run **by data flow, not by array order**. A step starts when it has not run yet
-(`CREATED`), **all** of its preconditions have `COMPLETED`, and its `preconditionExpression`
-(if any) is truthy — and every eligible step starts **concurrently**. There is no ordering
+(`CREATED`), **all** of its preconditions have `COMPLETED`, and every condition on them holds —
+a step-level `preconditionExpression` is folded into each of the step's links, so there is one
+check rather than two — and every eligible step starts **concurrently**. There is no ordering
 beyond the precondition graph: an active step never blocks unrelated branches. Parallelism is
 expressed structurally — several steps sharing a precondition fan out ([`FORK`](/reference/step-types/#fork)
 makes that explicit), and one step declaring several preconditions is a barrier. A

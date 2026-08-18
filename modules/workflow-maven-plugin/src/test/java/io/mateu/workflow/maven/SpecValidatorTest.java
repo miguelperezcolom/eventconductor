@@ -132,4 +132,30 @@ class SpecValidatorTest {
         List<String> violations = validate(SpecValidator.Kind.RULE, "/invalid/rules/bad-jexl.yaml");
         assertThat(violations).anySatisfy(v -> assertThat(v).contains("invalid JEXL expression"));
     }
+
+    @Test
+    void preconditionsDeclaredAsLinksAreSeenByTheStructuralChecks() throws Exception {
+        // Read only preconditionStepIds/preconditionStepId and every one of these steps looks like
+        // it waits for nothing, which the roots rule reports as a step nothing would ever start.
+        assertThat(validate(SpecValidator.Kind.WORKFLOW, "/valid/workflows/link-preconditions.json")).isEmpty();
+    }
+
+    @Test
+    void anUnparseableConditionOnALinkIsAViolation() throws Exception {
+        JsonNode document = new ObjectMapper().readTree("""
+                {
+                  "id": "bad-link-jexl", "name": "Bad link JEXL", "version": 1,
+                  "steps": [
+                    { "id": "start", "type": "START", "name": "Start" },
+                    { "id": "next", "type": "ACTION", "name": "Next", "topic": "work",
+                      "preconditions": [ { "stepId": "start", "expression": "amount >" } ] }
+                  ]
+                }
+                """);
+
+        assertThat(validator.validate(SpecValidator.Kind.WORKFLOW, document))
+                .anySatisfy(violation -> assertThat(violation)
+                        .contains("step 'next' precondition on 'start'")
+                        .contains("invalid JEXL expression"));
+    }
 }
