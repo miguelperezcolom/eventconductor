@@ -118,6 +118,10 @@ messages + command lookup), never in the per-step write path.
 
 ## Relationship to what already exists
 
+- The **standalone projector** — the fleet-wide read model this design assumes but does not build
+  (today the projector runs in-process per shard, so each shard indexes only its own processes) — is
+  designed in [`STANDALONE-PROJECTOR-DESIGN.md`](./STANDALONE-PROJECTOR-DESIGN.md), together with the
+  synchronous **placement claim** that closes the ingress-idempotency gap in §"Routing — the four cases" ①.
 - The **CQRS process-index** (with its `shard_id` column) is the linchpin that makes elastic routing
   work: it is both the "list/aggregate across shards" answer and the "which shard owns this process"
   command router. It was built shard-ready on purpose.
