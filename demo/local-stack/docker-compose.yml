@@ -39,7 +39,7 @@ services:
       retries: 20
 
   orchestrator:
-    image: miguelperezcolom/orchestrator-standalone-app:2.0.0
+    image: miguelperezcolom/orchestrator-standalone-app:2.1.1
     platform: linux/amd64
     depends_on:
       postgres: {condition: service_healthy}
@@ -63,7 +63,7 @@ services:
     ports: ["8105:8105"]
 
   forms:
-    image: miguelperezcolom/forms-standalone-app:2.0.0
+    image: miguelperezcolom/forms-standalone-app:2.1.1
     platform: linux/amd64
     depends_on:
       postgres: {condition: service_healthy}
