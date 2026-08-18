@@ -7,6 +7,82 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-08-18
+
+Finishes the read side of sharding. Sharding shipped in 2.0.0 with the write side proven on a
+cluster and the query side openly unfinished: each shard ran its own in-process projector, so the
+fleet had as many partial answers to "what is running" as it had shards, and none for the whole.
+
+It also closes a **correctness** gap that a fleet-wide read model does not close, and cannot — see
+the placement claim below. Everything here is opt-in and additive: a single-cluster deployment, and
+a sharded one that does not turn any of it on, behave exactly as they did.
+
+### Added
+- **A standalone projector (`projector-standalone-app`) and `workflow.projection.mode=remote`.** In
+  remote mode the outbox relay diverts `ProcessStatusChanged` to a shared `process-index` topic
+  instead of the shard's own `outbox`, the in-process projector is not created, and the engine reads
+  the index from a read database. `listInFlightProcesses`, `countProcessesByStatus`,
+  `findByBusinessKey` and the command router's `processId → shardId` lookup answer for the fleet for
+  the first time.
+
+  The channel is shared rather than per-shard for the same reason `messages` is: **no shard count
+  appears in it**, so adding or draining a shard changes nothing about projection. The projector
+  does not depend on the engine — `ProcessStatusChanged` carries the whole projected shape precisely
+  so a projector needs no entities, no write schema and no engine beans.
+
+  Diverted, not duplicated. A second copy of the index in the shard's own database would be a
+  partial index that looks like a complete one.
+
+- **A synchronous placement claim (`workflow.sharding.placement.datasource.*`).** A business key must
+  be placed on exactly one shard, and every redelivery of that creation must come back to it, or the
+  per-shard creation guard cannot collapse the duplicate and the fleet runs two processes for one key
+  — two sets of side effects, on two shards, that nobody is watching for. The ingress router used to
+  answer that from the process-index, which is eventually consistent: a creation redelivered before
+  the projection catches up finds nothing and is placed again, somewhere else.
+
+  Placement is now claimed in one atomic statement whose winner and every loser read back the same
+  answer. It **fails closed**: a creation that cannot be claimed fails rather than being routed
+  anyway, because a failed creation is retryable at its source and a duplicated process is not
+  repairable. A sharded deployment without a placement store still works and warns at startup, in
+  the terms of the damage rather than of the setting.
+
+  It does not reintroduce the bottleneck sharding removed: sharding exists because one database
+  cannot absorb the per-*step* write stream, and a claim is one small insert per *process*.
+
+- **A cutover backfill.** The projector image doubles as a Job (`--backfill.shards=0,1`) that seeds
+  the read database from each shard's write tables — the index, so the fleet view is complete from
+  the first query, and the placements, so the claim knows where existing business keys already live.
+  Idempotent and safe on a live fleet. This is the only step in the design that needs the shard list.
+
+- **`process-index`, a module of its own**, so the projector can depend on the read model without
+  depending on the engine. Its JDBC store upserts atomically on PostgreSQL
+  (`INSERT … ON CONFLICT … WHERE`): one round-trip instead of two, and the staleness guard stops
+  depending on the caller being serialised per process.
+
+- **Fleet checks in the benchmark** (`bench.fleet.jdbc.url`): the index is complete per shard (R8a),
+  agrees with the shards on status (R8b — where an ordering bug shows up and nowhere else), and no
+  business key is running on two shards (R8c). Added to the per-shard verdict rather than replacing
+  it: a read model verified by reading the read model proves nothing, so the two sides are reached by
+  different paths.
+
+- **k8s manifests for the fleet half** — the shared database, the compacted `process-index` topic,
+  the projector and the backfill Job, plus `deploy-shard.sh fleet` and `backfill`.
+
+### Notes
+- **The projection topic must be compacted.** Compaction is what makes the read database rebuildable:
+  it keeps the last event per process forever at bounded size, so a projector replaying from the
+  earliest offset reconstructs the whole index. Under the default time retention the same replay
+  silently loses every process older than the window — a rebuild that appears to succeed. The shipped
+  manifest sets `cleanup.policy=compact` before anything produces to the topic.
+- **The index is derived and disposable; the placement table is not.** They share a database for
+  operational convenience and have completely different durability requirements. Back it up for the
+  placements. And do not prune placements casually: a row must outlive the window in which a
+  duplicate creation can still arrive, or housekeeping reintroduces the very duplicate the table
+  exists to prevent.
+- **Not yet cluster-validated.** The write-side sharding in 2.0.0 was proven on a live two-shard run;
+  this read side is proven by tests only. Getting sharding onto a cluster surfaced five deployment
+  bugs, all configuration, and there is no reason to think this half is different.
+
 ## [2.0.0] - 2026-08-17
 
 The first MAJOR since 1.0, for one reason: a field that did nothing now does what it always said it
