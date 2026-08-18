@@ -41,6 +41,7 @@
       <module>modules/workflow-maven-plugin</module>
       <module>modules/sample-worker</module>
       <module>apps/orchestrator-standalone-app</module>
+      <module>apps/projector-standalone-app</module>
       <module>apps/forms-standalone-app</module>
       <module>apps/rule-standalone-app</module>
       <module>apps/worker-standalone-app</module>
