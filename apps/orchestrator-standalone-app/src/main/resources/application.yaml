@@ -201,6 +201,11 @@ workflow:
   default-step-timeout-ms: ${DEFAULT_STEP_TIMEOUT_MS:0}
   # How long a live step with no deadline may sit before it is counted as stalled.
   stalled-step-after-ms: ${STALLED_STEP_AFTER_MS:900000}
+  # Directories on disk to import workflow definitions from at startup — a mounted volume, a
+  # checkout beside the app. Comma-separated; empty means none. Unlike the git import below, this
+  # reads the files as they are, so there is no commit between editing a definition and reloading it.
+  directory-import:
+    directories: ${WORKFLOW_DEFINITIONS_DIRS:}
   git-import:
     repositories:
       # Example: uncomment and fill in to import workflow definitions from a Git repo at startup

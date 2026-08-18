@@ -103,9 +103,9 @@ Not every process is one you can edit. The worker records every task it is given
   may be left blank for "any". They hold the same fields a scenario does. The most specific matching
   row wins, so a blanket row never shadows a precise one.
 
-The button on a received task turns it into an override for the next run of the same step,
-prefilled with what was just played — the "I saw this go wrong, now make it go wrong on purpose"
-move.
+Read the step id off a received task, then create an override for it on the next page. There is no
+one-click shortcut between them: a `@NotEditable` Crud offers no detail toolbar to hang a button
+on, and making the history editable to get one back would cost more than the click it saves.
 
 ### Precedence
 

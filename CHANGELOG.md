@@ -57,6 +57,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (the engine re-dispatches the same one, so the count never left 1 and a flaky step failed
   forever), and had led with task ids in a protocol that sends them empty.
 
+- **Definitions can be imported from a directory on disk, not only from Git.**
+  `workflow.directory-import.directories` and `forms.directory-import.directories` (or
+  `WORKFLOW_DEFINITIONS_DIRS` / `FORMS_DEFINITIONS_DIRS` in the standalone apps) name directories
+  scanned at startup:
+
+  ```yaml
+  workflow:
+    directory-import:
+      directories:
+        - /definitions/workflows
+  ```
+
+  Git import reads what is **committed**, which is what a deployment wants and exactly what the
+  loop where someone is *writing* a definition does not: edit, commit, restart, discover the commit
+  was the step you forgot. A mounted volume of definitions had no other way in — forms have no
+  classpath loading at all, and the workflow one needs the files inside the jar.
+
+  Pruning, provenance and the per-file error handling are the same as for a repository, because it
+  is the same code: importing a directory is what the git import already did once the clone
+  finished, and it now lives in `ImportWorkflowDefinitionsFromDirectoryUseCase` /
+  `ImportFormsFromDirectoryUseCase`, which the git import calls. A directory that is not there is
+  reported as an error rather than passed over — a typo in a mount path should not look like an
+  empty definition list.
+
 - **A form field can declare its choices, as value/label pairs.** A field that picks from a fixed
   list — `radio`, `select`, `combobox`, `listBox`, `choice` — had no way to say what the list is,
   so a definition either left the picker empty or spelled the choices out in the field's
@@ -161,6 +185,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   it imported by any class in the module, and nothing anywhere in the repository uses Kafka Streams.
   The worker app's jar went from 176 MB to 54 MB.
 
+- **Forms saved as `.ecform` were never imported from git.** Both IDE plugins register `.ecform` as
+  the form file type — it is what the visual editor writes and what the schema follows the user
+  into — but the git scan looked only at `.json`, `.yaml` and `.yml`, so those forms were skipped
+  in silence. Its workflow twin has always accepted `.ec`. Parsed as YAML, which reads JSON too.
 - **The Maven plugin rejected every definition whose preconditions are declared as links.** Its
   structural checks read only `preconditionStepIds`/`preconditionStepId`, so a step declaring
   `preconditions` looked like it waited for nothing and the entry-point rule reported it as a step

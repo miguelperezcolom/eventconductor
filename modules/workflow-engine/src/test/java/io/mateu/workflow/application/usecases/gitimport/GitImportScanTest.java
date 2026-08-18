@@ -1,7 +1,8 @@
 package io.mateu.workflow.application.usecases.gitimport;
 
 import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
-import io.mateu.workflow.application.services.WorkflowDefinitionValidator;
+import io.mateu.workflow.application.usecases.directoryimport.ImportWorkflowDefinitionsFromDirectoryUseCase;
+import io.mateu.workflow.infra.config.DirectoryImportProperties;
 import io.mateu.workflow.infra.config.GitImportProperties;
 import io.mateu.workflow.webhook.InMemoryImportedDefinitionsRegistry;
 import org.junit.jupiter.api.Test;
@@ -18,8 +19,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 
 /**
- * The half of Git import that touches the filesystem rather than the network — untested until now,
- * because everything around it needs a repository to clone and these do not.
+ * The half of import that touches the filesystem rather than the network — the clone's scan root,
+ * and the directory walk a clone shares with a plain directory.
  *
  * <p>Two things here are worth more than their size. {@code resolveScanRoot} carries a path-escape
  * guard: the scanned directory comes from configuration, and without the guard a
@@ -30,12 +31,14 @@ import static org.mockito.Mockito.mock;
  */
 class GitImportScanTest {
 
-    private final ImportWorkflowDefinitionsFromGitUseCase useCase =
-            new ImportWorkflowDefinitionsFromGitUseCase(
-                    mock(GitImportProperties.class),
+    private final ImportWorkflowDefinitionsFromDirectoryUseCase directoryImport =
+            new ImportWorkflowDefinitionsFromDirectoryUseCase(
+                    mock(DirectoryImportProperties.class),
                     mock(WorkflowDefinitionRepository.class),
-                    mock(WorkflowDefinitionValidator.class),
                     new InMemoryImportedDefinitionsRegistry());
+
+    private final ImportWorkflowDefinitionsFromGitUseCase useCase =
+            new ImportWorkflowDefinitionsFromGitUseCase(mock(GitImportProperties.class), directoryImport);
 
     private static GitImportProperties.GitRepository repo(String directory) {
         var repo = new GitImportProperties.GitRepository();
@@ -99,7 +102,7 @@ class GitImportScanTest {
         Files.writeString(root.resolve("notes.txt"), "nor this");
         var errors = new ArrayList<String>();
 
-        useCase.scanAndImport(root, new ArrayList<>(), errors, new HashSet<>());
+        directoryImport.scanAndImport(root, new ArrayList<>(), errors, new HashSet<>());
 
         // Nothing was a definition, so nothing was imported and nothing failed.
         assertThat(errors).isEmpty();
@@ -118,7 +121,7 @@ class GitImportScanTest {
         var errors = new ArrayList<String>();
         var imported = new ArrayList<String>();
 
-        useCase.scanAndImport(root, imported, errors, new HashSet<>());
+        directoryImport.scanAndImport(root, imported, errors, new HashSet<>());
 
         assertThat(errors).hasSize(2);
         assertThat(errors).allSatisfy(error -> assertThat(error).startsWith("File "));
@@ -132,7 +135,7 @@ class GitImportScanTest {
         Files.writeString(root.resolve("definitions/broken.ec"), "{ this is not json");
         var errors = new ArrayList<String>();
 
-        useCase.scanAndImport(root, new ArrayList<>(), errors, new HashSet<>());
+        directoryImport.scanAndImport(root, new ArrayList<>(), errors, new HashSet<>());
 
         assertThat(errors).singleElement().satisfies(error -> {
             assertThat(error).contains("definitions/broken.ec");
