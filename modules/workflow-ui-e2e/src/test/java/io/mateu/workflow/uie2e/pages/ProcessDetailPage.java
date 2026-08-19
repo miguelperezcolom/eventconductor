@@ -60,6 +60,22 @@ public class ProcessDetailPage {
     }
 
     /**
+     * The live state the diagram is drawing, read off the element that draws it.
+     *
+     * <p>Deliberately the attribute and not the picture. The graph is a custom element whose data
+     * lives in its attributes, and that is exactly where the interesting failure is: a Mateu
+     * {@code State} update carries values, not component metadata, so a page that refreshes itself
+     * through one leaves this attribute untouched while the process behind it runs to completion.
+     * Asserting on the rendered SVG would not see the difference — the nodes are all still there,
+     * drawn with the state they had when the tab was opened.
+     *
+     * <p>Null when the process has no step executions yet and the engine sends no overlay at all.
+     */
+    public String diagramOverlay() {
+        return page.locator("eventconductor-workflow-graph").first().getAttribute("overlay");
+    }
+
+    /**
      * Something the open tab shows. The tabs render different things — a table of steps, a list of
      * errors, a set of variables — so this asks the page rather than assuming a grid.
      *
