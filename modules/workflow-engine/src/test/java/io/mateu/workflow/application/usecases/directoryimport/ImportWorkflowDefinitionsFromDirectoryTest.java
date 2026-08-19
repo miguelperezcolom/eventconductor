@@ -107,4 +107,70 @@ class ImportWorkflowDefinitionsFromDirectoryTest {
         assertThat(result.errors()).singleElement().satisfies(e -> assertThat(e).contains("broken.ec"));
         assertThat(saved()).extracting(WorkflowDefinition::id).containsExactly("good");
     }
+
+    private void writeWithoutId(Path dir, String name, String workflowName) throws IOException {
+        Files.writeString(dir.resolve(name), """
+                name: %s
+                version: 1
+                steps:
+                  - id: start
+                    type: START
+                    name: Start
+                  - id: end
+                    type: END
+                    name: End
+                    preconditionStepId: start
+                """.formatted(workflowName));
+    }
+
+    @Test
+    void aFileWithNoIdKeepsTheSameIdOnEveryImport(@TempDir Path dir) throws Exception {
+        Files.createDirectories(dir.resolve("sagas"));
+        writeWithoutId(dir.resolve("sagas"), "onboarding.yml.ec", "Onboarding");
+
+        useCase.handle(List.of(dir.toString()));
+        useCase.handle(List.of(dir.toString()));
+
+        // It used to be a fresh UUID per import, so the second import could not find what the first
+        // one had created from this very file and inserted another copy. With a git webhook wired
+        // up, every push added one.
+        assertThat(saved()).extracting(WorkflowDefinition::id)
+                .containsExactly("sagas.onboarding", "sagas.onboarding");
+    }
+
+    @Test
+    void aFileWithNoIdIsPrunedWhenItGoesAway(@TempDir Path dir) throws Exception {
+        writeWithoutId(dir, "nameless.ec", "Nameless");
+        useCase.handle(List.of(dir.toString()));
+
+        // Pruning is what an unreconcilable id cost: the import used to track explicit ids only,
+        // so a file with none could never be recognised as gone.
+        assertThat(registry.idsFor("workflow", dir.toRealPath().toString())).containsExactly("nameless");
+
+        Files.delete(dir.resolve("nameless.ec"));
+        when(repository.findById("nameless")).thenReturn(Optional.of(
+                new WorkflowDefinition("nameless", "Nameless", 1, null, false, 0, false, null, 0, List.of())));
+
+        var result = useCase.handle(List.of(dir.toString()));
+
+        assertThat(result.pruned()).hasSize(1);
+    }
+
+    @Test
+    void aPathDerivedIdNeverTakesOneAnotherFileDeclares(@TempDir Path dir) throws Exception {
+        // Declared in a file the walk may well reach second, which is why the ids are collected
+        // before anything is imported: by then the derived one would already have been saved over.
+        write(dir, "elsewhere.ec", "sagas.onboarding");
+        Files.createDirectories(dir.resolve("sagas"));
+        writeWithoutId(dir.resolve("sagas"), "onboarding.ec", "Onboarding");
+
+        var result = useCase.handle(List.of(dir.toString()));
+
+        assertThat(result.errors()).hasSize(1);
+        assertThat(result.errors().getFirst()).contains("sagas/onboarding.ec", "sagas.onboarding");
+        // The declared one is untouched: an explicit id is a promise its author made, a derived one
+        // is a default, and silently overwriting the first with the second is worse than the
+        // duplication this whole change is about.
+        assertThat(saved()).extracting(WorkflowDefinition::id).containsExactly("sagas.onboarding");
+    }
 }

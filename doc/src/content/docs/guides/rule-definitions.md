@@ -70,7 +70,7 @@ Each row's `when` has one cell per input, and its `then` one JEXL expression per
 
 | Field | Type | Description |
 |---|---|---|
-| `id` | string | Unique identifier. Auto-generated on save if omitted. |
+| `id` | string | Unique identifier. Generated when a rule is saved without one; a rule **imported from a repository** without one is given an id derived from its path relative to the scan root — `pricing/discount.json` becomes `pricing.discount` — so the next import updates it rather than adding a copy. A rule invoked by a `RULE` step is better off declaring one. |
 | `name` | string | **Required.** Human-readable name. |
 | `description` | string | Optional description. |
 | `type` | string | **Required.** `expression` or `decision-table`. |

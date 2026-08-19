@@ -66,7 +66,7 @@ fields:
 
 | Field | Type | Description |
 |---|---|---|
-| `id` | string | Unique form identifier (referenced by `USER_TASK` steps). Auto-generated on import when omitted |
+| `id` | string | Unique form identifier (referenced by `USER_TASK` steps). Optional: a file that omits it is imported under an id derived from its path relative to the scan root — `checkin/walk.ecform` becomes `checkin.walk` — so re-importing the file updates the form it created rather than adding another. A form referenced by a `USER_TASK` step is better off declaring one, since moving the file would otherwise change what the step points at |
 | `name` | string | Human-readable form name |
 | `description` | string | Optional description of the form |
 | `fields` | array | The fields, in the order they are shown. At least one |

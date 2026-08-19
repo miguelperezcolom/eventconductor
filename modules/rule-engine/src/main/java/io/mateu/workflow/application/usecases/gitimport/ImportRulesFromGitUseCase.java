@@ -7,6 +7,7 @@ import io.mateu.workflow.application.out.RuleRepository;
 import io.mateu.workflow.application.usecases.saverule.SaveRuleCommand;
 import io.mateu.workflow.application.usecases.saverule.SaveRuleUseCase;
 import io.mateu.workflow.domain.Rule;
+import io.mateu.workflow.imports.DerivedIds;
 import io.mateu.workflow.infra.config.RuleGitImportProperties;
 import io.mateu.workflow.webhook.ImportedDefinitionsRegistry;
 import lombok.RequiredArgsConstructor;
@@ -141,11 +142,13 @@ public class ImportRulesFromGitUseCase {
 
     private void scanAndImport(Path repoRoot, List<String> imported, List<String> errors,
                                Set<String> importedIds) throws IOException {
+        var declaredIds = DerivedIds.declaredUnder(repoRoot,
+                ImportRulesFromGitUseCase::isDefinitionFile, this::readTree);
         try (var stream = Files.walk(repoRoot)) {
             stream.filter(ImportRulesFromGitUseCase::isDefinitionFile)
                     .forEach(file -> {
                         try {
-                            importDefinitionFile(file, repoRoot, imported, importedIds);
+                            importDefinitionFile(file, repoRoot, imported, importedIds, declaredIds);
                         } catch (Exception e) {
                             log.warn("Skipping {}: {}", file, e.getMessage());
                             errors.add("File " + repoRoot.relativize(file) + ": " + e.getMessage());
@@ -154,12 +157,22 @@ public class ImportRulesFromGitUseCase {
         }
     }
 
-    private void importDefinitionFile(Path file, Path repoRoot, List<String> imported,
-                                      Set<String> importedIds) throws IOException {
-        String fileName = file.toString();
-        var node = (fileName.endsWith(".yaml") || fileName.endsWith(".yml"))
+    private static Rule withId(Rule rule, String id) {
+        return new Rule(id, rule.name(), rule.description(), rule.type(), rule.version(),
+                rule.salience(), rule.tags(), rule.when(), rule.then(),
+                rule.inputs(), rule.outputs(), rule.rows(), rule.hitPolicy());
+    }
+
+    private com.fasterxml.jackson.databind.JsonNode readTree(Path file) throws IOException {
+        var fileName = file.toString();
+        return (fileName.endsWith(".yaml") || fileName.endsWith(".yml"))
                 ? YAML_MAPPER.readTree(file.toFile())
                 : OBJECT_MAPPER.readTree(file.toFile());
+    }
+
+    private void importDefinitionFile(Path file, Path repoRoot, List<String> imported,
+                                      Set<String> importedIds, Set<String> declaredIds) throws IOException {
+        var node = readTree(file);
 
         // Quick pre-check: must have "name" and a rule "type" to be a rule definition.
         if (!node.has("name") || !node.has("type") || !RULE_TYPES.contains(node.get("type").asText())) {
@@ -169,14 +182,20 @@ public class ImportRulesFromGitUseCase {
         var rule = OBJECT_MAPPER.treeToValue(node, Rule.class);
 
         boolean hadExplicitId = rule.id() != null && !rule.id().isBlank();
-
-        // Validation, id assignment and publication happen inside the save use case.
-        var id = saveRuleUseCase.handle(new SaveRuleCommand(rule));
-        // Only rules with an explicit id can be reconciled on a later import (the returned id
-        // equals the file's id in that case), so only those are prune-tracked.
-        if (hadExplicitId) {
-            importedIds.add(id);
+        if (!hadExplicitId) {
+            // The save use case would generate a fresh id, which is the same as having none: the
+            // next import could not find what this one created. The file's path gives it one that
+            // is the same next time.
+            var derivedId = DerivedIds.forFile(repoRoot, file);
+            DerivedIds.refuseIfTaken(derivedId, declaredIds, importedIds);
+            rule = withId(rule, derivedId);
         }
+
+        // Validation and publication happen inside the save use case.
+        var id = saveRuleUseCase.handle(new SaveRuleCommand(rule));
+        // Every rule is prune-tracked now: an id derived from the path can be reconciled on a later
+        // import, which a generated one never could.
+        importedIds.add(id);
         log.info("Imported rule '{}' (id={}) from {}", rule.name(), id, repoRoot.relativize(file));
         imported.add(rule.name() + " [" + id + "]");
     }

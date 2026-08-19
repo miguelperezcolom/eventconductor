@@ -65,7 +65,7 @@ steps: [...]
 
 | Field | Type | Description |
 |---|---|---|
-| `id` | string | Unique workflow identifier |
+| `id` | string | Unique workflow identifier. Optional — a file that declares none gets an id derived from its path (see [A file that declares no `id`](#a-file-that-declares-no-id)) |
 | `name` | string | Human-readable name |
 | `version` | integer | **Ignored for numbering.** The engine assigns versions itself on each content change (see [Versioning](#versioning)); any value here is not authoritative and is overwritten |
 | `description` | string | Optional description |
@@ -148,6 +148,35 @@ path, an engine that starts clean, and an empty definition list for no stated re
 
 Definitions removed from the directory are **pruned** (archived) on the next import, exactly as
 they are for a repository, and tracked separately per directory.
+
+### A file that declares no `id`
+
+`id` is optional, and a file that leaves it out is given one **derived from its path** relative to
+the scan root: `sagas/onboarding.ec` becomes `sagas.onboarding`, with the separators as dots because
+an id travels in URLs and in event payloads, where a slash is a separator.
+
+The point of deriving it rather than generating one is that it is the same next time. Until 2.2.2 it
+was a fresh UUID per import, which meant nothing connected the definition an import created to the
+one the previous import had created from that same file: **every import inserted another copy**, and
+none of them could be pruned. With a git webhook wired up, every push added one, without bound.
+
+Two consequences, and they are choices rather than accidents:
+
+- **Moving or renaming a file is a delete plus a create.** The old path stops being imported, so
+  its definition is pruned (archived); the new path arrives as a new definition. A definition that
+  must survive a move should declare an `id` — that is what declaring one is for.
+- **The id is relative to the scan root**, so changing `directory` in the import configuration
+  changes the id of every file that declares none, exactly as moving them would.
+
+An explicit `id` always wins, and a derived one never takes it: the ids a scan declares are read
+before anything is imported, so a file whose path would produce an id another file claims is
+reported as an error and skipped rather than saved over it.
+
+:::caution[Upgrading from 2.2.1 or earlier]
+Definitions already inserted under generated UUIDs are not attributable to any file, so the upgrade
+cannot clean them up: the next import creates one stable definition per file and leaves the old
+copies where they are. Archive or delete them once, by hand. From then on the count stays put.
+:::
 
 :::tip[Directory or Git?]
 Git import reads what is **committed**, which is what a deployment wants and what the loop where
