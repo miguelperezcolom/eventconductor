@@ -5,7 +5,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>4.0.4</version>
+        <version>4.0.7</version>
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
     <groupId>io.mateu.workflow</groupId>
@@ -43,6 +43,44 @@
                 <version>2025.1.2</version>
                 <type>pom</type>
                 <scope>import</scope>
+            </dependency>
+
+            <!--
+              Security overrides — the CVE-fixed versions, kept in step with the other standalone
+              apps. This app parents off spring-boot-starter-parent, so these entries win over the
+              Boot BOM. Trivy gates the release on exactly these, and it caught their absence the
+              first time this image was scanned: 25 HIGH and 4 CRITICAL, every one of them
+              transitive. Drop when the BOM catches up.
+            -->
+            <dependency>
+                <groupId>com.fasterxml.jackson.core</groupId>
+                <artifactId>jackson-databind</artifactId>
+                <version>2.21.4</version>
+            </dependency>
+            <dependency>
+                <groupId>com.fasterxml.jackson.core</groupId>
+                <artifactId>jackson-core</artifactId>
+                <version>2.21.4</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.tomcat.embed</groupId>
+                <artifactId>tomcat-embed-core</artifactId>
+                <version>11.0.22</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.tomcat.embed</groupId>
+                <artifactId>tomcat-embed-el</artifactId>
+                <version>11.0.22</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.tomcat.embed</groupId>
+                <artifactId>tomcat-embed-websocket</artifactId>
+                <version>11.0.22</version>
+            </dependency>
+            <dependency>
+                <groupId>org.postgresql</groupId>
+                <artifactId>postgresql</artifactId>
+                <version>42.7.12</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
