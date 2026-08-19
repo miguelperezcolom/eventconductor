@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-08-19
+
+A release about what a definition can say, and how it reaches the engine. Every change here is
+additive: a definition written for 2.1.x means the same thing to 2.2.0, with the one exception
+called out under *Changed*.
+
 ### Added
 - **The worker app is now a test instrument: it plays back whatever scenario you ask for.** Testing
   a workflow meant answering its tasks, and answering its tasks meant writing a worker — one per
