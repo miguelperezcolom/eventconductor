@@ -1,0 +1,23 @@
+{
+  "id": "ui-guards",
+  "name": "UI Guards",
+  "version": 1,
+  "description": "Guard expressions long enough to be in the way — the case the chips have to survive.",
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "assess", "type": "ACTION", "name": "Assess the request", "topic": "work",
+      "preconditionStepId": "start" },
+    { "id": "approve", "type": "ACTION", "name": "Approve automatically", "topic": "work",
+      "preconditions": [
+        { "stepId": "assess",
+          "expression": "amount != null && amount < 1000 && customerTier == 'GOLD' && !flagged" }
+      ] },
+    { "id": "review", "type": "ACTION", "name": "Send to manual review", "topic": "work",
+      "preconditions": [
+        { "stepId": "assess",
+          "expression": "amount == null || amount >= 1000 || customerTier != 'GOLD' || flagged" }
+      ] },
+    { "id": "end", "type": "END", "name": "Done",
+      "preconditionStepIds": ["approve", "review"] }
+  ]
+}

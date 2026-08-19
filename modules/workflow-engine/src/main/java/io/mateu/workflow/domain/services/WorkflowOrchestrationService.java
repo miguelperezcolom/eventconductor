@@ -346,8 +346,15 @@ public class WorkflowOrchestrationService {
         List<StepExecution> endSteps = executableSteps.stream()
                 .filter(stepExecution -> StepType.END.equals(getStep(stepExecution, cache).type()))
                 .toList();
+        // Stamped finished, which withStatus alone does not do: an END step is completed straight
+        // from here and never goes through updateStatus, so it was the one terminal execution in
+        // the engine with no time on it at all — against what the field itself documents ("set when
+        // the step reaches a terminal status"). It read as a step that never ran wherever the
+        // record is shown by time, the process diagram's step numbers included.
+        var now = java.time.LocalDateTime.now();
         endSteps.stream()
-                .map(stepExecution -> stepExecution.withStatus(StepExecutionStatus.COMPLETED))
+                .map(stepExecution -> stepExecution.withStatus(StepExecutionStatus.COMPLETED)
+                        .withFinishedAt(now))
                 .forEach(stepsToSave::add);
 
         // Cancel all remaining uncompleted steps

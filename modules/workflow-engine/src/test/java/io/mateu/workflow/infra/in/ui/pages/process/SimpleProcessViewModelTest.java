@@ -277,4 +277,65 @@ class SimpleProcessViewModelTest {
         assertThat(SimpleProcessViewModel.statusRank(StepExecutionStatus.COMPLETED))
                 .isGreaterThan(SimpleProcessViewModel.statusRank(StepExecutionStatus.CANCELLED));
     }
+
+    private StepExecution startedAt(String stepId, StepExecutionStatus status, String when) {
+        var se = se(stepId, status);
+        when(se.getStartedAt()).thenReturn(java.time.LocalDateTime.parse(when));
+        return se;
+    }
+
+    @Test
+    void numbersTheStepsInTheOrderTheyStarted() throws Exception {
+        var defs = mock(WorkflowDefinitionRepository.class);
+        when(defs.findById("wd-1")).thenReturn(Optional.of(emptyDefinition()));
+        var process = mock(Process.class);
+        when(process.getWorkflowDefinitionId()).thenReturn("wd-1");
+
+        var element = view(defs).buildDiagram(process, List.of(
+                // Deliberately out of order, and the middle one finishes last: the number says when
+                // a step took its turn, so it follows startedAt and not the order they arrive in.
+                startedAt("ship", StepExecutionStatus.COMPLETED, "2026-08-19T10:00:30"),
+                startedAt("start", StepExecutionStatus.COMPLETED, "2026-08-19T10:00:00"),
+                startedAt("charge", StepExecutionStatus.RUNNING, "2026-08-19T10:00:10")), List.of());
+
+        JsonNode overlay = mapper.readTree(element.attributes().get("overlay"));
+        assertThat(overlay.get("start").get("order").asInt()).isEqualTo(1);
+        assertThat(overlay.get("charge").get("order").asInt()).isEqualTo(2);
+        assertThat(overlay.get("ship").get("order").asInt()).isEqualTo(3);
+    }
+
+    @Test
+    void aStepThatNeverStartedGetsNoNumber() throws Exception {
+        var defs = mock(WorkflowDefinitionRepository.class);
+        when(defs.findById("wd-1")).thenReturn(Optional.of(emptyDefinition()));
+        var process = mock(Process.class);
+        when(process.getWorkflowDefinitionId()).thenReturn("wd-1");
+
+        var element = view(defs).buildDiagram(process, List.of(
+                startedAt("start", StepExecutionStatus.COMPLETED, "2026-08-19T10:00:00"),
+                se("ship", StepExecutionStatus.PENDING)), List.of());
+
+        JsonNode overlay = mapper.readTree(element.attributes().get("overlay"));
+        assertThat(overlay.get("start").get("order").asInt()).isEqualTo(1);
+        // An unnumbered node is one that has not had its turn — as much part of the reading as the
+        // numbers are. A 0 or a 2 here would both be lies.
+        assertThat(overlay.get("ship").has("order")).isFalse();
+    }
+
+    @Test
+    void stepsThatStartTogetherAreNumberedTheSameWayOnEveryPoll() {
+        var together = List.of(
+                startedAt("b-branch", StepExecutionStatus.COMPLETED, "2026-08-19T10:00:05"),
+                startedAt("a-branch", StepExecutionStatus.COMPLETED, "2026-08-19T10:00:05"));
+
+        // Parallel branches routinely start in the same instant. Any order will do; the same one
+        // every two seconds will not do itself — a number that changes under the reader is worse
+        // than an arbitrary one.
+        assertThat(SimpleProcessViewModel.executionOrder(together))
+                .containsEntry("a-branch", 1)
+                .containsEntry("b-branch", 2);
+        assertThat(SimpleProcessViewModel.executionOrder(together.reversed()))
+                .containsEntry("a-branch", 1)
+                .containsEntry("b-branch", 2);
+    }
 }

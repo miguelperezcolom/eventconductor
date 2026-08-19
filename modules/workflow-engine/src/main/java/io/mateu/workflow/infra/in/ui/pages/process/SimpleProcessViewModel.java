@@ -59,6 +59,7 @@ import org.springframework.stereotype.Service;
 import java.net.URI;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -198,8 +199,14 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
             });
         }
         var latestErrorByExec = latestErrorByStepExecution(logs);
+        var order = executionOrder(byStep.values());
         var overlay = new HashMap<String, Object>();
-        byStep.forEach((stepId, se) -> overlay.put(stepId, overlayEntry(se, latestErrorByExec.get(se.id()))));
+        byStep.forEach((stepId, se) -> {
+            var entry = overlayEntry(se, latestErrorByExec.get(se.id()));
+            var position = order.get(stepId);
+            if (position != null) entry.put("order", position);
+            overlay.put(stepId, entry);
+        });
         var attrs = new HashMap<String, String>();
         attrs.put("import", GRAPH_MODULE);
         // The diagram must show the process's ACTUAL step set, not just the definition: steps a
@@ -316,6 +323,49 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
                     .toList());
         }
         return entry;
+    }
+
+    /**
+     * What ran first, second, third — by step id, for the numbers the diagram puts on its nodes.
+     *
+     * <p>The graph draws the shape of a workflow, and the shape does not say what order a
+     * particular process actually took: two branches drawn side by side ran in some order, a loop
+     * drawn as one node ran several times, and a step that was skipped is drawn exactly where it
+     * would have been. A tick answers "did this run"; the number answers "when", which is the
+     * question an operator reading a finished process is usually asking.
+     *
+     * <p>Ordered by {@code startedAt}, since that is when a step took its turn — not by when it
+     * finished, which would number a slow first step after the quick one that followed it. A step
+     * that has no {@code startedAt} is ordered by {@code finishedAt} instead: not every step gets
+     * one, since it is stamped where a task is dispatched to a worker and an END step is never
+     * dispatched anywhere. Leaving those unnumbered was the first attempt and it was worse than no
+     * numbers at all — the browser test caught an END wearing a tick and no number, which reads as
+     * a step that never ran.
+     *
+     * <p>Steps with neither timestamp are left out and get no number, which is the honest reading:
+     * an unnumbered node is one that has not had its turn.
+     *
+     * <p>Ties are broken by step id so that two steps starting in the same instant — which
+     * parallel branches routinely do — are numbered the same way on every poll. An arbitrary but
+     * stable order beats a number that changes under the reader every two seconds.
+     */
+    static Map<String, Integer> executionOrder(Collection<StepExecution> executions) {
+        var started = executions.stream()
+                .filter(se -> whenItRan(se) != null)
+                .sorted(Comparator.comparing(SimpleProcessViewModel::whenItRan)
+                        .thenComparing(StepExecution::getStepId))
+                .toList();
+        var order = new HashMap<String, Integer>();
+        for (var i = 0; i < started.size(); i++) {
+            order.put(started.get(i).getStepId(), i + 1);
+        }
+        return order;
+    }
+
+    /** When a step took its turn: when it started, or — for the steps nothing dispatches — when it
+     * finished. Null for a step that has done neither. */
+    private static LocalDateTime whenItRan(StepExecution se) {
+        return se.getStartedAt() != null ? se.getStartedAt() : se.getFinishedAt();
     }
 
     /** Latest error message per step execution id, so a failed step can show its own cause. */
