@@ -17,7 +17,7 @@
     <properties>
         <!-- Coverage floor for this module, just under what it measures today
              (44.0%). Raise it when the module improves; never lower it. -->
-        <jacoco.line.minimum>0.42</jacoco.line.minimum>
+        <jacoco.line.minimum>0.73</jacoco.line.minimum>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
