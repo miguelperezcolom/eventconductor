@@ -94,8 +94,10 @@ class PreconditionGuardE2eTest extends AbstractE2eTest {
     /**
      * A guard on a link is not the same thing as the step-level {@code preconditionExpression},
      * which is older and means something else: that one skips the step and lets the process finish
-     * (E2E-COND-02). Both still work, and definitions written before links could carry guards keep
-     * the behaviour they were written for.
+     * (E2E-COND-02). The step-level expression is folded into the step's links now, so both are
+     * one kind of condition evaluated in one place — but the fold carries the meaning across as
+     * well as the text, and definitions written before links could carry guards keep the
+     * behaviour they were written for.
      */
     @Test
     void theStepLevelExpressionStillSkipsRatherThanHolds() {
@@ -105,5 +107,37 @@ class PreconditionGuardE2eTest extends AbstractE2eTest {
         createProcess("conditional", "guard-4", new Variable("tier", "basic"));
 
         assertThat(process("guard-4").getStatus()).isEqualTo(ProcessStatus.COMPLETED);
+    }
+
+    private void theCancellationRuns() {
+        worker.on("validate", TestWorker.succeed());
+        worker.on("penalty", TestWorker.succeed());
+    }
+
+    /**
+     * E2E-GUARD-05 — {@code onFalse: DISCARD} says which of the two a false condition is: this one
+     * is a branch not taken, so the step is skipped and the process finishes around it, the way a
+     * step-level expression always has — except this one is on the link, so it says it of one
+     * route rather than of the step.
+     */
+    @Test
+    void aDiscardingLinkConditionSkipsTheStepInsteadOfHoldingIt() {
+        theCancellationRuns();
+
+        createProcess("link-guard-discard", "guard-5", new Variable("ratePlan", "FLEXIBLE"));
+
+        assertThat(worker.invocationsOf("penalty")).isZero();
+        assertThat(process("guard-5").getStatus()).isEqualTo(ProcessStatus.COMPLETED);
+    }
+
+    /** E2E-GUARD-06 — and when it holds, the branch is taken like any other. */
+    @Test
+    void theSameDiscardingConditionRunsTheStepWhenItHolds() {
+        theCancellationRuns();
+
+        createProcess("link-guard-discard", "guard-6", new Variable("ratePlan", "NON_REFUNDABLE"));
+
+        assertThat(worker.invocationsOf("penalty")).isEqualTo(1);
+        assertThat(process("guard-6").getStatus()).isEqualTo(ProcessStatus.COMPLETED);
     }
 }

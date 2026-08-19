@@ -19,12 +19,14 @@ from the engine modules at build time, so it can never drift), plus the semantic
 schema cannot express:
 
 - **Workflows** — schema, duplicate step ids, self-referencing / dangling precondition
-  (`preconditionStepIds` / `preconditionStepId`) and `compensationStepId` references, the
+  (`preconditions` / `preconditionStepIds` / `preconditionStepId`) and `compensationStepId`
+  references, the
   entry-point rule (every step with no preconditions must be a `START` or a
   `WAIT_FOR_MESSAGE`, and a `START` must have none), precondition-cycle detection (DFS over
   the multi-edge precondition graph), the `PROCESS` child id (`childWorkflowDefinitionId`
   present and different from the workflow's own id), cron-expression validity, and JEXL
-  parseability of `preconditionExpression` and `correlationExpression`. It also emits
+  parseability of `preconditionExpression`, the conditions on `preconditions` links, and
+  `correlationExpression`. It also emits
   **build-time warnings** (logged, never failing the build) for risky-but-legal patterns:
   currently, a `JOIN` waiting directly on a guarded step — if the guard is false the join
   never fires and the flow beyond it is silently cancelled.

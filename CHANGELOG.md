@@ -57,6 +57,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (the engine re-dispatches the same one, so the count never left 1 and a flaky step failed
   forever), and had led with task ids in a protocol that sends them empty.
 
+- **`onFalse` on a precondition link: `WAIT` (the default) or `DISCARD`.** What a false condition
+  means used to be decided by where it was written — a guard on a link held the step and kept the
+  process open around it, a step-level `preconditionExpression` discarded the step and let the
+  process finish. Those are two different statements, and both are worth making about one route
+  in, so the link says which:
+
+  ```json
+  "preconditions": [
+    { "stepId": "validate", "expression": "ratePlan == 'NON_REFUNDABLE'", "onFalse": "DISCARD" }
+  ]
+  ```
+
+  This is what an optional or exclusive branch wants and what a link could not say before: the
+  step is skipped when the condition does not hold, without the condition also having to apply to
+  every other route into the step. `WAIT` is the default, so every existing link keeps its
+  behaviour, and the property is written back out only when it is `DISCARD`.
+
 ### Fixed
 - **Annotation processing was on by accident, and pruning a dependency turned it off.** Since JDK 23
   javac no longer runs processors found on the classpath, and maven-compiler-plugin follows it, so
@@ -90,6 +107,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `spring-cloud-stream-binder-kafka-streams`, which brings `rocksdbjni`, and on Mateu's UI — none of
   it imported by any class in the module, and nothing anywhere in the repository uses Kafka Streams.
   The worker app's jar went from 176 MB to 54 MB.
+
+- **The Maven plugin rejected every definition whose preconditions are declared as links.** Its
+  structural checks read only `preconditionStepIds`/`preconditionStepId`, so a step declaring
+  `preconditions` looked like it waited for nothing and the entry-point rule reported it as a step
+  nothing would ever start — failing the build on a valid workflow. The same blindness quietly
+  narrowed the dangling-reference, self-reference and cycle checks, which never saw those edges.
+  It now resolves all three spellings in the engine's own order.
+- **The conditions on `preconditions` links are JEXL-checked at build time**, as
+  `preconditionExpression` and `correlationExpression` already were. They are the preferred place
+  to write a condition, and an unparseable one there fails closed at runtime just as silently.
+
+### Changed
+- **A step-level `preconditionExpression` is folded into the step's incoming links.** A condition
+  is about a route into a step; a step-level one is the special case where every route asks the
+  same thing. `Step.resolvedPreconditions()` now ANDs it onto each link, so a guard has one home
+  and the engine has one place that evaluates it — `shouldRunStep` no longer asks two questions.
+
+  Behaviour is preserved, including the part that was never about *where* the condition was
+  written: a false step-level expression **skips** the step (the branch was not taken, and the
+  process may finish around it), while a false condition on a link **holds** it. That axis is now
+  explicit as `GuardMode` on the folded link — `WAIT`, what a link condition has always done, or
+  `DISCARD`, what a step-level one has always done — instead of being decided by the spelling.
+
+  One consequence is a fix, and it can change which branch a flow takes: a `CHOICE` picks its
+  successor by the condition **on the link**, and was blind to one written at step level. Such a
+  successor looked unguarded — i.e. like the else branch — so a `CHOICE` could take the default,
+  or lose a tie-break, in a case its author had guarded. It now reads that condition, picks the
+  branch that matches, and no longer reports the successor as the default in the "CHOICE has no
+  default branch" warning. Definitions whose `CHOICE` successors are guarded at step level should
+  be re-checked: they now branch as written.
 
 ## [2.1.1] - 2026-08-18
 

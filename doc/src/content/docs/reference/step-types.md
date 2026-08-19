@@ -28,25 +28,57 @@ declares one, holds:
 ```
 
 The condition belongs to the link, so it says when *arriving by that route* counts. A link whose
-condition is false is **not satisfied**, and a step that waits for all of its links waits — it is
-not skipped and the process does not finish around it. Conditions are re-evaluated against the
-process variables on every tick, so one that is false now holds the step until whatever it reads
-changes.
+condition is false is **not satisfied**, and by default a step that waits for all of its links
+waits — it is not skipped and the process does not finish around it. Conditions are re-evaluated
+against the process variables on every tick, so one that is false now holds the step until
+whatever it reads changes.
 
-:::caution[A guard that never becomes true is a process that never finishes]
+### What a false condition means: `onFalse`
+
+Waiting is one of two things a false condition can mean, and the link says which:
+
+| `onFalse` | A false condition means | The step |
+|---|---|---|
+| `WAIT` (default) | *not yet* — the variables may still change | waits, and the process stays open around it |
+| `DISCARD` | *not this way* — the flow did not come by this route | is a branch not taken; the process may finish and cancel it |
+
+```json
+{
+  "id": "charge-penalty",
+  "type": "ACTION",
+  "preconditions": [
+    { "stepId": "validate", "expression": "ratePlan == 'NON_REFUNDABLE'", "onFalse": "DISCARD" }
+  ]
+}
+```
+
+Reach for `DISCARD` on an optional or exclusive branch — the step that only some processes go
+through — and leave the default on a condition that is genuinely a wait, such as a link into a
+step that resumes once a worker or an operator sets the variable it reads. Getting it wrong is
+visible in opposite ways: a `WAIT` that was meant as a branch leaves the process `RUNNING`
+forever, and a `DISCARD` that was meant as a wait lets the process finish without the step.
+
+:::caution[A `WAIT` guard that never becomes true is a process that never finishes]
 That is the literal reading of "wait for all of them", and it is deliberate: the alternative —
 quietly not requiring that branch — lets a step run having waited for less than its author wrote.
 But it means a workflow can be authored into a permanent wait, and with nothing else in flight
 there is nothing inside the engine left to change the variable. Such a process stays `RUNNING`
 with the step in `CREATED`, where the `eventconductor.steps.stalled` gauge will not see it — that
-gauge counts steps that started. Use `preconditionExpression`, which skips, when what you mean is
-"maybe not this step"; use a link condition when what you mean is "only by this route".
+gauge counts steps that started. If what you mean is "maybe not this step", say `onFalse:
+"DISCARD"`.
 :::
 
-`preconditionExpression` is the older and different thing: it gates the **step**, however it is
-reached, and a step it holds back is skipped so the process can finish (see
-[Conditional skipping](/guides/retries-timeouts-compensation/#conditional-skipping)). Both still
-work, and a definition may use either or both.
+`preconditionExpression` is the older spelling. It gates the **step**, however it is reached, and
+the engine reads it by folding it into every one of the step's links: "this step only runs if X"
+is "every route into it requires X", so there is one kind of condition and one place that
+evaluates it. What it *means* is folded in too: it becomes an `onFalse: "DISCARD"` guard, which is
+what a step-level expression has always done — a step it holds back is **skipped**, so the process
+can finish around it (see
+[Conditional skipping](/guides/retries-timeouts-compensation/#conditional-skipping)). Both
+spellings still work and a definition may use either or both; prefer the link, which can say
+something different of each route and, with `onFalse`, say what a false condition means. A step
+with no links at all — an entry point — has nothing to fold into, and there the expression stays
+its own gate.
 
 Every eligible step starts **concurrently**. There is no ordering between steps beyond the
 precondition graph: an active step never blocks unrelated branches, and array order is

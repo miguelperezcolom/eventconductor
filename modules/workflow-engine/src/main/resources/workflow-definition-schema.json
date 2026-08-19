@@ -234,7 +234,7 @@
             "array",
             "null"
           ],
-          "description": "The incoming links of this step, each with its own guard. Takes precedence over preconditionStepIds and preconditionStepId when non-empty. A link is satisfied when its step has completed AND its expression holds; a link whose guard is false is not satisfied, so a step waiting for all of its links waits until it becomes true.",
+          "description": "The incoming links of this step, each with its own guard. Takes precedence over preconditionStepIds and preconditionStepId when non-empty. A link is satisfied when its step has completed AND its expression holds; a link whose guard is false is not satisfied, so a step waiting for all of its links waits until it becomes true — unless the link says onFalse: DISCARD, which makes it a route not taken instead.",
           "items": {
             "type": "object",
             "additionalProperties": false,
@@ -252,6 +252,19 @@
                   "null"
                 ],
                 "description": "JEXL expression over the process variables, evaluated once that step has completed. Absent means the link has no condition."
+              },
+              "onFalse": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "WAIT",
+                  "DISCARD",
+                  null
+                ],
+                "description": "What a false condition on this link means. WAIT (the default) leaves the link unsatisfied and the step waits, to be released if the variables change; the process is not completed around it. DISCARD treats the route as not taken, so the step is a branch the flow did not go down and the process may finish and cancel it — the meaning a step-level preconditionExpression has always had.",
+                "default": "WAIT"
               }
             }
           }
@@ -261,7 +274,7 @@
             "string",
             "null"
           ],
-          "description": "JEXL expression evaluated against process variables. Step is skipped if the expression returns false."
+          "description": "JEXL expression evaluated against process variables. Step is skipped if the expression returns false. The older, step-wide spelling of a condition: it is folded into every one of the step's links (as an onFalse: DISCARD guard), so prefer preconditions[].expression, which can say something different of each route."
         },
         "parallel": {
           "type": [

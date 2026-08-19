@@ -390,4 +390,174 @@ class WorkflowOrchestrationServiceTest {
         assertThat(result.getUpdatedProcess().getStatus()).isEqualTo(ProcessStatus.ERROR);
         assertThat(result.getStepsToSave()).isEmpty();
     }
+
+    // ── A step-level preconditionExpression is folded into the step's links ──
+
+    @Test
+    void aStepLevelExpressionStillGatesAStepWhoseLinkCarriesNoGuard() {
+        var a = se(step("a", StepType.ACTION, "start", null), StepExecutionStatus.COMPLETED);
+        var inFlight = se(step("b", StepType.ACTION, "start", null), StepExecutionStatus.PENDING);
+        var gated = se(step("gated", StepType.ACTION, "a", null)
+                .withPreconditionExpression("status == 'vip'"), StepExecutionStatus.CREATED);
+
+        assertThat(service.calculateNextTransitions(
+                processWith("status", "regular"), List.of(a, inFlight, gated)).getStepsToSave())
+                .as("false: the step does not run")
+                .isEmpty();
+        assertThat(service.calculateNextTransitions(
+                processWith("status", "vip"), List.of(a, inFlight, gated)).getStepsToSave())
+                .as("true: it does")
+                .extracting(StepExecution::getStepId).containsExactly("gated");
+    }
+
+    @Test
+    void aStepLevelExpressionAndsWithTheGuardTheLinkAlreadyCarries() {
+        var a = se(step("a", StepType.ACTION, "start", null), StepExecutionStatus.COMPLETED);
+        var inFlight = se(step("b", StepType.ACTION, "start", null), StepExecutionStatus.PENDING);
+        var gated = se(step("gated", StepType.ACTION, null, null)
+                .withPreconditions(List.of(new io.mateu.workflow.domain.aggregates.Precondition("a", "tier == 'gold'")))
+                .withPreconditionExpression("status == 'vip'"), StepExecutionStatus.CREATED);
+
+        assertThat(service.calculateNextTransitions(
+                processWith("status", "vip", "tier", "silver"), List.of(a, inFlight, gated)).getStepsToSave())
+                .as("the link's own guard is false, so the folded condition is false")
+                .isEmpty();
+        assertThat(service.calculateNextTransitions(
+                processWith("status", "regular", "tier", "gold"), List.of(a, inFlight, gated)).getStepsToSave())
+                .as("and so is the step-level half")
+                .isEmpty();
+        assertThat(service.calculateNextTransitions(
+                processWith("status", "vip", "tier", "gold"), List.of(a, inFlight, gated)).getStepsToSave())
+                .extracting(StepExecution::getStepId).containsExactly("gated");
+    }
+
+    @Test
+    void aStepLevelExpressionOnAnXorJoinGatesEveryBranchIntoIt() {
+        var a = se(step("a", StepType.ACTION, "start", null), StepExecutionStatus.COMPLETED);
+        var b = se(step("b", StepType.ACTION, "start", null), StepExecutionStatus.PENDING);
+        var join = se(xorJoin("join", List.of("a", "b"))
+                .withPreconditionExpression("status == 'vip'"), StepExecutionStatus.CREATED);
+
+        assertThat(service.calculateNextTransitions(
+                processWith("status", "regular"), List.of(a, b, join)).getStepsToSave())
+                .as("a completed branch does not let the join through while the step gate is false")
+                .isEmpty();
+        assertThat(service.calculateNextTransitions(
+                processWith("status", "vip"), List.of(a, b, join)).getStepsToSave())
+                .as("with it true the XOR still proceeds on the first completed branch")
+                .extracting(StepExecution::getStepId).containsExactly("join");
+    }
+
+    @Test
+    void aChoiceSeesAConditionWrittenAtStepLevelWhenItPicksItsBranch() {
+        var choice = se(step("choice", StepType.CHOICE, "start", null), StepExecutionStatus.COMPLETED);
+        var special = se(step("special", StepType.ACTION, null, null)
+                .withPreconditions(List.of(new io.mateu.workflow.domain.aggregates.Precondition("choice", null)))
+                .withPreconditionExpression("status == 'vip'"), StepExecutionStatus.CREATED);
+        var fallback = choiceSuccessor("fallback", "choice", null, StepExecutionStatus.CREATED);
+
+        var result = service.calculateNextTransitions(processWith("status", "vip"), List.of(choice, special, fallback));
+
+        // The picker reads link guards and nothing else. Folded, the step-level condition is what
+        // makes 'special' the more specific branch; unfolded it was invisible, both successors
+        // looked like the unguarded default, and the tie-break by step id took 'fallback'.
+        assertThat(result.getStepsToSave()).extracting(StepExecution::getStepId).containsExactly("special");
+    }
+
+    @Test
+    void aStepDiscardedByItsStepLevelExpressionDoesNotHoldTheProcessOpen() {
+        // The older meaning, kept: a false step-level expression is a branch not taken, so the
+        // engine may wrap the process up around it — unlike a false guard written on a link,
+        // which holds (see aStepHeldByALinkGuardKeepsTheProcessOpen below).
+        var start = se(step("start", StepType.START, null, null), StepExecutionStatus.COMPLETED);
+        var gate = se(step("gate", StepType.ACTION, "start", null), StepExecutionStatus.COMPLETED);
+        var premium = se(step("premium", StepType.ACTION, "gate", null)
+                .withPreconditionExpression("tier == 'premium'"), StepExecutionStatus.CREATED);
+
+        var result = service.calculateNextTransitions(processWith("tier", "basic"), List.of(start, gate, premium));
+
+        assertThat(result.isProcessCompleted()).isTrue();
+        assertThat(result.getStepsToSave()).filteredOn(se -> "premium".equals(se.getStepId()))
+                .allMatch(se -> StepExecutionStatus.CANCELLED.equals(se.getStatus()));
+    }
+
+    @Test
+    void aStepHeldByALinkGuardKeepsTheProcessOpen() {
+        var start = se(step("start", StepType.START, null, null), StepExecutionStatus.COMPLETED);
+        var gate = se(step("gate", StepType.ACTION, "start", null), StepExecutionStatus.COMPLETED);
+        var premium = se(step("premium", StepType.ACTION, null, null)
+                .withPreconditions(List.of(new io.mateu.workflow.domain.aggregates.Precondition("gate", "tier == 'premium'"))),
+                StepExecutionStatus.CREATED);
+
+        var result = service.calculateNextTransitions(processWith("tier", "basic"), List.of(start, gate, premium));
+
+        assertThat(result.isProcessCompleted()).isFalse();
+        assertThat(result.getStepsToSave()).isEmpty();
+    }
+
+    @Test
+    void anEntryPointWithNoLinksIsStillGatedByItsStepLevelExpression() {
+        // Nothing to fold into, so here — and only here — the expression is still the step's gate.
+        var start = step("start", StepType.START, null, null).withPreconditionExpression("go == 'yes'");
+
+        assertThat(service.calculateNextTransitions(processWith("go", "no"),
+                List.of(se(start, StepExecutionStatus.CREATED))).getStepsToSave())
+                .noneMatch(se -> StepExecutionStatus.PENDING.equals(se.getStatus())
+                        || StepExecutionStatus.COMPLETED.equals(se.getStatus()));
+        assertThat(service.calculateNextTransitions(processWith("go", "yes"),
+                List.of(se(start, StepExecutionStatus.CREATED))).getStepsToSave())
+                .extracting(StepExecution::getStatus).containsExactly(StepExecutionStatus.COMPLETED);
+    }
+
+    /**
+     * The shape a saga reaches for: charge a penalty only on some rates, then carry on down one
+     * line. The branch and the route past it are the same condition and its negation, each written
+     * on the link that asks it, and both DISCARD — neither is a wait.
+     *
+     * <p>Every scenario builds its own executions: {@link StepExecution#start} mutates in place.
+     */
+    private List<StepExecution> penaltySaga(StepExecutionStatus register, StepExecutionStatus charge) {
+        var penaltyApplies = new io.mateu.workflow.domain.aggregates.Precondition(
+                "validate", "penalty", io.mateu.workflow.domain.aggregates.GuardMode.DISCARD);
+        var noPenalty = new io.mateu.workflow.domain.aggregates.Precondition(
+                "validate", "!penalty", io.mateu.workflow.domain.aggregates.GuardMode.DISCARD);
+        return List.of(
+                se(step("validate", StepType.ACTION, "start", null), StepExecutionStatus.COMPLETED),
+                se(step("register", StepType.ACTION, null, null).withPreconditions(List.of(penaltyApplies)), register),
+                se(step("charge", StepType.ACTION, "register", null), charge),
+                se(step("resolved", StepType.JOIN, null, null)
+                                .withJoinType(io.mateu.workflow.domain.aggregates.JoinType.XOR)
+                                .withPreconditions(List.of(
+                                        new io.mateu.workflow.domain.aggregates.Precondition("charge", null),
+                                        noPenalty)),
+                        StepExecutionStatus.CREATED));
+    }
+
+    @Test
+    void anOptionalBranchNotTakenLetsTheXorJoinThroughAtOnce() {
+        var result = service.calculateNextTransitions(processWith("penalty", "false"),
+                penaltySaga(StepExecutionStatus.CREATED, StepExecutionStatus.CREATED));
+
+        assertThat(result.getStepsToSave()).extracting(StepExecution::getStepId).containsExactly("resolved");
+        assertThat(result.getStepsToSave().get(0).getStatus()).isEqualTo(StepExecutionStatus.COMPLETED);
+    }
+
+    @Test
+    void theSameJoinWaitsForTheBranchWhenTheBranchIsTaken() {
+        var result = service.calculateNextTransitions(processWith("penalty", "true"),
+                penaltySaga(StepExecutionStatus.CREATED, StepExecutionStatus.CREATED));
+
+        // Only the branch starts: the route past it is guarded by the negation, so the XOR join
+        // does not go round the penalty it is there to wait for.
+        assertThat(result.getStepsToSave()).extracting(StepExecution::getStepId).containsExactly("register");
+    }
+
+    @Test
+    void andTheBranchCompletingIsWhatLetsThatJoinThrough() {
+        var result = service.calculateNextTransitions(processWith("penalty", "true"),
+                penaltySaga(StepExecutionStatus.COMPLETED, StepExecutionStatus.COMPLETED));
+
+        assertThat(result.getStepsToSave()).extracting(StepExecution::getStepId).containsExactly("resolved");
+        assertThat(result.getStepsToSave().get(0).getStatus()).isEqualTo(StepExecutionStatus.COMPLETED);
+    }
 }

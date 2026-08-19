@@ -1,0 +1,46 @@
+{
+  "id": "link-preconditions",
+  "name": "Preconditions declared as links",
+  "version": 1,
+  "steps": [
+    {
+      "id": "start",
+      "type": "START",
+      "name": "Start"
+    },
+    {
+      "id": "validate",
+      "type": "ACTION",
+      "name": "Validate",
+      "topic": "work",
+      "preconditions": [
+        {
+          "stepId": "start"
+        }
+      ]
+    },
+    {
+      "id": "penalty",
+      "type": "ACTION",
+      "name": "Charge the penalty when there is one",
+      "topic": "work",
+      "preconditions": [
+        {
+          "stepId": "validate",
+          "expression": "ratePlan == 'NON_REFUNDABLE'",
+          "onFalse": "DISCARD"
+        }
+      ]
+    },
+    {
+      "id": "end",
+      "type": "END",
+      "name": "End",
+      "preconditions": [
+        {
+          "stepId": "penalty"
+        }
+      ]
+    }
+  ]
+}

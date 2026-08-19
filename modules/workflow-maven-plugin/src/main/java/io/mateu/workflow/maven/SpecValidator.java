@@ -205,6 +205,18 @@ public class SpecValidator {
             if (isSet(precExpr)) {
                 checkJexl(precExpr, "step '" + id + "' preconditionExpression", violations);
             }
+            // The conditions on the links are checked too — they are the preferred place to write
+            // one, and an unparseable guard there fails closed at runtime just as silently.
+            JsonNode links = step.get("preconditions");
+            if (links != null && links.isArray()) {
+                for (JsonNode link : links) {
+                    String linkExpr = text(link, "expression");
+                    if (isSet(linkExpr)) {
+                        checkJexl(linkExpr, "step '" + id + "' precondition on '"
+                                + text(link, "stepId") + "'", violations);
+                    }
+                }
+            }
             String corrExpr = text(step, "correlationExpression");
             if (isSet(corrExpr)) {
                 checkJexl(corrExpr, "step '" + id + "' correlationExpression", violations);
@@ -230,7 +242,25 @@ public class SpecValidator {
      * non-empty, else the singular {@code preconditionStepId}, else none — mirroring
      * {@code Step.preconditionIds()} in the engine.
      */
+    /**
+     * The steps this one waits for, whichever of the three spellings the definition uses — the
+     * same precedence the engine applies in {@code Step.resolvedPreconditions()}: the {@code
+     * preconditions} links first, then the plural ids, then the singular. Reading only the older
+     * two would make every link-declared step look like it waits for nothing, which the roots rule
+     * reports as a step nothing would ever start.
+     */
     private static List<String> preconditions(JsonNode step) {
+        JsonNode links = step.get("preconditions");
+        if (links != null && links.isArray() && !links.isEmpty()) {
+            List<String> result = new ArrayList<>();
+            for (JsonNode link : links) {
+                String stepId = text(link, "stepId");
+                if (isSet(stepId)) {
+                    result.add(stepId);
+                }
+            }
+            return result;
+        }
         JsonNode plural = step.get("preconditionStepIds");
         if (plural != null && plural.isArray() && !plural.isEmpty()) {
             List<String> result = new ArrayList<>();

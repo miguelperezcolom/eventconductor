@@ -247,8 +247,8 @@ Exactly one per workflow. Transitions the process to `COMPLETED`. With parallel 
 | `description` | string | — | Optional |
 | `preconditionStepId` | string | — | Single step that must complete first |
 | `preconditionStepIds` | string[] | — | Steps that must ALL complete first; wins over the singular form when non-empty |
-| `preconditions` | object[] | — | `{stepId, expression?}` per incoming link: the condition belongs to that route in, not to the step. Wins over both spellings above. A link whose `expression` is falsy is **not satisfied**, so the step waits (it is not skipped, and the process does not finish around it) |
-| `preconditionExpression` | string | — | JEXL guard on the step, whatever route reached it; while falsy the step is never run (stays `CREATED`, → `CANCELLED` when `END` fires) |
+| `preconditions` | object[] | — | `{stepId, expression?, onFalse?}` per incoming link: the condition belongs to that route in, not to the step. Wins over both spellings above. A link whose `expression` is falsy is **not satisfied**; `onFalse` says what that means — `WAIT` (default) holds the step (it is not skipped, and the process does not finish around it), `DISCARD` makes it a branch not taken (skipped, and the process may finish and cancel it) |
+| `preconditionExpression` | string | — | JEXL guard on the step, whatever route reached it; while falsy the step is never run (stays `CREATED`, → `CANCELLED` when `END` fires). The older spelling: folded into every link of the step as an `onFalse: DISCARD` guard, so prefer `preconditions[].expression` |
 | `parallel` | boolean | `false` | **Deprecated and ignored** (kept for deserialization of old files) |
 | `topic` | string | — | Worker destination (ACTION, Kafka mode) |
 | `formId` | string | — | Form to render (USER_TASK) |
@@ -427,6 +427,29 @@ There is no log component on `TaskStatusChanged`; task logs are emitted through 
 ### Output variables
 
 Worker outputs are **merged into process variables** (overwriting same-named ones), and become available to all later steps and JEXL expressions.
+
+### The test worker (`worker-standalone-app`, module `modules/test-worker`)
+
+A worker that does no work: it plays back the scenario the process asks for, so a workflow can be driven through any outcome without writing a worker for it. Start the process with a `TEST_CONFIG` variable holding this JSON:
+
+```json
+{
+  "default": { "durationMs": 200, "outcome": "COMPLETED" },
+  "tasks": {
+    "reserve-seat": { "durationMs": 500, "logs": [{ "type": "Info", "message": "checking inventory" }],
+                      "variables": [{ "name": "seatId", "value": "12A" }] },
+    "charge-card":  { "outcome": "ERROR", "reason": "card declined" },
+    "notify":       { "outcome": "NO_REPLY" }
+  }
+}
+```
+
+**The keys are step ids.** They are matched against `taskId` first and `stepId` second, but the engine sends an empty `taskId` for every `ACTION` step — it fills that field only for `USER_TASK` (`complete-form`) and `RULE` (`evaluate-rule`). Anything unstated is inherited from `default`, then from the built-in "take `worker.task-duration` and complete". Per-task fields: `durationMs`, `outcome` (`COMPLETED` | `ERROR` | `NO_REPLY`), `reason`, `logs[{type, message, atMs}]`, `variables[{name, value}]`, `failuresBeforeSuccess` (attempts of one task execution — the engine retries by re-dispatching the same `taskExecutionId`, so this and the step's `attempt_count` agree; pair it with `retries` on the step), `replyTimes`, `ignoreCancellation`.
+
+- `NO_REPLY` reports `RUNNING` and then goes quiet: the scenario for a step timeout.
+- Unknown properties and malformed JSON **fail the task** with the parse error as its reason, rather than falling back to a default.
+- Overrides saved in the worker's UI (`/_worker`) answer only processes that carry no `TEST_CONFIG`; `TEST_CONFIG` always wins.
+- `worker.persistence=jpa` keeps received tasks and overrides in PostgreSQL; `SPRING_PROFILES_ACTIVE=memory` runs it with no database.
 
 ---
 

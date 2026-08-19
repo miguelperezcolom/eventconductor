@@ -60,11 +60,21 @@ public record Step(
          *
          * <p>Takes precedence over {@code preconditionStepIds} and {@code preconditionStepId} when
          * declared. Both remain valid — every definition written before this field existed uses
-         * them — and a step-level {@code preconditionExpression} still gates the step as a whole,
-         * on top of whatever the links say.
+         * them.
          */
         @HiddenInList
         List<Precondition> preconditions,
+        /**
+         * Deprecated: say it on the link instead ({@link Precondition#expression()}). A condition
+         * is about a route into a step, and a step-level one is only the special case where every
+         * route asks the same thing — which {@link #resolvedPreconditions()} now expresses by
+         * folding this expression into each link, so a guard has exactly one home and one
+         * evaluation path.
+         *
+         * <p>Still read, so every definition written before links could carry guards keeps
+         * working. On a step with no links at all — an entry point — it is the only place a
+         * condition can go, and it is evaluated as the step's own gate.
+         */
         String preconditionExpression,
 
         /**
@@ -200,8 +210,27 @@ public record Step(
      *
      * <p>One accessor for three spellings, so everything downstream — eligibility, the topology
      * warnings, the graph — asks the same question and gets the same answer.
+     *
+     * <p>A step-level {@code preconditionExpression} is folded in here, ANDed onto every link:
+     * "this step only runs if X" is the special case of "every route in requires X", and saying it
+     * once, in the links, leaves one kind of guard and one place that evaluates it. The folding is
+     * what makes a step-level condition visible to everything that reads the links — the CHOICE
+     * branch picker above all, which chooses by the guard on the link and used to be blind to it.
+     * A step with no links has nothing to fold into; there the expression stays the step's own
+     * gate (see {@code isAnEntryPoint}).
+     *
+     * <p>The fold carries the meaning across too, not just the text. A step-level expression has
+     * always <em>discarded</em> the step when false — the flow did not go this way, and the process
+     * may finish around it — while a guard written on a link <em>holds</em> it. That difference is
+     * real and is kept, as {@link GuardMode} on the folded link, so no definition changes behaviour
+     * by being read through here.
      */
     public List<Precondition> resolvedPreconditions() {
+        return foldStepGuardInto(declaredPreconditions());
+    }
+
+    /** The links exactly as the definition spells them, before the step-level guard is folded in. */
+    private List<Precondition> declaredPreconditions() {
         if (preconditions != null && !preconditions.isEmpty()) {
             return preconditions.stream().filter(p -> p != null && p.stepId() != null).toList();
         }
@@ -212,6 +241,34 @@ public record Step(
             return List.of(new Precondition(preconditionStepId, null));
         }
         return List.of();
+    }
+
+    private List<Precondition> foldStepGuardInto(List<Precondition> links) {
+        if (preconditionExpression == null || preconditionExpression.isBlank() || links.isEmpty()) {
+            return links;
+        }
+        return links.stream()
+                .map(link -> new Precondition(link.stepId(),
+                        andGuards(preconditionExpression, link.expression()),
+                        // A link that had a guard of its own keeps that guard's meaning: it was
+                        // written as something to wait for, and waiting is the conservative
+                        // outcome when the two are combined. A link that had none takes the
+                        // step-level meaning, which has always been "not this way, carry on".
+                        link.hasGuard() ? GuardMode.WAIT : GuardMode.DISCARD))
+                .toList();
+    }
+
+    /**
+     * The step guard ANDed onto a link's own. Both sides are parenthesised: an expression written
+     * to stand alone can be anything JEXL parses, and {@code a || b} ANDed unbracketed would bind
+     * the wrong way round. A link with no guard of its own simply takes the step's, unwrapped, so
+     * the overwhelmingly common case evaluates the very expression the author wrote.
+     */
+    private static String andGuards(String stepGuard, String linkGuard) {
+        if (linkGuard == null || linkGuard.isBlank()) {
+            return stepGuard;
+        }
+        return "(" + stepGuard + ") && (" + linkGuard + ")";
     }
 
     /**
