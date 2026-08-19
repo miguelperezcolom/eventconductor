@@ -31,6 +31,10 @@ import java.util.List;
  */
 @Style("width: 100%;")
 public record TaskOverride(
+        // A generated UUID, and the list titles every row with it — the name someone wrote reads
+        // as the subtitle underneath. That is worth knowing when picking a rule by hand, and it is
+        // not something these annotations reach: @HiddenInList was tried and the title did not
+        // move. Only visible from a browser, which is why TestWorkerJourneyTest exists.
         @GeneratedValue(UUIDValueGenerator.class)
         @HiddenInCreate
         String id,
