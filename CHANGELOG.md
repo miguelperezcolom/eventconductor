@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Git webhooks never worked in a released build.** Every `POST` to
+  `/workflow/webhooks/{provider}`, `/forms/webhooks/{provider}` or `/rules/webhooks/{provider}`
+  answered 500 with `Name for argument of type [java.lang.String] not specified`, before the
+  signature was verified and whatever the payload said. The three controllers declare `provider`
+  as a bare `@PathVariable String`, so Spring binds it by parameter name — and the reactor
+  compiled without `-parameters`, so no `MethodParameters` attribute reached any jar it published.
+  There is no Spring Boot parent here to switch that on, and configuring `maven-compiler-plugin`
+  at all is what silenced javac's own default, so the omission was invisible: the feature was
+  documented, unit-tested and shipped, and the only thing it could not do was answer a request.
+
+  The unit tests could not have caught it. They call `controller.webhook(...)` as a plain object,
+  which is the right shape for the routing and verification logic but never reaches the mapping
+  layer, and the mapping layer is the whole of the bug. There is now a MockMvc test for the
+  workflow engine's webhook that goes through the dispatcher, so the flag cannot be lost silently
+  again.
+
+  Fixed for the class rather than the three sites: `<parameters>true</parameters>` on the root
+  pom's compiler plugin, which is what the Boot parent would have contributed.
+
 ## [2.2.0] - 2026-08-19
 
 A release about what a definition can say, and how it reaches the engine. Every change here is
