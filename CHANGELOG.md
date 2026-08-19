@@ -57,6 +57,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   Three copies of one properties class is what produced this, and they are still three.
 
+### Notes
+- **Known issue: `/_worker/taskOverrides/new` hangs the browser.** Mateu renders `TaskOverride`'s
+  three nullable numeric fields — `durationMs`, `failuresBeforeSuccess`, `replyTimes` — as
+  `vaadin-integer-field`, and a null arrives as `NaN`: the field clears itself, the clear counts as
+  a change, and it is set again, without end.
+
+  Isolated both ways on Mateu 3.0-alpha.291: making those three fields primitive opens the form,
+  restoring them hangs it again. Not worked around, because the nullability *is* the meaning —
+  `durationMs` null means "inherit from `default`" and `0` means "finish instantly", and a primitive
+  cannot express the first.
+
+  Until it is fixed, create overrides through the API or in the `task_override` table. Everything
+  else on both worker pages works. The guide says so, and a disabled browser test carries the
+  reproduction and passes against a build with those fields made primitive.
+
 ## [2.2.1] - 2026-08-19
 
 A patch release, and every entry is something that shipped broken in 2.2.0 or earlier. Two of them
