@@ -24,14 +24,24 @@ repositories for assertions. No engine internals are mocked.
 The JaCoCo gate is a **floor per module**, set just under what that module measures today and
 raised as it improves. It is not a target, and it is deliberately not one number for the repository.
 
-| Module | Floor | Measured |
-|---|---|---|
-| `rule-runtime` | 0.87 | 89.2% |
-| `workflow-maven-plugin` | 0.87 | 89.5% |
-| `shared` | 0.85 | 87.9% |
-| `workflow-engine` | 0.62 | 64.7% alone — **81.1%** with the e2e module merged in |
-| `forms-engine` | 0.42 | 44.0% |
-| `rule-engine` | 0.40 | 42.8% |
+| Module | Floor | Alone | With the e2e runs merged in |
+|---|---|---|---|
+| `test-worker` | 0.85 | 90.0% | 90.0% |
+| `workflow-maven-plugin` | 0.87 | 90.2% | 90.2% |
+| `rule-runtime` | 0.87 | 89.1% | 89.1% |
+| `shared` | 0.85 | 87.7% | **94.1%** |
+| `process-index` | 0.62 | 64.0% | **84.9%** |
+| `workflow-engine` | 0.62 | 68.0% | **82.2%** |
+| `forms-engine` | 0.42 | 60.3% | 60.3% |
+| `rule-engine` | 0.40 | 42.8% | 42.8% |
+
+**The second column is what the gate sees; the third is what is actually exercised.** They differ
+only for the modules the end-to-end suites drive from outside — the engine, the read model, and the
+shared DTOs the events are made of. `forms-engine` and `rule-engine` gain nothing from the merge,
+and that is the finding, not a rounding artefact: nothing in `workflow-e2e` drives a form or a rule
+catalogue, so those two are covered by their own tests alone. `rule-runtime` is different again —
+it is embedded in the engine's own process, so its RULE-step work already counts under its own
+tests.
 
 **Read those numbers with two things in mind.**
 
@@ -40,20 +50,28 @@ over a bundle that excluded the outbox, the schedulers, the JPA repositories, th
 the MCP tools, the autoconfiguration and the Git import — most of what carries risk in production.
 The exclusion list is now two entries: generated protobuf/gRPC stubs, and the Vaadin view classes
 whose behaviour is the framework's rendering. Everything else is measured. Over that honest scope
-the repository sits at **65.7%** per module, **76.4%** aggregated.
+the repository sits at **70.2%** per module, **80.0%** aggregated.
 
 *Per-module figures undercount the engine.* JaCoCo attributes coverage to the module whose tests
-ran, and the 33 end-to-end tests live in `modules/workflow-e2e`, so everything they exercise in
+ran, and the end-to-end tests live in `modules/workflow-e2e`, so everything they exercise in
 `workflow-engine` — the relay, the state machine, compensation, timers — counts for neither. The
 aggregated figure is the true one:
 
 ```bash
 mvn -B -ntp test
-java -jar ~/.m2/repository/org/jacoco/org.jacoco.cli/0.8.13/org.jacoco.cli-0.8.13-nodeps.jar \
-  merge modules/*/target/jacoco.exec --destfile /tmp/merged.exec
-java -jar ~/.m2/repository/org/jacoco/org.jacoco.cli/0.8.13/org.jacoco.cli-0.8.13-nodeps.jar \
-  report /tmp/merged.exec --classfiles modules/workflow-engine/target/classes --html /tmp/coverage
+CLI=~/.m2/repository/org/jacoco/org.jacoco.cli/0.8.13/org.jacoco.cli-0.8.13-nodeps.jar
+java -jar $CLI merge modules/*/target/jacoco.exec --destfile /tmp/merged.exec
+java -jar $CLI report /tmp/merged.exec \
+  --classfiles modules/workflow-engine/target/classes --html /tmp/coverage
 ```
+
+**Read that report with the exclusions in mind, or it will tell you the wrong thing.** The CLI
+knows nothing about the `<excludes>` in the root pom, so it counts the Vaadin view classes the gate
+deliberately leaves out — 833 lines in `workflow-engine`, none of them covered, which is enough to
+drag a genuine 82.2% back down to the 68.0% the module measures alone and make the merge look
+pointless. The figures in the table above are computed over the gate's own scope: everything except
+`io/mateu/workflow/infra/in/ui/**`, `io/mateu/testworker/infra/in/ui/**` and the generated gRPC
+stubs.
 
 Coverage is a floor against regression, not evidence of correctness. What the engine actually
 guarantees is specified below and in the reliability and scale runs under
