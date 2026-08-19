@@ -62,9 +62,19 @@ public class Task implements ComponentTreeSupplier, ValidationSupplier, ActionHa
      */
     static RestDataSource optionsSource(io.mateu.workflow.domain.Field field) {
         var source = field.optionsSource();
-        return source == null ? null : new RestDataSource(source.url(), source.method(),
-                source.headers(), source.body(), source.itemsPath(), source.valuePath(),
-                source.labelPath(), source.proxy());
+        // Built by name rather than by position: mateu grew a `ref` component in 3.0-alpha.294,
+        // and a positional constructor turns every such addition into a compile error at best and
+        // a silently shifted argument at worst.
+        return source == null ? null : RestDataSource.builder()
+                .url(source.url())
+                .method(source.method())
+                .headers(source.headers())
+                .body(source.body())
+                .itemsPath(source.itemsPath())
+                .valuePath(source.valuePath())
+                .labelPath(source.labelPath())
+                .proxy(source.proxy())
+                .build();
     }
 
     /**
