@@ -32,6 +32,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ever. What changed is that the skip says so. DIST-14 drives it through a real broker and asserts
   both halves — the record is parked, and the records around it still finish.
 
+- **A definition file with no `id` was duplicated on every import.** The importers gave such a file
+  a fresh `UUID.randomUUID()` each time, so nothing connected the definition an import created to the
+  one the previous import had created from that same file: every import inserted another copy, and
+  none of them could be pruned — the code said so itself, tracking only explicit ids for pruning.
+  With a git webhook wired up, every push added a copy, without bound, and nothing warned. All three
+  engines did it: workflows, forms, and rules (through `SaveRuleUseCase`, which generates an id, as
+  it should for a rule somebody saves in the UI and should not for a file).
+
+  Such a file now gets an id **derived from its path** relative to the scan root —
+  `sagas/onboarding.ec` becomes `sagas.onboarding`, dots rather than slashes because an id travels
+  in URLs and in event payloads. The property that matters is that it is the same next time, which
+  is exactly what reconciliation and pruning needed, and both now work for these files.
+
+  Two consequences, chosen rather than incurred: **moving or renaming a file is a delete plus a
+  create** (the old path is pruned, the new one arrives new), and the id is relative to the scan
+  root, so changing `directory` changes the ids of files that declare none. A definition that must
+  survive a move should declare an `id` — that is what declaring one is for.
+
+  An explicit `id` still wins and a derived one never takes it: the ids a scan declares are read
+  before anything is imported, because the collision is one of order — the file declaring the id may
+  be walked second, and by then the derived one would already have been saved over it. A file whose
+  path collides is reported as an error and skipped.
+
+  **Upgrading:** definitions already inserted under generated UUIDs are attributable to no file, so
+  the upgrade cannot clean them up. The next import creates one stable definition per file and
+  leaves the old copies where they are; archive or delete them once, by hand. After that the count
+  stays put.
+
 - **Distributed tracing did nothing at all.** The orchestrator, forms and rule apps declared
   `micrometer-tracing-bridge-otel` and `opentelemetry-exporter-otlp`, and their yaml mapped
   `TRACING_SAMPLING` and `OTLP_TRACING_ENDPOINT` — but those are the OpenTelemetry *libraries*, and

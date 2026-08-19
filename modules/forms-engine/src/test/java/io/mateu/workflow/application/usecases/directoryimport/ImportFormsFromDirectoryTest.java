@@ -78,4 +78,41 @@ class ImportFormsFromDirectoryTest {
         assertThat(result.pruned()).singleElement().satisfies(p -> assertThat(p).contains("two"));
         verify(repository).deleteAllById(List.of("two"));
     }
+
+    private void writeWithoutId(Path dir, String name, String formName) throws IOException {
+        Files.writeString(dir.resolve(name), """
+                name: %s
+                fields:
+                  - id: comment
+                    label: Comment
+                    dataType: string
+                """.formatted(formName));
+    }
+
+    @Test
+    void aFormWithNoIdKeepsTheSameIdOnEveryImport(@TempDir Path dir) throws Exception {
+        Files.createDirectories(dir.resolve("checkin"));
+        writeWithoutId(dir.resolve("checkin"), "walk.ecform", "Walk");
+
+        useCase.handle(List.of(dir.toString()));
+        useCase.handle(List.of(dir.toString()));
+
+        // A fresh UUID per import made the file unreconcilable with the form it had produced, so
+        // every import added another copy of it.
+        assertThat(saved()).extracting(Form::id).containsExactly("checkin.walk", "checkin.walk");
+        // And it can be pruned now, which is the other half of what an unstable id cost.
+        assertThat(registry.idsFor("form", dir.toRealPath().toString())).containsExactly("checkin.walk");
+    }
+
+    @Test
+    void aPathDerivedIdNeverTakesOneAnotherFormDeclares(@TempDir Path dir) throws Exception {
+        write(dir, "elsewhere.ecform", "checkin.walk");
+        Files.createDirectories(dir.resolve("checkin"));
+        writeWithoutId(dir.resolve("checkin"), "walk.ecform", "Walk");
+
+        var result = useCase.handle(List.of(dir.toString()));
+
+        assertThat(result.errors()).hasSize(1);
+        assertThat(saved()).extracting(Form::id).containsExactly("checkin.walk");
+    }
 }

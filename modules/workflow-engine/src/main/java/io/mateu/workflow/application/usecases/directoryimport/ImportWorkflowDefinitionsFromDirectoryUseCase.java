@@ -8,6 +8,7 @@ import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
 import io.mateu.workflow.application.services.DefinitionFileFormat;
 import io.mateu.workflow.domain.aggregates.WorkflowDefinition;
 import io.mateu.workflow.domain.aggregates.WorkflowStatus;
+import io.mateu.workflow.imports.DerivedIds;
 import io.mateu.workflow.infra.config.DirectoryImportProperties;
 import io.mateu.workflow.webhook.ImportedDefinitionsRegistry;
 import lombok.RequiredArgsConstructor;
@@ -21,7 +22,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.UUID;
 
 /**
  * Imports workflow definitions from directories on the local filesystem.
@@ -82,8 +82,8 @@ public class ImportWorkflowDefinitionsFromDirectoryUseCase {
      */
     public void importFrom(Path root, String pruneKey, List<String> imported, List<String> errors,
                            List<String> pruned) throws IOException {
-        // Ids of the definitions that have an explicit, stable id here — only these can be
-        // reconciled across imports, so only these participate in pruning.
+        // Every id this import produced. All of them are stable now — declared in the file, or
+        // derived from its path — so all of them participate in pruning.
         var importedIds = new LinkedHashSet<String>();
         scanAndImport(root, imported, errors, importedIds);
         pruneRemovedDefinitions(pruneKey, importedIds, pruned);
@@ -95,11 +95,13 @@ public class ImportWorkflowDefinitionsFromDirectoryUseCase {
 
     public void scanAndImport(Path repoRoot, List<String> imported, List<String> errors,
                                Set<String> importedIds) throws IOException {
+        var declaredIds = DerivedIds.declaredUnder(repoRoot,
+                ImportWorkflowDefinitionsFromDirectoryUseCase::isDefinitionFile, this::readTree);
         try (var stream = Files.walk(repoRoot)) {
             stream.filter(ImportWorkflowDefinitionsFromDirectoryUseCase::isDefinitionFile)
                     .forEach(file -> {
                         try {
-                            importDefinitionFile(file, repoRoot, imported, importedIds);
+                            importDefinitionFile(file, repoRoot, imported, importedIds, declaredIds);
                         } catch (Exception e) {
                             log.warn("Skipping {}: {}", file, e.getMessage());
                             errors.add("File " + repoRoot.relativize(file) + ": " + e.getMessage());
@@ -108,14 +110,18 @@ public class ImportWorkflowDefinitionsFromDirectoryUseCase {
         }
     }
 
-    private void importDefinitionFile(Path file, Path repoRoot, List<String> imported,
-                                      Set<String> importedIds) throws IOException {
-        String fileName = file.toString();
+    /** .ec content may be JSON or YAML; sniff to pick the parser (.json/.yaml decide by extension). */
+    private JsonNode readTree(Path file) throws IOException {
         var bytes = Files.readAllBytes(file);
-        // .ec content may be JSON or YAML; sniff to pick the parser (.json/.yaml decide by extension).
-        var node = DefinitionFileFormat.isYaml(fileName, bytes)
+        return DefinitionFileFormat.isYaml(file.toString(), bytes)
                 ? YAML_MAPPER.readTree(bytes)
                 : objectMapper.readTree(bytes);
+    }
+
+    private void importDefinitionFile(Path file, Path repoRoot, List<String> imported,
+                                      Set<String> importedIds, Set<String> declaredIds) throws IOException {
+        String fileName = file.toString();
+        var node = readTree(file);
 
         // Quick pre-check: must have both "name" and "steps" to be a workflow definition at all.
         if (!node.has("name") || !node.has("steps")) {
@@ -128,10 +134,13 @@ public class ImportWorkflowDefinitionsFromDirectoryUseCase {
 
         boolean hadExplicitId = definition.id() != null && !definition.id().isBlank();
 
-        // Assign an ID if missing (schema marks it as optional).
+        // Assign an id if missing (the schema marks it as optional), derived from the file's path so
+        // that the next import of the same file finds the same definition instead of adding one.
         if (!hadExplicitId) {
+            var derivedId = DerivedIds.forFile(repoRoot, file);
+            DerivedIds.refuseIfTaken(derivedId, declaredIds, importedIds);
             definition = new WorkflowDefinition(
-                    UUID.randomUUID().toString(),
+                    derivedId,
                     definition.name(),
                     definition.version(),
                     definition.description(),
@@ -158,11 +167,10 @@ public class ImportWorkflowDefinitionsFromDirectoryUseCase {
         // Validation is delegated to WorkflowDefinitionValidator (called inside repository.save()).
         // Any violation will throw WorkflowDefinitionValidationException, caught by the caller.
         workflowDefinitionRepository.save(definition);
-        // Only definitions with an explicit id can be reconciled on a later import (an
-        // auto-generated id changes every time), so only those are prune-tracked.
-        if (hadExplicitId) {
-            importedIds.add(definition.id());
-        }
+        // Every definition is prune-tracked now. It used to be only those with an explicit id,
+        // because a generated one changed on every import and could not be reconciled with anything
+        // — which is the same reason they piled up.
+        importedIds.add(definition.id());
         log.info("Imported workflow definition '{}' (id={}) from {}",
                 definition.name(), definition.id(), repoRoot.relativize(file));
         imported.add(definition.name() + " [" + definition.id() + "]");
