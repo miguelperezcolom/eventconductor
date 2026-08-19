@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- **Distributed tracing did nothing at all.** The orchestrator, forms and rule apps declared
+  `micrometer-tracing-bridge-otel` and `opentelemetry-exporter-otlp`, and their yaml mapped
+  `TRACING_SAMPLING` and `OTLP_TRACING_ENDPOINT` — but those are the OpenTelemetry *libraries*, and
+  what creates a `Tracer` from them is Spring Boot's tracing *auto-configuration*, which Boot 4
+  split out of `spring-boot-starter-actuator` into its own module. Nothing on the classpath owned
+  either property, no `Tracer` bean was created, `WorkflowTracingAutoConfiguration` resolved its
+  provider to nothing, and every call ran untraced.
+
+  It failed silently in both directions, which is why it shipped: relaxed binding accepts a
+  property nobody owns without complaint, and the engine's tracing bridge is designed to degrade to
+  a no-op rather than refuse to start. A deployment setting `TRACING_SAMPLING=1.0` got no spans and
+  no error.
+
+  Fixed by adding `spring-boot-micrometer-tracing-opentelemetry`, which brings
+  `spring-boot-micrometer-tracing` with it, so one dependency owns both properties. The existing
+  names keep working — Boot 4 also offers `management.opentelemetry.tracing.export.otlp.endpoint`,
+  but `management.otlp.tracing.endpoint` is still bound, so no deployment has to change. Each of the
+  three apps has a test asserting an OpenTelemetry-backed `Tracer` is really there, because nothing
+  would have caught its return.
+
 ## [2.2.1] - 2026-08-19
 
 A patch release, and every entry is something that shipped broken in 2.2.0 or earlier. Two of them

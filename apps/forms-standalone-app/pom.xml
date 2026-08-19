@@ -106,6 +106,19 @@
             <artifactId>micrometer-registry-otlp</artifactId>
         </dependency>
         <!-- Distributed tracing to OpenTelemetry over OTLP; inert until sampling > 0 (see application.yaml). -->
+        <!--
+          Spring Boot's tracing auto-configuration. The bridge and the OTLP exporter below are the
+          OpenTelemetry *libraries*; what creates the Tracer and the SpanExporter — and what owns
+          `management.tracing.*` and `management.otlp.tracing.*` — is this, which Boot 4 split out
+          of spring-boot-starter-actuator into its own module. Without it the two properties this
+          app's yaml maps are owned by nothing, no Tracer is created, and the engine's tracing
+          bridge runs every call untraced. Silently, which is how it shipped in 2.2.1.
+          It brings spring-boot-micrometer-tracing with it, so one entry covers both properties.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-micrometer-tracing-opentelemetry</artifactId>
+        </dependency>
         <dependency>
             <groupId>io.micrometer</groupId>
             <artifactId>micrometer-tracing-bridge-otel</artifactId>
