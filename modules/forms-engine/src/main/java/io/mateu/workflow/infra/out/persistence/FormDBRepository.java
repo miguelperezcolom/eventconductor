@@ -5,8 +5,12 @@ import io.mateu.uidl.data.FieldStereotype;
 import io.mateu.workflow.application.out.FormRepository;
 import io.mateu.workflow.application.services.FormValidator;
 import io.mateu.workflow.domain.Field;
+import io.mateu.workflow.domain.FieldOption;
+import io.mateu.workflow.domain.FieldOptionsSource;
 import io.mateu.workflow.domain.Form;
+import io.mateu.core.infra.JsonSerializer;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,6 +19,7 @@ import java.util.List;
 import java.util.Optional;
 
 @Service
+@Slf4j
 @ConditionalOnProperty(name = "forms.persistence", havingValue = "jpa")
 @RequiredArgsConstructor
 public class FormDBRepository implements FormRepository {
@@ -50,8 +55,41 @@ public class FormDBRepository implements FormRepository {
                                         ? DEFAULT_STEREOTYPE
                                         : FieldStereotype.valueOf(fieldEntity.getStereotype()),
                                 fieldEntity.isRequired(),
-                                fieldEntity.getDescription()
+                                fieldEntity.getDescription(),
+                                readOptions(fieldEntity.getOptions()),
+                                readOptionsSource(fieldEntity.getOptionsSource())
                         )).toList());
+    }
+
+    /** The stored JSON array back as options; absent, empty or unreadable reads as no options. */
+    private List<FieldOption> readOptions(String json) {
+        if (json == null || json.isBlank()) {
+            return List.of();
+        }
+        try {
+            return JsonSerializer.listFromJson(json, FieldOption.class);
+        } catch (Exception e) {
+            log.error("Field options could not be read from '{}' — the field will offer none", json, e);
+            return List.of();
+        }
+    }
+
+    /** The stored descriptor back; absent or unreadable reads as no source. */
+    private FieldOptionsSource readOptionsSource(String json) {
+        if (json == null || json.isBlank()) {
+            return null;
+        }
+        try {
+            return JsonSerializer.pojoFromJson(json, FieldOptionsSource.class);
+        } catch (Exception e) {
+            log.error("A field's options source could not be read from '{}' — the field will have none", json, e);
+            return null;
+        }
+    }
+
+    /** Options as the JSON array to store, or null when the field offers none — no "[]" rows. */
+    private String writeOptions(List<FieldOption> options) {
+        return options == null || options.isEmpty() ? null : JsonSerializer.toJson(options);
     }
 
     /**
@@ -75,6 +113,8 @@ public class FormDBRepository implements FormRepository {
                     (field.stereotype() == null ? DEFAULT_STEREOTYPE : field.stereotype()).name(),
                     field.required(),
                     field.description(),
+                    writeOptions(field.options()),
+                    field.optionsSource() == null ? null : JsonSerializer.toJson(field.optionsSource()),
                     order
             ));
         }

@@ -31,6 +31,14 @@ public interface FormExecutionEntityRepository extends JpaRepository<FormExecuti
 
     List<FormExecutionEntity> findByStatus(String status);
 
+    /**
+     * The same page {@code findByStatusAndUser} returns, without narrowing by user — for reading
+     * what the forms on a page declare rather than for showing anything. Passing a null user to
+     * that one would silently drop every claimed task, since {@code f.userId = :userId} is never
+     * true for null.
+     */
+    Page<FormExecutionEntity> findByStatusIn(List<String> statusNames, Pageable pageable);
+
     // Projection: leaves out the variables/values TEXT columns, which can be large
     @Query("""
             SELECT f.id AS id, f.formId AS formId, f.processId AS processId, f.userId AS userId, f.status AS status

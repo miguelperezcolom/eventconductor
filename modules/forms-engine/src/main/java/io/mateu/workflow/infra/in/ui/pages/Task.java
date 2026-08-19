@@ -35,7 +35,8 @@ import java.util.Map;
 @Action(id = "complete", validationRequired = true)
 @Action(id = "claim")
 @Action(id = "back")
-public class Task implements ComponentTreeSupplier, ValidationSupplier, ActionHandler, StateSupplier {
+public class Task implements ComponentTreeSupplier, ValidationSupplier, ActionHandler, StateSupplier,
+        RestSourceSupplier {
 
     final FormExecutionRepository formExecutionRepository;
     final FormRepository formRepository;
@@ -43,6 +44,53 @@ public class Task implements ComponentTreeSupplier, ValidationSupplier, ActionHa
     final CompleteTaskUseCase completeTaskUseCase;
 
     String _taskId;
+
+    /**
+     * The field's choices as the UI's own options. A field that declares none gets an empty list,
+     * which is what a free-input field has always sent.
+     */
+    private List<Option> options(io.mateu.workflow.domain.Field field) {
+        return field.options().stream()
+                .map(option -> new Option(option.value(), option.label()))
+                .toList();
+    }
+
+    /**
+     * The field's REST source as the UI's own descriptor, or null when the field has none. The
+     * engine hands it over and stops there: the fetch is the renderer's, from the browser or —
+     * when the descriptor says {@code proxy} — through the server.
+     */
+    static RestDataSource optionsSource(io.mateu.workflow.domain.Field field) {
+        var source = field.optionsSource();
+        return source == null ? null : new RestDataSource(source.url(), source.method(),
+                source.headers(), source.body(), source.itemsPath(), source.valuePath(),
+                source.labelPath(), source.proxy());
+    }
+
+    /**
+     * What this task's fields fetch their choices from, so that a proxy fetch has something to
+     * resolve against: mateu reads a proxied source from what the view declared, and a form built
+     * at runtime from a stored definition has no annotation for it to read.
+     *
+     * <p>Read from the repository on every call, which is the whole condition of the proxy not
+     * being an open relay: the endpoint comes from the stored definition, never from the request or
+     * the component state. The only thing taken from the request is which task this page is on, and
+     * that only chooses among definitions the server already holds.
+     */
+    @Override
+    public List<DeclaredRestSource> declaredRestSources() {
+        if (_taskId == null || _taskId.isBlank()) {
+            return List.of();
+        }
+        return formExecutionRepository.findById(_taskId)
+                .flatMap(execution -> formRepository.findById(execution.formId()))
+                .map(form -> form.fields().stream()
+                        .filter(field -> field.optionsSource() != null)
+                        .map(field -> new DeclaredRestSource(
+                                RestSourceKind.OPTIONS, field.id(), optionsSource(field)))
+                        .toList())
+                .orElse(List.of());
+    }
 
     @Override
     public Component component(HttpRequest httpRequest) {
@@ -60,6 +108,8 @@ public class Task implements ComponentTreeSupplier, ValidationSupplier, ActionHa
                                             .required(field.required())
                             .readOnly(FormExecutionStatus.COMPLETED.equals(execution.status()) || execution.userId() == null)
                             .description(field.description())
+                            .options(options(field))
+                            .optionsSource(optionsSource(field))
                                     .build());
         });
 

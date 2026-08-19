@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -37,6 +38,60 @@ class FormValidatorTest {
     void formWithoutNameFailsValidation() {
         var form = new Form("f-1", null, "desc", List.of(field("f1")));
         assertThatThrownBy(() -> validator.validate(form))
+                .isInstanceOf(FormValidator.FormValidationException.class);
+    }
+
+    @Test
+    void aFieldMayOfferOptions() {
+        var decision = new Field("decision", "Decision", FieldDataType.string, FieldStereotype.radio,
+                true, "", List.of(new io.mateu.workflow.domain.FieldOption("WALK", "Walk the guest"),
+                        new io.mateu.workflow.domain.FieldOption("REJECT")));
+
+        assertThatNoException().isThrownBy(() ->
+                validator.validate(new Form("f-1", "My Form", "desc", List.of(decision))));
+    }
+
+    @Test
+    void anOptionWithoutAValueFailsValidation() {
+        var decision = new Field("decision", "Decision", FieldDataType.string, FieldStereotype.radio,
+                true, "", List.of(new io.mateu.workflow.domain.FieldOption(null, "Walk the guest")));
+
+        assertThatThrownBy(() -> validator.validate(new Form("f-1", "My Form", "desc", List.of(decision))))
+                .isInstanceOf(FormValidator.FormValidationException.class);
+    }
+
+    @Test
+    void anOptionLabelDefaultsToItsValue() {
+        assertThat(new io.mateu.workflow.domain.FieldOption("REJECT").label()).isEqualTo("REJECT");
+        assertThat(new io.mateu.workflow.domain.FieldOption("REJECT", "  ").label()).isEqualTo("REJECT");
+    }
+
+    @Test
+    void aFieldMayFetchItsChoicesFromARestEndpoint() {
+        var country = new Field("country", "Country", FieldDataType.string, FieldStereotype.select,
+                true, "", List.of(), new io.mateu.workflow.domain.FieldOptionsSource(
+                        "https://restcountries.com/v3.1/all", "cca2", "name.common"));
+
+        assertThatNoException().isThrownBy(() ->
+                validator.validate(new Form("f-1", "My Form", "desc", List.of(country))));
+    }
+
+    @Test
+    void aFieldCannotBothListItsChoicesAndFetchThem() {
+        var confused = new Field("country", "Country", FieldDataType.string, FieldStereotype.select,
+                true, "", List.of(new io.mateu.workflow.domain.FieldOption("ES", "Spain")),
+                new io.mateu.workflow.domain.FieldOptionsSource("https://restcountries.com/v3.1/all", "cca2", "name.common"));
+
+        assertThatThrownBy(() -> validator.validate(new Form("f-1", "My Form", "desc", List.of(confused))))
+                .isInstanceOf(FormValidator.FormValidationException.class);
+    }
+
+    @Test
+    void aSourceWithoutAUrlFailsValidation() {
+        var country = new Field("country", "Country", FieldDataType.string, FieldStereotype.select,
+                true, "", List.of(), new io.mateu.workflow.domain.FieldOptionsSource(null, "cca2", "name.common"));
+
+        assertThatThrownBy(() -> validator.validate(new Form("f-1", "My Form", "desc", List.of(country))))
                 .isInstanceOf(FormValidator.FormValidationException.class);
     }
 }

@@ -57,6 +57,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (the engine re-dispatches the same one, so the count never left 1 and a flaky step failed
   forever), and had led with task ids in a protocol that sends them empty.
 
+- **A form field can declare its choices, as value/label pairs.** A field that picks from a fixed
+  list — `radio`, `select`, `combobox`, `listBox`, `choice` — had no way to say what the list is,
+  so a definition either left the picker empty or spelled the choices out in the field's
+  description and hoped:
+
+  ```yaml
+  - id: decision
+    label: Decision
+    dataType: string
+    stereotype: radio
+    options:
+      - value: WALK
+        label: Walk the guest to another hotel
+      - value: REFUND
+        label: Refund the reservation
+      - value: REJECT          # no label → the user sees "REJECT"
+  ```
+
+  The value is what the form submits and what the process variable ends up holding; the label is
+  what the user reads. Keeping them apart is the point: the workflow's guards stay written against
+  stable codes (`decision == 'REFUND'`) while the wording changes freely. The visual form editor
+  edits the pairs and previews the real choices, and `form-definitions.md` documents the field
+  format — which until now described a `type: SELECT` / `options: ["A","B"]` shape the schema has
+  never accepted.
+
+- **…or fetch them from a REST endpoint, with `optionsSource`.** A list written into a definition
+  says what the choices were when it was authored; when they are a catalogue or a directory, what
+  you want is what they are now:
+
+  ```yaml
+  - id: country
+    label: Country
+    dataType: string
+    stereotype: select
+    optionsSource:
+      url: https://restcountries.com/v3.1/all?fields=cca2,name
+      valuePath: cca2
+      labelPath: name.common
+  ```
+
+  The engine only carries the descriptor — it never calls the endpoint. The fetch is the renderer's,
+  through mateu's `RestDataSource` / `@RestOptions`: a form talking to any REST API without the
+  backend in the middle. `url`, `headers` and `body` interpolate `${state.x}`, so one field's
+  choices can depend on another's answer and refetch when it changes. A field declares `options` or
+  `optionsSource`, never both, and the schema rejects one that declares both.
+
+  `proxy: true` moves the fetch from the browser to the server — no CORS, and a `${secret.X}`
+  placeholder resolved server-side instead of shipped to the client. Mateu never takes a proxied
+  endpoint from the request (it would be an open relay), so the task pages declare what they carry
+  through mateu's `RestSourceSupplier` (3.0-alpha.291): what the server fetches is only ever what
+  the stored definition declares. Without it, the fetch is the browser's and the endpoint must be
+  reachable from there.
+
 - **`onFalse` on a precondition link: `WAIT` (the default) or `DISCARD`.** What a false condition
   means used to be decided by where it was written — a guard on a link held the step and kept the
   process open around it, a step-level `preconditionExpression` discarded the step and let the
