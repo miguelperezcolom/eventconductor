@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Mateu 3.0-alpha.294.** Creating a task override in the browser works again: the null-numeric
+  hang — three nullable numeric fields rendering as `vaadin-integer-field`, a null arriving as
+  `NaN`, the field clearing itself and the clear counting as a change — is fixed upstream. The
+  guide's caution is gone and `NewOverrideFormJourneyTest`, written as the reproduction, is enabled
+  and passing.
+
+  `RestDataSource` grew a `ref` component in this version, so the forms task page builds it by name
+  rather than by position; a positional constructor turns every such addition into a compile error
+  at best and a silently shifted argument at worst.
+
+  The **process diagram is still frozen** in a page that refreshes itself, and re-measured rather
+  than assumed: an `Element`'s attributes still do not travel in a `State` update, so it is the same
+  trade as on 291 and 293 — `new State(loaded)` keeps the status badge correct and the diagram
+  stale, returning the view model does the opposite and fails two operator journeys on the badge.
+  The disabled test carries both measurements. Same for the toolbar rendering two of a view model's
+  five `@Toolbar` actions, which is why three operator journeys stay disabled.
+
 ## [2.2.2] - 2026-08-19
 
 A patch release for five defects found by running 2.2.1 in a real Kubernetes deployment, and four

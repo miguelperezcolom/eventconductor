@@ -107,22 +107,6 @@ Read the step id off a received task, then create an override for it on the next
 one-click shortcut between them: a `@NotEditable` Crud offers no detail toolbar to hang a button
 on, and making the history editable to get one back would cost more than the click it saves.
 
-:::caution[Creating an override in the browser does not work yet]
-**`/_worker/taskOverrides/new` hangs the tab.** Mateu renders `TaskOverride`'s three nullable
-numeric fields — `durationMs`, `failuresBeforeSuccess`, `replyTimes` — as `vaadin-integer-field`,
-and a null arrives as `NaN`: the field clears itself, the clear counts as a change, and it is set
-again, without end. The page never becomes usable.
-
-Reproduced on Mateu 3.0-alpha.291 and isolated both ways — making those three fields primitive
-opens the form, restoring them hangs it again. It is not worked around here because the nullability
-*is* the meaning: `durationMs` null means "inherit from `default`", while `0` means "finish
-instantly", and a primitive cannot say the first.
-
-**Until it is fixed, create overrides through the API or straight in the database** — the
-`task_override` table under `worker.persistence=jpa`. Everything else on both pages works: listing,
-the detail, and the resolver reading what is stored.
-:::
-
 ### Precedence
 
 **`TEST_CONFIG` always wins.** A test states its scenario in the process it starts, so it gets that

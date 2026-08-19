@@ -36,29 +36,33 @@ class DiagramStaysLiveJourneyTest extends AbstractUiE2eTest {
     private static final Duration A_FEW_POLLS = Duration.ofSeconds(15);
 
     @org.junit.jupiter.api.Disabled("""
-            The diagram does not follow the process, and the fix for it costs the status badge.
+            The diagram does not follow the process, and the fix for it still costs the status badge.
 
             This test fails on main, deterministically: the overlay attribute the graph is drawn
-            from is never resent, so the picture an operator is watching is the one the tab opened
-            with. Verified both ways — deliberately breaking the refresh so it never reloads makes
-            this test fail the same way, so it is measuring what it claims to.
+            from is never resent by a State update, so the picture an operator is watching is the
+            one the tab opened with. Verified both ways — deliberately breaking the refresh so it
+            never reloads makes this test fail the same way, so it is measuring what it claims to.
 
-            wip/process-page-refresh fixes it, by returning the view model from refresh() instead
-            of a State of it, so the element's attributes are rebuilt on every poll. With that
-            applied, this test passes in 8 seconds.
-
-            It cannot be merged as it stands. Returning the view model makes the view re-render
-            itself, and the status badge lives in the CRUD chrome around it (mateu-content-header),
-            not in the view — so the badge then stops updating instead, and
+            Returning the view model from refresh() instead of a State of it fixes the diagram: the
+            element's attributes are rebuilt on every poll and this test passes in 7 seconds. But the
+            view then re-renders itself, and the status badge lives in the CRUD chrome around it
+            (mateu-content-header), not in the view — so the badge stops updating instead, and
             OperatorActionsJourneyTest.pausingARunningProcessStopsIt and .cancellingAsksBeforeItActs
-            fail on exactly that: the badge stays "Running (33%)" through a pause. That is
-            mateu#314, and it is not fixed in 3.0-alpha.293 — checked, with the fix applied, on
-            both 291 and 293.
+            fail on exactly that.
 
-            So it is one bug or the other until mateu lets a view re-render without discarding the
-            state its surroundings put there. The badge is what an operator reads to decide;
-            the diagram is what they read to understand. Trading the first for the second is not
-            obviously an improvement, which is why this is parked rather than merged.
+            Re-checked on 3.0-alpha.294, both ways, after the two defects reported upstream were
+            said to be fixed in it. One of them was: the null-Integer hang on the task-override
+            create form is gone, and NewOverrideFormJourneyTest is enabled because of it. This one
+            is not — the trade is exactly where it was on 291 and 293:
+
+                State(loaded)  → diagram frozen, badge correct   (6 of 6 operator tests pass)
+                loaded         → diagram live, badge dead        (2 of 6 operator tests fail)
+
+            So it is one bug or the other until mateu lets an Element's data travel in a State
+            update, or lets a view re-render without discarding the state its surroundings put
+            there (mateu#314). The badge is what an operator reads to decide; the diagram is what
+            they read to understand. Trading the first for the second is not obviously an
+            improvement, which is why this is parked rather than merged.
 
             Enable this the moment refresh() can rebuild the element without costing the chrome;
             the test is written and passes against that fix today.
