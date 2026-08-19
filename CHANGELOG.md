@@ -5,9 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.2.1] - 2026-08-19
+
+A patch release, and every entry is something that shipped broken in 2.2.0 or earlier. Two of them
+were invisible until something was finally pointed at them: a feature that could not answer a
+request, and an image whose vulnerabilities nothing had ever scanned.
 
 ### Fixed
+- **The worker image shipped four CRITICAL CVEs, and 2.2.0 published it anyway.** The worker was
+  the only one of the five standalone apps missing both halves of what keeps the others clean: it
+  parented off `spring-boot-starter-parent` **4.0.4** while orchestrator, forms, rules and projector
+  are on 4.0.7, and it declared none of the security overrides they each carry. So it went out with
+  `tomcat-embed-core` 11.0.18 (three CRITICAL), `jackson` 2.21.1 and `micrometer-core` 1.16.4 —
+  25 HIGH and 4 CRITICAL in total, every one of them transitive.
+
+  Neither absence was deliberate. That pom predates the app being published as an image, and until
+  2.2.0 added it to the release workflow nothing had ever scanned it: the image had been pushed by
+  hand, unscanned, for months. Adding the scan is what found this, on its first run.
+
+  Now aligned with the other four — parent 4.0.7 and the same overrides — and verified with Trivy
+  against the built image, with the flags the workflow uses: 0 findings, in the Alpine base and in
+  the jar. **`worker-standalone-app:2.2.0` and the `latest` it moved should be treated as
+  vulnerable and replaced by this release.**
+
 - **Git webhooks never worked in a released build.** Every `POST` to
   `/workflow/webhooks/{provider}`, `/forms/webhooks/{provider}` or `/rules/webhooks/{provider}`
   answered 500 with `Name for argument of type [java.lang.String] not specified`, before the
@@ -26,6 +46,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   Fixed for the class rather than the three sites: `<parameters>true</parameters>` on the root
   pom's compiler plugin, which is what the Boot parent would have contributed.
+
+### Changed
+- **The release scans its images before publishing them, not after.** The five images were pushed
+  as they were built and scanned afterwards, which makes the scan a report rather than a gate —
+  2.2.0 published all five and *then* failed on the worker's CVEs, so the bad image was on Docker
+  Hub under both its version tag and `latest`, and the projector's scan never ran at all because
+  the failing step skipped it. Each image is now built into the runner's daemon, all five are
+  scanned, and only then are they pushed — in a single step, because five push steps failing
+  part-way through would leave exactly the half-published state this ordering exists to prevent.
+
+  Maven Central still publishes before any image is built, so a failing scan still leaves a
+  published version behind on the immutable side. That is a separate decision, not an oversight.
+
+### Notes
+- `forms-engine` rose from 44.0% line coverage to 75.7%, and `rule-engine` from 42.8% to 75.8%,
+  with their floors raised to match. Nothing was chosen to move a number: the classes covered are
+  the adapters at each engine's edge — the JPA repositories, the Kafka consumer, the MCP tools, the
+  REST and gRPC read APIs, and the Git import — each the only implementation of a contract somebody
+  else depends on, and each at or near zero. `TESTING.md` records the figures and what they mean.
 
 ## [2.2.0] - 2026-08-19
 
