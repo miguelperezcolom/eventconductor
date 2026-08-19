@@ -95,6 +95,12 @@ type StepState = "PENDING" | "RUNNING" | "COMPLETED" | "ERROR" | "CANCELLED" | "
 interface StepOverlay {
     count?: number;
     /**
+     * Process view only: this step's place in the order the process actually ran — 1 for the step
+     * that started first. Absent on a step that never started, and on the definition view, where
+     * there is no single run to order.
+     */
+    order?: number;
+    /**
      * Definition view only: per-day histogram of the step's currently stopped/waiting tasks, index =
      * days ago (`heat[0]` = started today). Drives the heatmap toggle + last-N-days slider entirely
      * client-side — the windowed heat is the sum of buckets `[0, days)`.
@@ -516,6 +522,93 @@ function bridgedPath(pts: Pt[], prior: [Pt, Pt][], cornerR = 9, bridgeR = 6): st
     return d + straightWithBridges(from, pts[pts.length - 1], prior, bridgeR);
 }
 
+/** How much of a guard expression the chip shows before the pointer asks for the rest. */
+const GUARD_CHIP_CHARS = 16;
+
+/** A box on the canvas: nodes and already-placed chips, for keeping chips off both. */
+interface Rect {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+}
+
+/** The visible text of a guard chip — the whole expression when it is short enough to fit. */
+function guardChipText(expr: string): string {
+    return expr.length > GUARD_CHIP_CHARS ? expr.slice(0, GUARD_CHIP_CHARS - 1) + "…" : expr;
+}
+
+/** The chip's box for that text. Kept with the text so placement and drawing cannot disagree. */
+function guardChipSize(expr: string): {w: number; h: number} {
+    return {w: Math.max(30, guardChipText(expr).length * 6.3 + 22), h: 19};
+}
+
+function overlaps(a: Rect, b: Rect, margin = 4): boolean {
+    return a.x - margin < b.x + b.w && a.x + a.w + margin > b.x
+        && a.y - margin < b.y + b.h && a.y + a.h + margin > b.y;
+}
+
+/**
+ * The first of `offsets` that puts a `size` box at `at` clear of everything in `taken` — and `at`
+ * itself when none is, because a chip that is drawn somewhere wrong is still better than a
+ * condition the reader never learns about.
+ */
+function clearOf(at: Pt, size: {w: number; h: number}, taken: Rect[],
+                 offsets: {dx: number; dy: number}[]): Pt {
+    for (const o of offsets) {
+        const candidate = {x: at.x + o.dx, y: at.y + o.dy};
+        const box = {x: candidate.x - size.w / 2, y: candidate.y - size.h / 2, w: size.w, h: size.h};
+        if (!taken.some(t => overlaps(box, t))) return candidate;
+    }
+    return at;
+}
+
+/**
+ * Where along an edge to sit a chip so it covers nothing.
+ *
+ * <p>0.38 is where these have always gone — toward the source, clear of the target node's own
+ * badges — and it stays the first candidate, so a graph whose chips already sit well does not move.
+ * From there the search widens in two directions, and the order says which compromise is preferred:
+ * sliding **along** the edge first, because a chip that has moved along its own line is still
+ * obviously that line's, and only then stepping **off** it, which starts to look like a chip
+ * belonging to nothing.
+ *
+ * <p>Off-the-line candidates go perpendicular to the local direction of the edge rather than
+ * straight up: on a vertical edge — which is most of them in a top-down layout — "up" slides the
+ * chip along the line it is trying to leave, and the first version of this did exactly that and
+ * still landed on a node. The browser test caught it.
+ *
+ * <p>Failing is a real outcome: a short edge between two large nodes may have nowhere clear at all.
+ * The fallback is the original spot, because a chip drawn where it belongs and overlapping is
+ * easier to make sense of than one parked far away from anything.
+ */
+function clearPointOn(route: Pt[], size: {w: number; h: number}, taken: Rect[]): Pt {
+    const fracs = [0.38, 0.5, 0.28, 0.62, 0.2, 0.74, 0.12];
+    const sideways = [0, 1, -1, 2, -2, 3, -3];
+    const step = size.h + 8;
+    for (const away of sideways) {
+        for (const frac of fracs) {
+            const at = polylinePointAt(route, frac);
+            const n = normalAt(route, frac);
+            const candidate = {x: at.x + n.x * away * step, y: at.y + n.y * away * step};
+            const box = {
+                x: candidate.x - size.w / 2, y: candidate.y - size.h / 2, w: size.w, h: size.h,
+            };
+            if (!taken.some(t => overlaps(box, t))) return candidate;
+        }
+    }
+    return polylinePointAt(route, 0.38);
+}
+
+/** A unit vector perpendicular to the edge where the chip sits — which way "off the line" is. */
+function normalAt(route: Pt[], frac: number): Pt {
+    const a = polylinePointAt(route, Math.max(0, frac - 0.06));
+    const b = polylinePointAt(route, Math.min(1, frac + 0.06));
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const len = Math.hypot(dx, dy);
+    return len < 0.001 ? {x: 0, y: -1} : {x: -dy / len, y: dx / len};
+}
+
 /** The point at `frac` (0 = source … 1 = target) along a polyline — where an edge label sits. */
 function polylinePointAt(pts: Pt[], frac = 0.5): Pt {
     let total = 0;
@@ -801,6 +894,14 @@ export class MateuWorkflowElk extends LitElement {
     // ── Edge drawing (shift+drag = precondition, alt+drag = compensation) ────────
     /** The source node id while dragging a new line, else null. */
     private linkingFrom: string | null = null;
+    /**
+     * The guard chip under the pointer, by edge key (or `step:<id>` for a step-wide one).
+     *
+     * <p>Drives two things a class alone cannot: which chip renders last, and therefore which one
+     * expands on top of its neighbours rather than underneath them.
+     */
+    @state() private guardHover: string | null = null;
+
     /** Which kind of line is being drawn: precondition (shift), compensation (alt), on-timeout (shift+alt). */
     @state() private linkingKind: LinkKind = "precondition";
     /** Live cursor position (scene coords) while drawing, for the rubber-band line. */
@@ -2277,7 +2378,7 @@ export class MateuWorkflowElk extends LitElement {
                             <g class="scene" transform="translate(${this.panX},${this.panY}) scale(${this.zoomK})">
                                 ${this.renderEdges()}
                                 ${steps.map(s => this.renderNode(s))}
-                                ${steps.map(s => this.renderGuard(s))}
+                                ${this.renderGuards(steps)}
                                 ${this.renderLinkDraft()}
                                 ${this.flowOn ? svg`<circle class="flow-token" r="5.5" cx="-100" cy="-100"/>` : nothing}
                             </g>
@@ -2540,10 +2641,39 @@ export class MateuWorkflowElk extends LitElement {
      * link; a condition on the step sits above the step, where it cannot be read as belonging to
      * one of its routes.
      */
-    private renderGuard(step: WorkflowStep) {
+    /**
+     * Every guard chip on the canvas, placed so they hide as little as possible.
+     *
+     * <p>One pass for all of them rather than one per step, because placing a chip well is a
+     * question about the other chips and about every node — a chip that avoids its own edge's nodes
+     * and lands on somebody else's has not avoided anything. The pass carries the rectangles taken
+     * so far and hands each chip a spot clear of them.
+     *
+     * <p>The hovered chip is rendered last so that the expanded form, which is wider than anything
+     * placement can guarantee room for, comes out on top: SVG has no z-index, only document order.
+     */
+    private renderGuards(steps: WorkflowStep[]) {
+        const taken: Rect[] = [];
+        for (const step of steps) {
+            const pos = this.positions[step.id];
+            if (!pos) continue;
+            const {w, h} = sizeOf(step.type);
+            taken.push({x: pos.x, y: pos.y, w, h});
+        }
+        const chips: {key: string; chip: unknown}[] = [];
+        for (const step of steps) {
+            for (const chip of this.guardChipsOf(step, taken)) chips.push(chip);
+        }
+        // Hovered last. Anything else and the expansion opens underneath its neighbours.
+        const hovered = this.guardHover;
+        chips.sort((a, b) => (a.key === hovered ? 1 : 0) - (b.key === hovered ? 1 : 0));
+        return chips.length ? svg`${chips.map(c => c.chip)}` : svg``;
+    }
+
+    private guardChipsOf(step: WorkflowStep, taken: Rect[]) {
         const to = this.positions[step.id];
-        if (!to) return svg``;
-        const chips: unknown[] = [];
+        if (!to) return [];
+        const chips: {key: string; chip: unknown}[] = [];
 
         // Only the links that are drawn: a chip on the undrawn compensation anchor would float
         // over the canvas attached to nothing.
@@ -2553,33 +2683,68 @@ export class MateuWorkflowElk extends LitElement {
             const edgeKey = `${link.stepId}->${step.id}`;
             const route = this.edgeCache.get(edgeKey) ?? this.routeBetween(link.stepId, step.id, 0);
             if (!route) continue;
-            // Sit toward the source end of the edge, clear of the target node's badge.
-            chips.push(this.renderGuardChip(polylinePointAt(route, 0.38), expr, step.id, edgeKey));
+            const size = guardChipSize(expr);
+            const at = clearPointOn(route, size, taken);
+            taken.push({x: at.x - size.w / 2, y: at.y - size.h / 2, w: size.w, h: size.h});
+            chips.push({
+                key: edgeKey,
+                chip: this.renderGuardChip(at, expr, step.id, edgeKey),
+            });
         }
 
         const stepExpr = step.preconditionExpression?.trim();
         if (stepExpr) {
             const {w} = sizeOf(step.type);
             // Above the node, centred on it: this one is about the step, not about a way in.
-            chips.push(this.renderGuardChip({x: to.x + w / 2, y: to.y - 40}, stepExpr, step.id, ""));
+            const size = guardChipSize(stepExpr);
+            const at = clearOf({x: to.x + w / 2, y: to.y - 40}, size, taken,
+                [{dx: 0, dy: 0}, {dx: 0, dy: -22}, {dx: 0, dy: -44}, {dx: 0, dy: -66}]);
+            taken.push({x: at.x - size.w / 2, y: at.y - size.h / 2, w: size.w, h: size.h});
+            chips.push({key: `step:${step.id}`, chip: this.renderGuardChip(at, stepExpr, step.id, "")});
         }
-        return chips.length ? svg`${chips}` : svg``;
+        return chips;
     }
 
+    /**
+     * A guard chip: short by default, whole on hover.
+     *
+     * <p>An expression is as long as its author needed it to be, and drawn in full it can be wider
+     * than the nodes it sits between — which is how a chip ends up hiding the very step it is a
+     * condition for. So the chip shows the first {@link GUARD_CHIP_CHARS} characters and expands to
+     * the whole thing under the pointer, where covering something for as long as the pointer stays
+     * is the reader's own doing rather than something the layout inflicted on them.
+     *
+     * <p>Both forms are rendered and CSS swaps them: their widths differ, and SVG text has no
+     * ellipsis, so there is nothing to compute at hover time and no reflow when it happens.
+     */
     private renderGuardChip(at: Pt, expr: string, stepId: string, edgeKey: string) {
-        const text = expr.length > 30 ? expr.slice(0, 29) + "…" : expr;
-        const w = Math.max(30, text.length * 6.3 + 22);
-        const h = 19;
+        const key = edgeKey || `step:${stepId}`;
+        const short = guardChipText(expr);
+        const {w, h} = guardChipSize(expr);
+        const full = expr.length > GUARD_CHIP_CHARS ? expr : "";
+        const fullW = full ? Math.max(w, full.length * 6.3 + 22) : w;
         const focusDim = edgeKey && this.focusPaint && !this.focusPaint.edges.has(edgeKey)
             ? "focus-dim" : "";
         return svg`
-            <g class="guard ${focusDim}" data-guard="${stepId}" data-edge="${edgeKey}"
-               transform="translate(${at.x}, ${at.y})">
+            <g class="guard ${focusDim} ${full ? "guard-clipped" : ""}" data-guard="${stepId}" data-edge="${edgeKey}"
+               transform="translate(${at.x}, ${at.y})"
+               @mouseenter="${() => {
+                   this.guardHover = key;
+               }}"
+               @mouseleave="${() => {
+                   if (this.guardHover === key) this.guardHover = null;
+               }}">
                 <rect class="guard-halo" x="${-w / 2 - 4}" y="${-h / 2 - 4}" width="${w + 8}" height="${h + 8}" rx="12"/>
                 <g class="guard-chip">
                     <rect x="${-w / 2}" y="${-h / 2}" width="${w}" height="${h}" rx="9.5"/>
-                    <text x="0" y="3.6" text-anchor="middle">◇ ${text}</text>
+                    <text x="0" y="3.6" text-anchor="middle">◇ ${short}</text>
                 </g>
+                ${full ? svg`
+                    <g class="guard-chip guard-full">
+                        <rect x="${-fullW / 2}" y="${-h / 2}" width="${fullW}" height="${h}" rx="9.5"/>
+                        <text x="0" y="3.6" text-anchor="middle">◇ ${full}</text>
+                    </g>` : nothing}
+                <title>${expr}</title>
             </g>
         `;
     }
@@ -2685,6 +2850,19 @@ export class MateuWorkflowElk extends LitElement {
                 <path class="ov-cross" d="M -4.2 -4.2 L 4.2 4.2 M 4.2 -4.2 L -4.2 4.2"/>
             </g>` : nothing;
 
+        // The step's place in the order this process ran, bottom-left — the one corner the other
+        // badges leave alone.
+        //
+        // The tick says a step ran; this says when, which is the question a finished process
+        // usually raises. The shape alone cannot answer it: branches drawn side by side ran in some
+        // order, and a step drawn between two others may have run before both. A step that never
+        // started has no number, so an unnumbered node reads as one that has not had its turn.
+        const order = ov?.order ? svg`
+            <g class="ov-order" transform="translate(6, ${h - 6})">
+                <circle r="10"/>
+                <text text-anchor="middle" dy="3.4">${ov.order}</text>
+            </g>` : nothing;
+
         // A runtime-injected step wears a ⚡ badge in its top-left corner (clear of the count badge
         // top-right and the done/fail badge bottom-right).
         const injectedBadge = ov?.injected ? svg`
@@ -2706,6 +2884,7 @@ export class MateuWorkflowElk extends LitElement {
                 ${pulse}
                 <g class="node-inner" data-inner="${step.id}">${shape}</g>
                 ${badge}
+                ${order}
                 ${done}
                 ${failed}
                 ${injectedBadge}
@@ -3211,6 +3390,26 @@ export class MateuWorkflowElk extends LitElement {
         /* halo behind the chip: hidden until the token walks this edge, then it glows */
         .guard rect.guard-halo {fill: var(--ec-primary); stroke: none; opacity: 0; filter: blur(5px); transition: opacity .2s;}
         .guard.active rect.guard-halo {opacity: .38;}
+
+        /* A clipped chip shows its whole expression under the pointer. Both forms are drawn and
+           only one is visible at a time, so nothing is measured or reflowed at hover time. */
+        .guard-full {opacity: 0; pointer-events: none; transition: opacity .12s;}
+        .guard-clipped:hover .guard-chip:not(.guard-full) {opacity: 0;}
+        .guard-clipped:hover .guard-full {opacity: 1;}
+        /* Opaque while expanded: it is deliberately covering its neighbours, so it must read as
+           the thing in front rather than as two chips printed on top of each other. */
+        .guard-full rect {fill: var(--ec-surface); stroke: var(--ec-primary); filter: url(#ec-shadow);}
+        .guard-clipped {cursor: help;}
+
+        /* the step's place in the run, bottom-left: quieter than the tick beside it, because it
+           answers a second question rather than the first one */
+        .ov-order circle {fill: var(--ec-surface); stroke: var(--ec-border); stroke-width: 1.5;}
+        .ov-order text {
+            font-size: 10px; font-weight: 700; fill: var(--ec-text-dim);
+            font-family: var(--lumo-font-family-monospace, ui-monospace, monospace);
+        }
+        .node.ov-active .ov-order circle {stroke: var(--ec-primary);}
+        .node.ov-active .ov-order text {fill: var(--ec-primary);}
         .guard.active .guard-chip {transform: scale(1.22);}
         .guard.active .guard-chip rect {stroke: var(--ec-primary); stroke-width: 1.7;}
         .guard.active .guard-chip text {fill: var(--ec-primary); font-weight: 700;}

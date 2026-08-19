@@ -7,7 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **The process diagram numbers its steps.** A node now carries its place in the order the run
+  actually took, bottom-left, beside the tick that says it ran at all. The shape of a workflow does
+  not answer "when": branches drawn side by side ran in some order, a step drawn between two others
+  may have run before both, and one drawn on the path may have been skipped. A step that has not had
+  its turn carries no number, which is as much part of the reading as the numbers are.
+
 ### Changed
+- **Conditions on the lines no longer hide the steps they apply to.** A guard chip is drawn over its
+  edge, which is right — it belongs to the way in, not to the step. But an expression is as long as
+  its author needed it to be, and drawn in full it can be wider than the nodes it sits between. Two
+  things now: the chip shows the first 16 characters and expands to the whole expression under the
+  pointer, and it is placed clear of the nodes and of the other chips — searched along its own line
+  first, since a chip that moved along its line is still obviously that line's, and only then
+  stepped perpendicular to it. Pinned by a browser test that compares the drawn boxes; without the
+  search, the fixture's chip covers two nodes.
+
 - **Mateu 3.0-alpha.294.** Creating a task override in the browser works again: the null-numeric
   hang — three nullable numeric fields rendering as `vaadin-integer-field`, a null arriving as
   `NaN`, the field clearing itself and the clear counting as a change — is fixed upstream. The
@@ -24,6 +40,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   stale, returning the view model does the opposite and fails two operator journeys on the badge.
   The disabled test carries both measurements. Same for the toolbar rendering two of a view model's
   five `@Toolbar` actions, which is why three operator journeys stay disabled.
+
+### Fixed
+- **An END step recorded no time at all.** It is completed straight from the orchestrator's end
+  transition, which never went through the path that stamps `finishedAt`, so the one execution that
+  by definition ran last was the one with nothing to say when — against what the field itself
+  documents. It read as a step that never ran wherever the record is shown by time.
 
 ## [2.2.2] - 2026-08-19
 

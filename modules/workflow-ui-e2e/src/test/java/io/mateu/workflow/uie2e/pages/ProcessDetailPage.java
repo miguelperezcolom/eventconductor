@@ -76,6 +76,76 @@ public class ProcessDetailPage {
     }
 
     /**
+     * The sequence number each node carries, by step id — the diagram's answer to "when did this
+     * run", as opposed to the tick's "did it".
+     *
+     * <p>Read out of the shadow DOM in one evaluate rather than as locators, because the assertion
+     * is about the pairing: a number on its own says nothing, and two locator queries would let the
+     * numbers and the nodes come back in unrelated orders.
+     */
+    @SuppressWarnings("unchecked")
+    public java.util.Map<String, String> stepOrderNumbers() {
+        var raw = page.locator("eventconductor-workflow-graph").first().evaluate("""
+                el => {
+                    const out = {};
+                    el.shadowRoot.querySelectorAll('.node[data-node]').forEach(node => {
+                        const badge = node.querySelector('.ov-order text');
+                        if (badge) out[node.getAttribute('data-node')] = badge.textContent.trim();
+                    });
+                    return out;
+                }""");
+        var numbers = new java.util.LinkedHashMap<String, String>();
+        ((java.util.Map<String, Object>) raw).forEach((k, v) -> numbers.put(k, String.valueOf(v)));
+        return numbers;
+    }
+
+    /**
+     * Every guard chip that lands on top of a node, as "chip ↔ node" pairs.
+     *
+     * <p>Boxes rather than pixels: a chip is a rounded rectangle and a node is a rectangle, so
+     * their client rects answer the question exactly. Compared in viewport coordinates so the
+     * graph's own pan and zoom are already applied — the reader's overlap is what counts, not the
+     * one in the untransformed coordinate system.
+     *
+     * <p>A one-pixel touch is not an overlap anybody sees; the check allows a small tolerance so it
+     * measures "hides something" rather than "shares a border".
+     */
+    @SuppressWarnings("unchecked")
+    public java.util.List<String> guardChipsCoveringNodes() {
+        var raw = page.locator("eventconductor-workflow-graph").first().evaluate("""
+                el => {
+                    const hits = [];
+                    const nodes = [...el.shadowRoot.querySelectorAll('.node[data-node]')];
+                    el.shadowRoot.querySelectorAll('.guard .guard-chip:not(.guard-full) rect')
+                        .forEach(chipRect => {
+                            const chip = chipRect.getBoundingClientRect();
+                            const guard = chipRect.closest('.guard');
+                            nodes.forEach(node => {
+                                const inner = node.querySelector('.node-inner') || node;
+                                const box = inner.getBoundingClientRect();
+                                const overlap = chip.left < box.right - 2 && chip.right > box.left + 2
+                                    && chip.top < box.bottom - 2 && chip.bottom > box.top + 2;
+                                if (overlap) {
+                                    hits.push(guard.getAttribute('data-edge') + ' ↔ '
+                                        + node.getAttribute('data-node'));
+                                }
+                            });
+                        });
+                    return hits;
+                }""");
+        return new java.util.ArrayList<>((java.util.List<String>) (java.util.List<?>) raw);
+    }
+
+    /** The full text a guard chip reveals under the pointer, for the first chip on the canvas. */
+    public String firstGuardFullText() {
+        return page.locator("eventconductor-workflow-graph").first().evaluate("""
+                el => {
+                    const full = el.shadowRoot.querySelector('.guard .guard-full text');
+                    return full ? full.textContent.trim() : null;
+                }""") instanceof String text ? text : null;
+    }
+
+    /**
      * Something the open tab shows. The tabs render different things — a table of steps, a list of
      * errors, a set of variables — so this asks the page rather than assuming a grid.
      *
