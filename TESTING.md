@@ -32,8 +32,8 @@ raised as it improves. It is not a target, and it is deliberately not one number
 | `shared` | 0.85 | 87.7% | **94.1%** |
 | `process-index` | 0.62 | 64.0% | **84.9%** |
 | `workflow-engine` | 0.62 | 68.0% | **82.2%** |
-| `forms-engine` | 0.42 | 60.3% | 60.3% |
-| `rule-engine` | 0.40 | 42.8% | 42.8% |
+| `forms-engine` | 0.73 | 75.7% | 75.7% |
+| `rule-engine` | 0.55 | 57.0% | 57.0% |
 
 **The second column is what the gate sees; the third is what is actually exercised.** They differ
 only for the modules the end-to-end suites drive from outside — the engine, the read model, and the
@@ -50,7 +50,7 @@ over a bundle that excluded the outbox, the schedulers, the JPA repositories, th
 the MCP tools, the autoconfiguration and the Git import — most of what carries risk in production.
 The exclusion list is now two entries: generated protobuf/gRPC stubs, and the Vaadin view classes
 whose behaviour is the framework's rendering. Everything else is measured. Over that honest scope
-the repository sits at **70.2%** per module, **80.0%** aggregated.
+the repository sits at **72.3%** per module, **82.0%** aggregated.
 
 *Per-module figures undercount the engine.* JaCoCo attributes coverage to the module whose tests
 ran, and the end-to-end tests live in `modules/workflow-e2e`, so everything they exercise in
