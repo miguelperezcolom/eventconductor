@@ -48,4 +48,29 @@ public class KafkaDeadLetterPublisher implements DeadLetterPublisher {
         }
         streamBridge.send(BINDING, message.build());
     }
+
+    /**
+     * The same topic, and deliberately so: a dead letter is a dead letter whether the engine could
+     * not read it or could not act on it, and one place to look is worth more than a taxonomy. The
+     * payload is the original bytes, republishable as they are; the headers say what went wrong, and
+     * carry no process key because a payload nobody could parse has no process to belong to.
+     */
+    @Override
+    public void parkUnreadable(byte[] payload, Throwable cause, String source) {
+        log.error("Parking an unreadable record from {} on the dead-letter topic ({} bytes)",
+                source, payload.length, cause);
+        workflowMetrics.eventDeadLettered(source);
+        streamBridge.send(BINDING, MessageBuilder.withPayload(payload)
+                // Octet stream, or the JSON converter would re-encode bytes it has every right to
+                // treat as a value — and a dead letter that has been base64'd is not replayable.
+                .setHeader(org.springframework.messaging.MessageHeaders.CONTENT_TYPE,
+                        org.springframework.util.MimeTypeUtils.APPLICATION_OCTET_STREAM_VALUE)
+                .setHeader("x-dead-letter-source", source)
+                .setHeader("x-dead-letter-reason", cause == null
+                        ? "unreadable" : cause.getClass().getName())
+                .setHeader("x-dead-letter-message", cause == null
+                        ? "the record could not be converted to an event" : String.valueOf(cause.getMessage()))
+                .setHeader("x-dead-letter-unreadable", "true")
+                .build());
+    }
 }

@@ -262,6 +262,19 @@ public final class DistInfra {
         }
     }
 
+    /**
+     * Publishes bytes onto the upstream topic without asking whether they are an event.
+     *
+     * <p>{@link #publishUpstream} cannot express this: it serialises a real event, so everything it
+     * writes is by construction readable. A producer outside the engine has no such guarantee — it
+     * writes whatever it built, and a template that interpolates an unescaped value writes JSON that
+     * only looks valid.
+     */
+    public static void publishRawUpstream(String payload) {
+        producer.send(new ProducerRecord<>("upstream", payload));
+        producer.flush();
+    }
+
     public static void flushProducer() {
         producer.flush();
     }

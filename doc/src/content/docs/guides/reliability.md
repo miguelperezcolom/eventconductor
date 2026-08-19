@@ -119,6 +119,28 @@ Connection-level `SQLException`s are classified as retryable — matched on SQLS
 class `53`, and PostgreSQL's `57P01`–`57P03`) as well as by type. Being unable to roll back because
 the database has gone away is the most retryable failure this engine can have.
 
+## A record the engine cannot read
+
+The section above is about an event the engine understood and could not process. There is an
+earlier failure: bytes that never become an event at all — JSON that does not parse, or a `type`
+this version does not know.
+
+It reaches no handler, so none of the handling above applies to it. Spring Cloud Stream's converter
+fails, and the binder's default answer is to drop the record, commit the batch and advance the
+offset. Until 2.2.2 that is all that happened: no log line at any level, no dead letter, no metric,
+and consumer-group lag back to zero. A producer sending a thousand malformed messages saw a healthy
+engine that had created nothing, which reads exactly like messages that never arrived — so the
+search starts at the producer, then the topic, then the consumer group, and the payload is the last
+thing anyone looks at.
+
+Such a record is now logged at ERROR with the reason and an excerpt of the payload, parked on the
+`dead-letter` topic as the **original bytes** with `x-dead-letter-unreadable: true`, and counted by
+`eventconductor.events.dead.lettered` like any other dead letter.
+
+It is still skipped rather than retried, and deliberately: bytes that cannot be parsed now cannot
+be parsed on redelivery either, so failing the batch would stall the partition for every process
+behind it, for ever. What changed is that the skip says so.
+
 ## What to watch in production
 
 | | |
