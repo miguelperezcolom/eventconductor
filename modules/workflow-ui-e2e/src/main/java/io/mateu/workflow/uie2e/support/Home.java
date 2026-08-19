@@ -1,5 +1,6 @@
 package io.mateu.workflow.uie2e.support;
 
+import io.mateu.testworker.infra.in.ui.TestWorkerMenu;
 import io.mateu.uidl.annotations.Menu;
 import io.mateu.uidl.annotations.UI;
 import io.mateu.workflow.infra.in.ui.WorkflowMenu;
@@ -16,4 +17,13 @@ public class Home {
 
     @Menu
     WorkflowMenu workflow;
+
+    /**
+     * The test worker's pages, mounted beside the engine's rather than in a module of their own.
+     * One application, one browser, one Playwright download — and the two UIs an operator of a
+     * test environment actually moves between are then reachable from the same shell, which is
+     * also how the standalone apps deploy them.
+     */
+    @Menu
+    TestWorkerMenu testWorker;
 }

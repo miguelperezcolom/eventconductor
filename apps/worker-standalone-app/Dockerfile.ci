@@ -1,0 +1,43 @@
+FROM eclipse-temurin:21-jre-alpine
+# Patch OS packages to pick up Alpine security fixes not yet in the base image tag
+# (Trivy gates the release on fixable HIGH/CRITICAL CVEs).
+RUN apk upgrade --no-cache
+RUN addgroup -S app && adduser -S -G app -u 10001 app
+WORKDIR /opt/app
+
+# Jar is pre-built by the CI pipeline (mvn install) before this image is built.
+COPY --chown=app:app target/worker-standalone-app-*.jar app.jar
+
+# ── Server ────────────────────────────────────────────────────────────────────
+ENV SERVER_PORT=8080
+
+# ── Kafka ─────────────────────────────────────────────────────────────────────
+ENV KAFKA_BROKERS=localhost:9092
+
+# ── Database ──────────────────────────────────────────────────────────────────
+# Holds the tasks this worker was given and the replies someone canned by hand. DB_PASSWORD must
+# be provided at runtime (no default). DDL_AUTO is update rather than the validate the engine's
+# images use: this worker owns its two tables outright and ships no migrations, so pointing it at
+# an empty schema has to be enough.
+#
+# For a worker with no database at all — scenarios from TEST_CONFIG only, nothing surviving a
+# restart — run it with SPRING_PROFILES_ACTIVE=memory.
+ENV DB_URL=jdbc:postgresql://localhost:5432/workflow \
+    DB_USERNAME=workflow \
+    DB_DRIVER=org.postgresql.Driver \
+    JPA_DIALECT=org.hibernate.dialect.PostgreSQLDialect \
+    DDL_AUTO=update \
+    DB_POOL_SIZE=8 \
+    DB_CONNECTION_TIMEOUT=20000
+
+# ── Worker ────────────────────────────────────────────────────────────────────
+# How long a task takes when the scenario does not say.
+ENV WORKER_TASK_DURATION=2s
+
+USER app
+EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+  CMD wget -qO- http://127.0.0.1:${SERVER_PORT}/actuator/health || exit 1
+
+ENTRYPOINT ["java", "-jar", "app.jar"]

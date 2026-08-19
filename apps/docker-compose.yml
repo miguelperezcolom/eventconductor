@@ -108,6 +108,11 @@ services:
       - backend
 
   # ── Worker ────────────────────────────────────────────────────────────────────
+  # The test worker. It does no work: it plays back the scenario a process asks for in its
+  # TEST_CONFIG variable, records every task it is given, and offers a UI at /_worker for changing
+  # what a task replies next time. Its two tables are its own — hence DDL_AUTO, and hence a
+  # database where before it needed none. For a worker with no database, set
+  # SPRING_PROFILES_ACTIVE=memory and drop the DB_ variables and the postgres dependency.
   worker:
     image: miguelperezcolom/worker-standalone-app:latest
     container_name: worker
@@ -115,9 +120,16 @@ services:
     environment:
       SERVER_PORT: 8080
       KAFKA_BROKERS: redpanda:19092
+      WORKER_PERSISTENCE: jpa
+      DB_URL: jdbc:postgresql://postgres-db:5432/workflow
+      DB_USERNAME: workflow
+      DB_PASSWORD: secret
+      DDL_AUTO: update
     ports:
       - "8107:8080"
     depends_on:
+      postgres-db:
+        condition: service_healthy
       redpanda:
         condition: service_healthy
     networks:

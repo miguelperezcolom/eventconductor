@@ -112,6 +112,20 @@ jobs:
             ${{ secrets.DOCKERHUB_USERNAME }}/projector-standalone-app:${{ env.RELEASE_VERSION }}
             ${{ secrets.DOCKERHUB_USERNAME }}/projector-standalone-app:latest
 
+      # The test worker. Published from here for the first time: its image had only ever been
+      # pushed by hand from a laptop, from a Dockerfile whose builder stage could not resolve the
+      # project's own SNAPSHOT modules and whose COPY named a jar that is not the artifact. Nothing
+      # recorded which commit any published image came from.
+      - name: Build and push worker image
+        uses: docker/build-push-action@v7
+        with:
+          context: apps/worker-standalone-app
+          file: apps/worker-standalone-app/Dockerfile.ci
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/worker-standalone-app:${{ env.RELEASE_VERSION }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/worker-standalone-app:latest
+
       - name: Scan orchestrator image with Trivy
         uses: aquasecurity/trivy-action@master
         with:
@@ -132,6 +146,14 @@ jobs:
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: ${{ secrets.DOCKERHUB_USERNAME }}/rule-standalone-app:${{ env.RELEASE_VERSION }}
+          severity: CRITICAL,HIGH
+          exit-code: '1'
+          ignore-unfixed: true
+
+      - name: Scan worker image with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ secrets.DOCKERHUB_USERNAME }}/worker-standalone-app:${{ env.RELEASE_VERSION }}
           severity: CRITICAL,HIGH
           exit-code: '1'
           ignore-unfixed: true
