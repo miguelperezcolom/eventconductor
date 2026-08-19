@@ -8,6 +8,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **An unreadable message was dropped in complete silence.** A record whose bytes could not be
+  turned into an event — JSON that does not parse, a `type` this version does not know — never
+  reached a handler, so none of the engine's handling applied to it. Spring Cloud Stream's converter
+  failed, and the binder's default helper answers "do not fail" and then does nothing but re-align
+  the `kafka_*` header lists. The record was dropped, the batch committed and the offset advanced:
+  no log line at any level, no dead letter, no metric, lag back to zero.
+
+  That combination is undiagnosable from outside, which is what makes it worse than the failure
+  itself. A producer that sent 1,500 malformed messages saw a healthy engine that had created
+  nothing — indistinguishable from messages that never arrived, so the search starts at the
+  producer, then the topic, then the consumer group, and the payload is the last thing anyone looks
+  at.
+
+  Such a record is now logged at ERROR with an excerpt of the payload and the reason it could not be
+  read — derived by re-reading the bytes, because the batch hook is handed no cause at all and
+  "could not be converted" without saying why is most of the way back to silence. It is parked on
+  the `dead-letter` topic as the original bytes, with `x-dead-letter-unreadable: true`, and counted
+  by `eventconductor.events.dead.lettered`.
+
+  It is still skipped rather than retried: bytes that cannot be parsed now cannot be parsed on
+  redelivery either, so failing the batch would stall the partition for every process behind it, for
+  ever. What changed is that the skip says so. DIST-14 drives it through a real broker and asserts
+  both halves — the record is parked, and the records around it still finish.
+
 - **Distributed tracing did nothing at all.** The orchestrator, forms and rule apps declared
   `micrometer-tracing-bridge-otel` and `opentelemetry-exporter-otlp`, and their yaml mapped
   `TRACING_SAMPLING` and `OTLP_TRACING_ENDPOINT` — but those are the OpenTelemetry *libraries*, and
