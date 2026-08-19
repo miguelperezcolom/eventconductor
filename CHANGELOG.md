@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.2] - 2026-08-19
+
+A patch release for five defects found by running 2.2.1 in a real Kubernetes deployment, and four
+of the five failed the same way: **by doing nothing, quietly**. Tracing that traced nothing because
+no `Tracer` was ever created; a Prometheus endpoint that answered 404 because exposing an endpoint
+is not the same as having one; a `directory` setting that relaxed binding accepted and nothing read;
+and a malformed message dropped without a log line, a dead letter, or a metric. Nothing was broken
+in a way that shows: each one looked exactly like a working system with nothing to do.
+
+The fifth was the opposite — it did too much, inserting another copy of every definition file that
+declared no `id`, on every import, without bound.
+
+The lesson is in the tests rather than the fixes. Each one now has a test that fails without it,
+because every one of these could return the same way it arrived: by a dependency moving, a property
+being renamed, or a default changing under us, with nothing to say so.
+
 ### Fixed
 - **An unreadable message was dropped in complete silence.** A record whose bytes could not be
   turned into an event — JSON that does not parse, a `type` this version does not know — never
