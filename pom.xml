@@ -162,6 +162,21 @@
             failure reads as a missing symbol rather than as "nothing was processed".
           -->
           <proc>full</proc>
+          <!--
+            Keep parameter names in the bytecode. There is no Spring Boot parent here to switch
+            this on, and configuring the plugin at all is what silences the default: every jar
+            this reactor published carried no MethodParameters attribute whatsoever.
+
+            Spring resolves a handler argument by its name when the annotation does not carry one,
+            so `@PathVariable String provider` — which is how all three git-webhook controllers are
+            written — cannot be bound at all. Every POST to /workflow/webhooks/{provider},
+            /forms/webhooks/{provider} and /rules/webhooks/{provider} failed with
+            "Name for argument of type [java.lang.String] not specified", before the signature was
+            even verified, so git webhooks have never worked in a released build. Naming each
+            variable explicitly would fix those three; this fixes the class of bug, and is what the
+            Boot parent would have done.
+          -->
+          <parameters>true</parameters>
         </configuration>
       </plugin>
 
