@@ -72,42 +72,50 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and push orchestrator image
+      - name: Build orchestrator image
         uses: docker/build-push-action@v7
         with:
           context: apps/orchestrator-standalone-app
           file: apps/orchestrator-standalone-app/Dockerfile.ci
-          push: true
+          # Loaded into the runner's docker daemon, not pushed: the scans below are
+          # the gate, and a gate that runs after publication is a report.
+          load: true
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/orchestrator-standalone-app:${{ env.RELEASE_VERSION }}
             ${{ secrets.DOCKERHUB_USERNAME }}/orchestrator-standalone-app:latest
 
-      - name: Build and push forms image
+      - name: Build forms image
         uses: docker/build-push-action@v7
         with:
           context: apps/forms-standalone-app
           file: apps/forms-standalone-app/Dockerfile.ci
-          push: true
+          # Loaded into the runner's docker daemon, not pushed: the scans below are
+          # the gate, and a gate that runs after publication is a report.
+          load: true
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/forms-standalone-app:${{ env.RELEASE_VERSION }}
             ${{ secrets.DOCKERHUB_USERNAME }}/forms-standalone-app:latest
 
-      - name: Build and push rules image
+      - name: Build rules image
         uses: docker/build-push-action@v7
         with:
           context: apps/rule-standalone-app
           file: apps/rule-standalone-app/Dockerfile.ci
-          push: true
+          # Loaded into the runner's docker daemon, not pushed: the scans below are
+          # the gate, and a gate that runs after publication is a report.
+          load: true
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/rule-standalone-app:${{ env.RELEASE_VERSION }}
             ${{ secrets.DOCKERHUB_USERNAME }}/rule-standalone-app:latest
 
-      - name: Build and push projector image
+      - name: Build projector image
         uses: docker/build-push-action@v7
         with:
           context: apps/projector-standalone-app
           file: apps/projector-standalone-app/Dockerfile.ci
-          push: true
+          # Loaded into the runner's docker daemon, not pushed: the scans below are
+          # the gate, and a gate that runs after publication is a report.
+          load: true
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/projector-standalone-app:${{ env.RELEASE_VERSION }}
             ${{ secrets.DOCKERHUB_USERNAME }}/projector-standalone-app:latest
@@ -116,12 +124,14 @@ jobs:
       # pushed by hand from a laptop, from a Dockerfile whose builder stage could not resolve the
       # project's own SNAPSHOT modules and whose COPY named a jar that is not the artifact. Nothing
       # recorded which commit any published image came from.
-      - name: Build and push worker image
+      - name: Build worker image
         uses: docker/build-push-action@v7
         with:
           context: apps/worker-standalone-app
           file: apps/worker-standalone-app/Dockerfile.ci
-          push: true
+          # Loaded into the runner's docker daemon, not pushed: the scans below are
+          # the gate, and a gate that runs after publication is a report.
+          load: true
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/worker-standalone-app:${{ env.RELEASE_VERSION }}
             ${{ secrets.DOCKERHUB_USERNAME }}/worker-standalone-app:latest
@@ -165,3 +175,21 @@ jobs:
           severity: CRITICAL,HIGH
           exit-code: '1'
           ignore-unfixed: true
+
+      # Every image is pushed here, and only here, once all five have passed the scan.
+      #
+      # They used to be pushed as they were built, with the scans afterwards. That made the gate a
+      # report: v2.2.0 published five images and *then* failed on the worker's 4 CRITICAL CVEs, so
+      # the bad image was on Docker Hub under both its version tag and `latest`, and the projector's
+      # scan never ran at all because the failure skipped it. Undoing that took another release.
+      #
+      # One step rather than five, because a failure part-way through five push steps would leave
+      # exactly the half-published state this ordering exists to prevent — and because `latest`
+      # moving for some images and not others is worse than it not moving at all.
+      - name: Push the images, now that every one of them is clean
+        run: |
+          for app in orchestrator forms rule projector worker; do
+            image="${{ secrets.DOCKERHUB_USERNAME }}/${app}-standalone-app"
+            docker push "${image}:${{ env.RELEASE_VERSION }}"
+            docker push "${image}:latest"
+          done
