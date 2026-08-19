@@ -28,6 +28,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   three apps has a test asserting an OpenTelemetry-backed `Tracer` is really there, because nothing
   would have caught its return.
 
+- **The worker and projector answered 404 on `/actuator/prometheus`.** Both list `prometheus` in
+  `management.endpoints.web.exposure.include` and neither declared `micrometer-registry-prometheus`.
+  Exposure is a permission, not a creation: with no registry on the classpath the endpoint does not
+  exist, and naming one you have no implementation for is accepted in silence.
+
+  Anything scraping those pods had a target that was permanently down, which is worse than no
+  target — it is an alert about the wrong thing. The other three apps declared the registry all
+  along, so this was an omission rather than a decision. Each of the two now has a test that scrapes
+  the endpoint over HTTP and asserts it answers with metrics, rather than looking for a registry
+  bean: the bean is not the promise.
+
 ## [2.2.1] - 2026-08-19
 
 A patch release, and every entry is something that shipped broken in 2.2.0 or earlier. Two of them

@@ -63,6 +63,16 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
+        <!--
+          The registry behind /actuator/prometheus. Exposing the endpoint in
+          management.endpoints.web.exposure.include is a permission, not a creation: with no
+          registry on the classpath the endpoint does not exist and a scrape gets 404, which is a
+          permanently-down target rather than a missing one. Shipped that way through 2.2.1.
+        -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
 
         <!-- JDBC, not JPA: the store is plain JDBC, so there is no persistence unit here at all. -->
         <dependency>
