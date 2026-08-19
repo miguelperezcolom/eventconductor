@@ -235,7 +235,7 @@ docker compose up -d
 | `redpanda-console` | 8888 | Redpanda web console |
 | `orchestrator` | 8105 | `orchestrator-standalone-app` |
 | `forms` | 8106 | `forms-standalone-app` |
-| `worker` | 8107 | `worker-standalone-app` |
+| `worker` | 8107 | `worker-standalone-app` — the [test worker](/guides/test-worker/); UI at `/_worker` |
 
 To override values (e.g. a different image tag):
 

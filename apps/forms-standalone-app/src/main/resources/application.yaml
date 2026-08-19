@@ -129,6 +129,10 @@ forms:
     # the same version numbers. Kept at the name existing deployments already have, rather than the
     # engine's own default, so their history is not suddenly empty.
     table: ${FLYWAY_TABLE:flyway_schema_history_forms}
+  # Directories on disk to import form definitions from at startup. Comma-separated; empty means
+  # none. Unlike the git import below, this reads the files as they are — no commit in between.
+  directory-import:
+    directories: ${FORMS_DEFINITIONS_DIRS:}
   git-import:
     repositories:
       # Example: uncomment and fill in to import form definitions from a Git repo at startup

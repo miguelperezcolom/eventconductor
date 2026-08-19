@@ -127,6 +127,35 @@ version) are grouped under a single **legacy (pre-versioning)** row.
 > Versioning is available with **JPA persistence** (`workflow.persistence=jpa`). In memory mode the
 > Versions tab is not shown.
 
+## Importing from a directory
+
+Definitions that are already on disk — mounted into the container, checked out beside the app,
+written by whatever generates them — are imported at startup from the directories you name:
+
+```yaml
+workflow:
+  directory-import:
+    directories:
+      - /definitions/workflows
+```
+
+or, in the standalone app, `WORKFLOW_DEFINITIONS_DIRS=/definitions/workflows` (comma-separated).
+
+Each directory is scanned recursively for `.json` / `.yaml` / `.yml` / `.ec` files, and every file
+that has both `name` and `steps` is imported. A directory that is not there is reported as an
+error rather than passed over in silence — the failure this saves you from is a typo in a mount
+path, an engine that starts clean, and an empty definition list for no stated reason.
+
+Definitions removed from the directory are **pruned** (archived) on the next import, exactly as
+they are for a repository, and tracked separately per directory.
+
+:::tip[Directory or Git?]
+Git import reads what is **committed**, which is what a deployment wants and what the loop where
+someone is *writing* a definition does not: edit, commit, restart, discover the commit was the step
+you forgot. Point the engine at a directory while authoring, at a repository when shipping. Both
+can be configured at once.
+:::
+
 ## Importing from Git
 
 When `workflow.persistence=jpa`, EventConductor can clone one or more Git repositories at startup and import every `.json` / `.yaml` / `.yml` file that contains a valid workflow definition (i.e. has both `name` and `steps` fields).

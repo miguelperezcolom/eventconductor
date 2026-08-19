@@ -191,10 +191,37 @@ request, or the proxy would be an open relay.
 
 ## Loading form definitions
 
-Forms reach the engine from **Git repositories**, imported at startup, on demand with the MCP tool
-`importFormsFromGit` ("Import the latest form definitions from Git"), or by a webhook. (There is no
-classpath loading for forms — a `src/main/resources/forms/` directory is not read, unlike
-`classpath:/workflows/` on the engine side.)
+Forms reach the engine two ways: from **directories on disk**, and from **Git repositories**. Both
+run at startup, and both work the same in memory and in JPA mode. (There is no classpath loading
+for forms — a `src/main/resources/forms/` directory is not read, unlike `classpath:/workflows/` on
+the engine side.)
+
+A Git import can also be re-run on demand with the MCP tool `importFormsFromGit` ("Import the
+latest form definitions from Git") or by a webhook.
+
+## Importing from a directory
+
+```yaml
+forms:
+  directory-import:
+    directories:
+      - /definitions/forms
+```
+
+or, in the standalone app, `FORMS_DEFINITIONS_DIRS=/definitions/forms` (comma-separated).
+
+Each directory is scanned recursively for `.json` / `.yaml` / `.yml` / `.ecform` files, and every
+file that has both `name` and `fields` is imported — so a directory holding workflow definitions
+next to forms is harmless. A directory that is not there is reported as an error rather than passed
+over in silence.
+
+Forms removed from the directory are **deleted** on the next import, tracked separately per
+directory, and only ever forms that this import created.
+
+:::tip[Directory or Git?]
+Git import reads what is **committed**; a directory is read as it is. Point the engine at a
+directory while authoring a form, at a repository when shipping it.
+:::
 
 ## Importing from Git
 

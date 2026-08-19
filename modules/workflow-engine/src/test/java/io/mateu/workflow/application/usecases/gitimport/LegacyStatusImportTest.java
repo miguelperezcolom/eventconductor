@@ -1,5 +1,7 @@
 package io.mateu.workflow.application.usecases.gitimport;
 
+import io.mateu.workflow.application.usecases.directoryimport.ImportWorkflowDefinitionsFromDirectoryUseCase;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.mateu.workflow.domain.aggregates.WorkflowDefinition;
 import io.mateu.workflow.domain.aggregates.WorkflowStatus;
@@ -46,7 +48,7 @@ class LegacyStatusImportTest {
     void theLegacyDisabledBooleanIsReadAsTheStatus() throws Exception {
         var node = fileWith("\"disabled\": true,");
 
-        ImportWorkflowDefinitionsFromGitUseCase.adoptLegacyLifecycleFields(node, "order.ec");
+        ImportWorkflowDefinitionsFromDirectoryUseCase.adoptLegacyLifecycleFields(node, "order.ec");
 
         var definition = mapper.treeToValue(node, WorkflowDefinition.class);
         assertThat(definition.declaredStatus()).isEqualTo(WorkflowStatus.DISABLED);
@@ -56,7 +58,7 @@ class LegacyStatusImportTest {
     void theLegacyArchivedBooleanIsReadAsTheStatus() throws Exception {
         var node = fileWith("\"archived\": true,");
 
-        ImportWorkflowDefinitionsFromGitUseCase.adoptLegacyLifecycleFields(node, "order.ec");
+        ImportWorkflowDefinitionsFromDirectoryUseCase.adoptLegacyLifecycleFields(node, "order.ec");
 
         assertThat(mapper.treeToValue(node, WorkflowDefinition.class).declaredStatus())
                 .isEqualTo(WorkflowStatus.ARCHIVED);
@@ -67,7 +69,7 @@ class LegacyStatusImportTest {
         for (var status : new String[]{"DRAFT", "ACTIVE"}) {
             var node = fileWith("\"status\": \"%s\",".formatted(status));
 
-            ImportWorkflowDefinitionsFromGitUseCase.adoptLegacyLifecycleFields(node, "order.ec");
+            ImportWorkflowDefinitionsFromDirectoryUseCase.adoptLegacyLifecycleFields(node, "order.ec");
 
             var definition = mapper.treeToValue(node, WorkflowDefinition.class);
             assertThat(definition.declaredStatus()).as(status).isEqualTo(WorkflowStatus.ACTIVE);
@@ -78,7 +80,7 @@ class LegacyStatusImportTest {
     void aFileWithoutOneIsLeftAlone() throws Exception {
         var node = fileWith("");
 
-        ImportWorkflowDefinitionsFromGitUseCase.adoptLegacyLifecycleFields(node, "order.ec");
+        ImportWorkflowDefinitionsFromDirectoryUseCase.adoptLegacyLifecycleFields(node, "order.ec");
 
         var definition = mapper.treeToValue(node, WorkflowDefinition.class);
         assertThat(definition.declaredStatus()).isEqualTo(WorkflowStatus.ACTIVE);
