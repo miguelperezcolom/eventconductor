@@ -33,6 +33,16 @@ public class RuleGitImportProperties {
     public static class GitRepository {
         private String url;
         private String branch = "main";
+
+        /**
+         * Subdirectory of the repository to scan, or null for the whole clone.
+         *
+         * <p>The workflow engine has had this since directory scoping was added; these two copies
+         * did not, so the property was accepted by relaxed binding and then did nothing — a
+         * repository that is not exclusively definitions was walked end to end, reporting a parse
+         * error per unrelated YAML file and, worse, importing any that happened to look like one.
+         */
+        private String directory;
         private String username;
         private String password;
     }

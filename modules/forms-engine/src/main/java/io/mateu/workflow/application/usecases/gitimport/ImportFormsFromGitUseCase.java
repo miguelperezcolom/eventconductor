@@ -62,11 +62,59 @@ public class ImportFormsFromGitUseCase {
         Path tempDir = Files.createTempDirectory("forms-git-import-");
         try {
             cloneRepository(repo, tempDir);
-            // A clone is a directory, so from here on it is the same import.
-            directoryImport.importFrom(tempDir, repo.getUrl(), imported, errors, pruned);
+            importFromClone(repo, tempDir, imported, errors, pruned);
         } finally {
             deleteDirectory(tempDir.toFile());
         }
+    }
+
+    /**
+     * Everything after the clone — a clone is a directory, so from here on it is the same import.
+     *
+     * <p>Package-private so the scoping can be tested without cloning anything. That the configured
+     * directory reaches this call at all is the whole of the bug this split exists to pin: the
+     * field did not exist here, so the clone root and the bare URL went straight through and
+     * `directory` changed nothing.
+     */
+    void importFromClone(GitImportProperties.GitRepository repo, Path cloneRoot,
+                         List<String> imported, List<String> errors, List<String> pruned)
+            throws IOException {
+        directoryImport.importFrom(resolveScanRoot(repo, cloneRoot), pruneKey(repo),
+                imported, errors, pruned);
+    }
+
+    /**
+     * Resolves the directory to scan: the repo root, or the configured subdirectory when set.
+     * The path is resolved and normalized against the clone root; a directory that escapes the
+     * repo (e.g. "../etc") or does not exist is rejected.
+     */
+    /** Package-private so the escape guard below can be tested without cloning anything. */
+    Path resolveScanRoot(GitImportProperties.GitRepository repo, Path repoRoot) throws IOException {
+        String directory = repo.getDirectory();
+        if (directory == null || directory.isBlank()) {
+            return repoRoot;
+        }
+        Path scanRoot = repoRoot.resolve(directory).normalize();
+        if (!scanRoot.startsWith(repoRoot)) {
+            throw new IOException("directory '" + directory + "' escapes the repository root");
+        }
+        if (!Files.isDirectory(scanRoot)) {
+            throw new IOException("directory '" + directory + "' not found in repository");
+        }
+        return scanRoot;
+    }
+
+    /**
+     * Prune scope key. Two repository entries can share a URL but point at different
+     * subdirectories, so the directory is folded into the key to keep their provenance
+     * — and therefore pruning — independent.
+     */
+    static String pruneKey(GitImportProperties.GitRepository repo) {
+        String directory = repo.getDirectory();
+        if (directory == null || directory.isBlank()) {
+            return repo.getUrl();
+        }
+        return repo.getUrl() + "#" + directory;
     }
 
     private void cloneRepository(GitImportProperties.GitRepository repo, Path targetDir)

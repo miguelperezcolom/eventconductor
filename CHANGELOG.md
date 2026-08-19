@@ -39,6 +39,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the endpoint over HTTP and asserts it answers with metrics, rather than looking for a registry
   bean: the bean is not the promise.
 
+- **`directory` was accepted and silently ignored by the forms and rule engines.** The workflow
+  engine's `GitImportProperties.GitRepository` has a `directory` field, so
+  `WORKFLOW_GITIMPORT_REPOSITORIES_0_DIRECTORY` scopes the scan to a subdirectory of the clone. The
+  forms and rule copies of that class did not, so their equivalents were accepted by relaxed
+  binding — which never complains about a property nobody owns — and changed nothing.
+
+  Pointed at a repository that is not exclusively definitions, both engines walked the entire clone:
+  a parse error per unrelated YAML file, and — the real risk — anything that happened to look like a
+  definition imported as one.
+
+  Both now carry the field and the `resolveScanRoot` / `pruneKey` handling their workflow
+  counterpart already had, including the guard that refuses a directory escaping the repository
+  root. That guard matters more than its size: the root it resolves against is the throwaway clone
+  the import deletes afterwards, so a `directory: ../..` that normalised instead of being refused
+  would walk, prune against, and then delete whatever it found outside.
+
+  Three copies of one properties class is what produced this, and they are still three.
+
 ## [2.2.1] - 2026-08-19
 
 A patch release, and every entry is something that shipped broken in 2.2.0 or earlier. Two of them
