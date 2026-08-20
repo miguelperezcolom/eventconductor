@@ -554,7 +554,7 @@ All extend `CrudStore<T>` (`findById` → `Optional<T>`, `save`, `findAll`, `del
 - `ProcessAnalyticsService.analyze(definitionIdOrName, TimeWindow)` / `analyzeAll(TimeWindow)` — per-definition analytics computed on demand in any mode: instance counts by status, completion/error/cancellation rates, throughput per day, avg/p95 process duration, avg/p95 per-step duration with the slowest step flagged as bottleneck. `TimeWindow.lastDays(30)` / `TimeWindow.all()`.
 
 ### Observability
-Micrometer metrics for the workflow, forms and rule engines — exposed at `GET /actuator/prometheus` when a Prometheus `MeterRegistry` is on the classpath (`micrometer-registry-prometheus` + `management.endpoints.web.exposure.include=health,prometheus`) — plus OTLP tracing configured via `TRACING_SAMPLING` (`management.tracing.sampling.probability`) and `OTLP_TRACING_ENDPOINT` (`management.otlp.tracing.endpoint`). Full reference: `doc/src/content/docs/reference/observability.md`.
+Micrometer metrics for the workflow, forms and rule engines — exposed at `GET /actuator/prometheus` when a Prometheus `MeterRegistry` is on the classpath (`micrometer-registry-prometheus` + `management.endpoints.web.exposure.include=health,prometheus`) — plus OTLP tracing configured via `TRACING_SAMPLING` (`management.tracing.sampling.probability`) and `OTLP_TRACING_ENDPOINT` (`management.opentelemetry.tracing.export.otlp.endpoint`). Full reference: `doc/src/content/docs/reference/observability.md`.
 
 ### Interfaces & records
 ```java

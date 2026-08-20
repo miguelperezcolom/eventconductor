@@ -21,6 +21,16 @@ management:
   tracing:
     sampling:
       probability: ${TRACING_SAMPLING:0.0}
+  # The OTLP endpoint the spans are shipped to. Under this name and no other: Boot 4 deprecated
+  # `management.otlp.tracing.endpoint` at level ERROR, which means it is no longer bound — the
+  # metadata entry survives only to say so. Set under the old name it read back fine, no exporter
+  # was ever created, and every span was built and dropped. OTLP_TRACING_ENDPOINT is unchanged, so
+  # nothing deployed has to move.
+  opentelemetry:
+    tracing:
+      export:
+        otlp:
+          endpoint: ${OTLP_TRACING_ENDPOINT:http://localhost:4318/v1/traces}
   otlp:
     # Metrics over OTLP: off by default, so a deployment that scrapes Prometheus is unaffected.
     # Turn it on when you already run a collector and want one pipeline for both signals.
@@ -29,8 +39,7 @@ management:
         enabled: ${OTLP_METRICS_ENABLED:false}
         url: ${OTLP_METRICS_ENDPOINT:http://localhost:4318/v1/metrics}
         step: ${OTLP_METRICS_INTERVAL:60s}
-    tracing:
-      endpoint: ${OTLP_TRACING_ENDPOINT:http://localhost:4318/v1/traces}
+
 
 eventconductor:
   security:
