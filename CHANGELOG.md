@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.6.1] - 2026-08-20
+
+One fix, and the page it fixes is the one 2.6.0 was cut for. Analytics stopped killing the pod in
+2.6.0 and started returning 500 instead, on every PostgreSQL deployment and for every window —
+reported from a real deployment within hours of the release, reproduced, and covered by a test in
+the suite that has a real database.
+
 ### Fixed
 - **Analytics returned 500 on PostgreSQL, for every window.** Both analytics projections bound
   their window with the usual optional-parameter shape,
