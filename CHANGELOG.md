@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **The IDE plugins ship the current graph: VS Code 0.1.13, IntelliJ 0.1.14.** Both carry their own
+  copy of `workflow-graph.js`, synced from the engine at build time and not tracked, so a change to
+  the component reaches them only when they are rebuilt — and the published 0.1.12 / 0.1.13 predate
+  the guard chips and the step numbers. Verified by unpacking the artifacts rather than by trusting
+  the sync: the marks are in the bundle inside both, and were absent from the ones before.
+
 ### Added
 - **The process diagram numbers its steps.** A node now carries its place in the order the run
   actually took, bottom-left, beside the tick that says it ran at all. The shape of a workflow does
