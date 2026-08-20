@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Tracing was configured, enabled, and exported nothing.** 2.3.0 fixed the missing
+  auto-configuration, so a `Tracer` was created and the two tests written for it passed — in CI and
+  in the image. No span ever reached a collector, and nothing said why.
+
+  The endpoint was set under `management.otlp.tracing.endpoint`, which Boot 4 deprecated at level
+  **error**: the property is no longer bound, and the metadata entry survives only to say so. It
+  reads back perfectly from the environment, so everything looked configured. What depends on it is
+  the OTLP exporter bean, which was therefore never created — spans were built by a real tracer,
+  handed to a real span processor, and dropped for want of anything to export them with.
+
+  Now set under `management.opentelemetry.tracing.export.otlp.endpoint`, in all three apps that
+  trace. `OTLP_TRACING_ENDPOINT` is unchanged, so no deployment has to move.
+
+  The test asserts the **exporter bean exists**, which is the half nobody was asserting: a `Tracer`
+  without an exporter is a tracing setup that passes every check and reports nothing. Reading the
+  property back would have proved only that the yaml says what the yaml says — which is exactly
+  what made this look right for two releases.
+
 ## [2.4.0] - 2026-08-20
 
 The process diagram stops lying, rules stop being the odd one out, and an extension that existed

@@ -46,4 +46,25 @@ class TracingWiringTest {
                 .as("an OpenTelemetry-backed tracer")
                 .isInstanceOf(io.micrometer.tracing.otel.bridge.OtelTracer.class);
     }
+
+    /**
+     * The span exporter, which is the half that was missing.
+     *
+     * <p>A {@code Tracer} without an exporter builds spans and drops them — the two tests above
+     * passed, in CI and in the deployed image, while no span had ever reached the collector. What
+     * the exporter's existence depends on is the endpoint property being <em>bound</em>, and Boot 4
+     * deprecated {@code management.otlp.tracing.endpoint} at level {@code error}: it reads back
+     * perfectly from the environment and nothing consumes it, so no exporter was created.
+     *
+     * <p>Asserting the bean rather than reading the property back, for exactly that reason. Reading
+     * a property back proves only that the yaml says what the yaml says — it is what made this look
+     * configured for two releases.
+     */
+    @Test
+    void a_span_exporter_exists_so_the_spans_go_somewhere() {
+        assertThat(context.getBeanProvider(io.opentelemetry.sdk.trace.export.SpanExporter.class)
+                .getIfAvailable())
+                .as("an OTLP span exporter, without which every span is built and thrown away")
+                .isNotNull();
+    }
 }

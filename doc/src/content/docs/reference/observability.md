@@ -123,8 +123,19 @@ collector:
 # fraction of traces to sample, 0.0 (off) .. 1.0 (all)
 management.tracing.sampling.probability=${TRACING_SAMPLING:0.0}
 # OTLP HTTP traces endpoint (OTel Collector / Tempo / Jaeger)
-management.otlp.tracing.endpoint=${OTLP_TRACING_ENDPOINT:http://localhost:4318/v1/traces}
+management.opentelemetry.tracing.export.otlp.endpoint=${OTLP_TRACING_ENDPOINT:http://localhost:4318/v1/traces}
 ```
+
+:::caution[Not `management.otlp.tracing.endpoint`]
+Boot 4 deprecated that name at level **error**, which means it is no longer bound — the metadata
+entry survives only to say so. Set under the old name it reads back perfectly from the environment,
+nothing consumes it, **no span exporter is created**, and every span is built and thrown away. A
+`Tracer` exists, the collector is reachable, and the trace store stays empty; there is nothing in
+any log to say why.
+
+EventConductor shipped it that way through 2.4.0. `OTLP_TRACING_ENDPOINT` is unchanged, so a
+deployment setting the environment variable needs no change.
+:::
 
 ```bash
 export TRACING_SAMPLING=1.0

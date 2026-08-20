@@ -447,7 +447,7 @@ The standalone images are fully configured via environment variables. All variab
 | `SECURITY_USER` | `admin` | `eventconductor.security.user` |
 | `SECURITY_PASSWORD` | *(blank)* | `eventconductor.security.password` |
 | `TRACING_SAMPLING` | `0.0` | `management.tracing.sampling.probability` |
-| `OTLP_TRACING_ENDPOINT` | `http://localhost:4318/v1/traces` | `management.otlp.tracing.endpoint` |
+| `OTLP_TRACING_ENDPOINT` | `http://localhost:4318/v1/traces` | `management.opentelemetry.tracing.export.otlp.endpoint` |
 | `OTLP_METRICS_ENABLED` | `false` | `management.otlp.metrics.export.enabled` — push metrics to a collector as well as exposing them for scraping |
 | `OTLP_METRICS_ENDPOINT` | `http://localhost:4318/v1/metrics` | `management.otlp.metrics.export.url` |
 | `OTLP_METRICS_INTERVAL` | `60s` | `management.otlp.metrics.export.step` |
@@ -474,7 +474,7 @@ The standalone images are fully configured via environment variables. All variab
 | `SECURITY_USER` | `admin` | `eventconductor.security.user` |
 | `SECURITY_PASSWORD` | *(blank)* | `eventconductor.security.password` |
 | `TRACING_SAMPLING` | `0.0` | `management.tracing.sampling.probability` |
-| `OTLP_TRACING_ENDPOINT` | `http://localhost:4318/v1/traces` | `management.otlp.tracing.endpoint` |
+| `OTLP_TRACING_ENDPOINT` | `http://localhost:4318/v1/traces` | `management.opentelemetry.tracing.export.otlp.endpoint` |
 | `OTLP_METRICS_ENABLED` | `false` | `management.otlp.metrics.export.enabled` — push metrics to a collector as well as exposing them for scraping |
 | `OTLP_METRICS_ENDPOINT` | `http://localhost:4318/v1/metrics` | `management.otlp.metrics.export.url` |
 | `OTLP_METRICS_INTERVAL` | `60s` | `management.otlp.metrics.export.step` |
