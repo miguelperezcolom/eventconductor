@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Mateu 3.0-alpha.297.** A plain dependency bump. Verified rather than assumed: the browser suite
+  was run against it in full — 25 journeys, including the graph readability ones — alongside the
+  engine and worker suites, and nothing it carries is visible here.
+
 The admin UI read every row of the write side to paint ten of them. Four pages, one habit: load the
 whole table through the domain aggregate, then filter, sort and paginate in Java. On the demo
 deployment — 37 651 processes, 345 564 step executions — that was measured, not estimated.
