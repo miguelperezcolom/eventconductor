@@ -1,5 +1,7 @@
 package io.mateu.workflow.application.usecases.gitimport;
 
+import io.mateu.workflow.application.usecases.directoryimport.ImportRulesFromDirectoryUseCase;
+import io.mateu.workflow.infra.config.RuleDirectoryImportProperties;
 import io.mateu.workflow.application.out.RuleCatalogMetrics;
 import io.mateu.workflow.application.out.RuleRepository;
 import io.mateu.workflow.application.usecases.saverule.SaveRuleCommand;
@@ -31,8 +33,9 @@ class RulesImportIdsTest {
     private final SaveRuleUseCase saveRule = mock(SaveRuleUseCase.class);
     private final InMemoryImportedDefinitionsRegistry registry = new InMemoryImportedDefinitionsRegistry();
     private final ImportRulesFromGitUseCase useCase = new ImportRulesFromGitUseCase(
-            new RuleGitImportProperties(), saveRule, mock(RuleRepository.class),
-            mock(RuleCatalogMetrics.class), registry);
+            new RuleGitImportProperties(), mock(RuleCatalogMetrics.class),
+            new ImportRulesFromDirectoryUseCase(new RuleDirectoryImportProperties(), saveRule,
+                    mock(RuleRepository.class), mock(RuleCatalogMetrics.class), registry));
 
     RulesImportIdsTest() {
         // The real one returns the id it saved under; the id is what this test is about.

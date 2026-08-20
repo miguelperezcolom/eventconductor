@@ -1,7 +1,7 @@
 package io.mateu.workflow.infra.in.rest;
 
 import io.mateu.workflow.application.usecases.gitimport.ImportRulesFromGitUseCase;
-import io.mateu.workflow.application.usecases.gitimport.ImportRulesFromGitUseCase.ImportRulesResult;
+import io.mateu.workflow.application.usecases.directoryimport.ImportRulesFromDirectoryUseCase.ImportRulesResult;
 import io.mateu.workflow.infra.config.RuleGitImportProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

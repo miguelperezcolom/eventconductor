@@ -20,7 +20,7 @@
              plain text and the JSON-schema engine has no PSI to validate. Multiple extensions are
              semicolon-separated. (.ecform, not .form: .form is reserved by IntelliJ's built-in
              Swing GUI Designer, which would suppress our editor.) -->
-        <fileType name="YAML" extensions="ec;ecform"/>
+        <fileType name="YAML" extensions="ec;ecform;ecrule"/>
         <!-- Split editors: text (YAML/JSON) on one side, the interactive JCEF view on the other.
              .ec gets the workflow graph; .ecform gets the visual form editor. Each provider's accept()
              is scoped to its own extension. -->
@@ -33,5 +33,6 @@
     <extensions defaultExtensionNs="JavaScript">
         <JsonSchema.ProviderFactory implementation="com.eventconductor.intellij.EcJsonSchemaProviderFactory"/>
         <JsonSchema.ProviderFactory implementation="com.eventconductor.intellij.FormJsonSchemaProviderFactory"/>
+        <JsonSchema.ProviderFactory implementation="com.eventconductor.intellij.RuleJsonSchemaProviderFactory"/>
     </extensions>
 </idea-plugin>

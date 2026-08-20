@@ -1,5 +1,7 @@
 package io.mateu.workflow.application.usecases.gitimport;
 
+import io.mateu.workflow.application.usecases.directoryimport.ImportRulesFromDirectoryUseCase;
+import io.mateu.workflow.infra.config.RuleDirectoryImportProperties;
 import io.mateu.workflow.infra.config.RuleGitImportProperties;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -28,7 +30,13 @@ import static org.mockito.Mockito.mock;
  */
 class RulesGitImportScanTest {
 
-    private final ImportRulesFromGitUseCase useCase = new ImportRulesFromGitUseCase(new RuleGitImportProperties(), mock(io.mateu.workflow.application.usecases.saverule.SaveRuleUseCase.class), mock(io.mateu.workflow.application.out.RuleRepository.class), mock(io.mateu.workflow.application.out.RuleCatalogMetrics.class), new io.mateu.workflow.webhook.InMemoryImportedDefinitionsRegistry());
+    private final ImportRulesFromGitUseCase useCase = new ImportRulesFromGitUseCase(
+            new RuleGitImportProperties(), mock(io.mateu.workflow.application.out.RuleCatalogMetrics.class),
+            new ImportRulesFromDirectoryUseCase(new RuleDirectoryImportProperties(),
+                    mock(io.mateu.workflow.application.usecases.saverule.SaveRuleUseCase.class),
+                    mock(io.mateu.workflow.application.out.RuleRepository.class),
+                    mock(io.mateu.workflow.application.out.RuleCatalogMetrics.class),
+                    new io.mateu.workflow.webhook.InMemoryImportedDefinitionsRegistry()));
 
     private static RuleGitImportProperties.GitRepository repo(String directory) {
         var repo = new RuleGitImportProperties.GitRepository();
@@ -92,10 +100,12 @@ class RulesGitImportScanTest {
         org.mockito.Mockito.when(saveRule.handle(org.mockito.ArgumentMatchers.any()))
                 .thenAnswer(call -> ((io.mateu.workflow.application.usecases.saverule.SaveRuleCommand)
                         call.getArgument(0)).rule().id());
-        var scoped = new ImportRulesFromGitUseCase(new RuleGitImportProperties(), saveRule,
-                mock(io.mateu.workflow.application.out.RuleRepository.class),
+        var scoped = new ImportRulesFromGitUseCase(new RuleGitImportProperties(),
                 mock(io.mateu.workflow.application.out.RuleCatalogMetrics.class),
-                new io.mateu.workflow.webhook.InMemoryImportedDefinitionsRegistry());
+                new ImportRulesFromDirectoryUseCase(new RuleDirectoryImportProperties(), saveRule,
+                        mock(io.mateu.workflow.application.out.RuleRepository.class),
+                        mock(io.mateu.workflow.application.out.RuleCatalogMetrics.class),
+                        new io.mateu.workflow.webhook.InMemoryImportedDefinitionsRegistry()));
 
         Files.createDirectories(repoDir.resolve("rules"));
         Files.writeString(repoDir.resolve("rules/wanted.json"), rule("wanted", "Wanted"));
