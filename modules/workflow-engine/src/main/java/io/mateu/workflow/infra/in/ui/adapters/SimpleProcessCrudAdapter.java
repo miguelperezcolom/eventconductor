@@ -47,11 +47,19 @@ public class SimpleProcessCrudAdapter  {
                 .map(mapProcessToRow(dtf))
                 .sorted(Comparator.comparing(ProcessRow::created).reversed())
                 .toList();
+        // The page SIZE is the one that was asked for, not the number of rows this page happens to
+        // carry — past the last page it carries none, and a 0 reaches the pager as a division by
+        // zero ("Page 3423 of Infinity", with next/last enabled for ever). A requested page beyond
+        // the end serves the last real one, so a stale deep link recovers instead of showing an
+        // empty grid.
+        int size = pageable.size() > 0 ? pageable.size() : all.size();
+        int lastPage = size > 0 ? Math.max(0, (all.size() - 1) / size) : 0;
+        int pageNumber = Math.min(Math.max(pageable.page(), 0), lastPage);
         List<ProcessRow> page = all.stream()
-                .skip((long) pageable.page() * pageable.size())
-                .limit(pageable.size())
+                .skip((long) pageNumber * size)
+                .limit(size)
                 .toList();
-        return new ListingData<>(new Page<>(searchText, page.size(), pageable.page(), all.size(), page));
+        return new ListingData<>(new Page<>(searchText, size, pageNumber, all.size(), page));
     }
 
     static boolean stateFlag(HttpRequest httpRequest, String name) {

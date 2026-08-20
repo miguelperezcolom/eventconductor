@@ -55,11 +55,17 @@ public class WorkflowDefinitions extends Crud<Object, WorkflowDefinition, Workfl
                 .filter(wd -> searchText == null || searchText.isBlank()
                         || wd.searchableText().toLowerCase().contains(searchText.toLowerCase()))
                 .toList();
+        // The page SIZE is the one asked for, not the rows this page happens to carry: past the
+        // end that is 0, and the pager divides by it ("Page 3423 of Infinity"). A page beyond the
+        // end serves the last real one, so a stale deep link recovers instead of an empty grid.
+        int size = pageable.size() > 0 ? pageable.size() : all.size();
+        int lastPage = size > 0 ? Math.max(0, (all.size() - 1) / size) : 0;
+        int pageNumber = Math.min(Math.max(pageable.page(), 0), lastPage);
         var content = all.stream()
-                .skip((long) pageable.page() * pageable.size())
-                .limit(pageable.size())
+                .skip((long) pageNumber * size)
+                .limit(size)
                 .toList();
-        return new ListingData<>(new Page<>(searchText, content.size(), pageable.page(), all.size(), content));
+        return new ListingData<>(new Page<>(searchText, size, pageNumber, all.size(), content));
     }
 
     // Read-only detail: summarised fields, the list of steps and an inline read-only graph.
