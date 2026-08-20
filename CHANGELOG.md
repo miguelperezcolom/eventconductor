@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.5.0] - 2026-08-20
+
+Three defects that shared a failure mode: **the system said yes and did nothing.**
+
+Tracing was configured, enabled, and exported not a single span — 2.3.0 had fixed the missing
+auto-configuration, so a `Tracer` existed and the tests written for it passed, in CI and in the
+image, while no trace ever reached a collector. The endpoint was set under a property Boot 4
+deprecated at level *error*, which means it is no longer bound: it reads back perfectly from the
+environment, nothing consumes it, and the exporter that depends on it is never created. Spans were
+built by a real tracer, handed to a real processor, and dropped.
+
+The test worker's `memory` profile — the one the guide recommends for CI — did not start at all,
+and under `jpa` it ran tasks one at a time while looking concurrent on paper. Those two are one
+problem seen twice: `memory` was the configuration in which the concurrency premise held, and the
+one that would not run, so there was no shape in which this worker could be driven at load.
+
+None of the three showed up as an error anywhere. That is what the tests added with them are for: a
+span exporter bean, a context that starts under the profile, and a store call slow enough that
+serialising it is visible.
+
 ### Fixed
 - **Tracing was configured, enabled, and exported nothing.** 2.3.0 fixed the missing
   auto-configuration, so a `Tracer` was created and the two tests written for it passed — in CI and
