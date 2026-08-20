@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Mateu 3.0-alpha.296.** A plain dependency bump: it compiles clean, and nothing it carries is
+  visible here. Measured rather than read off the release — the three operator journeys that wait on
+  a view model's `@Toolbar` actions being rendered were enabled and run against it, and the toolbar
+  still offers two of the five it declares, so they stay disabled.
+
 ## [2.5.0] - 2026-08-20
 
 Three defects that shared a failure mode: **the system said yes and did nothing.**
