@@ -450,6 +450,8 @@ A worker that does no work: it plays back the scenario the process asks for, so 
 - Unknown properties and malformed JSON **fail the task** with the parse error as its reason, rather than falling back to a default.
 - Overrides saved in the worker's UI (`/_worker`) answer only processes that carry no `TEST_CONFIG`; `TEST_CONFIG` always wins.
 - `worker.persistence=jpa` keeps received tasks and overrides in PostgreSQL; `SPRING_PROFILES_ACTIVE=memory` runs it with no database.
+- **Against a running deployment** the scenario travels the same way — start the process from the orchestrator UI with a `TEST_CONFIG` variable, or put it on the `ProcessCreationRequested` event: `"variables": [{"name": "TEST_CONFIG", "value": "{\"default\":{\"durationMs\":200}}"}]`. The value is a **string**, so the JSON is escaped inside it. An event whose own JSON is broken never becomes an event — no process is created, nothing is parked in the dead-letter store (conversion fails before any handler runs), and the producer still exits 0; check that processes were created, not that the producer succeeded. A broken `TEST_CONFIG` *string* inside a valid event fails loudly instead: the process runs and its first task reports the parse error.
+- **Topic collision:** the test worker and the forms engine both bind `downstream` by default, in different consumer groups, so both receive every task and the worker answers `USER_TASK`s meant for people. Give human tasks their own topic (`"topic": "forms"`) and bind the forms engine there. One shared consumer group does not fix it — they compete for the message.
 
 ---
 

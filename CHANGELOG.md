@@ -25,6 +25,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   has a real database — verified to discriminate, three failures with the cast removed, all of them
   the 42P18 above.
 
+### Documentation
+- **The test worker, driven from a deployment rather than a test.** The guide stated a scenario and
+  then only ever started the process from JUnit, so the half of the audience holding a running
+  cluster had no route in: the orchestrator UI, the `TEST_CONFIG` variable on a
+  `ProcessCreationRequested`, and the escaping that a JSON-inside-a-string demands. Two failure modes
+  are now written down and told apart — an event whose own JSON is broken never becomes an event at
+  all, creates no process, is not parked in the dead-letter store because conversion fails before any
+  handler runs, and leaves the producer exiting 0; a broken `TEST_CONFIG` *string* inside a valid
+  event fails loudly on the process instead. Also documented: this worker and the forms engine both
+  bind `downstream` out of the box, so the worker answers `USER_TASK`s meant for people until the
+  human steps are given a topic of their own.
+
 ## [2.6.0] - 2026-08-20
 
 **The admin UI read every row of the write side to paint ten of them**, and on the demo deployment
@@ -108,7 +120,6 @@ deployment — 37 651 processes, 345 564 step executions — that was measured, 
   `process_entity`, `started_at` on `step_execution_entity`. Each is declared `DESC NULLS LAST` to
   match the queries exactly — both columns are nullable, and a plain `DESC` index in Postgres is
   `NULLS FIRST`, which would leave the planner sorting anyway.
-
 ## [2.5.1] - 2026-08-20
 
 Mateu 3.0-alpha.296, and nothing else. It compiles clean and changes nothing observable — cut so a
