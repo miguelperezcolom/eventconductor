@@ -34,9 +34,15 @@ public class WorkflowDefinitionIdOptionsSupplier implements LookupOptionsSupplie
                         || wd.name().toLowerCase().contains(searchText.toLowerCase()))
                 .map(wd -> new Option(wd.id(), wd.name()))
                 .toList();
-        int from = pageable.page() * pageable.size();
-        int to = Math.min(from + pageable.size(), all.size());
-        List<Option> slice = from < all.size() ? all.subList(from, to) : List.of();
-        return new ListingData<>(new Page<>(searchText, slice.size(), pageable.page(), all.size(), slice));
+        // The page SIZE is the one asked for, not the rows this page happens to carry: past the
+        // end that is 0, and the pager divides by it ("Page 3423 of Infinity"). A page beyond the
+        // end serves the last real one, so a stale deep link recovers instead of an empty grid.
+        int size = pageable.size() > 0 ? pageable.size() : all.size();
+        int lastPage = size > 0 ? Math.max(0, (all.size() - 1) / size) : 0;
+        int pageNumber = Math.min(Math.max(pageable.page(), 0), lastPage);
+        int from = Math.min(pageNumber * size, all.size());
+        int to = Math.min(from + size, all.size());
+        List<Option> slice = all.subList(from, to);
+        return new ListingData<>(new Page<>(searchText, size, pageNumber, all.size(), slice));
     }
 }

@@ -42,11 +42,17 @@ public class StepExecutionsCrudAdapter {
                         Comparator.nullsLast(Comparator.<LocalDateTime>reverseOrder())))
                 .map(this::map)
                 .toList();
+        // The page SIZE is the one asked for, not the rows this page happens to carry: past the
+        // end that is 0, and the pager divides by it ("Page 3423 of Infinity"). A page beyond the
+        // end serves the last real one, so a stale deep link recovers instead of an empty grid.
+        int size = pageable.size() > 0 ? pageable.size() : all.size();
+        int lastPage = size > 0 ? Math.max(0, (all.size() - 1) / size) : 0;
+        int pageNumber = Math.min(Math.max(pageable.page(), 0), lastPage);
         List<StepExecutionRow> page = all.stream()
-                .skip((long) pageable.page() * pageable.size())
-                .limit(pageable.size())
+                .skip((long) pageNumber * size)
+                .limit(size)
                 .toList();
-        return new ListingData<>(new Page<>(searchText, page.size(), pageable.page(), all.size(), page));
+        return new ListingData<>(new Page<>(searchText, size, pageNumber, all.size(), page));
     }
 
     private String searchableText(StepExecution stepExecution) {
