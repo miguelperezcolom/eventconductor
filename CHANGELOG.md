@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Rules can be imported from a directory**, as workflows and forms already could:
+  `rules.directory-import.directories`. This is where the drift above came from — workflows and
+  forms each have one `ImportXFromDirectoryUseCase` that decides what a definition file is, and
+  their Git imports delegate to it; rules had no such place, so their Git import carried its own
+  walk, its own filter and its own parser. Now they have one too, and the Git import delegates. The
+  next extension is added in one place rather than three.
+
 ### Changed
 - **Mateu 3.0-alpha.295.** Carries the element-interpolation support that 294 introduced, and
   compiles clean — unlike 294, which moved `RestDataSource`. Still open upstream: a view model's
@@ -34,6 +42,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   The topology travels this way too, not only the overlay: a DYNAMIC step injects nodes while the
   process runs, so the graph's shape changes under a page that is already open.
+
+### Fixed
+- **`.ecrule` was a ghost extension.** It was declared in the engine's shared extension list and in
+  the Maven plugin's copy of that list — which 2.3.0 fixed the validator to honour — and read by
+  nothing: not the rule import, not either IDE plugin. So a build validated a file the engine would
+  then not load, which is worse than either supporting the extension or refusing it: it gives green
+  light to something that does not work.
+
+  Both lists even met inside one call — the rule import handed its own three-extension filter to
+  `DerivedIds.declaredUnder`, whose own list has six, so an id could be derived for a file the
+  filter beside it would never let through.
+
+  `.ecrule` is now read by the rule import and registered by both IDE plugins (VS Code 0.1.14,
+  IntelliJ 0.1.15) as YAML with the rule schema attached. There is no visual rule editor and this
+  does not pretend otherwise — what a `.ecrule` gets is highlighting, completion and validation
+  against the schema the engine validates it with.
 
 
 ## [2.3.0] - 2026-08-20

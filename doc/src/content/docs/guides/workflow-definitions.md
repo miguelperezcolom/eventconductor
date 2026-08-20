@@ -187,7 +187,7 @@ can be configured at once.
 
 ## Importing from Git
 
-When `workflow.persistence=jpa`, EventConductor can clone one or more Git repositories at startup and import every `.json` / `.yaml` / `.yml` file that contains a valid workflow definition (i.e. has both `name` and `steps` fields).
+When `workflow.persistence=jpa`, EventConductor can clone one or more Git repositories at startup and import every `.json` / `.yaml` / `.yml` / `.ec` file that contains a valid workflow definition (i.e. has both `name` and `steps` fields).
 
 ### Configuration
 

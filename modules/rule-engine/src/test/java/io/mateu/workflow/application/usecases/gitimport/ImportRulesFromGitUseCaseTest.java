@@ -1,5 +1,7 @@
 package io.mateu.workflow.application.usecases.gitimport;
 
+import io.mateu.workflow.application.usecases.directoryimport.ImportRulesFromDirectoryUseCase;
+import io.mateu.workflow.infra.config.RuleDirectoryImportProperties;
 import io.mateu.workflow.application.out.RuleCatalogMetrics;
 import io.mateu.workflow.application.out.RuleRepository;
 import io.mateu.workflow.application.usecases.saverule.SaveRuleCommand;
@@ -52,8 +54,9 @@ class ImportRulesFromGitUseCaseTest {
         saveRule = mock(SaveRuleUseCase.class);
         metrics = mock(RuleCatalogMetrics.class);
         registry = new InMemoryImportedDefinitionsRegistry();
-        useCase = new ImportRulesFromGitUseCase(
-                new RuleGitImportProperties(), saveRule, rules, metrics, registry);
+        useCase = new ImportRulesFromGitUseCase(new RuleGitImportProperties(), metrics,
+                new ImportRulesFromDirectoryUseCase(new RuleDirectoryImportProperties(), saveRule,
+                        rules, metrics, registry));
         // The save use case is what assigns and returns the id; here it echoes what it was given.
         when(saveRule.handle(any())).thenAnswer(call ->
                 ((SaveRuleCommand) call.getArgument(0)).rule().id());

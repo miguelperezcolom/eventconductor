@@ -5,7 +5,7 @@ description: Defining business rules (expression rules and decision tables) in t
 
 The rule engine is the **catalog** of business rules: it stores, validates, versions and serves rule definitions — it does not execute them. Evaluation happens in the embeddable [rule runtime](/guides/rule-evaluation/), wherever your data lives.
 
-Rules can be written in **JSON** or **YAML** (`.json`, `.yaml`, `.yml`), stored in version control, and referenced by `RULE` steps in workflow definitions. They can be imported from Git at startup, on demand via the MCP tool `importRulesFromGit`, or automatically via a **GitHub webhook** (`POST /rules/webhooks/github`, HMAC-signed with `rules.git-import.webhook-secret`).
+Rules can be written in **JSON** or **YAML** (`.json`, `.yaml`, `.yml`, or `.ecrule`, which the IDE plugins highlight and validate against the rule schema), stored in version control, and referenced by `RULE` steps in workflow definitions. They can be imported from Git at startup, on demand via the MCP tool `importRulesFromGit`, or automatically via a **GitHub webhook** (`POST /rules/webhooks/github`, HMAC-signed with `rules.git-import.webhook-secret`).
 
 There are two rule types:
 
@@ -90,6 +90,27 @@ Definitions are validated on save against the JSON schema (`rule-schema.json`) p
 - MCP tools: `listRules`, `getRule`, `saveRule`, `validateRule`, `deleteRule`, `evaluateRule`, `importRulesFromGit`.
 - On every save/delete in Kafka mode the catalog emits `RulePublished` / `RuleDeleted` on the `rules` destination, so remote runtimes refresh their caches instantly.
 
+## Importing from a directory
+
+Rules already on disk — mounted into the container, checked out beside the app, written by whatever
+generates them — are imported at startup from the directories you name:
+
+```yaml
+rules:
+  directory-import:
+    directories:
+      - /definitions/rules
+```
+
+Each directory is scanned recursively, and every file with a `name` and a known rule `type` is
+imported. Rules removed from the directory are **deleted** on the next import, tracked separately
+per directory, and only ever rules that this import created.
+
+It is the same import the Git one runs — a clone is a directory — which is the point of it existing.
+Rules had no such place before, so the one filter they had drifted from the two that workflows and
+forms share: `.ecrule` ended up declared in the engine's shared extension list and in the Maven
+plugin's copy of it, and read by neither the engine nor either IDE plugin.
+
 ## Git import
 
 ```yaml
@@ -102,4 +123,4 @@ rules:
         # username / password for private repos
 ```
 
-At startup (and on webhook or MCP request) every `.json`/`.yaml`/`.yml` file with a `name` and a rule `type` is validated and upserted into the catalog.
+At startup (and on webhook or MCP request) every `.json`/`.yaml`/`.yml`/`.ecrule` file with a `name` and a rule `type` is validated and upserted into the catalog. It is the file's *content* that decides — a repository holding workflows next to rules is harmless whatever the files are called.

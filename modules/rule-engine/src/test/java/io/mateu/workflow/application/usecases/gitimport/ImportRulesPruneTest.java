@@ -1,5 +1,7 @@
 package io.mateu.workflow.application.usecases.gitimport;
 
+import io.mateu.workflow.application.usecases.directoryimport.ImportRulesFromDirectoryUseCase;
+import io.mateu.workflow.infra.config.RuleDirectoryImportProperties;
 import io.mateu.workflow.application.out.RuleCatalogMetrics;
 import io.mateu.workflow.application.out.RuleRepository;
 import io.mateu.workflow.application.usecases.saverule.SaveRuleUseCase;
@@ -20,8 +22,8 @@ class ImportRulesPruneTest {
 
     private final RuleRepository ruleRepository = mock(RuleRepository.class);
     private final InMemoryImportedDefinitionsRegistry registry = new InMemoryImportedDefinitionsRegistry();
-    private final ImportRulesFromGitUseCase useCase = new ImportRulesFromGitUseCase(
-            mock(RuleGitImportProperties.class), mock(SaveRuleUseCase.class), ruleRepository,
+    private final ImportRulesFromDirectoryUseCase useCase = new ImportRulesFromDirectoryUseCase(
+            mock(RuleDirectoryImportProperties.class), mock(SaveRuleUseCase.class), ruleRepository,
             mock(RuleCatalogMetrics.class), registry);
 
     private static final String REPO = "https://github.com/org/rules.git";
