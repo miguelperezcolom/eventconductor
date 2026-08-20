@@ -91,8 +91,8 @@ public interface StepExecutionEntityRepository extends JpaRepository<StepExecuti
             from StepExecutionEntity s
             join ProcessEntity p on p.id = s.processId
             where p.created is not null
-              and (:createdFrom is null or p.created >= :createdFrom)
-              and (:createdTo is null or p.created <= :createdTo)
+              and (cast(:createdFrom as LocalDateTime) is null or p.created >= :createdFrom)
+              and (cast(:createdTo as LocalDateTime) is null or p.created <= :createdTo)
             """)
     List<StepExecutionAnalyticsView> findAnalyticsRows(@Param("createdFrom") LocalDateTime createdFrom,
                                                        @Param("createdTo") LocalDateTime createdTo);

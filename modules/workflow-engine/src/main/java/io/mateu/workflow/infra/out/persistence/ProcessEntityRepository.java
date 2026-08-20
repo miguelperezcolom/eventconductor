@@ -84,8 +84,8 @@ public interface ProcessEntityRepository extends JpaRepository<ProcessEntity, St
                    p.created as created, p.started as started, p.finished as finished
             from ProcessEntity p
             where p.created is not null
-              and (:createdFrom is null or p.created >= :createdFrom)
-              and (:createdTo is null or p.created <= :createdTo)
+              and (cast(:createdFrom as LocalDateTime) is null or p.created >= :createdFrom)
+              and (cast(:createdTo as LocalDateTime) is null or p.created <= :createdTo)
             """)
     List<ProcessAnalyticsView> findAnalyticsRows(@Param("createdFrom") LocalDateTime createdFrom,
                                                  @Param("createdTo") LocalDateTime createdTo);

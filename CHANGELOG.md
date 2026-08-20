@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Analytics returned 500 on PostgreSQL, for every window.** Both analytics projections bound
+  their window with the usual optional-parameter shape,
+  `(:createdFrom is null or p.created >= :createdFrom)`. Hibernate emits a *separate* placeholder
+  per occurrence of a named parameter, so what reaches the database is
+  `(? is null or pe1_0.created >= ?)` and `$1` appears nowhere except in `$1 is null` — nothing to
+  infer a type from, and PostgreSQL refuses to prepare the statement: `42P18, could not determine
+  data type of parameter $1`. Casting the null check gives it the type back. Because the failure is
+  at prepare time it did not depend on the values, so `/workflow/analytics` was broken with a window
+  set exactly as it was without one — 2.6.0 turned a page that killed the pod into a page that
+  always 500s.
+
+  It survived release because nothing exercised these two queries against PostgreSQL: the engine's
+  own tests run on H2, which infers the type happily and returns rows, and the service test above
+  them mocks the repositories. The regression test is `Dist15AnalyticsWindowTest`, in the suite that
+  has a real database — verified to discriminate, three failures with the cast removed, all of them
+  the 42P18 above.
+
 ## [2.6.0] - 2026-08-20
 
 **The admin UI read every row of the write side to paint ten of them**, and on the demo deployment
