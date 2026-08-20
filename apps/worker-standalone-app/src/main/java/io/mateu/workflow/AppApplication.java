@@ -2,8 +2,6 @@ package io.mateu.workflow;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.boot.persistence.autoconfigure.EntityScan;
-import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
 /**
  * The test worker: a worker that does no work, and plays back the scenario it was asked for.
@@ -26,8 +24,6 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
  * producer settings they need without being asked.
  */
 @SpringBootApplication(scanBasePackages = "io.mateu.testworker")
-@EntityScan("io.mateu.testworker.infra.out.persistence")
-@EnableJpaRepositories("io.mateu.testworker.infra.out.persistence")
 public class AppApplication {
 
     public static void main(String[] args) {

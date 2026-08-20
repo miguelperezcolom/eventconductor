@@ -26,6 +26,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   property back would have proved only that the yaml says what the yaml says — which is exactly
   what made this look right for two releases.
 
+- **The worker's `memory` profile did not start.** The profile is documented as the shape a CI suite
+  wants — one container, no volume — and it failed on an `entityManagerFactory` it had deliberately
+  removed. The stores are conditional; the Spring Data repository interfaces they wrap are not and
+  cannot be, because scanning is what finds them, and the application class turned scanning on
+  unconditionally. Excluding the JPA auto-configurations does not help: excluding an
+  auto-configuration does not stop repository scanning. `@EnableJpaRepositories` and `@EntityScan`
+  now sit on a configuration conditional on `worker.persistence=jpa`, which is what the stores
+  already switch on. A context test starts the profile, which is the only size of test that could
+  have caught this — every unit in the worker was fine; the assembly was not.
+
+- **The test worker did not run tasks concurrently under `jpa`.** The consumer uses `flatMap` and
+  the simulator uses `Mono.delay`, so on paper it ran many at once. The store calls are blocking,
+  and they were made on the Reactor thread carrying the task — a considered trade whose premise was
+  that they interleave with a `delay` and starve nothing. True of the in-memory map, false of JPA,
+  where the blocking call is a database round trip on the same small pool every other task shares.
+  Measured at 5,000 processes against a deployed engine: 7.7 tasks/s at 200ms of simulated work
+  each — about 1.5 genuinely in flight, with the worker at 50m CPU and PostgreSQL at 106m and one
+  active connection. The store calls now run on `Schedulers.boundedElastic()`. The test puts the
+  delay in the store, which is where JPA puts it: 0.6s with the fix, 1.8s without.
+
+  Together these were the whole of it — `memory` was the configuration where the premise held and
+  the one that would not start, so there was no shape in which this worker could be driven at load.
+
+
 ## [2.4.0] - 2026-08-20
 
 The process diagram stops lying, rules stop being the odd one out, and an extension that existed
