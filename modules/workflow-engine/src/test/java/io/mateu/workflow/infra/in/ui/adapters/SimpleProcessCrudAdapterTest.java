@@ -11,6 +11,9 @@ import java.util.List;
 import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -23,6 +26,11 @@ class SimpleProcessCrudAdapterTest {
     private final ProcessRepository repository = mock(ProcessRepository.class);
 
     private SimpleProcessCrudAdapter adapter(int processes) {
+        // The listing pages in the store now. Its in-memory implementation is a default method over
+        // findAll(), and Mockito does not run default methods — so it is routed to the real one,
+        // which then reads the findAll() stub below. These assertions therefore still describe the
+        // shipped behaviour rather than a reimplementation of it.
+        when(repository.searchSummaries(any(), anyBoolean(), anyInt(), anyInt())).thenCallRealMethod();
         when(repository.findAll()).thenReturn(IntStream.range(0, processes)
                 .mapToObj(i -> Process.builder()
                         .id("p-" + i)

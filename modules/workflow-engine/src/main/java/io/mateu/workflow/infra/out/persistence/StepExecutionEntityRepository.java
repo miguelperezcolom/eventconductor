@@ -1,5 +1,6 @@
 package io.mateu.workflow.infra.out.persistence;
 
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -44,4 +45,75 @@ public interface StepExecutionEntityRepository extends JpaRepository<StepExecuti
     long countStalled(@Param("statuses") List<String> statuses,
                       @Param("startedBefore") LocalDateTime startedBefore,
                       @Param("types") List<String> types);
+
+    /**
+     * One page of the step-execution listing. Selects only the columns the listing paints — never
+     * {@code step_json} or {@code variables}, which are the bulk of the table — and filters, orders
+     * and pages in the database.
+     *
+     * <p>{@code :pattern} is a pre-lowercased LIKE pattern (wildcards included) or null for "no
+     * text filter". {@code :onlyErrors} spells out the two failure statuses as literals — the same
+     * shorthand the process listing uses for {@code 'ERROR'} — so the planner sees a plain
+     * predicate over an indexed column.
+     */
+    @Query(value = """
+            select s.id as id, s.processId as processId, s.stepId as stepId, s.status as status,
+                   s.startedAt as startedAt, s.attemptCount as attemptCount
+            from StepExecutionEntity s
+            where (:onlyErrors = false or s.status in ('ERROR', 'TIMEOUT'))
+              and (:pattern is null
+                   or lower(concat(s.id, ' ', coalesce(s.processId, ''), ' ', coalesce(s.stepId, ''))) like :pattern)
+            order by s.startedAt desc nulls last
+            """)
+    List<StepExecutionSummaryView> searchSummaries(@Param("onlyErrors") boolean onlyErrors,
+                                                   @Param("pattern") String pattern,
+                                                   Pageable pageable);
+
+    /** How many step executions the same filter matches — see {@code ProcessEntityRepository}. */
+    @Query("""
+            select count(s)
+            from StepExecutionEntity s
+            where (:onlyErrors = false or s.status in ('ERROR', 'TIMEOUT'))
+              and (:pattern is null
+                   or lower(concat(s.id, ' ', coalesce(s.processId, ''), ' ', coalesce(s.stepId, ''))) like :pattern)
+            """)
+    long countSummaries(@Param("onlyErrors") boolean onlyErrors, @Param("pattern") String pattern);
+
+    /**
+     * Every step execution whose process was created inside the window, as the columns analytics
+     * reads. Joined to the process rather than filtered on the step's own
+     * {@code workflowDefinitionId}, because the window analytics selects by is the process's
+     * creation time, not the step's.
+     */
+    @Query("""
+            select s.processId as processId, s.stepId as stepId, s.status as status,
+                   s.order as order, s.startedAt as startedAt, s.finishedAt as finishedAt
+            from StepExecutionEntity s
+            join ProcessEntity p on p.id = s.processId
+            where p.created is not null
+              and (:createdFrom is null or p.created >= :createdFrom)
+              and (:createdTo is null or p.created <= :createdTo)
+            """)
+    List<StepExecutionAnalyticsView> findAnalyticsRows(@Param("createdFrom") LocalDateTime createdFrom,
+                                                       @Param("createdTo") LocalDateTime createdTo);
+
+    /** Projection backing {@link #findAnalyticsRows} — no step JSON, no variables. */
+    interface StepExecutionAnalyticsView {
+        String getProcessId();
+        String getStepId();
+        String getStatus();
+        long getOrder();
+        LocalDateTime getStartedAt();
+        LocalDateTime getFinishedAt();
+    }
+
+    /** Projection backing {@link #searchSummaries} — the listing columns and nothing else. */
+    interface StepExecutionSummaryView {
+        String getId();
+        String getProcessId();
+        String getStepId();
+        String getStatus();
+        LocalDateTime getStartedAt();
+        int getAttemptCount();
+    }
 }
