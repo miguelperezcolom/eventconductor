@@ -1,5 +1,6 @@
 package io.mateu.workflow.infra.out.persistence;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.IdClass;
@@ -40,6 +41,7 @@ public class FieldEntity {
 
     private boolean required;
 
+    @Column(columnDefinition = "TEXT")
     private String description;
 
     /**
@@ -49,12 +51,14 @@ public class FieldEntity {
      * key and a third delete path for no query that exists. {@code form_execution_entity} stores its
      * variables and values the same way.
      */
+    @Column(columnDefinition = "TEXT")
     private String options;
 
     /**
      * Where the field's choices are fetched from, as the JSON descriptor the definition declares.
      * Stored like {@link #options}, which it replaces, and for the same reasons.
      */
+    @Column(columnDefinition = "TEXT")
     private String optionsSource;
 
     /**

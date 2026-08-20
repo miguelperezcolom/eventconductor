@@ -1,5 +1,6 @@
 package io.mateu.workflow.infra.out.persistence;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import lombok.AllArgsConstructor;
@@ -16,6 +17,7 @@ public class FormEntity {
 
     String name;
 
+    @Column(columnDefinition = "TEXT")
     private String description;
 
 }
