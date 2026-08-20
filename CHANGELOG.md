@@ -7,6 +7,68 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+The admin UI read every row of the write side to paint ten of them. Four pages, one habit: load the
+whole table through the domain aggregate, then filter, sort and paginate in Java. On the demo
+deployment — 37 651 processes, 345 564 step executions — that was measured, not estimated.
+
+### Fixed
+- **Analytics did not just take a minute, it took the pod down.** `/workflow/analytics` loaded every
+  process and then re-read the entire `step_execution_entity` table **once per workflow definition**
+  — six times, step JSON and variables included. Around 2.5 GB of row data for one page. Two real
+  requests: 61.3 s, abandoned by the browser; 38.5 s, HTTP 500. The orchestrator was SIGKILLed at
+  the moment of the second (`exitCode: 137`), and the gateway then returned 500 on `/workflow/steps`
+  because there was nothing behind it.
+
+  Both ports gained an analytics projection (`findAnalyticsRows`) reading the seven and six columns
+  the report actually uses, and the service now takes **one** snapshot per report instead of one
+  re-read per definition — step executions are indexed by process once, so per-definition work is a
+  lookup rather than a scan of the whole table. The window goes into the query, and step executions
+  join their process so it narrows them too.
+
+  Every number is unchanged: nearest-rank p95, averages, per-day throughput, the bottleneck flag and
+  the flow ordering of steps are all still computed in Java over the same values. Measured on the
+  same data: 6.5 MB + 36.6 MB instead of 315 MB + 6 × 360 MB, and 0.25 s of database work.
+
+### Changed
+- **The process and step listings page in SQL.** `SimpleProcessCrudAdapter.search` and
+  `StepExecutionsCrudAdapter.search` called `findAll()` and paged the result in Java. A process row
+  carries its workflow definition JSON — 8 KB on average — so painting ten rows moved 315 MB out of
+  Postgres, on every keystroke in the search box and every page turn. Measured on the demo: 6.9 s,
+  7.2 s, 7.6 s of server time to return between 454 and 6 111 bytes.
+
+  Filtering, ordering and paging now happen in the store, over a projection of the columns the table
+  shows — never `workflow_definition_json`, `variables`, `log` or `step_json`. The in-memory store
+  keeps the old behaviour as the port's default; only the JPA store overrides it.
+
+  With the new indexes the unfiltered listing is an index scan of twelve buffers, 0.047 ms.
+
+- **Paging is one contract, in one place.** The page size and number a listing reports are decided
+  by the store now (`ServedPage`), so the SQL and in-memory paths cannot drift: a size of zero or
+  less still means everything on one page, and a page past the end is still answered with the last
+  real one. Pushed down, that last part cannot be clamped after the fact — the store has to count
+  before it knows which page exists — so it counts first and then asks for the page it can serve.
+
+- **Received tasks page in the database too.** The test worker's listing went through mateu's
+  default `CrudStore.find`, which is `findAll()` paged in memory: 64 006 rows for ten, 1.6–2.2 s.
+  `JpaReceivedTaskStore` now overrides it. Text search is pushed down replicating mateu's own rule
+  exactly — every whitespace-separated token must appear in the row's `toString()`. The filter form
+  and column criteria are deliberately **not** reimplemented: their semantics live in private
+  reflection inside `CrudStore`, so those paths still delegate to the default.
+
+- **The demo shell compresses and lets its bundle be cached.** 3.5 MB of JavaScript went out
+  uncompressed, under `Cache-Control: no-store` — Spring Security's default headers applied to
+  `/assets/**`, so the cache was not missing, it was forbidden. Compression is on (817 KB, 4.3×) and
+  a dedicated filter chain drops only the cache-control writer for static paths, leaving every other
+  security header in place. The bundle revalidates rather than expiring, because these filenames
+  carry no content hash and a long `max-age` would strand browsers on an old bundle after a release;
+  a second load is now six 304s and no bytes. The bootstrap HTML stays uncached.
+
+### Added
+- **Indexes for the two listings** (`V22`, `V23`): `created` and `(status, created)` on
+  `process_entity`, `started_at` on `step_execution_entity`. Each is declared `DESC NULLS LAST` to
+  match the queries exactly — both columns are nullable, and a plain `DESC` index in Postgres is
+  `NULLS FIRST`, which would leave the planner sorting anyway.
+
 ## [2.5.1] - 2026-08-20
 
 Mateu 3.0-alpha.296, and nothing else. It compiles clean and changes nothing observable — cut so a

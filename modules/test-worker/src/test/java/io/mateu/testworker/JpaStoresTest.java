@@ -1,5 +1,6 @@
 package io.mateu.testworker;
 
+import io.mateu.uidl.data.Pageable;
 import io.mateu.workflow.dtos.MessageType;
 import io.mateu.workflow.dtos.Variable;
 import io.mateu.testworker.domain.LogLine;
@@ -137,6 +138,63 @@ class JpaStoresTest {
                 List.of(), null));
 
         assertThat(store.findAll()).extracting(ReceivedTask::id).containsExactly("newer", "older");
+    }
+
+    @Test
+    void the_listing_pages_in_the_database_and_still_reports_the_full_total() {
+        var store = receivedTasks();
+        var now = LocalDateTime.now();
+        for (var i = 0; i < 5; i++) {
+            store.save(new ReceivedTask("task-" + i, "process-" + i, "booking", "step-1",
+                    "charge-card", now.plusMinutes(i), 1, ScenarioSource.DEFAULT, null,
+                    Outcome.COMPLETED, 0L, now, null, List.of(), null));
+        }
+
+        var first = store.find(null, null, List.of(), new Pageable(0, 2, List.of()));
+        var second = store.find(null, null, List.of(), new Pageable(1, 2, List.of()));
+
+        assertThat(first.content()).extracting(ReceivedTask::id).containsExactly("task-4", "task-3");
+        assertThat(second.content()).extracting(ReceivedTask::id).containsExactly("task-2", "task-1");
+        // The page carries two rows; the total is all five, because it comes from a count query
+        // rather than from the size of a list the caller had to load.
+        assertThat(first.totalElements()).isEqualTo(5);
+        assertThat(second.totalElements()).isEqualTo(5);
+    }
+
+    @Test
+    void the_listing_search_matches_every_token_against_task_and_process_id() {
+        var store = receivedTasks();
+        store.save(aTask("t-1", "alpha-process", "step-1"));
+        store.save(aTask("t-2", "beta-process", "step-1"));
+
+        var everything = new Pageable(0, 10, List.of());
+
+        // A row's searchable text is its toString(): "charge-card · alpha-process".
+        assertThat(store.find("alpha", null, List.of(), everything).content())
+                .extracting(ReceivedTask::id).containsExactly("t-1");
+        // Case-insensitive, and every whitespace-separated token has to appear — the same rule the
+        // in-memory store applies, which is why a search spanning both halves still matches.
+        assertThat(store.find("CHARGE beta", null, List.of(), everything).content())
+                .extracting(ReceivedTask::id).containsExactly("t-2");
+        // ...and a token that appears nowhere rules the row out even if the others match.
+        assertThat(store.find("alpha nonsense", null, List.of(), everything).content()).isEmpty();
+        assertThat(store.find("  ", null, List.of(), everything).totalElements()).isEqualTo(2);
+    }
+
+    @Test
+    void the_listing_still_filters_when_the_filter_form_carries_something() {
+        var store = receivedTasks();
+        store.save(aTask("t-1", "alpha-process", "step-1"));
+        store.save(aTask("t-2", "beta-process", "step-2"));
+
+        // A filter object sends this down mateu's own in-memory path rather than to SQL; what
+        // matters is that the answer is the same one either way.
+        var filter = new ReceivedTask(null, null, null, "step-2", null, null, null, null, null,
+                null, null, null, null, List.of(), null);
+
+        var found = store.find(null, filter, List.of(), new Pageable(0, 10, List.of()));
+
+        assertThat(found.content()).extracting(ReceivedTask::id).containsExactly("t-2");
     }
 
     private static TaskOverride anOverride(String name, boolean enabled) {

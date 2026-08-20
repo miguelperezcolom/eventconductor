@@ -5,6 +5,7 @@ import io.mateu.uidl.data.*;
 import io.mateu.uidl.interfaces.CrudStore;
 import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.workflow.application.out.ProcessRepository;
+import io.mateu.workflow.application.out.ProcessSummary;
 import io.mateu.workflow.domain.aggregates.Process;
 import io.mateu.workflow.domain.aggregates.ProcessStatus;
 import io.mateu.workflow.domain.aggregates.StepExecutionStatus;
@@ -18,7 +19,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplicat
 import org.springframework.stereotype.Service;
 
 import java.time.format.DateTimeFormatter;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -40,26 +40,16 @@ public class SimpleProcessCrudAdapter  {
         // SearchActionHandler passes filters = null; the filter values only travel in the component state
         boolean onlyErrors = filters != null && Boolean.TRUE.equals(filters.onlyErrors())
                 || filters == null && stateFlag(httpRequest, "onlyErrors");
-        List<ProcessRow> all = repository.findAll().stream()
-                .filter(process -> !onlyErrors || ProcessStatus.ERROR.equals(process.getStatus()))
-                .filter(process -> searchText == null || searchText.isEmpty() ||
-                        process.searchableText().toLowerCase().contains(searchText.toLowerCase()))
-                .map(mapProcessToRow(dtf))
-                .sorted(Comparator.comparing(ProcessRow::created).reversed())
-                .toList();
-        // The page SIZE is the one that was asked for, not the number of rows this page happens to
-        // carry — past the last page it carries none, and a 0 reaches the pager as a division by
-        // zero ("Page 3423 of Infinity", with next/last enabled for ever). A requested page beyond
-        // the end serves the last real one, so a stale deep link recovers instead of showing an
-        // empty grid.
-        int size = pageable.size() > 0 ? pageable.size() : all.size();
-        int lastPage = size > 0 ? Math.max(0, (all.size() - 1) / size) : 0;
-        int pageNumber = Math.min(Math.max(pageable.page(), 0), lastPage);
-        List<ProcessRow> page = all.stream()
-                .skip((long) pageNumber * size)
-                .limit(size)
-                .toList();
-        return new ListingData<>(new Page<>(searchText, size, pageNumber, all.size(), page));
+        // Filtering, ordering and paging all happen in the store. Doing them here meant loading
+        // every process — and with it every process's workflow definition JSON — to paint ten rows.
+        var found = repository.searchSummaries(searchText, onlyErrors, pageable.page(), pageable.size());
+        List<ProcessRow> page = found.content().stream().map(mapSummaryToRow(dtf)).toList();
+        // The page number and size reported back are the ones the store served, not the ones that
+        // were asked for. A request past the last page is answered with the last real one, and a
+        // request carrying no size is answered with everything — both are numbers the pager on the
+        // other end divides by, and a 0 there read as "Page 3423 of Infinity".
+        return new ListingData<>(new Page<>(
+                searchText, found.pageSize(), found.pageNumber(), found.totalElements(), page));
     }
 
     static boolean stateFlag(HttpRequest httpRequest, String name) {
@@ -71,12 +61,16 @@ public class SimpleProcessCrudAdapter  {
     }
 
     private static Function<Process, ProcessRow> mapProcessToRow(DateTimeFormatter dtf) {
-        return process -> new ProcessRow(process.id(),
-                process.getName(),
-                mapProcessStatus(process.getStatus(), process.getCompletionPercentage()),
-                process.getCreated() != null ? process.getCreated().format(dtf) : null,
-                process.getStarted() != null ? process.getStarted().format(dtf) : null,
-                process.getFinished() != null ? process.getFinished().format(dtf) : null);
+        return process -> mapSummaryToRow(dtf).apply(ProcessSummary.from(process));
+    }
+
+    private static Function<ProcessSummary, ProcessRow> mapSummaryToRow(DateTimeFormatter dtf) {
+        return summary -> new ProcessRow(summary.id(),
+                summary.name(),
+                mapProcessStatus(summary.status(), summary.completionPercentage()),
+                summary.created() != null ? summary.created().format(dtf) : null,
+                summary.started() != null ? summary.started().format(dtf) : null,
+                summary.finished() != null ? summary.finished().format(dtf) : null);
     }
 
     public static Status mapProcessStatus(ProcessStatus status, int completionPercentage) {

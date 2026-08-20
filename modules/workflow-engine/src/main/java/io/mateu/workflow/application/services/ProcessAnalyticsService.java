@@ -1,11 +1,11 @@
 package io.mateu.workflow.application.services;
 
+import io.mateu.workflow.application.out.ProcessAnalyticsRow;
 import io.mateu.workflow.application.out.ProcessRepository;
+import io.mateu.workflow.application.out.StepExecutionAnalyticsRow;
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
-import io.mateu.workflow.domain.aggregates.Process;
 import io.mateu.workflow.domain.aggregates.ProcessStatus;
-import io.mateu.workflow.domain.aggregates.StepExecution;
 import io.mateu.workflow.domain.aggregates.StepExecutionStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -103,24 +103,44 @@ public class ProcessAnalyticsService {
             List<StepAnalytics> steps,
             String bottleneckStepId) {}
 
+    /**
+     * Everything a report over one window is computed from, read once. Both halves are narrow
+     * projections, not aggregates: the point of gathering them here is that they are gathered
+     * <b>once</b> — the step executions used to be re-read from scratch for every definition.
+     */
+    private record Snapshot(List<ProcessAnalyticsRow> processes,
+                            Map<String, List<StepExecutionAnalyticsRow>> stepsByProcessId) {}
+
+    private Snapshot snapshot(TimeWindow window) {
+        var processes = processRepository.findAnalyticsRows(window.from(), window.to());
+        var stepsByProcessId = stepExecutionRepository
+                .findAnalyticsRows(window.from(), window.to()).stream()
+                .collect(Collectors.groupingBy(StepExecutionAnalyticsRow::processId));
+        return new Snapshot(processes, stepsByProcessId);
+    }
+
     /** Analytics for every known workflow definition (including ones with no instances in the window). */
     public List<DefinitionAnalytics> analyzeAll(TimeWindow window) {
-        var processes = processRepository.findAll();
+        var snapshot = snapshot(window);
         var definitionIds = new LinkedHashSet<String>();
         workflowDefinitionRepository.findAll().forEach(def -> definitionIds.add(def.id()));
-        processes.stream().map(Process::getWorkflowDefinitionId).filter(id -> id != null).forEach(definitionIds::add);
+        snapshot.processes().stream()
+                .map(ProcessAnalyticsRow::workflowDefinitionId)
+                .filter(id -> id != null)
+                .forEach(definitionIds::add);
         return definitionIds.stream()
-                .map(definitionId -> analyzeDefinition(definitionId, processes, window))
+                .map(definitionId -> analyzeDefinition(definitionId, snapshot, window))
                 .toList();
     }
 
     /** Analytics for one definition, resolved by id or (case-insensitive) name. */
     public Optional<DefinitionAnalytics> analyze(String definitionIdOrName, TimeWindow window) {
-        return resolveDefinitionId(definitionIdOrName)
-                .map(definitionId -> analyzeDefinition(definitionId, processRepository.findAll(), window));
+        var snapshot = snapshot(window);
+        return resolveDefinitionId(definitionIdOrName, snapshot)
+                .map(definitionId -> analyzeDefinition(definitionId, snapshot, window));
     }
 
-    private Optional<String> resolveDefinitionId(String definitionIdOrName) {
+    private Optional<String> resolveDefinitionId(String definitionIdOrName, Snapshot snapshot) {
         if (definitionIdOrName == null || definitionIdOrName.isBlank()) {
             return Optional.empty();
         }
@@ -136,32 +156,32 @@ public class ProcessAnalyticsService {
             return byName.map(def -> def.id());
         }
         // Processes may reference a definition that was deleted since.
-        return processRepository.findAll().stream()
-                .map(Process::getWorkflowDefinitionId)
+        return snapshot.processes().stream()
+                .map(ProcessAnalyticsRow::workflowDefinitionId)
                 .filter(definitionIdOrName::equals)
                 .findFirst();
     }
 
-    private DefinitionAnalytics analyzeDefinition(String definitionId, List<Process> allProcesses, TimeWindow window) {
-        var instances = allProcesses.stream()
-                .filter(process -> definitionId.equals(process.getWorkflowDefinitionId()))
-                .filter(process -> window.contains(process.getCreated()))
+    private DefinitionAnalytics analyzeDefinition(String definitionId, Snapshot snapshot, TimeWindow window) {
+        var instances = snapshot.processes().stream()
+                .filter(process -> definitionId.equals(process.workflowDefinitionId()))
+                .filter(process -> window.contains(process.created()))
                 .toList();
 
         var byStatus = new EnumMap<ProcessStatus, Long>(ProcessStatus.class);
-        instances.forEach(process -> byStatus.merge(process.getStatus(), 1L, Long::sum));
+        instances.forEach(process -> byStatus.merge(process.status(), 1L, Long::sum));
 
         var total = instances.size();
-        var createdPerDay = perDay(instances, Process::getCreated);
-        var finishedPerDay = perDay(instances, Process::getFinished);
+        var createdPerDay = perDay(instances, ProcessAnalyticsRow::created);
+        var finishedPerDay = perDay(instances, ProcessAnalyticsRow::finished);
 
         var processDuration = DurationStats.of(instances.stream()
-                .filter(process -> process.getFinished() != null)
+                .filter(process -> process.finished() != null)
                 .map(ProcessAnalyticsService::durationOf)
                 .filter(duration -> duration != null)
                 .toList());
 
-        var steps = stepAnalytics(instances);
+        var steps = stepAnalytics(instances, snapshot);
         var bottleneckStepId = steps.stream()
                 .filter(StepAnalytics::bottleneck)
                 .map(StepAnalytics::stepId)
@@ -182,22 +202,25 @@ public class ProcessAnalyticsService {
                 bottleneckStepId);
     }
 
-    private List<StepAnalytics> stepAnalytics(List<Process> instances) {
-        var executionsByStep = new LinkedHashMap<String, List<StepExecution>>();
-        var instanceIds = instances.stream().map(Process::getId).collect(Collectors.toSet());
-        stepExecutionRepository.findAll().stream()
-                .filter(execution -> instanceIds.contains(execution.getProcessId()))
-                .sorted(Comparator.comparingLong(StepExecution::getOrder))
+    private List<StepAnalytics> stepAnalytics(List<ProcessAnalyticsRow> instances, Snapshot snapshot) {
+        var executionsByStep = new LinkedHashMap<String, List<StepExecutionAnalyticsRow>>();
+        // Looked up per instance rather than scanned per definition. The scan was over every step
+        // execution in the system, and it ran once for each definition on the page.
+        instances.stream()
+                .map(ProcessAnalyticsRow::id)
+                .flatMap(processId -> snapshot.stepsByProcessId()
+                        .getOrDefault(processId, List.of()).stream())
+                .sorted(Comparator.comparingLong(StepExecutionAnalyticsRow::order))
                 .forEach(execution -> executionsByStep
-                        .computeIfAbsent(execution.getStepId(), stepId -> new ArrayList<>())
+                        .computeIfAbsent(execution.stepId(), stepId -> new ArrayList<>())
                         .add(execution));
 
         var stats = executionsByStep.entrySet().stream()
                 .map(entry -> {
                     var executions = entry.getValue();
                     var duration = DurationStats.of(executions.stream()
-                            .filter(e -> e.getStartedAt() != null && e.getFinishedAt() != null)
-                            .map(e -> Duration.between(e.getStartedAt(), e.getFinishedAt()))
+                            .filter(e -> e.startedAt() != null && e.finishedAt() != null)
+                            .map(e -> Duration.between(e.startedAt(), e.finishedAt()))
                             .toList());
                     return new StepAnalytics(
                             entry.getKey(),
@@ -223,17 +246,18 @@ public class ProcessAnalyticsService {
                 .toList();
     }
 
-    private String definitionName(String definitionId, List<Process> instances) {
+    private String definitionName(String definitionId, List<ProcessAnalyticsRow> instances) {
         return workflowDefinitionRepository.findById(definitionId)
                 .map(def -> def.name())
                 .orElseGet(() -> instances.stream()
-                        .map(Process::getName)
+                        .map(ProcessAnalyticsRow::name)
                         .filter(name -> name != null)
                         .findFirst()
                         .orElse(definitionId));
     }
 
-    private static Map<LocalDate, Long> perDay(List<Process> instances, Function<Process, LocalDateTime> timestamp) {
+    private static Map<LocalDate, Long> perDay(List<ProcessAnalyticsRow> instances,
+                                              Function<ProcessAnalyticsRow, LocalDateTime> timestamp) {
         var perDay = new TreeMap<LocalDate, Long>();
         instances.stream()
                 .map(timestamp)
@@ -242,16 +266,16 @@ public class ProcessAnalyticsService {
         return perDay;
     }
 
-    private static Duration durationOf(Process process) {
-        var start = process.getStarted() != null ? process.getStarted() : process.getCreated();
-        if (start == null || process.getFinished() == null) {
+    private static Duration durationOf(ProcessAnalyticsRow process) {
+        var start = process.started() != null ? process.started() : process.created();
+        if (start == null || process.finished() == null) {
             return null;
         }
-        return Duration.between(start, process.getFinished());
+        return Duration.between(start, process.finished());
     }
 
-    private static long count(List<StepExecution> executions, StepExecutionStatus status) {
-        return executions.stream().filter(execution -> status.equals(execution.getStatus())).count();
+    private static long count(List<StepExecutionAnalyticsRow> executions, StepExecutionStatus status) {
+        return executions.stream().filter(execution -> status.equals(execution.status())).count();
     }
 
     private static double ratePct(long part, long total) {
