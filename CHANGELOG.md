@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.6.0] - 2026-08-20
+
+**The admin UI read every row of the write side to paint ten of them**, and on the demo deployment
+that had stopped being a slow page and become an outage: opening `/workflow/analytics` killed the
+orchestrator pod.
+
+Four pages shared one habit — load the whole table through the domain aggregate, then filter, sort
+and paginate in Java. A process row carries its workflow definition JSON, 8 KB on average, so ten
+rows cost 315 MB out of Postgres on every keystroke. Analytics was the same habit at a worse scale:
+every process, plus the entire step-execution table re-read once per workflow definition, around
+2.5 GB for one page. Two real requests: 61 s abandoned by the browser, and 38 s returning HTTP 500
+with the pod SIGKILLed at that moment.
+
+Everything below was measured against 37 651 processes and 345 564 step executions, not estimated.
+The listings and analytics now read projections of the columns they actually show, page in SQL, and
+answer in milliseconds.
+
 ### Changed
 - **Mateu 3.0-alpha.297.** A plain dependency bump. Verified rather than assumed: the browser suite
   was run against it in full — 25 journeys, including the graph readability ones — alongside the
