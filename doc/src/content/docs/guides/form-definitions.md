@@ -3,7 +3,7 @@ title: Form Definitions
 description: Defining forms for user tasks in the EventConductor forms engine. Supports JSON and YAML.
 ---
 
-The forms engine manages form definitions and form executions. Forms can be written in **JSON** or **YAML** (`.json`, `.yaml`, `.yml`), stored in version control, and referenced by `USER_TASK` steps in workflow definitions. They can be imported from Git at startup, on demand via the MCP tool `importFormsFromGit`, or automatically via a **GitHub webhook**.
+The forms engine manages form definitions and form executions. Forms can be written in **JSON** or **YAML** (`.json`, `.yaml`, `.yml`, or `.ecform`, which the visual editor and the IDE plugins write), stored in version control, and referenced by `USER_TASK` steps in workflow definitions. They can be imported from Git at startup, on demand via the MCP tool `importFormsFromGit`, or automatically via a **GitHub webhook**.
 
 ## Form definition format
 
@@ -225,7 +225,7 @@ directory while authoring a form, at a repository when shipping it.
 
 ## Importing from Git
 
-The forms engine can clone one or more Git repositories at startup and import every `.json` / `.yaml` / `.yml` file that contains a valid form definition (i.e. has both `name` and `fields` fields).
+The forms engine can clone one or more Git repositories at startup and import every `.json` / `.yaml` / `.yml` / `.ecform` file that contains a valid form definition (i.e. has both `name` and `fields` fields).
 
 ### Configuration
 

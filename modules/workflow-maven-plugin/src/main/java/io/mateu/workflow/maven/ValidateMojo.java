@@ -23,9 +23,9 @@ import java.util.stream.Stream;
  * published specifications, failing the build on any violation.
  *
  * <p>By default it scans, under the project's resources, {@code workflows/}, {@code forms/}
- * and {@code rules/} for {@code *.json}, {@code *.yaml} and {@code *.yml} files — the same
- * layout the engine loads from the classpath. Each directory is validated against the
- * matching specification.
+ * and {@code rules/} for {@code *.ec}, {@code *.ecform}, {@code *.ecrule}, {@code *.json},
+ * {@code *.yaml} and {@code *.yml} files — the same six the engine imports, and the same layout
+ * it loads from the classpath. Each directory is validated against the matching specification.
  */
 @Mojo(name = "validate", defaultPhase = LifecyclePhase.PROCESS_RESOURCES, threadSafe = true)
 public class ValidateMojo extends AbstractMojo {
@@ -154,14 +154,36 @@ public class ValidateMojo extends AbstractMojo {
         }
     }
 
+    /**
+     * The extensions a definition is written with.
+     *
+     * <p>Deliberately a copy of {@code DerivedIds.DEFINITION_EXTENSIONS} in the engine's shared
+     * module, and not a reference to it: a Maven plugin runs inside the build's own classloader,
+     * and that module brings Spring, Flyway and the messaging stack with it — a dependency this
+     * has no business having. <b>The two lists have to move together.</b> They already failed to
+     * once: this one was missing {@code .ec}, {@code .ecform} and {@code .ecrule}, which are what
+     * the graph editor and both IDE plugins write, so pointing the validator at a real repository
+     * of definitions found nothing and passed.
+     */
+    private static final List<String> DEFINITION_EXTENSIONS =
+            List.of(".ec", ".ecform", ".ecrule", ".json", ".yaml", ".yml");
+
     private static boolean isDefinitionFile(Path path) {
         String name = path.getFileName().toString().toLowerCase();
-        return name.endsWith(".json") || name.endsWith(".yaml") || name.endsWith(".yml");
+        return DEFINITION_EXTENSIONS.stream().anyMatch(name::endsWith);
     }
 
+    /**
+     * Reads a definition, whatever it is written in.
+     *
+     * <p>Everything but {@code .json} goes to the YAML parser, which reads JSON too — YAML is a
+     * superset of it. That is the same rule {@code ImportFormsFromDirectoryUseCase} follows, and it
+     * is what keeps a new extension from needing a decision here: an {@code .ec} holding JSON and
+     * an {@code .ec} holding YAML both parse, which is exactly what the editors produce.
+     */
     private static JsonNode parse(Path file) throws IOException {
         String name = file.getFileName().toString().toLowerCase();
-        ObjectMapper mapper = (name.endsWith(".yaml") || name.endsWith(".yml")) ? YAML : JSON;
+        ObjectMapper mapper = name.endsWith(".json") ? JSON : YAML;
         return mapper.readTree(file.toFile());
     }
 }

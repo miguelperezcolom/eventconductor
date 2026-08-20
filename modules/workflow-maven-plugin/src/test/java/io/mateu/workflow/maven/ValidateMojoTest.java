@@ -99,4 +99,54 @@ class ValidateMojoTest {
         ValidateMojo mojo = mojo("valid");
         assertThat(mojo.getLog()).isNotNull();
     }
+
+    /**
+     * The extensions the graph editor and both IDE plugins actually write.
+     *
+     * <p>This is the failure that produced these three tests, and it is worth naming because of the
+     * shape of it: the validator collected only {@code .json}/{@code .yaml}/{@code .yml}, so a
+     * repository of {@code .ec} files was walked, nothing was found, and the build went green. A
+     * validator that validates nothing looks exactly like a validator with nothing to complain
+     * about.
+     */
+    @Test
+    void definitionsWrittenByTheEditorsAreValidated() throws Exception {
+        assertThatCode(() -> mojo("editor").execute()).doesNotThrowAnyException();
+    }
+
+    @Test
+    void anInvalidEcFileFailsTheBuild() throws Exception {
+        assertThatThrownBy(() -> mojo("editor-invalid").execute())
+                .isInstanceOf(MojoFailureException.class)
+                .hasMessageContaining("broken.ec")
+                .hasMessageContaining("Duplicate step id");
+    }
+
+    /**
+     * That the files are really <em>collected</em>, which passing does not prove on its own: an
+     * empty file list validates just as quietly as a correct one. {@code failOnMissing} is the one
+     * switch that can tell the two apart, so a directory holding nothing but {@code .ec} must not
+     * trip it.
+     */
+    @Test
+    void aDirectoryOfOnlyEcFilesCountsAsHavingDefinitions() throws Exception {
+        ValidateMojo mojo = mojo("editor");
+        set(mojo, "failOnMissing", true);
+        set(mojo, "validateForms", true);
+        set(mojo, "validateRules", true);
+
+        assertThatCode(mojo::execute).doesNotThrowAnyException();
+    }
+
+    /** An .ec may hold JSON or YAML — both editors emit both — and neither may need a decision. */
+    @Test
+    void anEcFileParsesWhetherItHoldsYamlOrJson() throws Exception {
+        ValidateMojo mojo = mojo("editor");
+        set(mojo, "validateForms", false);
+        set(mojo, "validateRules", false);
+        set(mojo, "failOnMissing", true);
+
+        // editor/workflows holds one of each; a parse failure is reported as a failure, not skipped.
+        assertThatCode(mojo::execute).doesNotThrowAnyException();
+    }
 }

@@ -647,7 +647,8 @@ parseability for rules.
 ```
 
 The `validate` goal binds to `process-resources` and scans `src/main/resources/{workflows,forms,rules}`
-for `*.json`, `*.yaml` and `*.yml` — the same layout the engine loads from the classpath. Run
+for `*.ec`, `*.ecform`, `*.ecrule`, `*.json`, `*.yaml` and `*.yml` — the same six extensions the
+engine imports, and the same layout it loads from the classpath. Run
 it in the build (`mvn verify`) or on demand with `mvn eventconductor:validate`; on a violation
 it fails with a per-file report. Directories, per-type toggles, `failOnError`, `failOnMissing`
 and `skip` are configurable — see the

@@ -68,10 +68,15 @@ same layout the engine loads from the classpath:
 
 ```
 src/main/resources/
-  workflows/**/*.{json,yaml,yml}
-  forms/**/*.{json,yaml,yml}
-  rules/**/*.{json,yaml,yml}
+  workflows/**/*.{ec,ecform,ecrule,json,yaml,yml}
+  forms/**/*.{ec,ecform,ecrule,json,yaml,yml}
+  rules/**/*.{ec,ecform,ecrule,json,yaml,yml}
 ```
+
+The same six the engine imports. `.ec`, `.ecform` and `.ecrule` are what the graph editor and the
+two IDE plugins write, and they were not collected before 2.2.3 — a repository of them was walked,
+nothing was found, and the build passed. Anything that is not `.json` is read by the YAML parser,
+which reads JSON too, so an `.ec` holding either parses.
 
 Run it in the build (`mvn verify`) or on demand with `mvn eventconductor:validate`. On a
 violation the build fails with a per-file report:

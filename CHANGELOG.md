@@ -7,12 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
-- **The IDE plugins ship the current graph: VS Code 0.1.13, IntelliJ 0.1.14.** Both carry their own
-  copy of `workflow-graph.js`, synced from the engine at build time and not tracked, so a change to
-  the component reaches them only when they are rebuilt — and the published 0.1.12 / 0.1.13 predate
-  the guard chips and the step numbers. Verified by unpacking the artifacts rather than by trusting
-  the sync: the marks are in the bundle inside both, and were absent from the ones before.
 
 ### Added
 - **The process diagram numbers its steps.** A node now carries its place in the order the run
@@ -22,6 +16,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   its turn carries no number, which is as much part of the reading as the numbers are.
 
 ### Changed
+- **The IDE plugins ship the current graph: VS Code 0.1.13, IntelliJ 0.1.14.** Both carry their own
+  copy of `workflow-graph.js`, synced from the engine at build time and not tracked, so a change to
+  the component reaches them only when they are rebuilt — and the published 0.1.12 / 0.1.13 predate
+  the guard chips and the step numbers. Verified by unpacking the artifacts rather than by trusting
+  the sync: the marks are in the bundle inside both, and were absent from the ones before.
+
 - **Conditions on the lines no longer hide the steps they apply to.** A guard chip is drawn over its
   edge, which is right — it belongs to the way in, not to the step. But an expression is as long as
   its author needed it to be, and drawn in full it can be wider than the nodes it sits between. Two
@@ -49,6 +49,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   five `@Toolbar` actions, which is why three operator journeys stay disabled.
 
 ### Fixed
+- **The Maven plugin validated nothing in a repository written by the editors.** `eventconductor:validate`
+  collected only `*.json`, `*.yaml` and `*.yml`, and the graph editor and both IDE plugins write
+  `.ec`, `.ecform` and `.ecrule` — which the engine imports without complaint. Pointing the goal at
+  a directory of them walked the tree, found no files, and passed: a validator that validates
+  nothing is indistinguishable from one with nothing to complain about. Verified against the
+  published 2.2.2, not only a local build. It now collects all six, and reads anything that is not
+  `.json` with the YAML parser, which reads JSON too — so an `.ec` holding either parses.
+
 - **An END step recorded no time at all.** It is completed straight from the orchestrator's end
   transition, which never went through the path that stamps `finishedAt`, so the one execution that
   by definition ran last was the one with nothing to say when — against what the field itself
