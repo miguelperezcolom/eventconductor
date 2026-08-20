@@ -14,6 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.stream.function.StreamOperations;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -27,10 +28,13 @@ import java.util.List;
  * UI waiting to see; recording it on the way out would show nothing until it was over, which is
  * the wrong half of the run to be blind for.
  *
- * <p>The store calls are blocking, on a Reactor thread. That is a considered trade for a test
- * tool — the alternative is a reactive data stack for a component whose whole job is to be
- * predictable — and the work it is interleaved with is a {@code delay}, so there is nothing it
- * meaningfully starves.
+ * <p>The store calls are blocking, and they run on {@link Schedulers#boundedElastic()} rather than
+ * on the Reactor thread that carried the task in. That is not a detail: the premise for leaving them
+ * inline was that the work they interleave with is a {@code delay}, which starves nothing — true of
+ * the in-memory map, and false of JPA, where the blocking call is a database write on the same small
+ * pool that is supposed to be running every other task. Measured at 5,000 processes against the
+ * deployed engine, concurrency collapsed to about 1.5 tasks genuinely in flight with nothing
+ * saturated anywhere: worker at 50m CPU, PostgreSQL at 106m and a single active connection.
  */
 @Service
 @Slf4j
@@ -45,8 +49,23 @@ public class SimulatedTaskHandler {
 
     public Mono<Void> handle(StreamOperations bridge, TaskExecutionRequested task,
                              CancelledTasks cancelled) {
-        var attempt = receivedTasks.previousDeliveriesOf(task.taskExecutionId()) + 1;
+        // Both store calls are handed to boundedElastic, which is what it is for. Reading the
+        // delivery count is a query and writing the row is a write; under JPA each is a round trip
+        // to PostgreSQL, and left on the Reactor thread they hold the pool that every other task in
+        // flight is sharing.
+        return blocking(() -> receivedTasks.previousDeliveriesOf(task.taskExecutionId()) + 1)
+                .flatMap(attempt -> play(bridge, task, cancelled, attempt));
+    }
 
+    /**
+     * The rest of the handling, and it runs on the elastic thread the delivery count was read on —
+     * {@code flatMap} applies downstream on whichever thread emitted. So the {@code save} inside
+     * {@link #record} and the one in {@link #failUnreadable} are off the Reactor pool too, without
+     * either of them having to know it. Said out loud because it is load-bearing rather than
+     * incidental: moving this call back inline would put two more database writes on the pool.
+     */
+    private Mono<Void> play(StreamOperations bridge, TaskExecutionRequested task,
+                            CancelledTasks cancelled, int attempt) {
         ResolvedScenario resolved;
         try {
             resolved = resolver.resolve(task);
@@ -61,10 +80,18 @@ public class SimulatedTaskHandler {
         var row = record(task, attempt, resolved, scenario, note);
 
         return simulator.play(bridge, task, scenario, cancelled)
-                .doOnNext(played -> receivedTasks.save(row.repliedWith(
-                        played.outcome(), LocalDateTime.now(),
-                        played.note() != null ? played.note() : note)))
+                .flatMap(played -> blocking(() -> {
+                    receivedTasks.save(row.repliedWith(
+                            played.outcome(), LocalDateTime.now(),
+                            played.note() != null ? played.note() : note));
+                    return played;
+                }))
                 .then();
+    }
+
+    /** Runs a blocking store call off the Reactor thread that carried the task in. */
+    private static <T> Mono<T> blocking(java.util.concurrent.Callable<T> call) {
+        return Mono.fromCallable(call).subscribeOn(Schedulers.boundedElastic());
     }
 
     /**

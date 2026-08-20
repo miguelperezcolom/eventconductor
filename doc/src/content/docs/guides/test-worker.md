@@ -131,6 +131,19 @@ For a worker with no database at all — scenarios from `TEST_CONFIG` only, noth
 restart — run it with `SPRING_PROFILES_ACTIVE=memory`. That is usually what a CI suite wants: one
 container, no volume.
 
+Both shapes run tasks concurrently. The store calls are blocking — a query for the delivery count
+and a write for the row — and they run on Reactor's elastic scheduler rather than on the thread that
+carried the task in, so a database round trip does not hold the pool the other tasks in flight are
+sharing. Under `jpa` that mattered: it is the difference between about 1.5 tasks genuinely in flight
+and as many as the broker delivers.
+
+:::note[Both were broken before 2.5.0]
+The `memory` profile did not start at all — the Spring Data repositories were scanned whatever the
+profile said, so the context asked for an entity manager the profile had deliberately removed. And
+under `jpa` the blocking store calls sat on the Reactor pool, which collapsed the concurrency to
+roughly one. There was no configuration in which this worker could be driven at load.
+:::
+
 It does **not** run the engine, and the absence is the point. The engine under test runs in its own
 process and talks to this one over Kafka exactly as it would to a real worker, so what a scenario
 proves here is what would happen in a deployment. A worker that embedded the engine would be testing
