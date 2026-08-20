@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.4.0] - 2026-08-20
+
+The process diagram stops lying, rules stop being the odd one out, and an extension that existed
+only on paper becomes real.
+
+**The diagram an operator was watching was frozen** as of the moment the tab opened, for the life of
+the tab, while the process ran to completion behind it. Nothing looked broken — every node was still
+drawn, in the state it had on opening; only the colours were a lie, which is how it survived months
+of use. It had a workaround that could not be shipped, because it traded the frozen diagram for a
+status badge that lied about whether an operator's pause or cancel had taken effect. Mateu
+3.0-alpha.294 supplied what was missing, and the fix here is to stop writing the graph as component
+metadata and let it travel as what it is: data.
+
+**`.ecrule` was declared in two lists and read by nothing** — so since 2.3.0 a build validated a
+file the engine would then not load. Green light for something that does not work is worse than
+either supporting the extension or refusing it. It is supported now, in the engine and in both IDE
+plugins.
+
+The cause of that was structural, and is fixed with it: workflows and forms each have one place that
+decides what a definition file is, and rules did not. They do now — which also means **rules can be
+imported from a directory**, as the other two already could.
+
 ### Added
 - **Rules can be imported from a directory**, as workflows and forms already could:
   `rules.directory-import.directories`. This is where the drift above came from — workflows and
