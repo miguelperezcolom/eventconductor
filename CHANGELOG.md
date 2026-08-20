@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.3.0] - 2026-08-20
+
+A minor release: the process diagram answers a question it could not answer before, and two things
+that were quietly answering nothing now answer properly.
+
+The diagram numbers its steps in the order the run actually took. A workflow's shape is not a list
+of what happened in it — branches drawn side by side ran in some order, a step drawn between two
+others may have run before both — so the tick said a step ran and nothing said when. And the
+conditions on the lines stopped hiding the steps they apply to: shorter, whole under the pointer,
+and placed clear of the nodes.
+
+The two that answered nothing are of a kind. `eventconductor:validate` collected only three of the
+six extensions the engine imports, so a repository written by the editors was walked, nothing was
+found, and the build passed — a validator that validates nothing looks exactly like one with
+nothing to complain about. And an END step recorded no time at all, which read as a step that never
+ran wherever the record is shown by time.
+
+Both IDE plugins are rebuilt on the current graph — **VS Code 0.1.13, IntelliJ 0.1.14** — because
+each ships its own copy of the component and a rebuild is the only thing that moves it.
+
 
 ### Added
 - **The process diagram numbers its steps.** A node now carries its place in the order the run
