@@ -89,6 +89,74 @@ refused its reply.
 with a duplicate reply, or with a reply to a task it has already given up on, is a property of the
 engine — and these are how you point at a running system and find out.
 
+## Handing it to a running deployment
+
+Everything above states a scenario from a test that starts its own process. Against a deployment —
+an engine on Kubernetes, a definition someone pushed, a browser open on the console — nothing about
+the scenario changes: it is the same `TEST_CONFIG` process variable, with the same fields. Only the
+act of starting the process is different, and [Starting a Process](/guides/starting-a-process/) has
+the three ways.
+
+**From the orchestrator's UI.** *Workflow → Definitions*, open one, start a process, and add a
+variable named `TEST_CONFIG` whose value is the JSON. This is the one to reach for when walking
+somebody through a workflow: the same definition gives you a clean run, a rollback and a timeout one
+after another, with nothing redeployed in between.
+
+**On the `upstream` topic**, as part of the creation event:
+
+```json
+{
+  "type": "process-creation-requested",
+  "workflowDefinitionId": "order-fulfilment",
+  "businessKey": "order-123",
+  "variables": [
+    { "name": "TEST_CONFIG",
+      "value": "{\"default\":{\"durationMs\":200},\"tasks\":{\"charge-card\":{\"outcome\":\"ERROR\"}}}" }
+  ]
+}
+```
+
+**Programmatically**, as a `Variable` on the `ProcessCreationRequested` — what the test suite does,
+and what a load generator should do.
+
+The variable's *name* is matched without regard to case. It is the only lenient thing here.
+
+### The escaping is where this goes wrong
+
+A variable's value is a **string**, so a scenario is JSON inside JSON and every quote in it has to be
+escaped. Getting that wrong fails in one of two ways, and they look nothing alike:
+
+- **The event itself stops being valid JSON.** It never becomes an event at all: conversion fails
+  before any handler runs, so no process is created — and the dead-letter parking that catches a
+  poison event a handler cannot process never sees this one, because nothing ever handed it to a
+  handler. The producer, meanwhile, exits 0: publishing bytes to a topic did succeed. A burst that
+  produces no processes whatsoever, from a producer that reported success, is this.
+- **The event parses and the `TEST_CONFIG` string does not.** The process is created, runs, and its
+  first task fails with the parse error as its reason — on the process you started, where you can
+  read it. This is the loud one, and it is the one to want.
+
+So when a run comes up empty, **check that processes were created, not that the producer
+succeeded.** The two are unrelated, and only the first is evidence.
+
+Shell heredocs earn one specific warning, because a scenario is all braces: `${CONFIG:-{"a":1}}`
+does not mean what it looks like — the first `}` closes the parameter expansion, and the escaping
+that works around it leaks a backslash into the value, which produces exactly the silent first case
+above. Assign the default in its own single-quoted statement instead of inside an expansion.
+
+### One worker on `downstream` answers human tasks too
+
+Out of the box this worker and the forms engine both bind the same default topic, `downstream`, in
+different consumer groups — so both receive every task, and the test worker answers the `USER_TASK`
+meant for a person before anybody is shown a form. Putting them in one consumer group does not fix
+it: they then compete for the message, and which one wins is a coin toss.
+
+Give the human tasks a topic of their own. Naming `"topic": "forms"` on the `USER_TASK` steps meant
+for people, and binding the forms engine there, keeps the split explicit in the definition itself: a
+step reaches a human because it says so, and every step that does not is answered by the worker —
+which is usually exactly what you want from a definition under test. The same reasoning applies to
+the test suite, where it is easier still: give the whole definition its own topic and bind the worker
+to it.
+
 ## Driving it by hand
 
 Not every process is one you can edit. The worker records every task it is given, and its UI at
