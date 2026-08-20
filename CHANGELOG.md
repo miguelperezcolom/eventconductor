@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Mateu 3.0-alpha.295.** Carries the element-interpolation support that 294 introduced, and
+  compiles clean — unlike 294, which moved `RestDataSource`. Still open upstream: a view model's
+  `@Toolbar` actions are not all rendered (two of five), which is why three operator journeys stay
+  disabled.
+- **The process diagram follows the process again.** A page that refreshes itself answers with a
+  `State`, which carries values and deliberately does not resend the component tree — and an
+  `Element`'s attributes are part of that tree. So the diagram an operator was watching was frozen
+  as of the moment the tab opened, for the life of the tab, while the process ran to completion
+  behind it. Nothing looked broken: every node was still drawn, in the state it had on opening. Only
+  the colours were a lie.
+
+  Mateu 3.0-alpha.294 added what was missing — an element's attributes and content now accept
+  `${...}` expressions, evaluated against the state — so the fix here is to stop writing the graph
+  into metadata. The topology and the overlay are two plain `String` fields on the view model, which
+  is what makes them data, and the attributes merely say where to read them. The update is applied
+  in place, so the element repaints without being rebuilt and keeps its zoom, its selection and its
+  computed layout.
+
+  It had a workaround that could not be shipped: returning the view model instead of a `State` made
+  the diagram follow the process and stopped the status badge updating, so an operator got a badge
+  that lied about whether their pause or cancel had taken effect. The engine shipped the frozen
+  diagram rather than that, and `DiagramStaysLiveJourneyTest` sat disabled carrying both
+  measurements. It is enabled and passing, and so are the two operator journeys the workaround broke.
+
+  The topology travels this way too, not only the overlay: a DYNAMIC step injects nodes while the
+  process runs, so the graph's shape changes under a page that is already open.
+
+
 ## [2.3.0] - 2026-08-20
 
 A minor release: the process diagram answers a question it could not answer before, and two things
