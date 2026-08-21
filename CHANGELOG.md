@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Mateu 3.0-alpha.298.** A plain dependency bump. Verified rather than read off the release: the
+  browser suite was run against it in full — 25 journeys — alongside the engine, forms and worker
+  suites. Nothing it carries is visible here.
+
 ### Fixed
 - **Eleven columns were `varchar(255)` wherever Hibernate built the schema, and a real deployment
   could not write a form execution at all.** Reported from the sagas PoC:
