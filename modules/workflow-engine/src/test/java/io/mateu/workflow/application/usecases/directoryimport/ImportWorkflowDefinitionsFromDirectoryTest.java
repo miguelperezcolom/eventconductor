@@ -1,5 +1,6 @@
 package io.mateu.workflow.application.usecases.directoryimport;
 
+import io.mateu.workflow.application.services.WorkflowDefinitionValidator;
 import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
 import io.mateu.workflow.domain.aggregates.WorkflowDefinition;
 import io.mateu.workflow.infra.config.DirectoryImportProperties;
@@ -29,7 +30,8 @@ class ImportWorkflowDefinitionsFromDirectoryTest {
     private final InMemoryImportedDefinitionsRegistry registry = new InMemoryImportedDefinitionsRegistry();
     private final ImportWorkflowDefinitionsFromDirectoryUseCase useCase =
             new ImportWorkflowDefinitionsFromDirectoryUseCase(
-                    mock(DirectoryImportProperties.class), repository, registry);
+                    mock(DirectoryImportProperties.class), repository, registry,
+                    new WorkflowDefinitionValidator());
 
     private void write(Path dir, String name, String id) throws IOException {
         Files.writeString(dir.resolve(name), """

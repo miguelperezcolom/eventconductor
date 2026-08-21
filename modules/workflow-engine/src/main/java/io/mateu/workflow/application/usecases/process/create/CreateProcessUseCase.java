@@ -4,12 +4,15 @@ import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
 import io.mateu.workflow.application.out.WorkflowMetrics;
+import io.mateu.workflow.application.usecases.stepexecution.update.UpdateStepExecutionCommand;
+import io.mateu.workflow.application.usecases.stepexecution.update.UpdateStepExecutionUseCase;
 import io.mateu.workflow.domain.aggregates.Process;
 import io.mateu.workflow.domain.aggregates.ProcessStatus;
 import io.mateu.workflow.domain.aggregates.StepExecution;
 import io.mateu.workflow.domain.services.StepTimeoutDefaults;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -25,6 +28,9 @@ public class CreateProcessUseCase {
     final WorkflowDefinitionRepository workflowDefinitionRepository;
     final StepExecutionRepository stepExecutionRepository;
     final WorkflowMetrics workflowMetrics;
+    // ObjectProvider, like NotifyParentStepService: the step-update pipeline reaches process
+    // creation, so a direct dependency would close an injection cycle.
+    final ObjectProvider<UpdateStepExecutionUseCase> updateStepExecutionUseCase;
 
     /**
      * Fallback timeout, in milliseconds, for ACTION and RULE steps that declare none. Zero — the
@@ -33,6 +39,23 @@ public class CreateProcessUseCase {
      */
     @org.springframework.beans.factory.annotation.Value("${workflow.default-step-timeout-ms:0}")
     long defaultStepTimeoutMillis;
+
+    /**
+     * How deeply PROCESS steps may nest — a parent's child's child, and so on. Reaching it refuses
+     * the next child and fails the PROCESS step that asked for it.
+     *
+     * <p>This is the only thing standing between the engine and a recursive definition.
+     * {@code checkInvariants} refuses a workflow that names <em>itself</em> as its child, which
+     * catches the obvious spelling and none of the others: A starting B starting A validates
+     * cleanly, because neither definition can see the other, and each generation starts the next
+     * for as long as the database will take rows. A depth limit needs no cross-definition
+     * knowledge, and it also catches the case a static check never could — a chain assembled at
+     * runtime through dynamically injected steps.
+     *
+     * <p>Twenty is far past any modelled hierarchy and far short of trouble.
+     */
+    @org.springframework.beans.factory.annotation.Value("${workflow.max-process-depth:20}")
+    int maxProcessDepth;
 
     public void handle(CreateProcessCommand command) {
         // Idempotency: a redelivered creation event carries the same processId and/or
@@ -50,6 +73,25 @@ public class CreateProcessUseCase {
                         command.businessKey());
                 return;
             }
+        }
+
+        // A child of a child of a child…: refuse before creating anything, and fail the PROCESS
+        // step that asked, so a recursive definition surfaces as one failed step instead of as an
+        // unbounded fan-out. See maxProcessDepth.
+        if (command.parentStepExecutionId() != null && !command.parentStepExecutionId().isBlank()
+                && ancestorCount(command.parentStepExecutionId()) >= maxProcessDepth) {
+            log.error("Refusing to create a child process of workflow definition '{}' for business key"
+                            + " '{}': it would nest more than {} levels deep, which a recursive"
+                            + " definition is the usual cause of",
+                    command.workflowDefinitionId(), command.businessKey(), maxProcessDepth);
+            updateStepExecutionUseCase.getObject().handle(new UpdateStepExecutionCommand(
+                    command.parentStepExecutionId(),
+                    List.of(),
+                    "Child process not started: workflow '" + command.workflowDefinitionId()
+                            + "' would nest more than " + maxProcessDepth + " levels deep."
+                            + " Check for a cycle between PROCESS steps.",
+                    io.mateu.workflow.domain.aggregates.StepExecutionStatus.ERROR));
+            return;
         }
 
         // The fallback timeout is applied here, at the one moment a definition becomes a
@@ -102,6 +144,30 @@ public class CreateProcessUseCase {
         // enviar evento proceso creado (para step over)
 
 
+    }
+
+    /**
+     * How many processes stand between this one and a top-level start, walking parent step
+     * execution to owning process and up again. Bounded by the limit itself: the answer is only
+     * ever compared against it, so there is no reason to walk a chain further than that — and a
+     * parent chain that somehow looped would otherwise walk for ever.
+     */
+    private int ancestorCount(String parentStepExecutionId) {
+        int depth = 0;
+        var stepExecutionId = parentStepExecutionId;
+        while (stepExecutionId != null && depth <= maxProcessDepth) {
+            depth++;
+            var parentStep = stepExecutionRepository.findById(stepExecutionId).orElse(null);
+            if (parentStep == null) {
+                break;
+            }
+            var parentProcess = processRepository.findById(parentStep.getProcessId()).orElse(null);
+            if (parentProcess == null) {
+                break;
+            }
+            stepExecutionId = parentProcess.getParentStepExecutionId();
+        }
+        return depth;
     }
 
 }

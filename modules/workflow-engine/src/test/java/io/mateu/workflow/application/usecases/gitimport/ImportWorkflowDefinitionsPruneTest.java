@@ -1,5 +1,6 @@
 package io.mateu.workflow.application.usecases.gitimport;
 
+import io.mateu.workflow.application.services.WorkflowDefinitionValidator;
 import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
 import io.mateu.workflow.domain.aggregates.WorkflowDefinition;
 import io.mateu.workflow.application.usecases.directoryimport.ImportWorkflowDefinitionsFromDirectoryUseCase;
@@ -22,7 +23,8 @@ class ImportWorkflowDefinitionsPruneTest {
     private final InMemoryImportedDefinitionsRegistry registry = new InMemoryImportedDefinitionsRegistry();
     private final ImportWorkflowDefinitionsFromDirectoryUseCase useCase =
             new ImportWorkflowDefinitionsFromDirectoryUseCase(
-                    mock(DirectoryImportProperties.class), repository, registry);
+                    mock(DirectoryImportProperties.class), repository, registry,
+                    new WorkflowDefinitionValidator());
 
     private static final String REPO = "https://github.com/org/defs.git";
 

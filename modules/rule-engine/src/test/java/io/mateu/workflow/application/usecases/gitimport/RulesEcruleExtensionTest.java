@@ -33,7 +33,8 @@ class RulesEcruleExtensionTest {
     private final SaveRuleUseCase saveRule = mock(SaveRuleUseCase.class);
     private final InMemoryImportedDefinitionsRegistry registry = new InMemoryImportedDefinitionsRegistry();
     private final ImportRulesFromDirectoryUseCase directoryImport = new ImportRulesFromDirectoryUseCase(
-            new RuleDirectoryImportProperties(), saveRule, mock(RuleRepository.class),
+            new RuleDirectoryImportProperties(), saveRule,
+            new io.mateu.workflow.application.services.RuleValidator(), mock(RuleRepository.class),
             mock(RuleCatalogMetrics.class), registry);
     private final ImportRulesFromGitUseCase gitImport = new ImportRulesFromGitUseCase(
             new RuleGitImportProperties(), mock(RuleCatalogMetrics.class), directoryImport);
@@ -89,7 +90,7 @@ class RulesEcruleExtensionTest {
         Files.writeString(dir.resolve("a.yaml"), A_RULE.formatted("a", "A"));
         Files.writeString(dir.resolve("b.yml"), A_RULE.formatted("b", "B"));
         Files.writeString(dir.resolve("c.json"),
-                "{ \"id\": \"c\", \"name\": \"C\", \"type\": \"expression\", \"when\": \"true\" }");
+                "{ \"id\": \"c\", \"name\": \"C\", \"type\": \"expression\", \"when\": \"true\", \"then\": [ { \"name\": \"ok\", \"expression\": \"true\" } ] }");
 
         assertThat(directoryImport.handle(List.of(dir.toString())).imported())
                 .containsExactlyInAnyOrder("A [a]", "B [b]", "C [c]");
@@ -108,6 +109,9 @@ class RulesEcruleExtensionTest {
                 name: Discount
                 type: expression
                 when: "true"
+                then:
+                  - name: ok
+                    expression: "true"
                 """);
 
         assertThat(directoryImport.handle(List.of(dir.toString())).imported())

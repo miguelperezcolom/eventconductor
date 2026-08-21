@@ -1,5 +1,6 @@
 package io.mateu.workflow.application.usecases.gitimport;
 
+import io.mateu.workflow.application.services.WorkflowDefinitionValidator;
 import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
 import io.mateu.workflow.application.usecases.directoryimport.ImportWorkflowDefinitionsFromDirectoryUseCase;
 import io.mateu.workflow.infra.config.DirectoryImportProperties;
@@ -35,7 +36,8 @@ class GitImportScanTest {
             new ImportWorkflowDefinitionsFromDirectoryUseCase(
                     mock(DirectoryImportProperties.class),
                     mock(WorkflowDefinitionRepository.class),
-                    new InMemoryImportedDefinitionsRegistry());
+                    new InMemoryImportedDefinitionsRegistry(),
+                    new WorkflowDefinitionValidator());
 
     private final ImportWorkflowDefinitionsFromGitUseCase useCase =
             new ImportWorkflowDefinitionsFromGitUseCase(mock(GitImportProperties.class), directoryImport);

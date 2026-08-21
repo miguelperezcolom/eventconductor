@@ -1,5 +1,6 @@
 package io.mateu.workflow.application.usecases.gitimport;
 
+import io.mateu.workflow.application.services.WorkflowDefinitionValidator;
 import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
 import io.mateu.workflow.domain.aggregates.WorkflowDefinition;
 import io.mateu.workflow.application.usecases.directoryimport.ImportWorkflowDefinitionsFromDirectoryUseCase;
@@ -24,7 +25,8 @@ class ImportEcFilesTest {
     private final WorkflowDefinitionRepository repository = mock(WorkflowDefinitionRepository.class);
     private final ImportWorkflowDefinitionsFromDirectoryUseCase useCase =
             new ImportWorkflowDefinitionsFromDirectoryUseCase(
-                    mock(DirectoryImportProperties.class), repository, new InMemoryImportedDefinitionsRegistry());
+                    mock(DirectoryImportProperties.class), repository, new InMemoryImportedDefinitionsRegistry(),
+                    new WorkflowDefinitionValidator());
 
     private void write(Path dir, String name, String content) throws Exception {
         Files.write(dir.resolve(name), content.getBytes(StandardCharsets.UTF_8));

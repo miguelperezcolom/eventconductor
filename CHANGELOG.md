@@ -7,6 +7,112 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **A process is one trace, shaped like the process.** Tracing described the code the engine was
+  running — a span around a dispatch, one around a relay pass, one around a step-over — and each of
+  those lasts a millisecond or two inside one method on one thread. The context that would tie them
+  together does not survive the outbox row and the broker record in between, so what reached the
+  backend was a scatter of unrelated two-millisecond traces with nothing saying which process any of
+  them belonged to.
+
+  A span cannot describe a workflow step anyway: a step starts in the transaction that dispatched it
+  and ends wherever the worker's reply lands, minutes or days later, across a broker and possibly a
+  pod restart. There is no call stack to wrap. What there *is* is `startedAt` and `finishedAt` on
+  the step execution row, so the trace is now **built from what the engine durably records**: when a
+  process reaches a terminal status it is written out as one trace, with a span for the process and
+  one for each step that ran, each covering the time that step actually took. Steps that ran one
+  after another read as consecutive siblings and steps that ran together as overlapping ones — the
+  shape falls out of the timestamps rather than having to be inferred from causality.
+
+  **Which trace a process belongs to is derived from its id**, not stored and not propagated: a hash
+  every pod computes identically. That is what survives a rebalance, a restart, a redelivery from
+  the dead-letter queue or a `TIMER` step that waits a week — a `traceparent` in a message header is
+  gone the moment the message is replayed. No migration, no new column, and no OpenTelemetry SDK
+  dependency: Micrometer's own `Span.Builder` already exposes the explicit start and end timestamps
+  this needs.
+
+  The live spans — `step-over`, `dispatch-step`, `correlate-message`, `outbox relay` — are still
+  emitted and now join that trace instead of each starting one of their own, which is what makes a
+  process visible while it is still running, before its own span exists.
+
+  `management.tracing.sampling.probability` governs process traces, decided from the derived trace
+  id by the same arithmetic OpenTelemetry's own ratio sampler uses. Per process rather than per
+  span, deliberately: the engine's spans used to take their turn at the ratio independently, so at
+  10% you got a tenth of the dispatches of a tenth of the processes and never a whole process to
+  read. The volume is about the same now and arrives as whole processes. Nothing to configure.
+
+- **An adversarial test suite over every layer that takes untrusted input**, specified test by test
+  in [TESTING.md](TESTING.md) §8 and summarised in [SECURITY.md](SECURITY.md). A workflow, form or
+  rule file arrives from a git import, a watched directory or an editor; a business key, a variable
+  or a submitted form value arrives from an upstream record, the REST message API, an MCP call or a
+  browser. The bar it holds is not "the engine rejects it" but **the engine survives it**: bad input
+  is either refused with a message naming what is wrong, or accepted and unable to hurt a running
+  process. Hostile definitions, the JEXL sandbox, injection-shaped keys and values against a real
+  database, forms, rules, the REST and webhook surface through the HTTP layer, and stored-XSS
+  journeys in a real browser. Several of the tests below were written against a defect and are green
+  because it was fixed.
+
+- `workflow.max-process-depth` (default `20`) and `workflow.forms.max-value-length`
+  (default `1048576`).
+
+### Fixed
+- **An over-nested guard expression unwound the orchestration thread.** A few thousand brackets
+  overflow JEXL's recursive-descent parser, and `StackOverflowError` is an `Error` — it passed
+  straight through every fail-closed `catch (Exception)` around a guard evaluation and took out the
+  Kafka consumer or the timer scheduler, rather than failing the one step whose definition was bad.
+  Expressions now clear a length and nesting ceiling before a parser sees them, and a stack overflow
+  is converted into an ordinary exception so the existing fail-closed handling engages. Shared by
+  the workflow guards and the rule expressions, both of which now also state their denial list — no
+  loops, lambdas, instantiation or global assignment — instead of relying on `createExpression` to
+  refuse them.
+
+- **Two workflows that start each other spawned processes without limit.** `checkInvariants`
+  refuses a `PROCESS` step naming its own workflow, and that is the only spelling it can refuse: a
+  definition is validated alone, so A starting B starting A validates cleanly and every generation
+  started the next for as long as the store would take rows. A runtime depth limit
+  (`workflow.max-process-depth`) now stops it and fails the step that asked for the child over the
+  line, rather than leaving it waiting for a child that will never exist.
+
+- **A malformed decision table failed anonymously.** A table missing its inputs, outputs or rows, or
+  with a row carrying fewer cells than the table has columns, surfaced as a `NullPointerException`
+  or `IndexOutOfBoundsException` from inside a loop, thrown into whichever step had asked for the
+  rule, with nothing in it to say which rule or which row. It now fails by name, and in the
+  evaluator rather than only at import — `RestRuleSource` and `GrpcRuleSource` fetch rules that
+  passed through no validator at all.
+
+- **A completed task could be completed again**, overwriting the values it was completed with and
+  sending the engine a second reply. The engine ignores a status update for a step that already
+  finished, so nothing broke; what was lost was the record of what the person actually submitted.
+
+### Changed
+- **A definition file with a misspelled key no longer imports silently.** The schema says
+  `additionalProperties: false`, but validation ran against the parsed record re-serialised to JSON
+  — by which point Jackson had dropped every key it did not recognise, so the check was applied to a
+  document that could not contain an additional property. A file saying `"retires": 3` imported
+  clean and ran with no retries at all, which is the exact failure a schema exists to prevent. The
+  import paths now validate the document **as written**, before it is bound.
+
+  **Upgrading:** a definition repository carrying a typo has been running with that field ignored,
+  and that file will now be refused with the offending key named. The import reports it per file and
+  carries on with the rest, so one bad file does not stop a catalogue — but check the import log
+  after upgrading rather than after the first workflow behaves unexpectedly. The `$schema` line the
+  README and the guides tell you to add for editor completion is explicitly allowed and stays so.
+
+- **Forms are validated on the server.** Nothing compared a submission against the form that was
+  asked for, so every posted name became a process variable — a task could be completed with fields
+  its form does not have, and without the fields it says are required. `required` was a client-side
+  hint and nothing more. Names the form does not declare are now dropped (dropped rather than
+  refused: the page's own component state legitimately carries keys that are not fields), required
+  fields are enforced, and a value longer than `workflow.forms.max-value-length` is refused.
+
+  Duplicate field ids are refused outright. JSON Schema can require each id to be present and
+  non-empty, but has no way to say they must differ from one another, so nothing checked — and two
+  fields answering to one id make which value a downstream step reads arbitrary.
+
+  **Upgrading:** a form with duplicate field ids will no longer import, and a client that submits
+  fields the form does not declare will find them dropped rather than turned into process
+  variables. If a downstream step reads a variable that no field declares, declare the field.
+
 ## [2.8.0] - 2026-08-21
 
 **A saturated cluster drained 148 transitions/s with nothing busy** — the broker at 0.23 of two

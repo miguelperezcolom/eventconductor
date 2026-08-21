@@ -3,6 +3,7 @@ package io.mateu.workflow.application.usecases.stepexecution.start;
 import io.mateu.workflow.application.out.DownstreamEventPublisher;
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.domain.aggregates.Step;
+import io.mateu.workflow.domain.aggregates.StepExecution;
 import io.mateu.workflow.domain.aggregates.StepExecutionStatus;
 import io.mateu.workflow.domain.aggregates.StepType;
 import io.mateu.workflow.dtos.Variable;
@@ -21,16 +22,24 @@ public class StartStepExecutionUseCase {
     final StepExecutionRepository stepExecutionRepository;
 
     final io.mateu.workflow.application.out.WorkflowTracing workflowTracing;
+    final io.mateu.workflow.application.services.ProcessTrace processTrace;
     private final DownstreamEventPublisher downstreamEventPublisher;
 
     public void handle(StartStepExecutionCommand command) {
-        workflowTracing.span("eventconductor.dispatch-step",
-                java.util.Map.of("stepExecutionId", command.stepExecutionId()),
-                () -> dispatch(command));
+        // The step execution is read here, before the span, only to learn which process this
+        // dispatch belongs to: the span is anchored to that process's trace so it lands in the same
+        // picture as the process and its steps, rather than starting a trace of its own that
+        // nothing connects to anything. Not an extra read — dispatch() used to do this one.
+        var stepExecution = stepExecutionRepository.findById(command.stepExecutionId()).orElseThrow();
+        workflowTracing.continuing(
+                processTrace.anchorFor(stepExecution.getProcessId()),
+                "eventconductor.dispatch-step",
+                java.util.Map.of("eventconductor.process.id", String.valueOf(stepExecution.getProcessId()),
+                        "eventconductor.step.executionId", command.stepExecutionId()),
+                () -> dispatch(command, stepExecution));
     }
 
-    private void dispatch(StartStepExecutionCommand command) {
-        var stepExecution = stepExecutionRepository.findById(command.stepExecutionId()).orElseThrow();
+    private void dispatch(StartStepExecutionCommand command, StepExecution stepExecution) {
         // Idempotency: only dispatch if the step is still waiting (PENDING).
         // A duplicate event arriving after the worker has already responded
         // (status RUNNING / COMPLETED / ERROR / …) is silently ignored.

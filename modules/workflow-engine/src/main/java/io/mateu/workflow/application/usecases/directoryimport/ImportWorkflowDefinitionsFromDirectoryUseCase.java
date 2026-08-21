@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
 import io.mateu.workflow.application.services.DefinitionFileFormat;
+import io.mateu.workflow.application.services.WorkflowDefinitionValidator;
 import io.mateu.workflow.domain.aggregates.WorkflowDefinition;
 import io.mateu.workflow.domain.aggregates.WorkflowStatus;
 import io.mateu.workflow.imports.DerivedIds;
@@ -43,6 +44,7 @@ public class ImportWorkflowDefinitionsFromDirectoryUseCase {
     final DirectoryImportProperties directoryImportProperties;
     final WorkflowDefinitionRepository workflowDefinitionRepository;
     final ImportedDefinitionsRegistry importedDefinitionsRegistry;
+    final WorkflowDefinitionValidator workflowDefinitionValidator;
     final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
     private static final YAMLMapper YAML_MAPPER = new YAMLMapper();
 
@@ -129,6 +131,12 @@ public class ImportWorkflowDefinitionsFromDirectoryUseCase {
         }
 
         adoptLegacyLifecycleFields(node, fileName);
+
+        // The document, before it is bound to the record. This is the only place a key the record
+        // does not have is still visible: bind first and Jackson has already dropped it, which is
+        // how `"retires": 3` used to import as a step with no retries and no complaint. Runs after
+        // the legacy adoption above so a file written in the older spellings still validates.
+        workflowDefinitionValidator.validateSource(node, fileName);
 
         var definition = objectMapper.treeToValue(node, WorkflowDefinition.class);
 
