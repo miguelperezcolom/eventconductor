@@ -60,6 +60,7 @@ public class ProcessStatusAnnouncer {
         process.send(new ProcessStatusChanged(
                 process.getId(),
                 process.getBusinessKey(),
+                process.getName(),
                 process.getWorkflowDefinitionId(),
                 process.getWorkflowDefinitionVersion(),
                 process.getStatus() == null ? null : process.getStatus().name(),

@@ -79,7 +79,7 @@ class IngressRouterTest {
     }
 
     private ProcessIndexRow rowOnShard(String shardId) {
-        return new ProcessIndexRow("p-1", "bk-1", "wd-1", 1, "RUNNING", 0,
+        return new ProcessIndexRow("p-1", "bk-1", "a process", "wd-1", 1, "RUNNING", 0,
                 LocalDateTime.now(), null, null, LocalDateTime.now(), shardId);
     }
 

@@ -1,5 +1,6 @@
 package io.mateu.workflow.infra.out.persistence;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
@@ -23,6 +24,13 @@ public class ProcessIndexEntity {
     @Id
     private String processId;
     private String businessKey;
+
+    /**
+     * The process's own name — what the operator listing shows and searches by. Null on rows
+     * projected before it was carried, which the listing handles rather than showing a blank.
+     */
+    @Column(columnDefinition = "TEXT")
+    private String name;
     private String workflowDefinitionId;
     private int workflowDefinitionVersion;
     private String status;
@@ -36,12 +44,13 @@ public class ProcessIndexEntity {
     protected ProcessIndexEntity() {
     }
 
-    public ProcessIndexEntity(String processId, String businessKey, String workflowDefinitionId,
+    public ProcessIndexEntity(String processId, String businessKey, String name, String workflowDefinitionId,
                               int workflowDefinitionVersion, String status, int completionPercentage,
                               LocalDateTime created, LocalDateTime started, LocalDateTime finished,
                               LocalDateTime updatedAt, String shardId) {
         this.processId = processId;
         this.businessKey = businessKey;
+        this.name = name;
         this.workflowDefinitionId = workflowDefinitionId;
         this.workflowDefinitionVersion = workflowDefinitionVersion;
         this.status = status;
@@ -55,6 +64,10 @@ public class ProcessIndexEntity {
 
     public String getProcessId() {
         return processId;
+    }
+
+    public String getName() {
+        return name;
     }
 
     public String getBusinessKey() {

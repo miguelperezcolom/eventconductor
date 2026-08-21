@@ -18,6 +18,9 @@ import java.time.LocalDateTime;
  *                   (an in-process cascade can run a just-created process to completion before the
  *                   creation's own seed event is dispatched), and it advances monotonically across
  *                   restarts as wall-clock time does — where a reset in-memory counter would not.
+ * @param name      the process's own name, carried so the read model can show and search what the
+ *                  operator listing shows and searches. Null on rows projected before 2.7.1, which
+ *                  is why the listing falls back to the business key rather than showing a blank.
  * @param shardId    the shard that owns this process ({@code null} when not sharded). Stamped here, on
  *                   the owning shard as the event is emitted, so the read model records where the
  *                   process lives regardless of where the projector runs — in-process on each shard, or
@@ -28,6 +31,7 @@ import java.time.LocalDateTime;
 public record ProcessStatusChanged(
         String processId,
         String businessKey,
+        String name,
         String workflowDefinitionId,
         int workflowDefinitionVersion,
         String status,

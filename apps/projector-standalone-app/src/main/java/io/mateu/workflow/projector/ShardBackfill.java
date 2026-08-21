@@ -42,7 +42,7 @@ public class ShardBackfill {
 
     /** Top-level processes only: a child lives on its parent's shard and is never placed. */
     private static final String READ_PROCESSES = """
-            SELECT id, business_key, workflow_definition_id, workflow_definition_version, status,
+            SELECT id, business_key, name, workflow_definition_id, workflow_definition_version, status,
                    completion_percentage, created, started, finished
             FROM process_entity
             WHERE parent_step_execution_id IS NULL""";
@@ -84,6 +84,9 @@ public class ShardBackfill {
         return new ProcessIndexRow(
                 rows.getString("id"),
                 rows.getString("business_key"),
+                // The name comes from the write side here, which is what lets a backfill fill in the
+                // rows an older projector wrote without one.
+                rows.getString("name"),
                 rows.getString("workflow_definition_id"),
                 rows.getInt("workflow_definition_version"),
                 rows.getString("status"),

@@ -66,7 +66,7 @@ class ProcessIndexProjectionTest {
 
     static ProcessStatusChanged event(String processId, String businessKey, String status,
                                       int completion, LocalDateTime occurredAt, String shardId) {
-        return new ProcessStatusChanged(processId, businessKey, "order-fulfilment", 1, status,
+        return new ProcessStatusChanged(processId, businessKey, "a process", "order-fulfilment", 1, status,
                 completion, T0, T0, "COMPLETED".equals(status) ? occurredAt : null, occurredAt, shardId);
     }
 }

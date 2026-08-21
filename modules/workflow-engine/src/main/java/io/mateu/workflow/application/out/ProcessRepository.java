@@ -1,5 +1,6 @@
 package io.mateu.workflow.application.out;
 
+import io.mateu.workflow.paging.ServedPage;
 import io.mateu.uidl.interfaces.CrudStore;
 import io.mateu.workflow.domain.aggregates.Process;
 import io.mateu.workflow.domain.aggregates.ProcessStatus;

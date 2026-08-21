@@ -91,7 +91,7 @@ class JdbcProcessIndexStoreTest {
 
     @Test
     void carriesNullsThroughForAProcessThatHasNotStartedOrFinished() {
-        store.upsert(new ProcessIndexRow("p1", null, "order-fulfilment", 1, "PENDING", 0,
+        store.upsert(new ProcessIndexRow("p1", null, null, "order-fulfilment", 1, "PENDING", 0,
                 T0, null, null, T0, null));
 
         var found = store.findByProcessId("p1").orElseThrow();
@@ -101,9 +101,68 @@ class JdbcProcessIndexStoreTest {
         assertThat(found.shardId()).isNull();
     }
 
+    /**
+     * The operator listing, answered from the index. This is the implementation a sharded fleet
+     * actually uses — in {@code projection.mode=remote} the engine reads the index through this
+     * store, so if it could not page, the listing would quietly fall back to one shard's own
+     * database and nobody would see an error.
+     */
+    @Test
+    void pagesTheListingNewestFirstWithATotalIndependentOfThePage() {
+        for (var i = 0; i < 5; i++) {
+            store.upsert(new ProcessIndexRow("p" + i, "bk-" + i, "process " + i, "order-fulfilment",
+                    1, i == 0 ? "ERROR" : "COMPLETED", 100,
+                    T0.plusMinutes(i), T0, T0, T0.plusMinutes(i), null));
+        }
+
+        var first = store.search(null, false, 0, 2).orElseThrow();
+        var second = store.search(null, false, 1, 2).orElseThrow();
+
+        assertThat(first.content()).extracting(ProcessIndexRow::processId).containsExactly("p4", "p3");
+        assertThat(second.content()).extracting(ProcessIndexRow::processId).containsExactly("p2", "p1");
+        assertThat(first.totalElements()).isEqualTo(5);
+        assertThat(second.totalElements()).isEqualTo(5);
+        assertThat(first.pageSize()).isEqualTo(2);
+    }
+
+    @Test
+    void filtersTheListingByTextAndByErrorStatus() {
+        store.upsert(new ProcessIndexRow("p1", "bk-alpha", "the first one", "order-fulfilment", 1,
+                "ERROR", 40, T0, T0, null, T0, null));
+        store.upsert(new ProcessIndexRow("p2", "bk-beta", "the second one", "order-fulfilment", 1,
+                "COMPLETED", 100, T0, T0, T0, T0, null));
+
+        // By name, and by business key, case-insensitively — the same text the write-side listing
+        // matches, which is the point of carrying the name into the index at all.
+        assertThat(store.search("FIRST", false, 0, 10).orElseThrow().content())
+                .extracting(ProcessIndexRow::processId).containsExactly("p1");
+        assertThat(store.search("bk-beta", false, 0, 10).orElseThrow().content())
+                .extracting(ProcessIndexRow::processId).containsExactly("p2");
+
+        var onlyErrors = store.search(null, true, 0, 10).orElseThrow();
+        assertThat(onlyErrors.content()).extracting(ProcessIndexRow::processId).containsExactly("p1");
+        assertThat(onlyErrors.totalElements()).isEqualTo(1);
+    }
+
+    @Test
+    void answersAPageBeyondTheEndWithTheLastRealOne() {
+        for (var i = 0; i < 3; i++) {
+            store.upsert(row("p" + i, "bk-" + i, "COMPLETED", 100, T0.plusMinutes(i), null));
+        }
+
+        var beyond = store.search(null, false, 3422, 2).orElseThrow();
+
+        assertThat(beyond.pageNumber()).isEqualTo(1);
+        assertThat(beyond.pageSize()).isEqualTo(2);
+        assertThat(beyond.content()).hasSize(1);
+        // Never zero: the pager on the other end divides by it.
+        assertThat(store.search("nothing matches this", false, 0, 10).orElseThrow().pageSize())
+                .isEqualTo(10);
+    }
+
     private static ProcessIndexRow row(String processId, String businessKey, String status,
                                        int completion, LocalDateTime updatedAt, String shardId) {
-        return new ProcessIndexRow(processId, businessKey, "order-fulfilment", 1, status, completion,
+        return new ProcessIndexRow(processId, businessKey, "a process", "order-fulfilment", 1, status, completion,
                 T0, T0, "COMPLETED".equals(status) ? updatedAt : null, updatedAt, shardId);
     }
 }

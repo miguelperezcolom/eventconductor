@@ -1,4 +1,4 @@
-package io.mateu.workflow.application.out;
+package io.mateu.workflow.paging;
 
 /**
  * The page a listing actually gets, given what it asked for and how many rows matched.
@@ -9,8 +9,10 @@ package io.mateu.workflow.application.out;
  * by the size, and a zero there read as "Page 3423 of Infinity", with next and last enabled for
  * ever.
  *
- * <p>Lives here, above both stores, because it is the one piece of paging that has to mean the same
- * thing in memory and in SQL — and the SQL side cannot work it out for itself until it has counted.
+ * <p>Lives in the shared module because it is the one piece of paging that has to mean the same
+ * thing everywhere it is answered: in memory, in SQL against the write side, and in SQL against the
+ * read model — three stores in two modules, and a listing whose page numbering depended on which
+ * one answered would be a listing that renumbers itself when you turn the read model on.
  *
  * @param number the zero-based page to serve
  * @param size   the page size to apply

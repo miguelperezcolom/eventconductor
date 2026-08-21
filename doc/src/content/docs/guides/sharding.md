@@ -45,7 +45,7 @@ flowchart LR
   M --> B[Shard b]
   A -->|ProcessStatusChanged + shardId| I[(process_index)]
   B -->|ProcessStatusChanged + shardId| I
-  I --> Q[MCP tools: list and count across shards]
+  I --> Q[List and count across shards: UI and MCP]
   I --> K[Route a command: id to shard]
 ```
 
@@ -53,15 +53,14 @@ A **shared messages topic**, because a sender cannot know which shard is waiting
 **read model**, which is what lets a question span shards at all — and, because it records where each
 process lives, what lets a command find its way back to one.
 
-:::caution[The operator UI lists one shard, not the fleet]
-Two things read the index today: the **MCP tools** and **command routing**. The web UI does not. Its
-process listing queries the write-side database of whichever shard served the request, so in a
-sharded fleet *Workflow → Processes* shows that shard's processes and no others.
+:::note[The listing needs the read model to see the fleet]
+The process listing reads the index when the read model is **on**
+(`workflow.projection.enabled`), and its own shard's database when it is off. So a sharded fleet
+wants it on for the same reason it wants it for counting: with it off, *Workflow → Processes* shows
+whichever shard served the request and no others.
 
-Operator actions on a process you can see are unaffected — retry, cancel, pause and resume go
-through the dispatcher, which resolves the owning shard from the index — so the gap is finding a
-process, not acting on one. Until the listing reads the index, treat a sharded fleet's UI as
-per-shard: the fleet-wide view is the MCP tools, or the index database queried directly.
+Operator actions are unaffected either way — retry, cancel, pause and resume go through the
+dispatcher, which resolves the owning shard from the index.
 :::
 
 ## Routing: four cases, and only one of them chooses
@@ -139,8 +138,8 @@ The switch is `workflow.sharding.enabled`, and every property is in the
 registry, and the placement datasource.
 
 Two things worth having in place first: the [process index](/guides/process-index/), because without
-it nothing can list or count across shards and commands have no way home; and the placement
-datasource above.
+it the operator listing sees one shard, nothing counts across the fleet, and commands have no way
+home; and the placement datasource above.
 
 The design notes and the Kubernetes manifests a sharded fleet was validated with live in the
 benchmark module — `k8s/scale/sharded/README.md` and `k8s/reliability/ELASTIC-SHARDING-DESIGN.md`.
