@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.6.2] - 2026-08-21
+
+A deployment could not write a form execution at all — eleven columns were `varchar(255)` wherever
+Hibernate built the schema, because the mappings declared no length and the migrations, which said
+`TEXT`, never ran there. Reported from the sagas PoC, where a saga's variables are several kilobytes
+and the task never reached the person waiting for it.
+
+Also here: the graph browser journeys that had been failing at random on unrelated branches, and a
+Mateu bump.
+
 ### Changed
 - **Mateu 3.0-alpha.298.** A plain dependency bump. Verified rather than read off the release: the
   browser suite was run against it in full — 25 journeys — alongside the engine, forms and worker
@@ -18,7 +28,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   loop around it propagates an exception where it would have retried a false condition. Twice in one
   afternoon, on a listings change and on a persistence change.
 
-### Fixed
 - **Eleven columns were `varchar(255)` wherever Hibernate built the schema, and a real deployment
   could not write a form execution at all.** Reported from the sagas PoC:
 
