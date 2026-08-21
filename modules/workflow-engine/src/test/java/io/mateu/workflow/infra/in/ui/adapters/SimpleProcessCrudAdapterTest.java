@@ -1,7 +1,9 @@
 package io.mateu.workflow.infra.in.ui.adapters;
 
+import io.mateu.uidl.data.Data;
 import io.mateu.uidl.data.Pageable;
 import io.mateu.workflow.application.out.ProcessIndexRepository;
+import io.mateu.workflow.infra.in.ui.pages.process.ProcessNotFoundView;
 import io.mateu.workflow.infra.in.ui.pages.process.ProcessRow;
 import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.services.ProcessStatusAnnouncer;
@@ -168,5 +170,23 @@ class SimpleProcessCrudAdapterTest {
         assertThat(page.totalElements()).isZero();
         assertThat(page.content()).isEmpty();
         assertThat(page.pageNumber()).isZero();
+    }
+
+    /**
+     * A link to a process that is not here any more — a retention sweep, a regenerated dataset, a
+     * link pointing at another environment. It is an ordinary destination, so it has to answer with
+     * a PAGE.
+     *
+     * <p>It used to answer with a {@code Data}, which is a wire fragment meant to come back from an
+     * action: the crud built a view around it and titled the page — browser tab included — after its
+     * Java toString, so a stale link read
+     * "Data[data={error=Process not found}, style=, cssClasses=, newState=null]".
+     */
+    @Test
+    void anIdThatIsNotHereIsAnsweredWithAPageAndNotWithAWireFragment() {
+        var view = adapter(0).getView("no-such-process", null);
+
+        assertThat(view).isInstanceOf(ProcessNotFoundView.class);
+        assertThat(view).isNotInstanceOf(Data.class);
     }
 }
