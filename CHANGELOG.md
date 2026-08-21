@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.9.0] - 2026-08-21
+
+**A workflow could not be read as a workflow, and a workflow could be broken by a typo.** Tracing
+described the code the engine was running rather than the process it was running it for, so Grafana
+held a scatter of two-millisecond traces with nothing saying which process any of them belonged to.
+And a definition file, a form, a rule or a business key was taken largely on trust — which is how a
+misspelled key ran a step with no retries, and how two workflows that start each other spawned
+processes for as long as the database would take rows.
+
+Minor rather than patch: no public API moves, but two changes refuse input that used to pass in
+silence — a definition file with a misspelled key, and a form with duplicate field ids or a
+submission carrying fields the form does not declare. See Upgrading under each.
+
 ### Added
 - **A process is one trace, shaped like the process.** Tracing described the code the engine was
   running — a span around a dispatch, one around a relay pass, one around a step-over — and each of
