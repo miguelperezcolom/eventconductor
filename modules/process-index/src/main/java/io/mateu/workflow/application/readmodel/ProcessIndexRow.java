@@ -16,6 +16,7 @@ import java.time.LocalDateTime;
 public record ProcessIndexRow(
         String processId,
         String businessKey,
+        String name,
         String workflowDefinitionId,
         int workflowDefinitionVersion,
         String status,
@@ -28,7 +29,7 @@ public record ProcessIndexRow(
 
     public static ProcessIndexRow from(ProcessStatusChanged e, LocalDateTime updatedAt, String shardId) {
         return new ProcessIndexRow(
-                e.processId(), e.businessKey(), e.workflowDefinitionId(), e.workflowDefinitionVersion(),
+                e.processId(), e.businessKey(), e.name(), e.workflowDefinitionId(), e.workflowDefinitionVersion(),
                 e.status(), e.completionPercentage(), e.created(), e.started(), e.finished(),
                 updatedAt, shardId);
     }

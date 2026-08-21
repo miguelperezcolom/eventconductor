@@ -1,6 +1,7 @@
 package io.mateu.workflow.infra.out.persistence;
 
 import io.mateu.workflow.application.out.ProcessIndexRepository;
+import io.mateu.workflow.paging.ServedPage;
 import io.mateu.workflow.application.readmodel.ProcessIndexRow;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
@@ -32,7 +33,7 @@ public class ProcessIndexDBRepository implements ProcessIndexRepository {
             return;
         }
         repository.save(new ProcessIndexEntity(
-                row.processId(), row.businessKey(), row.workflowDefinitionId(),
+                row.processId(), row.businessKey(), row.name(), row.workflowDefinitionId(),
                 row.workflowDefinitionVersion(), row.status(), row.completionPercentage(),
                 row.created(), row.started(), row.finished(), row.updatedAt(), row.shardId()));
     }
@@ -65,9 +66,28 @@ public class ProcessIndexDBRepository implements ProcessIndexRepository {
                 .collect(Collectors.toMap(row -> (String) row[0], row -> (Long) row[1]));
     }
 
+    /**
+     * Counted first, then the page — which page can be served depends on how many there are, and
+     * the listing's contract is that a request past the end is answered with the last real page.
+     */
+    @Override
+    public java.util.Optional<ProcessIndexPage> search(String searchText, boolean onlyErrors,
+                                                       int page, int size) {
+        var pattern = (searchText == null || searchText.isBlank())
+                ? null : "%" + searchText.toLowerCase() + "%";
+        var total = repository.countSearch(onlyErrors, pattern);
+        var served = ServedPage.of(page, size, total);
+        var content = repository
+                .search(onlyErrors, pattern,
+                        org.springframework.data.domain.PageRequest.of(served.number(), served.size()))
+                .stream().map(this::toRow).toList();
+        return java.util.Optional.of(
+                new ProcessIndexPage(content, total, served.number(), served.size()));
+    }
+
     private ProcessIndexRow toRow(ProcessIndexEntity e) {
         return new ProcessIndexRow(
-                e.getProcessId(), e.getBusinessKey(), e.getWorkflowDefinitionId(),
+                e.getProcessId(), e.getBusinessKey(), e.getName(), e.getWorkflowDefinitionId(),
                 e.getWorkflowDefinitionVersion(), e.getStatus(), e.getCompletionPercentage(),
                 e.getCreated(), e.getStarted(), e.getFinished(), e.getUpdatedAt(), e.getShardId());
     }

@@ -32,7 +32,7 @@ class KafkaCommandPublisherTest {
     @InjectMocks KafkaCommandPublisher publisher;
 
     private ProcessIndexRow rowOnShard(String shardId) {
-        return new ProcessIndexRow("p-1", "bk-1", "wd-1", 1, "ERROR", 40,
+        return new ProcessIndexRow("p-1", "bk-1", "a process", "wd-1", 1, "ERROR", 40,
                 LocalDateTime.now(), LocalDateTime.now(), null, LocalDateTime.now(), shardId);
     }
 

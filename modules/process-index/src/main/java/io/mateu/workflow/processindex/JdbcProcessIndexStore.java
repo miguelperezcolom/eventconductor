@@ -1,6 +1,7 @@
 package io.mateu.workflow.processindex;
 
 import io.mateu.workflow.application.out.ProcessIndexRepository;
+import io.mateu.workflow.paging.ServedPage;
 import io.mateu.workflow.application.readmodel.ProcessIndexRow;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,7 +42,7 @@ public class JdbcProcessIndexStore implements ProcessIndexRepository {
     private static final Logger log = LoggerFactory.getLogger(JdbcProcessIndexStore.class);
 
     private static final String COLUMNS = """
-            process_id, business_key, workflow_definition_id, workflow_definition_version, status,
+            process_id, business_key, name, workflow_definition_id, workflow_definition_version, status,
             completion_percentage, created, started, finished, updated_at, shard_id""";
 
     /**
@@ -50,9 +51,10 @@ public class JdbcProcessIndexStore implements ProcessIndexRepository {
      * wins — the same as the read-then-write path, which only skips when both stamps are present.
      */
     private static final String POSTGRES_UPSERT = """
-            INSERT INTO process_index (%s) VALUES (?,?,?,?,?,?,?,?,?,?,?)
+            INSERT INTO process_index (%s) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
             ON CONFLICT (process_id) DO UPDATE SET
                 business_key = EXCLUDED.business_key,
+                name = EXCLUDED.name,
                 workflow_definition_id = EXCLUDED.workflow_definition_id,
                 workflow_definition_version = EXCLUDED.workflow_definition_version,
                 status = EXCLUDED.status,
@@ -124,7 +126,7 @@ public class JdbcProcessIndexStore implements ProcessIndexRepository {
                 delete.executeUpdate();
             }
             try (var insert = connection.prepareStatement(
-                    "INSERT INTO process_index (" + COLUMNS + ") VALUES (?,?,?,?,?,?,?,?,?,?,?)")) {
+                    "INSERT INTO process_index (" + COLUMNS + ") VALUES (?,?,?,?,?,?,?,?,?,?,?,?)")) {
                 bindRow(insert, row);
                 insert.executeUpdate();
             }
@@ -184,6 +186,62 @@ public class JdbcProcessIndexStore implements ProcessIndexRepository {
         });
     }
 
+    /**
+     * One page of the operator listing, over the read database.
+     *
+     * <p>This is the implementation that matters for a sharded fleet: in
+     * {@code workflow.projection.mode=remote} the engine reads the index through <b>this</b> store,
+     * so a listing that could not be paged here would fall back to the shard's own write database —
+     * which is exactly the per-shard view the read model exists to replace.
+     *
+     * <p>Ordered, filtered and paged in SQL, and counted separately, for the same reason the
+     * write-side listing is: the alternative is fetching a fleet to show ten rows of it.
+     */
+    @Override
+    public Optional<ProcessIndexPage> search(String searchText, boolean onlyErrors, int page, int size) {
+        var pattern = (searchText == null || searchText.isBlank())
+                ? null : "%" + searchText.toLowerCase() + "%";
+        var where = new StringBuilder(" WHERE 1=1");
+        if (onlyErrors) {
+            where.append(" AND status = 'ERROR'");
+        }
+        if (pattern != null) {
+            where.append(" AND lower(coalesce(name,'') || ' ' || coalesce(business_key,'')) LIKE ?");
+        }
+        var filter = where.toString();
+        return withConnection(connection -> {
+            long total;
+            try (var statement = connection.prepareStatement(
+                    "SELECT count(*) FROM process_index" + filter)) {
+                if (pattern != null) {
+                    statement.setString(1, pattern);
+                }
+                try (var rows = statement.executeQuery()) {
+                    rows.next();
+                    total = rows.getLong(1);
+                }
+            }
+            var served = ServedPage.of(page, size, total);
+            var found = new ArrayList<ProcessIndexRow>();
+            try (var statement = connection.prepareStatement("SELECT " + COLUMNS + " FROM process_index"
+                    + filter + " ORDER BY created DESC NULLS LAST LIMIT ? OFFSET ?")) {
+                var i = 1;
+                if (pattern != null) {
+                    statement.setString(i++, pattern);
+                }
+                statement.setInt(i++, served.size());
+                statement.setLong(i, served.offset());
+                try (var rows = statement.executeQuery()) {
+                    while (rows.next()) {
+                        found.add(readRow(rows));
+                    }
+                }
+            }
+            return Optional.of(new ProcessIndexPage(List.copyOf(found), total,
+                    served.number(), served.size()));
+        });
+    }
+
     // ---- plumbing -------------------------------------------------------------------------------
 
     private List<ProcessIndexRow> query(String sql, Binder binder) {
@@ -222,21 +280,23 @@ public class JdbcProcessIndexStore implements ProcessIndexRepository {
     private static void bindRow(PreparedStatement statement, ProcessIndexRow row) throws SQLException {
         statement.setString(1, row.processId());
         statement.setString(2, row.businessKey());
-        statement.setString(3, row.workflowDefinitionId());
-        statement.setInt(4, row.workflowDefinitionVersion());
-        statement.setString(5, row.status());
-        statement.setInt(6, row.completionPercentage());
-        statement.setTimestamp(7, timestamp(row.created()));
-        statement.setTimestamp(8, timestamp(row.started()));
-        statement.setTimestamp(9, timestamp(row.finished()));
-        statement.setTimestamp(10, timestamp(row.updatedAt()));
-        statement.setString(11, row.shardId());
+        statement.setString(3, row.name());
+        statement.setString(4, row.workflowDefinitionId());
+        statement.setInt(5, row.workflowDefinitionVersion());
+        statement.setString(6, row.status());
+        statement.setInt(7, row.completionPercentage());
+        statement.setTimestamp(8, timestamp(row.created()));
+        statement.setTimestamp(9, timestamp(row.started()));
+        statement.setTimestamp(10, timestamp(row.finished()));
+        statement.setTimestamp(11, timestamp(row.updatedAt()));
+        statement.setString(12, row.shardId());
     }
 
     private static ProcessIndexRow readRow(ResultSet rows) throws SQLException {
         return new ProcessIndexRow(
                 rows.getString("process_id"),
                 rows.getString("business_key"),
+                rows.getString("name"),
                 rows.getString("workflow_definition_id"),
                 rows.getInt("workflow_definition_version"),
                 rows.getString("status"),

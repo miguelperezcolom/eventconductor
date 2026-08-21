@@ -20,7 +20,7 @@ class RelayDestinationTest {
 
     private final MessageReceived message = new MessageReceived("payment-confirmed", "k1", List.of());
     private final ProcessStatusChanged statusChanged = new ProcessStatusChanged(
-            "p1", "k1", "wd-1", 1, "RUNNING", 40, LocalDateTime.now(), LocalDateTime.now(), null,
+            "p1", "k1", "a process", "wd-1", 1, "RUNNING", 40, LocalDateTime.now(), LocalDateTime.now(), null,
             LocalDateTime.now(), "s0");
     private final ProcessCreated created = new ProcessCreated("p1", List.of());
 

@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **The process listing reads the read model, so a sharded fleet lists the fleet.** It queried the
+  write-side database of whichever shard served the request, so *Workflow → Processes* showed one
+  shard and no others — while the guide said the read model was what let a question span shards.
+  It does now: with `workflow.projection.enabled` on, the listing pages, filters and orders against
+  `process_index`, in both the JPA store and the JDBC one a remote projector deployment reads
+  through. Off, it uses the write side exactly as before.
+
+  This needed the process's **name** in the index, which `ProcessStatusChanged` did not carry: the
+  listing shows it and searches by it, and an index without it would have answered a different
+  question depending on which store answered. The event, the row, the two stores and the shard
+  backfill all carry it now; `V3__process_index_name.sql` adds the column. Rows projected earlier
+  have none and fall back to the business key rather than rendering a blank — a backfill fills them
+  in.
+
 ## [2.7.0] - 2026-08-21
 
 **`/workflow/analytics` did not return.** The request thread entered the route and never logged

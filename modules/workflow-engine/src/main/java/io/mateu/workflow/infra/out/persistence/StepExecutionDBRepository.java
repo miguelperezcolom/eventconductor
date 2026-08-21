@@ -2,7 +2,7 @@ package io.mateu.workflow.infra.out.persistence;
 
 import io.mateu.workflow.application.out.AnalyticsAggregates;
 import io.mateu.workflow.application.out.StepExecutionAnalyticsRow;
-import io.mateu.workflow.application.out.ServedPage;
+import io.mateu.workflow.paging.ServedPage;
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.out.StepExecutionSummary;
 import io.mateu.workflow.application.out.StepExecutionSummaryPage;

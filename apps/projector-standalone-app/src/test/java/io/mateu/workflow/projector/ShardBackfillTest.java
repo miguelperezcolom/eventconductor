@@ -88,7 +88,7 @@ class ShardBackfillTest {
     void aBackfilledRowLosesToARealTransitionHoweverTheyInterleave() {
         insertProcess("p1", "order-1", "RUNNING", 40, null);
         // The projector already saw this process finish, from the topic.
-        ProcessIndexProjection.apply(index, new ProcessStatusChanged("p1", "order-1", "wd-1", 1,
+        ProcessIndexProjection.apply(index, new ProcessStatusChanged("p1", "order-1", "a process", "wd-1", 1,
                 "COMPLETED", 100, CREATED, CREATED, CREATED.plusHours(1), CREATED.plusHours(1), "s0"));
 
         backfill.backfill(shard, "s0");

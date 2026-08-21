@@ -3,7 +3,7 @@ package io.mateu.workflow.infra.out.persistence;
 import io.mateu.workflow.application.out.AnalyticsAggregates;
 import io.mateu.workflow.application.out.ProcessAnalyticsRow;
 import io.mateu.workflow.application.out.ProcessRepository;
-import io.mateu.workflow.application.out.ServedPage;
+import io.mateu.workflow.paging.ServedPage;
 import io.mateu.workflow.application.out.ProcessSummary;
 import io.mateu.workflow.application.out.ProcessSummaryPage;
 import io.mateu.workflow.domain.aggregates.Process;
