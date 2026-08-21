@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.7.0] - 2026-08-21
+
+**`/workflow/analytics` did not return.** The request thread entered the route and never logged
+again; the pod missed three liveness probes and was SIGKILLed. It was never the database —
+PostgreSQL did the whole join in 247 ms — it was 383 215 rows materialised on the request thread to
+put about fifty on a page.
+
+Minor rather than patch: this changes the shape of the two repository ports. Anything implementing
+`ProcessRepository` or `StepExecutionRepository` outside this repository inherits the new methods
+as defaults and keeps working, but the interfaces are wider than they were.
+
 ### Changed
 - **Analytics is aggregated by the database instead of folded in the JVM.** `/workflow/analytics`
   did not return: the request thread entered the route and never logged again, and the pod missed
