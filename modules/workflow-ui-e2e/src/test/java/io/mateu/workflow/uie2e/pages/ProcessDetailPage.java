@@ -12,6 +12,17 @@ import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertTha
  * <p>The action labels here are the ones the engine declares on
  * {@code SimpleProcessViewModel} — two of them through {@code @Label}, the rest derived from the
  * method name. They are what an operator reads, so they are what the tests click.
+ *
+ * <p><b>The graph readers report "nothing yet" rather than throwing.</b> They reach into the
+ * {@code eventconductor-workflow-graph} shadow DOM, and a custom element is in the document before
+ * it has attached its shadow root — so {@code el.shadowRoot} is null for a window whose width
+ * depends on how busy the machine is. Every caller of these methods is inside an
+ * {@code awaitUntil} polling for the graph to appear, and that loop retries a false condition but
+ * propagates an exception: a null dereference there is a failed test rather than another poll.
+ * That is precisely how it failed, twice, on branches that touched nothing near the graph —
+ * {@code TypeError: Cannot read properties of null (reading 'querySelectorAll')}. Returning an
+ * empty result lets the wait do its job, and an unrendered graph now ends as a timeout that says
+ * which condition never came true.
  */
 public class ProcessDetailPage {
 
@@ -88,6 +99,7 @@ public class ProcessDetailPage {
         var raw = page.locator("eventconductor-workflow-graph").first().evaluate("""
                 el => {
                     const out = {};
+                    if (!el.shadowRoot) return out;   // see the class javadoc
                     el.shadowRoot.querySelectorAll('.node[data-node]').forEach(node => {
                         const badge = node.querySelector('.ov-order text');
                         if (badge) out[node.getAttribute('data-node')] = badge.textContent.trim();
@@ -115,6 +127,7 @@ public class ProcessDetailPage {
         var raw = page.locator("eventconductor-workflow-graph").first().evaluate("""
                 el => {
                     const hits = [];
+                    if (!el.shadowRoot) return hits;
                     const nodes = [...el.shadowRoot.querySelectorAll('.node[data-node]')];
                     el.shadowRoot.querySelectorAll('.guard .guard-chip:not(.guard-full) rect')
                         .forEach(chipRect => {
@@ -140,6 +153,7 @@ public class ProcessDetailPage {
     public String firstGuardFullText() {
         return page.locator("eventconductor-workflow-graph").first().evaluate("""
                 el => {
+                    if (!el.shadowRoot) return null;
                     const full = el.shadowRoot.querySelector('.guard .guard-full text');
                     return full ? full.textContent.trim() : null;
                 }""") instanceof String text ? text : null;
