@@ -26,9 +26,11 @@ public class StepOverProcessUseCase {
     final WorkflowMetrics workflowMetrics;
     final WorkflowOrchestrationService workflowOrchestrationService;
     final NotifyParentStepService notifyParentStepService;
+    final io.mateu.workflow.application.services.RecordProcessTraceService recordProcessTraceService;
     final CancelChildProcessService cancelChildProcessService;
     final DownstreamEventPublisher downstreamEventPublisher;
     final io.mateu.workflow.application.out.WorkflowTracing workflowTracing;
+    final io.mateu.workflow.application.services.ProcessTrace processTrace;
 
     public void handle(StepOverProcessCommand command) {
         // Serialize per process: two concurrent step-overs (e.g. two parallel steps
@@ -36,9 +38,16 @@ public class StepOverProcessUseCase {
         // both see the next step as CREATED and dispatch it twice.
         // Named, because this is where a process actually moves and it is the span an operator
         // reading a trace is looking for — everything else in the picture is a database call.
+        // Anchored to the process's own trace rather than started as a root of its own. Without
+        // this, each step-over is the beginning of a fresh trace — a pile of two-millisecond spans
+        // with nothing to say which process they belong to or what came before them — because the
+        // context that produced the event does not survive the outbox row and the broker record in
+        // between. The anchor is derived from the process id, so every pod computes the same one.
         if (!processLockService.runExclusively(command.processId(),
-                () -> workflowTracing.span("eventconductor.step-over",
-                        java.util.Map.of("processId", command.processId()),
+                () -> workflowTracing.continuing(
+                        processTrace.anchorFor(command.processId()),
+                        "eventconductor.step-over",
+                        java.util.Map.of("eventconductor.process.id", command.processId()),
                         () -> doHandle(command)))) {
             log.error("Could not acquire lock for process {}, skipping step-over (another node is working on it)",
                     command.processId());
@@ -96,6 +105,9 @@ public class StepOverProcessUseCase {
         // (or error) the PROCESS step of the parent that spawned it.
         if (result.isProcessErrored() || result.isProcessCompleted()) {
             notifyParentStepService.processReachedTerminalStatus(result.getUpdatedProcess());
+            // The same moment, seen the other way: this is where the process's whole run is
+            // finally known, so it is where it can be written out as a trace.
+            recordProcessTraceService.processReachedTerminalStatus(result.getUpdatedProcess());
         }
     }
 

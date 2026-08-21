@@ -29,6 +29,7 @@ public class ProcessUpdateStepExecutionUpdateUseCase {
     final StepExecutionRepository stepExecutionRepository;
     final WorkflowMetrics workflowMetrics;
     final NotifyParentStepService notifyParentStepService;
+    final io.mateu.workflow.application.services.RecordProcessTraceService recordProcessTraceService;
 
     public void handle(ProcessStepExecutionUpdateCommand command) {
         var process = repository.findById(command.processId()).orElseThrow();
@@ -134,6 +135,9 @@ public class ProcessUpdateStepExecutionUpdateUseCase {
                     || process.getStatus() == ProcessStatus.ERROR
                     || process.getStatus() == ProcessStatus.CANCELLED) {
                 notifyParentStepService.processReachedTerminalStatus(process);
+                // The same moment, seen the other way: this is where the process's whole run is
+                // finally known, so it is where it can be written out as a trace.
+                recordProcessTraceService.processReachedTerminalStatus(process);
             }
         }
     }

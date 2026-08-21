@@ -31,6 +31,7 @@ class CancelProcessUseCaseTest {
     @Mock DownstreamEventPublisher downstreamEventPublisher;
     @Mock WorkflowMetrics workflowMetrics;
     @Mock NotifyParentStepService notifyParentStepService;
+    @Mock io.mateu.workflow.application.services.RecordProcessTraceService recordProcessTraceService;
     @Mock CancelChildProcessService cancelChildProcessService;
 
     @InjectMocks CancelProcessUseCase useCase;

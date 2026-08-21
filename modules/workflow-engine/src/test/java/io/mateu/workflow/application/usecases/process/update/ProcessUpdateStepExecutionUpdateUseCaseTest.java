@@ -29,6 +29,7 @@ class ProcessUpdateStepExecutionUpdateUseCaseTest {
     @Mock StepExecutionRepository stepExecutionRepository;
     @Mock WorkflowMetrics workflowMetrics;
     @Mock NotifyParentStepService notifyParentStepService;
+    @Mock io.mateu.workflow.application.services.RecordProcessTraceService recordProcessTraceService;
 
     @InjectMocks ProcessUpdateStepExecutionUpdateUseCase useCase;
 
