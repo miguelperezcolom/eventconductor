@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **The outbox relay publishes a batch into the broker's requests, not one message per round trip.**
+  A saturated cluster drained 148 transitions/s with the broker idle at 0.23 of two cores and 28 068
+  processes queued: nothing was busy, and the outbox held six rows, so the relay was not behind on
+  reading its backlog — it was slow at publishing and the queue formed in front of it.
+
+  The ack barrier was already there. What was not was enough keys in flight to fill a broker
+  request: the send pool was `relay-concurrency` **platform** threads, so the producer never held
+  more than a handful of records and amortised its round trip across four instead of across the
+  batch. The sends are on **virtual threads** now, and `workflow.outbox.relay-concurrency` defaults
+  to `0` — one per key in the batch, bounded by `batch-size`.
+
+  Measured on a real broker, 2 000 messages: **449 ms → 207 ms**, 4 454 → 9 662 msg/s. The relay
+  transaction got *shorter*, not longer, so the claim's row locks are held for less time rather than
+  more — the cost this change was expected to have does not arrive, because the batch's acks were
+  already awaited together.
+
+  **Nothing about the guarantees moves.** Sends stay synchronous, so a refusal is knowable message
+  by message; within a partition key they stay strictly sequential, so per-process ordering stays
+  true by construction rather than becoming a property of `max.in.flight.requests.per.connection`.
+  `Dist19` asserts both and was watched failing against each shortcut.
+
+  **Upgrading:** a deployment that sets `WORKFLOW_OUTBOX_RELAYCONCURRENCY` explicitly keeps that
+  value as a ceiling and sees no change. Remove it, or set it to `0`.
+
 ### Added
 - **The process listing reads the read model, so a sharded fleet lists the fleet.** It queried the
   write-side database of whichever shard served the request, so *Workflow → Processes* showed one
