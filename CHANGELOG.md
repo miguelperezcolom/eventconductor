@@ -95,7 +95,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   **Upgrading:** a definition repository carrying a typo has been running with that field ignored,
   and that file will now be refused with the offending key named. The import reports it per file and
   carries on with the rest, so one bad file does not stop a catalogue — but check the import log
-  after upgrading rather than after the first workflow behaves unexpectedly.
+  after upgrading rather than after the first workflow behaves unexpectedly. The `$schema` line the
+  README and the guides tell you to add for editor completion is explicitly allowed and stays so.
 
 - **Forms are validated on the server.** Nothing compared a submission against the form that was
   asked for, so every posted name became a process variable — a task could be completed with fields
