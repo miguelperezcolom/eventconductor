@@ -12,6 +12,7 @@ import io.mateu.workflow.domain.aggregates.ProcessStatus;
 import io.mateu.workflow.domain.aggregates.StepExecutionStatus;
 import io.mateu.workflow.infra.in.ui.pages.process.CreateProcessForm;
 import io.mateu.workflow.infra.in.ui.pages.process.ProcessFilters;
+import io.mateu.workflow.infra.in.ui.pages.process.ProcessNotFoundView;
 import io.mateu.workflow.infra.in.ui.pages.process.ProcessRow;
 import io.mateu.workflow.infra.in.ui.pages.process.SimpleProcessViewModel;
 import lombok.RequiredArgsConstructor;
@@ -156,7 +157,9 @@ public class SimpleProcessCrudAdapter  {
     public Object getView(String id, HttpRequest httpRequest) {
         Process process = repository.findById(id).orElse(repository.findByBusinessKey(id).orElse(null));
         if (process == null) {
-            return new Data(Map.of("error", "Process not found"));
+            // A page, not a payload: a Data is a wire fragment, and returning one here had the view
+            // titled — window included — after its Java toString().
+            return new ProcessNotFoundView();
         }
         httpRequest.setAttribute("_process", process);
         httpRequest.setAttribute("_status", process.getStatus().name());

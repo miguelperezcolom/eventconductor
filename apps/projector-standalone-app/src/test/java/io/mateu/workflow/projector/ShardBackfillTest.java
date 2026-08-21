@@ -52,6 +52,7 @@ class ShardBackfillTest {
                 CREATE TABLE process_entity (
                     id varchar(255) PRIMARY KEY,
                     business_key varchar(255),
+                    name varchar(255),
                     workflow_definition_id varchar(255),
                     workflow_definition_version integer NOT NULL DEFAULT 0,
                     status varchar(255),
@@ -69,6 +70,10 @@ class ShardBackfillTest {
 
         assertThat(index.countByStatus()).isEqualTo(Map.of("RUNNING", 1L, "COMPLETED", 1L));
         assertThat(index.findByBusinessKey("order-1").orElseThrow().shardId()).isEqualTo("s0");
+        // The name comes across too. This is what fills it in for rows an older projector wrote
+        // without one — the reason the listing can fall back to a business key and still be a
+        // stopgap rather than the permanent answer.
+        assertThat(index.findByBusinessKey("order-1").orElseThrow().name()).isEqualTo("name of p1");
         // And the claim now knows where those keys live, which is the point of seeding it at all:
         // a redelivered creation of order-1 must come back to s0, not be placed afresh.
         var placement = new JdbcProcessPlacementStore(readDatabase);
@@ -120,11 +125,11 @@ class ShardBackfillTest {
     private void insertProcess(String id, String businessKey, String status, int completion,
                                String parentStepExecutionId) {
         execute("""
-                INSERT INTO process_entity (id, business_key, workflow_definition_id,
+                INSERT INTO process_entity (id, business_key, name, workflow_definition_id,
                     workflow_definition_version, status, completion_percentage, created, started,
                     finished, parent_step_execution_id)
-                VALUES ('%s', '%s', 'wd-1', 1, '%s', %d, '%s', '%s', null, %s)"""
-                .formatted(id, businessKey, status, completion, CREATED, CREATED,
+                VALUES ('%s', '%s', 'name of %s', 'wd-1', 1, '%s', %d, '%s', '%s', null, %s)"""
+                .formatted(id, businessKey, id, status, completion, CREATED, CREATED,
                         parentStepExecutionId == null ? "null" : "'" + parentStepExecutionId + "'"));
     }
 
