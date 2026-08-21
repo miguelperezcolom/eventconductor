@@ -86,7 +86,8 @@ public interface StepExecutionEntityRepository extends JpaRepository<StepExecuti
      * creation time, not the step's.
      */
     @Query("""
-            select s.processId as processId, s.stepId as stepId, s.status as status,
+            select s.processId as processId, s.workflowDefinitionId as definitionId,
+                   s.stepId as stepId, s.status as status,
                    s.order as order, s.startedAt as startedAt, s.finishedAt as finishedAt
             from StepExecutionEntity s
             join ProcessEntity p on p.id = s.processId
@@ -97,9 +98,68 @@ public interface StepExecutionEntityRepository extends JpaRepository<StepExecuti
     List<StepExecutionAnalyticsView> findAnalyticsRows(@Param("createdFrom") LocalDateTime createdFrom,
                                                        @Param("createdTo") LocalDateTime createdTo);
 
+    /**
+     * Analytics' step counts, per definition, step and status, for step executions whose
+     * <b>process</b> was created inside the window — joined for the window, grouped by the step's
+     * own definition id.
+     *
+     * <p>{@code min(s.order)} rides along because it is what the report lists steps by: flow order,
+     * as the engine ran them.
+     */
+    @Query("""
+            select s.workflowDefinitionId as definitionId, s.stepId as stepId, s.status as status,
+                   count(s) as count, min(s.order) as firstOrder
+            from StepExecutionEntity s
+            join ProcessEntity p on p.id = s.processId
+            where p.created is not null
+              and (cast(:createdFrom as LocalDateTime) is null or p.created >= :createdFrom)
+              and (cast(:createdTo as LocalDateTime) is null or p.created <= :createdTo)
+            group by s.workflowDefinitionId, s.stepId, s.status
+            """)
+    List<StepCountView> aggregateStepCounts(@Param("createdFrom") LocalDateTime createdFrom,
+                                            @Param("createdTo") LocalDateTime createdTo);
+
+    /** How long each step's finished executions took — see {@code ProcessEntityRepository} on the units. */
+    @Query("""
+            select s.workflowDefinitionId as definitionId, s.stepId as stepId,
+                   count(s) as samples,
+                   sum(timestampdiff(nanosecond, s.startedAt, s.finishedAt)) as totalNanos,
+                   percentile_disc(0.95) within group (
+                       order by timestampdiff(nanosecond, s.startedAt, s.finishedAt)
+                   ) as p95Nanos
+            from StepExecutionEntity s
+            join ProcessEntity p on p.id = s.processId
+            where p.created is not null
+              and s.startedAt is not null and s.finishedAt is not null
+              and (cast(:createdFrom as LocalDateTime) is null or p.created >= :createdFrom)
+              and (cast(:createdTo as LocalDateTime) is null or p.created <= :createdTo)
+            group by s.workflowDefinitionId, s.stepId
+            """)
+    List<StepDurationView> aggregateStepDurations(@Param("createdFrom") LocalDateTime createdFrom,
+                                                  @Param("createdTo") LocalDateTime createdTo);
+
+    /** Projection for {@link #aggregateStepCounts}. */
+    interface StepCountView {
+        String getDefinitionId();
+        String getStepId();
+        String getStatus();
+        long getCount();
+        long getFirstOrder();
+    }
+
+    /** Projection for {@link #aggregateStepDurations}. */
+    interface StepDurationView {
+        String getDefinitionId();
+        String getStepId();
+        long getSamples();
+        Long getTotalNanos();
+        Long getP95Nanos();
+    }
+
     /** Projection backing {@link #findAnalyticsRows} — no step JSON, no variables. */
     interface StepExecutionAnalyticsView {
         String getProcessId();
+        String getDefinitionId();
         String getStepId();
         String getStatus();
         long getOrder();

@@ -119,6 +119,47 @@ public interface StepExecutionRepository extends CrudStore<StepExecution> {
                 .toList();
     }
 
+    /**
+     * The analytics report's step half, already reduced — per definition and step: how many
+     * executions ended in each status, the order the step ran in, and the duration distribution.
+     * Scoped to step executions whose <b>process</b> was created inside the window, because that is
+     * what the report selects by.
+     *
+     * <p>This default is the in-memory one, folding rows exactly as the service used to. The JPA
+     * store overrides it with two {@code GROUP BY}s over a join, because there the alternative was
+     * loading the engine's largest table to count it.
+     */
+    default AnalyticsAggregates.StepAggregates aggregateSteps(LocalDateTime from, LocalDateTime to) {
+        var rows = findAnalyticsRows(from, to);
+        var counts = new java.util.LinkedHashMap<String, Long>();
+        var statuses = new java.util.LinkedHashMap<String, StepExecutionStatus>();
+        var firstOrder = new java.util.LinkedHashMap<String, Long>();
+        var durations = new java.util.LinkedHashMap<String, java.util.List<Long>>();
+        for (var row : rows) {
+            var stepKey = row.definitionId() + "\u0000" + row.stepId();
+            var key = stepKey + "\u0000" + row.status();
+            counts.merge(key, 1L, Long::sum);
+            statuses.putIfAbsent(key, row.status());
+            firstOrder.merge(stepKey, row.order(), Math::min);
+            if (row.startedAt() != null && row.finishedAt() != null) {
+                durations.computeIfAbsent(stepKey, k -> new java.util.ArrayList<>())
+                        .add(java.time.Duration.between(row.startedAt(), row.finishedAt()).toNanos());
+            }
+        }
+        var countRows = counts.entrySet().stream().map(e -> {
+            var parts = e.getKey().split("\u0000", -1);
+            return new AnalyticsAggregates.DefinitionStepCount(parts[0], parts[1],
+                    statuses.get(e.getKey()), e.getValue(),
+                    firstOrder.getOrDefault(parts[0] + "\u0000" + parts[1], 0L));
+        }).toList();
+        var durationRows = durations.entrySet().stream().map(e -> {
+            var parts = e.getKey().split("\u0000", -1);
+            return new AnalyticsAggregates.DefinitionStepDuration(parts[0], parts[1],
+                    AnalyticsMath.aggregate(e.getValue()));
+        }).toList();
+        return new AnalyticsAggregates.StepAggregates(countRows, durationRows);
+    }
+
     default StepExecutionSummaryPage searchSummaries(String searchText, boolean onlyErrors, int page, int size) {
         var needle = searchText == null ? "" : searchText.toLowerCase();
         var matching = findAll().stream()

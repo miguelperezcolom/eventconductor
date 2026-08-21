@@ -1,8 +1,7 @@
 package io.mateu.workflow.application.services;
 
-import io.mateu.workflow.application.out.ProcessAnalyticsRow;
+import io.mateu.workflow.application.out.AnalyticsAggregates;
 import io.mateu.workflow.application.out.ProcessRepository;
-import io.mateu.workflow.application.out.StepExecutionAnalyticsRow;
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
 import io.mateu.workflow.domain.aggregates.ProcessStatus;
@@ -13,12 +12,12 @@ import org.springframework.stereotype.Service;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
@@ -104,19 +103,35 @@ public class ProcessAnalyticsService {
             String bottleneckStepId) {}
 
     /**
-     * Everything a report over one window is computed from, read once. Both halves are narrow
-     * projections, not aggregates: the point of gathering them here is that they are gathered
-     * <b>once</b> — the step executions used to be re-read from scratch for every definition.
+     * One window's report material, already reduced by the stores. Two calls, a few dozen rows —
+     * not the 383 215 the same report used to be folded from.
      */
-    private record Snapshot(List<ProcessAnalyticsRow> processes,
-                            Map<String, List<StepExecutionAnalyticsRow>> stepsByProcessId) {}
+    private record Snapshot(AnalyticsAggregates.ProcessAggregates processes,
+                            AnalyticsAggregates.StepAggregates steps) {
+
+        Map<String, String> namesByDefinition() {
+            var names = new LinkedHashMap<String, String>();
+            processes.statusCounts().forEach(count -> {
+                if (count.anyProcessName() != null) {
+                    names.putIfAbsent(count.workflowDefinitionId(), count.anyProcessName());
+                }
+            });
+            return names;
+        }
+
+        /** Every definition that has a process in the window. */
+        Set<String> definitionIds() {
+            return processes.statusCounts().stream()
+                    .map(AnalyticsAggregates.DefinitionStatusCount::workflowDefinitionId)
+                    .filter(id -> id != null)
+                    .collect(Collectors.toCollection(LinkedHashSet::new));
+        }
+    }
 
     private Snapshot snapshot(TimeWindow window) {
-        var processes = processRepository.findAnalyticsRows(window.from(), window.to());
-        var stepsByProcessId = stepExecutionRepository
-                .findAnalyticsRows(window.from(), window.to()).stream()
-                .collect(Collectors.groupingBy(StepExecutionAnalyticsRow::processId));
-        return new Snapshot(processes, stepsByProcessId);
+        return new Snapshot(
+                processRepository.aggregateProcesses(window.from(), window.to()),
+                stepExecutionRepository.aggregateSteps(window.from(), window.to()));
     }
 
     /** Analytics for every known workflow definition (including ones with no instances in the window). */
@@ -124,12 +139,9 @@ public class ProcessAnalyticsService {
         var snapshot = snapshot(window);
         var definitionIds = new LinkedHashSet<String>();
         workflowDefinitionRepository.findAll().forEach(def -> definitionIds.add(def.id()));
-        snapshot.processes().stream()
-                .map(ProcessAnalyticsRow::workflowDefinitionId)
-                .filter(id -> id != null)
-                .forEach(definitionIds::add);
+        definitionIds.addAll(snapshot.definitionIds());
         return definitionIds.stream()
-                .map(definitionId -> analyzeDefinition(definitionId, snapshot, window))
+                .map(definitionId -> analyzeDefinition(definitionId, snapshot))
                 .toList();
     }
 
@@ -137,7 +149,7 @@ public class ProcessAnalyticsService {
     public Optional<DefinitionAnalytics> analyze(String definitionIdOrName, TimeWindow window) {
         var snapshot = snapshot(window);
         return resolveDefinitionId(definitionIdOrName, snapshot)
-                .map(definitionId -> analyzeDefinition(definitionId, snapshot, window));
+                .map(definitionId -> analyzeDefinition(definitionId, snapshot));
     }
 
     private Optional<String> resolveDefinitionId(String definitionIdOrName, Snapshot snapshot) {
@@ -156,79 +168,65 @@ public class ProcessAnalyticsService {
             return byName.map(def -> def.id());
         }
         // Processes may reference a definition that was deleted since.
-        return snapshot.processes().stream()
-                .map(ProcessAnalyticsRow::workflowDefinitionId)
-                .filter(definitionIdOrName::equals)
-                .findFirst();
+        return snapshot.definitionIds().stream().filter(definitionIdOrName::equals).findFirst();
     }
 
-    private DefinitionAnalytics analyzeDefinition(String definitionId, Snapshot snapshot, TimeWindow window) {
-        var instances = snapshot.processes().stream()
-                .filter(process -> definitionId.equals(process.workflowDefinitionId()))
-                .filter(process -> window.contains(process.created()))
-                .toList();
-
+    private DefinitionAnalytics analyzeDefinition(String definitionId, Snapshot snapshot) {
         var byStatus = new EnumMap<ProcessStatus, Long>(ProcessStatus.class);
-        instances.forEach(process -> byStatus.merge(process.status(), 1L, Long::sum));
+        snapshot.processes().statusCounts().stream()
+                .filter(count -> definitionId.equals(count.workflowDefinitionId()))
+                .forEach(count -> byStatus.merge(count.status(), count.count(), Long::sum));
 
-        var total = instances.size();
-        var createdPerDay = perDay(instances, ProcessAnalyticsRow::created);
-        var finishedPerDay = perDay(instances, ProcessAnalyticsRow::finished);
-
-        var processDuration = DurationStats.of(instances.stream()
-                .filter(process -> process.finished() != null)
-                .map(ProcessAnalyticsService::durationOf)
-                .filter(duration -> duration != null)
-                .toList());
-
-        var steps = stepAnalytics(instances, snapshot);
-        var bottleneckStepId = steps.stream()
-                .filter(StepAnalytics::bottleneck)
-                .map(StepAnalytics::stepId)
-                .findFirst().orElse(null);
+        var total = byStatus.values().stream().mapToLong(Long::longValue).sum();
+        var steps = stepAnalytics(definitionId, snapshot);
 
         return new DefinitionAnalytics(
                 definitionId,
-                definitionName(definitionId, instances),
+                definitionName(definitionId, snapshot),
                 total,
                 byStatus,
                 ratePct(byStatus.getOrDefault(ProcessStatus.COMPLETED, 0L), total),
                 ratePct(byStatus.getOrDefault(ProcessStatus.ERROR, 0L), total),
                 ratePct(byStatus.getOrDefault(ProcessStatus.CANCELLED, 0L), total),
-                createdPerDay,
-                finishedPerDay,
-                processDuration,
+                perDay(snapshot.processes().createdPerDay(), definitionId),
+                perDay(snapshot.processes().finishedPerDay(), definitionId),
+                durationOf(snapshot.processes().durations().stream()
+                        .filter(d -> definitionId.equals(d.workflowDefinitionId()))
+                        .map(AnalyticsAggregates.DefinitionDuration::duration)
+                        .findFirst().orElse(AnalyticsAggregates.DurationAggregate.NONE)),
                 steps,
-                bottleneckStepId);
+                steps.stream().filter(StepAnalytics::bottleneck).map(StepAnalytics::stepId)
+                        .findFirst().orElse(null));
     }
 
-    private List<StepAnalytics> stepAnalytics(List<ProcessAnalyticsRow> instances, Snapshot snapshot) {
-        var executionsByStep = new LinkedHashMap<String, List<StepExecutionAnalyticsRow>>();
-        // Looked up per instance rather than scanned per definition. The scan was over every step
-        // execution in the system, and it ran once for each definition on the page.
-        instances.stream()
-                .map(ProcessAnalyticsRow::id)
-                .flatMap(processId -> snapshot.stepsByProcessId()
-                        .getOrDefault(processId, List.of()).stream())
-                .sorted(Comparator.comparingLong(StepExecutionAnalyticsRow::order))
-                .forEach(execution -> executionsByStep
-                        .computeIfAbsent(execution.stepId(), stepId -> new ArrayList<>())
-                        .add(execution));
+    private List<StepAnalytics> stepAnalytics(String definitionId, Snapshot snapshot) {
+        var counts = snapshot.steps().counts().stream()
+                .filter(count -> definitionId.equals(count.workflowDefinitionId()))
+                .toList();
+        if (counts.isEmpty()) {
+            return List.of();
+        }
+        // Flow order, as the engine ran them: the lowest _order the step was ever dispatched with.
+        var order = new LinkedHashMap<String, Long>();
+        counts.forEach(count -> order.merge(count.stepId(), count.firstOrder(), Math::min));
 
-        var stats = executionsByStep.entrySet().stream()
+        var durations = snapshot.steps().durations().stream()
+                .filter(duration -> definitionId.equals(duration.workflowDefinitionId()))
+                .collect(Collectors.toMap(AnalyticsAggregates.DefinitionStepDuration::stepId,
+                        AnalyticsAggregates.DefinitionStepDuration::duration, (a, b) -> a));
+
+        var stats = order.entrySet().stream()
+                .sorted(Map.Entry.comparingByValue())
                 .map(entry -> {
-                    var executions = entry.getValue();
-                    var duration = DurationStats.of(executions.stream()
-                            .filter(e -> e.startedAt() != null && e.finishedAt() != null)
-                            .map(e -> Duration.between(e.startedAt(), e.finishedAt()))
-                            .toList());
+                    var stepId = entry.getKey();
+                    var forStep = counts.stream().filter(c -> stepId.equals(c.stepId())).toList();
                     return new StepAnalytics(
-                            entry.getKey(),
-                            executions.size(),
-                            count(executions, StepExecutionStatus.COMPLETED),
-                            count(executions, StepExecutionStatus.ERROR) + count(executions, StepExecutionStatus.TIMEOUT),
-                            count(executions, StepExecutionStatus.PENDING) + count(executions, StepExecutionStatus.RUNNING),
-                            duration,
+                            stepId,
+                            forStep.stream().mapToLong(AnalyticsAggregates.DefinitionStepCount::count).sum(),
+                            count(forStep, StepExecutionStatus.COMPLETED),
+                            count(forStep, StepExecutionStatus.ERROR) + count(forStep, StepExecutionStatus.TIMEOUT),
+                            count(forStep, StepExecutionStatus.PENDING) + count(forStep, StepExecutionStatus.RUNNING),
+                            durationOf(durations.getOrDefault(stepId, AnalyticsAggregates.DurationAggregate.NONE)),
                             false);
                 })
                 .toList();
@@ -246,36 +244,39 @@ public class ProcessAnalyticsService {
                 .toList();
     }
 
-    private String definitionName(String definitionId, List<ProcessAnalyticsRow> instances) {
-        return workflowDefinitionRepository.findById(definitionId)
-                .map(def -> def.name())
-                .orElseGet(() -> instances.stream()
-                        .map(ProcessAnalyticsRow::name)
-                        .filter(name -> name != null)
-                        .findFirst()
-                        .orElse(definitionId));
+    /**
+     * The two numbers a report shows, from the count and total the store returned.
+     *
+     * <p>The division is here rather than in SQL so it is the one Java always did: integer
+     * nanoseconds, truncating, exactly as {@link Duration#dividedBy} does.
+     */
+    private static DurationStats durationOf(AnalyticsAggregates.DurationAggregate aggregate) {
+        if (aggregate == null || aggregate.samples() == 0 || aggregate.totalNanos() == null) {
+            return new DurationStats(0, null, null);
+        }
+        return new DurationStats(aggregate.samples(),
+                Duration.ofNanos(aggregate.totalNanos() / aggregate.samples()),
+                aggregate.p95Nanos() == null ? null : Duration.ofNanos(aggregate.p95Nanos()));
     }
 
-    private static Map<LocalDate, Long> perDay(List<ProcessAnalyticsRow> instances,
-                                              Function<ProcessAnalyticsRow, LocalDateTime> timestamp) {
+    private static Map<LocalDate, Long> perDay(List<AnalyticsAggregates.DefinitionDayCount> counts,
+                                               String definitionId) {
         var perDay = new TreeMap<LocalDate, Long>();
-        instances.stream()
-                .map(timestamp)
-                .filter(moment -> moment != null)
-                .forEach(moment -> perDay.merge(moment.toLocalDate(), 1L, Long::sum));
+        counts.stream()
+                .filter(count -> definitionId.equals(count.workflowDefinitionId()))
+                .forEach(count -> perDay.merge(count.day(), count.count(), Long::sum));
         return perDay;
     }
 
-    private static Duration durationOf(ProcessAnalyticsRow process) {
-        var start = process.started() != null ? process.started() : process.created();
-        if (start == null || process.finished() == null) {
-            return null;
-        }
-        return Duration.between(start, process.finished());
+    private String definitionName(String definitionId, Snapshot snapshot) {
+        return workflowDefinitionRepository.findById(definitionId)
+                .map(def -> def.name())
+                .orElseGet(() -> snapshot.namesByDefinition().getOrDefault(definitionId, definitionId));
     }
 
-    private static long count(List<StepExecutionAnalyticsRow> executions, StepExecutionStatus status) {
-        return executions.stream().filter(execution -> status.equals(execution.status())).count();
+    private static long count(List<AnalyticsAggregates.DefinitionStepCount> counts, StepExecutionStatus status) {
+        return counts.stream().filter(c -> status.equals(c.status()))
+                .mapToLong(AnalyticsAggregates.DefinitionStepCount::count).sum();
     }
 
     private static double ratePct(long part, long total) {

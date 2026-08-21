@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Analytics is aggregated by the database instead of folded in the JVM.** `/workflow/analytics`
+  did not return: the request thread entered the route and never logged again, and the pod missed
+  three liveness probes and was SIGKILLed. It was never the database — PostgreSQL did the whole join
+  in 247 ms — it was 383 215 rows materialised on the request thread to put about fifty on a page.
+  Every field of the report is a `GROUP BY`, so the two repository ports gained aggregate methods:
+  the JPA store answers them in SQL, the in-memory store folds rows exactly as before, because
+  memory mode is small by construction and that is what it is for. Measured on 20 000 processes and
+  100 000 step executions against real PostgreSQL: **140 ms against 646 ms** row by row, and the
+  reduction now returns tens of rows rather than hundreds of thousands. The `p95` stays a measured
+  sample rather than an interpolation — `percentile_disc` in SQL is the same nearest-rank rule the
+  Java implementation always applied, and an equivalence test holds the two to the same numbers.
+
 ## [2.6.2] - 2026-08-21
 
 A deployment could not write a form execution at all — eleven columns were `varchar(255)` wherever
