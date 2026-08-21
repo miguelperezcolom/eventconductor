@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Eleven columns were `varchar(255)` wherever Hibernate built the schema, and a real deployment
+  could not write a form execution at all.** Reported from the sagas PoC:
+
+      value too long for type character varying(255)
+        ... insert into form_execution_entity (..., variables, ...)
+
+  so the task never reached the person it was waiting for and the step timed out instead.
+
+  None of these fields declared a length, so Hibernate mapped each to `varchar(255)` — narrower than
+  the migrations intended in every case, and narrower than the content in several. It only bites
+  where Hibernate builds the schema rather than Flyway, which is exactly how the demo and the PoC
+  run (`ddl-auto=update`, migrations off), and it was invisible from the other side: the migrations
+  had said `TEXT` all along.
+
+  | entity | column | migration said | Hibernate built |
+  |---|---|---|---|
+  | `FormExecutionEntity` | `variables`, `values` | `TEXT` | `varchar(255)` |
+  | `FieldEntity` | `options`, `optionsSource` | `TEXT` | `varchar(255)` |
+  | `FieldEntity`, `FormEntity` | `description` | `VARCHAR(1024)` | `varchar(255)` |
+  | `StepEntity` | `variables` | `VARCHAR(2048)` | `varchar(255)` |
+  | `StepEntity` | `precondition`, `description` | `VARCHAR(1024)` | `varchar(255)` |
+  | `LogMessageEntity` | `message` | `VARCHAR(2048)` | `varchar(255)` |
+  | `ResourceEntity` | `url` | `VARCHAR(1024)` | `varchar(255)` |
+
+  Both halves now say `TEXT`, so it no longer matters which one builds the schema. The migrations
+  widen the capped columns to match rather than the mappings adopting their caps: in PostgreSQL
+  `varchar(n)` and `text` are the same storage and the same speed, so a length on a JSON document,
+  a log message or a URL buys nothing and costs an insert that fails in production. Widening is
+  metadata-only there — no table rewrite, no long lock.
+
+### Added
+- **A test for the shape of this bug, in the one form that can fail.** The obvious test — save
+  several kilobytes, read them back — is worthless here: **H2 does not enforce `VARCHAR` length**,
+  so it passes against a 255-character column holding 2 KB. Verified rather than assumed, by
+  reverting a mapping and watching the round trip stay green while `information_schema` reported
+  `len=255`. That is the same blind spot that let this ship. The tests assert the *declared width*
+  instead, which H2 reports faithfully even though it will not police it, and both were checked to
+  discriminate: reverting a mapping fails exactly the column reverted.
+
 ## [2.6.1] - 2026-08-20
 
 One fix, and the page it fixes is the one 2.6.0 was cut for. Analytics stopped killing the pod in
