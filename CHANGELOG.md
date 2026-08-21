@@ -13,6 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   suites. Nothing it carries is visible here.
 
 ### Fixed
+- **The graph browser journeys failed at random, on branches that touched nothing near the graph.**
+  The page object read the graph's shadow DOM without checking it was attached yet, and the retry
+  loop around it propagates an exception where it would have retried a false condition. Twice in one
+  afternoon, on a listings change and on a persistence change.
+
+### Fixed
 - **Eleven columns were `varchar(255)` wherever Hibernate built the schema, and a real deployment
   could not write a form execution at all.** Reported from the sagas PoC:
 
