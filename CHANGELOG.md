@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.8.0] - 2026-08-21
+
+**A saturated cluster drained 148 transitions/s with nothing busy** — the broker at 0.23 of two
+cores, no threads waiting on JDBC, and 28 068 processes queued behind a relay that held six rows.
+It was not behind on reading its backlog; it was slow at publishing, and the queue formed in front
+of it.
+
+Minor rather than patch: `workflow.outbox.relay-concurrency` changes meaning and default. No public
+API moves, but a deployment that sets it explicitly keeps that value as a ceiling and sees no
+change — see Upgrading below.
+
 ### Changed
 - **The outbox relay publishes a batch into the broker's requests, not one message per round trip.**
   A saturated cluster drained 148 transitions/s with the broker idle at 0.23 of two cores and 28 068
