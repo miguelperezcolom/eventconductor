@@ -39,14 +39,16 @@ class ProcessAnalyticsServiceTest {
     /**
      * The service reads its snapshot through the ports' analytics projections, whose in-memory
      * implementations are default methods over {@code findAll()}. Mockito does not run default
-     * methods, so they are routed to the real ones — which then read the {@code findAll()} stubs
-     * each test sets up. That keeps these tests exercising the shipped in-memory behaviour rather
+     * methods, so they are routed to the real ones — the aggregates over the projections, and the
+     * projections over the {@code findAll()} stubs each test sets up. That keeps these tests exercising the shipped in-memory behaviour rather
      * than a second copy of it written here.
      */
     @BeforeEach
     void useTheRealInMemoryProjections() {
         lenient().when(processRepository.findAnalyticsRows(any(), any())).thenCallRealMethod();
         lenient().when(stepExecutionRepository.findAnalyticsRows(any(), any())).thenCallRealMethod();
+        lenient().when(processRepository.aggregateProcesses(any(), any())).thenCallRealMethod();
+        lenient().when(stepExecutionRepository.aggregateSteps(any(), any())).thenCallRealMethod();
     }
 
     private final AtomicInteger sequence = new AtomicInteger();

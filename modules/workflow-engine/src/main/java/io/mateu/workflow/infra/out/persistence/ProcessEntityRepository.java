@@ -90,6 +90,95 @@ public interface ProcessEntityRepository extends JpaRepository<ProcessEntity, St
     List<ProcessAnalyticsView> findAnalyticsRows(@Param("createdFrom") LocalDateTime createdFrom,
                                                  @Param("createdTo") LocalDateTime createdTo);
 
+    /**
+     * Analytics' counts, per definition and status, for the processes created inside the window.
+     * {@code min(p.name)} rides along as the name to show when the definition itself is gone.
+     */
+    @Query("""
+            select p.workflowDefinitionId as definitionId, p.status as status,
+                   count(p) as count, min(p.name) as anyName
+            from ProcessEntity p
+            where p.created is not null
+              and (cast(:createdFrom as LocalDateTime) is null or p.created >= :createdFrom)
+              and (cast(:createdTo as LocalDateTime) is null or p.created <= :createdTo)
+            group by p.workflowDefinitionId, p.status
+            """)
+    List<StatusCountView> aggregateStatusCounts(@Param("createdFrom") LocalDateTime createdFrom,
+                                                @Param("createdTo") LocalDateTime createdTo);
+
+    /** Analytics' per-day throughput, by creation date. */
+    @Query("""
+            select p.workflowDefinitionId as definitionId, cast(p.created as LocalDate) as day, count(p) as count
+            from ProcessEntity p
+            where p.created is not null
+              and (cast(:createdFrom as LocalDateTime) is null or p.created >= :createdFrom)
+              and (cast(:createdTo as LocalDateTime) is null or p.created <= :createdTo)
+            group by p.workflowDefinitionId, cast(p.created as LocalDate)
+            """)
+    List<DayCountView> aggregateCreatedPerDay(@Param("createdFrom") LocalDateTime createdFrom,
+                                              @Param("createdTo") LocalDateTime createdTo);
+
+    /** The same, by completion date — so the window still selects on creation. */
+    @Query("""
+            select p.workflowDefinitionId as definitionId, cast(p.finished as LocalDate) as day, count(p) as count
+            from ProcessEntity p
+            where p.created is not null and p.finished is not null
+              and (cast(:createdFrom as LocalDateTime) is null or p.created >= :createdFrom)
+              and (cast(:createdTo as LocalDateTime) is null or p.created <= :createdTo)
+            group by p.workflowDefinitionId, cast(p.finished as LocalDate)
+            """)
+    List<DayCountView> aggregateFinishedPerDay(@Param("createdFrom") LocalDateTime createdFrom,
+                                               @Param("createdTo") LocalDateTime createdTo);
+
+    /**
+     * How long the finished processes of each definition took: the count, the total, and the
+     * nearest-rank 95th percentile.
+     *
+     * <p>Nanoseconds, and a <b>total</b> rather than an average, so the numbers cannot drift from
+     * the ones Java produced: the service divides the total exactly as {@code Duration.dividedBy}
+     * always did, and a coarser unit would report zero for the many steps that take milliseconds.
+     * {@code percentile_disc} returns a measured sample rather than an interpolation, which is the
+     * rule the Java implementation has always applied.
+     */
+    @Query("""
+            select p.workflowDefinitionId as definitionId,
+                   count(p) as samples,
+                   sum(timestampdiff(nanosecond, coalesce(p.started, p.created), p.finished)) as totalNanos,
+                   percentile_disc(0.95) within group (
+                       order by timestampdiff(nanosecond, coalesce(p.started, p.created), p.finished)
+                   ) as p95Nanos
+            from ProcessEntity p
+            where p.created is not null and p.finished is not null
+              and (cast(:createdFrom as LocalDateTime) is null or p.created >= :createdFrom)
+              and (cast(:createdTo as LocalDateTime) is null or p.created <= :createdTo)
+            group by p.workflowDefinitionId
+            """)
+    List<DurationView> aggregateDurations(@Param("createdFrom") LocalDateTime createdFrom,
+                                          @Param("createdTo") LocalDateTime createdTo);
+
+    /** Projection for {@link #aggregateStatusCounts}. */
+    interface StatusCountView {
+        String getDefinitionId();
+        String getStatus();
+        long getCount();
+        String getAnyName();
+    }
+
+    /** Projection for the two per-day counts. */
+    interface DayCountView {
+        String getDefinitionId();
+        java.time.LocalDate getDay();
+        long getCount();
+    }
+
+    /** Projection for {@link #aggregateDurations}. */
+    interface DurationView {
+        String getDefinitionId();
+        long getSamples();
+        Long getTotalNanos();
+        Long getP95Nanos();
+    }
+
     /** Projection backing {@link #findAnalyticsRows} — no variables, no log, no definition JSON. */
     interface ProcessAnalyticsView {
         String getId();

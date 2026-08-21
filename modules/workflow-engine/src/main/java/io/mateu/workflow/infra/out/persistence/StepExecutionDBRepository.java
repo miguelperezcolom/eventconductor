@@ -1,5 +1,6 @@
 package io.mateu.workflow.infra.out.persistence;
 
+import io.mateu.workflow.application.out.AnalyticsAggregates;
 import io.mateu.workflow.application.out.StepExecutionAnalyticsRow;
 import io.mateu.workflow.application.out.ServedPage;
 import io.mateu.workflow.application.out.StepExecutionRepository;
@@ -184,6 +185,29 @@ public class StepExecutionDBRepository implements StepExecutionRepository {
     }
 
     /**
+     * Two {@code GROUP BY}s over a join, instead of the engine's largest table.
+     *
+     * <p>345 564 step executions were loaded to produce a grid of a few rows, once per workflow
+     * definition on the page. The join is only for the window — the grouping is by the step
+     * execution's own definition id.
+     */
+    @Override
+    public AnalyticsAggregates.StepAggregates aggregateSteps(LocalDateTime from, LocalDateTime to) {
+        var counts = stepExecutionEntityRepository.aggregateStepCounts(from, to).stream()
+                .map(v -> new AnalyticsAggregates.DefinitionStepCount(
+                        v.getDefinitionId(), v.getStepId(),
+                        StepExecutionStatus.valueOf(v.getStatus()), v.getCount(), v.getFirstOrder()))
+                .toList();
+        var durations = stepExecutionEntityRepository.aggregateStepDurations(from, to).stream()
+                .map(v -> new AnalyticsAggregates.DefinitionStepDuration(
+                        v.getDefinitionId(), v.getStepId(),
+                        new AnalyticsAggregates.DurationAggregate(
+                                v.getSamples(), v.getTotalNanos(), v.getP95Nanos())))
+                .toList();
+        return new AnalyticsAggregates.StepAggregates(counts, durations);
+    }
+
+    /**
      * Joined to the process so the window narrows the scan, and projected down to six columns. The
      * default would have loaded the whole table — and analytics called it once per definition.
      */
@@ -193,6 +217,7 @@ public class StepExecutionDBRepository implements StepExecutionRepository {
         return stepExecutionEntityRepository.findAnalyticsRows(processCreatedFrom, processCreatedTo).stream()
                 .map(view -> new StepExecutionAnalyticsRow(
                         view.getProcessId(),
+                        view.getDefinitionId(),
                         view.getStepId(),
                         StepExecutionStatus.valueOf(view.getStatus()),
                         view.getOrder(),
