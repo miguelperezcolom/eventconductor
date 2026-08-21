@@ -45,13 +45,24 @@ flowchart LR
   M --> B[Shard b]
   A -->|ProcessStatusChanged + shardId| I[(process_index)]
   B -->|ProcessStatusChanged + shardId| I
-  I --> Q[List and count across shards]
+  I --> Q[MCP tools: list and count across shards]
   I --> K[Route a command: id to shard]
 ```
 
 A **shared messages topic**, because a sender cannot know which shard is waiting; and the
-**read model**, which is what lets anything ask a question spanning shards — and, because it records
-where each process lives, what lets a command find its way back to one.
+**read model**, which is what lets a question span shards at all — and, because it records where each
+process lives, what lets a command find its way back to one.
+
+:::caution[The operator UI lists one shard, not the fleet]
+Two things read the index today: the **MCP tools** and **command routing**. The web UI does not. Its
+process listing queries the write-side database of whichever shard served the request, so in a
+sharded fleet *Workflow → Processes* shows that shard's processes and no others.
+
+Operator actions on a process you can see are unaffected — retry, cancel, pause and resume go
+through the dispatcher, which resolves the owning shard from the index — so the gap is finding a
+process, not acting on one. Until the listing reads the index, treat a sharded fleet's UI as
+per-shard: the fleet-wide view is the MCP tools, or the index database queried directly.
+:::
 
 ## Routing: four cases, and only one of them chooses
 
@@ -71,7 +82,8 @@ keeps the shard count out of the routing.
 **Operator commands — looked up.** Retry, cancel, pause and resume have to reach the shard that owns
 the process, and the id does not say which. The [process index](/guides/process-index/) does: every
 `ProcessStatusChanged` is stamped with its shard, so the read model built for querying at scale
-doubles as the command router.
+doubles as the command router. Every entry point calls one dispatcher and stays ignorant of
+sharding — which is why turning sharding on does not change any of them.
 
 ## Placement: the part that is easy to get wrong
 
