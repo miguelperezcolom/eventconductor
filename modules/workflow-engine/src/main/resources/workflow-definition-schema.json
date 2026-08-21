@@ -10,6 +10,13 @@
   ],
   "additionalProperties": false,
   "properties": {
+    "$schema": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "The schema this file is written against, as an editor reads it for completion and inline validation \u2014 the README and the guides tell authors to put it here. It says nothing about the workflow itself and is ignored when the file is read; it is declared only because additionalProperties is false, and refusing the one key whose purpose is to help someone write the file correctly would be an odd way to validate it."
+    },
     "id": {
       "type": [
         "string",

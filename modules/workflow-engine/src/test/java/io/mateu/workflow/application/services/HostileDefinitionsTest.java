@@ -206,6 +206,28 @@ class HostileDefinitionsTest {
         assertThatNoException().isThrownBy(() -> validateAsAFile(definitionWith("\"retries\": 3, \"timeout\": 60000")));
     }
 
+    /**
+     * HARD-DEF-07f. Including one written with the editor hint the README and the guides tell
+     * authors to add.
+     *
+     * <p>{@code $schema} is how an editor knows to offer completion and inline validation for a
+     * {@code .ec} file, and it is documented in three places. It is also, to a check that refuses
+     * every key the record has no field for, an unknown key — so validating the document as written
+     * would have refused every definition written the way we tell people to write them. The schema
+     * declares it for that reason and for no other; nothing reads it.
+     */
+    @Test
+    void aDefinitionCarryingTheEditorSchemaHintValidates() {
+        assertThatNoException().isThrownBy(() -> validateAsAFile("""
+                {
+                  "$schema": "https://raw.githubusercontent.com/miguelperezcolom/eventconductor/main/modules/workflow-engine/src/main/resources/workflow-definition-schema.json",
+                  "id": "hinted", "name": "Hinted", "steps": [
+                    { "id": "start", "type": "START", "name": "Start" }
+                  ]
+                }
+                """));
+    }
+
     /** HARD-DEF-08. A step type the engine has no branch for. */
     @Test
     void anUnknownStepTypeIsRefused() {
