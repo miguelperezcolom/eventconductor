@@ -212,6 +212,64 @@ under `jpa` the blocking store calls sat on the Reactor pool, which collapsed th
 roughly one. There was no configuration in which this worker could be driven at load.
 :::
 
+### On Kubernetes
+
+Next to an engine in a cluster it is one Deployment and one Service. Nothing about a scenario
+changes — it is still the `TEST_CONFIG` variable on the process — but the wiring is worth writing
+down, because two of these settings are the ones people get wrong.
+
+```yaml
+containers:
+  - name: worker
+    image: miguelperezcolom/worker-standalone-app:2.6.1   # track the engine's version
+    env:
+      - { name: SERVER_PORT,   value: "8091" }
+      - { name: KAFKA_BROKERS, value: "redpanda:19092" }
+
+      # The topic it listens on. `downstream` is the default a step goes to when it names none,
+      # so this answers the whole definition — see the warning below.
+      - name: SPRING_CLOUD_STREAM_BINDINGS_CONSUMEWORKEREVENT_IN_0_DESTINATION
+        value: "downstream"
+
+      # jpa keeps received tasks and overrides, which is what the UI browses. Use `memory`
+      # (SPRING_PROFILES_ACTIVE=memory) for a worker that needs no database at all.
+      - { name: WORKER_PERSISTENCE, value: "jpa" }
+      # It owns its two tables outright and ships no migrations, so it creates them itself.
+      - { name: DDL_AUTO,     value: "update" }
+      - { name: DB_URL,       value: "jdbc:postgresql://postgres:5432/workflow" }
+      - { name: DB_USERNAME,  valueFrom: { secretKeyRef: { name: ec-postgres, key: POSTGRES_USER } } }
+      - { name: DB_PASSWORD,  valueFrom: { secretKeyRef: { name: ec-postgres, key: POSTGRES_PASSWORD } } }
+      - { name: DB_POOL_SIZE, value: "8" }
+
+      # What a task takes when the scenario does not say. Short, so a process walked through by
+      # hand does not feel stuck.
+      - { name: WORKER_TASK_DURATION, value: "2s" }
+    ports:
+      - { name: http, containerPort: 8091 }
+    readinessProbe:
+      httpGet: { path: /actuator/health/readiness, port: 8091 }
+    livenessProbe:
+      httpGet: { path: /actuator/health/liveness,  port: 8091 }
+```
+
+Point it at the same broker and, under `jpa`, the same database as the engine — it uses its own two
+tables and touches nothing of the engine's. Its UI is then at `/_worker` behind whatever fronts the
+cluster.
+
+:::caution[Do not share `downstream` with the forms engine]
+Both would receive every message, because they are in different consumer groups — so this worker
+would answer the human tasks itself, cheerfully and wrongly, and a `USER_TASK` would be completed by
+a scenario instead of by a person. Give the forms engine a topic of its own (`forms`) and have human
+steps name it. Answering human tasks is the right behaviour when the whole definition is under test
+and the *only* consumer is this worker; it is a bug the moment a forms engine is listening too.
+:::
+
+:::tip[Pin the tag to the engine's version]
+The image is published from the same release as the engine, so `worker-standalone-app:2.6.1` is the
+worker that went out with engine 2.6.1. Nothing enforces it — the two talk over Kafka and an older
+worker keeps working — but a version that matches is one fewer variable when a run surprises you.
+:::
+
 It does **not** run the engine, and the absence is the point. The engine under test runs in its own
 process and talks to this one over Kafka exactly as it would to a real worker, so what a scenario
 proves here is what would happen in a deployment. A worker that embedded the engine would be testing
