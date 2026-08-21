@@ -23,7 +23,8 @@ class ImportRulesPruneTest {
     private final RuleRepository ruleRepository = mock(RuleRepository.class);
     private final InMemoryImportedDefinitionsRegistry registry = new InMemoryImportedDefinitionsRegistry();
     private final ImportRulesFromDirectoryUseCase useCase = new ImportRulesFromDirectoryUseCase(
-            mock(RuleDirectoryImportProperties.class), mock(SaveRuleUseCase.class), ruleRepository,
+            mock(RuleDirectoryImportProperties.class), mock(SaveRuleUseCase.class),
+            new io.mateu.workflow.application.services.RuleValidator(), ruleRepository,
             mock(RuleCatalogMetrics.class), registry);
 
     private static final String REPO = "https://github.com/org/rules.git";

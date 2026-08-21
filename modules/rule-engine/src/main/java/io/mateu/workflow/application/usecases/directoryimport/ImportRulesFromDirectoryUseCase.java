@@ -49,6 +49,7 @@ public class ImportRulesFromDirectoryUseCase {
 
     final RuleDirectoryImportProperties directoryImportProperties;
     final SaveRuleUseCase saveRuleUseCase;
+    final io.mateu.workflow.application.services.RuleValidator ruleValidator;
     final RuleRepository ruleRepository;
     final RuleCatalogMetrics ruleCatalogMetrics;
     final ImportedDefinitionsRegistry importedDefinitionsRegistry;
@@ -146,6 +147,10 @@ public class ImportRulesFromDirectoryUseCase {
         if (!node.has("name") || !node.has("type") || !RULE_TYPES.contains(node.get("type").asText())) {
             return;
         }
+
+        // The document as written, before binding drops whatever the record has no field for —
+        // the only moment a misspelled key is still visible. See RuleValidator.validateSource.
+        ruleValidator.validateSource(node, file.toString());
 
         var rule = OBJECT_MAPPER.treeToValue(node, Rule.class);
 

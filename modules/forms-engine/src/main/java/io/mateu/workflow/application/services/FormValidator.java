@@ -39,6 +39,10 @@ public class FormValidator {
     }
 
     public void validate(Form form) {
+        // What the schema cannot express — field ids that must differ from one another. Checked
+        // first, so a form with two fields called the same thing is refused by name rather than
+        // passing and then behaving arbitrarily at submission time.
+        form.checkInvariants();
         try {
             var violations = schema.validate(objectMapper.writeValueAsString(form), InputFormat.JSON);
             if (!violations.isEmpty()) {

@@ -56,6 +56,7 @@ class ImportRulesFromGitUseCaseTest {
         registry = new InMemoryImportedDefinitionsRegistry();
         useCase = new ImportRulesFromGitUseCase(new RuleGitImportProperties(), metrics,
                 new ImportRulesFromDirectoryUseCase(new RuleDirectoryImportProperties(), saveRule,
+                        new io.mateu.workflow.application.services.RuleValidator(),
                         rules, metrics, registry));
         // The save use case is what assigns and returns the id; here it echoes what it was given.
         when(saveRule.handle(any())).thenAnswer(call ->
@@ -70,6 +71,9 @@ class ImportRulesFromGitUseCaseTest {
                 name: Shipping
                 type: expression
                 when: "true"
+                then:
+                  - name: ok
+                    expression: "true"
                 """);
         commit(repo);
 
@@ -183,7 +187,8 @@ class ImportRulesFromGitUseCaseTest {
                   "id": "%s",
                   "name": "%s",
                   "type": "expression",
-                  "when": "true"
+                  "when": "true",
+                  "then": [ { "name": "ok", "expression": "true" } ]
                 }
                 """.formatted(id, name);
     }

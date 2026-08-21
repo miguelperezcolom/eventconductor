@@ -9,15 +9,23 @@ safety**.
 
 | Level | Module | Infrastructure | Runs in CI |
 |---|---|---|---|
-| Unit | `modules/*/src/test` | None (Mockito / plain objects) | Yes (`mvn verify`) — ~390 tests |
-| End-to-end (embedded) | `modules/workflow-e2e` | None — engine in `embedded` + `memory` mode, programmable workers | Yes (`mvn verify`) — ~33 tests, all green |
-| End-to-end (JPA outbox) | `modules/workflow-e2e` | H2 in PostgreSQL mode — exercises the real outbox relay, JDBC advisory locks and JPA persistence | Yes (`mvn verify`) — 4 tests (see §5) |
+| Unit | `modules/*/src/test` | None (Mockito / plain objects) | Yes (`mvn verify`) — ~1,260 tests |
+| End-to-end (embedded + JPA) | `modules/workflow-e2e` | None for the embedded harness (engine in `embedded` + `memory` mode, programmable workers); H2 in PostgreSQL mode for the durability one, which exercises the real outbox relay, JDBC advisory locks and JPA persistence | Yes (`mvn verify`) — 128 tests across both (see §5) |
 | Distributed (Kafka) | `modules/workflow-dist-e2e` (Testcontainers) | PostgreSQL + Kafka in Docker | Yes — dedicated CI job via the `dist-e2e` Maven profile — 8 tests (see §6) |
-| Browser (UI) | `modules/workflow-ui-e2e` (Playwright) | A real Chromium, downloaded on first run | Yes — dedicated CI job via the `ui-e2e` Maven profile — 14 journeys (see §7) |
+| Browser (UI) | `modules/workflow-ui-e2e` (Playwright) | A real Chromium, downloaded on first run | Yes — dedicated CI job via the `ui-e2e` Maven profile — 27 tests over 8 journeys (see §7, §8d) |
+
+`mvn verify` runs 1,392 tests over the reactor and enforces the per-module coverage floors below.
 
 The e2e tests drive the engine exclusively through its public surface: upstream events
 (`ProcessCreationRequested`, worker status callbacks), the `EmbeddedTaskExecutor` port, and the
 repositories for assertions. No engine internals are mocked.
+
+**Adversarial coverage runs at every level rather than in a suite of its own** (§8). A hostile
+workflow definition is a unit test on the validator, a runaway one is an e2e test on the engine,
+an injected business key is a JPA e2e test against a real database, and a script payload is a
+browser journey — because each of those claims can only be made where it can actually be observed.
+Where the tests found a real hole, the engine was hardened and the test pins the fix; those are
+called out one by one in §8.
 
 ## Coverage, and what the number means
 
@@ -265,6 +273,110 @@ mvn -Pui-e2e -pl modules/workflow-ui-e2e -am verify
 The first run downloads a Chromium (~150 MB). Every test leaves a screenshot and the rendered HTML
 under `target/ui-e2e/`, passing or failing — a browser test that fails in CI is unreadable from a
 stack trace, and the question is always "what was on screen?".
+
+## 8. Hardening — hostile definitions and hostile input
+
+Everything a workflow engine is given is written by somebody else. A definition arrives from a git
+repository or from the editor; a business key and a variable arrive from an upstream record, the
+REST message API, an MCP call or a form. None of it is the engine's own code, and the bar these
+tests hold is not "the engine rejects it" but **the engine survives it**: bad input is either
+refused with a message naming what is wrong, or accepted and unable to hurt a running process.
+
+Two of these were written against a hole and are green because the hole was closed.
+
+| ID | Spec |
+|----|------|
+| HARD-EXPR-01..05 | **Expression size and shape** (`ExpressionGuardTest`). Every JEXL expression clears a length and a bracket-nesting ceiling before a parser sees it, and a stack overflow during evaluation surfaces as an ordinary exception. Nesting is depth, not volume, so a long boolean chain still passes. |
+| HARD-JEXL-01 | **Reflection yields nothing to call a method on.** `RESTRICTED` denies by returning null as often as by throwing, so the assertion is on the value: never a `Class`, `ClassLoader` or `Runtime` for the next term to use. `''.class` resolves and is a dead end — every property off it is denied. |
+| HARD-JEXL-02..04 | **A guard cannot loop, recurse, assign or instantiate**, so it cannot spin an orchestration thread, cannot rewrite the process variables it is reading, and cannot reach a class the permissions would have allowed. |
+| HARD-JEXL-05 | **An over-nested expression fails as an exception, not as an `Error`.** *This was a real hole.* A few thousand brackets overflow JEXL's recursive-descent parser, and `StackOverflowError` is an `Error` — it went straight through every fail-closed `catch (Exception)` around a guard and unwound the orchestration thread (the Kafka consumer, the timer scheduler) instead of failing the one step whose definition was bad. |
+| HARD-JEXL-07 | **The expressions real definitions contain still evaluate.** Hardening that broke `name.startsWith('x')` would be a regression dressed as a fix. |
+| HARD-DEF-01..06 | **Graph shape.** Duplicate step ids, dangling preconditions, dangling compensation, precondition cycles, unreachable steps and a second START are all refused, each with the offending id in the message. |
+| HARD-DEF-07 | **A misspelled field is refused rather than silently ignored.** *This was a real hole.* The schema says `additionalProperties: false`, but validation ran against the record re-serialised to JSON — by which point Jackson had already dropped every key it did not recognise, so the check was applied to a document that could not contain an additional property. `"retires": 3` imported clean and ran with no retries, and nothing said so. The import paths now validate the document as written, before it is bound. |
+| HARD-DEF-08..10 | **The file itself.** An unknown step type, a cron expression that is not one, and negative counts are refused. |
+| HARD-DEF-11 | **Injection-shaped text is text.** SQL, script tags, `${jndi:…}`, template expressions, path traversal and bidirectional unicode are all accepted in a definition's free-text fields and round-trip unmangled. Refusing text because it contains an apostrophe is how a validator becomes the vulnerability. |
+| HARD-DEF-13 | **Mutual recursion between workflows is bounded** (`RecursiveDefinitionE2eTest`). *This was a real hole.* `checkInvariants` refuses a PROCESS step naming its own workflow, which is the only spelling it can see — a definition is validated alone. A starting B starting A validates cleanly and spawned a generation per level for as long as the store would take rows. A runtime depth limit (`workflow.max-process-depth`, default 20) now stops it, fails the step that asked for the child over the line rather than leaving it waiting for a child that will never exist, and the assertion is exact — the number of processes tracks the configured limit, so only the limit can have produced it. |
+| HARD-IN-01..02 | **A business key is a key, not a statement** (`HostileInputJpaE2eTest`, against H2 in PostgreSQL mode — injection is a property of how a statement is built, and a memory store cannot have the bug at all). A key that is a `DROP TABLE` runs its process and leaves the schema standing; a tautology matches only its own process. |
+| HARD-IN-03..05 | **Hostile variable values and names round-trip exactly as sent** — supplied at creation and written back by a worker — because escaping on the way in is how a value silently stops being the value that was sent. A variable called `process.status` cannot become the status. |
+| HARD-IN-06..07 | **Size and bytes that are not text.** A megabyte in one variable survives whole (truncation is worse than refusal: the process then runs on data nobody sent), and control characters do not wedge a process mid-flight. |
+
+### 8b. Forms — hostile definitions and hostile submissions
+
+| ID | Spec |
+|----|------|
+| HARD-FORM-01..03 | **A field with no id, a blank id, or a data type the renderer has no branch for** is refused. A field id is the name of the process variable its answer becomes. |
+| HARD-FORM-04 | **Duplicate field ids are refused.** *This was a real hole.* JSON Schema can require each id to be present and non-empty — it did — but has no way to say they must differ from one another, so nothing checked. Two fields answering to one id make which value a downstream step reads arbitrary, and let a required field be satisfied by its namesake. Now an invariant on `Form`, mirroring `WorkflowDefinition.checkInvariants`. |
+| HARD-FORM-05..06 | A field declaring **both its choices and where to fetch them**, and a **misspelled property**, are refused. |
+| HARD-FORM-07 | **A label that looks like an exploit is accepted as text** — it is escaped where it renders (§8d), and refusing a label for containing a bracket would make the validator the vulnerability. |
+| HARD-SUB-01..02 | **Mass assignment.** *This was a real hole.* Nothing compared what was submitted against the form that was asked for, so every posted name became a process variable: a task could be completed with fields the form does not have. A name the form does not declare is now dropped — dropped rather than refused, because the page's own component state legitimately carries keys that are not fields. |
+| HARD-SUB-03..05 | **`required` is enforced on the server.** *This was a real hole.* It was a client-side hint and nothing more, so a task could be completed without the fields its form says it needs. Missing or blank is refused, and the check runs *after* the drop, so an undeclared name cannot satisfy a required field. |
+| HARD-SUB-06 | **A value larger than `workflow.forms.max-value-length` is refused**, so one POST cannot decide how much memory the engine spends. A large-but-reasonable value still gets through: a `richText` field legitimately holds a lot. |
+| HARD-SUB-07..08 | Hostile **content** in a declared field is passed through unchanged; a task whose form is **gone from the catalogue** accepts nothing, because "cannot check" must not read as "everything is fine". |
+| HARD-SUB-09 | **A task is completed once.** *This was a real hole.* Re-submitting a closed task overwrote the values it was completed with and sent the engine a second reply — harmless to the engine, which ignores an update for a finished step, but it silently rewrote the record of what the person actually submitted. |
+| HARD-SUB-10 | And the drop is real end to end: an undeclared value never reaches the engine as a variable. |
+
+### 8c. Rules — hostile definitions and hostile evaluation
+
+| ID | Spec |
+|----|------|
+| HARD-RULE-01..02 | **The rule sandbox is the workflow sandbox**: reflection yields nothing to call a method on, and an expression cannot loop, so a rule cannot spin an orchestration thread. |
+| HARD-RULE-03 | **An over-nested rule expression fails as an exception, not an `Error`** — the same `StackOverflowError` a workflow guard could raise, on the road a rule takes. |
+| HARD-RULE-04..06 | **A decision table that is not one fails by name.** *This was a real hole.* A table missing its inputs, outputs or rows, or with a row carrying fewer cells than the table has columns, surfaced as an anonymous `NullPointerException` or `IndexOutOfBoundsException` from inside a loop, thrown into whichever step had asked for the rule, with nothing in it to say which rule or which row. It matters at runtime and not only at import because `RestRuleSource` and `GrpcRuleSource` fetch rules that passed through no validator at all. |
+| HARD-RULE-07 | **A decision-table cell is compiled into JEXL by concatenation**, so a cell can say more than it appears to. It buys nothing — a rule author can already write any expression in `then` — and what is pinned is that the sandbox bounds it either way. |
+| HARD-RULE-08..10 | Division by zero is an ordinary rule failure; a rule evaluated with no facts does not crash; a **ten-thousand-row table** evaluates rather than choking. |
+| HARD-RULEDEF-01..05 | The catalogue refuses an **unparseable expression**, an **oversized** one, a **table missing its parts**, a **ragged row** (named by row), and a **cell that compiles to invalid JEXL** (named by cell). |
+| HARD-RULEDEF-06 | **A misspelled key is refused** by the schema, on the document as written. Belt and braces here rather than a hole: the rule importer binds with a plain `ObjectMapper`, which already fails on an unknown property — unlike the workflow importer, which binds leniently, and where the same misspelling really did import clean (HARD-DEF-07). |
+| HARD-RULEDEF-07..08 | An unknown rule type is refused; an exploit in an expression is **accepted by the catalogue and defused at evaluation**, because deciding what JEXL may say is the sandbox's job and it does it at the only moment it can be done properly. |
+
+*Writing HARD-RULEDEF-06 surfaced something else: several rule-import fixtures were files the real
+system would reject at save time, and the tests only passed because `SaveRuleUseCase` was mocked
+away. They are now valid rule files.*
+
+### 8d. The doors to the outside — REST, webhooks, and the browser
+
+| ID | Spec |
+|----|------|
+| HARD-REST-01..02 | With `workflow.message-api.api-key` set, **no key and a wrong key are both refused** and nothing is published; the right one is accepted. |
+| HARD-REST-03..04 | A message with **nothing to correlate on** is 400; a body that is **not JSON** is a client error, not a server one. |
+| HARD-REST-05 | **A JSON bomb** — thousands of nested arrays in a few kilobytes — is refused by the parser's own nesting limit rather than overflowing the dispatcher thread. |
+| HARD-REST-06..07 | Injection-shaped **names and keys reach the dispatcher verbatim**; a **megabyte** of variable is carried whole. |
+| HARD-REST-08..09 | The git webhook **refuses an unsigned push** and a **forged signature** — including one that is not even hex. |
+| HARD-REST-10 | **An unknown provider is read as `generic`**, so it still has to authenticate. The alternative — an unrecognised path segment skipping verification — would make the check optional to anyone who could type a URL. |
+| HARD-REST-11..12 | An **unreadable payload is acknowledged** rather than crashing the endpoint; a push naming **a repository nobody configured** imports nothing. |
+| HARD-UI-01 | **Stored XSS, in a real browser** (`StoredXssJourneyTest`, Playwright). A process whose variables are `<img src=x onerror=…>`, `<svg onload=…>`, an attribute breakout and a `<script>` is read tab by tab: nothing executes, no element from the payload exists in the document, and — the control — the payload is provably on the page as text. |
+| HARD-UI-02 | And it is **shown, not swallowed**: markup in a variable is displayed as the characters it is made of, and not as the elements it spells. |
+
+**Every browser journey carries a control**, and that is the point of them. "Nothing executed" is
+satisfied just as well by a page that never rendered the payload — a tab that did not open, a value
+the view dropped — and such a test passes for ever while protecting nothing. Two further journeys
+were written and removed for exactly that: a payload as the business key is not drawn anywhere (the
+grid has no business-key column, nor does the detail header), and a payload typed into search
+matches nothing and is not echoed back. A green XSS test that never rendered its payload is worse
+than no test — it is a standing claim that the UI is safe, backed by nothing.
+
+## 9. Process tracing (`ProcessTraceE2eTest`, `RecordProcessTraceServiceTest`, `ProcessTraceTest`)
+
+A trace of a workflow should read the way the workflow ran. That cannot come from instrumenting the
+running code — a span is started and ended by one object on one thread, and a step starts in the
+transaction that dispatched it and ends wherever the worker's reply lands, days later and across a
+broker — so the engine builds the trace from what it durably recorded instead. See
+`doc/.../reference/observability.md`.
+
+| ID | Spec |
+|----|------|
+| TRACE-01 | **One process is one trace.** Nothing about a process is emitted outside its own trace, and the trace id is the one derived from the process id. |
+| TRACE-02 | **The process is the root and its steps are its children** — not nested under whichever dispatch happened to run them. |
+| TRACE-03 | **A span covers when the step ran**, to the recorded instant, rather than when it was written out. |
+| TRACE-04 | **Sequence reads as sequence**: consecutive steps do not overlap. |
+| TRACE-05 | **The branches of a fork are siblings** under the process. Only the shape is asserted end to end: the embedded harness runs its worker on the calling thread, so there is no concurrency to observe there. |
+| TRACE-06 | **The live engine spans join the process trace** instead of starting one each — which is what makes a process visible while it is still running, before its own span exists. |
+| TRACE-07 | **Steps that overlapped produce spans that overlap** (unit, with timestamps that overlap by construction — the claim TRACE-05 cannot make in an embedded harness). |
+| TRACE-08..10 | The process span covers the whole run and carries the process tags; steps that never ran draw nothing; spans are emitted in the order the steps ran. |
+| TRACE-11 | **A failure while tracing is swallowed.** A description of the work must never fail the work. |
+| TRACE-12..15 | **The anchor is derived, well-formed and stable.** The same process always yields the same W3C traceparent and two processes never share one, so every pod computes the same trace with nothing propagated and nothing stored — which is what survives a rebalance, a restart, a dead-letter replay or a `TIMER` that waits a week. |
+| TRACE-16..17 | **The configured sampling probability governs process traces too.** The trap this pins is a live one and was caught here before it shipped: Boot's sampler is `ParentBased(TraceIdRatioBased(p))`, which honours a remote parent's decision and only consults the ratio when there is no parent — so an anchor that claims to be sampled exports every process trace whatever `management.tracing.sampling.probability` says, while the property goes on governing the auto-instrumented HTTP and JDBC traces exactly as documented, and therefore looks as though it works. Nothing at 0, everything at 1, and the rate within three points of 0.1 / 0.25 / 0.5 / 0.9 over ten thousand ids. |
+| TRACE-18..19 | **All or nothing per process**, which matters more than the rate: the decision comes from the trace id, so every pod reaches the same one for the whole life of the process. Sampling per span would give a tenth of the dispatches of a tenth of the processes — fragments, never a whole process. And the trace id itself does not move with the setting, or turning sampling up would scatter a running process across two traces. |
+| TRACE-20..21 | **And the effect, end to end** (`ProcessTraceSamplingE2eTest`, its own context at probability zero): a process the sampler declined emits no span at all — not the process and step spans, not the live dispatch ones — and runs exactly as it would have. Tracing describes the work; a decision not to describe it must not change it. |
 
 ## How to run
 

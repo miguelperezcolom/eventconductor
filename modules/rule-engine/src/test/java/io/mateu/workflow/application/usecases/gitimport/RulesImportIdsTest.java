@@ -35,6 +35,7 @@ class RulesImportIdsTest {
     private final ImportRulesFromGitUseCase useCase = new ImportRulesFromGitUseCase(
             new RuleGitImportProperties(), mock(RuleCatalogMetrics.class),
             new ImportRulesFromDirectoryUseCase(new RuleDirectoryImportProperties(), saveRule,
+                    new io.mateu.workflow.application.services.RuleValidator(),
                     mock(RuleRepository.class), mock(RuleCatalogMetrics.class), registry));
 
     RulesImportIdsTest() {
@@ -47,7 +48,7 @@ class RulesImportIdsTest {
     void aRuleWithNoIdKeepsTheSameIdOnEveryImport(@TempDir Path repo) throws Exception {
         Files.createDirectories(repo.resolve("pricing"));
         Files.writeString(repo.resolve("pricing/discount.json"),
-                "{ \"name\": \"Discount\", \"type\": \"expression\", \"when\": \"true\" }");
+                "{ \"name\": \"Discount\", \"type\": \"expression\", \"when\": \"true\", \"then\": [ { \"name\": \"ok\", \"expression\": \"true\" } ] }");
         commit(repo);
 
         var first = useCase.handle(List.of(repository(repo)));
@@ -64,7 +65,7 @@ class RulesImportIdsTest {
     void aDeclaredIdStillWins(@TempDir Path repo) throws Exception {
         Files.writeString(repo.resolve("discount.json"),
                 "{ \"id\": \"the-discount\", \"name\": \"Discount\", \"type\": \"expression\","
-                        + " \"when\": \"true\" }");
+                        + " \"when\": \"true\", \"then\": [ { \"name\": \"ok\", \"expression\": \"true\" } ] }");
         commit(repo);
 
         assertThat(useCase.handle(List.of(repository(repo))).imported())
@@ -75,10 +76,10 @@ class RulesImportIdsTest {
     void aPathDerivedIdNeverTakesOneAnotherRuleDeclares(@TempDir Path repo) throws Exception {
         Files.writeString(repo.resolve("elsewhere.json"),
                 "{ \"id\": \"pricing.discount\", \"name\": \"Elsewhere\", \"type\": \"expression\","
-                        + " \"when\": \"true\" }");
+                        + " \"when\": \"true\", \"then\": [ { \"name\": \"ok\", \"expression\": \"true\" } ] }");
         Files.createDirectories(repo.resolve("pricing"));
         Files.writeString(repo.resolve("pricing/discount.json"),
-                "{ \"name\": \"Discount\", \"type\": \"expression\", \"when\": \"true\" }");
+                "{ \"name\": \"Discount\", \"type\": \"expression\", \"when\": \"true\", \"then\": [ { \"name\": \"ok\", \"expression\": \"true\" } ] }");
         commit(repo);
 
         var result = useCase.handle(List.of(repository(repo)));

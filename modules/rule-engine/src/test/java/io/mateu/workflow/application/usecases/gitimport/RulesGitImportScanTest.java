@@ -34,6 +34,7 @@ class RulesGitImportScanTest {
             new RuleGitImportProperties(), mock(io.mateu.workflow.application.out.RuleCatalogMetrics.class),
             new ImportRulesFromDirectoryUseCase(new RuleDirectoryImportProperties(),
                     mock(io.mateu.workflow.application.usecases.saverule.SaveRuleUseCase.class),
+                    new io.mateu.workflow.application.services.RuleValidator(),
                     mock(io.mateu.workflow.application.out.RuleRepository.class),
                     mock(io.mateu.workflow.application.out.RuleCatalogMetrics.class),
                     new io.mateu.workflow.webhook.InMemoryImportedDefinitionsRegistry()));
@@ -103,6 +104,7 @@ class RulesGitImportScanTest {
         var scoped = new ImportRulesFromGitUseCase(new RuleGitImportProperties(),
                 mock(io.mateu.workflow.application.out.RuleCatalogMetrics.class),
                 new ImportRulesFromDirectoryUseCase(new RuleDirectoryImportProperties(), saveRule,
+                        new io.mateu.workflow.application.services.RuleValidator(),
                         mock(io.mateu.workflow.application.out.RuleRepository.class),
                         mock(io.mateu.workflow.application.out.RuleCatalogMetrics.class),
                         new io.mateu.workflow.webhook.InMemoryImportedDefinitionsRegistry()));
@@ -127,7 +129,7 @@ class RulesGitImportScanTest {
 
     private static String rule(String id, String name) {
         return """
-                { "id": "%s", "name": "%s", "type": "expression", "when": "true" }
+                { "id": "%s", "name": "%s", "type": "expression", "when": "true", "then": [ { "name": "ok", "expression": "true" } ] }
                 """.formatted(id, name);
     }
 

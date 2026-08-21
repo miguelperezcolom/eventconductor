@@ -1,0 +1,16 @@
+{
+  "id": "recursion-b",
+  "name": "The other half (B starts A again)",
+  "version": 1,
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    {
+      "id": "spawn-a",
+      "type": "PROCESS",
+      "name": "Spawn A",
+      "preconditionStepId": "start",
+      "childWorkflowDefinitionId": "recursion-a"
+    },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "spawn-a" }
+  ]
+}
