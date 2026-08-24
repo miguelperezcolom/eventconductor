@@ -3,6 +3,8 @@ package io.mateu.workflow.infra.in.async.processupstreamevent;
 import io.mateu.workflow.ddd.DomainEvent;
 import io.mateu.workflow.ddd.DomainEventHandler;
 import io.mateu.workflow.dtos.events.integration.ProcessCreationRequested;
+import io.mateu.workflow.dtos.Variable;
+import io.mateu.workflow.input.InputLimits;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -62,5 +64,24 @@ class ProcessUpstreamEventUseCaseTest {
         assertThatThrownBy(() -> useCase.handle(new ProcessUpstreamEventCommand(event)))
                 .isInstanceOf(RuntimeException.class)
                 .hasMessage("handler error");
+    }
+
+    /**
+     * The front door's size check, and where it sits: <em>before</em> the handlers, so an absurd
+     * event costs nothing beyond the parse that delivered it. Thrown rather than logged for the same
+     * reason a handler failure is — under Kafka the consumer parks it on the dead-letter destination,
+     * because an event this size will be this size on every redelivery.
+     */
+    @Test
+    void anEventCarryingSomethingAbsurdNeverReachesAHandler() {
+        var event = new ProcessCreationRequested("wd-1", "BK",
+                List.of(new Variable("payload", "x".repeat(InputLimits.MAX_VALUE_LENGTH + 1))));
+
+        assertThatThrownBy(() -> useCase.handle(new ProcessUpstreamEventCommand(event)))
+                .isInstanceOf(InputLimits.InputRejectedException.class)
+                .hasMessageContaining("payload");
+
+        verify(handler, never()).handle(any());
+        verify(handler, never()).canHandle(any());
     }
 }

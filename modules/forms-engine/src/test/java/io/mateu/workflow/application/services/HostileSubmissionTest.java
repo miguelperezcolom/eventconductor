@@ -102,6 +102,24 @@ class HostileSubmissionTest {
                 .hasMessageContaining("character limit");
     }
 
+    /**
+     * …and neither does one POST get to decide how many values the engine compares. Dropping the
+     * undeclared ones is what protects the process, but it happens after every submitted value has
+     * been held and looked up, so a submission with a million of them is answered by dropping a
+     * million of them. The count is checked first, against what was sent rather than against what
+     * the form declares.
+     */
+    @Test
+    void aSubmissionWithAbsurdlyManyValuesIsRefusedBeforeTheyAreCompared() {
+        var many = java.util.stream.IntStream.rangeClosed(0, FormSubmission.MAX_VALUES)
+                .mapToObj(i -> new Value("v" + i, "x"))
+                .toList();
+
+        assertThatThrownBy(() -> FormSubmission.accepted(form(field("note", false)), many, "task-1"))
+                .isInstanceOf(OversizedValueException.class)
+                .hasMessageContaining(String.valueOf(FormSubmission.MAX_VALUES));
+    }
+
     /** …and a large-but-reasonable one is not: a textarea holds a lot, legitimately. */
     @Test
     void aLargeButReasonableValueIsAccepted() {

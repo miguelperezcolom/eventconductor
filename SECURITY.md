@@ -56,11 +56,19 @@ test by test in [TESTING.md §8](TESTING.md) and run in CI on every change:
   runtime cap on how deeply PROCESS steps may nest, so two workflows that start each other cannot
   fan out unbounded.
 - **Input** — a business key or variable that reads as SQL is a value and not a statement; values
-  round-trip byte for byte, at any size the columns take, without being escaped or truncated on the
-  way in; forms accept only the fields they declare and enforce their own `required`.
+  round-trip byte for byte, without being escaped or truncated on the way in; forms accept only the
+  fields they declare and enforce their own `required`.
+- **Size** — nothing is truncated, and nothing is unbounded either. One value, one identifier, the
+  variables of one event and the bytes of one request each clear a ceiling set far above any real
+  payload (`InputLimits`, `workflow.rest.max-body-bytes`), because a value cut to fit a column is
+  worse than one refused while a caller who can decide how much memory the engine spends is worse
+  than both. Identifiers are held to 255 for a different reason — that is the width of the columns
+  that hold them, and an over-long key otherwise fails inside the transaction saving a running
+  process. What happens to a refusal depends on the door: a Kafka record is parked on the
+  dead-letter destination, a REST caller is answered 400, a form is answered on the page.
 - **The doors** — the message API's key comparison, the git webhook's per-provider signature
-  verification, malformed and deeply nested bodies, and unknown providers, are all asserted through
-  the HTTP layer rather than against the controller objects.
+  verification, malformed and deeply nested bodies, oversized ones, and unknown providers, are all
+  asserted through the HTTP layer rather than against the controller objects.
 - **The browser** — because values are stored as sent, whether a payload stays inert is a property
   of the rendering. Stored-XSS journeys run in a real Chromium, each with a control proving the
   payload actually reached the page.
