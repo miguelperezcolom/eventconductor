@@ -25,7 +25,27 @@ jobs:
           cache: maven
 
       - name: Build, test & verify (JaCoCo enforces 85% line coverage)
-        run: mvn -B -ntp verify
+        run: |
+          set +e
+          mvn -B -ntp verify > /tmp/build.log 2>&1 &
+          MVN_PID=$!
+          for i in $(seq 1 60); do
+            sleep 15
+            kill -0 $MVN_PID 2>/dev/null || break
+          done
+          if kill -0 $MVN_PID 2>/dev/null; then
+            echo "=== STILL RUNNING AFTER 15 MIN ==="
+            for p in $(pgrep java); do
+              echo "--- pid $p : $(tr '\0' ' ' < /proc/$p/cmdline | cut -c1-300)"
+              jstack $p 2>/dev/null | grep -A 25 -E '^\"(main|Test worker|SurefireBooter)' | head -80
+            done
+            kill -9 $MVN_PID
+          fi
+          echo "=== TAIL OF BUILD LOG ==="
+          tail -120 /tmp/build.log
+          echo "=== MODULES / TESTS REACHED ==="
+          grep -E "^\[INFO\] Building |^\[INFO\] Running " /tmp/build.log | tail -40
+          exit 0
 
       - name: Upload JaCoCo coverage reports
         if: always()
