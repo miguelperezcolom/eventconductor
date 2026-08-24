@@ -21,6 +21,7 @@ import io.mateu.workflow.dtos.events.integration.RestartProcessRequested;
 import io.mateu.workflow.dtos.events.integration.RetryProcessRequested;
 import io.mateu.workflow.application.usecases.process.retry.RetryProcessUseCase;
 import io.mateu.workflow.domain.aggregates.Process;
+import io.mateu.workflow.input.InputLimits;
 import io.mateu.workflow.mcp.McpSystemContext;
 import io.mateu.workflow.mcp.McpTools;
 import lombok.RequiredArgsConstructor;
@@ -231,6 +232,13 @@ public class WorkflowMcpTools implements McpTools, McpSystemContext {
         var messageVariables = variables == null ? List.<Variable>of() : variables.entrySet().stream()
                 .map(entry -> new Variable(entry.getKey(), entry.getValue()))
                 .toList();
+        // Checked here as well as at the upstream chokepoint, and for the same reason the REST
+        // endpoint does it: under Kafka the dispatch returns before anything has looked at the
+        // message, so without this the caller is told it was sent and the refusal happens out of
+        // sight. An agent can act on the reason; it cannot act on a dead letter it never sees.
+        InputLimits.checkIdentifier(messageName, "messageName");
+        InputLimits.checkIdentifier(correlationKey, "correlationKey");
+        InputLimits.checkVariables(messageVariables, "message '" + messageName + "'");
         messageDispatcher.dispatch(new MessageReceived(messageName, correlationKey, messageVariables));
         return "Message '" + messageName + "' sent with correlation key '" + correlationKey + "'";
     }

@@ -8,6 +8,7 @@ import io.mateu.workflow.application.usecases.process.create.CreateProcessComman
 import io.mateu.workflow.application.usecases.process.create.CreateProcessUseCase;
 import io.mateu.workflow.domain.aggregates.Variable;
 import io.mateu.workflow.infra.in.ui.WorkflowHome;
+import io.mateu.workflow.input.InputLimits;
 import io.mateu.workflow.infra.in.ui.suppliers.WorkflowDefinitionIdLabelSupplier;
 import io.mateu.workflow.infra.in.ui.suppliers.WorkflowDefinitionIdOptionsSupplier;
 import jakarta.validation.constraints.NotNull;
@@ -40,6 +41,15 @@ public class CreateProcessForm {
 
     @Toolbar(buttonStyle = ButtonStyle.primary)
     Object create(HttpRequest httpRequest) {
+        // This form calls the use case directly rather than publishing upstream, so the check the
+        // upstream chokepoint performs has to be made here too — a page is a door like any other,
+        // and a value pasted into it reaches exactly the same columns. Thrown rather than reported:
+        // an exception out of an action is rendered as an error on the page with its message, and
+        // the form keeps what was typed.
+        InputLimits.checkIdentifier(workflowDefinitionId, "workflowDefinitionId");
+        InputLimits.checkIdentifier(businessKey, "businessKey");
+        InputLimits.checkNamedValues(variables, Variable::name, Variable::value, "this process");
+
         var processId = UUID.randomUUID().toString();
         createProcessUseCase.handle(new CreateProcessCommand(
                 processId,
