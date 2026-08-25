@@ -183,6 +183,7 @@ public final class DistInfra {
         props.put("spring.cloud.stream.bindings.consumeWorkerEvent-in-0.group", "worker-group");
         props.put("spring.cloud.stream.bindings.consumeWorkerEvent-in-0.consumer.concurrency", "3");
         props.put("spring.cloud.stream.bindings.upstream.destination", "upstream");
+        props.put("worker.kafka.enabled", "false"); // Disables TestWorkerKafkaConsumerConfig's bean so DistWorkerApp can define its own consumeWorkerEvent stub
         workerContext = new SpringApplicationBuilder(DistWorkerApp.class)
                 .web(WebApplicationType.NONE)
                 .properties(props)
