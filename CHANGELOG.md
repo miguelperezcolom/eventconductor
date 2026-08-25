@@ -7,6 +7,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **A ceiling on what one caller may hand the engine.** Nothing asked how big anything was. The
+  columns that hold variables are `TEXT` on purpose — a value cut to fit a column is worse than one
+  refused, because the process then runs on data nobody sent — but that decision is about *a* large
+  value and said nothing about how large. A caller could POST two hundred megabytes of JSON to the
+  message API and the engine would parse it into heap, carry it through the outbox and write it to a
+  row, on a thread that is also running everybody else's processes.
+
+  `InputLimits` now draws the line between large and absurd, set where a real payload never reaches:
+  a megabyte in one value (the number the forms engine already enforced, now applied to every
+  channel), 500 variables per event, eight megabytes across them, and **255 for an identifier** — a
+  business key, a correlation key, a message name. That last one is not about memory: it is the
+  width of `process_entity.id`, `business_key` and `awaiting_correlation_key`, so without it an
+  over-long key failed in the JDBC driver inside the transaction that was saving a running process,
+  which is a far worse place for it than a check with a message.
+
+  Enforced at one chokepoint — every event arriving from outside converges on
+  `ProcessUpstreamEventUseCase`, which covers the `upstream` and `messages` topics, the embedded
+  publisher, and therefore the REST endpoint and the MCP tools that publish through either. Events
+  the engine generates for itself travel the outbox and are not re-judged, so a process that has
+  legitimately grown large is not dead-lettered halfway through by a limit meant for its callers.
+
+  **What happens to a refusal depends on which door it came through.** A Kafka record is parked on
+  the dead-letter destination and the partition keeps moving — it will be exactly this size on every
+  redelivery, so retrying it is a loop nobody reads. A REST caller is answered `400` with the reason
+  by the controller itself, rather than `202` followed by a silent dead letter on the far side of
+  the broker. A person filling in a form, and the process-creation page, are shown the message with
+  what they typed still on screen.
+
+- **A byte ceiling on the engine's own HTTP endpoints** (`workflow.rest.max-body-bytes`, default
+  16 MiB). Refusing on content and refusing on size are different defences: the content check runs
+  once the body has been read and parsed, so on its own it still lets a caller spend the memory
+  first. `Content-Length` answers the ordinary case and the body is counted as it is read for the
+  chunked one; both answer `413`. Registered on the message API and the git webhooks only — this
+  ships inside a library, and a host application's own upload endpoint is not the engine's business.
+
+- `workflow.rest.max-body-bytes` (default `16777216`), `workflow.forms.max-values`, and the
+  `eventconductor.input.*` system properties: `max-identifier-length` (255), `max-value-length`
+  (1048576), `max-variables` (500), `max-total-length` (8388608). `workflow.forms.max-value-length`
+  now defaults to the engine-wide value rather than its own copy of it, so a value refused arriving
+  over Kafka is refused arriving from a browser.
+
+### Upgrading
+- An event, message, submission or process creation carrying more than the limits above is now
+  refused where it used to be accepted. The defaults are far above any real payload — a megabyte in
+  a single variable still passes, and the existing tests that assert so are unchanged — but a
+  deployment that genuinely sends more can raise any of them with the system properties named above
+  without a rebuild.
+
 ## [2.9.0] - 2026-08-21
 
 **A workflow could not be read as a workflow, and a workflow could be broken by a typo.** Tracing

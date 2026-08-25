@@ -4,15 +4,17 @@ import io.mateu.workflow.domain.aggregates.ProcessStatus;
 import io.mateu.workflow.dtos.Variable;
 import io.mateu.workflow.e2e.support.AbstractJpaE2eTest;
 import io.mateu.workflow.e2e.support.TestWorker;
+import io.mateu.workflow.input.InputLimits;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import static io.mateu.workflow.e2e.support.TestWorker.var;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * HARD-IN-01..06 — what a caller can put in a process and what the engine must do with it.
+ * HARD-IN-01..09 — what a caller can put in a process and what the engine must do with it.
  *
  * <p>A business key and a process variable are whatever the caller sends: they come from an
  * upstream Kafka record, the REST message API, an MCP call or a form a person filled in, and none
@@ -165,6 +167,26 @@ class HostileInputJpaE2eTest extends AbstractJpaE2eTest {
 
         assertThat(valueOf("huge-variable", "payload")).hasSize(oneMegabyte.length());
         assertThat(valueOf("huge-variable", "payload")).isEqualTo(oneMegabyte);
+    }
+
+    /**
+     * HARD-IN-06b. The other side of the same line: past the ceiling the creation is refused, and
+     * refused <em>before</em> a process exists — nothing half-created, nothing to clean up. Where
+     * this arrives from decides what happens to the refusal and neither answer is a truncation: a
+     * Kafka record is parked on the dead-letter destination (it will be this size on every
+     * redelivery, so retrying it is a loop), a REST caller is answered 400, and a person filling in
+     * a form is shown the message. Here, in embedded mode, it reaches the caller.
+     */
+    @Test
+    void aVariableThatIsAbsurdRatherThanMerelyLargeIsRefusedAndNoProcessIsCreated() {
+        var overTheCeiling = "x".repeat(InputLimits.MAX_VALUE_LENGTH + 1);
+
+        assertThatThrownBy(() -> createProcess("sequential-3", "absurd-variable",
+                new Variable("payload", overTheCeiling)))
+                .isInstanceOf(InputLimits.InputRejectedException.class)
+                .hasMessageContaining("payload");
+
+        assertThat(processOpt("absurd-variable")).isEmpty();
     }
 
     /**

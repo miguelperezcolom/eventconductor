@@ -5,6 +5,7 @@ import io.mateu.workflow.application.usecases.gitimport.ImportWorkflowDefinition
 import io.mateu.workflow.dtos.events.integration.MessageReceived;
 import io.mateu.workflow.infra.config.GitImportProperties;
 import io.mateu.workflow.infra.config.MessageApiProperties;
+import io.mateu.workflow.input.InputLimits;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -238,5 +239,40 @@ class HostileRestSurfaceTest {
                 .andExpect(status().isAccepted());
 
         verify(importUseCase, never()).handle(any());
+    }
+
+    /**
+     * HARD-REST-13. A correlation key that no column could hold. {@code awaiting_correlation_key} is
+     * {@code VARCHAR(255)}, so without this the request is accepted, published, and then fails in the
+     * JDBC driver inside the transaction that was saving a running process — a refusal in the worst
+     * possible place. Answered 400 here instead, with the reason.
+     */
+    @Test
+    void aKeyNoColumnCouldHoldIsRefusedAtTheDoor() throws Exception {
+        var tooLong = "k".repeat(InputLimits.MAX_IDENTIFIER_LENGTH + 1);
+
+        messages(null).perform(post("/workflow/api/messages")
+                        .contentType("application/json").content(body("m", tooLong)))
+                .andExpect(status().isBadRequest());
+
+        verify(messageDispatcher, never()).dispatch(any());
+    }
+
+    /**
+     * HARD-REST-14. A variable past the ceiling is refused to the caller's face rather than accepted
+     * and dead-lettered on the far side of the broker. 202 followed by a silent park tells the sender
+     * nothing, and this is the one channel still able to answer.
+     */
+    @Test
+    void anAbsurdVariableIsRefusedWithAReasonRatherThanAcceptedAndParked() throws Exception {
+        var tooBig = "x".repeat(InputLimits.MAX_VALUE_LENGTH + 1);
+        var payload = "{ \"messageName\": \"m\", \"correlationKey\": \"k\", \"variables\": { \"payload\": "
+                + quote(tooBig) + " } }";
+
+        messages(null).perform(post("/workflow/api/messages")
+                        .contentType("application/json").content(payload))
+                .andExpect(status().isBadRequest());
+
+        verify(messageDispatcher, never()).dispatch(any());
     }
 }
