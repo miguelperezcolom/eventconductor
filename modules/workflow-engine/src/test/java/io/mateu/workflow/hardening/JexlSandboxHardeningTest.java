@@ -148,4 +148,34 @@ class JexlSandboxHardeningTest {
             return null;
         }
     }
+
+    /** Safeguards against ReDoS CPU exhaustion via backtracking-heavy regex. */
+    @Test
+    void regexBacktrackingDoesNotStarveCpu() {
+        // Triggers massive backtracking in standard java.util.regex engine:
+        // matching a string of 'a's ending in 'b' against pattern "(a+)+$"
+        var input = "a".repeat(25) + "b";
+        var regexExpression = "'" + input + "' =~ '(a+)+$'";
+
+        // Under RE2J, this evaluates strictly in linear time and completes instantly
+        assertTimeoutPreemptively(Duration.ofMillis(500), () -> {
+            Object result = JEXLEvaluator.eval(regexExpression, FACTS);
+            assertThat(result).isEqualTo(false);
+        });
+    }
+
+    /** Safeguards against JEXL expressions mutating context lists or maps in-memory. */
+    @Test
+    void exposedCollectionsCannotBeMutated() {
+        var mutableList = new java.util.ArrayList<>(List.of("a", "b"));
+        var context = Map.of("myList", mutableList);
+
+        assertThatThrownBy(() -> JEXLEvaluator.eval("myList.clear()", context))
+                .isInstanceOf(Exception.class);
+
+        assertThatThrownBy(() -> JEXLEvaluator.eval("myList.add('c')", context))
+                .isInstanceOf(Exception.class);
+
+        assertThat(mutableList).containsExactly("a", "b"); // Unmodified!
+    }
 }

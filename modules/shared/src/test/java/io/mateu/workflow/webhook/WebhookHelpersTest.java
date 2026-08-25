@@ -211,4 +211,19 @@ class WebhookHelpersTest {
         registry.replace("workflow", "https://r/defs.git", java.util.Set.of("b", "c"));
         assertThat(registry.idsFor("workflow", "https://r/defs.git")).containsExactlyInAnyOrder("b", "c");
     }
+
+    // ── url sanitization ───────────────────────────────────────────────────
+
+    @Test
+    void sanitizesSensitiveCredentialsFromGitUrls() {
+        assertThat(UrlSanitizer.sanitize("https://github.com/org/repo.git"))
+                .isEqualTo("https://github.com/org/repo.git");
+        assertThat(UrlSanitizer.sanitize("https://username:password@github.com/org/repo.git"))
+                .isEqualTo("https://******@github.com/org/repo.git");
+        assertThat(UrlSanitizer.sanitize("https://mytoken@github.com/org/repo.git"))
+                .isEqualTo("https://mytoken@github.com/org/repo.git");
+        assertThat(UrlSanitizer.sanitize("git@github.com:org/repo.git"))
+                .isEqualTo("git@github.com:org/repo.git");
+        assertThat(UrlSanitizer.sanitize(null)).isNull();
+    }
 }
