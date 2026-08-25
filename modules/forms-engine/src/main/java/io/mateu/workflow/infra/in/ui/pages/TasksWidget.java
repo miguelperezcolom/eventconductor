@@ -25,6 +25,7 @@ import org.springframework.stereotype.Service;
 public class TasksWidget implements Hydratable, ComponentTreeSupplier {
 
     final FormExecutionEntityRepository repository;
+    final io.mateu.workflow.application.services.TaskAuthorization taskAuthorization;
 
     String content = "hello";
 
@@ -36,7 +37,11 @@ public class TasksWidget implements Hydratable, ComponentTreeSupplier {
     @Override
     public void hydrate(HttpRequest httpRequest) {
 
+        // The badge is a listing with one number in it: counting tasks this person may not work on
+        // would tell them the work exists, which is most of what hiding it was for.
+        var permitted = taskAuthorization.enabled() ? taskAuthorization.permittedFormIds() : null;
         var tasks = repository.findAll().stream()
+                .filter(task -> permitted == null || permitted.contains(task.getFormId()))
                 .filter(task -> !"COMPLETED".equals(task.getStatus())
                         && !"CANCELLED".equals(task.getStatus())
                         && !"ERROR".equals(task.getStatus())

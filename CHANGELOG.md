@@ -8,6 +8,62 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **A workflow can say who may start it, and a form can say who may do its work.** Both declarations
+  existed on the workflow side and neither was ever read: `requiredScopes`/`requiredRoles` parsed on a
+  definition and on a step, `FlowAuthorizationService` evaluated them, `AuthorizationContext`
+  described the snapshot it would evaluate against — and nothing called any of it. The property its
+  own javadoc named, `workflow.security.flow-authorization.enabled`, did not exist. What shipped was a
+  design with no enforcement, which reads from the outside exactly like a feature.
+
+  It is enforced now, at two points and from two declarations:
+
+  - **The workflow** decides who may *start* a process, checked in `CreateProcessUseCase` — one place
+    rather than at each of the four doors (the page, an upstream record, an MCP call, cron), because a
+    rule enforced in four places holds in three of them once a fifth door is added. What the engine
+    starts for itself is not judged against a caller: cron says so with `AuthorizationContext.SYSTEM`
+    and a PROCESS step by naming its parent step execution, since re-judging either would mean a
+    scheduled definition could never run and a modelled child could never be spawned.
+  - **The form** decides who may *see, claim and complete* a task, checked in all three places. The
+    listing is narrowed in the query — filtering after it would turn a page of fifty into a short
+    list — but the listing is a convenience and not the boundary: a task id travels in a URL, a log
+    line, a pasted link, so claim and complete refuse on their own account.
+
+  On the form rather than on the step, deliberately: this is a property of the work, not of the flow.
+  The same "approve a refund" form is for the same people whichever workflow routes a task to it, so
+  declaring it once is also what stops it drifting between the definitions that use the form.
+
+  **Who the caller is** is a per-deployment question, so it is a port — `CallerResolver` — with a
+  default that reads whichever of the two real sources is present: an application that authenticated
+  the caller itself (Spring Security, which covers the standalone apps' HTTP Basic and any resource
+  server) or a gateway that validated a token and forwarded it (opt-in, `trust-forwarded-token`,
+  because reading an unverified token where nothing verified it is not weak authorization but none).
+  Verified beats asserted, so the opt-in cannot quietly override a real login. A deployment that knows
+  better defines its own bean.
+
+  Requires-all and fail-closed throughout: a caller nobody could identify holds nothing, so anything
+  required refuses them — which makes a misconfigured identity a locked door rather than an open one.
+
+- `workflow.security.flow-authorization.enabled` (default `false`),
+  `workflow.security.trust-forwarded-token` (default `false`), and
+  `workflow.security.claims.subject` / `.scopes` / `.roles` for the claim names to read.
+- `requiredScopes` / `requiredRoles` on a **form** definition, in the JSON schema and in the editor.
+
+### Changed
+- `FlowAuthorizationService` and its denial moved to `io.mateu.workflow.security` in `shared`, and the
+  evaluation is now static. Both engines ask the same question and the answer has to be the same one;
+  two copies of a rule like this drift.
+
+### Upgrading
+- Nothing changes until `workflow.security.flow-authorization.enabled` is set. With it on, a
+  definition or form that declares requirements refuses callers who do not hold them — including
+  callers the deployment cannot identify at all, and including the MCP tools, which act with no
+  identity unless given one through a custom `CallerResolver`.
+- A step's `requiredScopes`/`requiredRoles` still parse and still do nothing. Enforcing them means
+  checking when the step runs, which can be a week later on another pod, and that needs the caller's
+  snapshot stored with the process — a column that does not exist yet. The javadoc now says so
+  instead of implying otherwise.
+
+### Added
 - **A ceiling on what one caller may hand the engine.** Nothing asked how big anything was. The
   columns that hold variables are `TEXT` on purpose — a value cut to fit a column is worse than one
   refused, because the process then runs on data nobody sent — but that decision is about *a* large

@@ -167,10 +167,14 @@ public record Step(
         JoinType joinType,
         /**
          * Flow-authorization for this step: the scopes and roles the caller must ALL hold for this
-         * step to run, evaluated against the process's creation snapshot ({@code AuthorizationContext}).
-         * A step-level gate on top of the definition-level one — e.g. an approval step that needs a
-         * scope the rest of the flow does not. Empty (the default) means the step adds no restriction.
-         * Enforced only when {@code workflow.security.flow-authorization.enabled}.
+         * step to run. A step-level gate on top of the definition-level one — e.g. an approval step
+         * that needs a scope the rest of the flow does not.
+         *
+         * <p><b>Declared and not yet enforced.</b> The definition-level requirements are checked when
+         * a process is created, where the caller is still on the request; these would be checked when
+         * the step runs, which can be a week later on another pod, and that needs the caller's
+         * snapshot to have been stored with the process. It has not been. Until then this parses,
+         * round-trips and does nothing — stated here rather than left to be discovered.
          */
         @HiddenInList
         List<String> requiredScopes,

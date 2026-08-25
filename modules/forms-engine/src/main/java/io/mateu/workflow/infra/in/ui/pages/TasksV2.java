@@ -26,6 +26,7 @@ import io.mateu.uidl.interfaces.StateSupplier;
 import io.mateu.uidl.interfaces.ValidationSupplier;
 import io.mateu.workflow.application.out.FormRepository;
 import io.mateu.workflow.application.usecases.completetask.CompleteTaskCommand;
+import io.mateu.workflow.application.services.TaskAuthorization;
 import io.mateu.workflow.application.usecases.completetask.CompleteTaskUseCase;
 import io.mateu.workflow.domain.Field;
 import io.mateu.workflow.domain.Form;
@@ -72,15 +73,24 @@ public class TasksV2 implements ComponentTreeSupplier, StateSupplier, ActionHand
     final FormExecutionEntityRepository repository;
     final FormRepository formRepository;
     final CompleteTaskUseCase completeTaskUseCase;
+    final TaskAuthorization taskAuthorization;
     final StreamBridge streamBridge;
 
     private List<FormExecutionEntity> tasks(HttpRequest httpRequest) {
         // DESC on status puts PENDING before COMPLETED, so completed tasks sink to the bottom
-        return repository.findByStatusAndUser(
-                List.of(FormExecutionStatus.PENDING.name(), FormExecutionStatus.COMPLETED.name()),
-                JwtExtractor.getUsername(httpRequest).orElse(null),
-                PageRequest.of(0, MAX_TASKS, Sort.by(Sort.Direction.DESC, "status").and(Sort.by("id")))
-        ).getContent();
+        var statuses = List.of(FormExecutionStatus.PENDING.name(), FormExecutionStatus.COMPLETED.name());
+        var user = JwtExtractor.getUsername(httpRequest).orElse(null);
+        var page = PageRequest.of(0, MAX_TASKS, Sort.by(Sort.Direction.DESC, "status").and(Sort.by("id")));
+        if (!taskAuthorization.enabled()) {
+            return repository.findByStatusAndUser(statuses, user, page).getContent();
+        }
+        // Narrowed in the query rather than after it, or a page of fifty would come back holding
+        // however many of those fifty this person may see — which is a shorter list, not a page.
+        var permitted = taskAuthorization.permittedFormIds();
+        if (permitted.isEmpty()) {
+            return List.of();
+        }
+        return repository.findByStatusAndUserAndForms(statuses, user, permitted, page).getContent();
     }
 
     private Optional<Form> form(String formId, Map<String, Optional<Form>> cache) {
@@ -287,6 +297,11 @@ public class TasksV2 implements ComponentTreeSupplier, StateSupplier, ActionHand
 
     private void claim(String taskId, HttpRequest httpRequest) {
         var username = JwtExtractor.getUsername(httpRequest).orElseThrow();
+        // Claiming is taking the work, so it is gated like doing it. The listing above already hides
+        // what this person may not touch; this is what makes that hiding irrelevant to security.
+        taskAuthorization.refuseIfCallerMayNot("claim",
+                repository.findById(taskId).flatMap(t -> formRepository.findById(t.getFormId())).orElse(null),
+                taskId);
         var claimed = repository.claim(List.of(taskId), username);
         if (claimed > 0) {
             repository.findById(taskId).ifPresent(task -> streamBridge.send("upstream", new TaskLogEmitted(

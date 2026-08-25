@@ -31,7 +31,8 @@ public class ProcessCreationRequestedEventHandler implements DomainEventHandler<
                 e.variables().stream()
                         .map(variable -> new Variable(variable.name(), variable.value()))
                         .toList(),
-                e.parentStepExecutionId()
+                e.parentStepExecutionId(),
+                e.caller()
         ));
     }
 }

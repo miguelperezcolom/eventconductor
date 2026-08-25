@@ -42,6 +42,7 @@ public class Task implements ComponentTreeSupplier, ValidationSupplier, ActionHa
     final FormRepository formRepository;
     final StreamBridge streamBridge;
     final CompleteTaskUseCase completeTaskUseCase;
+    final io.mateu.workflow.application.services.TaskAuthorization taskAuthorization;
 
     String _taskId;
 
@@ -185,6 +186,8 @@ public class Task implements ComponentTreeSupplier, ValidationSupplier, ActionHa
         }
         if ("claim".equals(actionId)) {
             var execution = formExecutionRepository.findById(_taskId).orElseThrow();
+            taskAuthorization.refuseIfCallerMayNot("claim",
+                    formRepository.findById(execution.formId()).orElse(null), _taskId);
             execution = execution
                     .withUserId("miguel");
             formExecutionRepository.save(execution);

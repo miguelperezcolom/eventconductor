@@ -4,9 +4,14 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * A <b>snapshot</b> of the caller's authorization, captured once when a process is created and carried
- * with the process for its whole life. It is what the flow-authorization checks evaluate against —
- * "does the caller who started this process hold the scopes this step requires?".
+ * A <b>snapshot</b> of the caller's authorization, taken at the door that accepted their request and
+ * carried on it from there. It is what the flow-authorization checks evaluate against — "does this
+ * caller hold what this workflow requires to be started, or what this form requires to be worked
+ * on?" — and it is produced by a {@link CallerResolver}, never read from a request twice.
+ *
+ * <p>It is carried on the request, not stored on the process: nothing persists it yet, so a check
+ * that runs later than the creation — a {@code Step}'s own requirements, which parse and are not
+ * enforced — has nothing to evaluate against. That is the next piece, and it needs a column.
  *
  * <p><b>Deliberately a snapshot, not a live token.</b> A JWT lives minutes; a workflow lives minutes to
  * weeks, so re-using the original token to authorize a step that runs a day later is impossible — it has

@@ -9,6 +9,7 @@ import io.mateu.workflow.application.usecases.process.create.CreateProcessUseCas
 import io.mateu.workflow.domain.aggregates.Variable;
 import io.mateu.workflow.infra.in.ui.WorkflowHome;
 import io.mateu.workflow.input.InputLimits;
+import io.mateu.workflow.security.CallerResolver;
 import io.mateu.workflow.infra.in.ui.suppliers.WorkflowDefinitionIdLabelSupplier;
 import io.mateu.workflow.infra.in.ui.suppliers.WorkflowDefinitionIdOptionsSupplier;
 import jakarta.validation.constraints.NotNull;
@@ -28,6 +29,7 @@ import java.util.UUID;
 public class CreateProcessForm {
 
     final CreateProcessUseCase createProcessUseCase;
+    final CallerResolver callerResolver;
 
     @Lookup(search = WorkflowDefinitionIdOptionsSupplier.class, label = WorkflowDefinitionIdLabelSupplier.class)
     @NotNull
@@ -56,7 +58,11 @@ public class CreateProcessForm {
                 workflowDefinitionId,
                 businessKey,
                 variables,
-                null
+                null,
+                // Whoever is on the other end of this request, resolved here — at the door, where
+                // there is still a request to read an identity from. By the time the use case runs
+                // it may be on another thread, and by the time a step runs it may be another week.
+                callerResolver.current()
         ));
         // Creating IS this form's save: clear the dirty flag before navigating away, or the
         // frontend asks whether to save the changes that have just been persisted.

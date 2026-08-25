@@ -4,6 +4,7 @@ import io.mateu.workflow.application.out.FormExecutionRepository;
 import io.mateu.workflow.application.out.FormRepository;
 import io.mateu.workflow.application.out.FormsMetrics;
 import io.mateu.workflow.application.services.FormSubmission;
+import io.mateu.workflow.application.services.TaskAuthorization;
 import io.mateu.workflow.domain.FormExecution;
 import io.mateu.workflow.domain.FormExecutionStatus;
 import io.mateu.workflow.dtos.MessageType;
@@ -26,6 +27,7 @@ public class CompleteTaskUseCase {
     final FormRepository formRepository;
     final StreamBridge streamBridge;
     final FormsMetrics formsMetrics;
+    final TaskAuthorization taskAuthorization;
 
     /**
      * Closes a human task and tells the engine — the reply first, and through {@link WorkerReply},
@@ -55,12 +57,18 @@ public class CompleteTaskUseCase {
             return;
         }
 
+        var form = formRepository.findById(open.formId()).orElse(null);
+
+        // May this person do this work at all. Here rather than only in the page, because completion
+        // also arrives from the MCP tool and from anything else that holds this use case — and a
+        // check that lives in one of three callers is a check two callers do not make.
+        taskAuthorization.refuseIfCallerMayNot("complete", form, command.taskId());
+
         // What arrived, reduced to what this form declares, and refused outright if a required
         // field is missing. The values are posted by a browser and become process variables that
         // later steps read: without this, which variables a process carries is whoever-submitted's
         // to decide. See FormSubmission.
-        var values = FormSubmission.accepted(
-                formRepository.findById(open.formId()).orElse(null), command.values(), command.taskId());
+        var values = FormSubmission.accepted(form, command.values(), command.taskId());
 
         var execution = open
                 .withValues(values)

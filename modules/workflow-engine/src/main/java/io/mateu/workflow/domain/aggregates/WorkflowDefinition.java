@@ -72,9 +72,10 @@ public record WorkflowDefinition(
         WorkflowStatus runtimeStatus,
         /**
          * Flow-authorization: the scopes and roles a caller must hold to CREATE a process of this
-         * definition. Evaluated against the caller's snapshot at creation (see {@code AuthorizationContext}),
-         * requires-all. Empty (the default) means open — no restriction. Enforced only when
-         * {@code workflow.security.flow-authorization.enabled}.
+         * definition, checked in {@code CreateProcessUseCase} against the caller the door resolved
+         * (see {@code AuthorizationContext}), requires-all. Empty (the default) means open — no
+         * restriction. What the engine starts for itself — cron, a PROCESS step — is not judged
+         * against it. Enforced only when {@code workflow.security.flow-authorization.enabled}.
          */
         List<String> requiredScopes,
         List<String> requiredRoles,
