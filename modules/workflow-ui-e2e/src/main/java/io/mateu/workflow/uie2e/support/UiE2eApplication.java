@@ -3,9 +3,7 @@ package io.mateu.workflow.uie2e.support;
 import io.mateu.workflow.application.out.EmbeddedTaskExecutor;
 import io.mateu.workflow.application.usecases.stepexecution.update.UpdateStepExecutionUseCase;
 import io.mateu.workflow.autoconfigure.WorkflowEmbeddedApplication;
-import org.springframework.boot.autoconfigure.AutoConfigurationPackage;
 import org.springframework.context.annotation.Bean;
-import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
 /**
  * The application under test: the engine, its UI and a programmable worker, on a random port.
@@ -16,8 +14,6 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
  * over.
  */
 @WorkflowEmbeddedApplication
-@EnableJpaRepositories(basePackages = "io.mateu.workflow.infra.out.persistence")
-@AutoConfigurationPackage(basePackages = "io.mateu.workflow.infra.out.persistence")
 public class UiE2eApplication {
 
     @Bean
