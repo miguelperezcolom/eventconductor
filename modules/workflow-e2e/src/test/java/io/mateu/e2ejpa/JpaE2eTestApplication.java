@@ -1,8 +1,6 @@
 package io.mateu.e2ejpa;
 
 import io.mateu.workflow.autoconfigure.WorkflowEmbeddedApplication;
-import org.springframework.boot.persistence.autoconfigure.EntityScan;
-import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
 /**
  * Boots the engine in embedded mode with JPA persistence for the durability suite.
@@ -13,7 +11,5 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
  * repositories live in {@code io.mateu.workflow}, so they are scanned explicitly here.
  */
 @WorkflowEmbeddedApplication
-@EntityScan("io.mateu.workflow")
-@EnableJpaRepositories("io.mateu.workflow")
 public class JpaE2eTestApplication {
 }

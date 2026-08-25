@@ -135,7 +135,7 @@ class GitImportScanTest {
         useCase.scanAndImport(root, new ArrayList<>(), errors, new HashSet<>());
 
         assertThat(errors).singleElement().satisfies(error -> {
-            assertThat(error).contains("definitions/broken.ec");
+            assertThat(error).contains(root.relativize(root.resolve("definitions/broken.ec")).toString());
             assertThat(error).doesNotContain(root.toString());
         });
     }
