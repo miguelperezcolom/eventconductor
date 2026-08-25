@@ -73,6 +73,30 @@
             <artifactId>spring-boot</artifactId>
             <optional>true</optional>
         </dependency>
+        <!-- Flow authorization has to know who the caller is. Both sources are optional on purpose:
+             an app that authenticates its own callers has Spring Security, one behind a gateway has
+             the servlet request, and an app with neither simply has no identity to offer — which the
+             checks read as "holds nothing" rather than as a failure. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-autoconfigure</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-core</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-web</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>jakarta.servlet</groupId>
+            <artifactId>jakarta.servlet-api</artifactId>
+            <optional>true</optional>
+        </dependency>
         <dependency>
             <!-- ManagedSchema, the runner each engine applies its own migrations with. Optional
                  here so a worker or a DTO consumer does not drag Flyway in; the engine modules

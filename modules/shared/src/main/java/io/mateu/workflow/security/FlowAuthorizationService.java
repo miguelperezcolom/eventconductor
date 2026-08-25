@@ -1,7 +1,4 @@
-package io.mateu.workflow.application.services;
-
-import io.mateu.workflow.security.AuthorizationContext;
-import org.springframework.stereotype.Service;
+package io.mateu.workflow.security;
 
 import java.util.List;
 
@@ -11,14 +8,20 @@ import java.util.List;
  * declares it requires. The pure evaluation at the heart of flow authorization — no I/O, no token
  * validation (that happens once, at ingress), just: does this caller hold what this requires.
  *
+ * <p>In {@code shared} and static because both engines ask it and the answer must be the same one:
+ * the workflow engine asks "may this caller start this definition?" and the forms engine asks "may
+ * this person work on a task of this form?", and two copies of a rule like this one drift.
+ *
  * <p><b>Requires-all, fail-closed.</b> The caller must hold <em>every</em> required scope and role (an
  * AND, not an ANY) — the safe reading of "this step needs scopes X and Y". A declaration with no
  * requirements is open to anyone (it declares no restriction). A missing caller ({@code null}) holds
  * nothing, so it is denied the moment anything is required — a step that requires a scope cannot be run
  * by an unauthenticated or unknown principal.
  */
-@Service
-public class FlowAuthorizationService {
+public final class FlowAuthorizationService {
+
+    private FlowAuthorizationService() {
+    }
 
     /**
      * The outcome, with the specific unmet requirements so the caller can be told exactly why — a bare
@@ -30,7 +33,7 @@ public class FlowAuthorizationService {
         }
     }
 
-    public Decision authorize(AuthorizationContext caller,
+    public static Decision authorize(AuthorizationContext caller,
                               List<String> requiredScopes,
                               List<String> requiredRoles) {
         var required = normalise(requiredScopes);

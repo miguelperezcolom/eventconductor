@@ -69,6 +69,14 @@ test by test in [TESTING.md §8](TESTING.md) and run in CI on every change:
 - **The doors** — the message API's key comparison, the git webhook's per-provider signature
   verification, malformed and deeply nested bodies, oversized ones, and unknown providers, are all
   asserted through the HTTP layer rather than against the controller objects.
+- **Flow authorization** — a workflow declares the scopes and roles a caller must hold to *start* a
+  process of it, and a form declares the ones a person must hold to *see, claim and complete* a task
+  of it. Requires-all and fail-closed: a caller nobody could identify holds nothing, so anything
+  required refuses them. Where the identity comes from is a port with a default that reads either an
+  application-authenticated login or a gateway-forwarded token, verified beating asserted. Off unless
+  `workflow.security.flow-authorization.enabled`. The task listing is narrowed as a convenience, not
+  as the boundary — claiming and completing are refused on their own account, so a task id obtained
+  some other way buys nothing.
 - **The browser** — because values are stored as sent, whether a payload stays inert is a property
   of the rendering. Stored-XSS journeys run in a real Chromium, each with a control proving the
   payload actually reached the page.

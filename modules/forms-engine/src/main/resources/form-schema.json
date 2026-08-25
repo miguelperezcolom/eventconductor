@@ -28,6 +28,16 @@
       "items": {
         "$ref": "#/$defs/Field"
       }
+    },
+    "requiredScopes": {
+      "type": ["array", "null"],
+      "description": "Scopes a person must ALL hold to see, claim and complete a task of this form. Empty or absent means the form adds no restriction. Enforced only when workflow.security.flow-authorization.enabled.",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "requiredRoles": {
+      "type": ["array", "null"],
+      "description": "Roles a person must ALL hold to see, claim and complete a task of this form. Empty or absent means the form adds no restriction. Enforced only when workflow.security.flow-authorization.enabled.",
+      "items": { "type": "string", "minLength": 1 }
     }
   },
   "$defs": {

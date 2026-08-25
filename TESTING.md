@@ -359,6 +359,38 @@ grid has no business-key column, nor does the detail header), and a payload type
 matches nothing and is not echoed back. A green XSS test that never rendered its payload is worse
 than no test — it is a standing claim that the UI is safe, backed by nothing.
 
+### 8e. Flow authorization — who may start a process, who may do a task
+
+Two questions, asked in two places, from two declarations. A **workflow** says which scopes and roles
+a caller must hold to *start* a process of it; a **form** says which ones a person must hold to *see,
+claim and complete* a task of it. Both are requires-all and both are fail-closed: a caller nobody
+could identify holds nothing, so anything required refuses them. Both are inert unless
+`workflow.security.flow-authorization.enabled`, because the declarations parsed long before anything
+enforced them and a deployment that has never configured an identity must not find its restricted
+definitions refused the moment it upgrades.
+
+Where the identity comes from is a per-deployment answer, so it is a port: `CallerResolver`, with a
+default that reads whichever of the two real sources is there — an application that authenticated the
+caller itself (Spring Security, which is the standalone apps' HTTP Basic and any resource server) or
+a gateway that validated a token and forwarded it. **Verified beats asserted**: a request carrying
+both is answered by the login, so the forwarded-token opt-in cannot quietly override a real one. A
+deployment that knows better supplies its own bean.
+
+| ID | Spec |
+|----|------|
+| AUTHZ-WHO-01..02 | **The identity this application established** (`CallerResolutionTest`). Spring's authority prefixes read as what they mean — `ROLE_x` is a role, `SCOPE_x` is a scope, an unprefixed authority is a role — so a deployment's existing authorities work without being restated, the standalone apps' `ROLE_ADMIN` included. Not logged in, and Spring's anonymous stand-in for it, are both **nobody**. |
+| AUTHZ-WHO-03..04 | **The identity a gateway forwarded.** Keycloak's own shapes are read (`realm_access.roles` nested, `scope` space-delimited), and every claim is accepted as either a delimited string or an array — issuers disagree about which, and guessing wrong grants nothing while looking like it worked. |
+| AUTHZ-WHO-05..08 | **Absence is an answer, and never an exception.** No request in progress (a Kafka consumer, a scheduler), no header, a header that is not a bearer token, a token that is truncated or not base64 or not JSON, and a valid token carrying no claim we recognise: every one of them is *nobody*, which is what makes a fail-closed check fail closed rather than fail loudly. A malformed credential must be refused with a reason, not with a stack trace. |
+| AUTHZ-WHO-09 | **Verified beats asserted.** A request carrying both a login this application performed and a token it was handed is answered by the login. |
+| AUTHZ-FLOW-01..04 | **Starting a process** (`CreateProcessFlowAuthorizationTest`). Holding everything the definition asks for starts it; missing one of two does not, and nothing is created — no process row, no step executions. An unidentified caller is refused by any requirement at all, and a definition that requires nothing is open to everyone. |
+| AUTHZ-FLOW-05 | **Off is off.** Nothing is enforced while the flag is down. |
+| AUTHZ-FLOW-06 | **What the engine starts for itself is not judged against a caller.** Cron says so with `SYSTEM`, a PROCESS step says so by naming the parent step execution. Re-judging either would mean a scheduled definition could never run (the scheduler holds no scopes) and a modelled child could never be spawned — breakage, not authorization. |
+| AUTHZ-TASK-01..02 | **What a person is shown** (`TaskAuthorizationTest`). The list is narrowed to the forms whose requirements they hold; an unidentified person sees the unrestricted work and only that. Narrowed **in the query**, or a page of fifty would come back holding however many of those fifty they may see, which is a shorter list rather than a page. |
+| AUTHZ-TASK-03..05 | **Claiming and completing are refused on their own account**, naming what was missing and what was attempted. Requires-all: one of two held is not enough. A form that requires nothing refuses nobody, exactly as before it could declare anything. *The listing filter is not the boundary* — a task id travels in a URL, a log line, a pasted link — so these check again rather than trusting where the id came from. |
+| AUTHZ-TASK-06 | A task naming a **form that is gone from the catalogue** is not refused here: a form that is not there cannot state a requirement. Nothing is granted by that — the submission path refuses such a task on its own account, and for its own reasons (HARD-SUB-08). |
+| AUTHZ-TASK-07..08 | Off is off here too. And **a completion the form forbids reaches neither the engine nor the row** — checked in the use case rather than in the page, because completion also arrives from the MCP tool, and because the reply is the one thing that cannot be taken back: a USER_TASK step that has been told it is done is done. |
+| AUTHZ-FORM-01..03 | **A form file may say who its work is for** (`FormAuthorizationTest`). Both halves matter for the import path: the schema is `additionalProperties: false`, so without it knowing these keys a form declaring them would be refused outright; and without the record defaulting them, every form written before today would come back requiring nothing — which is the answer that has to survive. |
+
 ## 9. Process tracing (`ProcessTraceE2eTest`, `RecordProcessTraceServiceTest`, `ProcessTraceTest`)
 
 A trace of a workflow should read the way the workflow ran. That cannot come from instrumenting the
