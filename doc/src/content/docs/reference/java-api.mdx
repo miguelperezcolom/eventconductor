@@ -181,10 +181,12 @@ public interface EmbeddedTaskExecutor {
 }
 ```
 
-Register as a Spring bean with the bean name matching the step's `topic` field:
+Register **one** such bean. Embedded mode has no transport to route over, so every ACTION step goes
+to it regardless of the step's `topic` — the bean name is not matched against anything — and you
+branch on `request.stepId()` inside it. (Per-step routing by `topic` is a Kafka-mode feature.)
 
 ```java
-@Bean("my-topic-name")
+@Bean
 public EmbeddedTaskExecutor myWorker(UpdateStepExecutionUseCase updateStepExecution) {
     return request -> {
         // ... do work ...

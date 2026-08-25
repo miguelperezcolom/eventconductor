@@ -7,7 +7,9 @@ import io.micrometer.tracing.propagation.Propagator;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 
+import java.time.Instant;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 /**
@@ -97,6 +99,80 @@ public class MicrometerWorkflowTracing implements WorkflowTracing {
         } catch (RuntimeException e) {
             log.debug("Could not read the current trace context", e);
             return null;
+        }
+    }
+
+    @Override
+    public String recordSpan(String parentTraceParent, String name, Instant startedAt, Instant finishedAt,
+                             Map<String, String> tags) {
+        var tracer = tracer();
+        var propagator = propagator();
+        if (parentTraceParent == null || parentTraceParent.isBlank()
+                || startedAt == null || finishedAt == null || tracer == null || propagator == null) {
+            return null;
+        }
+        try {
+            // extract() gives a builder already parented to the remote context, which is how a span
+            // built here joins the process's trace without anything having been propagated to us.
+            var builder = propagator.extract(Map.of(TRACEPARENT, parentTraceParent), Map::get).name(name);
+            tags.forEach((key, value) -> {
+                if (value != null) {
+                    builder.tag(key, value);
+                }
+            });
+            // The whole point: the span's clock is the work's clock, not this method's. A step that
+            // ran for three seconds last Tuesday is a three-second span last Tuesday.
+            var span = builder.startTimestamp(micros(startedAt), TimeUnit.MICROSECONDS).start();
+            // Read before ending: after end() the span may be recycled by the implementation.
+            var context = span.context();
+            var traceParent = String.join("-", W3C_VERSION, context.traceId(), context.spanId(),
+                    Boolean.TRUE.equals(context.sampled()) ? "01" : "00");
+            // Never before it started: a negative duration is rejected outright by some backends and
+            // silently rendered as zero by others, and a clock that went backwards between two pods
+            // is exactly the kind of thing that would produce one.
+            span.end(Math.max(micros(finishedAt), micros(startedAt)), TimeUnit.MICROSECONDS);
+            return traceParent;
+        } catch (RuntimeException e) {
+            log.debug("Could not record the span '{}'", name, e);
+            return null;
+        }
+    }
+
+    private static long micros(Instant instant) {
+        return instant.getEpochSecond() * 1_000_000L + instant.getNano() / 1_000L;
+    }
+
+    @Override
+    public void continuing(String traceParent, String spanName, Map<String, String> tags, Runnable work) {
+        var tracer = tracer();
+        var propagator = propagator();
+        if (traceParent == null || traceParent.isBlank() || tracer == null || propagator == null) {
+            work.run();
+            return;
+        }
+        Span span = null;
+        try {
+            var builder = propagator.extract(Map.of(TRACEPARENT, traceParent), Map::get).name(spanName);
+            tags.forEach((key, value) -> {
+                if (value != null) {
+                    builder.tag(key, value);
+                }
+            });
+            span = builder.start();
+        } catch (RuntimeException e) {
+            log.debug("Could not resume the trace '{}'", traceParent, e);
+        }
+        if (span == null) {
+            work.run();
+            return;
+        }
+        try (var ignored = tracer.withSpan(span)) {
+            work.run();
+        } catch (RuntimeException e) {
+            span.error(e);
+            throw e;
+        } finally {
+            span.end();
         }
     }
 

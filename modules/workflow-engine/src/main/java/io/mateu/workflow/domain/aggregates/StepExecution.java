@@ -208,6 +208,25 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
     }
 
     /**
+     * The destination this step's task is dispatched to, or null for the default one.
+     *
+     * <p>Read from the step frozen on this execution rather than from the definition, for the same
+     * reason everything else here is: the definition may have been re-imported since, and a task
+     * already at a worker has to be cancelled on the topic it was actually sent to, not on the one
+     * the current definition would choose. Null on unreadable step JSON, which
+     * {@link io.mateu.workflow.application.out.DownstreamEventPublisher#destinationFor(String)}
+     * turns into the default — a task on the default topic is recoverable, an exception here would
+     * strand the step.
+     */
+    public String topic() {
+        try {
+            return pojoFromJson(stepJson, Step.class).topic();
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    /**
      * The deadline implied by the current {@code startedAt}, {@code variables} and step, or null
      * when this step has none or has not started. A TIMER whose date cannot be resolved yields
      * null rather than throwing: {@link #start(Process)} already fails such a step, so there is
@@ -234,10 +253,11 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
         // without a moment to fire at.
         this.deadlineAt = computeDeadline();
         if (StepType.START.equals(step.type()) || StepType.FORK.equals(step.type())
-                || StepType.JOIN.equals(step.type())) {
+                || StepType.JOIN.equals(step.type()) || StepType.CHOICE.equals(step.type())) {
             // Pure control-flow nodes involve no worker: START marks the entry point, FORK's
-            // fan-out and JOIN's barrier are entirely the orchestrator's eligibility rules
-            // (preconditions), so the node itself just completes instantly when started.
+            // fan-out, JOIN's barrier and CHOICE's exclusive split are entirely the orchestrator's
+            // eligibility rules (preconditions), so the node itself just completes instantly when
+            // started.
             send(new TaskLogEmitted(id, MessageType.Info,
                     step.type() + " step " + step.name() + " passed through."));
             updateStatus(StepExecutionStatus.COMPLETED);

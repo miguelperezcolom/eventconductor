@@ -1,0 +1,14 @@
+# Packages a jar built outside, from the Maven reactor — the code under test, not the last release.
+#
+#   mvn -pl apps/projector-standalone-app -am -DskipTests package
+#   docker buildx build --platform linux/amd64 -f apps/projector-standalone-app/Dockerfile.prebuilt \
+#     -t <user>/projector-standalone-app:<tag> --push .
+FROM eclipse-temurin:21-jre
+RUN groupadd -r app && useradd -r -g app -u 10001 app
+WORKDIR /opt/app
+COPY --chown=app:app apps/projector-standalone-app/target/projector-standalone-app-*.jar app.jar
+ENV SERVER_PORT=8095 \
+    DB_DRIVER=org.postgresql.Driver
+USER app
+EXPOSE 8095
+ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar app.jar"]

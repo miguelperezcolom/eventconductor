@@ -117,6 +117,8 @@ docker buildx build --platform linux/amd64,linux/arm64 -t miguelperezcolom/nginx
   (baked into `charts/eventconductor`).
 - **`nodeSelector: kubernetes.io/arch: amd64`** on every pod — images are amd64-only.
 - **New Docker Hub repos are private** → the `dockerhub` pull secret is required.
-- **Worker**: minimal Kafka worker (`workflow.mode=kafka`, `workflow.persistence=memory` to get
-  `StreamBridge` without a DB); inject events with `rpk topic produce upstream --compression none`
+- **Worker**: the test worker — it plays back the scenario a process states in its `TEST_CONFIG`
+  variable and records what it was given (`worker.persistence=jpa`, or
+  `SPRING_PROFILES_ACTIVE=memory` for no database). It runs no engine, so there is no
+  `workflow.mode` on it. Inject events with `rpk topic produce upstream --compression none`
   (Alpine consumers can't decompress snappy).

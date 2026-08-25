@@ -1,13 +1,20 @@
 package io.mateu.workflow.infra.out.persistence;
 
+import io.mateu.workflow.application.out.AnalyticsAggregates;
+import io.mateu.workflow.application.out.ProcessAnalyticsRow;
 import io.mateu.workflow.application.out.ProcessRepository;
+import io.mateu.workflow.paging.ServedPage;
+import io.mateu.workflow.application.out.ProcessSummary;
+import io.mateu.workflow.application.out.ProcessSummaryPage;
 import io.mateu.workflow.domain.aggregates.Process;
 import io.mateu.workflow.domain.aggregates.ProcessStatus;
 import io.mateu.workflow.domain.aggregates.Variable;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
@@ -118,5 +125,85 @@ public class ProcessDBRepository implements ProcessRepository {
     @Override
     public long countByStatus(ProcessStatus status) {
         return processEntityRepository.countByStatus(status.name());
+    }
+
+    /**
+     * Six {@code GROUP BY}s instead of every process in the window.
+     *
+     * <p>The report is about fifty rows on screen. Folding it in Java meant materialising every
+     * process that fed it — 37 651 on the deployment this was measured against, and the step half
+     * was ten times that. The database does the same reduction and returns one row per definition
+     * and status.
+     */
+    @Override
+    public AnalyticsAggregates.ProcessAggregates aggregateProcesses(LocalDateTime from, LocalDateTime to) {
+        var statusCounts = processEntityRepository.aggregateStatusCounts(from, to).stream()
+                .map(v -> new AnalyticsAggregates.DefinitionStatusCount(
+                        v.getDefinitionId(), ProcessStatus.valueOf(v.getStatus()), v.getCount(), v.getAnyName()))
+                .toList();
+        return new AnalyticsAggregates.ProcessAggregates(
+                statusCounts,
+                perDay(processEntityRepository.aggregateCreatedPerDay(from, to)),
+                perDay(processEntityRepository.aggregateFinishedPerDay(from, to)),
+                processEntityRepository.aggregateDurations(from, to).stream()
+                        .map(v -> new AnalyticsAggregates.DefinitionDuration(v.getDefinitionId(),
+                                new AnalyticsAggregates.DurationAggregate(
+                                        v.getSamples(), v.getTotalNanos(), v.getP95Nanos())))
+                        .toList());
+    }
+
+    private static List<AnalyticsAggregates.DefinitionDayCount> perDay(
+            List<ProcessEntityRepository.DayCountView> views) {
+        return views.stream()
+                .map(v -> new AnalyticsAggregates.DefinitionDayCount(
+                        v.getDefinitionId(), v.getDay(), v.getCount()))
+                .toList();
+    }
+
+    /**
+     * The window goes into the query, and the query selects seven columns instead of the row. The
+     * default would have loaded every process in the window as a full aggregate — definition JSON
+     * included — to compute counts and averages over it.
+     */
+    @Override
+    public List<ProcessAnalyticsRow> findAnalyticsRows(LocalDateTime createdFrom, LocalDateTime createdTo) {
+        return processEntityRepository.findAnalyticsRows(createdFrom, createdTo).stream()
+                .map(view -> new ProcessAnalyticsRow(
+                        view.getId(),
+                        view.getName(),
+                        view.getWorkflowDefinitionId(),
+                        ProcessStatus.valueOf(view.getStatus()),
+                        view.getCreated(),
+                        view.getStarted(),
+                        view.getFinished()))
+                .toList();
+    }
+
+    /**
+     * Pushed all the way down to SQL, unlike the in-memory default: the write-side process row
+     * carries the workflow definition JSON, so loading the table to show ten rows moves hundreds of
+     * megabytes per keystroke once a deployment has been running for a while.
+     */
+    @Override
+    public ProcessSummaryPage searchSummaries(String searchText, boolean onlyErrors, int page, int size) {
+        var pattern = (searchText == null || searchText.isBlank())
+                ? null : "%" + searchText.toLowerCase() + "%";
+        // Counted first, because which page can be served depends on how many there are — see
+        // ServedPage. Two queries either way: a Spring Data Page would have run this same count.
+        var total = processEntityRepository.countSummaries(onlyErrors, pattern);
+        var served = ServedPage.of(page, size, total);
+        var content = processEntityRepository
+                .searchSummaries(onlyErrors, pattern, PageRequest.of(served.number(), served.size()))
+                .stream()
+                .map(view -> new ProcessSummary(
+                        view.getId(),
+                        view.getName(),
+                        ProcessStatus.valueOf(view.getStatus()),
+                        view.getCompletionPercentage(),
+                        view.getCreated(),
+                        view.getStarted(),
+                        view.getFinished()))
+                .toList();
+        return new ProcessSummaryPage(content, total, served.number(), served.size());
     }
 }

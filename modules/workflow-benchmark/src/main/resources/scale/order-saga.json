@@ -5,19 +5,19 @@
   "steps": [
     { "id": "start", "type": "START", "name": "Start" },
 
-    { "id": "reserve", "type": "ACTION", "name": "Reserve stock", "topic": "bench",
+    { "id": "reserve", "type": "ACTION", "name": "Reserve stock",
       "preconditionStepId": "start", "compensable": true, "compensationStepId": "cancel-reserve" },
 
-    { "id": "risky-charge", "type": "ACTION", "name": "Charge card", "topic": "bench",
+    { "id": "risky-charge", "type": "ACTION", "name": "Charge card",
       "preconditionStepId": "reserve", "retries": 2,
       "compensable": true, "compensationStepId": "refund" },
 
-    { "id": "confirm", "type": "ACTION", "name": "Confirm order", "topic": "bench",
+    { "id": "confirm", "type": "ACTION", "name": "Confirm order",
       "preconditionStepId": "risky-charge" },
 
     { "id": "end", "type": "END", "name": "End", "preconditionStepId": "confirm" },
 
-    { "id": "refund", "type": "ACTION", "name": "Refund charge", "topic": "bench" },
-    { "id": "cancel-reserve", "type": "ACTION", "name": "Cancel reservation", "topic": "bench" }
+    { "id": "refund", "type": "ACTION", "name": "Refund charge" },
+    { "id": "cancel-reserve", "type": "ACTION", "name": "Cancel reservation" }
   ]
 }

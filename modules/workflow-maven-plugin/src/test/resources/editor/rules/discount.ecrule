@@ -1,0 +1,7 @@
+id: discount
+name: Discount for high value orders
+type: expression
+when: "order.total > 100"
+then:
+  - name: discount
+    expression: "order.total * 0.1"

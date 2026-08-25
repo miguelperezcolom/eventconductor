@@ -2,6 +2,7 @@ package io.mateu.workflow.application.services;
 
 import io.mateu.workflow.application.out.IngressPublisher;
 import io.mateu.workflow.application.out.ProcessIndexRepository;
+import io.mateu.workflow.application.out.ProcessPlacementRepository;
 import io.mateu.workflow.application.out.ShardRegistry;
 import io.mateu.workflow.application.out.UpstreamEventPublisher;
 import io.mateu.workflow.application.readmodel.ProcessIndexRow;
@@ -10,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.beans.factory.ObjectProvider;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -25,6 +27,10 @@ import static org.mockito.Mockito.when;
  * Where a new process is placed on a shard: idempotency first (an existing key returns to its shard),
  * then round-robin for new keys, and local upstream for children, non-sharded, and the empty-registry
  * fail-safe.
+ *
+ * <p>These cover the fallback shape — no placement store configured, so rule 1 is answered from the
+ * read model. {@link IngressRouterPlacementTest} covers the shape a sharded fleet should actually run
+ * in, where the claim answers it.
  */
 @ExtendWith(MockitoExtension.class)
 class IngressRouterTest {
@@ -36,7 +42,36 @@ class IngressRouterTest {
 
     private IngressRouter router(boolean sharding) {
         return new IngressRouter(upstreamEventPublisher, ingressPublisher,
-                processIndexRepository, shardRegistry, sharding);
+                processIndexRepository, shardRegistry, noPlacementStore(), sharding);
+    }
+
+    /** No placement store configured — the pre-existing behaviour these tests were written for. */
+    static ObjectProvider<ProcessPlacementRepository> noPlacementStore() {
+        return placementStore(null);
+    }
+
+    static ObjectProvider<ProcessPlacementRepository> placementStore(ProcessPlacementRepository store) {
+        return new ObjectProvider<>() {
+            @Override
+            public ProcessPlacementRepository getIfAvailable() {
+                return store;
+            }
+
+            @Override
+            public ProcessPlacementRepository getObject() {
+                return store;
+            }
+
+            @Override
+            public ProcessPlacementRepository getObject(Object... args) {
+                return store;
+            }
+
+            @Override
+            public ProcessPlacementRepository getIfUnique() {
+                return store;
+            }
+        };
     }
 
     private ProcessCreationRequested creation(String businessKey) {
@@ -44,7 +79,7 @@ class IngressRouterTest {
     }
 
     private ProcessIndexRow rowOnShard(String shardId) {
-        return new ProcessIndexRow("p-1", "bk-1", "wd-1", 1, "RUNNING", 0,
+        return new ProcessIndexRow("p-1", "bk-1", "a process", "wd-1", 1, "RUNNING", 0,
                 LocalDateTime.now(), null, null, LocalDateTime.now(), shardId);
     }
 

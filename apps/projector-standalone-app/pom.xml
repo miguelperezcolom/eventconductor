@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>4.0.7</version>
+        <relativePath/>
+    </parent>
+    <groupId>io.mateu.workflow</groupId>
+    <artifactId>projector-standalone-app</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+    <name>projector-standalone-app</name>
+    <description>
+        The standalone CQRS projector: consumes the shared process-index topic every shard produces to
+        and maintains one fleet-wide read model. Deliberately does NOT depend on workflow-engine — it
+        needs the read model and the event, and nothing about the write side.
+    </description>
+
+    <properties>
+        <java.version>21</java.version>
+        <maven.deploy.skip>true</maven.deploy.skip>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-dependencies</artifactId>
+                <version>2025.1.2</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <!-- Security override — pull the driver up to its CVE-fixed version. This app parents off
+                 spring-boot-starter-parent, NOT the eventconductor root, so the root's security
+                 overrides do not reach it and the Boot BOM's own version wins. Every other app here
+                 repeats the same block for the same reason. Trivy gates the release on it: the image
+                 published for 2.1.0 shipped 42.7.11 and CVE-2026-54291 because this was missing.
+                 Drop when the Boot BOM catches up. -->
+            <dependency>
+                <groupId>org.postgresql</groupId>
+                <artifactId>postgresql</artifactId>
+                <version>42.7.12</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <dependencies>
+        <!-- The read model itself. `shared` (the event, the DDD types, ManagedSchema) comes with it. -->
+        <dependency>
+            <groupId>io.mateu.workflow</groupId>
+            <artifactId>process-index</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+
+        <!-- webmvc for the actuator probes only; the projector serves no application traffic. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webmvc</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <!--
+          The registry behind /actuator/prometheus. Exposing the endpoint in
+          management.endpoints.web.exposure.include is a permission, not a creation: with no
+          registry on the classpath the endpoint does not exist and a scrape gets 404, which is a
+          permanently-down target rather than a missing one. Shipped that way through 2.2.1.
+        -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
+
+        <!-- JDBC, not JPA: the store is plain JDBC, so there is no persistence unit here at all. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-jdbc</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-stream-kafka</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+</project>

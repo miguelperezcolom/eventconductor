@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
 import io.mateu.workflow.application.services.DefinitionFileFormat;
+import io.mateu.workflow.application.services.WorkflowDefinitionValidator;
 import io.mateu.workflow.domain.aggregates.Step;
 import io.mateu.workflow.domain.aggregates.WorkflowDefinition;
 import lombok.RequiredArgsConstructor;
@@ -35,8 +36,10 @@ import static io.mateu.core.infra.JsonSerializer.pojoFromJson;
 public class ClasspathWorkflowDefinitionImporter implements ApplicationRunner {
 
     private static final ObjectMapper YAML_MAPPER = new YAMLMapper();
+    private static final ObjectMapper JSON_MAPPER = new ObjectMapper();
 
     final WorkflowDefinitionRepository workflowDefinitionRepository;
+    final WorkflowDefinitionValidator workflowDefinitionValidator;
 
     @Override
     public void run(ApplicationArguments args) {
@@ -51,7 +54,12 @@ public class ClasspathWorkflowDefinitionImporter implements ApplicationRunner {
                     String filename = resource.getFilename();
                     byte[] bytes = resource.getInputStream().readAllBytes();
                     // .ec content may be JSON or YAML; sniff to pick the parser.
-                    WorkflowDefinition def = DefinitionFileFormat.isYaml(filename, bytes)
+                    boolean yaml = DefinitionFileFormat.isYaml(filename, bytes);
+                    // The document as written, before binding drops whatever the record has no field
+                    // for — the only moment a misspelled key can still be seen. See validateSource.
+                    workflowDefinitionValidator.validateSource(
+                            (yaml ? YAML_MAPPER : JSON_MAPPER).readTree(bytes), "classpath:/workflows/" + filename);
+                    WorkflowDefinition def = yaml
                             ? YAML_MAPPER.readValue(bytes, WorkflowDefinition.class)
                             : pojoFromJson(new String(bytes, java.nio.charset.StandardCharsets.UTF_8), WorkflowDefinition.class);
                     if (workflowDefinitionRepository.findById(def.id()).isPresent()) {

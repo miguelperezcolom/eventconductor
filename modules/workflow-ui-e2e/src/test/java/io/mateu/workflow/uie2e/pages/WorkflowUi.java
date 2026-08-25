@@ -68,12 +68,25 @@ public class WorkflowUi {
         page.getByRole(AriaRole.MENUITEM, new Page.GetByRoleOptions().setName(label)).click();
     }
 
-    /** The words the Workflow menu offers — the engine's own navigation contract. */
+    /**
+     * The words the Workflow menu offers — the engine's own navigation contract.
+     *
+     * <p>Read from the open submenu overlay rather than from the whole page. Collecting every
+     * {@code menuitem} in the document worked only while the engine's was the one menu in the
+     * shell; the moment a second one was mounted beside it — the test worker's — its items were
+     * counted as the engine's, and this became an assertion about the whole application rather
+     * than about the menu it names.
+     */
     public java.util.List<String> workflowMenuItems() {
         openWorkflowMenu();
-        return page.getByRole(AriaRole.MENUITEM).allInnerTexts().stream()
+        // vaadin-menu-bar-item is a submenu entry; the bar's own top-level buttons are
+        // vaadin-menu-bar-button. Only the open submenu is rendered, so this is exactly the
+        // items of the menu just opened — and it stays right however many menus the shell has.
+        var items = page.locator("vaadin-menu-bar-item");
+        items.first().waitFor();
+        return items.allInnerTexts().stream()
                 .map(String::trim)
-                .filter(text -> !text.isBlank() && !"Workflow".equals(text) && !"···".equals(text))
+                .filter(text -> !text.isBlank() && !"···".equals(text))
                 .toList();
     }
 }

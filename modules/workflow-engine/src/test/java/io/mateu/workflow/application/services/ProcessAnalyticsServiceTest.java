@@ -9,6 +9,7 @@ import io.mateu.workflow.domain.aggregates.ProcessStatus;
 import io.mateu.workflow.domain.aggregates.StepExecution;
 import io.mateu.workflow.domain.aggregates.StepExecutionStatus;
 import io.mateu.workflow.domain.aggregates.WorkflowDefinition;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -23,6 +24,7 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 
 @ExtendWith(MockitoExtension.class)
@@ -33,6 +35,21 @@ class ProcessAnalyticsServiceTest {
     @Mock WorkflowDefinitionRepository workflowDefinitionRepository;
 
     @InjectMocks ProcessAnalyticsService service;
+
+    /**
+     * The service reads its snapshot through the ports' analytics projections, whose in-memory
+     * implementations are default methods over {@code findAll()}. Mockito does not run default
+     * methods, so they are routed to the real ones — the aggregates over the projections, and the
+     * projections over the {@code findAll()} stubs each test sets up. That keeps these tests exercising the shipped in-memory behaviour rather
+     * than a second copy of it written here.
+     */
+    @BeforeEach
+    void useTheRealInMemoryProjections() {
+        lenient().when(processRepository.findAnalyticsRows(any(), any())).thenCallRealMethod();
+        lenient().when(stepExecutionRepository.findAnalyticsRows(any(), any())).thenCallRealMethod();
+        lenient().when(processRepository.aggregateProcesses(any(), any())).thenCallRealMethod();
+        lenient().when(stepExecutionRepository.aggregateSteps(any(), any())).thenCallRealMethod();
+    }
 
     private final AtomicInteger sequence = new AtomicInteger();
     // Fixed early-morning hour so base + a few hours never crosses midnight

@@ -4,9 +4,9 @@
   "version": 1,
   "steps": [
     { "id": "start", "type": "START", "name": "Start" },
-    { "id": "before", "type": "ACTION", "name": "Before the wait", "topic": "bench", "preconditionStepId": "start" },
+    { "id": "before", "type": "ACTION", "name": "Before the wait", "preconditionStepId": "start" },
     { "id": "wait", "type": "TIMER", "name": "Durable wait", "duration": 2000, "preconditionStepId": "before" },
-    { "id": "after", "type": "ACTION", "name": "After the wait", "topic": "bench", "preconditionStepId": "wait" },
+    { "id": "after", "type": "ACTION", "name": "After the wait", "preconditionStepId": "wait" },
     { "id": "end", "type": "END", "name": "End", "preconditionStepId": "after" }
   ]
 }

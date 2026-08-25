@@ -28,6 +28,7 @@ record TaskRow(String id, String name, String form, String assignedTo, Status st
 public class Tasks extends Crud<TaskRow, TaskRow, TaskRow, NoFilters, TaskRow, String> {
 
     final FormExecutionEntityRepository repository;
+    final io.mateu.workflow.application.services.TaskAuthorization taskAuthorization;
 
     // Mateu 271 removed the io.mateu.core.infra.declarative.Listing base class (and the
     // ListingBackend port). A read-only listing page is now a Crud whose CRUD capabilities
@@ -35,12 +36,18 @@ public class Tasks extends Crud<TaskRow, TaskRow, TaskRow, NoFilters, TaskRow, S
     @Override
     public ListingData<TaskRow> search(SearchRequest searchRequest, HttpRequest httpRequest) {
         var pageable = searchRequest.pageable();
-        var page = repository.findTaskSummariesByStatusAndUser(List.of(
-                        FormExecutionStatus.PENDING.name()
-                ),
-                JwtExtractor.getUsername(httpRequest).orElse(null),
-                org.springframework.data.domain.PageRequest.of(pageable.page(), pageable.size(),
-                        org.springframework.data.domain.Sort.by("id")));
+        var statuses = List.of(FormExecutionStatus.PENDING.name());
+        var user = JwtExtractor.getUsername(httpRequest).orElse(null);
+        var request = org.springframework.data.domain.PageRequest.of(pageable.page(), pageable.size(),
+                org.springframework.data.domain.Sort.by("id"));
+        // The same narrowing TasksV2 does. Two listings of the same rows must not disagree about
+        // which of them a person is allowed to see.
+        var permitted = taskAuthorization.enabled() ? taskAuthorization.permittedFormIds() : null;
+        var page = permitted == null
+                ? repository.findTaskSummariesByStatusAndUser(statuses, user, request)
+                : permitted.isEmpty()
+                        ? org.springframework.data.domain.Page.<FormExecutionEntityRepository.TaskSummary>empty(request)
+                        : repository.findTaskSummariesByStatusAndUserAndForms(statuses, user, permitted, request);
         var content = page.getContent().stream()
                 .map(task -> new TaskRow(
                         task.getId(),

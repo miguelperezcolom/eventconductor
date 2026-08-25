@@ -3,11 +3,14 @@ package io.mateu.workflow.infra.in.ui.pages;
 import io.mateu.core.infra.JwtExtractor;
 import io.mateu.uidl.annotations.Title;
 import io.mateu.uidl.data.Button;
+import io.mateu.uidl.data.DeclaredRestSource;
+import io.mateu.uidl.data.RestSourceKind;
 import io.mateu.uidl.data.ButtonColor;
 import io.mateu.uidl.data.Details;
 import io.mateu.uidl.data.FieldDataType;
 import io.mateu.uidl.data.FormField;
 import io.mateu.uidl.data.HorizontalLayout;
+import io.mateu.uidl.data.Option;
 import io.mateu.uidl.data.Text;
 import io.mateu.uidl.data.TextContainer;
 import io.mateu.uidl.data.Validation;
@@ -18,10 +21,12 @@ import io.mateu.uidl.fluent.Component;
 import io.mateu.uidl.interfaces.ActionHandler;
 import io.mateu.uidl.interfaces.ComponentTreeSupplier;
 import io.mateu.uidl.interfaces.HttpRequest;
+import io.mateu.uidl.interfaces.RestSourceSupplier;
 import io.mateu.uidl.interfaces.StateSupplier;
 import io.mateu.uidl.interfaces.ValidationSupplier;
 import io.mateu.workflow.application.out.FormRepository;
 import io.mateu.workflow.application.usecases.completetask.CompleteTaskCommand;
+import io.mateu.workflow.application.services.TaskAuthorization;
 import io.mateu.workflow.application.usecases.completetask.CompleteTaskUseCase;
 import io.mateu.workflow.domain.Field;
 import io.mateu.workflow.domain.Form;
@@ -56,7 +61,8 @@ import static io.mateu.core.infra.JsonSerializer.listFromJson;
 @Slf4j
 @Title("Tasks v2")
 @RequiredArgsConstructor
-public class TasksV2 implements ComponentTreeSupplier, StateSupplier, ActionHandler, ActionSupplier, ValidationSupplier {
+public class TasksV2 implements ComponentTreeSupplier, StateSupplier, ActionHandler, ActionSupplier,
+        ValidationSupplier, RestSourceSupplier {
 
     static final int MAX_TASKS = 50;
     static final String COMPLETE = "complete:";
@@ -67,19 +73,56 @@ public class TasksV2 implements ComponentTreeSupplier, StateSupplier, ActionHand
     final FormExecutionEntityRepository repository;
     final FormRepository formRepository;
     final CompleteTaskUseCase completeTaskUseCase;
+    final TaskAuthorization taskAuthorization;
     final StreamBridge streamBridge;
 
     private List<FormExecutionEntity> tasks(HttpRequest httpRequest) {
         // DESC on status puts PENDING before COMPLETED, so completed tasks sink to the bottom
-        return repository.findByStatusAndUser(
-                List.of(FormExecutionStatus.PENDING.name(), FormExecutionStatus.COMPLETED.name()),
-                JwtExtractor.getUsername(httpRequest).orElse(null),
-                PageRequest.of(0, MAX_TASKS, Sort.by(Sort.Direction.DESC, "status").and(Sort.by("id")))
-        ).getContent();
+        var statuses = List.of(FormExecutionStatus.PENDING.name(), FormExecutionStatus.COMPLETED.name());
+        var user = JwtExtractor.getUsername(httpRequest).orElse(null);
+        var page = PageRequest.of(0, MAX_TASKS, Sort.by(Sort.Direction.DESC, "status").and(Sort.by("id")));
+        if (!taskAuthorization.enabled()) {
+            return repository.findByStatusAndUser(statuses, user, page).getContent();
+        }
+        // Narrowed in the query rather than after it, or a page of fifty would come back holding
+        // however many of those fifty this person may see — which is a shorter list, not a page.
+        var permitted = taskAuthorization.permittedFormIds();
+        if (permitted.isEmpty()) {
+            return List.of();
+        }
+        return repository.findByStatusAndUserAndForms(statuses, user, permitted, page).getContent();
     }
 
     private Optional<Form> form(String formId, Map<String, Optional<Form>> cache) {
         return cache.computeIfAbsent(formId, formRepository::findById);
+    }
+
+    /**
+     * What the fields of the forms on this page fetch their choices from, under the same composite
+     * ids they render with, so a proxy fetch resolves against the stored definitions rather than an
+     * annotation this page does not have.
+     *
+     * <p>Not narrowed to the tasks this user can see, unlike the rendering above: this method has no
+     * request to read a user from, and it is not a listing of anything — a declaration is an
+     * allow-list entry saying "this field may fetch this url", and the urls are the ones the form
+     * definitions already declare, the same for everyone. What matters is what it does NOT read:
+     * anything the client sent.
+     */
+    @Override
+    public List<DeclaredRestSource> declaredRestSources() {
+        var formCache = new HashMap<String, Optional<Form>>();
+        var declarations = new ArrayList<DeclaredRestSource>();
+        for (var task : repository.findByStatusIn(
+                List.of(FormExecutionStatus.PENDING.name(), FormExecutionStatus.COMPLETED.name()),
+                PageRequest.of(0, MAX_TASKS, Sort.by("id"))).getContent()) {
+            form(task.getFormId(), formCache).ifPresent(form -> form.fields().stream()
+                    .filter(field -> field.optionsSource() != null)
+                    .forEach(field -> declarations.add(new DeclaredRestSource(
+                            RestSourceKind.OPTIONS,
+                            task.getId() + SEPARATOR + field.id(),
+                            Task.optionsSource(field)))));
+        }
+        return declarations;
     }
 
     @Override
@@ -118,6 +161,10 @@ public class TasksV2 implements ComponentTreeSupplier, StateSupplier, ActionHand
                 .required(field.required())
                 .readOnly(completed || !mine)
                 .description(field.description())
+                .options(field.options().stream()
+                        .map(option -> new Option(option.value(), option.label()))
+                        .toList())
+                .optionsSource(Task.optionsSource(field))
                 .build()));
 
         var buttons = new ArrayList<Component>();
@@ -250,6 +297,11 @@ public class TasksV2 implements ComponentTreeSupplier, StateSupplier, ActionHand
 
     private void claim(String taskId, HttpRequest httpRequest) {
         var username = JwtExtractor.getUsername(httpRequest).orElseThrow();
+        // Claiming is taking the work, so it is gated like doing it. The listing above already hides
+        // what this person may not touch; this is what makes that hiding irrelevant to security.
+        taskAuthorization.refuseIfCallerMayNot("claim",
+                repository.findById(taskId).flatMap(t -> formRepository.findById(t.getFormId())).orElse(null),
+                taskId);
         var claimed = repository.claim(List.of(taskId), username);
         if (claimed > 0) {
             repository.findById(taskId).ifPresent(task -> streamBridge.send("upstream", new TaskLogEmitted(

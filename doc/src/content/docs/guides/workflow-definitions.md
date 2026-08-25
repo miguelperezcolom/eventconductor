@@ -65,7 +65,7 @@ steps: [...]
 
 | Field | Type | Description |
 |---|---|---|
-| `id` | string | Unique workflow identifier |
+| `id` | string | Unique workflow identifier. Optional — a file that declares none gets an id derived from its path (see [A file that declares no `id`](#a-file-that-declares-no-id)) |
 | `name` | string | Human-readable name |
 | `version` | integer | **Ignored for numbering.** The engine assigns versions itself on each content change (see [Versioning](#versioning)); any value here is not authoritative and is overwritten |
 | `description` | string | Optional description |
@@ -127,9 +127,67 @@ version) are grouped under a single **legacy (pre-versioning)** row.
 > Versioning is available with **JPA persistence** (`workflow.persistence=jpa`). In memory mode the
 > Versions tab is not shown.
 
+## Importing from a directory
+
+Definitions that are already on disk — mounted into the container, checked out beside the app,
+written by whatever generates them — are imported at startup from the directories you name:
+
+```yaml
+workflow:
+  directory-import:
+    directories:
+      - /definitions/workflows
+```
+
+or, in the standalone app, `WORKFLOW_DEFINITIONS_DIRS=/definitions/workflows` (comma-separated).
+
+Each directory is scanned recursively for `.json` / `.yaml` / `.yml` / `.ec` files, and every file
+that has both `name` and `steps` is imported. A directory that is not there is reported as an
+error rather than passed over in silence — the failure this saves you from is a typo in a mount
+path, an engine that starts clean, and an empty definition list for no stated reason.
+
+Definitions removed from the directory are **pruned** (archived) on the next import, exactly as
+they are for a repository, and tracked separately per directory.
+
+### A file that declares no `id`
+
+`id` is optional, and a file that leaves it out is given one **derived from its path** relative to
+the scan root: `sagas/onboarding.ec` becomes `sagas.onboarding`, with the separators as dots because
+an id travels in URLs and in event payloads, where a slash is a separator.
+
+The point of deriving it rather than generating one is that it is the same next time. Until 2.2.2 it
+was a fresh UUID per import, which meant nothing connected the definition an import created to the
+one the previous import had created from that same file: **every import inserted another copy**, and
+none of them could be pruned. With a git webhook wired up, every push added one, without bound.
+
+Two consequences, and they are choices rather than accidents:
+
+- **Moving or renaming a file is a delete plus a create.** The old path stops being imported, so
+  its definition is pruned (archived); the new path arrives as a new definition. A definition that
+  must survive a move should declare an `id` — that is what declaring one is for.
+- **The id is relative to the scan root**, so changing `directory` in the import configuration
+  changes the id of every file that declares none, exactly as moving them would.
+
+An explicit `id` always wins, and a derived one never takes it: the ids a scan declares are read
+before anything is imported, so a file whose path would produce an id another file claims is
+reported as an error and skipped rather than saved over it.
+
+:::caution[Upgrading from 2.2.1 or earlier]
+Definitions already inserted under generated UUIDs are not attributable to any file, so the upgrade
+cannot clean them up: the next import creates one stable definition per file and leaves the old
+copies where they are. Archive or delete them once, by hand. From then on the count stays put.
+:::
+
+:::tip[Directory or Git?]
+Git import reads what is **committed**, which is what a deployment wants and what the loop where
+someone is *writing* a definition does not: edit, commit, restart, discover the commit was the step
+you forgot. Point the engine at a directory while authoring, at a repository when shipping. Both
+can be configured at once.
+:::
+
 ## Importing from Git
 
-When `workflow.persistence=jpa`, EventConductor can clone one or more Git repositories at startup and import every `.json` / `.yaml` / `.yml` file that contains a valid workflow definition (i.e. has both `name` and `steps` fields).
+When `workflow.persistence=jpa`, EventConductor can clone one or more Git repositories at startup and import every `.json` / `.yaml` / `.yml` / `.ec` file that contains a valid workflow definition (i.e. has both `name` and `steps` fields).
 
 ### Configuration
 
@@ -217,9 +275,10 @@ archiving.
 | `description` | string | — | Optional description |
 | `preconditionStepId` | string | — | Single step that must complete before this one starts |
 | `preconditionStepIds` | string[] | — | Steps that must **all** complete before this one starts; takes precedence over the singular `preconditionStepId` when non-empty |
-| `preconditionExpression` | string | — | JEXL expression; the step does not run while it evaluates to `false` |
+| `preconditions` | object[] | — | The incoming links, each `{ "stepId": …, "expression": …, "onFalse": … }` — a condition that says when arriving *by that route* counts. Takes precedence over `preconditionStepIds`/`preconditionStepId`. A link whose condition is false is not satisfied; `onFalse` says what that means — `WAIT` (default) holds the step, `DISCARD` makes it a branch not taken. See [Step Types](/reference/step-types/#what-a-false-condition-means-onfalse) |
+| `preconditionExpression` | string | — | JEXL expression; the step does not run while it evaluates to `false`. The older, step-wide spelling: it is folded into every one of the step's links, and a step it holds back is **skipped** rather than held — see [Step Types](/reference/step-types/) |
 | `parallel` | boolean | `false` | **Deprecated and ignored** — every eligible step runs concurrently; kept only so old definition files keep deserializing |
-| `topic` | string | — | Worker topic/destination (ACTION only) |
+| `topic` | string | `downstream` | Destination this step's task (and its cancellation) is dispatched to, so a step may go to a worker pool of its own. Kafka mode only; embedded mode has one executor and ignores it |
 | `formId` | string | — | Form identifier (USER_TASK only) |
 | `childWorkflowDefinitionId` | string | — | Child workflow ID (PROCESS only, required; must differ from the workflow's own id) |
 | `outputVariables` | string[] | — | PROCESS only: names of the child process variables copied back into the parent when the child completes; empty/absent = none |
@@ -241,8 +300,9 @@ See [Step Types](/reference/step-types/) for the semantics of each type.
 ## Execution model: pure dataflow
 
 Steps run **by data flow, not by array order**. A step starts when it has not run yet
-(`CREATED`), **all** of its preconditions have `COMPLETED`, and its `preconditionExpression`
-(if any) is truthy — and every eligible step starts **concurrently**. There is no ordering
+(`CREATED`), **all** of its preconditions have `COMPLETED`, and every condition on them holds —
+a step-level `preconditionExpression` is folded into each of the step's links, so there is one
+check rather than two — and every eligible step starts **concurrently**. There is no ordering
 beyond the precondition graph: an active step never blocks unrelated branches. Parallelism is
 expressed structurally — several steps sharing a precondition fan out ([`FORK`](/reference/step-types/#fork)
 makes that explicit), and one step declaring several preconditions is a barrier. A
@@ -280,9 +340,10 @@ Beyond the JSON schema, the engine checks these invariants when a definition is 
 The [Maven plugin](/reference/maven-plugin/) mirrors the structural checks (duplicate/dangling/self references, the roots rule, START-without-preconditions, multi-edge cycle detection, the PROCESS child id) at build time; the TIMER/message value checks are only verified at engine load.
 
 :::tip[Gateway-model guidance (warnings, not errors)]
-The engine also logs non-fatal **warnings** nudging you toward the FORK/JOIN gateway model: a
-normal step with more than one incoming flow should be a `JOIN` (so its AND/XOR semantics are
-explicit), and one with more than one outgoing flow should be a `FORK`. These are compensation-aware
+The engine also logs non-fatal **warnings** nudging you toward the gateway model: a normal step
+with more than one incoming flow should be a `JOIN` (so its AND/XOR semantics are explicit), and
+one with more than one outgoing flow should be a `FORK` (a parallel split — every guarded branch
+runs) or a `CHOICE` (an exclusive split — exactly one branch runs). These are compensation-aware
 (the false-guarded anchor edge into a compensation step is excluded) and never block a definition.
 :::
 

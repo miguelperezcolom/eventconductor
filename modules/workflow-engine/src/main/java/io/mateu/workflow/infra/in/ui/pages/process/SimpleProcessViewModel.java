@@ -59,6 +59,7 @@ import org.springframework.stereotype.Service;
 import java.net.URI;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -115,6 +116,33 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
     @Tab("Diagram")
     @Label("")
     Element diagram;
+
+    /**
+     * What the diagram draws, as a <em>value</em> rather than as component metadata.
+     *
+     * <p>An {@link Element}'s attributes belong to the component tree, and a {@code State} update
+     * deliberately does not resend that tree — it carries values. So a diagram whose attributes were
+     * written as literals was frozen as of the render that built it: an operator watching a running
+     * process saw the picture the tab opened with, for the life of the tab, while the process ran to
+     * completion behind it. Nothing looked broken, which is why it went unnoticed for months; only
+     * the colours were a lie.
+     *
+     * <p>These two fields are the fix, and they are plain {@code String}s on purpose: that is what
+     * makes them data. The element's attributes now say {@code ${state.processGraph}} and
+     * {@code ${state.processGraphOverlay}} — where to read it — and mateu interpolates them against
+     * the state on every render, applying the result with {@code setAttribute} on the element that
+     * is already there. The custom element turns that into a property change and repaints, keeping
+     * the zoom, the selection and the ELK layout it computed; it is not rebuilt.
+     *
+     * <p>Hidden because they are not for reading: this is a JSON payload for the component, and the
+     * tab shows the diagram, not its source.
+     */
+    @Hidden
+    String processGraph;
+
+    /** Each step's live state, by step id. See {@link #processGraph}. */
+    @Hidden
+    String processGraphOverlay;
 
     @Tab("Steps")
     @Label("")
@@ -198,8 +226,14 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
             });
         }
         var latestErrorByExec = latestErrorByStepExecution(logs);
+        var order = executionOrder(byStep.values());
         var overlay = new HashMap<String, Object>();
-        byStep.forEach((stepId, se) -> overlay.put(stepId, overlayEntry(se, latestErrorByExec.get(se.id()))));
+        byStep.forEach((stepId, se) -> {
+            var entry = overlayEntry(se, latestErrorByExec.get(se.id()));
+            var position = order.get(stepId);
+            if (position != null) entry.put("order", position);
+            overlay.put(stepId, entry);
+        });
         var attrs = new HashMap<String, String>();
         attrs.put("import", GRAPH_MODULE);
         // The diagram must show the process's ACTUAL step set, not just the definition: steps a
@@ -208,9 +242,14 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
         // the injected ones (each execution carries its own frozen stepJson) — so injected nodes
         // render with their real preconditions. The plain definition-editor view is untouched: it
         // renders the definition directly and never comes through here.
-        attrs.put("value", toJson(withInjectedSteps(def, stepExecutions)));
+        this.processGraph = toJson(withInjectedSteps(def, stepExecutions));
+        this.processGraphOverlay = overlay.isEmpty() ? "" : toJson(overlay);
+        // Where to read it, not the thing itself — see the fields' own note. The topology travels
+        // this way too and not only the overlay: a DYNAMIC step injects nodes while the process
+        // runs, so the graph's shape changes under a page that is already open.
+        attrs.put("value", "${state.processGraph}");
         attrs.put("readonly", "true");
-        if (!overlay.isEmpty()) attrs.put("overlay", toJson(overlay));
+        if (!overlay.isEmpty()) attrs.put("overlay", "${state.processGraphOverlay}");
         // Give the graph a tall, viewport-sized box. Inside a tab the host has no height context and
         // falls back to its ~230px min-height, which is far too short for monitoring a live process.
         return Element.builder()
@@ -316,6 +355,49 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
                     .toList());
         }
         return entry;
+    }
+
+    /**
+     * What ran first, second, third — by step id, for the numbers the diagram puts on its nodes.
+     *
+     * <p>The graph draws the shape of a workflow, and the shape does not say what order a
+     * particular process actually took: two branches drawn side by side ran in some order, a loop
+     * drawn as one node ran several times, and a step that was skipped is drawn exactly where it
+     * would have been. A tick answers "did this run"; the number answers "when", which is the
+     * question an operator reading a finished process is usually asking.
+     *
+     * <p>Ordered by {@code startedAt}, since that is when a step took its turn — not by when it
+     * finished, which would number a slow first step after the quick one that followed it. A step
+     * that has no {@code startedAt} is ordered by {@code finishedAt} instead: not every step gets
+     * one, since it is stamped where a task is dispatched to a worker and an END step is never
+     * dispatched anywhere. Leaving those unnumbered was the first attempt and it was worse than no
+     * numbers at all — the browser test caught an END wearing a tick and no number, which reads as
+     * a step that never ran.
+     *
+     * <p>Steps with neither timestamp are left out and get no number, which is the honest reading:
+     * an unnumbered node is one that has not had its turn.
+     *
+     * <p>Ties are broken by step id so that two steps starting in the same instant — which
+     * parallel branches routinely do — are numbered the same way on every poll. An arbitrary but
+     * stable order beats a number that changes under the reader every two seconds.
+     */
+    static Map<String, Integer> executionOrder(Collection<StepExecution> executions) {
+        var started = executions.stream()
+                .filter(se -> whenItRan(se) != null)
+                .sorted(Comparator.comparing(SimpleProcessViewModel::whenItRan)
+                        .thenComparing(StepExecution::getStepId))
+                .toList();
+        var order = new HashMap<String, Integer>();
+        for (var i = 0; i < started.size(); i++) {
+            order.put(started.get(i).getStepId(), i + 1);
+        }
+        return order;
+    }
+
+    /** When a step took its turn: when it started, or — for the steps nothing dispatches — when it
+     * finished. Null for a step that has done neither. */
+    private static LocalDateTime whenItRan(StepExecution se) {
+        return se.getStartedAt() != null ? se.getStartedAt() : se.getFinishedAt();
     }
 
     /** Latest error message per step execution id, so a failed step can show its own cause. */

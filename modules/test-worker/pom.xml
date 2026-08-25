@@ -1,0 +1,121 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>io.mateu.workflow</groupId>
+        <artifactId>eventconductor</artifactId>
+        <version>1.0-SNAPSHOT</version>
+        <relativePath>../../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>test-worker</artifactId>
+    <packaging>jar</packaging>
+
+    <name>test-worker</name>
+    <description>
+        A worker that does no work: it plays back the scenario you asked for, so a workflow can be
+        driven through any outcome without writing a worker for it.
+    </description>
+
+    <properties>
+        <!-- Coverage floor for this module, just under the 89.9% it measures today. Raise it when
+             the module improves; never lower it. The Mateu pages are excluded at the root, for the
+             reason given there. -->
+        <jacoco.line.minimum>0.85</jacoco.line.minimum>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
+    <dependencies>
+        <!-- The engine's event DTOs, WorkerReply and CancelledTasks. This module answers the
+             engine; it never runs it, so workflow-engine is deliberately absent. -->
+        <dependency>
+            <groupId>io.mateu.workflow</groupId>
+            <artifactId>shared</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-stream-kafka</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-stream</artifactId>
+        </dependency>
+
+        <!-- Required, not optional. Whether a database is used is a runtime decision —
+             worker.persistence=memory keeps every store in a map and opens no connection — but the
+             classes are always here, so there is one artifact rather than two shapes of one. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webmvc</artifactId>
+        </dependency>
+
+        <!-- The UI. Mateu's Crud pages are how a task's canned reply is edited by hand, which is
+             half of what this module is for. -->
+        <dependency>
+            <groupId>io.mateu</groupId>
+            <artifactId>annotation-processor-mvc</artifactId>
+            <version>${mateu.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.mateu</groupId>
+            <artifactId>mvc-core</artifactId>
+            <version>${mateu.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.mateu</groupId>
+            <artifactId>vaadin-lit</artifactId>
+            <version>${mateu.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.projectreactor</groupId>
+            <artifactId>reactor-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-data-jpa-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>io.mateu</groupId>
+                            <artifactId>annotation-processor-mvc</artifactId>
+                            <version>${mateu.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>

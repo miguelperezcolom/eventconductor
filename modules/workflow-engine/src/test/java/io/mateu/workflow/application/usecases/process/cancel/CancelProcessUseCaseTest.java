@@ -31,6 +31,7 @@ class CancelProcessUseCaseTest {
     @Mock DownstreamEventPublisher downstreamEventPublisher;
     @Mock WorkflowMetrics workflowMetrics;
     @Mock NotifyParentStepService notifyParentStepService;
+    @Mock io.mateu.workflow.application.services.RecordProcessTraceService recordProcessTraceService;
     @Mock CancelChildProcessService cancelChildProcessService;
 
     @InjectMocks CancelProcessUseCase useCase;
@@ -102,7 +103,7 @@ class CancelProcessUseCaseTest {
 
         useCase.handle(new CancelProcessCommand("p-1"));
 
-        verify(downstreamEventPublisher).publish(any(TaskCancellationRequested.class));
+        verify(downstreamEventPublisher).publish(any(TaskCancellationRequested.class), any());
     }
 
     @Test
@@ -115,7 +116,7 @@ class CancelProcessUseCaseTest {
 
         useCase.handle(new CancelProcessCommand("p-1"));
 
-        verify(downstreamEventPublisher).publish(any(TaskCancellationRequested.class));
+        verify(downstreamEventPublisher).publish(any(TaskCancellationRequested.class), any());
     }
 
     @Test

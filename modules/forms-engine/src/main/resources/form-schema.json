@@ -28,6 +28,16 @@
       "items": {
         "$ref": "#/$defs/Field"
       }
+    },
+    "requiredScopes": {
+      "type": ["array", "null"],
+      "description": "Scopes a person must ALL hold to see, claim and complete a task of this form. Empty or absent means the form adds no restriction. Enforced only when workflow.security.flow-authorization.enabled.",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "requiredRoles": {
+      "type": ["array", "null"],
+      "description": "Roles a person must ALL hold to see, claim and complete a task of this form. Empty or absent means the form adds no restriction. Enforced only when workflow.security.flow-authorization.enabled.",
+      "items": { "type": "string", "minLength": 1 }
     }
   },
   "$defs": {
@@ -110,8 +120,87 @@
         "description": {
           "type": ["string", "null"],
           "description": "Optional hint or help text shown below the field."
+        },
+        "options": {
+          "type": ["array", "null"],
+          "description": "The choices this field offers, in the order they are shown, for the stereotypes that pick from a list: radio, select, combobox, listBox, choice. The value is what the form submits and what the process variable ends up holding; the label is what the user reads. Absent or empty means the field takes free input.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["value"],
+            "properties": {
+              "value": {
+                "type": "string",
+                "description": "What the form submits when this option is picked. Unique within the field.",
+                "minLength": 1
+              },
+              "label": {
+                "type": ["string", "null"],
+                "description": "What the user reads. Defaults to the value when omitted."
+              }
+            }
+          }
+        },
+        "optionsSource": {
+          "type": ["object", "null"],
+          "description": "Where the choices come from instead, when they are not written into the definition: a REST endpoint the browser calls as the form renders, so the field offers what a catalogue or directory says right now. The engine only carries this descriptor — it never calls the endpoint on its own, and unless proxy is set the fetch is the browser\u0027s, so the endpoint must be reachable from it and allow CORS. Declare either options or optionsSource, never both.",
+          "additionalProperties": false,
+          "required": ["url"],
+          "properties": {
+            "url": {
+              "type": "string",
+              "description": "The endpoint. Supports ${state.x} interpolation against the form's own values, so one field's choices can depend on another's answer and refetch when it changes.",
+              "minLength": 1
+            },
+            "method": {
+              "type": ["string", "null"],
+              "description": "HTTP method.",
+              "default": "GET"
+            },
+            "headers": {
+              "type": ["object", "null"],
+              "description": "Request headers, values interpolated. Without proxy the browser makes the call and can read these, so a credential belongs here only as a ${secret.X} placeholder resolved server-side in proxy mode.",
+              "additionalProperties": { "type": "string" }
+            },
+            "body": {
+              "type": ["string", "null"],
+              "description": "Request body template, interpolated, for non-GET methods."
+            },
+            "itemsPath": {
+              "type": ["string", "null"],
+              "description": "Dot path to the array inside the response (data.countries). Blank means the response root is the array.",
+              "default": ""
+            },
+            "valuePath": {
+              "type": ["string", "null"],
+              "description": "Dot path within each item to the option value.",
+              "default": "value"
+            },
+            "labelPath": {
+              "type": ["string", "null"],
+              "description": "Dot path within each item to the option label.",
+              "default": "label"
+            },
+            "proxy": {
+              "type": ["boolean", "null"],
+              "description": "Fetch through the server instead of from the browser: no CORS, and a ${secret.X} placeholder in a header or the url is resolved server-side instead of travelling to the client. The server only ever fetches what this stored definition declares.",
+              "default": false
+            }
+          }
         }
-      }
+      },
+      "allOf": [
+        {
+          "$comment": "A field declares its choices or where to fetch them, not both. Written against a non-empty options array rather than as a plain not/required, because a serialized field always carries options — as [] when it has none.",
+          "if": {
+            "required": ["options"],
+            "properties": { "options": { "type": "array", "minItems": 1 } }
+          },
+          "then": {
+            "properties": { "optionsSource": { "type": "null" } }
+          }
+        }
+      ]
     }
   }
 }

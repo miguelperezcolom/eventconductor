@@ -1,10 +1,16 @@
 package io.mateu.workflow.infra.out.persistence;
 
+import io.mateu.workflow.application.out.AnalyticsAggregates;
+import io.mateu.workflow.application.out.StepExecutionAnalyticsRow;
+import io.mateu.workflow.paging.ServedPage;
 import io.mateu.workflow.application.out.StepExecutionRepository;
+import io.mateu.workflow.application.out.StepExecutionSummary;
+import io.mateu.workflow.application.out.StepExecutionSummaryPage;
 import io.mateu.workflow.domain.aggregates.*;
 import io.mateu.workflow.domain.aggregates.Process;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -176,5 +182,73 @@ public class StepExecutionDBRepository implements StepExecutionRepository {
     public long countStalled(LocalDateTime startedBefore) {
         return stepExecutionEntityRepository.countStalled(
                 List.of(PENDING.name(), RUNNING.name()), startedBefore, AWAITING_A_WORKER);
+    }
+
+    /**
+     * Two {@code GROUP BY}s over a join, instead of the engine's largest table.
+     *
+     * <p>345 564 step executions were loaded to produce a grid of a few rows, once per workflow
+     * definition on the page. The join is only for the window — the grouping is by the step
+     * execution's own definition id.
+     */
+    @Override
+    public AnalyticsAggregates.StepAggregates aggregateSteps(LocalDateTime from, LocalDateTime to) {
+        var counts = stepExecutionEntityRepository.aggregateStepCounts(from, to).stream()
+                .map(v -> new AnalyticsAggregates.DefinitionStepCount(
+                        v.getDefinitionId(), v.getStepId(),
+                        StepExecutionStatus.valueOf(v.getStatus()), v.getCount(), v.getFirstOrder()))
+                .toList();
+        var durations = stepExecutionEntityRepository.aggregateStepDurations(from, to).stream()
+                .map(v -> new AnalyticsAggregates.DefinitionStepDuration(
+                        v.getDefinitionId(), v.getStepId(),
+                        new AnalyticsAggregates.DurationAggregate(
+                                v.getSamples(), v.getTotalNanos(), v.getP95Nanos())))
+                .toList();
+        return new AnalyticsAggregates.StepAggregates(counts, durations);
+    }
+
+    /**
+     * Joined to the process so the window narrows the scan, and projected down to six columns. The
+     * default would have loaded the whole table — and analytics called it once per definition.
+     */
+    @Override
+    public List<StepExecutionAnalyticsRow> findAnalyticsRows(LocalDateTime processCreatedFrom,
+                                                             LocalDateTime processCreatedTo) {
+        return stepExecutionEntityRepository.findAnalyticsRows(processCreatedFrom, processCreatedTo).stream()
+                .map(view -> new StepExecutionAnalyticsRow(
+                        view.getProcessId(),
+                        view.getDefinitionId(),
+                        view.getStepId(),
+                        StepExecutionStatus.valueOf(view.getStatus()),
+                        view.getOrder(),
+                        view.getStartedAt(),
+                        view.getFinishedAt()))
+                .toList();
+    }
+
+    /**
+     * Pushed all the way down to SQL, unlike the in-memory default: this is the largest table the
+     * engine writes, and each row carries the step's JSON and variables that the listing never
+     * shows.
+     */
+    @Override
+    public StepExecutionSummaryPage searchSummaries(String searchText, boolean onlyErrors, int page, int size) {
+        var pattern = (searchText == null || searchText.isBlank())
+                ? null : "%" + searchText.toLowerCase() + "%";
+        // Counted first: which page can be served depends on how many there are — see ServedPage.
+        var total = stepExecutionEntityRepository.countSummaries(onlyErrors, pattern);
+        var served = ServedPage.of(page, size, total);
+        var content = stepExecutionEntityRepository
+                .searchSummaries(onlyErrors, pattern, PageRequest.of(served.number(), served.size()))
+                .stream()
+                .map(view -> new StepExecutionSummary(
+                        view.getId(),
+                        view.getProcessId(),
+                        view.getStepId(),
+                        StepExecutionStatus.valueOf(view.getStatus()),
+                        view.getStartedAt(),
+                        view.getAttemptCount()))
+                .toList();
+        return new StepExecutionSummaryPage(content, total, served.number(), served.size());
     }
 }

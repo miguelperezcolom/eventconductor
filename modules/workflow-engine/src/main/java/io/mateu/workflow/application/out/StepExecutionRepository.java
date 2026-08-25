@@ -1,10 +1,13 @@
 package io.mateu.workflow.application.out;
 
+import io.mateu.workflow.paging.ServedPage;
 import io.mateu.uidl.interfaces.CrudStore;
 import io.mateu.workflow.domain.aggregates.Process;
 import io.mateu.workflow.domain.aggregates.StepExecution;
+import io.mateu.workflow.domain.aggregates.StepExecutionStatus;
 
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
 
 public interface StepExecutionRepository extends CrudStore<StepExecution> {
@@ -79,6 +82,107 @@ public interface StepExecutionRepository extends CrudStore<StepExecution> {
      */
     default long countStalled(LocalDateTime startedBefore) {
         return 0;
+    }
+
+    /**
+     * One page of the step-execution listing, most recently started first. Filtering, ordering and
+     * paging all belong to the store, for the same reason they do on
+     * {@link ProcessRepository#searchSummaries}: this is the largest table the engine writes, and
+     * the two columns a listing never shows (the step JSON and the variables) are most of it.
+     *
+     * <p>This default implementation is the in-memory one — the whole store is already in the heap
+     * there. The JPA store overrides it with a real query.
+     *
+     * @param searchText matched against id, process id and step id, case-insensitively; null or
+     *                   blank matches everything
+     * @param onlyErrors keep only steps in {@link StepExecutionStatus#ERROR} or
+     *                   {@link StepExecutionStatus#TIMEOUT}
+     * @param page       zero-based page number
+     * @param size       rows per page
+     */
+    /**
+     * Every step execution belonging to a process created within the window, as the few fields
+     * analytics reads. The window is on the <b>process</b>, because that is what analytics selects
+     * by; the step's own timestamps are what it measures.
+     *
+     * <p>Analytics used to get these from {@link #findAll()}, once per workflow definition. On a
+     * deployment with 345 564 step executions that was the engine's largest table loaded six times
+     * over — step JSON, variables and all — for one page.
+     */
+    default List<StepExecutionAnalyticsRow> findAnalyticsRows(LocalDateTime processCreatedFrom,
+                                                              LocalDateTime processCreatedTo) {
+        // The window is deliberately not applied here. This store holds no processes, so it cannot
+        // tell which ones were created inside it; returning a superset is correct because the
+        // caller indexes these by process and only ever looks up processes already in the window.
+        // The JPA store, which can join, narrows it properly.
+        return findAll().stream()
+                .map(StepExecutionAnalyticsRow::from)
+                .toList();
+    }
+
+    /**
+     * The analytics report's step half, already reduced — per definition and step: how many
+     * executions ended in each status, the order the step ran in, and the duration distribution.
+     * Scoped to step executions whose <b>process</b> was created inside the window, because that is
+     * what the report selects by.
+     *
+     * <p>This default is the in-memory one, folding rows exactly as the service used to. The JPA
+     * store overrides it with two {@code GROUP BY}s over a join, because there the alternative was
+     * loading the engine's largest table to count it.
+     */
+    default AnalyticsAggregates.StepAggregates aggregateSteps(LocalDateTime from, LocalDateTime to) {
+        var rows = findAnalyticsRows(from, to);
+        var counts = new java.util.LinkedHashMap<String, Long>();
+        var statuses = new java.util.LinkedHashMap<String, StepExecutionStatus>();
+        var firstOrder = new java.util.LinkedHashMap<String, Long>();
+        var durations = new java.util.LinkedHashMap<String, java.util.List<Long>>();
+        for (var row : rows) {
+            var stepKey = row.definitionId() + "\u0000" + row.stepId();
+            var key = stepKey + "\u0000" + row.status();
+            counts.merge(key, 1L, Long::sum);
+            statuses.putIfAbsent(key, row.status());
+            firstOrder.merge(stepKey, row.order(), Math::min);
+            if (row.startedAt() != null && row.finishedAt() != null) {
+                durations.computeIfAbsent(stepKey, k -> new java.util.ArrayList<>())
+                        .add(java.time.Duration.between(row.startedAt(), row.finishedAt()).toNanos());
+            }
+        }
+        var countRows = counts.entrySet().stream().map(e -> {
+            var parts = e.getKey().split("\u0000", -1);
+            return new AnalyticsAggregates.DefinitionStepCount(parts[0], parts[1],
+                    statuses.get(e.getKey()), e.getValue(),
+                    firstOrder.getOrDefault(parts[0] + "\u0000" + parts[1], 0L));
+        }).toList();
+        var durationRows = durations.entrySet().stream().map(e -> {
+            var parts = e.getKey().split("\u0000", -1);
+            return new AnalyticsAggregates.DefinitionStepDuration(parts[0], parts[1],
+                    AnalyticsMath.aggregate(e.getValue()));
+        }).toList();
+        return new AnalyticsAggregates.StepAggregates(countRows, durationRows);
+    }
+
+    default StepExecutionSummaryPage searchSummaries(String searchText, boolean onlyErrors, int page, int size) {
+        var needle = searchText == null ? "" : searchText.toLowerCase();
+        var matching = findAll().stream()
+                .filter(stepExecution -> !onlyErrors
+                        || StepExecutionStatus.ERROR.equals(stepExecution.getStatus())
+                        || StepExecutionStatus.TIMEOUT.equals(stepExecution.getStatus()))
+                .filter(stepExecution -> needle.isEmpty()
+                        || searchableText(stepExecution).toLowerCase().contains(needle))
+                .sorted(Comparator.comparing(StepExecution::getStartedAt,
+                        Comparator.nullsLast(Comparator.<LocalDateTime>reverseOrder())))
+                .toList();
+        var served = ServedPage.of(page, size, matching.size());
+        var content = matching.stream()
+                .skip(served.offset())
+                .limit(served.size())
+                .map(StepExecutionSummary::from)
+                .toList();
+        return new StepExecutionSummaryPage(content, matching.size(), served.number(), served.size());
+    }
+
+    private static String searchableText(StepExecution stepExecution) {
+        return stepExecution.id() + " " + stepExecution.getProcessId() + " " + stepExecution.getStepId();
     }
 
 }

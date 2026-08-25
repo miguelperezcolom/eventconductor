@@ -1,0 +1,26 @@
+{
+  "id": "dist-sim-retry",
+  "name": "One step the engine may retry, answered by the test worker",
+  "version": 1,
+  "steps": [
+    {
+      "id": "start",
+      "type": "START",
+      "name": "Start"
+    },
+    {
+      "id": "charge-card",
+      "type": "ACTION",
+      "name": "Charge card",
+      "topic": "sim-work",
+      "retries": 3,
+      "preconditionStepId": "start"
+    },
+    {
+      "id": "end",
+      "type": "END",
+      "name": "End",
+      "preconditionStepId": "charge-card"
+    }
+  ]
+}

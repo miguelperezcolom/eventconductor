@@ -35,6 +35,15 @@
             <version>1.0-SNAPSHOT</version>
         </dependency>
 
+        <!-- The real test worker, so DIST-13 drives scenarios through the worker an actual test
+             would use rather than through a stub programmed from inside this JVM. -->
+        <dependency>
+            <groupId>io.mateu.workflow</groupId>
+            <artifactId>test-worker</artifactId>
+            <version>1.0-SNAPSHOT</version>
+            <scope>test</scope>
+        </dependency>
+
         <!-- The engine jar references mateu UI/uidl types at class level (excluded from
              component scan, but must resolve on the classpath). -->
         <dependency>

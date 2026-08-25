@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Semaphore;
 import java.util.function.Consumer;
 
 import static io.mateu.core.infra.JsonSerializer.pojoFromJson;
@@ -86,21 +87,50 @@ public class OutboxDrain {
      * and the transaction now runs until the slowest group's acks arrive, so this trades relay
      * latency against how long other pods are kept from those rows.
      */
-    @org.springframework.beans.factory.annotation.Value("${workflow.outbox.relay-concurrency:1}")
+    @org.springframework.beans.factory.annotation.Value("${workflow.outbox.relay-concurrency:0}")
     int relayConcurrency;
 
     private volatile ExecutorService sendPool;
 
+    /**
+     * Virtual threads, and the reason is the whole point of this.
+     *
+     * <p>A send blocks on its ack. On platform threads that made concurrency expensive, so the pool
+     * was sized to a handful — and the producer therefore never held more than a handful of records
+     * at once, which is not enough for it to build a batched request out of. The round trip was
+     * amortised across four records rather than across the batch. A thread that is only waiting for
+     * a network answer does not need to be a platform thread, so this costs nothing to raise and the
+     * producer's own {@code batch.size} / {@code linger.ms} finally have something to work with.
+     *
+     * <p>Nothing about the guarantees moves. Sends stay synchronous, so a refusal is still knowable
+     * message by message; within a partition key they stay strictly sequential, so per-process
+     * ordering remains true by construction rather than becoming a property of
+     * {@code max.in.flight.requests.per.connection}. What changes is how many <em>keys</em> are in
+     * flight at once, which is the axis that fills a broker request.
+     *
+     * <p>{@code relay-concurrency <= 0} is one thread per key in the batch. It is bounded anyway, by
+     * the batch: {@code batchSize} keys is the most this can ever start.
+     */
     @jakarta.annotation.PostConstruct
     void startSendPool() {
-        if (relayConcurrency > 1) {
-            sendPool = Executors.newFixedThreadPool(relayConcurrency, runnable -> {
-                var thread = new Thread(runnable, "outbox-send");
-                thread.setDaemon(true);
-                return thread;
-            });
+        if (relayConcurrency == 1) {
+            // Inline on the calling thread — the behaviour that shipped before any of this existed,
+            // down to the code path, and still what a single-key batch gets.
+            return;
         }
+        // Named, because an unnamed virtual thread is a thread dump you cannot read: a stuck relay
+        // looks like a hundred anonymous parked threads unless they say what they are.
+        sendPool = Executors.newThreadPerTaskExecutor(
+                Thread.ofVirtual().name("outbox-send-", 0).factory());
+        sendLimit = relayConcurrency > 1 ? new Semaphore(relayConcurrency) : null;
     }
+
+    /**
+     * How many sends may be in flight, when the operator wants a ceiling. Null is no ceiling beyond
+     * the batch itself — see {@code startSendPool} on why that is affordable now, and
+     * {@code deliverGroups} on what it costs the transaction.
+     */
+    private volatile Semaphore sendLimit;
 
     @jakarta.annotation.PreDestroy
     void stopSendPool() {
@@ -217,8 +247,22 @@ public class OutboxDrain {
             byKey.values().forEach(group -> sent.addAll(deliverInOrder(group, deliver)));
             return sent;
         }
+        var limit = sendLimit;
         var futures = byKey.values().stream()
-                .map(group -> CompletableFuture.supplyAsync(() -> deliverInOrder(group, deliver), pool))
+                .map(group -> CompletableFuture.supplyAsync(() -> {
+                    // The ceiling, when one is configured. Acquired inside the task rather than
+                    // before submitting, so the wait is a parked virtual thread and not the relay
+                    // thread queueing them one at a time.
+                    if (limit == null) {
+                        return deliverInOrder(group, deliver);
+                    }
+                    limit.acquireUninterruptibly();
+                    try {
+                        return deliverInOrder(group, deliver);
+                    } finally {
+                        limit.release();
+                    }
+                }, pool))
                 .toList();
         var sent = new ArrayList<OutboxMessageEntity>();
         for (var future : futures) {

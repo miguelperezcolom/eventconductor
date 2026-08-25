@@ -28,25 +28,57 @@ declares one, holds:
 ```
 
 The condition belongs to the link, so it says when *arriving by that route* counts. A link whose
-condition is false is **not satisfied**, and a step that waits for all of its links waits — it is
-not skipped and the process does not finish around it. Conditions are re-evaluated against the
-process variables on every tick, so one that is false now holds the step until whatever it reads
-changes.
+condition is false is **not satisfied**, and by default a step that waits for all of its links
+waits — it is not skipped and the process does not finish around it. Conditions are re-evaluated
+against the process variables on every tick, so one that is false now holds the step until
+whatever it reads changes.
 
-:::caution[A guard that never becomes true is a process that never finishes]
+### What a false condition means: `onFalse`
+
+Waiting is one of two things a false condition can mean, and the link says which:
+
+| `onFalse` | A false condition means | The step |
+|---|---|---|
+| `WAIT` (default) | *not yet* — the variables may still change | waits, and the process stays open around it |
+| `DISCARD` | *not this way* — the flow did not come by this route | is a branch not taken; the process may finish and cancel it |
+
+```json
+{
+  "id": "charge-penalty",
+  "type": "ACTION",
+  "preconditions": [
+    { "stepId": "validate", "expression": "ratePlan == 'NON_REFUNDABLE'", "onFalse": "DISCARD" }
+  ]
+}
+```
+
+Reach for `DISCARD` on an optional or exclusive branch — the step that only some processes go
+through — and leave the default on a condition that is genuinely a wait, such as a link into a
+step that resumes once a worker or an operator sets the variable it reads. Getting it wrong is
+visible in opposite ways: a `WAIT` that was meant as a branch leaves the process `RUNNING`
+forever, and a `DISCARD` that was meant as a wait lets the process finish without the step.
+
+:::caution[A `WAIT` guard that never becomes true is a process that never finishes]
 That is the literal reading of "wait for all of them", and it is deliberate: the alternative —
 quietly not requiring that branch — lets a step run having waited for less than its author wrote.
 But it means a workflow can be authored into a permanent wait, and with nothing else in flight
 there is nothing inside the engine left to change the variable. Such a process stays `RUNNING`
 with the step in `CREATED`, where the `eventconductor.steps.stalled` gauge will not see it — that
-gauge counts steps that started. Use `preconditionExpression`, which skips, when what you mean is
-"maybe not this step"; use a link condition when what you mean is "only by this route".
+gauge counts steps that started. If what you mean is "maybe not this step", say `onFalse:
+"DISCARD"`.
 :::
 
-`preconditionExpression` is the older and different thing: it gates the **step**, however it is
-reached, and a step it holds back is skipped so the process can finish (see
-[Conditional skipping](/guides/retries-timeouts-compensation/#conditional-skipping)). Both still
-work, and a definition may use either or both.
+`preconditionExpression` is the older spelling. It gates the **step**, however it is reached, and
+the engine reads it by folding it into every one of the step's links: "this step only runs if X"
+is "every route into it requires X", so there is one kind of condition and one place that
+evaluates it. What it *means* is folded in too: it becomes an `onFalse: "DISCARD"` guard, which is
+what a step-level expression has always done — a step it holds back is **skipped**, so the process
+can finish around it (see
+[Conditional skipping](/guides/retries-timeouts-compensation/#conditional-skipping)). Both
+spellings still work and a definition may use either or both; prefer the link, which can say
+something different of each route and, with `onFalse`, say what a false condition means. A step
+with no links at all — an entry point — has nothing to fold into, and there the expression stays
+its own gate.
 
 Every eligible step starts **concurrently**. There is no ordering between steps beyond the
 precondition graph: an active step never blocks unrelated branches, and array order is
@@ -107,9 +139,36 @@ Dispatches a task to a worker microservice (or embedded bean). The workflow paus
 }
 ```
 
-**Required fields (Kafka mode):** `topic`
+**Required fields:** none beyond `id`, `type` and `name`.
 
-The `topic` field specifies the Kafka topic to which `TaskExecutionRequested` is published in **Kafka mode**. In **embedded mode** the field is ignored — all ACTION steps are routed to the single registered `EmbeddedTaskExecutor` bean regardless of its value. It may be omitted when targeting embedded-only workflows.
+`topic` is **optional** and names the destination this step's task is dispatched to, which is how a
+step is handed to a worker pool of its own. Omitted — the usual case — it means the shared
+`downstream` destination, where every task goes unless told otherwise.
+
+In **Kafka mode** the topic is the binding the task is sent on. A topic with no binding of its own
+is a dynamic destination: Spring Cloud Stream creates it on first use, so naming one needs no
+configuration in the application. Whatever consumes that topic must, of course, exist — a task sent
+where nobody is listening is not refused by anything, and shows up only as a step that sits until
+its `timeout`.
+
+In **embedded mode** the field is ignored: there is one in-process `EmbeddedTaskExecutor` and no
+transport to route over, so it takes every ACTION step whatever the topic says.
+
+A step's cancellation (`TaskCancellationRequested`, sent when a process is cancelled, stepped over
+or a task times out) is addressed to the **same** topic the task was dispatched to, so a worker pool
+of its own still hears about work it should stop.
+
+:::caution[It does not compose with sharding on its own]
+A shard suffixes its destinations through binding properties —
+`spring.cloud.stream.bindings.downstream.destination=downstream-<shard>`. A step's `topic` is used
+as the **binding name**, so a topic with no binding of its own becomes a dynamic destination named
+exactly what the step says, with no suffix: every shard's tasks for that step land on one topic.
+
+Sharded deployments therefore either leave `topic` unset, so tasks go through the shard-mapped
+`downstream` binding, or declare a binding per topic per shard
+(`spring.cloud.stream.bindings.<topic>.destination=<topic>-<shard>`) on the orchestrator and point
+that shard's workers at the same name.
+:::
 
 ---
 
@@ -393,6 +452,73 @@ on a guarded step.
 
 ---
 
+## CHOICE
+
+An **exclusive split**: the branch counterpart of the `XOR` join. Where a `FORK` takes *every*
+eligible successor, a `CHOICE` takes exactly **one** — the first whose guard holds. No worker is
+involved; like `FORK` and `JOIN` it completes instantly when it starts, and the decision is made
+from the guards on its outgoing links.
+
+The branches are evaluated **from the longest guard expression to the shortest** — most specific
+first, down to the most general — and the **first** one that holds is taken; the rest are
+discarded. A successor whose link carries **no guard** is the default (`else`): being the shortest,
+it is tried last, and it always holds, so it is taken only when nothing more specific did. Guards
+live on the link (a `preconditions` entry with an `expression`), so a `CHOICE` reads the same
+per-route conditions the graph shows.
+
+```json
+{
+  "id": "route",
+  "type": "CHOICE",
+  "name": "Route by customer tier",
+  "preconditionStepId": "score-customer"
+},
+{
+  "id": "handle-vip",
+  "type": "ACTION",
+  "name": "White-glove path",
+  "topic": "vip-service",
+  "preconditions": [{ "stepId": "route", "expression": "tier == 'gold' && region == 'EU'" }]
+},
+{
+  "id": "handle-priority",
+  "type": "ACTION",
+  "name": "Priority path",
+  "topic": "priority-service",
+  "preconditions": [{ "stepId": "route", "expression": "tier == 'gold'" }]
+},
+{
+  "id": "handle-standard",
+  "type": "ACTION",
+  "name": "Standard path",
+  "topic": "standard-service",
+  "preconditions": [{ "stepId": "route" }]
+}
+```
+
+Here a `gold`/`EU` customer takes `handle-vip` (longest guard, evaluated first); any other `gold`
+customer takes `handle-priority`; everyone else falls through to the unguarded `handle-standard`.
+
+The pick **latches**: once a branch has started, a later change to the variables a guard reads
+cannot hand the split to a different branch. The `CHOICE` decides when it completes and does not
+wait — unlike an ordinary guarded link, a branch it did not take is *discarded*, not held.
+
+**Converge exclusive branches with an `XOR` [`JOIN`](#join), not an `AND` join.** This is the
+split↔join pairing — `FORK` with an `AND` join, `CHOICE` with an `XOR` join. A `CHOICE` runs only
+one branch, so an `AND` join downstream would wait for the branches that never ran and **never
+fire**; the process then completes implicitly, cancelling the join and everything after it (the
+same mechanism as [*JOIN on a guarded branch*](#join) above). An `XOR` join proceeds on the one
+branch that did run.
+
+:::caution[No default branch]
+If every guard is false at runtime and there is **no** unguarded default, a `CHOICE` takes **no**
+branch at all — a valid but easily-unintended dead end. The engine's topology validation and the
+[Maven plugin](/reference/maven-plugin/) warn when a `CHOICE` has no default branch. Ties on guard
+length are broken deterministically by step id.
+:::
+
+---
+
 ## END
 
 Marks the workflow as complete. The process transitions to `COMPLETED`.
@@ -424,7 +550,7 @@ Dispatches a task to a worker like an [`ACTION`](#action), but the worker's repl
 }
 ```
 
-**Required fields (Kafka mode):** `topic` — same as `ACTION`.
+**Required fields:** none beyond `id`, `type` and `name`. `topic` is optional and routes the task — same as `ACTION`.
 
 The worker injects with `WorkerReply.inject(...)` / `injectAndComplete(...)` (message `StepsInjected`). Injection is **add-only**, the worker supplies each step's own preconditions (there is no default wiring — an unreachable injected step is a visible bug, not something the engine fixes up), and the engine validates the whole batch (unique ids, resolved references, no cycle, within the [step budget](/guides/dynamic-workflows/#runaway-guards)) and **fails the `DYNAMIC` step** if it is rejected. Only a `DYNAMIC` step may inject. See [Dynamic Workflows](/guides/dynamic-workflows/) for the full picture.
 
@@ -447,4 +573,5 @@ The worker injects with `WorkerReply.inject(...)` / `injectAndComplete(...)` (me
 | `retries` | integer | `0` | Auto-retry attempts on ERROR or TIMEOUT |
 | `compensable` | boolean | `false` | Trigger compensation step on failure |
 | `compensationStepId` | string | — | Step to run as compensation. **Required when `compensable: true`** (enforced by the JSON schema) |
+| `onTimeoutStepId` | string | — | Step to route to when this step times out (after `retries` are exhausted) instead of failing the process — the step's own on-timeout branch. See [On-timeout routing](/guides/retries-timeouts-compensation/#on-timeout-routing) |
 | `maxSuccessfulExecutions` | integer | `0` | Cap on how many times this step may successfully run within one process instance (backstop against runaway loops). `0` inherits the workflow-level `defaultMaxStepExecutions`; both `0` = unbounded. Validated design metadata today — the engine runs each step once, and the cap will be enforced when step re-execution lands |

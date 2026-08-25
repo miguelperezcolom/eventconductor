@@ -64,7 +64,8 @@ public class StepExecutionStatusUpdatedEventHandler implements DomainEventHandle
         if (TaskStatus.ERROR.equals(e.status()) || TaskStatus.TIMEOUT.equals(e.status())) {
             // Cancel the worker for timed-out tasks regardless of whether we retry.
             if (TaskStatus.TIMEOUT.equals(e.status())) {
-                downstreamEventPublisher.publish(new TaskCancellationRequested(e.stepExecutionId()));
+                downstreamEventPublisher.publish(new TaskCancellationRequested(e.stepExecutionId()),
+                        stepExecution.topic());
             }
 
             var step = pojoFromJson(stepExecution.getStepJson(), Step.class);
@@ -224,7 +225,8 @@ public class StepExecutionStatusUpdatedEventHandler implements DomainEventHandle
         for (var execution : executions) {
             if (CANCELLABLE_AT_THE_END.contains(execution.getStatus())) {
                 if (execution.getStatus().isInFlightAtAWorker()) {
-                    downstreamEventPublisher.publish(new TaskCancellationRequested(execution.getId()));
+                    downstreamEventPublisher.publish(new TaskCancellationRequested(execution.getId()),
+                            execution.topic());
                 }
                 execution.updateStatus(StepExecutionStatus.CANCELLED);
                 stepExecutionRepository.save(execution);

@@ -1,7 +1,12 @@
 package io.mateu.workflow.application.usecases.completetask;
 
+import io.mateu.uidl.data.FieldDataType;
+import io.mateu.uidl.data.FieldStereotype;
 import io.mateu.workflow.application.out.FormExecutionRepository;
+import io.mateu.workflow.application.out.FormRepository;
 import io.mateu.workflow.application.out.FormsMetrics;
+import io.mateu.workflow.domain.Field;
+import io.mateu.workflow.domain.Form;
 import io.mateu.workflow.domain.FormExecution;
 import io.mateu.workflow.domain.FormExecutionStatus;
 import io.mateu.workflow.domain.Value;
@@ -21,6 +26,9 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.doThrow;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 
@@ -28,8 +36,10 @@ import static org.mockito.Mockito.*;
 class CompleteTaskUseCaseTest {
 
     @Mock FormExecutionRepository formExecutionRepository;
+    @Mock FormRepository formRepository;
     @Mock StreamBridge streamBridge;
     @Mock FormsMetrics formsMetrics;
+    @Mock io.mateu.workflow.application.services.TaskAuthorization taskAuthorization;
 
     @InjectMocks CompleteTaskUseCase useCase;
 
@@ -40,6 +50,18 @@ class CompleteTaskUseCaseTest {
                 .variables(List.of()).values(List.of()).build();
     }
 
+    /**
+     * The form the task is for. Submitted values are checked against it now — a name it does not
+     * declare is dropped — so a test that submits a value has to say which form declares it.
+     */
+    private void formDeclares(String... fieldIds) {
+        var fields = java.util.Arrays.stream(fieldIds)
+                .map(id -> new Field(id, "Label " + id, FieldDataType.string,
+                        FieldStereotype.regular, false, ""))
+                .toList();
+        when(formRepository.findById("f-1")).thenReturn(Optional.of(new Form("f-1", "My Form", "", fields)));
+    }
+
     /** The broker takes everything it is offered. */
     private void brokerAccepts() {
         when(streamBridge.send(eq("upstream"), any())).thenReturn(true);
@@ -48,6 +70,7 @@ class CompleteTaskUseCaseTest {
     @Test
     void completesTheTaskWithTheSubmittedValues() {
         when(formExecutionRepository.findById("fe-1")).thenReturn(Optional.of(formExecution("fe-1")));
+        formDeclares("name");
         brokerAccepts();
 
         useCase.handle(new CompleteTaskCommand("fe-1", List.of(new Value("name", "John"))));
@@ -61,6 +84,7 @@ class CompleteTaskUseCaseTest {
     @Test
     void emitsTaskStatusChangedWithTheValuesAsVariables() {
         when(formExecutionRepository.findById("fe-1")).thenReturn(Optional.of(formExecution("fe-1")));
+        formDeclares("name");
         brokerAccepts();
 
         useCase.handle(new CompleteTaskCommand("fe-1", List.of(new Value("name", "John"))));
@@ -142,5 +166,58 @@ class CompleteTaskUseCaseTest {
                 .filter(TaskStatusChanged.class::isInstance)
                 .map(TaskStatusChanged.class::cast)
                 .findFirst().orElseThrow();
+    }
+
+    /**
+     * HARD-SUB-09. A task is completed once. Re-submitting a closed one used to overwrite the
+     * values it was completed with and send the engine a second reply — the engine ignores that
+     * reply, but the record of what the person actually submitted had already been rewritten.
+     */
+    @Test
+    void aTaskThatIsAlreadyCompletedIsNotCompletedAgain() {
+        when(formExecutionRepository.findById("fe-1")).thenReturn(Optional.of(
+                formExecution("fe-1").withStatus(FormExecutionStatus.COMPLETED)));
+
+        useCase.handle(new CompleteTaskCommand("fe-1", List.of(new Value("name", "Mallory"))));
+
+        verify(formExecutionRepository, never()).save(any());
+        verify(streamBridge, never()).send(anyString(), any());
+    }
+
+    /** HARD-SUB-10. And the drop is real end to end, not only in the checker. */
+    @Test
+    void aValueNamingNoFieldOfTheFormNeverReachesTheEngine() {
+        when(formExecutionRepository.findById("fe-1")).thenReturn(Optional.of(formExecution("fe-1")));
+        formDeclares("name");
+        brokerAccepts();
+
+        useCase.handle(new CompleteTaskCommand("fe-1",
+                List.of(new Value("name", "John"), new Value("approved", "true"))));
+
+        assertThat(capturedReply().variables()).extracting(io.mateu.workflow.dtos.Variable::name)
+                .containsExactly("name");
+    }
+
+    /**
+     * AUTHZ-TASK-08. A completion the form does not allow reaches neither the engine nor the row.
+     * The check is here, in the use case, rather than in the page, because completion also arrives
+     * from the MCP tool — and because the reply below is the one that cannot be taken back: a
+     * USER_TASK step that has been told it is done is done.
+     */
+    @Test
+    void aCompletionTheFormForbidsChangesNothingAndTellsTheEngineNothing() {
+        when(formExecutionRepository.findById("fe-1")).thenReturn(Optional.of(formExecution("fe-1")));
+        when(formRepository.findById("f-1")).thenReturn(Optional.of(new Form("f-1", "My Form", "", List.of(
+                new Field("name", "Name", FieldDataType.string, FieldStereotype.regular, false, "")))));
+        doThrow(new io.mateu.workflow.security.FlowAuthorizationDeniedException("nope"))
+                .when(taskAuthorization).refuseIfCallerMayNot(eq("complete"), any(), eq("fe-1"));
+
+        assertThatThrownBy(() -> useCase.handle(
+                new CompleteTaskCommand("fe-1", List.of(new Value("name", "John")))))
+                .isInstanceOf(io.mateu.workflow.security.FlowAuthorizationDeniedException.class);
+
+        verify(formExecutionRepository, never()).save(any());
+        verify(streamBridge, never()).send(eq("upstream"), argThat(
+                message -> message instanceof io.mateu.workflow.dtos.events.integration.TaskStatusChanged));
     }
 }

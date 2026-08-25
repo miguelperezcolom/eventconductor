@@ -25,9 +25,10 @@ public class FormExecutionEntity {
     String processId;
     String stepId;
     String stepExecutionId;
+    @Column(columnDefinition = "TEXT")
     String variables;
     // "values" is a reserved SQL word; backticks make Hibernate emit dialect-correct quoting.
-    @Column(name = "`values`")
+    @Column(name = "`values`", columnDefinition = "TEXT")
     String values;
     String status;
     String userId;

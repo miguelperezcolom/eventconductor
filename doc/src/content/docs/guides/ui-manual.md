@@ -133,6 +133,23 @@ deadline, the worker and a snapshot of its variables.
 | Red outline | Failed (or timed out) after exhausting its retries |
 | Grey dashed, faded | Not reached — the process never got there |
 | **Amber outline, amber undo badge** | **The step ran as a compensation**: it undid work rather than doing any |
+| **A number, bottom-left** | **Its place in the order this run took** — 1 for the step that went first. A step with no number has not had its turn |
+
+The diagram follows the process while the page is open: it polls, and each step's state travels
+with the refresh, so a step that starts, fails or is cancelled while somebody is watching changes
+colour under them. The picture is repainted in place, so the zoom and whatever is selected survive
+it.
+
+The numbers answer what the shape cannot. A workflow drawn top to bottom is not a list of what
+happened in that order: branches drawn side by side ran in some order, a step drawn between two
+others may have run before both, and a step drawn on the path may have been skipped entirely. The
+tick says a step ran; the number says when.
+
+Conditions on the lines are drawn short — the first few characters, with the whole expression one
+hover away. An expression is as long as its author needed it to be, and drawn in full it can be
+wider than the nodes it sits between, which is how a condition ends up hiding the very step it
+applies to. They are also placed to keep off the nodes: along their own line first, and only then
+stepped off it.
 
 The amber matters on a rolled-back process. A compensation that succeeds is `COMPLETED` like
 any other step, so painted green a fully rolled-back saga read as a successful one with a few

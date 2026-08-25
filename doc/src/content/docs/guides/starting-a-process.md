@@ -73,6 +73,8 @@ Variables are key-value pairs attached to the process. They are:
 
 Variables are typed as strings. Numeric comparisons in JEXL expressions work on the string representation.
 
+One variable name is read by something other than your own workers: `TEST_CONFIG`. The [test worker](/guides/test-worker/) takes from it the scenario it should play back — how long each task takes, what it reports, which one fails and which one never answers — so a process started with it drives a whole definition through an outcome without a worker having been written for it. It is an ordinary string variable, which means the JSON travels inside it escaped.
+
 ## Looking up a process
 
 Use `ProcessRepository` to query by ID or business key (both return an `Optional`):

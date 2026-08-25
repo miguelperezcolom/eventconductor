@@ -1,8 +1,10 @@
 package io.mateu.workflow.application.services;
 
+import io.mateu.workflow.expression.ExpressionGuard;
 import org.apache.commons.jexl3.JexlBuilder;
 import org.apache.commons.jexl3.JexlContext;
 import org.apache.commons.jexl3.JexlEngine;
+import org.apache.commons.jexl3.JexlFeatures;
 import org.apache.commons.jexl3.MapContext;
 import org.apache.commons.jexl3.introspection.JexlPermissions;
 
@@ -15,21 +17,43 @@ import java.util.Map;
  */
 public class RuleExpressionEvaluator {
 
+    /**
+     * The same denial list the workflow guards carry, for the same reason: a rule expression is
+     * read from a rule catalogue that a git import or the rule editor writes, so it is untrusted
+     * input, and a rule evaluates on the same threads a workflow does. See
+     * {@code JEXLEvaluator.GUARD_FEATURES}.
+     */
+    private static final JexlFeatures RULE_FEATURES = new JexlFeatures()
+            .loops(false)
+            .lambda(false)
+            .newInstance(false)
+            .script(false)
+            .annotation(false)
+            .pragma(false)
+            .sideEffectGlobal(false);
+
     // Rule expressions come from rule definitions, which may be imported from git or edited in
     // the UI — treat them as untrusted. RESTRICTED blocks reflection, System, Runtime, etc.,
     // matching the workflow-engine JEXLEvaluator so a rule cannot escalate to RCE.
     private final JexlEngine jexl = new JexlBuilder()
             .permissions(JexlPermissions.RESTRICTED)
+            .features(RULE_FEATURES)
             .cache(512)
             .strict(true)
             .create();
 
     public Object eval(String expression, Map<String, Object> facts) {
-        JexlContext context = new MapContext();
-        if (facts != null) {
-            facts.forEach(context::set);
-        }
-        return jexl.createExpression(expression).evaluate(context);
+        // Size and nesting before the parser — see ExpressionGuard: an over-nested expression
+        // overflows the parser stack, and that Error would pass straight through the callers'
+        // fail-closed handling instead of failing just this rule.
+        ExpressionGuard.check(expression, "rule");
+        return ExpressionGuard.failClosed("rule", () -> {
+            JexlContext context = new MapContext();
+            if (facts != null) {
+                facts.forEach(context::set);
+            }
+            return jexl.createExpression(expression).evaluate(context);
+        });
     }
 
     /**
@@ -44,6 +68,7 @@ public class RuleExpressionEvaluator {
 
     /** Parses the expression, throwing JexlException if it is not valid. */
     public void parse(String expression) {
-        jexl.createExpression(expression);
+        ExpressionGuard.check(expression, "rule");
+        ExpressionGuard.failClosed("rule", () -> jexl.createExpression(expression));
     }
 }

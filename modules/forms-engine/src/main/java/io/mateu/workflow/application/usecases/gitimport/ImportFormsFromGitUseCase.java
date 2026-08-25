@@ -1,12 +1,8 @@
 package io.mateu.workflow.application.usecases.gitimport;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
-import io.mateu.workflow.application.out.FormRepository;
 import io.mateu.workflow.application.out.FormsMetrics;
-import io.mateu.workflow.domain.Form;
+import io.mateu.workflow.application.usecases.directoryimport.ImportFormsFromDirectoryUseCase;
 import io.mateu.workflow.infra.config.GitImportProperties;
-import io.mateu.workflow.webhook.ImportedDefinitionsRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.api.Git;
@@ -19,25 +15,20 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Set;
-import java.util.UUID;
 
+/**
+ * Imports form definitions from Git repositories: clone, then hand the clone to
+ * {@link ImportFormsFromDirectoryUseCase}, which is the import proper.
+ */
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class ImportFormsFromGitUseCase {
 
-    /** Registry namespace so workflows, forms and rules can share one provenance store. */
-    private static final String NAMESPACE = "form";
-
     final GitImportProperties gitImportProperties;
-    final FormRepository formRepository;
     final FormsMetrics formsMetrics;
-    final ImportedDefinitionsRegistry importedDefinitionsRegistry;
-    final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
-    private static final YAMLMapper YAML_MAPPER = new YAMLMapper();
+    final ImportFormsFromDirectoryUseCase directoryImport;
 
     /** Re-imports every configured repository. */
     public ImportFormsResult handle() {
@@ -71,12 +62,59 @@ public class ImportFormsFromGitUseCase {
         Path tempDir = Files.createTempDirectory("forms-git-import-");
         try {
             cloneRepository(repo, tempDir);
-            var importedIds = new LinkedHashSet<String>();
-            scanAndImport(tempDir, imported, errors, importedIds);
-            pruneRemovedForms(repo.getUrl(), importedIds, pruned);
+            importFromClone(repo, tempDir, imported, errors, pruned);
         } finally {
             deleteDirectory(tempDir.toFile());
         }
+    }
+
+    /**
+     * Everything after the clone — a clone is a directory, so from here on it is the same import.
+     *
+     * <p>Package-private so the scoping can be tested without cloning anything. That the configured
+     * directory reaches this call at all is the whole of the bug this split exists to pin: the
+     * field did not exist here, so the clone root and the bare URL went straight through and
+     * `directory` changed nothing.
+     */
+    void importFromClone(GitImportProperties.GitRepository repo, Path cloneRoot,
+                         List<String> imported, List<String> errors, List<String> pruned)
+            throws IOException {
+        directoryImport.importFrom(resolveScanRoot(repo, cloneRoot), pruneKey(repo),
+                imported, errors, pruned);
+    }
+
+    /**
+     * Resolves the directory to scan: the repo root, or the configured subdirectory when set.
+     * The path is resolved and normalized against the clone root; a directory that escapes the
+     * repo (e.g. "../etc") or does not exist is rejected.
+     */
+    /** Package-private so the escape guard below can be tested without cloning anything. */
+    Path resolveScanRoot(GitImportProperties.GitRepository repo, Path repoRoot) throws IOException {
+        String directory = repo.getDirectory();
+        if (directory == null || directory.isBlank()) {
+            return repoRoot;
+        }
+        Path scanRoot = repoRoot.resolve(directory).normalize();
+        if (!scanRoot.startsWith(repoRoot)) {
+            throw new IOException("directory '" + directory + "' escapes the repository root");
+        }
+        if (!Files.isDirectory(scanRoot)) {
+            throw new IOException("directory '" + directory + "' not found in repository");
+        }
+        return scanRoot;
+    }
+
+    /**
+     * Prune scope key. Two repository entries can share a URL but point at different
+     * subdirectories, so the directory is folded into the key to keep their provenance
+     * — and therefore pruning — independent.
+     */
+    static String pruneKey(GitImportProperties.GitRepository repo) {
+        String directory = repo.getDirectory();
+        if (directory == null || directory.isBlank()) {
+            return repo.getUrl();
+        }
+        return repo.getUrl() + "#" + directory;
     }
 
     private void cloneRepository(GitImportProperties.GitRepository repo, Path targetDir)
@@ -94,77 +132,6 @@ public class ImportFormsFromGitUseCase {
 
         cloneCommand.call().close();
         log.info("Repository cloned successfully");
-    }
-
-    private static boolean isDefinitionFile(Path path) {
-        String name = path.toString();
-        return name.endsWith(".json") || name.endsWith(".yaml") || name.endsWith(".yml");
-    }
-
-    private void scanAndImport(Path repoRoot, List<String> imported, List<String> errors,
-                               Set<String> importedIds) throws IOException {
-        try (var stream = Files.walk(repoRoot)) {
-            stream.filter(ImportFormsFromGitUseCase::isDefinitionFile)
-                    .forEach(file -> {
-                        try {
-                            importDefinitionFile(file, repoRoot, imported, importedIds);
-                        } catch (Exception e) {
-                            log.warn("Skipping {}: {}", file, e.getMessage());
-                            errors.add("File " + repoRoot.relativize(file) + ": " + e.getMessage());
-                        }
-                    });
-        }
-    }
-
-    private void importDefinitionFile(Path file, Path repoRoot, List<String> imported,
-                                      Set<String> importedIds) throws IOException {
-        String fileName = file.toString();
-        var node = (fileName.endsWith(".yaml") || fileName.endsWith(".yml"))
-                ? YAML_MAPPER.readTree(file.toFile())
-                : objectMapper.readTree(file.toFile());
-
-        // Quick pre-check: must have "name" and "fields" to be a form definition.
-        if (!node.has("name") || !node.has("fields")) {
-            return;
-        }
-
-        var form = objectMapper.treeToValue(node, Form.class);
-
-        boolean hadExplicitId = form.id() != null && !form.id().isBlank();
-        if (!hadExplicitId) {
-            form = new Form(UUID.randomUUID().toString(), form.name(), form.description(), form.fields());
-        }
-
-        // Validation (schema + invariants) is handled inside formRepository.save().
-        formRepository.save(form);
-        // Only forms with an explicit id can be reconciled on a later import, so only those
-        // are prune-tracked.
-        if (hadExplicitId) {
-            importedIds.add(form.id());
-        }
-        log.info("Imported form '{}' (id={}) from {}", form.name(), form.id(), repoRoot.relativize(file));
-        imported.add(form.name() + " [" + form.id() + "]");
-    }
-
-    /**
-     * Deletes forms previously imported from this repository that are no longer present.
-     * Scoped by the registry to git-imported forms, so classpath and hand-authored forms are
-     * never touched. Forms have no lifecycle status, so pruning removes them (unlike workflow
-     * definitions, which are archived); a form carries no running state, so this is safe.
-     */
-    void pruneRemovedForms(String repositoryUrl, Set<String> importedIds, List<String> pruned) {
-        var previous = importedDefinitionsRegistry.idsFor(NAMESPACE, repositoryUrl);
-        for (var id : previous) {
-            if (importedIds.contains(id)) {
-                continue;
-            }
-            formRepository.findById(id).ifPresent(form -> {
-                formRepository.deleteAllById(List.of(id));
-                log.info("Pruned (deleted) form '{}' (id={}) — no longer in {}", form.name(), id, repositoryUrl);
-                pruned.add(form.name() + " [" + id + "]");
-            });
-        }
-        importedDefinitionsRegistry.replace(NAMESPACE, repositoryUrl, importedIds);
     }
 
     private void deleteDirectory(File dir) {

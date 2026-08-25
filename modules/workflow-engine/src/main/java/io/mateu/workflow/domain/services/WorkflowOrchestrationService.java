@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -55,8 +56,12 @@ public class WorkflowOrchestrationService {
             return new TransitionResult(process, List.of(), false, false);
         }
 
+        // Parse each step's JSON at most once per call: getStep is hit 2-3× per candidate
+        // (eligibility, END detection, END transition) and pojoFromJson is not free.
+        var stepCache = new HashMap<String, Step>();
+
         for (StepExecution stepExecution : stepExecutions) {
-            if (isBlockingError(stepExecution)) {
+            if (isBlockingError(stepExecution, stepCache)) {
                 // A step that failed blocks the flow: don't schedule successors or complete the process.
                 Process updatedProcess = process;
                 boolean processErrored = false;
@@ -67,10 +72,6 @@ public class WorkflowOrchestrationService {
                 return new TransitionResult(updatedProcess, List.of(), false, processErrored);
             }
         }
-
-        // Parse each step's JSON at most once per call: getStep is hit 2-3× per candidate
-        // (eligibility, END detection, END transition) and pojoFromJson is not free.
-        var stepCache = new HashMap<String, Step>();
 
         // Pure dataflow: every CREATED step whose preconditions are ALL satisfied (and whose
         // guard expression is truthy) starts now, concurrently. There is no ordering between
@@ -90,9 +91,17 @@ public class WorkflowOrchestrationService {
         return handleStandardOrImplicitCompletionTransition(process, stepExecutions, executableSteps, stepCache);
     }
 
-    private boolean isBlockingError(StepExecution stepExecution) {
-        return StepExecutionStatus.ERROR.equals(stepExecution.getStatus())
-                || StepExecutionStatus.TIMEOUT.equals(stepExecution.getStatus());
+    private boolean isBlockingError(StepExecution stepExecution, Map<String, Step> cache) {
+        if (StepExecutionStatus.ERROR.equals(stepExecution.getStatus())) {
+            return true;
+        }
+        if (StepExecutionStatus.TIMEOUT.equals(stepExecution.getStatus())) {
+            // A timeout the step routes to an on-timeout step is handled, not a failure: flow moves
+            // to that step (see shouldRunStep) instead of blocking the process.
+            var step = getStep(stepExecution, cache);
+            return step.onTimeoutStepId() == null || step.onTimeoutStepId().isBlank();
+        }
+        return false;
     }
 
     private boolean isCreated(StepExecution stepExecution) {
@@ -106,12 +115,39 @@ public class WorkflowOrchestrationService {
 
     private boolean shouldRunStep(StepExecution stepExecution, Process process, List<StepExecution> stepExecutions, Map<String, Step> cache) {
         Step step = getStep(stepExecution, cache);
-        return checkPreconditionStep(step, process, stepExecutions) && evaluatePreconditionExpression(step, process);
+        // A step reached by another step's on-timeout branch runs regardless of its normal
+        // preconditions (its predecessor timed out rather than completing, so those are never met).
+        if (isOnTimeoutTargetTriggered(step, stepExecutions, cache)) {
+            return true;
+        }
+        // One question, asked once: a step-level preconditionExpression has already been folded
+        // into the step's links by resolvedPreconditions(), so there is nothing left to evaluate
+        // separately except on a step that has no links at all.
+        return checkPreconditionStep(step, process, stepExecutions, cache);
     }
 
-    private boolean checkPreconditionStep(Step step, Process process, List<StepExecution> stepExecutions) {
+    /** True when some step that names {@code step} as its {@code onTimeoutStepId} has timed out. */
+    private boolean isOnTimeoutTargetTriggered(Step step, List<StepExecution> stepExecutions, Map<String, Step> cache) {
+        return stepExecutions.stream()
+                .filter(se -> StepExecutionStatus.TIMEOUT.equals(se.getStatus()))
+                .map(se -> getStep(se, cache))
+                .anyMatch(source -> step.id().equals(source.onTimeoutStepId()));
+    }
+
+    private boolean checkPreconditionStep(Step step, Process process, List<StepExecution> stepExecutions, Map<String, Step> cache) {
         if (step.resolvedPreconditions().isEmpty()) {
-            return isAnEntryPoint(step);
+            // Nothing to wait for, so nothing to fold a step-level guard into: here — and only
+            // here — that expression is still read as the step's own gate.
+            return isAnEntryPoint(step) && evaluatePreconditionExpression(step, process);
+        }
+
+        // A CHOICE is an exclusive split: of its successors it takes exactly one. A successor of a
+        // CHOICE therefore runs only if it is the branch that CHOICE picks — and the pick latches, so
+        // once a sibling has left the starting gate a variable changing later cannot hand the branch
+        // to another. See pickedChoiceBranch for the ordering.
+        var choiceLink = choiceLinkInto(step, stepExecutions, cache);
+        if (choiceLink != null) {
+            return isPickedChoiceBranch(step, choiceLink.stepId(), process, stepExecutions, cache);
         }
         // A precondition is satisfied once its step has a COMPLETED execution AND its own guard,
         // if it declares one, holds. An XOR join proceeds as soon as ANY incoming branch is
@@ -133,6 +169,102 @@ public class WorkflowOrchestrationService {
         return xorJoin
                 ? step.resolvedPreconditions().stream().anyMatch(satisfied)
                 : step.resolvedPreconditions().stream().allMatch(satisfied);
+    }
+
+    /** The incoming link of {@code step} that comes from a CHOICE, or null when none does. */
+    private Precondition choiceLinkInto(Step step, List<StepExecution> stepExecutions, Map<String, Step> cache) {
+        return step.resolvedPreconditions().stream()
+                .filter(precondition -> {
+                    Step predecessor = stepById(precondition.stepId(), stepExecutions, cache);
+                    return predecessor != null && predecessor.type() == StepType.CHOICE;
+                })
+                .findFirst()
+                .orElse(null);
+    }
+
+    /**
+     * Whether {@code step} is the one branch its CHOICE takes.
+     *
+     * <p>The CHOICE must have completed. Then, among its successors whose guard on the CHOICE link
+     * holds right now, the winner is the one with the LONGEST guard expression — most specific first,
+     * evaluated down to the shortest, so an unguarded successor (length 0) is the else branch, tried
+     * last. Ties break on step id for a stable, deterministic pick.
+     *
+     * <p>The pick latches: if any sibling has already left the starting gate (any status past
+     * CREATED that is not a plain CANCELLED), this branch cannot start, so the split stays exclusive
+     * even if the variables a guard reads change after the CHOICE completed.
+     */
+    private boolean isPickedChoiceBranch(Step step, String choiceId, Process process,
+                                         List<StepExecution> stepExecutions, Map<String, Step> cache) {
+        boolean choiceCompleted = stepExecutions.stream()
+                .filter(se -> choiceId.equals(se.getStepId()))
+                .anyMatch(se -> StepExecutionStatus.COMPLETED.equals(se.getStatus()));
+        if (!choiceCompleted) {
+            return false;
+        }
+
+        List<String> successorIds = stepExecutions.stream()
+                .map(se -> getStep(se, cache))
+                .filter(candidate -> candidate.resolvedPreconditions().stream()
+                        .anyMatch(p -> choiceId.equals(p.stepId())))
+                .map(Step::id)
+                .distinct()
+                .toList();
+
+        boolean aSiblingAlreadyTaken = successorIds.stream()
+                .filter(id -> !id.equals(step.id()))
+                .anyMatch(id -> hasLeftTheStartingGate(id, stepExecutions));
+        if (aSiblingAlreadyTaken) {
+            return false;
+        }
+
+        String winner = successorIds.stream()
+                .filter(id -> choiceGuardHolds(choiceId, id, process, stepExecutions, cache))
+                .min(Comparator
+                        .comparingInt((String id) -> -choiceGuardLength(choiceId, id, stepExecutions, cache))
+                        .thenComparing(Comparator.naturalOrder()))
+                .orElse(null);
+        return step.id().equals(winner);
+    }
+
+    /** The precondition on successor {@code stepId} that links it back to {@code choiceId}. */
+    private Precondition choiceLinkOf(String choiceId, String stepId, List<StepExecution> stepExecutions, Map<String, Step> cache) {
+        Step step = stepById(stepId, stepExecutions, cache);
+        if (step == null) {
+            return null;
+        }
+        return step.resolvedPreconditions().stream()
+                .filter(p -> choiceId.equals(p.stepId()))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private boolean choiceGuardHolds(String choiceId, String stepId, Process process,
+                                     List<StepExecution> stepExecutions, Map<String, Step> cache) {
+        Step step = stepById(stepId, stepExecutions, cache);
+        Precondition link = choiceLinkOf(choiceId, stepId, stepExecutions, cache);
+        return step != null && link != null && evaluateGuard(link, step, process);
+    }
+
+    private int choiceGuardLength(String choiceId, String stepId, List<StepExecution> stepExecutions, Map<String, Step> cache) {
+        Precondition link = choiceLinkOf(choiceId, stepId, stepExecutions, cache);
+        return link != null && link.hasGuard() ? link.expression().length() : 0;
+    }
+
+    private boolean hasLeftTheStartingGate(String stepId, List<StepExecution> stepExecutions) {
+        return stepExecutions.stream()
+                .filter(se -> stepId.equals(se.getStepId()))
+                .anyMatch(se -> !StepExecutionStatus.CREATED.equals(se.getStatus())
+                        && !StepExecutionStatus.CANCELLED.equals(se.getStatus()));
+    }
+
+    /** Any step definition carrying {@code stepId}; all executions of a step share one definition. */
+    private Step stepById(String stepId, List<StepExecution> stepExecutions, Map<String, Step> cache) {
+        return stepExecutions.stream()
+                .filter(se -> stepId.equals(se.getStepId()))
+                .findFirst()
+                .map(se -> getStep(se, cache))
+                .orElse(null);
     }
 
     /**
@@ -169,9 +301,9 @@ public class WorkflowOrchestrationService {
     }
 
     /**
-     * The step-level gate, which is about the step rather than about any one route into it. Still
-     * evaluated when the links carry their own guards: the two ask different questions, and every
-     * definition written before links could carry guards says it here.
+     * The step-level gate, for the one step that has no link to fold it into: an entry point.
+     * Everywhere else {@link Step#resolvedPreconditions()} has already ANDed it onto the links,
+     * and it is {@link #evaluateGuard} that reads it.
      */
     private boolean evaluatePreconditionExpression(Step step, Process process) {
         if (step.preconditionExpression() == null || step.preconditionExpression().isEmpty()) {
@@ -214,8 +346,15 @@ public class WorkflowOrchestrationService {
         List<StepExecution> endSteps = executableSteps.stream()
                 .filter(stepExecution -> StepType.END.equals(getStep(stepExecution, cache).type()))
                 .toList();
+        // Stamped finished, which withStatus alone does not do: an END step is completed straight
+        // from here and never goes through updateStatus, so it was the one terminal execution in
+        // the engine with no time on it at all — against what the field itself documents ("set when
+        // the step reaches a terminal status"). It read as a step that never ran wherever the
+        // record is shown by time, the process diagram's step numbers included.
+        var now = java.time.LocalDateTime.now();
         endSteps.stream()
-                .map(stepExecution -> stepExecution.withStatus(StepExecutionStatus.COMPLETED))
+                .map(stepExecution -> stepExecution.withStatus(StepExecutionStatus.COMPLETED)
+                        .withFinishedAt(now))
                 .forEach(stepsToSave::add);
 
         // Cancel all remaining uncompleted steps
@@ -282,15 +421,25 @@ public class WorkflowOrchestrationService {
             return false;
         }
         var step = getStep(stepExecution, cache);
+        // A CHOICE branch is never "held waiting to be released": the split decides the moment the
+        // CHOICE completes and does not wait for a straggler guard to flip. A branch it did not take
+        // is discarded, not held, so it must not keep the process from completing.
+        if (choiceLinkInto(step, stepExecutions, cache) != null) {
+            return false;
+        }
         var links = step.resolvedPreconditions();
-        if (links.isEmpty() || links.stream().noneMatch(Precondition::hasGuard)) {
+        // Only a guard that means "wait" holds anything. A DISCARD guard — what a step-level
+        // preconditionExpression folds into — says the flow did not come this way, so the step is
+        // a branch not taken, and the process finishing around it is exactly right.
+        if (links.isEmpty() || links.stream().noneMatch(Precondition::holdsWhenFalse)) {
             return false;
         }
         boolean everyLinkStepCompleted = links.stream().allMatch(link -> stepExecutions.stream()
                 .filter(se -> link.stepId().equals(se.getStepId()))
                 .anyMatch(se -> StepExecutionStatus.COMPLETED.equals(se.getStatus())));
         return everyLinkStepCompleted
-                && links.stream().anyMatch(link -> !evaluateGuard(link, step, process));
+                && links.stream().filter(Precondition::holdsWhenFalse)
+                        .anyMatch(link -> !evaluateGuard(link, step, process));
     }
 
     private boolean hasNoActiveStepsRemaining(List<StepExecution> stepExecutions) {

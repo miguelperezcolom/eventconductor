@@ -13,18 +13,18 @@ It scales from a single JVM with no external dependencies up to a multi-pod Kube
 <dependency>
   <groupId>io.mateu.workflow</groupId>
   <artifactId>workflow-engine</artifactId>
-  <version>1.0-beta.022</version>
+  <version>2.1.1</version>
 </dependency>
 
 <!-- only if you use USER_TASK steps (human forms) -->
 <dependency>
   <groupId>io.mateu.workflow</groupId>
   <artifactId>forms-engine</artifactId>
-  <version>1.0-beta.022</version>
+  <version>2.1.1</version>
 </dependency>
 ```
 
-1.0-beta.022 is the latest release at the time of writing — check the Maven Central badge in the README / `CHANGELOG.md` for the newest one (artifacts under `io.mateu.workflow`).
+2.1.1 is the latest release at the time of writing — check the Maven Central badge in the README / `CHANGELOG.md` for the newest one (artifacts under `io.mateu.workflow`).
 
 Prebuilt standalone Docker images exist: `orchestrator-standalone-app`, `forms-standalone-app`, `worker-standalone-app`, `rule-standalone-app`.
 
@@ -247,8 +247,8 @@ Exactly one per workflow. Transitions the process to `COMPLETED`. With parallel 
 | `description` | string | — | Optional |
 | `preconditionStepId` | string | — | Single step that must complete first |
 | `preconditionStepIds` | string[] | — | Steps that must ALL complete first; wins over the singular form when non-empty |
-| `preconditions` | object[] | — | `{stepId, expression?}` per incoming link: the condition belongs to that route in, not to the step. Wins over both spellings above. A link whose `expression` is falsy is **not satisfied**, so the step waits (it is not skipped, and the process does not finish around it) |
-| `preconditionExpression` | string | — | JEXL guard on the step, whatever route reached it; while falsy the step is never run (stays `CREATED`, → `CANCELLED` when `END` fires) |
+| `preconditions` | object[] | — | `{stepId, expression?, onFalse?}` per incoming link: the condition belongs to that route in, not to the step. Wins over both spellings above. A link whose `expression` is falsy is **not satisfied**; `onFalse` says what that means — `WAIT` (default) holds the step (it is not skipped, and the process does not finish around it), `DISCARD` makes it a branch not taken (skipped, and the process may finish and cancel it) |
+| `preconditionExpression` | string | — | JEXL guard on the step, whatever route reached it; while falsy the step is never run (stays `CREATED`, → `CANCELLED` when `END` fires). The older spelling: folded into every link of the step as an `onFalse: DISCARD` guard, so prefer `preconditions[].expression` |
 | `parallel` | boolean | `false` | **Deprecated and ignored** (kept for deserialization of old files) |
 | `topic` | string | — | Worker destination (ACTION, Kafka mode) |
 | `formId` | string | — | Form to render (USER_TASK) |
@@ -428,6 +428,31 @@ There is no log component on `TaskStatusChanged`; task logs are emitted through 
 
 Worker outputs are **merged into process variables** (overwriting same-named ones), and become available to all later steps and JEXL expressions.
 
+### The test worker (`worker-standalone-app`, module `modules/test-worker`)
+
+A worker that does no work: it plays back the scenario the process asks for, so a workflow can be driven through any outcome without writing a worker for it. Start the process with a `TEST_CONFIG` variable holding this JSON:
+
+```json
+{
+  "default": { "durationMs": 200, "outcome": "COMPLETED" },
+  "tasks": {
+    "reserve-seat": { "durationMs": 500, "logs": [{ "type": "Info", "message": "checking inventory" }],
+                      "variables": [{ "name": "seatId", "value": "12A" }] },
+    "charge-card":  { "outcome": "ERROR", "reason": "card declined" },
+    "notify":       { "outcome": "NO_REPLY" }
+  }
+}
+```
+
+**The keys are step ids.** They are matched against `taskId` first and `stepId` second, but the engine sends an empty `taskId` for every `ACTION` step — it fills that field only for `USER_TASK` (`complete-form`) and `RULE` (`evaluate-rule`). Anything unstated is inherited from `default`, then from the built-in "take `worker.task-duration` and complete". Per-task fields: `durationMs`, `outcome` (`COMPLETED` | `ERROR` | `NO_REPLY`), `reason`, `logs[{type, message, atMs}]`, `variables[{name, value}]`, `failuresBeforeSuccess` (attempts of one task execution — the engine retries by re-dispatching the same `taskExecutionId`, so this and the step's `attempt_count` agree; pair it with `retries` on the step), `replyTimes`, `ignoreCancellation`.
+
+- `NO_REPLY` reports `RUNNING` and then goes quiet: the scenario for a step timeout.
+- Unknown properties and malformed JSON **fail the task** with the parse error as its reason, rather than falling back to a default.
+- Overrides saved in the worker's UI (`/_worker`) answer only processes that carry no `TEST_CONFIG`; `TEST_CONFIG` always wins.
+- `worker.persistence=jpa` keeps received tasks and overrides in PostgreSQL; `SPRING_PROFILES_ACTIVE=memory` runs it with no database.
+- **Against a running deployment** the scenario travels the same way — start the process from the orchestrator UI with a `TEST_CONFIG` variable, or put it on the `ProcessCreationRequested` event: `"variables": [{"name": "TEST_CONFIG", "value": "{\"default\":{\"durationMs\":200}}"}]`. The value is a **string**, so the JSON is escaped inside it. An event whose own JSON is broken never becomes an event — no process is created, nothing is parked in the dead-letter store (conversion fails before any handler runs), and the producer still exits 0; check that processes were created, not that the producer succeeded. A broken `TEST_CONFIG` *string* inside a valid event fails loudly instead: the process runs and its first task reports the parse error.
+- **Topic collision:** the test worker and the forms engine both bind `downstream` by default, in different consumer groups, so both receive every task and the worker answers `USER_TASK`s meant for people. Give human tasks their own topic (`"topic": "forms"`) and bind the forms engine there. One shared consumer group does not fix it — they compete for the message.
+
 ---
 
 ## 8. Retries, timeouts & sagas (compensation)
@@ -531,7 +556,7 @@ All extend `CrudStore<T>` (`findById` → `Optional<T>`, `save`, `findAll`, `del
 - `ProcessAnalyticsService.analyze(definitionIdOrName, TimeWindow)` / `analyzeAll(TimeWindow)` — per-definition analytics computed on demand in any mode: instance counts by status, completion/error/cancellation rates, throughput per day, avg/p95 process duration, avg/p95 per-step duration with the slowest step flagged as bottleneck. `TimeWindow.lastDays(30)` / `TimeWindow.all()`.
 
 ### Observability
-Micrometer metrics for the workflow, forms and rule engines — exposed at `GET /actuator/prometheus` when a Prometheus `MeterRegistry` is on the classpath (`micrometer-registry-prometheus` + `management.endpoints.web.exposure.include=health,prometheus`) — plus OTLP tracing configured via `TRACING_SAMPLING` (`management.tracing.sampling.probability`) and `OTLP_TRACING_ENDPOINT` (`management.otlp.tracing.endpoint`). Full reference: `doc/src/content/docs/reference/observability.md`.
+Micrometer metrics for the workflow, forms and rule engines — exposed at `GET /actuator/prometheus` when a Prometheus `MeterRegistry` is on the classpath (`micrometer-registry-prometheus` + `management.endpoints.web.exposure.include=health,prometheus`) — plus OTLP tracing configured via `TRACING_SAMPLING` (`management.tracing.sampling.probability`) and `OTLP_TRACING_ENDPOINT` (`management.opentelemetry.tracing.export.otlp.endpoint`). Full reference: `doc/src/content/docs/reference/observability.md`.
 
 ### Interfaces & records
 ```java

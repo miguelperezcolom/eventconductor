@@ -3,7 +3,7 @@ title: Form Definitions
 description: Defining forms for user tasks in the EventConductor forms engine. Supports JSON and YAML.
 ---
 
-The forms engine manages form definitions and form executions. Forms can be written in **JSON** or **YAML** (`.json`, `.yaml`, `.yml`), stored in version control, and referenced by `USER_TASK` steps in workflow definitions. They can be imported from Git at startup, on demand via the MCP tool `importFormsFromGit`, or automatically via a **GitHub webhook**.
+The forms engine manages form definitions and form executions. Forms can be written in **JSON** or **YAML** (`.json`, `.yaml`, `.yml`, or `.ecform`, which the visual editor and the IDE plugins write), stored in version control, and referenced by `USER_TASK` steps in workflow definitions. They can be imported from Git at startup, on demand via the MCP tool `importFormsFromGit`, or automatically via a **GitHub webhook**.
 
 ## Form definition format
 
@@ -19,16 +19,20 @@ Both formats are fully equivalent.
   "fields": [
     {
       "id": "decision",
-      "name": "Decision",
-      "type": "SELECT",
+      "label": "Decision",
+      "dataType": "string",
+      "stereotype": "radio",
       "required": true,
-      "options": ["APPROVE", "REJECT"]
+      "options": [
+        { "value": "APPROVE", "label": "Approve the claim" },
+        { "value": "REJECT", "label": "Reject the claim" }
+      ]
     },
     {
       "id": "comments",
-      "name": "Comments",
-      "type": "TEXTAREA",
-      "required": false
+      "label": "Comments",
+      "dataType": "string",
+      "stereotype": "textarea"
     }
   ]
 }
@@ -42,71 +46,186 @@ name: Expense Approval
 description: Approve or reject an expense claim
 fields:
   - id: decision
-    name: Decision
-    type: SELECT
+    label: Decision
+    dataType: string
+    stereotype: radio
     required: true
     options:
-      - APPROVE
-      - REJECT
+      - value: APPROVE
+        label: Approve the claim
+      - value: REJECT
+        label: Reject the claim
 
   - id: comments
-    name: Comments
-    type: TEXTAREA
-    required: false
+    label: Comments
+    dataType: string
+    stereotype: textarea
 ```
 
 ### Top-level fields
 
 | Field | Type | Description |
 |---|---|---|
-| `id` | string | Unique form identifier (referenced by `USER_TASK` steps) |
+| `id` | string | Unique form identifier (referenced by `USER_TASK` steps). Optional: a file that omits it is imported under an id derived from its path relative to the scan root — `checkin/walk.ecform` becomes `checkin.walk` — so re-importing the file updates the form it created rather than adding another. A form referenced by a `USER_TASK` step is better off declaring one, since moving the file would otherwise change what the step points at |
 | `name` | string | Human-readable form name |
-| `description` | string | Optional description shown to the user |
-| `fields` | array | List of form fields |
+| `description` | string | Optional description of the form |
+| `fields` | array | The fields, in the order they are shown. At least one |
 
-### Field types
+### Field properties
 
-| Type | Description |
-|---|---|
-| `TEXT` | Single-line text input |
-| `TEXTAREA` | Multi-line text input |
-| `NUMBER` | Numeric input |
-| `SELECT` | Dropdown selection |
-| `CHECKBOX` | Boolean checkbox |
-| `DATE` | Date picker |
-| `EMAIL` | Email input with validation |
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `id` | string | — | Identifier, unique **within this form**. It is the name of the process variable the answer lands in |
+| `label` | string | — | Label shown to the user |
+| `dataType` | enum | — | What the value *is*: `string`, `integer`, `number`, `bool`, `date`, `time`, `dateTime`, `dateRange`, `money`, `array`, `file`, `status`, `component`, `menu`, `range`, `action`, `actionGroup` |
+| `stereotype` | enum | `regular` | How it is *rendered*: `regular`, `radio`, `checkbox`, `textarea`, `toggle`, `combobox`, `select`, `email`, `password`, `richText`, `listBox`, `html`, `markdown`, `image`, `icon`, `link`, `money`, `grid`, `color`, `choice`, `popover`, `slider`, `button`, `stars` |
+| `required` | boolean | `false` | Whether the user must answer before submitting |
+| `description` | string | — | Hint or help text shown below the field |
+| `options` | array | — | The choices offered, for the stereotypes that pick from a list (see below) |
+| `optionsSource` | object | — | Where to fetch the choices from instead: a REST endpoint called as the form renders (see below). Mutually exclusive with `options` |
 
-### Field fields
+Two properties, not one, decide a field: `dataType` is what the value is, `stereotype` is how it is
+asked for. A yes/no answer is `dataType: bool` whether it is drawn as a checkbox or as a toggle.
 
-| Field | Type | Description |
+### Choices: `options`
+
+A field with `stereotype: radio`, `select`, `combobox`, `listBox` or `choice` picks from a fixed
+list, and `options` is that list, in the order it is shown. Each entry is a **value/label pair**:
+
+```yaml
+options:
+  - value: WALK
+    label: Walk the guest to another hotel
+  - value: REFUND
+    label: Refund the reservation
+  - value: REJECT          # label omitted → the user sees "REJECT"
+```
+
+| Property | Type | Description |
 |---|---|---|
-| `id` | string | Unique identifier within the form |
-| `name` | string | Label displayed to the user |
-| `type` | enum | Field type (see above) |
-| `required` | boolean | Whether the field is mandatory |
-| `options` | array | Options for SELECT fields |
-| `defaultValue` | string | Default value |
-| `placeholder` | string | Placeholder text |
+| `value` | string | What the form submits, and what the process variable ends up holding. Unique within the field |
+| `label` | string | What the user reads. Defaults to the value when omitted |
+
+Keeping the two apart is the point: the definition can say `REFUND` to the engine and "Refund the
+reservation" to the person filling the form, so the workflow's guards
+(`preconditions[].expression`) stay written against stable codes while the wording changes freely.
+
+A field that declares no options takes free input; declaring them on a stereotype that does not
+pick from a list is accepted and ignored.
+
+:::caution[Quote `YES` and `NO` in YAML]
+YAML 1.1 reads bare `YES`, `NO`, `ON`, `OFF`, `Y` and `N` as booleans, so `value: YES` reaches the
+engine as the string `true`. Quote any option value that looks like one — `value: "YES"` — or use
+JSON, where the question does not arise.
+:::
+
+### Choices from a REST endpoint: `optionsSource`
+
+A list written into the definition says what the choices were when the form was authored. When they
+are a catalogue, a directory or a price list, what you want is what they are **now**, and
+`optionsSource` says where to get them: a REST endpoint the **browser** calls as the form renders.
+
+```yaml
+- id: country
+  label: Country
+  dataType: string
+  stereotype: select
+  optionsSource:
+    url: https://restcountries.com/v3.1/all?fields=cca2,name
+    itemsPath: ""              # the response root is already the array
+    valuePath: cca2
+    labelPath: name.common     # dot paths navigate nested JSON
+```
+
+| Property | Default | Meaning |
+|---|---|---|
+| `url` | — | The endpoint. Supports `${state.x}` interpolation against the form's own values |
+| `method` | `GET` | HTTP method |
+| `headers` | `{}` | Request headers, values interpolated |
+| `body` | `""` | Request body template, interpolated, for non-`GET` methods |
+| `itemsPath` | `""` | Dot path to the array inside the response (`data.countries`); blank means the response root **is** the array |
+| `valuePath` | `value` | Dot path within each item to the option value |
+| `labelPath` | `label` | Dot path within each item to the option label |
+| `proxy` | `false` | Fetch through the server instead of from the browser |
+
+A field declares **either** `options` **or** `optionsSource`, never both — a definition that
+declares both is rejected.
+
+Because `url`, `headers` and `body` interpolate `${state.x}`, one field's choices can depend on
+another's answer, and the list refetches when that answer changes:
+
+```yaml
+optionsSource:
+  url: /api/cities?country=${state.country}
+  valuePath: id
+  labelPath: name
+```
+
+The engine only carries the descriptor — it never calls the endpoint. The fetch is the renderer's,
+which is [mateu's `@RestOptions` / `RestDataSource`](https://mateu.io/java-ui-definition/annotations/rest-options/)
+machinery: a form talking to any REST API without the backend in the middle.
+
+:::caution[Who fetches, and what that costs]
+By default the **browser** calls the endpoint, so it must be reachable from there and allow CORS
+from wherever the UI is served, and a credential in `headers` is a credential you have handed to
+the client.
+
+`proxy: true` moves the fetch to the **server**: no CORS, server-to-server, and a
+`${secret.X}` placeholder in the url or a header is resolved there — from a `SecretsProvider` bean
+or the environment variable of that name — instead of travelling to the browser. Use it for
+anything authenticated, and keep the direct mode for public endpoints.
+
+```yaml
+optionsSource:
+  url: https://pms.internal/hotels?token=${secret.PMS_TOKEN}
+  valuePath: code
+  labelPath: name
+  proxy: true
+```
+
+What the server fetches is only ever what **this stored definition** declares. The task page tells
+mateu so by implementing `RestSourceSupplier`, which is how a view assembled at runtime declares
+what an annotated one declares with `@RestOptions` — mateu never takes a proxied endpoint from the
+request, or the proxy would be an open relay.
+:::
 
 ## Loading form definitions
 
-### In-memory mode
+Forms reach the engine two ways: from **directories on disk**, and from **Git repositories**. Both
+run at startup, and both work the same in memory and in JPA mode. (There is no classpath loading
+for forms — a `src/main/resources/forms/` directory is not read, unlike `classpath:/workflows/` on
+the engine side.)
 
-Place form definition files (`.json`, `.yaml`, or `.yml`) under `src/main/resources/forms/`. They are loaded at startup.
+A Git import can also be re-run on demand with the MCP tool `importFormsFromGit` ("Import the
+latest form definitions from Git") or by a webhook.
 
-### JPA mode
+## Importing from a directory
 
-Import from Git using the MCP tool `importFormsFromGit`:
-
+```yaml
+forms:
+  directory-import:
+    directories:
+      - /definitions/forms
 ```
-"Import the latest form definitions from Git"
-```
 
-Or trigger it programmatically via the forms engine API.
+or, in the standalone app, `FORMS_DEFINITIONS_DIRS=/definitions/forms` (comma-separated).
+
+Each directory is scanned recursively for `.json` / `.yaml` / `.yml` / `.ecform` files, and every
+file that has both `name` and `fields` is imported — so a directory holding workflow definitions
+next to forms is harmless. A directory that is not there is reported as an error rather than passed
+over in silence.
+
+Forms removed from the directory are **deleted** on the next import, tracked separately per
+directory, and only ever forms that this import created.
+
+:::tip[Directory or Git?]
+Git import reads what is **committed**; a directory is read as it is. Point the engine at a
+directory while authoring a form, at a repository when shipping it.
+:::
 
 ## Importing from Git
 
-The forms engine can clone one or more Git repositories at startup and import every `.json` / `.yaml` / `.yml` file that contains a valid form definition (i.e. has both `name` and `fields` fields).
+The forms engine can clone one or more Git repositories at startup and import every `.json` / `.yaml` / `.yml` / `.ecform` file that contains a valid form definition (i.e. has both `name` and `fields` fields).
 
 ### Configuration
 
@@ -159,4 +278,4 @@ forms:
 
 ## Visual form editor
 
-The platform UI includes a **drag-and-drop form editor** for building form layouts visually. Changes are persisted back as JSON definitions. Access it from the management UI under Form Definitions.
+The platform UI includes a **visual form editor** for building forms without writing the definition by hand: add and reorder fields, set their data type and stereotype, and — for the stereotypes that pick from a list — edit the value/label pairs of their choices, with a live preview that renders the form as the user will see it. Changes are persisted back as JSON definitions. Access it from the management UI under Form Definitions.

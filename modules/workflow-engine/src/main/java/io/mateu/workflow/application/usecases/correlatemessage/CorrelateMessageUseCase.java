@@ -30,14 +30,15 @@ public class CorrelateMessageUseCase {
     final StepExecutionRepository stepExecutionRepository;
     final CompleteMessageStepHandler completeMessageStepHandler;
     final io.mateu.workflow.application.out.WorkflowTracing workflowTracing;
+    final io.mateu.workflow.application.services.ProcessTrace processTrace;
 
     public void handle(CorrelateMessageCommand command) {
-        workflowTracing.span("eventconductor.correlate-message",
-                java.util.Map.of("messageName", String.valueOf(command.messageName())),
-                () -> correlate(command));
-    }
-
-    private void correlate(CorrelateMessageCommand command) {
+        // Correlation is the one piece of engine work that does not know whose process it is until
+        // it has done it: a message arrives naming a message and a key, and which step — if any —
+        // is waiting for that pair is precisely what the lookup answers. So the lookup itself runs
+        // untraced, and each match is traced inside the trace of the process it turned out to
+        // belong to. A span around the lookup would be a root of its own with nothing to attach it
+        // to, which is what every span in the engine used to be.
         var matched = stepExecutionRepository.findWaitingForMessage(
                 command.messageName(), command.correlationKey());
         if (matched.isEmpty()) {
@@ -45,8 +46,13 @@ public class CorrelateMessageUseCase {
                     command.messageName(), command.correlationKey());
             return;
         }
-        matched.forEach(se -> completeMessageStepHandler.handle(new CompleteMessageStepCommand(
-                se.id(), command.messageName(), command.correlationKey(), command.variables())));
+        matched.forEach(se -> workflowTracing.continuing(
+                processTrace.anchorFor(se.getProcessId()),
+                "eventconductor.correlate-message",
+                java.util.Map.of("eventconductor.process.id", String.valueOf(se.getProcessId()),
+                        "eventconductor.message.name", String.valueOf(command.messageName())),
+                () -> completeMessageStepHandler.handle(new CompleteMessageStepCommand(
+                        se.id(), command.messageName(), command.correlationKey(), command.variables()))));
     }
 
 }

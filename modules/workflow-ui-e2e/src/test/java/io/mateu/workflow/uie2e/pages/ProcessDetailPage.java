@@ -12,6 +12,17 @@ import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertTha
  * <p>The action labels here are the ones the engine declares on
  * {@code SimpleProcessViewModel} — two of them through {@code @Label}, the rest derived from the
  * method name. They are what an operator reads, so they are what the tests click.
+ *
+ * <p><b>The graph readers report "nothing yet" rather than throwing.</b> They reach into the
+ * {@code eventconductor-workflow-graph} shadow DOM, and a custom element is in the document before
+ * it has attached its shadow root — so {@code el.shadowRoot} is null for a window whose width
+ * depends on how busy the machine is. Every caller of these methods is inside an
+ * {@code awaitUntil} polling for the graph to appear, and that loop retries a false condition but
+ * propagates an exception: a null dereference there is a failed test rather than another poll.
+ * That is precisely how it failed, twice, on branches that touched nothing near the graph —
+ * {@code TypeError: Cannot read properties of null (reading 'querySelectorAll')}. Returning an
+ * empty result lets the wait do its job, and an unrendered graph now ends as a timeout that says
+ * which condition never came true.
  */
 public class ProcessDetailPage {
 
@@ -57,6 +68,95 @@ public class ProcessDetailPage {
      */
     public Locator node(String stepName) {
         return page.getByText(stepName, new Page.GetByTextOptions().setExact(true)).first();
+    }
+
+    /**
+     * The live state the diagram is drawing, read off the element that draws it.
+     *
+     * <p>Deliberately the attribute and not the picture. The graph is a custom element whose data
+     * lives in its attributes, and that is exactly where the interesting failure is: a Mateu
+     * {@code State} update carries values, not component metadata, so a page that refreshes itself
+     * through one leaves this attribute untouched while the process behind it runs to completion.
+     * Asserting on the rendered SVG would not see the difference — the nodes are all still there,
+     * drawn with the state they had when the tab was opened.
+     *
+     * <p>Null when the process has no step executions yet and the engine sends no overlay at all.
+     */
+    public String diagramOverlay() {
+        return page.locator("eventconductor-workflow-graph").first().getAttribute("overlay");
+    }
+
+    /**
+     * The sequence number each node carries, by step id — the diagram's answer to "when did this
+     * run", as opposed to the tick's "did it".
+     *
+     * <p>Read out of the shadow DOM in one evaluate rather than as locators, because the assertion
+     * is about the pairing: a number on its own says nothing, and two locator queries would let the
+     * numbers and the nodes come back in unrelated orders.
+     */
+    @SuppressWarnings("unchecked")
+    public java.util.Map<String, String> stepOrderNumbers() {
+        var raw = page.locator("eventconductor-workflow-graph").first().evaluate("""
+                el => {
+                    const out = {};
+                    if (!el.shadowRoot) return out;   // see the class javadoc
+                    el.shadowRoot.querySelectorAll('.node[data-node]').forEach(node => {
+                        const badge = node.querySelector('.ov-order text');
+                        if (badge) out[node.getAttribute('data-node')] = badge.textContent.trim();
+                    });
+                    return out;
+                }""");
+        var numbers = new java.util.LinkedHashMap<String, String>();
+        ((java.util.Map<String, Object>) raw).forEach((k, v) -> numbers.put(k, String.valueOf(v)));
+        return numbers;
+    }
+
+    /**
+     * Every guard chip that lands on top of a node, as "chip ↔ node" pairs.
+     *
+     * <p>Boxes rather than pixels: a chip is a rounded rectangle and a node is a rectangle, so
+     * their client rects answer the question exactly. Compared in viewport coordinates so the
+     * graph's own pan and zoom are already applied — the reader's overlap is what counts, not the
+     * one in the untransformed coordinate system.
+     *
+     * <p>A one-pixel touch is not an overlap anybody sees; the check allows a small tolerance so it
+     * measures "hides something" rather than "shares a border".
+     */
+    @SuppressWarnings("unchecked")
+    public java.util.List<String> guardChipsCoveringNodes() {
+        var raw = page.locator("eventconductor-workflow-graph").first().evaluate("""
+                el => {
+                    const hits = [];
+                    if (!el.shadowRoot) return hits;
+                    const nodes = [...el.shadowRoot.querySelectorAll('.node[data-node]')];
+                    el.shadowRoot.querySelectorAll('.guard .guard-chip:not(.guard-full) rect')
+                        .forEach(chipRect => {
+                            const chip = chipRect.getBoundingClientRect();
+                            const guard = chipRect.closest('.guard');
+                            nodes.forEach(node => {
+                                const inner = node.querySelector('.node-inner') || node;
+                                const box = inner.getBoundingClientRect();
+                                const overlap = chip.left < box.right - 2 && chip.right > box.left + 2
+                                    && chip.top < box.bottom - 2 && chip.bottom > box.top + 2;
+                                if (overlap) {
+                                    hits.push(guard.getAttribute('data-edge') + ' ↔ '
+                                        + node.getAttribute('data-node'));
+                                }
+                            });
+                        });
+                    return hits;
+                }""");
+        return new java.util.ArrayList<>((java.util.List<String>) (java.util.List<?>) raw);
+    }
+
+    /** The full text a guard chip reveals under the pointer, for the first chip on the canvas. */
+    public String firstGuardFullText() {
+        return page.locator("eventconductor-workflow-graph").first().evaluate("""
+                el => {
+                    if (!el.shadowRoot) return null;
+                    const full = el.shadowRoot.querySelector('.guard .guard-full text');
+                    return full ? full.textContent.trim() : null;
+                }""") instanceof String text ? text : null;
     }
 
     /**

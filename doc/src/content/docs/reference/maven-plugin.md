@@ -19,12 +19,14 @@ from the engine modules at build time, so it can never drift), plus the semantic
 schema cannot express:
 
 - **Workflows** — schema, duplicate step ids, self-referencing / dangling precondition
-  (`preconditionStepIds` / `preconditionStepId`) and `compensationStepId` references, the
+  (`preconditions` / `preconditionStepIds` / `preconditionStepId`) and `compensationStepId`
+  references, the
   entry-point rule (every step with no preconditions must be a `START` or a
   `WAIT_FOR_MESSAGE`, and a `START` must have none), precondition-cycle detection (DFS over
   the multi-edge precondition graph), the `PROCESS` child id (`childWorkflowDefinitionId`
   present and different from the workflow's own id), cron-expression validity, and JEXL
-  parseability of `preconditionExpression` and `correlationExpression`. It also emits
+  parseability of `preconditionExpression`, the conditions on `preconditions` links, and
+  `correlationExpression`. It also emits
   **build-time warnings** (logged, never failing the build) for risky-but-legal patterns:
   currently, a `JOIN` waiting directly on a guarded step — if the guard is false the join
   never fires and the flow beyond it is silently cancelled.
@@ -50,7 +52,7 @@ replicated by the plugin and will only fail when the engine loads the definition
 <plugin>
   <groupId>io.mateu.workflow</groupId>
   <artifactId>workflow-maven-plugin</artifactId>
-  <version>1.0-beta.025</version>
+  <version>2.1.1</version>
   <executions>
     <execution>
       <goals>
@@ -66,10 +68,15 @@ same layout the engine loads from the classpath:
 
 ```
 src/main/resources/
-  workflows/**/*.{json,yaml,yml}
-  forms/**/*.{json,yaml,yml}
-  rules/**/*.{json,yaml,yml}
+  workflows/**/*.{ec,ecform,ecrule,json,yaml,yml}
+  forms/**/*.{ec,ecform,ecrule,json,yaml,yml}
+  rules/**/*.{ec,ecform,ecrule,json,yaml,yml}
 ```
+
+The same six the engine imports. `.ec`, `.ecform` and `.ecrule` are what the graph editor and the
+two IDE plugins write, and they were not collected before 2.2.3 — a repository of them was walked,
+nothing was found, and the build passed. Anything that is not `.json` is read by the YAML parser,
+which reads JSON too, so an `.ec` holding either parses.
 
 Run it in the build (`mvn verify`) or on demand with `mvn eventconductor:validate`. On a
 violation the build fails with a per-file report:

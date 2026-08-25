@@ -133,6 +133,15 @@
         </dependency>
 
         <dependency>
+            <!-- The CQRS read model. Its own module so that the standalone projector can depend on
+                 it without depending on the engine. -->
+            <groupId>io.mateu.workflow</groupId>
+            <artifactId>process-index</artifactId>
+            <version>1.0-SNAPSHOT</version>
+            <scope>compile</scope>
+        </dependency>
+
+        <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-jexl3</artifactId>
             <version>3.7.0</version>

@@ -72,6 +72,10 @@ public class KafkaBindingDefaults implements EnvironmentPostProcessor, Ordered {
         defaults.put(PREFIX + "upstream.destination", "upstream");
         defaults.put(PREFIX + "downstream.destination", "downstream");
         defaults.put(PREFIX + "deadLetter.destination", "dead-letter");
+        // The shared, fleet-wide projection channel. Only produced to in
+        // workflow.projection.mode=remote; naming its destination here costs nothing otherwise and
+        // saves every sharded deployment from having to know the topic name.
+        defaults.put(PREFIX + "processIndex.destination", "process-index");
 
         // addLast, so anything the application declares — anywhere — still wins.
         sources.addLast(new MapPropertySource(NAME, Map.copyOf(defaults)));

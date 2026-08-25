@@ -1,5 +1,6 @@
 package io.mateu.workflow.infra.out.persistence;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.IdClass;
@@ -40,7 +41,25 @@ public class FieldEntity {
 
     private boolean required;
 
+    @Column(columnDefinition = "TEXT")
     private String description;
+
+    /**
+     * The field's choices, as the JSON array the definition declares — {@code [{"value":…,"label":…}]}.
+     * Serialized rather than given a table of their own: options are read and written only as part
+     * of the field that offers them, never queried, and a child table would mean a third composite
+     * key and a third delete path for no query that exists. {@code form_execution_entity} stores its
+     * variables and values the same way.
+     */
+    @Column(columnDefinition = "TEXT")
+    private String options;
+
+    /**
+     * Where the field's choices are fetched from, as the JSON descriptor the definition declares.
+     * Stored like {@link #options}, which it replaces, and for the same reasons.
+     */
+    @Column(columnDefinition = "TEXT")
+    private String optionsSource;
 
     /**
      * Position within the form. Fields are an ordered list — the form renders them top to bottom —

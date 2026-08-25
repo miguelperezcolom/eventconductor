@@ -55,12 +55,29 @@ public class MyWorker {
                 WorkerReply.completed(streamBridge, request,
                     List.of(new Variable("result", result)));
             } catch (Exception e) {
-                WorkerReply.failed(streamBridge, request, List.of());
+                log.error("Step {} failed", request.stepId(), e);
+                WorkerReply.failed(streamBridge, request, List.of(), e.toString());
             }
         };
     }
 }
 ```
+
+### Say why it failed
+
+The four-argument `failed(...)` publishes the reason as a log line on the process, next to the
+failure itself. Use it. The three-argument overload reports the status and nothing else, so the
+process log reads "Task status changed to ERROR" and whoever is looking at a rolled-back saga has
+no idea what went wrong — the reason lives only in the worker's own stdout, and only if the worker
+bothered to log it.
+
+Embedded mode never had this problem: the engine catches the exception on the worker's behalf and
+records it. In kafka mode the worker is the only one who knows, so it has to say.
+
+The reason is sent **before** the failure, and both are on the retry-or-throw path below — so a
+broker that will not take the reason throws before anything has been reported at all, and the task
+is simply redelivered. Reporting a failure and then losing its explanation is the outcome worth
+avoiding.
 
 ### Do not drop the reply
 

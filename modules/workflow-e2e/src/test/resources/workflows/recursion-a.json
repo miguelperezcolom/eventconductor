@@ -1,0 +1,16 @@
+{
+  "id": "recursion-a",
+  "name": "Half of a mutually recursive pair (A starts B)",
+  "version": 1,
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    {
+      "id": "spawn-b",
+      "type": "PROCESS",
+      "name": "Spawn B",
+      "preconditionStepId": "start",
+      "childWorkflowDefinitionId": "recursion-b"
+    },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "spawn-b" }
+  ]
+}

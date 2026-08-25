@@ -1,8 +1,27 @@
 server:
   port: 8101
+  compression:
+    # The UI bundle is 3.5 MB of JavaScript served from the mateu jar, and it was going out
+    # uncompressed: gzip takes it to 817 KB. text/javascript is what the resource handler labels
+    # these with, and it is the one that matters — the rest are listed so the set is explicit
+    # rather than inherited.
+    enabled: true
+    mime-types: text/html,text/css,text/javascript,application/javascript,application/json,application/xml,image/svg+xml,text/plain
+    min-response-size: 1KB
 spring:
   application:
     name: shell
+  web:
+    resources:
+      cache:
+        # Revalidate, do not expire. These filenames carry no content hash — /assets/vendor.js is
+        # /assets/vendor.js in every release — so a long max-age would pin a stale bundle in every
+        # browser that had loaded the previous one, with no way to bust it. "no-cache" lets the
+        # browser keep the file and ask whether it changed; Last-Modified answers that with a 304
+        # and no body, which is the difference between re-downloading 3.5 MB per page load and not.
+        cachecontrol:
+          no-cache: true
+        use-last-modified: true
   security:
     oauth2:
       resourceserver:

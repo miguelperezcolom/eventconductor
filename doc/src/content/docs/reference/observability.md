@@ -123,8 +123,19 @@ collector:
 # fraction of traces to sample, 0.0 (off) .. 1.0 (all)
 management.tracing.sampling.probability=${TRACING_SAMPLING:0.0}
 # OTLP HTTP traces endpoint (OTel Collector / Tempo / Jaeger)
-management.otlp.tracing.endpoint=${OTLP_TRACING_ENDPOINT:http://localhost:4318/v1/traces}
+management.opentelemetry.tracing.export.otlp.endpoint=${OTLP_TRACING_ENDPOINT:http://localhost:4318/v1/traces}
 ```
+
+:::caution[Not `management.otlp.tracing.endpoint`]
+Boot 4 deprecated that name at level **error**, which means it is no longer bound — the metadata
+entry survives only to say so. Set under the old name it reads back perfectly from the environment,
+nothing consumes it, **no span exporter is created**, and every span is built and thrown away. A
+`Tracer` exists, the collector is reachable, and the trace store stays empty; there is nothing in
+any log to say why.
+
+EventConductor shipped it that way through 2.4.0. `OTLP_TRACING_ENDPOINT` is unchanged, so a
+deployment setting the environment variable needs no change.
+:::
 
 ```bash
 export TRACING_SAMPLING=1.0
@@ -149,16 +160,82 @@ whatever produced the event (column `trace_parent`, null when nothing was being 
 relay publishes **as a continuation of that trace**. A process started by an HTTP request and
 finished by a worker three hops later reads as one trace.
 
+### One trace per process
+
+A trace of a workflow should read the way the workflow ran: this step, then that one, then those
+two at the same time. That picture cannot be produced by instrumenting the code as it executes. A
+span is started and ended by one object on one thread, and a workflow step obliges on neither
+count — it starts in the transaction that dispatched it and ends wherever the worker's reply
+lands, minutes or days later, across a broker and possibly a pod restart. Wrapping the running
+code can only ever describe the hop it is inside, which is why a trace made of dispatches and
+relay passes reads as a scatter of two-millisecond fragments.
+
+So the engine does not reconstruct the process from its hops. **It writes the trace out from what
+it durably recorded.** A step execution row already carries `startedAt` and `finishedAt`; when a
+process reaches a terminal status the engine emits a span for the process and one for each step
+that ran, each covering the time that step actually took. Steps that ran one after another come
+out as consecutive siblings, steps that ran together as overlapping ones, and the shape falls out
+of the timestamps instead of having to be inferred from causality.
+
+```
+Order fulfilment ─────────────────────────────────────────────  (the process)
+  ├── Reserve stock ────────
+  ├── Charge card                  ─────────────
+  ├── Print label                  ──────────            (these two ran in parallel)
+  └── Notify customer                            ──────
+```
+
+The process span carries `eventconductor.process.id`, `.businessKey`, `.status` and the workflow
+id and version; each step span carries `eventconductor.step.id`, `.executionId`, `.status`,
+`.attempts`, `.type` and, for an ACTION, `.topic`.
+
+**Which trace a process belongs to is derived from its id**, not stored and not propagated — the
+anchor is a hash of the process id, so every pod computes the same trace id for the same process
+with nothing to carry and nothing to lose. That is what makes this survive the things that defeat
+ordinary context propagation: a rebalance, a restart, a redelivery from the dead-letter queue, a
+`TIMER` step that waits a week. A `traceparent` in a message header is gone the moment the message
+is replayed; a derived anchor was never held.
+
+### Sampling
+
+`management.tracing.sampling.probability` governs process traces exactly as it governs everything
+else. The decision is taken **from the derived trace id**, by the same arithmetic the OpenTelemetry
+SDK's own `TraceIdRatioBased` sampler uses — so the rate comes out as configured, and a process is
+either traced or not traced.
+
+That last part is the point, and it matters more than the rate. The decision belongs to the
+process, not to the span: every pod that touches it reaches the same answer, over its whole life,
+across restarts and redeliveries. Sampling per span would at 10% have given you a tenth of the
+dispatches of a tenth of the processes — scattered fragments, and never a whole process to read.
+Here a traced process is traced end to end, and an untraced one costs nothing at all.
+
+:::note[What changes for a deployment that was already tracing]
+The engine's spans — `step-over`, `dispatch-step`, `correlate-message` — used to be roots of their
+own, so each one took its own turn at the ratio independently. At 10% that meant roughly a tenth of
+the dispatches of roughly a tenth of the processes, which is why they read as unrelated fragments.
+The volume is about the same now; what changes is that it arrives as whole processes instead of
+scattered spans. Nothing needs configuring for that — the property means what it says.
+:::
+
+Steps that never ran — a branch abandoned when another reached `END` — draw nothing, so the
+waterfall shows what happened rather than what did not.
+
 ### The engine's own spans
 
-Three operations are named, so a trace shows what the engine was doing rather than only the
-database calls it made along the way:
+The live spans are still emitted, and they now join the trace of the process they are working on
+instead of each starting one of their own. They are what makes a process visible in the trace
+store **while it is still running**, before its own span exists:
 
 | Span | What it covers |
 |---|---|
 | `eventconductor.step-over` | Advancing a process: deciding what may run now and dispatching it |
 | `eventconductor.dispatch-step` | Handing one step to a worker |
 | `eventconductor.correlate-message` | Matching an arriving message to the steps waiting for it |
+| `outbox relay` | Publishing one outbox row, as a continuation of the trace that produced it |
+
+`correlate-message` is anchored only after the match: which process an arriving message belongs to
+is precisely what the lookup answers, so the lookup itself runs untraced and each match is traced
+inside the process it turned out to belong to.
 
 Both the propagation and the spans go through a port with a no-op default
 (`WorkflowTracing`), wired to Micrometer only when the host application brings a `Tracer` — the

@@ -1,0 +1,55 @@
+# The cutover Job: seeds the fleet database from the shards' own write databases, so the index is
+# complete from the first query and the placement claim knows where existing business keys already
+# live. The same projector image, run with --backfill.shards.
+#
+# Rendered with:
+#   PROJECTOR_IMAGE  the published projector image
+#   SHARDS           the shard ids to read, comma-separated (e.g. 0,1)
+#
+# THE ONLY STEP IN THIS DESIGN THAT NEEDS THE SHARD LIST, and it is run by an operator who has it.
+# Everything else — routing, messaging, projection — was built so that no shard count appears in it.
+#
+# Idempotent and safe to run on a live fleet: a backfilled index row is stamped with the process's own
+# `created`, so any real transition from the topic outranks it, and an existing placement is never
+# displaced. Run it again after adding a shard that already had processes on it.
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: process-index-backfill
+  namespace: ec-shard
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels: { scale-role: projector }
+    spec:
+      securityContext: { runAsUser: 10001, runAsGroup: 10001, runAsNonRoot: true }
+      restartPolicy: OnFailure
+      containers:
+        - name: backfill
+          image: PROJECTOR_IMAGE
+          imagePullPolicy: Always
+          args:
+            - --backfill.shards=SHARDS
+            - --backfill.jdbc.url=jdbc:postgresql://postgres-{shard}.ec-shard.svc.cluster.local:5432/eventconductor
+            - --backfill.jdbc.username=eventconductor
+            - --backfill.jdbc.password=eventconductor
+            # No broker work in a Job: it seeds and exits.
+            - --spring.cloud.function.definition=
+          env:
+            - { name: DB_URL, value: "jdbc:postgresql://postgres-fleet.ec-shard.svc.cluster.local:5432/eventconductor_fleet" }
+            - { name: DB_USERNAME, value: eventconductor }
+            - { name: DB_PASSWORD, value: eventconductor }
+            - { name: KAFKA_BROKERS, value: "kafka-bootstrap.ec-shard.svc.cluster.local:9092" }
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 10001
+            capabilities: { drop: ["ALL"] }
+            seccompProfile: { type: RuntimeDefault }
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - { name: tmp, emptyDir: {} }

@@ -52,7 +52,8 @@ class SimpleProcessViewModelTest {
         var process = mock(Process.class);
         when(process.getWorkflowDefinitionId()).thenReturn("wd-1");
 
-        var element = view(defs).buildDiagram(process, List.of(
+        var view = view(defs);
+        var element = view.buildDiagram(process, List.of(
                 se("start", StepExecutionStatus.COMPLETED),
                 se("charge", StepExecutionStatus.RUNNING),
                 se("ship", StepExecutionStatus.PENDING)), List.of());
@@ -60,7 +61,7 @@ class SimpleProcessViewModelTest {
         assertThat(element).isNotNull();
         assertThat(element.name()).isEqualTo("eventconductor-workflow-graph");
         assertThat(element.attributes().get("readonly")).isEqualTo("true");
-        JsonNode overlay = mapper.readTree(element.attributes().get("overlay"));
+        JsonNode overlay = mapper.readTree(view.processGraphOverlay);
         assertThat(overlay.get("start").get("state").asText()).isEqualTo("COMPLETED");
         assertThat(overlay.get("start").has("active")).isFalse();
         assertThat(overlay.get("charge").get("state").asText()).isEqualTo("RUNNING");
@@ -75,11 +76,12 @@ class SimpleProcessViewModelTest {
         var process = mock(Process.class);
         when(process.getWorkflowDefinitionId()).thenReturn("wd-1");
 
-        var element = view(defs).buildDiagram(process, List.of(
+        var view = view(defs);
+        var element = view.buildDiagram(process, List.of(
                 se("charge", StepExecutionStatus.COMPLETED),
                 se("charge", StepExecutionStatus.RUNNING)), List.of()); // a retry is still running
 
-        JsonNode overlay = mapper.readTree(element.attributes().get("overlay"));
+        JsonNode overlay = mapper.readTree(view.processGraphOverlay);
         assertThat(overlay.get("charge").get("state").asText()).isEqualTo("RUNNING");
     }
 
@@ -226,14 +228,15 @@ class SimpleProcessViewModelTest {
         var process = mock(Process.class);
         when(process.getWorkflowDefinitionId()).thenReturn("wd-1");
 
-        var element = view(defs).buildDiagram(process, List.of(
+        var view = view(defs);
+        var element = view.buildDiagram(process, List.of(
                 exec("start", StepExecutionStatus.COMPLETED, 1, null),
                 exec("plan", StepExecutionStatus.COMPLETED, 2, null),
                 exec("task-a", StepExecutionStatus.RUNNING, 3, "se-plan")), List.of());
 
         // The graph value carries the injected step, with its real precondition — a value built from
         // the definition alone would omit it entirely.
-        JsonNode value = mapper.readTree(element.attributes().get("value"));
+        JsonNode value = mapper.readTree(view.processGraph);
         var stepIds = new java.util.ArrayList<String>();
         value.get("steps").forEach(s -> stepIds.add(s.get("id").asText()));
         assertThat(stepIds).containsExactly("start", "plan", "task-a");
@@ -242,7 +245,7 @@ class SimpleProcessViewModelTest {
         assertThat(injectedStep.get("preconditionStepId").asText()).isEqualTo("plan");
 
         // The overlay flags the injected step (frontend badge data), and not the declared ones.
-        JsonNode overlay = mapper.readTree(element.attributes().get("overlay"));
+        JsonNode overlay = mapper.readTree(view.processGraphOverlay);
         assertThat(overlay.get("task-a").get("injected").asBoolean()).isTrue();
         assertThat(overlay.get("task-a").get("injectedBy").asText()).isEqualTo("se-plan");
         assertThat(overlay.get("plan").has("injected")).isFalse();
@@ -258,11 +261,12 @@ class SimpleProcessViewModelTest {
         var process = mock(Process.class);
         when(process.getWorkflowDefinitionId()).thenReturn("wd-1");
 
-        var element = view(defs).buildDiagram(process, List.of(
+        var view = view(defs);
+        var element = view.buildDiagram(process, List.of(
                 exec("start", StepExecutionStatus.COMPLETED, 1, null),
                 exec("plan", StepExecutionStatus.RUNNING, 2, null)), List.of());
 
-        JsonNode value = mapper.readTree(element.attributes().get("value"));
+        JsonNode value = mapper.readTree(view.processGraph);
         var stepIds = new java.util.ArrayList<String>();
         value.get("steps").forEach(s -> stepIds.add(s.get("id").asText()));
         assertThat(stepIds).containsExactly("start", "plan");
@@ -276,5 +280,94 @@ class SimpleProcessViewModelTest {
                 .isGreaterThan(SimpleProcessViewModel.statusRank(StepExecutionStatus.COMPLETED));
         assertThat(SimpleProcessViewModel.statusRank(StepExecutionStatus.COMPLETED))
                 .isGreaterThan(SimpleProcessViewModel.statusRank(StepExecutionStatus.CANCELLED));
+    }
+
+    private StepExecution startedAt(String stepId, StepExecutionStatus status, String when) {
+        var se = se(stepId, status);
+        when(se.getStartedAt()).thenReturn(java.time.LocalDateTime.parse(when));
+        return se;
+    }
+
+    @Test
+    void numbersTheStepsInTheOrderTheyStarted() throws Exception {
+        var defs = mock(WorkflowDefinitionRepository.class);
+        when(defs.findById("wd-1")).thenReturn(Optional.of(emptyDefinition()));
+        var process = mock(Process.class);
+        when(process.getWorkflowDefinitionId()).thenReturn("wd-1");
+
+        var view = view(defs);
+        var element = view.buildDiagram(process, List.of(
+                // Deliberately out of order, and the middle one finishes last: the number says when
+                // a step took its turn, so it follows startedAt and not the order they arrive in.
+                startedAt("ship", StepExecutionStatus.COMPLETED, "2026-08-19T10:00:30"),
+                startedAt("start", StepExecutionStatus.COMPLETED, "2026-08-19T10:00:00"),
+                startedAt("charge", StepExecutionStatus.RUNNING, "2026-08-19T10:00:10")), List.of());
+
+        JsonNode overlay = mapper.readTree(view.processGraphOverlay);
+        assertThat(overlay.get("start").get("order").asInt()).isEqualTo(1);
+        assertThat(overlay.get("charge").get("order").asInt()).isEqualTo(2);
+        assertThat(overlay.get("ship").get("order").asInt()).isEqualTo(3);
+    }
+
+    @Test
+    void aStepThatNeverStartedGetsNoNumber() throws Exception {
+        var defs = mock(WorkflowDefinitionRepository.class);
+        when(defs.findById("wd-1")).thenReturn(Optional.of(emptyDefinition()));
+        var process = mock(Process.class);
+        when(process.getWorkflowDefinitionId()).thenReturn("wd-1");
+
+        var view = view(defs);
+        var element = view.buildDiagram(process, List.of(
+                startedAt("start", StepExecutionStatus.COMPLETED, "2026-08-19T10:00:00"),
+                se("ship", StepExecutionStatus.PENDING)), List.of());
+
+        JsonNode overlay = mapper.readTree(view.processGraphOverlay);
+        assertThat(overlay.get("start").get("order").asInt()).isEqualTo(1);
+        // An unnumbered node is one that has not had its turn — as much part of the reading as the
+        // numbers are. A 0 or a 2 here would both be lies.
+        assertThat(overlay.get("ship").has("order")).isFalse();
+    }
+
+    @Test
+    void stepsThatStartTogetherAreNumberedTheSameWayOnEveryPoll() {
+        var together = List.of(
+                startedAt("b-branch", StepExecutionStatus.COMPLETED, "2026-08-19T10:00:05"),
+                startedAt("a-branch", StepExecutionStatus.COMPLETED, "2026-08-19T10:00:05"));
+
+        // Parallel branches routinely start in the same instant. Any order will do; the same one
+        // every two seconds will not do itself — a number that changes under the reader is worse
+        // than an arbitrary one.
+        assertThat(SimpleProcessViewModel.executionOrder(together))
+                .containsEntry("a-branch", 1)
+                .containsEntry("b-branch", 2);
+        assertThat(SimpleProcessViewModel.executionOrder(together.reversed()))
+                .containsEntry("a-branch", 1)
+                .containsEntry("b-branch", 2);
+    }
+
+    /**
+     * The attributes say where to read, and the fields hold what is read.
+     *
+     * <p>That split is the whole of why the diagram follows the process now, and it is worth a test
+     * of its own because both halves fail silently: an attribute written as a literal renders
+     * perfectly and then never changes, and a payload put somewhere that is not a data field never
+     * arrives. Neither shows up as an error anywhere.
+     */
+    @Test
+    void theGraphTravelsAsStateAndTheAttributesOnlyPointAtIt() throws Exception {
+        var defs = mock(WorkflowDefinitionRepository.class);
+        when(defs.findById("wd-1")).thenReturn(Optional.of(emptyDefinition()));
+        var process = mock(Process.class);
+        when(process.getWorkflowDefinitionId()).thenReturn("wd-1");
+
+        var view = view(defs);
+        var element = view.buildDiagram(process, List.of(
+                se("start", StepExecutionStatus.COMPLETED)), List.of());
+
+        assertThat(element.attributes().get("value")).isEqualTo("${state.processGraph}");
+        assertThat(element.attributes().get("overlay")).isEqualTo("${state.processGraphOverlay}");
+        // And what those point at is really there, as text a State update can carry.
+        assertThat(view.processGraph).contains("\"id\"");
+        assertThat(view.processGraphOverlay).contains("COMPLETED");
     }
 }

@@ -22,6 +22,7 @@ public class CancelProcessUseCase {
     final DownstreamEventPublisher downstreamEventPublisher;
     final WorkflowMetrics workflowMetrics;
     final NotifyParentStepService notifyParentStepService;
+    final io.mateu.workflow.application.services.RecordProcessTraceService recordProcessTraceService;
     final CancelChildProcessService cancelChildProcessService;
 
     public void handle(CancelProcessCommand command) {
@@ -43,7 +44,8 @@ public class CancelProcessUseCase {
             if (!StepExecutionStatus.ERROR.equals(stepExecution.getStatus()) && !StepExecutionStatus.COMPLETED.equals(stepExecution.getStatus())
                     && !StepExecutionStatus.CANCELLED.equals(stepExecution.getStatus())) {
                 if (stepExecution.getStatus().isInFlightAtAWorker()) {
-                    downstreamEventPublisher.publish(new TaskCancellationRequested(stepExecution.getId()));
+                    downstreamEventPublisher.publish(new TaskCancellationRequested(stepExecution.getId()),
+                            stepExecution.topic());
                 }
                 stepExecution.updateStatus(StepExecutionStatus.CANCELLED);
                 stepExecutionRepository.save(stepExecution);
@@ -56,5 +58,8 @@ public class CancelProcessUseCase {
         // If this process is a child workflow, the PROCESS step of the parent that spawned
         // it cannot succeed any more — error it.
         notifyParentStepService.processReachedTerminalStatus(cancelledProcess);
+        // The same moment, seen the other way: this is where the process's whole run is
+        // finally known, so it is where it can be written out as a trace.
+        recordProcessTraceService.processReachedTerminalStatus(cancelledProcess);
     }
 }

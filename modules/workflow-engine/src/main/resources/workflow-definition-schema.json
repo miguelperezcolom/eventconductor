@@ -10,6 +10,13 @@
   ],
   "additionalProperties": false,
   "properties": {
+    "$schema": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "The schema this file is written against, as an editor reads it for completion and inline validation \u2014 the README and the guides tell authors to put it here. It says nothing about the workflow itself and is ignored when the file is read; it is declared only because additionalProperties is false, and refusing the one key whose purpose is to help someone write the file correctly would be an odd way to validate it."
+    },
     "id": {
       "type": [
         "string",
@@ -189,6 +196,7 @@
             "ACTION",
             "JOIN",
             "FORK",
+            "CHOICE",
             "END",
             "USER_TASK",
             "PROCESS",
@@ -233,7 +241,7 @@
             "array",
             "null"
           ],
-          "description": "The incoming links of this step, each with its own guard. Takes precedence over preconditionStepIds and preconditionStepId when non-empty. A link is satisfied when its step has completed AND its expression holds; a link whose guard is false is not satisfied, so a step waiting for all of its links waits until it becomes true.",
+          "description": "The incoming links of this step, each with its own guard. Takes precedence over preconditionStepIds and preconditionStepId when non-empty. A link is satisfied when its step has completed AND its expression holds; a link whose guard is false is not satisfied, so a step waiting for all of its links waits until it becomes true — unless the link says onFalse: DISCARD, which makes it a route not taken instead.",
           "items": {
             "type": "object",
             "additionalProperties": false,
@@ -251,6 +259,19 @@
                   "null"
                 ],
                 "description": "JEXL expression over the process variables, evaluated once that step has completed. Absent means the link has no condition."
+              },
+              "onFalse": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "WAIT",
+                  "DISCARD",
+                  null
+                ],
+                "description": "What a false condition on this link means. WAIT (the default) leaves the link unsatisfied and the step waits, to be released if the variables change; the process is not completed around it. DISCARD treats the route as not taken, so the step is a branch the flow did not go down and the process may finish and cancel it — the meaning a step-level preconditionExpression has always had.",
+                "default": "WAIT"
               }
             }
           }
@@ -260,7 +281,7 @@
             "string",
             "null"
           ],
-          "description": "JEXL expression evaluated against process variables. Step is skipped if the expression returns false."
+          "description": "JEXL expression evaluated against process variables. Step is skipped if the expression returns false. The older, step-wide spelling of a condition: it is folded into every one of the step's links (as an onFalse: DISCARD guard), so prefer preconditions[].expression, which can say something different of each route."
         },
         "parallel": {
           "type": [
@@ -275,7 +296,8 @@
             "string",
             "null"
           ],
-          "description": "Kafka topic (or logical destination) to dispatch the task to. Required for ACTION steps."
+          "default": "downstream",
+          "description": "Logical destination this step's task is dispatched to, so a step may be handed to a worker pool of its own. Optional: omitted (the default) means the shared 'downstream' destination, where every task went before per-step routing existed. In Kafka mode a topic with no binding of its own becomes a dynamic destination, created on first use. Embedded mode has one in-process executor and no transport to route over, so it takes every task whatever this says. The step's cancellation follows its task to the same destination."
         },
         "formId": {
           "type": [
@@ -389,6 +411,13 @@
           ],
           "description": "ID of the step that undoes this step's effect. Run during saga rollback (in reverse execution order) when the process fails. Only relevant when compensable is true. The compensation step needs no preconditions of its own: being named here is what makes it reachable, and the rollback pipeline starts it directly. (Definitions written before that anchor it to a precondition and guard it with preconditionExpression 'false'; still supported.)"
         },
+        "onTimeoutStepId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "ID of the step to run when THIS step times out (its timeout elapses with the step unfinished, after retries are exhausted). Instead of failing the process, flow routes to this step — the step's own on-timeout branch, a native alternative to racing the step against a parallel TIMER. The timed-out step ends TIMEOUT and is not counted as a process failure while it carries this. Unlike compensationStepId, which undoes steps that already succeeded, this routes forward (a timed-out step never succeeded, so there is nothing to compensate)."
+        },
         "maxSuccessfulExecutions": {
           "type": [
             "integer",
@@ -427,21 +456,6 @@
           "items": { "type": "string" },
           "description": "Flow authorization: the roles the caller must ALL hold for this step to run. See requiredScopes."
         }
-      },
-      "if": {
-        "properties": {
-          "type": {
-            "const": "ACTION"
-          }
-        },
-        "required": [
-          "type"
-        ]
-      },
-      "then": {
-        "required": [
-          "topic"
-        ]
       },
       "allOf": [
         {

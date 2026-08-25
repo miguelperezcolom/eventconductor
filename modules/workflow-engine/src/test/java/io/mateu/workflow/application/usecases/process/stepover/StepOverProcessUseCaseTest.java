@@ -35,6 +35,7 @@ class StepOverProcessUseCaseTest {
     @Mock ProcessLockService           lockService;
     @Mock WorkflowMetrics              workflowMetrics;
     @Mock NotifyParentStepService      notifyParentStepService;
+    @Mock io.mateu.workflow.application.services.RecordProcessTraceService recordProcessTraceService;
     @Mock CancelChildProcessService    cancelChildProcessService;
     @Mock io.mateu.workflow.application.out.DownstreamEventPublisher downstreamEventPublisher;
     @Spy  WorkflowOrchestrationService workflowOrchestrationService = new WorkflowOrchestrationService();
@@ -43,6 +44,13 @@ class StepOverProcessUseCaseTest {
     @org.mockito.Spy
     io.mateu.workflow.application.out.WorkflowTracing workflowTracing =
             io.mateu.workflow.application.out.WorkflowTracing.NOOP;
+
+    // The real one, not a mock: the anchor it computes is what puts this work in its process's
+    // trace, and a mock would hand back null and quietly take that away. Everything traced, so the
+    // sampling decision is never what a test here turns on.
+    @org.mockito.Spy
+    io.mateu.workflow.application.services.ProcessTrace processTrace =
+            new io.mateu.workflow.application.services.ProcessTrace(1.0);
 
     @InjectMocks StepOverProcessUseCase useCase;
 
@@ -165,10 +173,10 @@ class StepOverProcessUseCaseTest {
         useCase.handle(new StepOverProcessCommand("p-1"));
 
         verify(downstreamEventPublisher).publish(
-                new io.mateu.workflow.dtos.events.integration.TaskCancellationRequested("se-run"));
+                eq(new io.mateu.workflow.dtos.events.integration.TaskCancellationRequested("se-run")), any());
         // The one that never left the engine has no worker to tell.
         verify(downstreamEventPublisher, never()).publish(
-                new io.mateu.workflow.dtos.events.integration.TaskCancellationRequested("se-wait"));
+                eq(new io.mateu.workflow.dtos.events.integration.TaskCancellationRequested("se-wait")), any());
     }
 
     @Test

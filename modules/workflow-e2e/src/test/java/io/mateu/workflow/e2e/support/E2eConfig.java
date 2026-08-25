@@ -23,4 +23,14 @@ public class E2eConfig {
     public MeterRegistry meterRegistry() {
         return new SimpleMeterRegistry();
     }
+
+    /**
+     * Wins over the engine's no-op fallback, which is {@code @ConditionalOnMissingBean}. Every e2e
+     * test therefore runs with the tracing port exercised rather than stubbed out, and
+     * {@code ProcessTraceE2eTest} can read back the trace the engine emitted.
+     */
+    @Bean
+    public RecordingTracing workflowTracing() {
+        return new RecordingTracing();
+    }
 }

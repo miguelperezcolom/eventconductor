@@ -46,6 +46,20 @@ public final class Benchmark {
             // role, and an exit code, so an autonomous controller can gate on it. Fans out across shards.
             var shardJdbcs = shardJdbcUrls.stream().map(url -> jdbcFor(url, config)).toList();
             var verdict = io.mateu.workflowbench.soak.Reconciler.verifyAcrossShards(shardJdbcs, config.soakPrefix());
+            // With a fleet database, also cross-check the standalone projector's read model and the
+            // placement claim — reached by a different path from the shards' own tables, which is the
+            // only reason the answer means anything. Kept as an ADDITION to the per-shard verdict: a
+            // read model verified by reading the read model proves nothing.
+            if (!config.fleetJdbcUrl().isBlank()) {
+                var shardIds = config.shardList();
+                var byId = new java.util.LinkedHashMap<String, org.springframework.jdbc.core.JdbcTemplate>();
+                for (var i = 0; i < shardIds.size() && i < shardJdbcs.size(); i++) {
+                    byId.put(shardIds.get(i), shardJdbcs.get(i));
+                }
+                verdict = io.mateu.workflowbench.soak.FleetIndexReconciler.merge(verdict,
+                        io.mateu.workflowbench.soak.FleetIndexReconciler.verify(
+                                jdbcFor(config.fleetJdbcUrl(), config), byId, config.soakPrefix()));
+            }
             System.out.println(verdict.render());
             try {
                 System.out.println("verdict-json " + new com.fasterxml.jackson.databind.ObjectMapper()

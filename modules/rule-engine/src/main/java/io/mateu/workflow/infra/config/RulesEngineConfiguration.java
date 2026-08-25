@@ -8,7 +8,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
-@EnableConfigurationProperties(RuleGitImportProperties.class)
+@EnableConfigurationProperties({RuleGitImportProperties.class, RuleDirectoryImportProperties.class})
 public class RulesEngineConfiguration {
 
     /**

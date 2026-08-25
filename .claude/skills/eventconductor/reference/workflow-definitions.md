@@ -24,7 +24,8 @@ Add `"$schema"` (JSON) or a `# yaml-language-server: $schema=...` comment (YAML)
 | `id`, `type`, `name`, `description` | all | `type` ∈ START/ACTION/USER_TASK/RULE/TIMER/WAIT_FOR_MESSAGE/SEND_MESSAGE/PROCESS/FORK/JOIN/END |
 | `preconditionStepId` | all | single step that must complete first |
 | `preconditionStepIds` | all | steps that must ALL complete first; wins over the singular form when non-empty |
-| `preconditionExpression` | all | JEXL guard; while falsy the step never runs (stays `CREATED`, → `CANCELLED` at `END`) |
+| `preconditions` | all | `{stepId, expression?, onFalse?}` per incoming link — the condition belongs to that route in; wins over both spellings above. `onFalse`: `WAIT` (default, the step waits and the process stays open around it) or `DISCARD` (a branch not taken — skipped, process may finish) |
+| `preconditionExpression` | all | JEXL guard; while falsy the step never runs (stays `CREATED`, → `CANCELLED` at `END`). Older, step-wide spelling: folded into every link as an `onFalse: DISCARD` guard |
 | `parallel` | all | **deprecated and ignored** — every eligible step runs concurrently |
 | `topic` | ACTION | worker destination (Kafka mode; ignored embedded) |
 | `formId` | USER_TASK | form to render |

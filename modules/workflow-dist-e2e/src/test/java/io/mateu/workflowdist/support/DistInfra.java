@@ -44,6 +44,7 @@ public final class DistInfra {
     private static PostgreSQLContainer<?> postgres;
     private static KafkaContainer kafka;
     private static ConfigurableApplicationContext workerContext;
+    private static ConfigurableApplicationContext testWorkerContext;
     private static KafkaProducer<String, String> producer;
     private static JdbcTemplate jdbc;
     private static int instanceCounter;
@@ -82,6 +83,10 @@ public final class DistInfra {
             admin.createTopics(List.of(
                     new NewTopic("upstream", PARTITIONS, (short) 1),
                     new NewTopic("downstream", PARTITIONS, (short) 1),
+                    // The test worker's own topic. Separate from `work` because both workers run
+                    // in this JVM in different consumer groups, and a shared topic would hand every
+                    // task to both of them.
+                    new NewTopic("sim-work", PARTITIONS, (short) 1),
                     new NewTopic("outbox", PARTITIONS, (short) 1))).all().get();
         } catch (Exception e) {
             throw new IllegalStateException("Could not create Kafka topics", e);
@@ -164,11 +169,73 @@ public final class DistInfra {
         props.put("workflow.mode", "kafka");
         props.put("spring.cloud.function.definition", "consumeWorkerEvent");
         props.put("spring.cloud.stream.kafka.binder.brokers", kafka.getBootstrapServers());
-        props.put("spring.cloud.stream.bindings.consumeWorkerEvent-in-0.destination", "downstream");
+        // "work", not "downstream": every definition in src/test/resources/workflows names
+        // `"topic": "work"` on its ACTION steps, and the engine now dispatches to the topic a step
+        // names. Pointing the worker at what the fixtures actually ask for is also the only
+        // end-to-end cover per-step routing has — it is exercised here over a real broker, on every
+        // one of these tests, rather than only in a unit test of the publisher.
+        //
+        // The suite found this itself: with the worker on "downstream" and the definitions naming
+        // "work", eleven of twelve tests timed out at 120s with nothing completing. That is exactly
+        // the failure a topic pointed at a destination nobody consumes produces in production, and
+        // exactly why the change ships with a migration note.
+        props.put("spring.cloud.stream.bindings.consumeWorkerEvent-in-0.destination", "work");
         props.put("spring.cloud.stream.bindings.consumeWorkerEvent-in-0.group", "worker-group");
         props.put("spring.cloud.stream.bindings.consumeWorkerEvent-in-0.consumer.concurrency", "3");
         props.put("spring.cloud.stream.bindings.upstream.destination", "upstream");
         workerContext = new SpringApplicationBuilder(DistWorkerApp.class)
+                .web(WebApplicationType.NONE)
+                .properties(props)
+                .run();
+    }
+
+    /**
+     * Boots (once) the real test worker — {@code modules/test-worker} — against the shared
+     * containers, on its own topic and its own consumer group.
+     *
+     * <p>{@code worker.persistence=jpa} against the same PostgreSQL the engine uses, so its two
+     * tables land in the same schema and a test can read what the worker recorded with the same
+     * {@link #jdbc()} it reads the engine's state with. It is also the only place the JPA stores
+     * are exercised against a real PostgreSQL rather than H2.
+     *
+     * <p>It sets {@code workflow.mode}/{@code workflow.persistence} even though the shipped worker
+     * has neither and needs neither. That is an artifact of this suite, not of the worker: the
+     * engine is on <em>this</em> JVM's classpath, so its
+     * {@code EmbeddedModeAutoConfigurationExcluder} runs for every context started here, and at its
+     * defaults (embedded + memory) it strips both the Cloud Stream autoconfiguration and the JPA
+     * one — leaving this context with no {@code StreamBridge} and no {@code EntityManagerFactory}.
+     * The properties are here to tell it to keep its hands off. In {@code worker-standalone-app}
+     * the engine is not on the classpath at all, so the excluder does not exist and the worker
+     * needs to declare nothing.
+     */
+    public static synchronized void ensureTestWorkerStarted() {
+        ensureStarted();
+        if (testWorkerContext != null) {
+            return;
+        }
+        var props = new HashMap<String, Object>();
+        props.put("spring.application.name", "dist-test-worker");
+        props.put("spring.main.web-application-type", "none");
+        props.put("spring.main.banner-mode", "off");
+        props.put("workflow.mode", "kafka");
+        props.put("workflow.persistence", "jpa");
+        props.put("worker.persistence", "jpa");
+        // Zero, so a scenario that says nothing about duration does not add two seconds to every
+        // step of every test. Any scenario that cares states its own durationMs.
+        props.put("worker.task-duration", "0s");
+        props.put("spring.cloud.function.definition", "consumeWorkerEvent");
+        props.put("spring.cloud.stream.kafka.binder.brokers", kafka.getBootstrapServers());
+        props.put("spring.cloud.stream.bindings.consumeWorkerEvent-in-0.destination", "sim-work");
+        props.put("spring.cloud.stream.bindings.consumeWorkerEvent-in-0.group", "sim-worker-group");
+        props.put("spring.cloud.stream.bindings.consumeWorkerEvent-in-0.consumer.concurrency", "3");
+        props.put("spring.cloud.stream.bindings.upstream.destination", "upstream");
+        props.put("spring.datasource.url", postgres.getJdbcUrl());
+        props.put("spring.datasource.username", postgres.getUsername());
+        props.put("spring.datasource.password", postgres.getPassword());
+        props.put("spring.jpa.hibernate.ddl-auto", "update");
+        props.put("spring.jpa.open-in-view", "false");
+        props.put("logging.level.io.mateu.workflow", "WARN");
+        testWorkerContext = new SpringApplicationBuilder(DistTestWorkerApp.class)
                 .web(WebApplicationType.NONE)
                 .properties(props)
                 .run();
@@ -193,6 +260,19 @@ public final class DistInfra {
         } catch (Exception e) {
             throw new IllegalStateException("Could not publish upstream event", e);
         }
+    }
+
+    /**
+     * Publishes bytes onto the upstream topic without asking whether they are an event.
+     *
+     * <p>{@link #publishUpstream} cannot express this: it serialises a real event, so everything it
+     * writes is by construction readable. A producer outside the engine has no such guarantee — it
+     * writes whatever it built, and a template that interpolates an unescaped value writes JSON that
+     * only looks valid.
+     */
+    public static void publishRawUpstream(String payload) {
+        producer.send(new ProducerRecord<>("upstream", payload));
+        producer.flush();
     }
 
     public static void flushProducer() {

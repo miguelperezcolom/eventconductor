@@ -101,7 +101,11 @@ public abstract class AbstractUiE2eTest {
     @BeforeEach
     void emptyTheEngine() {
         for (var table : List.of("outbox_message_entity", "log_message_entity", "resource_entity",
-                "step_execution_entity", "process_entity")) {
+                "step_execution_entity", "process_entity",
+                // The test worker's own two, for the same reason: its pages are in this shell, and
+                // a row left by the previous journey turns "the list shows what I recorded" into
+                // an assertion about test order.
+                "received_task", "task_override")) {
             jdbc.execute("delete from " + table);
         }
     }

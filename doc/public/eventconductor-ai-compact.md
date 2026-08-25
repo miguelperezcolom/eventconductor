@@ -7,7 +7,7 @@ EventConductor is an event-driven **workflow / saga orchestration engine** for J
 <dependency>
   <groupId>io.mateu.workflow</groupId>
   <artifactId>workflow-engine</artifactId>
-  <version>1.0-beta.022</version> <!-- check Maven Central / CHANGELOG.md for the newest release -->
+  <version>2.1.1</version> <!-- check Maven Central / CHANGELOG.md for the newest release -->
 </dependency>
 <!-- add io.mateu.workflow:forms-engine only if you use USER_TASK / human forms -->
 ```
@@ -55,6 +55,7 @@ In `embedded`+`memory` mode, definitions are loaded from `classpath:/workflows/`
 - **Roots rule:** a step with no preconditions does not run — it must be a `START`, a `WAIT_FOR_MESSAGE` beginning a flow, or another step's `compensationStepId` (started by the rollback pipeline); anything else is rejected at load. Migration for old definitions: add one `START` step and point the old first steps at it.
 - Declare one `END` step (recommended; the engine also completes implicitly when no runnable steps remain). With parallel branches, put a `JOIN` (with `preconditionStepIds` listing all branches) before the `END`.
 - `preconditionExpression` is a **JEXL** expression evaluated against process variables; while falsy the step is simply never run (stays `CREATED`) and is flipped to `CANCELLED` when the `END` step fires. **Trap:** dependents wait for `COMPLETED`, so a step whose guard never turns true permanently blocks every step whose `preconditionStepId` points at it — give such chains an alternative path to `END`.
+- A condition can also be written on **one incoming link** instead of on the step: `preconditions: [{stepId, expression?, onFalse?}]` (wins over `preconditionStepIds`/`preconditionStepId`), which says when arriving *by that route* counts. `onFalse` says what a falsy condition means — `WAIT` (default) holds the step until the variables change and keeps the process open around it, `DISCARD` makes it a branch not taken, skipped so the process can finish. A step-level `preconditionExpression` is folded into every link as a `DISCARD` guard, which is exactly what it has always meant.
 - Variables are `(name, value)` string pairs. Worker outputs are **merged** into process variables and visible to later steps and JEXL expressions.
 - Add `"$schema"` (JSON) or a `# yaml-language-server:` comment (YAML) pointing at `workflow-definition-schema.json` for editor autocomplete.
 
@@ -63,7 +64,7 @@ In `embedded`+`memory` mode, definitions are loaded from `classpath:/workflows/`
 | Type | Purpose | Key field |
 |---|---|---|
 | `START` | Entry point: no worker, completes instantly at process creation; must have **no** preconditions; several STARTs = concurrent entry branches | — |
-| `ACTION` | Dispatch a task to a worker | `topic` (Kafka mode) |
+| `ACTION` | Dispatch a task to a worker | — (`topic` optional: routes to a worker pool of its own) |
 | `USER_TASK` | Pause for a human to submit a form | `formId` |
 | `RULE` | Evaluate a business rule; outputs become process variables | `ruleId` |
 | `TIMER` | Durable wait for a duration or until a date from a variable | `duration` / `untilVariable` |
@@ -76,7 +77,7 @@ In `embedded`+`memory` mode, definitions are loaded from `classpath:/workflows/`
 
 ### Step fields
 
-`id`, `type`, `name`, `description`, `preconditionStepId` (single), `preconditionStepIds` (string array — ALL must complete; wins over the singular when non-empty), `preconditionExpression` (JEXL), `parallel` (bool, **deprecated/ignored**), `topic` (ACTION), `formId` (USER_TASK), `ruleId` (RULE), `childWorkflowDefinitionId` (PROCESS), `outputVariables` (PROCESS: string array of child variables copied back to the parent; absent = none), `duration` (TIMER: ISO-8601 or ms), `untilVariable` (TIMER: variable holding an ISO-8601 date/date-time; wins over `duration`), `messageName` + `correlationExpression` (WAIT_FOR_MESSAGE / SEND_MESSAGE, both **required**), `messageVariables` (SEND_MESSAGE: string array of process-variable names the outgoing message carries; empty/absent = none), `timeout` (ISO-8601 `PT30S`/`PT1H30M` or ms int; `0`=none), `retries` (int), `compensable` (bool), `compensationStepId`, `maxSuccessfulExecutions` (int).
+`id`, `type`, `name`, `description`, `preconditionStepId` (single), `preconditionStepIds` (string array — ALL must complete; wins over the singular when non-empty), `preconditions` (array of `{stepId, expression?, onFalse?}` — per-link condition, `onFalse` ∈ `WAIT` (default, holds) / `DISCARD` (branch not taken); wins over both), `preconditionExpression` (JEXL, step-wide — folded into every link as a `DISCARD` guard), `parallel` (bool, **deprecated/ignored**), `topic` (ACTION, optional — the destination the task and its cancellation are dispatched to; defaults to `downstream`; Kafka mode only), `formId` (USER_TASK), `ruleId` (RULE), `childWorkflowDefinitionId` (PROCESS), `outputVariables` (PROCESS: string array of child variables copied back to the parent; absent = none), `duration` (TIMER: ISO-8601 or ms), `untilVariable` (TIMER: variable holding an ISO-8601 date/date-time; wins over `duration`), `messageName` + `correlationExpression` (WAIT_FOR_MESSAGE / SEND_MESSAGE, both **required**), `messageVariables` (SEND_MESSAGE: string array of process-variable names the outgoing message carries; empty/absent = none), `timeout` (ISO-8601 `PT30S`/`PT1H30M` or ms int; `0`=none), `retries` (int), `compensable` (bool), `compensationStepId`, `maxSuccessfulExecutions` (int).
 
 A workflow definition can also declare a `cronExpression` (Spring syntax) to start a new process instance at each occurrence, with deterministic business keys so multiple pods never duplicate an occurrence, and a `defaultMaxStepExecutions` (int). Note: `defaultMaxStepExecutions` / `maxSuccessfulExecutions` are today validated metadata, not enforced at runtime.
 
@@ -175,7 +176,7 @@ Report `RUNNING` for progress (resets the timeout clock). Long tasks can return 
 - **Exactly one `END`.** Parallel branches must funnel through a `JOIN` (its `preconditionStepIds` = the branch ends) before `END`.
 - **Report with `taskExecutionId`**, the value from `TaskExecutionRequested` — not the workflow `stepId`.
 - **Variables are strings.** JEXL numeric comparisons operate on the string value (`amount > 1000`).
-- In **embedded mode** the `topic` field is ignored (single executor); in **Kafka mode** `topic` is required for `ACTION`.
+- The `topic` field is **optional**, defaulting to the shared `downstream` destination. In **Kafka mode** it is the binding the task is sent on — an unbound topic becomes a dynamic destination, created on first use — and the step's `TaskCancellationRequested` follows it to the same place. In **embedded mode** it is ignored: one `EmbeddedTaskExecutor` takes every task. Within one topic, workers branch on `request.stepId()`.
 - Human steps (`USER_TASK`) need the `forms-engine` dependency and a form with matching `formId`.
 
 Full reference: `eventconductor-ai-full.md`. Canonical docs: `doc/src/content/docs/`.

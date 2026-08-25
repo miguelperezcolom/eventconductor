@@ -8,6 +8,8 @@ import io.mateu.workflow.application.usecases.process.create.CreateProcessComman
 import io.mateu.workflow.application.usecases.process.create.CreateProcessUseCase;
 import io.mateu.workflow.domain.aggregates.Variable;
 import io.mateu.workflow.infra.in.ui.WorkflowHome;
+import io.mateu.workflow.input.InputLimits;
+import io.mateu.workflow.security.CallerResolver;
 import io.mateu.workflow.infra.in.ui.suppliers.WorkflowDefinitionIdLabelSupplier;
 import io.mateu.workflow.infra.in.ui.suppliers.WorkflowDefinitionIdOptionsSupplier;
 import jakarta.validation.constraints.NotNull;
@@ -27,6 +29,7 @@ import java.util.UUID;
 public class CreateProcessForm {
 
     final CreateProcessUseCase createProcessUseCase;
+    final CallerResolver callerResolver;
 
     @Lookup(search = WorkflowDefinitionIdOptionsSupplier.class, label = WorkflowDefinitionIdLabelSupplier.class)
     @NotNull
@@ -40,13 +43,26 @@ public class CreateProcessForm {
 
     @Toolbar(buttonStyle = ButtonStyle.primary)
     Object create(HttpRequest httpRequest) {
+        // This form calls the use case directly rather than publishing upstream, so the check the
+        // upstream chokepoint performs has to be made here too — a page is a door like any other,
+        // and a value pasted into it reaches exactly the same columns. Thrown rather than reported:
+        // an exception out of an action is rendered as an error on the page with its message, and
+        // the form keeps what was typed.
+        InputLimits.checkIdentifier(workflowDefinitionId, "workflowDefinitionId");
+        InputLimits.checkIdentifier(businessKey, "businessKey");
+        InputLimits.checkNamedValues(variables, Variable::name, Variable::value, "this process");
+
         var processId = UUID.randomUUID().toString();
         createProcessUseCase.handle(new CreateProcessCommand(
                 processId,
                 workflowDefinitionId,
                 businessKey,
                 variables,
-                null
+                null,
+                // Whoever is on the other end of this request, resolved here — at the door, where
+                // there is still a request to read an identity from. By the time the use case runs
+                // it may be on another thread, and by the time a step runs it may be another week.
+                callerResolver.current()
         ));
         // Creating IS this form's save: clear the dirty flag before navigating away, or the
         // frontend asks whether to save the changes that have just been persisted.

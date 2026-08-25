@@ -5,103 +5,144 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>4.0.4</version>
+        <version>4.0.7</version>
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
     <groupId>io.mateu.workflow</groupId>
     <artifactId>worker-standalone-app</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>worker-standalone-app</name>
-    <description>app</description>
-    <url/>
-    <licenses>
-        <license/>
-    </licenses>
-    <developers>
-        <developer/>
-    </developers>
-    <scm>
-        <connection/>
-        <developerConnection/>
-        <tag/>
-        <url/>
-    </scm>
+    <description>Stateless Kafka worker: answers the engine's task requests, runs no engine of its own.</description>
+
     <properties>
         <java.version>21</java.version>
         <maven.deploy.skip>true</maven.deploy.skip>
     </properties>
+
+    <!--
+      The dependency list is the deployment shape. This is the test worker: it answers the engine
+      with whatever scenario it was asked for, records what it was given, and offers a UI for
+      changing what happens next. test-worker brings that, along with `shared` (the event DTOs,
+      WorkerReply, SynchronousProducerDefaults), the Kafka binder, JPA and Mateu.
+
+      workflow-engine and forms-engine are deliberately absent, as they were before: a worker that
+      runs the engine is not a worker. The engine under test runs in its own process, which is the
+      only arrangement in which this one proves anything.
+    -->
+    <!--
+      The same Spring Cloud release train the reactor's root pom imports. It is here because this
+      pom is also built on its own, inside the Dockerfile, with no reactor parent above it: without
+      it the Cloud Stream versions would be whatever sample-worker happens to drag in, and the test
+      binder below would have no version at all. Bump it with the root pom.
+    -->
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-dependencies</artifactId>
+                <version>2025.1.2</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!--
+              Security overrides — the CVE-fixed versions, kept in step with the other standalone
+              apps. This app parents off spring-boot-starter-parent, so these entries win over the
+              Boot BOM. Trivy gates the release on exactly these, and it caught their absence the
+              first time this image was scanned: 25 HIGH and 4 CRITICAL, every one of them
+              transitive. Drop when the BOM catches up.
+            -->
+            <dependency>
+                <groupId>com.fasterxml.jackson.core</groupId>
+                <artifactId>jackson-databind</artifactId>
+                <version>2.21.4</version>
+            </dependency>
+            <dependency>
+                <groupId>com.fasterxml.jackson.core</groupId>
+                <artifactId>jackson-core</artifactId>
+                <version>2.21.4</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.tomcat.embed</groupId>
+                <artifactId>tomcat-embed-core</artifactId>
+                <version>11.0.22</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.tomcat.embed</groupId>
+                <artifactId>tomcat-embed-el</artifactId>
+                <version>11.0.22</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.tomcat.embed</groupId>
+                <artifactId>tomcat-embed-websocket</artifactId>
+                <version>11.0.22</version>
+            </dependency>
+            <dependency>
+                <groupId>org.postgresql</groupId>
+                <artifactId>postgresql</artifactId>
+                <version>42.7.12</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
     <dependencies>
         <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-webmvc</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-data-jpa</artifactId>
+            <groupId>io.mateu.workflow</groupId>
+            <artifactId>test-worker</artifactId>
+            <version>1.0-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
             <scope>runtime</scope>
         </dependency>
-        <dependency>
-            <groupId>com.h2database</groupId>
-            <artifactId>h2</artifactId>
-            <scope>test</scope>
-        </dependency>
 
         <dependency>
-            <groupId>org.projectlombok</groupId>
-            <artifactId>lombok</artifactId>
-            <optional>true</optional>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webmvc</artifactId>
         </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <!--
+          The registry behind /actuator/prometheus. Exposing the endpoint in
+          management.endpoints.web.exposure.include is a permission, not a creation: with no
+          registry on the classpath the endpoint does not exist and a scrape gets 404, which is a
+          permanently-down target rather than a missing one. Shipped that way through 2.2.1.
+        -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>io.mateu.workflow</groupId>
-            <artifactId>workflow-engine</artifactId>
-            <version>1.0-SNAPSHOT</version>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>test</scope>
         </dependency>
+        <!--
+          Binds the streams in memory, so the context test starts no broker and waits for none.
+          Without it the test spent most of its sixteen seconds timing out against localhost:9092
+          and logged a binding failure while passing, which is a poor signal to leave in a build.
+        -->
         <dependency>
-            <groupId>io.mateu.workflow</groupId>
-            <artifactId>forms-engine</artifactId>
-            <version>1.0-SNAPSHOT</version>
-        </dependency>
-        <dependency>
-            <groupId>io.mateu.workflow</groupId>
-            <artifactId>sample-worker</artifactId>
-            <version>1.0-SNAPSHOT</version>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-stream-test-binder</artifactId>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 
     <build>
         <plugins>
             <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <configuration>
-                    <annotationProcessorPaths>
-                        <path>
-                            <groupId>org.projectlombok</groupId>
-                            <artifactId>lombok</artifactId>
-                        </path>
-                    </annotationProcessorPaths>
-                </configuration>
-            </plugin>
-            <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
-                <configuration>
-                    <excludes>
-                        <exclude>
-                            <groupId>org.projectlombok</groupId>
-                            <artifactId>lombok</artifactId>
-                        </exclude>
-                    </excludes>
-                </configuration>
             </plugin>
         </plugins>
     </build>

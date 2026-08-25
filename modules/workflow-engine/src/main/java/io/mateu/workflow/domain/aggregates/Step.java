@@ -60,11 +60,21 @@ public record Step(
          *
          * <p>Takes precedence over {@code preconditionStepIds} and {@code preconditionStepId} when
          * declared. Both remain valid — every definition written before this field existed uses
-         * them — and a step-level {@code preconditionExpression} still gates the step as a whole,
-         * on top of whatever the links say.
+         * them.
          */
         @HiddenInList
         List<Precondition> preconditions,
+        /**
+         * Deprecated: say it on the link instead ({@link Precondition#expression()}). A condition
+         * is about a route into a step, and a step-level one is only the special case where every
+         * route asks the same thing — which {@link #resolvedPreconditions()} now expresses by
+         * folding this expression into each link, so a guard has exactly one home and one
+         * evaluation path.
+         *
+         * <p>Still read, so every definition written before links could carry guards keeps
+         * working. On a step with no links at all — an entry point — it is the only place a
+         * condition can go, and it is evaluated as the step's own gate.
+         */
         String preconditionExpression,
 
         /**
@@ -128,6 +138,19 @@ public record Step(
         @Lookup(bubble = true)
         String compensationStepId,
         /**
+         * The step to run when THIS step times out — its {@code timeout} elapses with the step still
+         * unfinished, after any retries are exhausted. A native alternative to racing the step against
+         * a parallel TIMER: instead of the timeout failing the process, flow routes to this step (the
+         * step's own on-timeout branch). The timed-out step ends {@code TIMEOUT} (terminal) and, while
+         * it carries this, is not counted as a process failure. Compensation cannot express this —
+         * compensation only undoes steps that <em>succeeded</em>, and a timed-out step never did, so it
+         * has nothing to compensate; this routes forward instead of rolling back.
+         */
+        @HiddenInList
+        @Hidden("state['timeout'] == 0")
+        @Lookup(bubble = true)
+        String onTimeoutStepId,
+        /**
          * Cap on how many times this step may SUCCESSFULLY run within one process instance — a
          * runtime backstop against runaway loops. 0 inherits the workflow's
          * {@code defaultMaxStepExecutions}; both 0 = unbounded. (Design metadata today: the engine
@@ -144,10 +167,14 @@ public record Step(
         JoinType joinType,
         /**
          * Flow-authorization for this step: the scopes and roles the caller must ALL hold for this
-         * step to run, evaluated against the process's creation snapshot ({@code AuthorizationContext}).
-         * A step-level gate on top of the definition-level one — e.g. an approval step that needs a
-         * scope the rest of the flow does not. Empty (the default) means the step adds no restriction.
-         * Enforced only when {@code workflow.security.flow-authorization.enabled}.
+         * step to run. A step-level gate on top of the definition-level one — e.g. an approval step
+         * that needs a scope the rest of the flow does not.
+         *
+         * <p><b>Declared and not yet enforced.</b> The definition-level requirements are checked when
+         * a process is created, where the caller is still on the request; these would be checked when
+         * the step runs, which can be a week later on another pod, and that needs the caller's
+         * snapshot to have been stored with the process. It has not been. Until then this parses,
+         * round-trips and does nothing — stated here rather than left to be discovered.
          */
         @HiddenInList
         List<String> requiredScopes,
@@ -175,7 +202,7 @@ public record Step(
         this(id, workflowDefinitionId, type, name, description, preconditionStepId, preconditionStepIds,
                 null, preconditionExpression, parallel, topic, formId, ruleId, childWorkflowDefinitionId,
                 outputVariables, duration, untilVariable, messageName, correlationExpression,
-                messageVariables, timeout, retries, compensable, compensationStepId,
+                messageVariables, timeout, retries, compensable, compensationStepId, null,
                 maxSuccessfulExecutions, joinType, java.util.List.of(), java.util.List.of());
     }
 
@@ -187,8 +214,27 @@ public record Step(
      *
      * <p>One accessor for three spellings, so everything downstream — eligibility, the topology
      * warnings, the graph — asks the same question and gets the same answer.
+     *
+     * <p>A step-level {@code preconditionExpression} is folded in here, ANDed onto every link:
+     * "this step only runs if X" is the special case of "every route in requires X", and saying it
+     * once, in the links, leaves one kind of guard and one place that evaluates it. The folding is
+     * what makes a step-level condition visible to everything that reads the links — the CHOICE
+     * branch picker above all, which chooses by the guard on the link and used to be blind to it.
+     * A step with no links has nothing to fold into; there the expression stays the step's own
+     * gate (see {@code isAnEntryPoint}).
+     *
+     * <p>The fold carries the meaning across too, not just the text. A step-level expression has
+     * always <em>discarded</em> the step when false — the flow did not go this way, and the process
+     * may finish around it — while a guard written on a link <em>holds</em> it. That difference is
+     * real and is kept, as {@link GuardMode} on the folded link, so no definition changes behaviour
+     * by being read through here.
      */
     public List<Precondition> resolvedPreconditions() {
+        return foldStepGuardInto(declaredPreconditions());
+    }
+
+    /** The links exactly as the definition spells them, before the step-level guard is folded in. */
+    private List<Precondition> declaredPreconditions() {
         if (preconditions != null && !preconditions.isEmpty()) {
             return preconditions.stream().filter(p -> p != null && p.stepId() != null).toList();
         }
@@ -199,6 +245,34 @@ public record Step(
             return List.of(new Precondition(preconditionStepId, null));
         }
         return List.of();
+    }
+
+    private List<Precondition> foldStepGuardInto(List<Precondition> links) {
+        if (preconditionExpression == null || preconditionExpression.isBlank() || links.isEmpty()) {
+            return links;
+        }
+        return links.stream()
+                .map(link -> new Precondition(link.stepId(),
+                        andGuards(preconditionExpression, link.expression()),
+                        // A link that had a guard of its own keeps that guard's meaning: it was
+                        // written as something to wait for, and waiting is the conservative
+                        // outcome when the two are combined. A link that had none takes the
+                        // step-level meaning, which has always been "not this way, carry on".
+                        link.hasGuard() ? GuardMode.WAIT : GuardMode.DISCARD))
+                .toList();
+    }
+
+    /**
+     * The step guard ANDed onto a link's own. Both sides are parenthesised: an expression written
+     * to stand alone can be anything JEXL parses, and {@code a || b} ANDed unbracketed would bind
+     * the wrong way round. A link with no guard of its own simply takes the step's, unwrapped, so
+     * the overwhelmingly common case evaluates the very expression the author wrote.
+     */
+    private static String andGuards(String stepGuard, String linkGuard) {
+        if (linkGuard == null || linkGuard.isBlank()) {
+            return stepGuard;
+        }
+        return "(" + stepGuard + ") && (" + linkGuard + ")";
     }
 
     /**

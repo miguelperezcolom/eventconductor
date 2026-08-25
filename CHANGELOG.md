@@ -7,6 +7,1355 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **A workflow can say who may start it, and a form can say who may do its work.** Both declarations
+  existed on the workflow side and neither was ever read: `requiredScopes`/`requiredRoles` parsed on a
+  definition and on a step, `FlowAuthorizationService` evaluated them, `AuthorizationContext`
+  described the snapshot it would evaluate against — and nothing called any of it. The property its
+  own javadoc named, `workflow.security.flow-authorization.enabled`, did not exist. What shipped was a
+  design with no enforcement, which reads from the outside exactly like a feature.
+
+  It is enforced now, at two points and from two declarations:
+
+  - **The workflow** decides who may *start* a process, checked in `CreateProcessUseCase` — one place
+    rather than at each of the four doors (the page, an upstream record, an MCP call, cron), because a
+    rule enforced in four places holds in three of them once a fifth door is added. What the engine
+    starts for itself is not judged against a caller: cron says so with `AuthorizationContext.SYSTEM`
+    and a PROCESS step by naming its parent step execution, since re-judging either would mean a
+    scheduled definition could never run and a modelled child could never be spawned.
+  - **The form** decides who may *see, claim and complete* a task, checked in all three places. The
+    listing is narrowed in the query — filtering after it would turn a page of fifty into a short
+    list — but the listing is a convenience and not the boundary: a task id travels in a URL, a log
+    line, a pasted link, so claim and complete refuse on their own account.
+
+  On the form rather than on the step, deliberately: this is a property of the work, not of the flow.
+  The same "approve a refund" form is for the same people whichever workflow routes a task to it, so
+  declaring it once is also what stops it drifting between the definitions that use the form.
+
+  **Who the caller is** is a per-deployment question, so it is a port — `CallerResolver` — with a
+  default that reads whichever of the two real sources is present: an application that authenticated
+  the caller itself (Spring Security, which covers the standalone apps' HTTP Basic and any resource
+  server) or a gateway that validated a token and forwarded it (opt-in, `trust-forwarded-token`,
+  because reading an unverified token where nothing verified it is not weak authorization but none).
+  Verified beats asserted, so the opt-in cannot quietly override a real login. A deployment that knows
+  better defines its own bean.
+
+  Requires-all and fail-closed throughout: a caller nobody could identify holds nothing, so anything
+  required refuses them — which makes a misconfigured identity a locked door rather than an open one.
+
+- `workflow.security.flow-authorization.enabled` (default `false`),
+  `workflow.security.trust-forwarded-token` (default `false`), and
+  `workflow.security.claims.subject` / `.scopes` / `.roles` for the claim names to read.
+- `requiredScopes` / `requiredRoles` on a **form** definition, in the JSON schema and in the editor.
+
+### Changed
+- `FlowAuthorizationService` and its denial moved to `io.mateu.workflow.security` in `shared`, and the
+  evaluation is now static. Both engines ask the same question and the answer has to be the same one;
+  two copies of a rule like this drift.
+
+### Upgrading
+- Nothing changes until `workflow.security.flow-authorization.enabled` is set. With it on, a
+  definition or form that declares requirements refuses callers who do not hold them — including
+  callers the deployment cannot identify at all, and including the MCP tools, which act with no
+  identity unless given one through a custom `CallerResolver`.
+- A step's `requiredScopes`/`requiredRoles` still parse and still do nothing. Enforcing them means
+  checking when the step runs, which can be a week later on another pod, and that needs the caller's
+  snapshot stored with the process — a column that does not exist yet. The javadoc now says so
+  instead of implying otherwise.
+
+### Added
+- **A ceiling on what one caller may hand the engine.** Nothing asked how big anything was. The
+  columns that hold variables are `TEXT` on purpose — a value cut to fit a column is worse than one
+  refused, because the process then runs on data nobody sent — but that decision is about *a* large
+  value and said nothing about how large. A caller could POST two hundred megabytes of JSON to the
+  message API and the engine would parse it into heap, carry it through the outbox and write it to a
+  row, on a thread that is also running everybody else's processes.
+
+  `InputLimits` now draws the line between large and absurd, set where a real payload never reaches:
+  a megabyte in one value (the number the forms engine already enforced, now applied to every
+  channel), 500 variables per event, eight megabytes across them, and **255 for an identifier** — a
+  business key, a correlation key, a message name. That last one is not about memory: it is the
+  width of `process_entity.id`, `business_key` and `awaiting_correlation_key`, so without it an
+  over-long key failed in the JDBC driver inside the transaction that was saving a running process,
+  which is a far worse place for it than a check with a message.
+
+  Enforced at one chokepoint — every event arriving from outside converges on
+  `ProcessUpstreamEventUseCase`, which covers the `upstream` and `messages` topics, the embedded
+  publisher, and therefore the REST endpoint and the MCP tools that publish through either. Events
+  the engine generates for itself travel the outbox and are not re-judged, so a process that has
+  legitimately grown large is not dead-lettered halfway through by a limit meant for its callers.
+
+  **What happens to a refusal depends on which door it came through.** A Kafka record is parked on
+  the dead-letter destination and the partition keeps moving — it will be exactly this size on every
+  redelivery, so retrying it is a loop nobody reads. A REST caller is answered `400` with the reason
+  by the controller itself, rather than `202` followed by a silent dead letter on the far side of
+  the broker. A person filling in a form, and the process-creation page, are shown the message with
+  what they typed still on screen.
+
+- **A byte ceiling on the engine's own HTTP endpoints** (`workflow.rest.max-body-bytes`, default
+  16 MiB). Refusing on content and refusing on size are different defences: the content check runs
+  once the body has been read and parsed, so on its own it still lets a caller spend the memory
+  first. `Content-Length` answers the ordinary case and the body is counted as it is read for the
+  chunked one; both answer `413`. Registered on the message API and the git webhooks only — this
+  ships inside a library, and a host application's own upload endpoint is not the engine's business.
+
+- `workflow.rest.max-body-bytes` (default `16777216`), `workflow.forms.max-values`, and the
+  `eventconductor.input.*` system properties: `max-identifier-length` (255), `max-value-length`
+  (1048576), `max-variables` (500), `max-total-length` (8388608). `workflow.forms.max-value-length`
+  now defaults to the engine-wide value rather than its own copy of it, so a value refused arriving
+  over Kafka is refused arriving from a browser.
+
+### Upgrading
+- An event, message, submission or process creation carrying more than the limits above is now
+  refused where it used to be accepted. The defaults are far above any real payload — a megabyte in
+  a single variable still passes, and the existing tests that assert so are unchanged — but a
+  deployment that genuinely sends more can raise any of them with the system properties named above
+  without a rebuild.
+
+## [2.9.0] - 2026-08-21
+
+**A workflow could not be read as a workflow, and a workflow could be broken by a typo.** Tracing
+described the code the engine was running rather than the process it was running it for, so Grafana
+held a scatter of two-millisecond traces with nothing saying which process any of them belonged to.
+And a definition file, a form, a rule or a business key was taken largely on trust — which is how a
+misspelled key ran a step with no retries, and how two workflows that start each other spawned
+processes for as long as the database would take rows.
+
+Minor rather than patch: no public API moves, but two changes refuse input that used to pass in
+silence — a definition file with a misspelled key, and a form with duplicate field ids or a
+submission carrying fields the form does not declare. See Upgrading under each.
+
+### Added
+- **A process is one trace, shaped like the process.** Tracing described the code the engine was
+  running — a span around a dispatch, one around a relay pass, one around a step-over — and each of
+  those lasts a millisecond or two inside one method on one thread. The context that would tie them
+  together does not survive the outbox row and the broker record in between, so what reached the
+  backend was a scatter of unrelated two-millisecond traces with nothing saying which process any of
+  them belonged to.
+
+  A span cannot describe a workflow step anyway: a step starts in the transaction that dispatched it
+  and ends wherever the worker's reply lands, minutes or days later, across a broker and possibly a
+  pod restart. There is no call stack to wrap. What there *is* is `startedAt` and `finishedAt` on
+  the step execution row, so the trace is now **built from what the engine durably records**: when a
+  process reaches a terminal status it is written out as one trace, with a span for the process and
+  one for each step that ran, each covering the time that step actually took. Steps that ran one
+  after another read as consecutive siblings and steps that ran together as overlapping ones — the
+  shape falls out of the timestamps rather than having to be inferred from causality.
+
+  **Which trace a process belongs to is derived from its id**, not stored and not propagated: a hash
+  every pod computes identically. That is what survives a rebalance, a restart, a redelivery from
+  the dead-letter queue or a `TIMER` step that waits a week — a `traceparent` in a message header is
+  gone the moment the message is replayed. No migration, no new column, and no OpenTelemetry SDK
+  dependency: Micrometer's own `Span.Builder` already exposes the explicit start and end timestamps
+  this needs.
+
+  The live spans — `step-over`, `dispatch-step`, `correlate-message`, `outbox relay` — are still
+  emitted and now join that trace instead of each starting one of their own, which is what makes a
+  process visible while it is still running, before its own span exists.
+
+  `management.tracing.sampling.probability` governs process traces, decided from the derived trace
+  id by the same arithmetic OpenTelemetry's own ratio sampler uses. Per process rather than per
+  span, deliberately: the engine's spans used to take their turn at the ratio independently, so at
+  10% you got a tenth of the dispatches of a tenth of the processes and never a whole process to
+  read. The volume is about the same now and arrives as whole processes. Nothing to configure.
+
+- **An adversarial test suite over every layer that takes untrusted input**, specified test by test
+  in [TESTING.md](TESTING.md) §8 and summarised in [SECURITY.md](SECURITY.md). A workflow, form or
+  rule file arrives from a git import, a watched directory or an editor; a business key, a variable
+  or a submitted form value arrives from an upstream record, the REST message API, an MCP call or a
+  browser. The bar it holds is not "the engine rejects it" but **the engine survives it**: bad input
+  is either refused with a message naming what is wrong, or accepted and unable to hurt a running
+  process. Hostile definitions, the JEXL sandbox, injection-shaped keys and values against a real
+  database, forms, rules, the REST and webhook surface through the HTTP layer, and stored-XSS
+  journeys in a real browser. Several of the tests below were written against a defect and are green
+  because it was fixed.
+
+- `workflow.max-process-depth` (default `20`) and `workflow.forms.max-value-length`
+  (default `1048576`).
+
+### Fixed
+- **An over-nested guard expression unwound the orchestration thread.** A few thousand brackets
+  overflow JEXL's recursive-descent parser, and `StackOverflowError` is an `Error` — it passed
+  straight through every fail-closed `catch (Exception)` around a guard evaluation and took out the
+  Kafka consumer or the timer scheduler, rather than failing the one step whose definition was bad.
+  Expressions now clear a length and nesting ceiling before a parser sees them, and a stack overflow
+  is converted into an ordinary exception so the existing fail-closed handling engages. Shared by
+  the workflow guards and the rule expressions, both of which now also state their denial list — no
+  loops, lambdas, instantiation or global assignment — instead of relying on `createExpression` to
+  refuse them.
+
+- **Two workflows that start each other spawned processes without limit.** `checkInvariants`
+  refuses a `PROCESS` step naming its own workflow, and that is the only spelling it can refuse: a
+  definition is validated alone, so A starting B starting A validates cleanly and every generation
+  started the next for as long as the store would take rows. A runtime depth limit
+  (`workflow.max-process-depth`) now stops it and fails the step that asked for the child over the
+  line, rather than leaving it waiting for a child that will never exist.
+
+- **A malformed decision table failed anonymously.** A table missing its inputs, outputs or rows, or
+  with a row carrying fewer cells than the table has columns, surfaced as a `NullPointerException`
+  or `IndexOutOfBoundsException` from inside a loop, thrown into whichever step had asked for the
+  rule, with nothing in it to say which rule or which row. It now fails by name, and in the
+  evaluator rather than only at import — `RestRuleSource` and `GrpcRuleSource` fetch rules that
+  passed through no validator at all.
+
+- **A completed task could be completed again**, overwriting the values it was completed with and
+  sending the engine a second reply. The engine ignores a status update for a step that already
+  finished, so nothing broke; what was lost was the record of what the person actually submitted.
+
+### Changed
+- **A definition file with a misspelled key no longer imports silently.** The schema says
+  `additionalProperties: false`, but validation ran against the parsed record re-serialised to JSON
+  — by which point Jackson had dropped every key it did not recognise, so the check was applied to a
+  document that could not contain an additional property. A file saying `"retires": 3` imported
+  clean and ran with no retries at all, which is the exact failure a schema exists to prevent. The
+  import paths now validate the document **as written**, before it is bound.
+
+  **Upgrading:** a definition repository carrying a typo has been running with that field ignored,
+  and that file will now be refused with the offending key named. The import reports it per file and
+  carries on with the rest, so one bad file does not stop a catalogue — but check the import log
+  after upgrading rather than after the first workflow behaves unexpectedly. The `$schema` line the
+  README and the guides tell you to add for editor completion is explicitly allowed and stays so.
+
+- **Forms are validated on the server.** Nothing compared a submission against the form that was
+  asked for, so every posted name became a process variable — a task could be completed with fields
+  its form does not have, and without the fields it says are required. `required` was a client-side
+  hint and nothing more. Names the form does not declare are now dropped (dropped rather than
+  refused: the page's own component state legitimately carries keys that are not fields), required
+  fields are enforced, and a value longer than `workflow.forms.max-value-length` is refused.
+
+  Duplicate field ids are refused outright. JSON Schema can require each id to be present and
+  non-empty, but has no way to say they must differ from one another, so nothing checked — and two
+  fields answering to one id make which value a downstream step reads arbitrary.
+
+  **Upgrading:** a form with duplicate field ids will no longer import, and a client that submits
+  fields the form does not declare will find them dropped rather than turned into process
+  variables. If a downstream step reads a variable that no field declares, declare the field.
+
+## [2.8.0] - 2026-08-21
+
+**A saturated cluster drained 148 transitions/s with nothing busy** — the broker at 0.23 of two
+cores, no threads waiting on JDBC, and 28 068 processes queued behind a relay that held six rows.
+It was not behind on reading its backlog; it was slow at publishing, and the queue formed in front
+of it.
+
+Minor rather than patch: `workflow.outbox.relay-concurrency` changes meaning and default. No public
+API moves, but a deployment that sets it explicitly keeps that value as a ceiling and sees no
+change — see Upgrading below.
+
+### Changed
+- **The outbox relay publishes a batch into the broker's requests, not one message per round trip.**
+  A saturated cluster drained 148 transitions/s with the broker idle at 0.23 of two cores and 28 068
+  processes queued: nothing was busy, and the outbox held six rows, so the relay was not behind on
+  reading its backlog — it was slow at publishing and the queue formed in front of it.
+
+  The ack barrier was already there. What was not was enough keys in flight to fill a broker
+  request: the send pool was `relay-concurrency` **platform** threads, so the producer never held
+  more than a handful of records and amortised its round trip across four instead of across the
+  batch. The sends are on **virtual threads** now, and `workflow.outbox.relay-concurrency` defaults
+  to `0` — one per key in the batch, bounded by `batch-size`.
+
+  Measured on a real broker, 2 000 messages: **449 ms → 207 ms**, 4 454 → 9 662 msg/s. The relay
+  transaction got *shorter*, not longer, so the claim's row locks are held for less time rather than
+  more — the cost this change was expected to have does not arrive, because the batch's acks were
+  already awaited together.
+
+  **Nothing about the guarantees moves.** Sends stay synchronous, so a refusal is knowable message
+  by message; within a partition key they stay strictly sequential, so per-process ordering stays
+  true by construction rather than becoming a property of `max.in.flight.requests.per.connection`.
+  `Dist19` asserts both and was watched failing against each shortcut.
+
+  **Upgrading:** a deployment that sets `WORKFLOW_OUTBOX_RELAYCONCURRENCY` explicitly keeps that
+  value as a ceiling and sees no change. Remove it, or set it to `0`.
+
+### Added
+- **The process listing reads the read model, so a sharded fleet lists the fleet.** It queried the
+  write-side database of whichever shard served the request, so *Workflow → Processes* showed one
+  shard and no others — while the guide said the read model was what let a question span shards.
+  It does now: with `workflow.projection.enabled` on, the listing pages, filters and orders against
+  `process_index`, in both the JPA store and the JDBC one a remote projector deployment reads
+  through. Off, it uses the write side exactly as before.
+
+  This needed the process's **name** in the index, which `ProcessStatusChanged` did not carry: the
+  listing shows it and searches by it, and an index without it would have answered a different
+  question depending on which store answered. The event, the row, the two stores and the shard
+  backfill all carry it now; `V3__process_index_name.sql` adds the column. Rows projected earlier
+  have none and fall back to the business key rather than rendering a blank — a backfill fills them
+  in.
+
+## [2.7.0] - 2026-08-21
+
+**`/workflow/analytics` did not return.** The request thread entered the route and never logged
+again; the pod missed three liveness probes and was SIGKILLed. It was never the database —
+PostgreSQL did the whole join in 247 ms — it was 383 215 rows materialised on the request thread to
+put about fifty on a page.
+
+Minor rather than patch: this changes the shape of the two repository ports. Anything implementing
+`ProcessRepository` or `StepExecutionRepository` outside this repository inherits the new methods
+as defaults and keeps working, but the interfaces are wider than they were.
+
+### Changed
+- **Analytics is aggregated by the database instead of folded in the JVM.** `/workflow/analytics`
+  did not return: the request thread entered the route and never logged again, and the pod missed
+  three liveness probes and was SIGKILLed. It was never the database — PostgreSQL did the whole join
+  in 247 ms — it was 383 215 rows materialised on the request thread to put about fifty on a page.
+  Every field of the report is a `GROUP BY`, so the two repository ports gained aggregate methods:
+  the JPA store answers them in SQL, the in-memory store folds rows exactly as before, because
+  memory mode is small by construction and that is what it is for. Measured on 20 000 processes and
+  100 000 step executions against real PostgreSQL: **140 ms against 646 ms** row by row, and the
+  reduction now returns tens of rows rather than hundreds of thousands. The `p95` stays a measured
+  sample rather than an interpolation — `percentile_disc` in SQL is the same nearest-rank rule the
+  Java implementation always applied, and an equivalence test holds the two to the same numbers.
+
+## [2.6.2] - 2026-08-21
+
+A deployment could not write a form execution at all — eleven columns were `varchar(255)` wherever
+Hibernate built the schema, because the mappings declared no length and the migrations, which said
+`TEXT`, never ran there. Reported from the sagas PoC, where a saga's variables are several kilobytes
+and the task never reached the person waiting for it.
+
+Also here: the graph browser journeys that had been failing at random on unrelated branches, and a
+Mateu bump.
+
+### Changed
+- **Mateu 3.0-alpha.298.** A plain dependency bump. Verified rather than read off the release: the
+  browser suite was run against it in full — 25 journeys — alongside the engine, forms and worker
+  suites. Nothing it carries is visible here.
+
+### Fixed
+- **The graph browser journeys failed at random, on branches that touched nothing near the graph.**
+  The page object read the graph's shadow DOM without checking it was attached yet, and the retry
+  loop around it propagates an exception where it would have retried a false condition. Twice in one
+  afternoon, on a listings change and on a persistence change.
+
+- **Eleven columns were `varchar(255)` wherever Hibernate built the schema, and a real deployment
+  could not write a form execution at all.** Reported from the sagas PoC:
+
+      value too long for type character varying(255)
+        ... insert into form_execution_entity (..., variables, ...)
+
+  so the task never reached the person it was waiting for and the step timed out instead.
+
+  None of these fields declared a length, so Hibernate mapped each to `varchar(255)` — narrower than
+  the migrations intended in every case, and narrower than the content in several. It only bites
+  where Hibernate builds the schema rather than Flyway, which is exactly how the demo and the PoC
+  run (`ddl-auto=update`, migrations off), and it was invisible from the other side: the migrations
+  had said `TEXT` all along.
+
+  | entity | column | migration said | Hibernate built |
+  |---|---|---|---|
+  | `FormExecutionEntity` | `variables`, `values` | `TEXT` | `varchar(255)` |
+  | `FieldEntity` | `options`, `optionsSource` | `TEXT` | `varchar(255)` |
+  | `FieldEntity`, `FormEntity` | `description` | `VARCHAR(1024)` | `varchar(255)` |
+  | `StepEntity` | `variables` | `VARCHAR(2048)` | `varchar(255)` |
+  | `StepEntity` | `precondition`, `description` | `VARCHAR(1024)` | `varchar(255)` |
+  | `LogMessageEntity` | `message` | `VARCHAR(2048)` | `varchar(255)` |
+  | `ResourceEntity` | `url` | `VARCHAR(1024)` | `varchar(255)` |
+
+  Both halves now say `TEXT`, so it no longer matters which one builds the schema. The migrations
+  widen the capped columns to match rather than the mappings adopting their caps: in PostgreSQL
+  `varchar(n)` and `text` are the same storage and the same speed, so a length on a JSON document,
+  a log message or a URL buys nothing and costs an insert that fails in production. Widening is
+  metadata-only there — no table rewrite, no long lock.
+
+### Added
+- **A test for the shape of this bug, in the one form that can fail.** The obvious test — save
+  several kilobytes, read them back — is worthless here: **H2 does not enforce `VARCHAR` length**,
+  so it passes against a 255-character column holding 2 KB. Verified rather than assumed, by
+  reverting a mapping and watching the round trip stay green while `information_schema` reported
+  `len=255`. That is the same blind spot that let this ship. The tests assert the *declared width*
+  instead, which H2 reports faithfully even though it will not police it, and both were checked to
+  discriminate: reverting a mapping fails exactly the column reverted.
+
+## [2.6.1] - 2026-08-20
+
+One fix, and the page it fixes is the one 2.6.0 was cut for. Analytics stopped killing the pod in
+2.6.0 and started returning 500 instead, on every PostgreSQL deployment and for every window —
+reported from a real deployment within hours of the release, reproduced, and covered by a test in
+the suite that has a real database.
+
+### Fixed
+- **Analytics returned 500 on PostgreSQL, for every window.** Both analytics projections bound
+  their window with the usual optional-parameter shape,
+  `(:createdFrom is null or p.created >= :createdFrom)`. Hibernate emits a *separate* placeholder
+  per occurrence of a named parameter, so what reaches the database is
+  `(? is null or pe1_0.created >= ?)` and `$1` appears nowhere except in `$1 is null` — nothing to
+  infer a type from, and PostgreSQL refuses to prepare the statement: `42P18, could not determine
+  data type of parameter $1`. Casting the null check gives it the type back. Because the failure is
+  at prepare time it did not depend on the values, so `/workflow/analytics` was broken with a window
+  set exactly as it was without one — 2.6.0 turned a page that killed the pod into a page that
+  always 500s.
+
+  It survived release because nothing exercised these two queries against PostgreSQL: the engine's
+  own tests run on H2, which infers the type happily and returns rows, and the service test above
+  them mocks the repositories. The regression test is `Dist15AnalyticsWindowTest`, in the suite that
+  has a real database — verified to discriminate, three failures with the cast removed, all of them
+  the 42P18 above.
+
+### Documentation
+- **The test worker, driven from a deployment rather than a test.** The guide stated a scenario and
+  then only ever started the process from JUnit, so the half of the audience holding a running
+  cluster had no route in: the orchestrator UI, the `TEST_CONFIG` variable on a
+  `ProcessCreationRequested`, and the escaping that a JSON-inside-a-string demands. Two failure modes
+  are now written down and told apart — an event whose own JSON is broken never becomes an event at
+  all, creates no process, is not parked in the dead-letter store because conversion fails before any
+  handler runs, and leaves the producer exiting 0; a broken `TEST_CONFIG` *string* inside a valid
+  event fails loudly on the process instead. Also documented: this worker and the forms engine both
+  bind `downstream` out of the box, so the worker answers `USER_TASK`s meant for people until the
+  human steps are given a topic of their own.
+
+## [2.6.0] - 2026-08-20
+
+**The admin UI read every row of the write side to paint ten of them**, and on the demo deployment
+that had stopped being a slow page and become an outage: opening `/workflow/analytics` killed the
+orchestrator pod.
+
+Four pages shared one habit — load the whole table through the domain aggregate, then filter, sort
+and paginate in Java. A process row carries its workflow definition JSON, 8 KB on average, so ten
+rows cost 315 MB out of Postgres on every keystroke. Analytics was the same habit at a worse scale:
+every process, plus the entire step-execution table re-read once per workflow definition, around
+2.5 GB for one page. Two real requests: 61 s abandoned by the browser, and 38 s returning HTTP 500
+with the pod SIGKILLed at that moment.
+
+Everything below was measured against 37 651 processes and 345 564 step executions, not estimated.
+The listings and analytics now read projections of the columns they actually show, page in SQL, and
+answer in milliseconds.
+
+### Changed
+- **Mateu 3.0-alpha.297.** A plain dependency bump. Verified rather than assumed: the browser suite
+  was run against it in full — 25 journeys, including the graph readability ones — alongside the
+  engine and worker suites, and nothing it carries is visible here.
+
+The admin UI read every row of the write side to paint ten of them. Four pages, one habit: load the
+whole table through the domain aggregate, then filter, sort and paginate in Java. On the demo
+deployment — 37 651 processes, 345 564 step executions — that was measured, not estimated.
+
+### Fixed
+- **Analytics did not just take a minute, it took the pod down.** `/workflow/analytics` loaded every
+  process and then re-read the entire `step_execution_entity` table **once per workflow definition**
+  — six times, step JSON and variables included. Around 2.5 GB of row data for one page. Two real
+  requests: 61.3 s, abandoned by the browser; 38.5 s, HTTP 500. The orchestrator was SIGKILLed at
+  the moment of the second (`exitCode: 137`), and the gateway then returned 500 on `/workflow/steps`
+  because there was nothing behind it.
+
+  Both ports gained an analytics projection (`findAnalyticsRows`) reading the seven and six columns
+  the report actually uses, and the service now takes **one** snapshot per report instead of one
+  re-read per definition — step executions are indexed by process once, so per-definition work is a
+  lookup rather than a scan of the whole table. The window goes into the query, and step executions
+  join their process so it narrows them too.
+
+  Every number is unchanged: nearest-rank p95, averages, per-day throughput, the bottleneck flag and
+  the flow ordering of steps are all still computed in Java over the same values. Measured on the
+  same data: 6.5 MB + 36.6 MB instead of 315 MB + 6 × 360 MB, and 0.25 s of database work.
+
+### Changed
+- **The process and step listings page in SQL.** `SimpleProcessCrudAdapter.search` and
+  `StepExecutionsCrudAdapter.search` called `findAll()` and paged the result in Java. A process row
+  carries its workflow definition JSON — 8 KB on average — so painting ten rows moved 315 MB out of
+  Postgres, on every keystroke in the search box and every page turn. Measured on the demo: 6.9 s,
+  7.2 s, 7.6 s of server time to return between 454 and 6 111 bytes.
+
+  Filtering, ordering and paging now happen in the store, over a projection of the columns the table
+  shows — never `workflow_definition_json`, `variables`, `log` or `step_json`. The in-memory store
+  keeps the old behaviour as the port's default; only the JPA store overrides it.
+
+  With the new indexes the unfiltered listing is an index scan of twelve buffers, 0.047 ms.
+
+- **Paging is one contract, in one place.** The page size and number a listing reports are decided
+  by the store now (`ServedPage`), so the SQL and in-memory paths cannot drift: a size of zero or
+  less still means everything on one page, and a page past the end is still answered with the last
+  real one. Pushed down, that last part cannot be clamped after the fact — the store has to count
+  before it knows which page exists — so it counts first and then asks for the page it can serve.
+
+- **Received tasks page in the database too.** The test worker's listing went through mateu's
+  default `CrudStore.find`, which is `findAll()` paged in memory: 64 006 rows for ten, 1.6–2.2 s.
+  `JpaReceivedTaskStore` now overrides it. Text search is pushed down replicating mateu's own rule
+  exactly — every whitespace-separated token must appear in the row's `toString()`. The filter form
+  and column criteria are deliberately **not** reimplemented: their semantics live in private
+  reflection inside `CrudStore`, so those paths still delegate to the default.
+
+- **The demo shell compresses and lets its bundle be cached.** 3.5 MB of JavaScript went out
+  uncompressed, under `Cache-Control: no-store` — Spring Security's default headers applied to
+  `/assets/**`, so the cache was not missing, it was forbidden. Compression is on (817 KB, 4.3×) and
+  a dedicated filter chain drops only the cache-control writer for static paths, leaving every other
+  security header in place. The bundle revalidates rather than expiring, because these filenames
+  carry no content hash and a long `max-age` would strand browsers on an old bundle after a release;
+  a second load is now six 304s and no bytes. The bootstrap HTML stays uncached.
+
+### Added
+- **Indexes for the two listings** (`V22`, `V23`): `created` and `(status, created)` on
+  `process_entity`, `started_at` on `step_execution_entity`. Each is declared `DESC NULLS LAST` to
+  match the queries exactly — both columns are nullable, and a plain `DESC` index in Postgres is
+  `NULLS FIRST`, which would leave the planner sorting anyway.
+## [2.5.1] - 2026-08-20
+
+Mateu 3.0-alpha.296, and nothing else. It compiles clean and changes nothing observable — cut so a
+deployment can pin one version rather than a version plus a note about what is not in it.
+
+Measured rather than read off the release: the three operator journeys that wait on a view model's
+`@Toolbar` actions being rendered were enabled and run against it, and the toolbar still offers two
+of the five declared. They stay disabled.
+
+### Changed
+- **Mateu 3.0-alpha.296.** A plain dependency bump: it compiles clean, and nothing it carries is
+  visible here. Measured rather than read off the release — the three operator journeys that wait on
+  a view model's `@Toolbar` actions being rendered were enabled and run against it, and the toolbar
+  still offers two of the five it declares, so they stay disabled.
+
+## [2.5.0] - 2026-08-20
+
+Three defects that shared a failure mode: **the system said yes and did nothing.**
+
+Tracing was configured, enabled, and exported not a single span — 2.3.0 had fixed the missing
+auto-configuration, so a `Tracer` existed and the tests written for it passed, in CI and in the
+image, while no trace ever reached a collector. The endpoint was set under a property Boot 4
+deprecated at level *error*, which means it is no longer bound: it reads back perfectly from the
+environment, nothing consumes it, and the exporter that depends on it is never created. Spans were
+built by a real tracer, handed to a real processor, and dropped.
+
+The test worker's `memory` profile — the one the guide recommends for CI — did not start at all,
+and under `jpa` it ran tasks one at a time while looking concurrent on paper. Those two are one
+problem seen twice: `memory` was the configuration in which the concurrency premise held, and the
+one that would not run, so there was no shape in which this worker could be driven at load.
+
+None of the three showed up as an error anywhere. That is what the tests added with them are for: a
+span exporter bean, a context that starts under the profile, and a store call slow enough that
+serialising it is visible.
+
+### Fixed
+- **Tracing was configured, enabled, and exported nothing.** 2.3.0 fixed the missing
+  auto-configuration, so a `Tracer` was created and the two tests written for it passed — in CI and
+  in the image. No span ever reached a collector, and nothing said why.
+
+  The endpoint was set under `management.otlp.tracing.endpoint`, which Boot 4 deprecated at level
+  **error**: the property is no longer bound, and the metadata entry survives only to say so. It
+  reads back perfectly from the environment, so everything looked configured. What depends on it is
+  the OTLP exporter bean, which was therefore never created — spans were built by a real tracer,
+  handed to a real span processor, and dropped for want of anything to export them with.
+
+  Now set under `management.opentelemetry.tracing.export.otlp.endpoint`, in all three apps that
+  trace. `OTLP_TRACING_ENDPOINT` is unchanged, so no deployment has to move.
+
+  The test asserts the **exporter bean exists**, which is the half nobody was asserting: a `Tracer`
+  without an exporter is a tracing setup that passes every check and reports nothing. Reading the
+  property back would have proved only that the yaml says what the yaml says — which is exactly
+  what made this look right for two releases.
+
+- **The worker's `memory` profile did not start.** The profile is documented as the shape a CI suite
+  wants — one container, no volume — and it failed on an `entityManagerFactory` it had deliberately
+  removed. The stores are conditional; the Spring Data repository interfaces they wrap are not and
+  cannot be, because scanning is what finds them, and the application class turned scanning on
+  unconditionally. Excluding the JPA auto-configurations does not help: excluding an
+  auto-configuration does not stop repository scanning. `@EnableJpaRepositories` and `@EntityScan`
+  now sit on a configuration conditional on `worker.persistence=jpa`, which is what the stores
+  already switch on. A context test starts the profile, which is the only size of test that could
+  have caught this — every unit in the worker was fine; the assembly was not.
+
+- **The test worker did not run tasks concurrently under `jpa`.** The consumer uses `flatMap` and
+  the simulator uses `Mono.delay`, so on paper it ran many at once. The store calls are blocking,
+  and they were made on the Reactor thread carrying the task — a considered trade whose premise was
+  that they interleave with a `delay` and starve nothing. True of the in-memory map, false of JPA,
+  where the blocking call is a database round trip on the same small pool every other task shares.
+  Measured at 5,000 processes against a deployed engine: 7.7 tasks/s at 200ms of simulated work
+  each — about 1.5 genuinely in flight, with the worker at 50m CPU and PostgreSQL at 106m and one
+  active connection. The store calls now run on `Schedulers.boundedElastic()`. The test puts the
+  delay in the store, which is where JPA puts it: 0.6s with the fix, 1.8s without.
+
+  Together these were the whole of it — `memory` was the configuration where the premise held and
+  the one that would not start, so there was no shape in which this worker could be driven at load.
+
+
+## [2.4.0] - 2026-08-20
+
+The process diagram stops lying, rules stop being the odd one out, and an extension that existed
+only on paper becomes real.
+
+**The diagram an operator was watching was frozen** as of the moment the tab opened, for the life of
+the tab, while the process ran to completion behind it. Nothing looked broken — every node was still
+drawn, in the state it had on opening; only the colours were a lie, which is how it survived months
+of use. It had a workaround that could not be shipped, because it traded the frozen diagram for a
+status badge that lied about whether an operator's pause or cancel had taken effect. Mateu
+3.0-alpha.294 supplied what was missing, and the fix here is to stop writing the graph as component
+metadata and let it travel as what it is: data.
+
+**`.ecrule` was declared in two lists and read by nothing** — so since 2.3.0 a build validated a
+file the engine would then not load. Green light for something that does not work is worse than
+either supporting the extension or refusing it. It is supported now, in the engine and in both IDE
+plugins.
+
+The cause of that was structural, and is fixed with it: workflows and forms each have one place that
+decides what a definition file is, and rules did not. They do now — which also means **rules can be
+imported from a directory**, as the other two already could.
+
+### Added
+- **Rules can be imported from a directory**, as workflows and forms already could:
+  `rules.directory-import.directories`. This is where the drift above came from — workflows and
+  forms each have one `ImportXFromDirectoryUseCase` that decides what a definition file is, and
+  their Git imports delegate to it; rules had no such place, so their Git import carried its own
+  walk, its own filter and its own parser. Now they have one too, and the Git import delegates. The
+  next extension is added in one place rather than three.
+
+### Changed
+- **Mateu 3.0-alpha.295.** Carries the element-interpolation support that 294 introduced, and
+  compiles clean — unlike 294, which moved `RestDataSource`. Still open upstream: a view model's
+  `@Toolbar` actions are not all rendered (two of five), which is why three operator journeys stay
+  disabled.
+- **The process diagram follows the process again.** A page that refreshes itself answers with a
+  `State`, which carries values and deliberately does not resend the component tree — and an
+  `Element`'s attributes are part of that tree. So the diagram an operator was watching was frozen
+  as of the moment the tab opened, for the life of the tab, while the process ran to completion
+  behind it. Nothing looked broken: every node was still drawn, in the state it had on opening. Only
+  the colours were a lie.
+
+  Mateu 3.0-alpha.294 added what was missing — an element's attributes and content now accept
+  `${...}` expressions, evaluated against the state — so the fix here is to stop writing the graph
+  into metadata. The topology and the overlay are two plain `String` fields on the view model, which
+  is what makes them data, and the attributes merely say where to read them. The update is applied
+  in place, so the element repaints without being rebuilt and keeps its zoom, its selection and its
+  computed layout.
+
+  It had a workaround that could not be shipped: returning the view model instead of a `State` made
+  the diagram follow the process and stopped the status badge updating, so an operator got a badge
+  that lied about whether their pause or cancel had taken effect. The engine shipped the frozen
+  diagram rather than that, and `DiagramStaysLiveJourneyTest` sat disabled carrying both
+  measurements. It is enabled and passing, and so are the two operator journeys the workaround broke.
+
+  The topology travels this way too, not only the overlay: a DYNAMIC step injects nodes while the
+  process runs, so the graph's shape changes under a page that is already open.
+
+### Fixed
+- **`.ecrule` was a ghost extension.** It was declared in the engine's shared extension list and in
+  the Maven plugin's copy of that list — which 2.3.0 fixed the validator to honour — and read by
+  nothing: not the rule import, not either IDE plugin. So a build validated a file the engine would
+  then not load, which is worse than either supporting the extension or refusing it: it gives green
+  light to something that does not work.
+
+  Both lists even met inside one call — the rule import handed its own three-extension filter to
+  `DerivedIds.declaredUnder`, whose own list has six, so an id could be derived for a file the
+  filter beside it would never let through.
+
+  `.ecrule` is now read by the rule import and registered by both IDE plugins (VS Code 0.1.14,
+  IntelliJ 0.1.15) as YAML with the rule schema attached. There is no visual rule editor and this
+  does not pretend otherwise — what a `.ecrule` gets is highlighting, completion and validation
+  against the schema the engine validates it with.
+
+
+## [2.3.0] - 2026-08-20
+
+A minor release: the process diagram answers a question it could not answer before, and two things
+that were quietly answering nothing now answer properly.
+
+The diagram numbers its steps in the order the run actually took. A workflow's shape is not a list
+of what happened in it — branches drawn side by side ran in some order, a step drawn between two
+others may have run before both — so the tick said a step ran and nothing said when. And the
+conditions on the lines stopped hiding the steps they apply to: shorter, whole under the pointer,
+and placed clear of the nodes.
+
+The two that answered nothing are of a kind. `eventconductor:validate` collected only three of the
+six extensions the engine imports, so a repository written by the editors was walked, nothing was
+found, and the build passed — a validator that validates nothing looks exactly like one with
+nothing to complain about. And an END step recorded no time at all, which read as a step that never
+ran wherever the record is shown by time.
+
+Both IDE plugins are rebuilt on the current graph — **VS Code 0.1.13, IntelliJ 0.1.14** — because
+each ships its own copy of the component and a rebuild is the only thing that moves it.
+
+
+### Added
+- **The process diagram numbers its steps.** A node now carries its place in the order the run
+  actually took, bottom-left, beside the tick that says it ran at all. The shape of a workflow does
+  not answer "when": branches drawn side by side ran in some order, a step drawn between two others
+  may have run before both, and one drawn on the path may have been skipped. A step that has not had
+  its turn carries no number, which is as much part of the reading as the numbers are.
+
+### Changed
+- **The IDE plugins ship the current graph: VS Code 0.1.13, IntelliJ 0.1.14.** Both carry their own
+  copy of `workflow-graph.js`, synced from the engine at build time and not tracked, so a change to
+  the component reaches them only when they are rebuilt — and the published 0.1.12 / 0.1.13 predate
+  the guard chips and the step numbers. Verified by unpacking the artifacts rather than by trusting
+  the sync: the marks are in the bundle inside both, and were absent from the ones before.
+
+- **Conditions on the lines no longer hide the steps they apply to.** A guard chip is drawn over its
+  edge, which is right — it belongs to the way in, not to the step. But an expression is as long as
+  its author needed it to be, and drawn in full it can be wider than the nodes it sits between. Two
+  things now: the chip shows the first 16 characters and expands to the whole expression under the
+  pointer, and it is placed clear of the nodes and of the other chips — searched along its own line
+  first, since a chip that moved along its line is still obviously that line's, and only then
+  stepped perpendicular to it. Pinned by a browser test that compares the drawn boxes; without the
+  search, the fixture's chip covers two nodes.
+
+- **Mateu 3.0-alpha.294.** Creating a task override in the browser works again: the null-numeric
+  hang — three nullable numeric fields rendering as `vaadin-integer-field`, a null arriving as
+  `NaN`, the field clearing itself and the clear counting as a change — is fixed upstream. The
+  guide's caution is gone and `NewOverrideFormJourneyTest`, written as the reproduction, is enabled
+  and passing.
+
+  `RestDataSource` grew a `ref` component in this version, so the forms task page builds it by name
+  rather than by position; a positional constructor turns every such addition into a compile error
+  at best and a silently shifted argument at worst.
+
+  The **process diagram is still frozen** in a page that refreshes itself, and re-measured rather
+  than assumed: an `Element`'s attributes still do not travel in a `State` update, so it is the same
+  trade as on 291 and 293 — `new State(loaded)` keeps the status badge correct and the diagram
+  stale, returning the view model does the opposite and fails two operator journeys on the badge.
+  The disabled test carries both measurements. Same for the toolbar rendering two of a view model's
+  five `@Toolbar` actions, which is why three operator journeys stay disabled.
+
+### Fixed
+- **The Maven plugin validated nothing in a repository written by the editors.** `eventconductor:validate`
+  collected only `*.json`, `*.yaml` and `*.yml`, and the graph editor and both IDE plugins write
+  `.ec`, `.ecform` and `.ecrule` — which the engine imports without complaint. Pointing the goal at
+  a directory of them walked the tree, found no files, and passed: a validator that validates
+  nothing is indistinguishable from one with nothing to complain about. Verified against the
+  published 2.2.2, not only a local build. It now collects all six, and reads anything that is not
+  `.json` with the YAML parser, which reads JSON too — so an `.ec` holding either parses.
+
+- **An END step recorded no time at all.** It is completed straight from the orchestrator's end
+  transition, which never went through the path that stamps `finishedAt`, so the one execution that
+  by definition ran last was the one with nothing to say when — against what the field itself
+  documents. It read as a step that never ran wherever the record is shown by time.
+
+## [2.2.2] - 2026-08-19
+
+A patch release for five defects found by running 2.2.1 in a real Kubernetes deployment, and four
+of the five failed the same way: **by doing nothing, quietly**. Tracing that traced nothing because
+no `Tracer` was ever created; a Prometheus endpoint that answered 404 because exposing an endpoint
+is not the same as having one; a `directory` setting that relaxed binding accepted and nothing read;
+and a malformed message dropped without a log line, a dead letter, or a metric. Nothing was broken
+in a way that shows: each one looked exactly like a working system with nothing to do.
+
+The fifth was the opposite — it did too much, inserting another copy of every definition file that
+declared no `id`, on every import, without bound.
+
+The lesson is in the tests rather than the fixes. Each one now has a test that fails without it,
+because every one of these could return the same way it arrived: by a dependency moving, a property
+being renamed, or a default changing under us, with nothing to say so.
+
+### Fixed
+- **An unreadable message was dropped in complete silence.** A record whose bytes could not be
+  turned into an event — JSON that does not parse, a `type` this version does not know — never
+  reached a handler, so none of the engine's handling applied to it. Spring Cloud Stream's converter
+  failed, and the binder's default helper answers "do not fail" and then does nothing but re-align
+  the `kafka_*` header lists. The record was dropped, the batch committed and the offset advanced:
+  no log line at any level, no dead letter, no metric, lag back to zero.
+
+  That combination is undiagnosable from outside, which is what makes it worse than the failure
+  itself. A producer that sent 1,500 malformed messages saw a healthy engine that had created
+  nothing — indistinguishable from messages that never arrived, so the search starts at the
+  producer, then the topic, then the consumer group, and the payload is the last thing anyone looks
+  at.
+
+  Such a record is now logged at ERROR with an excerpt of the payload and the reason it could not be
+  read — derived by re-reading the bytes, because the batch hook is handed no cause at all and
+  "could not be converted" without saying why is most of the way back to silence. It is parked on
+  the `dead-letter` topic as the original bytes, with `x-dead-letter-unreadable: true`, and counted
+  by `eventconductor.events.dead.lettered`.
+
+  It is still skipped rather than retried: bytes that cannot be parsed now cannot be parsed on
+  redelivery either, so failing the batch would stall the partition for every process behind it, for
+  ever. What changed is that the skip says so. DIST-14 drives it through a real broker and asserts
+  both halves — the record is parked, and the records around it still finish.
+
+- **A definition file with no `id` was duplicated on every import.** The importers gave such a file
+  a fresh `UUID.randomUUID()` each time, so nothing connected the definition an import created to the
+  one the previous import had created from that same file: every import inserted another copy, and
+  none of them could be pruned — the code said so itself, tracking only explicit ids for pruning.
+  With a git webhook wired up, every push added a copy, without bound, and nothing warned. All three
+  engines did it: workflows, forms, and rules (through `SaveRuleUseCase`, which generates an id, as
+  it should for a rule somebody saves in the UI and should not for a file).
+
+  Such a file now gets an id **derived from its path** relative to the scan root —
+  `sagas/onboarding.ec` becomes `sagas.onboarding`, dots rather than slashes because an id travels
+  in URLs and in event payloads. The property that matters is that it is the same next time, which
+  is exactly what reconciliation and pruning needed, and both now work for these files.
+
+  Two consequences, chosen rather than incurred: **moving or renaming a file is a delete plus a
+  create** (the old path is pruned, the new one arrives new), and the id is relative to the scan
+  root, so changing `directory` changes the ids of files that declare none. A definition that must
+  survive a move should declare an `id` — that is what declaring one is for.
+
+  An explicit `id` still wins and a derived one never takes it: the ids a scan declares are read
+  before anything is imported, because the collision is one of order — the file declaring the id may
+  be walked second, and by then the derived one would already have been saved over it. A file whose
+  path collides is reported as an error and skipped.
+
+  **Upgrading:** definitions already inserted under generated UUIDs are attributable to no file, so
+  the upgrade cannot clean them up. The next import creates one stable definition per file and
+  leaves the old copies where they are; archive or delete them once, by hand. After that the count
+  stays put.
+
+- **Distributed tracing did nothing at all.** The orchestrator, forms and rule apps declared
+  `micrometer-tracing-bridge-otel` and `opentelemetry-exporter-otlp`, and their yaml mapped
+  `TRACING_SAMPLING` and `OTLP_TRACING_ENDPOINT` — but those are the OpenTelemetry *libraries*, and
+  what creates a `Tracer` from them is Spring Boot's tracing *auto-configuration*, which Boot 4
+  split out of `spring-boot-starter-actuator` into its own module. Nothing on the classpath owned
+  either property, no `Tracer` bean was created, `WorkflowTracingAutoConfiguration` resolved its
+  provider to nothing, and every call ran untraced.
+
+  It failed silently in both directions, which is why it shipped: relaxed binding accepts a
+  property nobody owns without complaint, and the engine's tracing bridge is designed to degrade to
+  a no-op rather than refuse to start. A deployment setting `TRACING_SAMPLING=1.0` got no spans and
+  no error.
+
+  Fixed by adding `spring-boot-micrometer-tracing-opentelemetry`, which brings
+  `spring-boot-micrometer-tracing` with it, so one dependency owns both properties. The existing
+  names keep working — Boot 4 also offers `management.opentelemetry.tracing.export.otlp.endpoint`,
+  but `management.otlp.tracing.endpoint` is still bound, so no deployment has to change. Each of the
+  three apps has a test asserting an OpenTelemetry-backed `Tracer` is really there, because nothing
+  would have caught its return.
+
+- **The worker and projector answered 404 on `/actuator/prometheus`.** Both list `prometheus` in
+  `management.endpoints.web.exposure.include` and neither declared `micrometer-registry-prometheus`.
+  Exposure is a permission, not a creation: with no registry on the classpath the endpoint does not
+  exist, and naming one you have no implementation for is accepted in silence.
+
+  Anything scraping those pods had a target that was permanently down, which is worse than no
+  target — it is an alert about the wrong thing. The other three apps declared the registry all
+  along, so this was an omission rather than a decision. Each of the two now has a test that scrapes
+  the endpoint over HTTP and asserts it answers with metrics, rather than looking for a registry
+  bean: the bean is not the promise.
+
+- **`directory` was accepted and silently ignored by the forms and rule engines.** The workflow
+  engine's `GitImportProperties.GitRepository` has a `directory` field, so
+  `WORKFLOW_GITIMPORT_REPOSITORIES_0_DIRECTORY` scopes the scan to a subdirectory of the clone. The
+  forms and rule copies of that class did not, so their equivalents were accepted by relaxed
+  binding — which never complains about a property nobody owns — and changed nothing.
+
+  Pointed at a repository that is not exclusively definitions, both engines walked the entire clone:
+  a parse error per unrelated YAML file, and — the real risk — anything that happened to look like a
+  definition imported as one.
+
+  Both now carry the field and the `resolveScanRoot` / `pruneKey` handling their workflow
+  counterpart already had, including the guard that refuses a directory escaping the repository
+  root. That guard matters more than its size: the root it resolves against is the throwaway clone
+  the import deletes afterwards, so a `directory: ../..` that normalised instead of being refused
+  would walk, prune against, and then delete whatever it found outside.
+
+  Three copies of one properties class is what produced this, and they are still three.
+
+### Notes
+- **Known issue: `/_worker/taskOverrides/new` hangs the browser.** Mateu renders `TaskOverride`'s
+  three nullable numeric fields — `durationMs`, `failuresBeforeSuccess`, `replyTimes` — as
+  `vaadin-integer-field`, and a null arrives as `NaN`: the field clears itself, the clear counts as
+  a change, and it is set again, without end.
+
+  Isolated both ways on Mateu 3.0-alpha.291: making those three fields primitive opens the form,
+  restoring them hangs it again. Not worked around, because the nullability *is* the meaning —
+  `durationMs` null means "inherit from `default`" and `0` means "finish instantly", and a primitive
+  cannot express the first.
+
+  Until it is fixed, create overrides through the API or in the `task_override` table. Everything
+  else on both worker pages works. The guide says so, and a disabled browser test carries the
+  reproduction and passes against a build with those fields made primitive.
+
+## [2.2.1] - 2026-08-19
+
+A patch release, and every entry is something that shipped broken in 2.2.0 or earlier. Two of them
+were invisible until something was finally pointed at them: a feature that could not answer a
+request, and an image whose vulnerabilities nothing had ever scanned.
+
+### Fixed
+- **The worker image shipped four CRITICAL CVEs, and 2.2.0 published it anyway.** The worker was
+  the only one of the five standalone apps missing both halves of what keeps the others clean: it
+  parented off `spring-boot-starter-parent` **4.0.4** while orchestrator, forms, rules and projector
+  are on 4.0.7, and it declared none of the security overrides they each carry. So it went out with
+  `tomcat-embed-core` 11.0.18 (three CRITICAL), `jackson` 2.21.1 and `micrometer-core` 1.16.4 —
+  25 HIGH and 4 CRITICAL in total, every one of them transitive.
+
+  Neither absence was deliberate. That pom predates the app being published as an image, and until
+  2.2.0 added it to the release workflow nothing had ever scanned it: the image had been pushed by
+  hand, unscanned, for months. Adding the scan is what found this, on its first run.
+
+  Now aligned with the other four — parent 4.0.7 and the same overrides — and verified with Trivy
+  against the built image, with the flags the workflow uses: 0 findings, in the Alpine base and in
+  the jar. **`worker-standalone-app:2.2.0` and the `latest` it moved should be treated as
+  vulnerable and replaced by this release.**
+
+- **Git webhooks never worked in a released build.** Every `POST` to
+  `/workflow/webhooks/{provider}`, `/forms/webhooks/{provider}` or `/rules/webhooks/{provider}`
+  answered 500 with `Name for argument of type [java.lang.String] not specified`, before the
+  signature was verified and whatever the payload said. The three controllers declare `provider`
+  as a bare `@PathVariable String`, so Spring binds it by parameter name — and the reactor
+  compiled without `-parameters`, so no `MethodParameters` attribute reached any jar it published.
+  There is no Spring Boot parent here to switch that on, and configuring `maven-compiler-plugin`
+  at all is what silenced javac's own default, so the omission was invisible: the feature was
+  documented, unit-tested and shipped, and the only thing it could not do was answer a request.
+
+  The unit tests could not have caught it. They call `controller.webhook(...)` as a plain object,
+  which is the right shape for the routing and verification logic but never reaches the mapping
+  layer, and the mapping layer is the whole of the bug. There is now a MockMvc test for the
+  workflow engine's webhook that goes through the dispatcher, so the flag cannot be lost silently
+  again.
+
+  Fixed for the class rather than the three sites: `<parameters>true</parameters>` on the root
+  pom's compiler plugin, which is what the Boot parent would have contributed.
+
+### Changed
+- **The release scans its images before publishing them, not after.** The five images were pushed
+  as they were built and scanned afterwards, which makes the scan a report rather than a gate —
+  2.2.0 published all five and *then* failed on the worker's CVEs, so the bad image was on Docker
+  Hub under both its version tag and `latest`, and the projector's scan never ran at all because
+  the failing step skipped it. Each image is now built into the runner's daemon, all five are
+  scanned, and only then are they pushed — in a single step, because five push steps failing
+  part-way through would leave exactly the half-published state this ordering exists to prevent.
+
+  Maven Central still publishes before any image is built, so a failing scan still leaves a
+  published version behind on the immutable side. That is a separate decision, not an oversight.
+
+### Notes
+- `forms-engine` rose from 44.0% line coverage to 75.7%, and `rule-engine` from 42.8% to 75.8%,
+  with their floors raised to match. Nothing was chosen to move a number: the classes covered are
+  the adapters at each engine's edge — the JPA repositories, the Kafka consumer, the MCP tools, the
+  REST and gRPC read APIs, and the Git import — each the only implementation of a contract somebody
+  else depends on, and each at or near zero. `TESTING.md` records the figures and what they mean.
+
+## [2.2.0] - 2026-08-19
+
+A release about what a definition can say, and how it reaches the engine. Every change here is
+additive: a definition written for 2.1.x means the same thing to 2.2.0, with the one exception
+called out under *Changed*.
+
+### Added
+- **The worker app is now a test instrument: it plays back whatever scenario you ask for.** Testing
+  a workflow meant answering its tasks, and answering its tasks meant writing a worker — one per
+  scenario, or one with a branch per scenario, until the scaffolding outnumbered the workflow under
+  test. The worker app now does no work at all. A process states what its tasks should do in a
+  `TEST_CONFIG` variable, and the worker plays it:
+
+  ```json
+  {
+    "default": { "durationMs": 200, "outcome": "COMPLETED" },
+    "tasks": {
+      "reserve-seat": { "durationMs": 500, "variables": [{ "name": "seatId", "value": "12A" }] },
+      "charge-card":  { "outcome": "ERROR", "reason": "card declined" },
+      "notify":       { "outcome": "NO_REPLY" }
+    }
+  }
+  ```
+
+  The keys are step ids — the engine sends an empty task id for every `ACTION` step, filling that
+  field only for `USER_TASK` and `RULE`. A task can state its duration, its outcome, the reason it
+  failed, the log lines it emits and when, the variables it hands back, how many of the first
+  attempts to fail before succeeding, how many times to send its reply, and whether to ignore a
+  cancellation. Three of those exist for states no
+  ordinary worker can be asked to produce on demand: `NO_REPLY` is a worker that took the task and
+  hung, which is what the step timeout is written for; a duplicate reply and a reply after
+  cancellation are workers misbehaving, and what the engine does with them is a property of the
+  engine worth being able to point at.
+
+  Unknown properties and malformed JSON fail the task with the parse error as its reason, on the
+  process you started. A misspelled `durationMS` quietly meaning "two seconds" would turn a test
+  that proves nothing into a test that looks like it passed.
+
+  It also records every task it is given, and offers a UI at `/_worker` for browsing them and
+  canning a different reply for next time — for the processes you cannot edit. `TEST_CONFIG` always
+  wins over a stored override: a suite whose result depends on a table someone edited by hand last
+  Tuesday is not a suite. Every recorded row says which of the two answered it, because that is the
+  first question anyone asks when a run surprises them.
+
+  New module `modules/test-worker`, deliberately outside the `io.mateu.workflow` package tree so
+  that everything which scans the engine's packages does not sweep up a worker binding and two JPA
+  stores from any classpath that happens to contain it. `modules/sample-worker` is untouched and
+  stays what it was — the hundred-line worker people copy.
+
+  `DIST-13` (`Dist13TestWorkerScenariosTest`) drives the whole thing against a real orchestrator
+  over real PostgreSQL and Kafka: a saga completed, a saga rolled back, a flaky step retried, a
+  silent step timed out, and two processes disagreeing about the same task at once. It earned its
+  place twice on the first run — the worker had assumed a retry arrives as a new task execution
+  (the engine re-dispatches the same one, so the count never left 1 and a flaky step failed
+  forever), and had led with task ids in a protocol that sends them empty.
+
+- **Definitions can be imported from a directory on disk, not only from Git.**
+  `workflow.directory-import.directories` and `forms.directory-import.directories` (or
+  `WORKFLOW_DEFINITIONS_DIRS` / `FORMS_DEFINITIONS_DIRS` in the standalone apps) name directories
+  scanned at startup:
+
+  ```yaml
+  workflow:
+    directory-import:
+      directories:
+        - /definitions/workflows
+  ```
+
+  Git import reads what is **committed**, which is what a deployment wants and exactly what the
+  loop where someone is *writing* a definition does not: edit, commit, restart, discover the commit
+  was the step you forgot. A mounted volume of definitions had no other way in — forms have no
+  classpath loading at all, and the workflow one needs the files inside the jar.
+
+  Pruning, provenance and the per-file error handling are the same as for a repository, because it
+  is the same code: importing a directory is what the git import already did once the clone
+  finished, and it now lives in `ImportWorkflowDefinitionsFromDirectoryUseCase` /
+  `ImportFormsFromDirectoryUseCase`, which the git import calls. A directory that is not there is
+  reported as an error rather than passed over — a typo in a mount path should not look like an
+  empty definition list.
+
+- **A form field can declare its choices, as value/label pairs.** A field that picks from a fixed
+  list — `radio`, `select`, `combobox`, `listBox`, `choice` — had no way to say what the list is,
+  so a definition either left the picker empty or spelled the choices out in the field's
+  description and hoped:
+
+  ```yaml
+  - id: decision
+    label: Decision
+    dataType: string
+    stereotype: radio
+    options:
+      - value: WALK
+        label: Walk the guest to another hotel
+      - value: REFUND
+        label: Refund the reservation
+      - value: REJECT          # no label → the user sees "REJECT"
+  ```
+
+  The value is what the form submits and what the process variable ends up holding; the label is
+  what the user reads. Keeping them apart is the point: the workflow's guards stay written against
+  stable codes (`decision == 'REFUND'`) while the wording changes freely. The visual form editor
+  edits the pairs and previews the real choices, and `form-definitions.md` documents the field
+  format — which until now described a `type: SELECT` / `options: ["A","B"]` shape the schema has
+  never accepted.
+
+- **…or fetch them from a REST endpoint, with `optionsSource`.** A list written into a definition
+  says what the choices were when it was authored; when they are a catalogue or a directory, what
+  you want is what they are now:
+
+  ```yaml
+  - id: country
+    label: Country
+    dataType: string
+    stereotype: select
+    optionsSource:
+      url: https://restcountries.com/v3.1/all?fields=cca2,name
+      valuePath: cca2
+      labelPath: name.common
+  ```
+
+  The engine only carries the descriptor — it never calls the endpoint. The fetch is the renderer's,
+  through mateu's `RestDataSource` / `@RestOptions`: a form talking to any REST API without the
+  backend in the middle. `url`, `headers` and `body` interpolate `${state.x}`, so one field's
+  choices can depend on another's answer and refetch when it changes. A field declares `options` or
+  `optionsSource`, never both, and the schema rejects one that declares both.
+
+  `proxy: true` moves the fetch from the browser to the server — no CORS, and a `${secret.X}`
+  placeholder resolved server-side instead of shipped to the client. Mateu never takes a proxied
+  endpoint from the request (it would be an open relay), so the task pages declare what they carry
+  through mateu's `RestSourceSupplier` (3.0-alpha.291): what the server fetches is only ever what
+  the stored definition declares. Without it, the fetch is the browser's and the endpoint must be
+  reachable from there.
+
+- **`onFalse` on a precondition link: `WAIT` (the default) or `DISCARD`.** What a false condition
+  means used to be decided by where it was written — a guard on a link held the step and kept the
+  process open around it, a step-level `preconditionExpression` discarded the step and let the
+  process finish. Those are two different statements, and both are worth making about one route
+  in, so the link says which:
+
+  ```json
+  "preconditions": [
+    { "stepId": "validate", "expression": "ratePlan == 'NON_REFUNDABLE'", "onFalse": "DISCARD" }
+  ]
+  ```
+
+  This is what an optional or exclusive branch wants and what a link could not say before: the
+  step is skipped when the condition does not hold, without the condition also having to apply to
+  every other route into the step. `WAIT` is the default, so every existing link keeps its
+  behaviour, and the property is written back out only when it is `DISCARD`.
+
+### Fixed
+- **Annotation processing was on by accident, and pruning a dependency turned it off.** Since JDK 23
+  javac no longer runs processors found on the classpath, and maven-compiler-plugin follows it, so
+  whether a module got Lombok and Mateu's UI registrations was decided by whether some dependency
+  happened to pull a processor in. `sample-worker` is where it surfaced — dropping the Mateu UI
+  dependencies it never used cost its `@Slf4j` classes their `log` field, reported as a missing
+  symbol rather than as "nothing was processed" — but every module was one dependency change away
+  from the same silence. The parent pom now says `<proc>full</proc>`.
+- **The worker image could never have been built from its Dockerfile.** Two independent reasons:
+  the builder stage ran `mvn dependency:go-offline` against a pom depending on
+  `io.mateu.workflow:*:1.0-SNAPSHOT`, which is published nowhere, so it failed on the first line it
+  ran; and the `COPY` named `app-*.jar` while the artifact is `worker-standalone-app-*.jar`, left
+  over from the template the file was copied from. Neither had ever run — the image on Docker Hub
+  was pushed by hand from a laptop. It is now runtime-only, from a jar the reactor built, which is
+  the same shape as the `demo/*/Dockerfile.runtime` files the images that do get built come from.
+- **The worker's healthcheck probed an endpoint the app did not serve.** `HEALTHCHECK` called
+  `/actuator/health` with no actuator on the classpath, on a hardcoded `8080` rather than
+  `${SERVER_PORT}`, and the entrypoint activated a `prod` profile that has never existed.
+- **The worker's context test tested a different application.** It declared an H2 datasource and
+  `workflow.persistence=jpa` — a property that app does not read — while the app itself ran with no
+  database at all, so the context it proved could start was not the application's. It now starts the
+  real configuration, and asserts the binding, the stores and the pages are actually there.
+- **`failuresBeforeSuccess` could never let a step through, and DIST-13 is how that was found.** The
+  worker counted a step's attempts by counting its rows within the process, on the assumption that
+  the engine retries by issuing a new task execution. It does not: it re-dispatches the *same*
+  `taskExecutionId` and keeps the count itself. So the retry overwrote the very row being counted,
+  every attempt looked like the first, and a step told to fail twice failed until the engine ran out
+  of retries. It now counts deliveries of the task execution, which is what the engine's model
+  actually offers.
+- **`sample-worker` pulled 70 MB of native library into every image built from it.** It depended on
+  `spring-cloud-stream-binder-kafka-streams`, which brings `rocksdbjni`, and on Mateu's UI — none of
+  it imported by any class in the module, and nothing anywhere in the repository uses Kafka Streams.
+  The worker app's jar went from 176 MB to 54 MB.
+
+- **Forms saved as `.ecform` were never imported from git.** Both IDE plugins register `.ecform` as
+  the form file type — it is what the visual editor writes and what the schema follows the user
+  into — but the git scan looked only at `.json`, `.yaml` and `.yml`, so those forms were skipped
+  in silence. Its workflow twin has always accepted `.ec`. Parsed as YAML, which reads JSON too.
+- **The Maven plugin rejected every definition whose preconditions are declared as links.** Its
+  structural checks read only `preconditionStepIds`/`preconditionStepId`, so a step declaring
+  `preconditions` looked like it waited for nothing and the entry-point rule reported it as a step
+  nothing would ever start — failing the build on a valid workflow. The same blindness quietly
+  narrowed the dangling-reference, self-reference and cycle checks, which never saw those edges.
+  It now resolves all three spellings in the engine's own order.
+- **The conditions on `preconditions` links are JEXL-checked at build time**, as
+  `preconditionExpression` and `correlationExpression` already were. They are the preferred place
+  to write a condition, and an unparseable one there fails closed at runtime just as silently.
+
+### Changed
+- **A step-level `preconditionExpression` is folded into the step's incoming links.** A condition
+  is about a route into a step; a step-level one is the special case where every route asks the
+  same thing. `Step.resolvedPreconditions()` now ANDs it onto each link, so a guard has one home
+  and the engine has one place that evaluates it — `shouldRunStep` no longer asks two questions.
+
+  Behaviour is preserved, including the part that was never about *where* the condition was
+  written: a false step-level expression **skips** the step (the branch was not taken, and the
+  process may finish around it), while a false condition on a link **holds** it. That axis is now
+  explicit as `GuardMode` on the folded link — `WAIT`, what a link condition has always done, or
+  `DISCARD`, what a step-level one has always done — instead of being decided by the spelling.
+
+  One consequence is a fix, and it can change which branch a flow takes: a `CHOICE` picks its
+  successor by the condition **on the link**, and was blind to one written at step level. Such a
+  successor looked unguarded — i.e. like the else branch — so a `CHOICE` could take the default,
+  or lose a tie-break, in a case its author had guarded. It now reads that condition, picks the
+  branch that matches, and no longer reports the successor as the default in the "CHOICE has no
+  default branch" warning. Definitions whose `CHOICE` successors are guarded at step level should
+  be re-checked: they now branch as written.
+
+## [2.1.1] - 2026-08-18
+
+### Fixed
+- **The `projector-standalone-app` image shipped a vulnerable PostgreSQL driver.** 2.1.0's image
+  bundled `org.postgresql:postgresql` 42.7.11 (CVE-2026-54291, HIGH — SCRAM-SHA-256-PLUS downgrade
+  defeating man-in-the-middle protection) instead of the 42.7.12 every other artifact here uses.
+
+  The app parents off `spring-boot-starter-parent` rather than the EventConductor root, so the root's
+  security overrides never reached it and the Boot BOM's own version won. Every other app repeats
+  those overrides for exactly this reason; the new one did not, and the release pipeline scans images
+  *after* pushing them, so 2.1.0's projector image reached Docker Hub before the gate caught it.
+
+  **If you pulled `projector-standalone-app:2.1.0` or `:latest` before this release, re-pull.** No
+  other image and no Maven Central artifact is affected: the driver is bundled only in that
+  application's fat jar, and the application itself is not published to Central.
+
+## [2.1.0] - 2026-08-18
+
+Finishes the read side of sharding. Sharding shipped in 2.0.0 with the write side proven on a
+cluster and the query side openly unfinished: each shard ran its own in-process projector, so the
+fleet had as many partial answers to "what is running" as it had shards, and none for the whole.
+
+It also closes a **correctness** gap that a fleet-wide read model does not close, and cannot — see
+the placement claim below. Everything here is opt-in and additive: a single-cluster deployment, and
+a sharded one that does not turn any of it on, behave exactly as they did.
+
+### Added
+- **A standalone projector (`projector-standalone-app`) and `workflow.projection.mode=remote`.** In
+  remote mode the outbox relay diverts `ProcessStatusChanged` to a shared `process-index` topic
+  instead of the shard's own `outbox`, the in-process projector is not created, and the engine reads
+  the index from a read database. `listInFlightProcesses`, `countProcessesByStatus`,
+  `findByBusinessKey` and the command router's `processId → shardId` lookup answer for the fleet for
+  the first time.
+
+  The channel is shared rather than per-shard for the same reason `messages` is: **no shard count
+  appears in it**, so adding or draining a shard changes nothing about projection. The projector
+  does not depend on the engine — `ProcessStatusChanged` carries the whole projected shape precisely
+  so a projector needs no entities, no write schema and no engine beans.
+
+  Diverted, not duplicated. A second copy of the index in the shard's own database would be a
+  partial index that looks like a complete one.
+
+- **A synchronous placement claim (`workflow.sharding.placement.datasource.*`).** A business key must
+  be placed on exactly one shard, and every redelivery of that creation must come back to it, or the
+  per-shard creation guard cannot collapse the duplicate and the fleet runs two processes for one key
+  — two sets of side effects, on two shards, that nobody is watching for. The ingress router used to
+  answer that from the process-index, which is eventually consistent: a creation redelivered before
+  the projection catches up finds nothing and is placed again, somewhere else.
+
+  Placement is now claimed in one atomic statement whose winner and every loser read back the same
+  answer. It **fails closed**: a creation that cannot be claimed fails rather than being routed
+  anyway, because a failed creation is retryable at its source and a duplicated process is not
+  repairable. A sharded deployment without a placement store still works and warns at startup, in
+  the terms of the damage rather than of the setting.
+
+  It does not reintroduce the bottleneck sharding removed: sharding exists because one database
+  cannot absorb the per-*step* write stream, and a claim is one small insert per *process*.
+
+- **A cutover backfill.** The projector image doubles as a Job (`--backfill.shards=0,1`) that seeds
+  the read database from each shard's write tables — the index, so the fleet view is complete from
+  the first query, and the placements, so the claim knows where existing business keys already live.
+  Idempotent and safe on a live fleet. This is the only step in the design that needs the shard list.
+
+- **`process-index`, a module of its own**, so the projector can depend on the read model without
+  depending on the engine. Its JDBC store upserts atomically on PostgreSQL
+  (`INSERT … ON CONFLICT … WHERE`): one round-trip instead of two, and the staleness guard stops
+  depending on the caller being serialised per process.
+
+- **Fleet checks in the benchmark** (`bench.fleet.jdbc.url`): the index is complete per shard (R8a),
+  agrees with the shards on status (R8b — where an ordering bug shows up and nowhere else), and no
+  business key is running on two shards (R8c). Added to the per-shard verdict rather than replacing
+  it: a read model verified by reading the read model proves nothing, so the two sides are reached by
+  different paths.
+
+- **k8s manifests for the fleet half** — the shared database, the compacted `process-index` topic,
+  the projector and the backfill Job, plus `deploy-shard.sh fleet` and `backfill`.
+
+### Notes
+- **The projection topic must be compacted.** Compaction is what makes the read database rebuildable:
+  it keeps the last event per process forever at bounded size, so a projector replaying from the
+  earliest offset reconstructs the whole index. Under the default time retention the same replay
+  silently loses every process older than the window — a rebuild that appears to succeed. The shipped
+  manifest sets `cleanup.policy=compact` before anything produces to the topic.
+- **The index is derived and disposable; the placement table is not.** They share a database for
+  operational convenience and have completely different durability requirements. Back it up for the
+  placements. And do not prune placements casually: a row must outlive the window in which a
+  duplicate creation can still arrive, or housekeeping reintroduces the very duplicate the table
+  exists to prevent.
+- **Not yet cluster-validated.** The write-side sharding in 2.0.0 was proven on a live two-shard run;
+  this read side is proven by tests only. Getting sharding onto a cluster surfaced five deployment
+  bugs, all configuration, and there is no reason to think this half is different.
+
+## [2.0.0] - 2026-08-17
+
+The first MAJOR since 1.0, for one reason: a field that did nothing now does what it always said it
+did, and a definition that names a `topic` other than `downstream` will be dispatched somewhere
+else than before. See **Migration** below — it is short, and it only concerns definitions that set
+the field.
+
+The **definition format is unchanged and stays at schema version 1**
+(`urn:eventconductor:workflow-definition-schema:1`). Every document that validated against 1.3.0
+still validates: `topic` went from required to optional, which only relaxes. The MAJOR is about
+behaviour, not format, and nothing needs rewriting to be *accepted* — only steps that named a topic
+need looking at to keep going where they were going.
+
+### Added
+- **`topic` routes a step to a worker pool of its own.** The field has been in the definition
+  schema since the beginning, described as "the Kafka topic to dispatch the task to" — and nothing
+  read it. `Step.topic()` had no callers anywhere in the engine, and `KafkaDownstreamEventPublisher`
+  sent every task to a hard-coded `"downstream"`, so a step naming `order-validator` went exactly
+  where a step naming nothing went. It now goes to `order-validator`.
+
+  A topic with no binding of its own is a dynamic destination, created by Spring Cloud Stream on
+  first use, so naming one costs the application no configuration. A step that names none keeps
+  going to `downstream`, which is the default and the overwhelmingly common case.
+
+  **The step's cancellation follows its task.** `TaskCancellationRequested` — sent when a process is
+  cancelled, when a step is stepped over, and when a task times out — goes to the topic that task
+  was dispatched to, not to the default. Sent to the default while the task ran on a pool of its
+  own it would reach nobody, and the step would run to its `timeout` instead of stopping: a failure
+  with no error in it, which is why `KafkaDownstreamEventPublisherTest` asserts the address rather
+  than only the payload. The destination is read from the step frozen on the `StepExecution`, not
+  from the current definition, so a task already at a worker is cancelled where it actually went
+  even if the definition has been re-imported since.
+
+  `DownstreamEventPublisher.publish` takes the destination as a parameter rather than defaulting it,
+  so a new call site has to say where its event goes. Embedded mode ignores it: there is one
+  in-process `EmbeddedTaskExecutor` and no transport to route over, so it takes every task whatever
+  the step says — routing to several in-process pools would be a different feature from naming a
+  destination, and `java-api` no longer claims the bean name is matched against the topic, which it
+  never was.
+
+  **No migration.** The field already survives the database: steps are stored as JSON
+  (`workflow_definition_entity.steps_json`, `step_execution_entity.step_json`), and both already
+  carried `topic`. The `step_entity` table, which has no `topic` column, turned out to have no
+  writers at all — `StepEntityRepository` has no callers — so it played no part in this.
+
+- **A worker in kafka mode can finally say *why* a task failed.** `1.0-beta.022` fixed "a failing
+  step recorded that it failed, and nothing about why" — but only on one side. In embedded mode the
+  engine catches the worker's exception on its behalf and fills the `log` field of
+  `UpdateStepExecutionCommand`, so the reason lands on the process. In kafka mode the worker answers
+  with a `TaskStatusChanged`, which carries a status and variables and **no message**: there was
+  nowhere to put the reason. So every kafka-mode failure reached the process log as "Task status
+  changed to ERROR" and the explanation existed only in the worker's own stdout, if it logged at
+  all. Whoever opened a rolled-back saga saw that it rolled back and nothing about what went wrong.
+
+  `WorkerReply.failed(streamBridge, task, variables, reason)` publishes the reason as a
+  `TaskLogEmitted` alongside the failure, so a failure reads the same in both modes. The reason goes
+  **first**, and that ordering is the point: both sends are on the existing retry-or-throw path, so a
+  broker that will not take the log line throws before anything has been reported at all and the
+  task is simply redelivered. Reporting a failure and then losing its explanation would leave the
+  engine acting on something nobody can account for, which is the state this exists to end. A null
+  or blank reason sends nothing extra and behaves exactly like the three-argument overload, which
+  stays — this is purely additive.
+
+  The event was already accepted from `upstream` and recorded by `TaskLogEmittedEventHandler`; what
+  was missing was any way to reach it from the API workers actually use. `WorkerReply.send(…,
+  TaskLogEmitted)` is now public too, for a worker that wants to log progress rather than a failure.
+
+### Changed
+- **`topic` is no longer required on an `ACTION`.** It was required by the schema while nothing read
+  it, which made it a field every author had to write on every ACTION step for no effect. The
+  requirement did not even hold where it mattered: `WorkflowDefinitionValidator` validates the
+  **serialised** definition, and Jackson writes `"topic": null`, which satisfies a JSON Schema
+  `required`. A definition omitting it imported cleanly and only the IDE plugins complained — the
+  rule nagged the author and protected nothing. It is now optional with a documented default of
+  `downstream`, in the engine schema and in the copies the VSCode and IntelliJ plugins bundle.
+
+- **The worker guide no longer teaches the bug.** Its example caught `Exception e` and called the
+  three-argument `failed(...)`, discarding `e` without so much as logging it locally — the exact
+  shape that makes a failed step unexplainable, copied from the documentation into real workers. It
+  now logs and passes the reason.
+
+### Migration
+- **A step that names a `topic` other than `downstream` now goes there.** Until this release its
+  value was ignored and its task arrived on `downstream` regardless, so a definition carrying a
+  decorative topic — written against the documentation, or copied from the example in the AI
+  reference, which gave two steps two different topics — has been working only because the field
+  did nothing. Such a step will now be dispatched to a destination nobody consumes, and a task sent
+  where no worker listens fails silently: nothing refuses it, and the step sits until its `timeout`.
+  Before upgrading, either point each `topic` at a destination a worker really consumes, or remove
+  it so the step goes to `downstream` as it has been doing. Steps with no `topic` are unaffected.
+
+## [1.3.0] - 2026-08-14
+
+### Added
+- **`onTimeoutStepId` — route a step's timeout forward instead of failing.** By default a step that
+  times out (after any retries) is a failure: it ends `TIMEOUT` and the process errors. A step may
+  now name an `onTimeoutStepId` — its own on-timeout branch — and the flow routes there instead; the
+  timed-out step ends `TIMEOUT` but is **not** counted as a process failure. It is the forward-routing
+  dual of compensation: compensation rolls *backward* over steps that already **succeeded**, while
+  on-timeout routes *forward* because a step that timed out never succeeded (there is nothing of its
+  own to compensate). This is the native way to say "if nobody actions this human task in 30s, cancel
+  the booking" — previously only expressible by racing the step against a parallel `TIMER`/`FORK`. In
+  the graph editor an on-timeout line is drawn with **shift+alt+drag** (from a task step), rendered
+  amber with a ⏱ clock chip showing the timeout, and the token-flow animation follows it. See
+  [On-timeout routing](https://eventconductor.io/guides/retries-timeouts-compensation/#on-timeout-routing).
+
+### Changed
+- **A `USER_TASK` (and `RULE`) can now declare a compensation.** The editor's compensation gesture was
+  restricted to `ACTION`/`PROCESS`/`WAIT_FOR_MESSAGE`/`DYNAMIC`; it now covers every **task step** —
+  `ACTION`, `USER_TASK`, `RULE`, `WAIT_FOR_MESSAGE`, `PROCESS`, `DYNAMIC` — since a completed human task
+  or rule has an effect worth undoing. The same set is what may carry an `onTimeoutStepId`.
+
+## [1.2.0] - 2026-08-13
+
+### Added
+- **`CHOICE` — an exclusive-split gateway.** Where a `FORK` takes every eligible branch, a `CHOICE`
+  takes exactly one: the first successor whose per-link guard holds, evaluating them from the longest
+  guard expression to the shortest (most specific first), with an unguarded successor as the default
+  (`else`), tried last. The pick **latches** — once a branch has started, a later change to the
+  variables a guard reads cannot hand the split to another — and a `CHOICE` whose guards are all false
+  with no default takes no branch and lets the process complete (a build-time warning flags the
+  missing default). It is the split counterpart of the `XOR` join, which is how its branches should
+  reconverge, and renders as the amber "×" gateway. See the
+  [step types reference](https://eventconductor.io/reference/step-types/#choice).
+
+### Changed
+- **The graph editor is now a proper diagramming surface.** A left palette carries one item per step
+  type, each drawn as the node it drops. Drag a palette item onto the canvas to create a node, or onto
+  an existing node to create it connected as a successor. A step's **type is fixed at creation** (edit
+  the YAML to change it). Preconditions and compensation are wired on the graph rather than in a form:
+  **shift+drag** draws a precondition line, **alt+drag** draws a compensation line (only from a
+  compensable step — `ACTION`/`PROCESS`/`WAIT_FOR_MESSAGE`/`DYNAMIC`), and selecting a connection edits
+  that link's precondition — and a `?` **Help** button in the toolbar lists these gestures so they are
+  discoverable. Connections are drawn as arrows. The token-flow animation opens paused; a retrying step
+  pulses red once per failed attempt before it succeeds, and a slow step (a human task, a wait, an
+  AND-join) lingers with a single ping instead of repeating. The same editor ships in the VSCode and
+  IntelliJ plugins.
+
 ## [1.1.0] - 2026-08-10
 
 ### Added

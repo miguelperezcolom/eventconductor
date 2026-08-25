@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "com.eventconductor"
-version = "0.1.8"
+version = "0.1.15"
 
 repositories {
     mavenCentral()
@@ -61,6 +61,15 @@ kotlin {
     jvmToolchain(21)
 }
 
+java {
+    // Compile against JDK 21 too, so `java`-plugin tasks match the Kotlin toolchain and the daemon
+    // (pinned to 21 in gradle/gradle-daemon-jvm.properties) — the build no longer depends on which
+    // JDK happens to be the machine default.
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
 // Copy the shared graph + form-editor bundles and the JSON schemas from the main repo into plugin
 // resources, so the plugin ships the current components. Runs before resources are processed.
 val syncBundle by tasks.registering(Copy::class) {
@@ -74,6 +83,10 @@ val syncSchema by tasks.registering(Copy::class) {
     from(repo.resolve("modules/workflow-engine/src/main/resources/workflow-definition-schema.json")) {
         rename { "ec.schema.json" }
     }
+
+    from(repo.resolve("modules/rule-engine/src/main/resources/rule-schema.json")) {
+        rename { "rule.schema.json" }
+    }
     from(repo.resolve("modules/forms-engine/src/main/resources/form-schema.json")) {
         rename { "form.schema.json" }
     }
@@ -82,4 +95,12 @@ val syncSchema by tasks.registering(Copy::class) {
 
 tasks.named("processResources") {
     dependsOn(syncBundle, syncSchema)
+}
+
+// Manual testing helper: open a project on start with
+// `./gradlew runIde -PecOpenProject=/absolute/path/to/project`. No-op without the property.
+tasks.named<org.jetbrains.intellij.platform.gradle.tasks.RunIdeTask>("runIde") {
+    providers.gradleProperty("ecOpenProject").orNull?.let { projectPath ->
+        argumentProviders.add(org.gradle.process.CommandLineArgumentProvider { listOf(projectPath) })
+    }
 }

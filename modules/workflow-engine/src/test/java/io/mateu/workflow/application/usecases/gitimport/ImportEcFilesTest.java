@@ -1,9 +1,10 @@
 package io.mateu.workflow.application.usecases.gitimport;
 
-import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
 import io.mateu.workflow.application.services.WorkflowDefinitionValidator;
+import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
 import io.mateu.workflow.domain.aggregates.WorkflowDefinition;
-import io.mateu.workflow.infra.config.GitImportProperties;
+import io.mateu.workflow.application.usecases.directoryimport.ImportWorkflowDefinitionsFromDirectoryUseCase;
+import io.mateu.workflow.infra.config.DirectoryImportProperties;
 import io.mateu.workflow.webhook.InMemoryImportedDefinitionsRegistry;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -22,10 +23,10 @@ import static org.mockito.Mockito.verify;
 class ImportEcFilesTest {
 
     private final WorkflowDefinitionRepository repository = mock(WorkflowDefinitionRepository.class);
-    private final ImportWorkflowDefinitionsFromGitUseCase useCase =
-            new ImportWorkflowDefinitionsFromGitUseCase(
-                    mock(GitImportProperties.class), repository,
-                    mock(WorkflowDefinitionValidator.class), new InMemoryImportedDefinitionsRegistry());
+    private final ImportWorkflowDefinitionsFromDirectoryUseCase useCase =
+            new ImportWorkflowDefinitionsFromDirectoryUseCase(
+                    mock(DirectoryImportProperties.class), repository, new InMemoryImportedDefinitionsRegistry(),
+                    new WorkflowDefinitionValidator());
 
     private void write(Path dir, String name, String content) throws Exception {
         Files.write(dir.resolve(name), content.getBytes(StandardCharsets.UTF_8));

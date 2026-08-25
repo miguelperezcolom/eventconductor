@@ -4,6 +4,7 @@ import io.mateu.uidl.data.*;
 import io.mateu.uidl.interfaces.CrudStore;
 import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.workflow.application.out.StepExecutionRepository;
+import io.mateu.workflow.application.out.StepExecutionSummary;
 import io.mateu.workflow.domain.aggregates.StepExecution;
 import io.mateu.workflow.domain.aggregates.StepExecutionStatus;
 import io.mateu.workflow.infra.in.ui.pages.steps.StepExecutionFilters;
@@ -12,9 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
@@ -32,35 +31,27 @@ public class StepExecutionsCrudAdapter {
         // SearchActionHandler passes filters = null; the filter values only travel in the component state
         boolean onlyErrors = filters != null && Boolean.TRUE.equals(filters.onlyErrors())
                 || filters == null && SimpleProcessCrudAdapter.stateFlag(httpRequest, "onlyErrors");
-        List<StepExecutionRow> all = repository.findAll().stream()
-                .filter(stepExecution -> !onlyErrors
-                        || StepExecutionStatus.ERROR.equals(stepExecution.getStatus())
-                        || StepExecutionStatus.TIMEOUT.equals(stepExecution.getStatus()))
-                .filter(stepExecution -> searchText == null || searchText.isEmpty()
-                        || searchableText(stepExecution).toLowerCase().contains(searchText.toLowerCase()))
-                .sorted(Comparator.comparing(StepExecution::getStartedAt,
-                        Comparator.nullsLast(Comparator.<LocalDateTime>reverseOrder())))
-                .map(this::map)
-                .toList();
-        List<StepExecutionRow> page = all.stream()
-                .skip((long) pageable.page() * pageable.size())
-                .limit(pageable.size())
-                .toList();
-        return new ListingData<>(new Page<>(searchText, page.size(), pageable.page(), all.size(), page));
-    }
-
-    private String searchableText(StepExecution stepExecution) {
-        return stepExecution.id() + " " + stepExecution.getProcessId() + " " + stepExecution.getStepId();
+        // Filtering, ordering and paging all happen in the store. Doing them here meant loading
+        // every step execution — the engine's largest table, step JSON and all — to paint ten rows.
+        var found = repository.searchSummaries(searchText, onlyErrors, pageable.page(), pageable.size());
+        List<StepExecutionRow> page = found.content().stream().map(this::map).toList();
+        // The page served, not the page asked for — see SimpleProcessCrudAdapter.
+        return new ListingData<>(new Page<>(
+                searchText, found.pageSize(), found.pageNumber(), found.totalElements(), page));
     }
 
     private StepExecutionRow map(StepExecution stepExecution) {
+        return map(StepExecutionSummary.from(stepExecution));
+    }
+
+    private StepExecutionRow map(StepExecutionSummary summary) {
         return new StepExecutionRow(
-                stepExecution.id(),
-                stepExecution.getProcessId(),
-                stepExecution.getStepId(),
-                mapStatus(stepExecution.getStatus()),
-                stepExecution.getStartedAt() != null ? stepExecution.getStartedAt().format(dtf) : null,
-                stepExecution.getAttemptCount());
+                summary.id(),
+                summary.processId(),
+                summary.stepId(),
+                mapStatus(summary.status()),
+                summary.startedAt() != null ? summary.startedAt().format(dtf) : null,
+                summary.attemptCount());
     }
 
     private Status mapStatus(StepExecutionStatus status) {

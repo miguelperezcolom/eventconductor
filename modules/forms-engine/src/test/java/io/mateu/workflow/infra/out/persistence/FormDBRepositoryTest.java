@@ -108,4 +108,67 @@ class FormDBRepositoryTest {
         assertThatThrownBy(() -> repository.save(form("f1", "Contact")))
                 .isInstanceOf(FormValidator.FormValidationException.class);
     }
+
+    @Test
+    void roundTripsTheOptionsAFieldOffers() {
+        var decision = new Field("decision", "Decision", FieldDataType.string, FieldStereotype.radio,
+                true, null, List.of(
+                        new io.mateu.workflow.domain.FieldOption("WALK", "Walk the guest"),
+                        new io.mateu.workflow.domain.FieldOption("REFUND", "Refund the guest"),
+                        new io.mateu.workflow.domain.FieldOption("REJECT")));
+
+        repository.save(form("f1", "Overbooking", decision));
+
+        var options = repository.findById("f1").orElseThrow().fields().get(0).options();
+        // Order is the order the definition declares — it is the order the choices are shown in.
+        assertThat(options).extracting(io.mateu.workflow.domain.FieldOption::value)
+                .containsExactly("WALK", "REFUND", "REJECT");
+        assertThat(options).extracting(io.mateu.workflow.domain.FieldOption::label)
+                .containsExactly("Walk the guest", "Refund the guest", "REJECT");
+    }
+
+    @Test
+    void aFieldThatOffersNoOptionsStoresNoneRatherThanAnEmptyList() {
+        repository.save(form("f1", "Contact", field("name", "Name")));
+
+        assertThat(fieldEntityRepository.findByFormIdOrderByFieldOrderAsc("f1").get(0).getOptions())
+                .as("no \"[]\" rows for every free-input field ever written")
+                .isNull();
+        assertThat(repository.findById("f1").orElseThrow().fields().get(0).options()).isEmpty();
+    }
+
+    @Test
+    void unreadableStoredOptionsLeaveTheFieldWithNoneRatherThanFailingTheRead() {
+        repository.save(form("f1", "Contact", field("name", "Name")));
+        var stored = fieldEntityRepository.findByFormIdOrderByFieldOrderAsc("f1").get(0);
+        stored.setOptions("not json");
+        fieldEntityRepository.save(stored);
+
+        assertThat(repository.findById("f1").orElseThrow().fields().get(0).options()).isEmpty();
+    }
+
+    @Test
+    void roundTripsWhereAFieldFetchesItsChoicesFrom() {
+        var country = new Field("country", "Country", FieldDataType.string, FieldStereotype.select,
+                true, null, List.of(), new io.mateu.workflow.domain.FieldOptionsSource(
+                        "https://restcountries.com/v3.1/all?fields=cca2,name", "cca2", "name.common"));
+
+        repository.save(form("f1", "Booking", country));
+
+        var source = repository.findById("f1").orElseThrow().fields().get(0).optionsSource();
+        assertThat(source.url()).isEqualTo("https://restcountries.com/v3.1/all?fields=cca2,name");
+        assertThat(source.valuePath()).isEqualTo("cca2");
+        assertThat(source.labelPath()).isEqualTo("name.common");
+        // Defaults survive the round trip rather than coming back null.
+        assertThat(source.method()).isEqualTo("GET");
+        assertThat(source.itemsPath()).isEmpty();
+    }
+
+    @Test
+    void aFieldWithoutASourceStoresNone() {
+        repository.save(form("f1", "Contact", field("name", "Name")));
+
+        assertThat(fieldEntityRepository.findByFormIdOrderByFieldOrderAsc("f1").get(0).getOptionsSource()).isNull();
+        assertThat(repository.findById("f1").orElseThrow().fields().get(0).optionsSource()).isNull();
+    }
 }
