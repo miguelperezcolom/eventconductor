@@ -57,6 +57,23 @@
             <artifactId>jackson-databind</artifactId>
         </dependency>
 
+        <!-- The JEXL sandbox lives here, next to ExpressionGuard, because both evaluators need
+             it: workflow-engine's step guards and rule-runtime's rule expressions are the same
+             untrusted input with the same hazards, and a second copy is a second thing to forget
+             to harden. -->
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-jexl3</artifactId>
+            <version>3.7.0</version>
+        </dependency>
+        <!-- Linear-time regex for the =~ operator. See LinearTimeRegexArithmetic: java.util.regex
+             backtracks, and a workflow definition is untrusted input. -->
+        <dependency>
+            <groupId>com.google.re2j</groupId>
+            <artifactId>re2j</artifactId>
+            <version>1.7</version>
+        </dependency>
+
 
         <dependency>
             <!-- Optional so the DTOs stay usable without Spring on the classpath: only

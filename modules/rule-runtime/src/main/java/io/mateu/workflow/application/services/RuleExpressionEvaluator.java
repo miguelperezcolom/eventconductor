@@ -1,6 +1,7 @@
 package io.mateu.workflow.application.services;
 
 import io.mateu.workflow.expression.ExpressionGuard;
+import io.mateu.workflow.expression.LinearTimeRegexArithmetic;
 import org.apache.commons.jexl3.JexlBuilder;
 import org.apache.commons.jexl3.JexlContext;
 import org.apache.commons.jexl3.JexlEngine;
@@ -35,7 +36,12 @@ public class RuleExpressionEvaluator {
     // Rule expressions come from rule definitions, which may be imported from git or edited in
     // the UI — treat them as untrusted. RESTRICTED blocks reflection, System, Runtime, etc.,
     // matching the workflow-engine JEXLEvaluator so a rule cannot escalate to RCE.
+    //
+    // The arithmetic is the same one the workflow guards run with, and for the same reason: it is
+    // what stops `facts =~ '(a+)+$'` from pinning the thread this rule evaluates on. A rule
+    // catalogue is written by the same git import and the same editor a workflow definition is.
     private final JexlEngine jexl = new JexlBuilder()
+            .arithmetic(new LinearTimeRegexArithmetic(true))
             .permissions(JexlPermissions.RESTRICTED)
             .features(RULE_FEATURES)
             .cache(512)
