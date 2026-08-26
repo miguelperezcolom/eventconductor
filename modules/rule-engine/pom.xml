@@ -19,7 +19,7 @@
              (42.8%). Raise it when the module improves; never lower it. -->
         <jacoco.line.minimum>0.73</jacoco.line.minimum>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <grpc.version>1.83.0</grpc.version>
+        <grpc.version>1.83.1</grpc.version>
     </properties>
 
     <dependencyManagement>
