@@ -78,7 +78,7 @@
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>
-                <version>3.5.0</version>
+                <version>3.6.3</version>
                 <configuration>
                     <mainClass>io.mateu.workflowbench.Benchmark</mainClass>
                     <!-- The harness reads its knobs from system properties, and Maven does not
