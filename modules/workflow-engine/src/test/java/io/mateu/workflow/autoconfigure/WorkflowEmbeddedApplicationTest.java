@@ -36,6 +36,33 @@ class WorkflowEmbeddedApplicationTest {
         }
     }
 
+    /**
+     * The UI adapter layer needs a servlet web context and JPA, so an embedded or in-memory
+     * deployment must not load it. {@code @WorkflowEmbeddedApplication} excludes it by regex, and
+     * this pins that the exclusion actually holds end to end.
+     *
+     * <p>It did not, and the way it failed is worth remembering. The engine's own test classpath
+     * carried an unused {@code @SpringBootApplication} fixture in {@code io.mateu.workflow}. The
+     * engine scan registered it like any other configuration, and its <em>own</em> component scan —
+     * defaulting to its package, which is the whole engine, and carrying none of our filters — then
+     * re-scanned the tree and put the UI layer back. An exclusion is only as good as the widest
+     * unfiltered scan that runs after it.
+     */
+    @Test
+    void theUiAdapterLayerStaysOut() {
+        try (ConfigurableApplicationContext context = embeddedApp()) {
+            var beanFactory = context.getBeanFactory();
+            var definedClasses = java.util.Arrays.stream(context.getBeanDefinitionNames())
+                    .map(name -> beanFactory.getBeanDefinition(name).getBeanClassName())
+                    .filter(java.util.Objects::nonNull)
+                    .toList();
+
+            assertThat(definedClasses)
+                    .as("no bean from the UI adapter layer may be defined in an embedded app")
+                    .noneMatch(className -> className.startsWith("io.mateu.workflow.infra.in.ui."));
+        }
+    }
+
     private ConfigurableApplicationContext embeddedApp() {
         return new SpringApplicationBuilder(MyTestApp.class)
                 .web(WebApplicationType.NONE)
