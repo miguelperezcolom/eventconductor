@@ -148,4 +148,54 @@ class JexlSandboxHardeningTest {
             return null;
         }
     }
+
+    /** Safeguards against ReDoS CPU exhaustion via backtracking-heavy regex. */
+    @Test
+    void regexBacktrackingDoesNotStarveCpu() {
+        // Triggers massive backtracking in standard java.util.regex engine:
+        // matching a string of 'a's ending in 'b' against pattern "(a+)+$"
+        var input = "a".repeat(25) + "b";
+        var regexExpression = "'" + input + "' =~ '(a+)+$'";
+
+        // Under RE2J, this evaluates strictly in linear time and completes instantly
+        assertTimeoutPreemptively(Duration.ofMillis(500), () -> {
+            Object result = JEXLEvaluator.eval(regexExpression, FACTS);
+            assertThat(result).isEqualTo(false);
+        });
+    }
+
+    /**
+     * Swapping the regex engine must not swap the operator's meaning. In JEXL {@code =~} is an
+     * anchored, whole-string match, so a bare substring does not match and only an expression that
+     * spans the whole string does. RE2J offers both {@code matches()} and {@code find()}; reaching
+     * for the latter would silently turn every guard in every existing definition into a substring
+     * test — and invert the ones written with {@code !~}, which is what decides whether a step runs.
+     */
+    @Test
+    void regexMatchingStaysAnchoredToTheWholeString() {
+        assertThat(JEXLEvaluator.eval("'hello world' =~ 'world'", FACTS)).isEqualTo(false);
+        assertThat(JEXLEvaluator.eval("'hello world' =~ '.*world.*'", FACTS)).isEqualTo(true);
+        assertThat(JEXLEvaluator.eval("name =~ 'hell'", FACTS)).isEqualTo(false);
+        assertThat(JEXLEvaluator.eval("name =~ 'hello'", FACTS)).isEqualTo(true);
+
+        // The negated form is the one that fails open if this ever regresses: a step guarded on
+        // "the country is not ES" must not start running for ESP.
+        assertThat(JEXLEvaluator.eval("'ESP' !~ 'ES'", FACTS)).isEqualTo(true);
+        assertThat(JEXLEvaluator.eval("country !~ 'ES'", FACTS)).isEqualTo(false);
+    }
+
+    /** Safeguards against JEXL expressions mutating context lists or maps in-memory. */
+    @Test
+    void exposedCollectionsCannotBeMutated() {
+        var mutableList = new java.util.ArrayList<>(List.of("a", "b"));
+        var context = Map.of("myList", mutableList);
+
+        assertThatThrownBy(() -> JEXLEvaluator.eval("myList.clear()", context))
+                .isInstanceOf(Exception.class);
+
+        assertThatThrownBy(() -> JEXLEvaluator.eval("myList.add('c')", context))
+                .isInstanceOf(Exception.class);
+
+        assertThat(mutableList).containsExactly("a", "b"); // Unmodified!
+    }
 }
