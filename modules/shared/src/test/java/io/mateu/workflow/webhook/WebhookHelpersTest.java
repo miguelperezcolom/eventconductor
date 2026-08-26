@@ -220,10 +220,26 @@ class WebhookHelpersTest {
                 .isEqualTo("https://github.com/org/repo.git");
         assertThat(UrlSanitizer.sanitize("https://username:password@github.com/org/repo.git"))
                 .isEqualTo("https://******@github.com/org/repo.git");
-        assertThat(UrlSanitizer.sanitize("https://mytoken@github.com/org/repo.git"))
-                .isEqualTo("https://mytoken@github.com/org/repo.git");
+        assertThat(UrlSanitizer.sanitize(null)).isNull();
+    }
+
+    /**
+     * The shape a personal access token actually travels in. It carries no colon, so a pattern
+     * written around {@code user:password} lets the one secret that matters straight through into
+     * the log.
+     */
+    @Test
+    void sanitizesATokenThatIsTheWholeUserinfo() {
+        assertThat(UrlSanitizer.sanitize("https://NOT-A-REAL-TOKEN@github.com/org/repo.git"))
+                .isEqualTo("https://******@github.com/org/repo.git");
+        assertThat(UrlSanitizer.sanitize("https://x-access-token:NOT-A-REAL-TOKEN@github.com/org/repo.git"))
+                .isEqualTo("https://******@github.com/org/repo.git");
+    }
+
+    /** An scp-style remote has no userinfo to hide: {@code git@} there is the ssh user. */
+    @Test
+    void leavesScpStyleRemotesAlone() {
         assertThat(UrlSanitizer.sanitize("git@github.com:org/repo.git"))
                 .isEqualTo("git@github.com:org/repo.git");
-        assertThat(UrlSanitizer.sanitize(null)).isNull();
     }
 }

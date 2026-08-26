@@ -164,6 +164,26 @@ class JexlSandboxHardeningTest {
         });
     }
 
+    /**
+     * Swapping the regex engine must not swap the operator's meaning. In JEXL {@code =~} is an
+     * anchored, whole-string match, so a bare substring does not match and only an expression that
+     * spans the whole string does. RE2J offers both {@code matches()} and {@code find()}; reaching
+     * for the latter would silently turn every guard in every existing definition into a substring
+     * test — and invert the ones written with {@code !~}, which is what decides whether a step runs.
+     */
+    @Test
+    void regexMatchingStaysAnchoredToTheWholeString() {
+        assertThat(JEXLEvaluator.eval("'hello world' =~ 'world'", FACTS)).isEqualTo(false);
+        assertThat(JEXLEvaluator.eval("'hello world' =~ '.*world.*'", FACTS)).isEqualTo(true);
+        assertThat(JEXLEvaluator.eval("name =~ 'hell'", FACTS)).isEqualTo(false);
+        assertThat(JEXLEvaluator.eval("name =~ 'hello'", FACTS)).isEqualTo(true);
+
+        // The negated form is the one that fails open if this ever regresses: a step guarded on
+        // "the country is not ES" must not start running for ESP.
+        assertThat(JEXLEvaluator.eval("'ESP' !~ 'ES'", FACTS)).isEqualTo(true);
+        assertThat(JEXLEvaluator.eval("country !~ 'ES'", FACTS)).isEqualTo(false);
+    }
+
     /** Safeguards against JEXL expressions mutating context lists or maps in-memory. */
     @Test
     void exposedCollectionsCannotBeMutated() {

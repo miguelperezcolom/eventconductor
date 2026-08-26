@@ -17,6 +17,12 @@ public class JEXLEvaluator {
     /**
      * Safe JexlArithmetic that overrides the contains operator (associated with =~ and !~) to use RE2J (linear-time matching)
      * instead of Java's native backtracking-prone regex matcher, defusing ReDoS CPU-exhaustion attacks.
+     *
+     * <p>Only the engine changes; the operator keeps the meaning JEXL gives it. {@code =~} against a
+     * pattern is an <em>anchored, whole-string</em> match — {@code 'hello world' =~ 'world'} is
+     * false, and only {@code '.*world.*'} makes it true — because JEXL's own implementation calls
+     * {@code Matcher.matches()}. Reaching for {@code find()} here would quietly turn every existing
+     * guard into a substring test and flip the ones written with {@code !~}.
      */
     public static class SafeJexlArithmetic extends JexlArithmetic {
         public SafeJexlArithmetic(boolean astrict) {
@@ -32,7 +38,7 @@ public class JEXLEvaluator {
                 String patternStr = container instanceof java.util.regex.Pattern p ? p.pattern() : container.toString();
                 try {
                     com.google.re2j.Pattern re2jPattern = com.google.re2j.Pattern.compile(patternStr);
-                    return re2jPattern.matcher(value.toString()).find();
+                    return re2jPattern.matcher(value.toString()).matches();
                 } catch (com.google.re2j.PatternSyntaxException e) {
                     throw new IllegalArgumentException("Invalid regular expression pattern: " + patternStr, e);
                 }
