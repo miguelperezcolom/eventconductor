@@ -4,6 +4,7 @@ import org.springframework.boot.SpringBootConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigurationExcludeFilter;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.ComponentScans;
 import org.springframework.context.annotation.FilterType;
 import org.springframework.boot.context.TypeExcludeFilter;
 
@@ -16,16 +17,37 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @SpringBootConfiguration
 @EnableAutoConfiguration
-@ComponentScan(
-        basePackages = "io.mateu.workflow",
-        excludeFilters = {
-                @ComponentScan.Filter(type = FilterType.CUSTOM, classes = TypeExcludeFilter.class),
-                @ComponentScan.Filter(type = FilterType.CUSTOM, classes = AutoConfigurationExcludeFilter.class),
-                @ComponentScan.Filter(
-                        type = FilterType.REGEX,
-                        pattern = "io\\.mateu\\.workflow\\.infra\\.in\\.ui\\..*"
-                )
-        }
-)
+@ComponentScans({
+        @ComponentScan(
+                basePackages = "io.mateu.workflow",
+                excludeFilters = {
+                        @ComponentScan.Filter(type = FilterType.CUSTOM, classes = TypeExcludeFilter.class),
+                        @ComponentScan.Filter(type = FilterType.CUSTOM, classes = AutoConfigurationExcludeFilter.class),
+                        @ComponentScan.Filter(
+                                type = FilterType.REGEX,
+                                pattern = "io\\.mateu\\.workflow\\.infra\\.in\\.ui\\..*"
+                        )
+                }
+        ),
+        /**
+         * The package of the annotated application class, scanned the way
+         * {@code @SpringBootApplication} scans it. An explicit {@code basePackages} above overrides
+         * the default, so without this second scan a user's own beans were invisible unless their
+         * app class lived under {@code io.mateu.*}.
+         *
+         * <p>The two filters are not optional decoration: {@code @SpringBootApplication} carries
+         * both on its scan. Without {@link TypeExcludeFilter} the Boot test slices stop working in
+         * the user's package — a {@code @TestConfiguration} gets picked up where the slice means to
+         * exclude it. Without {@link AutoConfigurationExcludeFilter} a user {@code @Configuration}
+         * that is also registered as an auto-configuration is defined twice, which is a bean
+         * definition clash or an auto-configuration that runs at the wrong moment.
+         */
+        @ComponentScan(
+                excludeFilters = {
+                        @ComponentScan.Filter(type = FilterType.CUSTOM, classes = TypeExcludeFilter.class),
+                        @ComponentScan.Filter(type = FilterType.CUSTOM, classes = AutoConfigurationExcludeFilter.class)
+                }
+        )
+})
 public @interface RulesEmbeddedApplication {
 }
