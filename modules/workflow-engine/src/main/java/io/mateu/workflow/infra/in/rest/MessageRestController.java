@@ -74,7 +74,16 @@ public class MessageRestController {
         // can still say no to its face.
         refuseIfOversized(request, variables);
         log.info("REST message '{}' received with correlation key '{}'", request.messageName(), request.correlationKey());
-        messageDispatcher.dispatch(new MessageReceived(request.messageName(), request.correlationKey(), variables));
+        try {
+            messageDispatcher.dispatch(new MessageReceived(request.messageName(), request.correlationKey(), variables));
+        } catch (Exception e) {
+            log.error("REST message dispatch failed for '{}' (Broker Offline): {}", request.messageName(), e.getMessage());
+            throw new ResponseStatusException(
+                    HttpStatus.SERVICE_UNAVAILABLE,
+                    "Messaging broker is temporarily offline. Please try again later.",
+                    e
+            );
+        }
 
         return ResponseEntity.accepted().body("message published");
     }
