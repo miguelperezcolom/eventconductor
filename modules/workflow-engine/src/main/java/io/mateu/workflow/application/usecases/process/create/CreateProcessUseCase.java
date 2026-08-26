@@ -4,6 +4,9 @@ import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
 import io.mateu.workflow.application.out.WorkflowMetrics;
+import io.mateu.workflow.security.FlowAuthorizationDeniedException;
+import io.mateu.workflow.security.FlowAuthorizationService;
+import io.mateu.workflow.security.AuthorizationContext;
 import io.mateu.workflow.application.usecases.stepexecution.update.UpdateStepExecutionCommand;
 import io.mateu.workflow.application.usecases.stepexecution.update.UpdateStepExecutionUseCase;
 import io.mateu.workflow.domain.aggregates.Process;
@@ -56,6 +59,17 @@ public class CreateProcessUseCase {
      */
     @org.springframework.beans.factory.annotation.Value("${workflow.max-process-depth:20}")
     int maxProcessDepth;
+
+    /**
+     * Whether a definition's {@code requiredScopes}/{@code requiredRoles} are enforced.
+     *
+     * <p>Off by default, and it has to be: the requirements are declarative and a deployment that has
+     * never configured an identity would have every restricted definition refused the moment it
+     * upgraded. On, the rule is fail-closed — a caller nobody could identify holds nothing, so a
+     * definition that requires anything refuses them.
+     */
+    @org.springframework.beans.factory.annotation.Value("${workflow.security.flow-authorization.enabled:false}")
+    boolean flowAuthorizationEnabled;
 
     public void handle(CreateProcessCommand command) {
         // Idempotency: a redelivered creation event carries the same processId and/or
@@ -112,6 +126,11 @@ public class CreateProcessUseCase {
                     workflowDefinition.id(), workflowDefinition.status(), command.businessKey());
             return;
         }
+
+        // Who may start this. Checked here rather than at each door because there are four of them —
+        // the UI, an upstream record, an MCP call, the cron scheduler — and a rule enforced in four
+        // places is a rule that holds in three of them after the fifth door is added.
+        refuseIfCallerMayNotStart(workflowDefinition, command);
         AtomicInteger position = new AtomicInteger(1);
         var stepExecutions = workflowDefinition.steps().stream()
                 .map(step -> StepExecution.create(step, command.processId(), position.getAndIncrement())).toList();
@@ -152,6 +171,42 @@ public class CreateProcessUseCase {
      * ever compared against it, so there is no reason to walk a chain further than that — and a
      * parent chain that somehow looped would otherwise walk for ever.
      */
+    /**
+     * The definition's flow-authorization gate.
+     *
+     * <p><b>Only caller-originated creations are judged.</b> A child spawned by a PROCESS step and a
+     * run started by cron are the engine acting on its own behalf, not somebody asking for something:
+     * re-judging them would mean a scheduled definition could never run (the scheduler holds no
+     * scopes) and a modelled child could never be spawned, which is not authorization, it is
+     * breakage. What governs those is who was allowed to author the definition in the first place.
+     *
+     * @throws FlowAuthorizationDeniedException if the caller is missing anything the definition requires
+     */
+    private void refuseIfCallerMayNotStart(
+            io.mateu.workflow.domain.aggregates.WorkflowDefinition definition, CreateProcessCommand command) {
+        if (!flowAuthorizationEnabled) {
+            return;
+        }
+        var engineOriginated = (command.parentStepExecutionId() != null && !command.parentStepExecutionId().isBlank())
+                || AuthorizationContext.SYSTEM.equals(command.caller());
+        if (engineOriginated) {
+            return;
+        }
+        var decision = FlowAuthorizationService.authorize(
+                command.caller(), definition.requiredScopes(), definition.requiredRoles());
+        if (!decision.allowed()) {
+            log.warn("Refused to start workflow definition '{}' for business key '{}': caller '{}' is"
+                            + " missing scopes {} and roles {}",
+                    definition.id(), command.businessKey(),
+                    command.caller() == null ? null : command.caller().subject(),
+                    decision.missingScopes(), decision.missingRoles());
+            throw FlowAuthorizationDeniedException.of(
+                    "start workflow '" + definition.id() + "'",
+                    command.caller() == null ? null : command.caller().subject(),
+                    decision.missingScopes(), decision.missingRoles());
+        }
+    }
+
     private int ancestorCount(String parentStepExecutionId) {
         int depth = 0;
         var stepExecutionId = parentStepExecutionId;

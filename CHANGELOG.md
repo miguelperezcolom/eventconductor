@@ -7,6 +7,111 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **A workflow can say who may start it, and a form can say who may do its work.** Both declarations
+  existed on the workflow side and neither was ever read: `requiredScopes`/`requiredRoles` parsed on a
+  definition and on a step, `FlowAuthorizationService` evaluated them, `AuthorizationContext`
+  described the snapshot it would evaluate against — and nothing called any of it. The property its
+  own javadoc named, `workflow.security.flow-authorization.enabled`, did not exist. What shipped was a
+  design with no enforcement, which reads from the outside exactly like a feature.
+
+  It is enforced now, at two points and from two declarations:
+
+  - **The workflow** decides who may *start* a process, checked in `CreateProcessUseCase` — one place
+    rather than at each of the four doors (the page, an upstream record, an MCP call, cron), because a
+    rule enforced in four places holds in three of them once a fifth door is added. What the engine
+    starts for itself is not judged against a caller: cron says so with `AuthorizationContext.SYSTEM`
+    and a PROCESS step by naming its parent step execution, since re-judging either would mean a
+    scheduled definition could never run and a modelled child could never be spawned.
+  - **The form** decides who may *see, claim and complete* a task, checked in all three places. The
+    listing is narrowed in the query — filtering after it would turn a page of fifty into a short
+    list — but the listing is a convenience and not the boundary: a task id travels in a URL, a log
+    line, a pasted link, so claim and complete refuse on their own account.
+
+  On the form rather than on the step, deliberately: this is a property of the work, not of the flow.
+  The same "approve a refund" form is for the same people whichever workflow routes a task to it, so
+  declaring it once is also what stops it drifting between the definitions that use the form.
+
+  **Who the caller is** is a per-deployment question, so it is a port — `CallerResolver` — with a
+  default that reads whichever of the two real sources is present: an application that authenticated
+  the caller itself (Spring Security, which covers the standalone apps' HTTP Basic and any resource
+  server) or a gateway that validated a token and forwarded it (opt-in, `trust-forwarded-token`,
+  because reading an unverified token where nothing verified it is not weak authorization but none).
+  Verified beats asserted, so the opt-in cannot quietly override a real login. A deployment that knows
+  better defines its own bean.
+
+  Requires-all and fail-closed throughout: a caller nobody could identify holds nothing, so anything
+  required refuses them — which makes a misconfigured identity a locked door rather than an open one.
+
+- `workflow.security.flow-authorization.enabled` (default `false`),
+  `workflow.security.trust-forwarded-token` (default `false`), and
+  `workflow.security.claims.subject` / `.scopes` / `.roles` for the claim names to read.
+- `requiredScopes` / `requiredRoles` on a **form** definition, in the JSON schema and in the editor.
+
+### Changed
+- `FlowAuthorizationService` and its denial moved to `io.mateu.workflow.security` in `shared`, and the
+  evaluation is now static. Both engines ask the same question and the answer has to be the same one;
+  two copies of a rule like this drift.
+
+### Upgrading
+- Nothing changes until `workflow.security.flow-authorization.enabled` is set. With it on, a
+  definition or form that declares requirements refuses callers who do not hold them — including
+  callers the deployment cannot identify at all, and including the MCP tools, which act with no
+  identity unless given one through a custom `CallerResolver`.
+- A step's `requiredScopes`/`requiredRoles` still parse and still do nothing. Enforcing them means
+  checking when the step runs, which can be a week later on another pod, and that needs the caller's
+  snapshot stored with the process — a column that does not exist yet. The javadoc now says so
+  instead of implying otherwise.
+
+### Added
+- **A ceiling on what one caller may hand the engine.** Nothing asked how big anything was. The
+  columns that hold variables are `TEXT` on purpose — a value cut to fit a column is worse than one
+  refused, because the process then runs on data nobody sent — but that decision is about *a* large
+  value and said nothing about how large. A caller could POST two hundred megabytes of JSON to the
+  message API and the engine would parse it into heap, carry it through the outbox and write it to a
+  row, on a thread that is also running everybody else's processes.
+
+  `InputLimits` now draws the line between large and absurd, set where a real payload never reaches:
+  a megabyte in one value (the number the forms engine already enforced, now applied to every
+  channel), 500 variables per event, eight megabytes across them, and **255 for an identifier** — a
+  business key, a correlation key, a message name. That last one is not about memory: it is the
+  width of `process_entity.id`, `business_key` and `awaiting_correlation_key`, so without it an
+  over-long key failed in the JDBC driver inside the transaction that was saving a running process,
+  which is a far worse place for it than a check with a message.
+
+  Enforced at one chokepoint — every event arriving from outside converges on
+  `ProcessUpstreamEventUseCase`, which covers the `upstream` and `messages` topics, the embedded
+  publisher, and therefore the REST endpoint and the MCP tools that publish through either. Events
+  the engine generates for itself travel the outbox and are not re-judged, so a process that has
+  legitimately grown large is not dead-lettered halfway through by a limit meant for its callers.
+
+  **What happens to a refusal depends on which door it came through.** A Kafka record is parked on
+  the dead-letter destination and the partition keeps moving — it will be exactly this size on every
+  redelivery, so retrying it is a loop nobody reads. A REST caller is answered `400` with the reason
+  by the controller itself, rather than `202` followed by a silent dead letter on the far side of
+  the broker. A person filling in a form, and the process-creation page, are shown the message with
+  what they typed still on screen.
+
+- **A byte ceiling on the engine's own HTTP endpoints** (`workflow.rest.max-body-bytes`, default
+  16 MiB). Refusing on content and refusing on size are different defences: the content check runs
+  once the body has been read and parsed, so on its own it still lets a caller spend the memory
+  first. `Content-Length` answers the ordinary case and the body is counted as it is read for the
+  chunked one; both answer `413`. Registered on the message API and the git webhooks only — this
+  ships inside a library, and a host application's own upload endpoint is not the engine's business.
+
+- `workflow.rest.max-body-bytes` (default `16777216`), `workflow.forms.max-values`, and the
+  `eventconductor.input.*` system properties: `max-identifier-length` (255), `max-value-length`
+  (1048576), `max-variables` (500), `max-total-length` (8388608). `workflow.forms.max-value-length`
+  now defaults to the engine-wide value rather than its own copy of it, so a value refused arriving
+  over Kafka is refused arriving from a browser.
+
+### Upgrading
+- An event, message, submission or process creation carrying more than the limits above is now
+  refused where it used to be accepted. The defaults are far above any real payload — a megabyte in
+  a single variable still passes, and the existing tests that assert so are unchanged — but a
+  deployment that genuinely sends more can raise any of them with the system properties named above
+  without a rebuild.
+
 ## [2.9.0] - 2026-08-21
 
 **A workflow could not be read as a workflow, and a workflow could be broken by a typo.** Tracing

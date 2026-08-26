@@ -29,6 +29,25 @@ public interface FormExecutionEntityRepository extends JpaRepository<FormExecuti
             Pageable pageable
     );
 
+    /**
+     * The same page, narrowed to the forms this person may work on (see {@code TaskAuthorization}).
+     * A separate method rather than a nullable parameter on the one above, because "no restriction"
+     * and "restricted to nothing" are opposite answers and a null collection in an {@code IN} would
+     * quietly mean the wrong one. Callers with an empty set must not call this at all — they have
+     * nothing to look for.
+     */
+    @Query("""
+            SELECT f FROM FormExecutionEntity f
+            WHERE f.status IN :statusNames AND (f.userId IS NULL OR f.userId = '' OR f.userId = :userId)
+              AND f.formId IN :formIds
+            """)
+    Page<FormExecutionEntity> findByStatusAndUserAndForms(
+            @Param("statusNames") List<String> statusNames,
+            @Param("userId") String userId,
+            @Param("formIds") java.util.Collection<String> formIds,
+            Pageable pageable
+    );
+
     List<FormExecutionEntity> findByStatus(String status);
 
     /**
@@ -48,6 +67,20 @@ public interface FormExecutionEntityRepository extends JpaRepository<FormExecuti
     Page<TaskSummary> findTaskSummariesByStatusAndUser(
             @Param("statusNames") List<String> statusNames,
             @Param("userId") String userId,
+            Pageable pageable
+    );
+
+    /** {@link #findTaskSummariesByStatusAndUser} narrowed to the forms this person may work on. */
+    @Query("""
+            SELECT f.id AS id, f.formId AS formId, f.processId AS processId, f.userId AS userId, f.status AS status
+            FROM FormExecutionEntity f
+            WHERE f.status IN :statusNames AND (f.userId IS NULL OR f.userId = '' OR f.userId = :userId)
+              AND f.formId IN :formIds
+            """)
+    Page<TaskSummary> findTaskSummariesByStatusAndUserAndForms(
+            @Param("statusNames") List<String> statusNames,
+            @Param("userId") String userId,
+            @Param("formIds") java.util.Collection<String> formIds,
             Pageable pageable
     );
 

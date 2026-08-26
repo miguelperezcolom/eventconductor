@@ -4,6 +4,7 @@ import io.mateu.workflow.application.out.UpstreamEventPublisher;
 import io.mateu.workflow.dtos.Variable;
 import io.mateu.workflow.dtos.events.integration.MessageReceived;
 import io.mateu.workflow.infra.config.MessageApiProperties;
+import io.mateu.workflow.input.InputLimits;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
@@ -67,10 +68,25 @@ public class MessageRestController {
         var variables = request.variables() == null ? List.<Variable>of() : request.variables().entrySet().stream()
                 .map(entry -> new Variable(entry.getKey(), entry.getValue()))
                 .toList();
+        // The same limits the upstream chokepoint enforces, run here as well and on purpose. Left to
+        // the chokepoint alone, an oversized body would be answered 202 and then quietly dead-lettered
+        // on the far side of the broker, which tells the caller nothing: this is the one channel that
+        // can still say no to its face.
+        refuseIfOversized(request, variables);
         log.info("REST message '{}' received with correlation key '{}'", request.messageName(), request.correlationKey());
         messageDispatcher.dispatch(new MessageReceived(request.messageName(), request.correlationKey(), variables));
 
         return ResponseEntity.accepted().body("message published");
+    }
+
+    private void refuseIfOversized(SendMessageRequest request, List<Variable> variables) {
+        try {
+            InputLimits.checkIdentifier(request.messageName(), "messageName");
+            InputLimits.checkIdentifier(request.correlationKey(), "correlationKey");
+            InputLimits.checkVariables(variables, "message '" + request.messageName() + "'");
+        } catch (InputLimits.InputRejectedException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
+        }
     }
 
     private void verifyApiKey(String received) {

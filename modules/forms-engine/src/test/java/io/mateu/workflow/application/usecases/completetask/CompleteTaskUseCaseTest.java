@@ -26,6 +26,9 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.doThrow;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 
@@ -36,6 +39,7 @@ class CompleteTaskUseCaseTest {
     @Mock FormRepository formRepository;
     @Mock StreamBridge streamBridge;
     @Mock FormsMetrics formsMetrics;
+    @Mock io.mateu.workflow.application.services.TaskAuthorization taskAuthorization;
 
     @InjectMocks CompleteTaskUseCase useCase;
 
@@ -192,5 +196,28 @@ class CompleteTaskUseCaseTest {
 
         assertThat(capturedReply().variables()).extracting(io.mateu.workflow.dtos.Variable::name)
                 .containsExactly("name");
+    }
+
+    /**
+     * AUTHZ-TASK-08. A completion the form does not allow reaches neither the engine nor the row.
+     * The check is here, in the use case, rather than in the page, because completion also arrives
+     * from the MCP tool — and because the reply below is the one that cannot be taken back: a
+     * USER_TASK step that has been told it is done is done.
+     */
+    @Test
+    void aCompletionTheFormForbidsChangesNothingAndTellsTheEngineNothing() {
+        when(formExecutionRepository.findById("fe-1")).thenReturn(Optional.of(formExecution("fe-1")));
+        when(formRepository.findById("f-1")).thenReturn(Optional.of(new Form("f-1", "My Form", "", List.of(
+                new Field("name", "Name", FieldDataType.string, FieldStereotype.regular, false, "")))));
+        doThrow(new io.mateu.workflow.security.FlowAuthorizationDeniedException("nope"))
+                .when(taskAuthorization).refuseIfCallerMayNot(eq("complete"), any(), eq("fe-1"));
+
+        assertThatThrownBy(() -> useCase.handle(
+                new CompleteTaskCommand("fe-1", List.of(new Value("name", "John")))))
+                .isInstanceOf(io.mateu.workflow.security.FlowAuthorizationDeniedException.class);
+
+        verify(formExecutionRepository, never()).save(any());
+        verify(streamBridge, never()).send(eq("upstream"), argThat(
+                message -> message instanceof io.mateu.workflow.dtos.events.integration.TaskStatusChanged));
     }
 }

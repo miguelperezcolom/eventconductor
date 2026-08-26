@@ -50,7 +50,10 @@ class CronStarts {
             while (next != null && !next.isAfter(now)) {
                 var businessKey = definition.id() + "-cron-" + next.format(BUSINESS_KEY_TIMESTAMP);
                 log.info("Cron start for workflow definition '{}' (occurrence {})", definition.id(), next);
-                ingressRouter.route(new ProcessCreationRequested(definition.id(), businessKey, List.of()));
+                // The scheduler is the engine acting for itself, not a caller: SYSTEM says so, so a
+                // definition with flow-authorization requirements still runs on its schedule.
+                ingressRouter.route(new ProcessCreationRequested(definition.id(), businessKey, List.of(),
+                        null, io.mateu.workflow.security.AuthorizationContext.SYSTEM));
                 last = next;
                 next = cron.next(last);
             }

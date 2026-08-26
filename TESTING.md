@@ -299,6 +299,9 @@ Two of these were written against a hole and are green because the hole was clos
 | HARD-IN-01..02 | **A business key is a key, not a statement** (`HostileInputJpaE2eTest`, against H2 in PostgreSQL mode — injection is a property of how a statement is built, and a memory store cannot have the bug at all). A key that is a `DROP TABLE` runs its process and leaves the schema standing; a tautology matches only its own process. |
 | HARD-IN-03..05 | **Hostile variable values and names round-trip exactly as sent** — supplied at creation and written back by a worker — because escaping on the way in is how a value silently stops being the value that was sent. A variable called `process.status` cannot become the status. |
 | HARD-IN-06..07 | **Size and bytes that are not text.** A megabyte in one variable survives whole (truncation is worse than refusal: the process then runs on data nobody sent), and control characters do not wedge a process mid-flight. |
+| HARD-IN-06b | **Past the ceiling, the creation is refused and no process exists.** The other side of the line HARD-IN-06 draws: "large" is carried, "absurd" is not, and the refusal happens before anything is written, so there is nothing half-created to clean up. |
+| HARD-LIM-01..09 | **The ceilings themselves** (`InputLimitsTest`). An identifier at 255 passes and 256 does not — 255 because that is the width of `process_entity.id`, `business_key` and `awaiting_correlation_key`, and an over-long key otherwise fails in the JDBC driver inside the transaction saving a running process rather than in a check with a message. A megabyte in one variable still passes. Nothing sent is not something too big (`null` and empty are silent). And the limit that makes the others mean anything: variables that are each acceptable are refused when they add up past the per-event total, because 500 variables of a megabyte clears every other check and is still half a gigabyte. |
+| HARD-LIM-10..18 | **Where the ceilings are enforced, and what a refusal is** (`UpstreamInputGuardTest`). One chokepoint — `ProcessUpstreamEventUseCase` — measures every event arriving from outside before a handler sees it: creations, messages, worker replies, log lines, injected steps, control requests. Events the engine generates for itself travel the outbox and are not re-judged, so a process that has legitimately grown large is not dead-lettered halfway through by a limit meant for its callers. The assertion that decides where a refusal lands: it is **not** retryable, so the consumer parks it on the dead-letter destination rather than redelivering something that will be exactly this size for ever. |
 
 ### 8b. Forms — hostile definitions and hostile submissions
 
@@ -310,7 +313,7 @@ Two of these were written against a hole and are green because the hole was clos
 | HARD-FORM-07 | **A label that looks like an exploit is accepted as text** — it is escaped where it renders (§8d), and refusing a label for containing a bracket would make the validator the vulnerability. |
 | HARD-SUB-01..02 | **Mass assignment.** *This was a real hole.* Nothing compared what was submitted against the form that was asked for, so every posted name became a process variable: a task could be completed with fields the form does not have. A name the form does not declare is now dropped — dropped rather than refused, because the page's own component state legitimately carries keys that are not fields. |
 | HARD-SUB-03..05 | **`required` is enforced on the server.** *This was a real hole.* It was a client-side hint and nothing more, so a task could be completed without the fields its form says it needs. Missing or blank is refused, and the check runs *after* the drop, so an undeclared name cannot satisfy a required field. |
-| HARD-SUB-06 | **A value larger than `workflow.forms.max-value-length` is refused**, so one POST cannot decide how much memory the engine spends. A large-but-reasonable value still gets through: a `richText` field legitimately holds a lot. |
+| HARD-SUB-06 | **A value larger than `workflow.forms.max-value-length` is refused**, so one POST cannot decide how much memory the engine spends, and so is a submission carrying **more values than `workflow.forms.max-values`** — the drop of undeclared names protects the process, but it happens after every submitted value has been held and looked up, so the count is checked first. Both default to the engine-wide `InputLimits`, so a value refused arriving over Kafka is refused arriving from a browser. A large-but-reasonable value still gets through: a `richText` field legitimately holds a lot. The refusal reaches the person as an error on the page, because an exception out of a Mateu action is rendered with its message and the form keeps what was typed. |
 | HARD-SUB-07..08 | Hostile **content** in a declared field is passed through unchanged; a task whose form is **gone from the catalogue** accepts nothing, because "cannot check" must not read as "everything is fine". |
 | HARD-SUB-09 | **A task is completed once.** *This was a real hole.* Re-submitting a closed task overwrote the values it was completed with and sent the engine a second reply — harmless to the engine, which ignores an update for a finished step, but it silently rewrote the record of what the person actually submitted. |
 | HARD-SUB-10 | And the drop is real end to end: an undeclared value never reaches the engine as a variable. |
@@ -343,6 +346,8 @@ away. They are now valid rule files.*
 | HARD-REST-08..09 | The git webhook **refuses an unsigned push** and a **forged signature** — including one that is not even hex. |
 | HARD-REST-10 | **An unknown provider is read as `generic`**, so it still has to authenticate. The alternative — an unrecognised path segment skipping verification — would make the check optional to anyone who could type a URL. |
 | HARD-REST-11..12 | An **unreadable payload is acknowledged** rather than crashing the endpoint; a push naming **a repository nobody configured** imports nothing. |
+| HARD-REST-13..14 | **An impossible key and an absurd variable are refused to the caller's face** — 400 with the reason, nothing published. The chokepoint would park them, but 202 followed by a silent dead letter tells the sender nothing, and this is the one channel still able to answer. |
+| HARD-BODY-01..03 | **A body big enough that reading it is the attack never gets read** (`RequestBodyLimitFilterTest`). `Content-Length` answers the ordinary case; a chunked request declares nothing, so the body is also counted as it is read and abandoned past the limit — both 413, and the dispatcher untouched. Registered on the engine's own paths only: this ships inside a library, and a host application's own upload endpoint is not this module's business. |
 | HARD-UI-01 | **Stored XSS, in a real browser** (`StoredXssJourneyTest`, Playwright). A process whose variables are `<img src=x onerror=…>`, `<svg onload=…>`, an attribute breakout and a `<script>` is read tab by tab: nothing executes, no element from the payload exists in the document, and — the control — the payload is provably on the page as text. |
 | HARD-UI-02 | And it is **shown, not swallowed**: markup in a variable is displayed as the characters it is made of, and not as the elements it spells. |
 
@@ -353,6 +358,38 @@ were written and removed for exactly that: a payload as the business key is not 
 grid has no business-key column, nor does the detail header), and a payload typed into search
 matches nothing and is not echoed back. A green XSS test that never rendered its payload is worse
 than no test — it is a standing claim that the UI is safe, backed by nothing.
+
+### 8e. Flow authorization — who may start a process, who may do a task
+
+Two questions, asked in two places, from two declarations. A **workflow** says which scopes and roles
+a caller must hold to *start* a process of it; a **form** says which ones a person must hold to *see,
+claim and complete* a task of it. Both are requires-all and both are fail-closed: a caller nobody
+could identify holds nothing, so anything required refuses them. Both are inert unless
+`workflow.security.flow-authorization.enabled`, because the declarations parsed long before anything
+enforced them and a deployment that has never configured an identity must not find its restricted
+definitions refused the moment it upgrades.
+
+Where the identity comes from is a per-deployment answer, so it is a port: `CallerResolver`, with a
+default that reads whichever of the two real sources is there — an application that authenticated the
+caller itself (Spring Security, which is the standalone apps' HTTP Basic and any resource server) or
+a gateway that validated a token and forwarded it. **Verified beats asserted**: a request carrying
+both is answered by the login, so the forwarded-token opt-in cannot quietly override a real one. A
+deployment that knows better supplies its own bean.
+
+| ID | Spec |
+|----|------|
+| AUTHZ-WHO-01..02 | **The identity this application established** (`CallerResolutionTest`). Spring's authority prefixes read as what they mean — `ROLE_x` is a role, `SCOPE_x` is a scope, an unprefixed authority is a role — so a deployment's existing authorities work without being restated, the standalone apps' `ROLE_ADMIN` included. Not logged in, and Spring's anonymous stand-in for it, are both **nobody**. |
+| AUTHZ-WHO-03..04 | **The identity a gateway forwarded.** Keycloak's own shapes are read (`realm_access.roles` nested, `scope` space-delimited), and every claim is accepted as either a delimited string or an array — issuers disagree about which, and guessing wrong grants nothing while looking like it worked. |
+| AUTHZ-WHO-05..08 | **Absence is an answer, and never an exception.** No request in progress (a Kafka consumer, a scheduler), no header, a header that is not a bearer token, a token that is truncated or not base64 or not JSON, and a valid token carrying no claim we recognise: every one of them is *nobody*, which is what makes a fail-closed check fail closed rather than fail loudly. A malformed credential must be refused with a reason, not with a stack trace. |
+| AUTHZ-WHO-09 | **Verified beats asserted.** A request carrying both a login this application performed and a token it was handed is answered by the login. |
+| AUTHZ-FLOW-01..04 | **Starting a process** (`CreateProcessFlowAuthorizationTest`). Holding everything the definition asks for starts it; missing one of two does not, and nothing is created — no process row, no step executions. An unidentified caller is refused by any requirement at all, and a definition that requires nothing is open to everyone. |
+| AUTHZ-FLOW-05 | **Off is off.** Nothing is enforced while the flag is down. |
+| AUTHZ-FLOW-06 | **What the engine starts for itself is not judged against a caller.** Cron says so with `SYSTEM`, a PROCESS step says so by naming the parent step execution. Re-judging either would mean a scheduled definition could never run (the scheduler holds no scopes) and a modelled child could never be spawned — breakage, not authorization. |
+| AUTHZ-TASK-01..02 | **What a person is shown** (`TaskAuthorizationTest`). The list is narrowed to the forms whose requirements they hold; an unidentified person sees the unrestricted work and only that. Narrowed **in the query**, or a page of fifty would come back holding however many of those fifty they may see, which is a shorter list rather than a page. |
+| AUTHZ-TASK-03..05 | **Claiming and completing are refused on their own account**, naming what was missing and what was attempted. Requires-all: one of two held is not enough. A form that requires nothing refuses nobody, exactly as before it could declare anything. *The listing filter is not the boundary* — a task id travels in a URL, a log line, a pasted link — so these check again rather than trusting where the id came from. |
+| AUTHZ-TASK-06 | A task naming a **form that is gone from the catalogue** is not refused here: a form that is not there cannot state a requirement. Nothing is granted by that — the submission path refuses such a task on its own account, and for its own reasons (HARD-SUB-08). |
+| AUTHZ-TASK-07..08 | Off is off here too. And **a completion the form forbids reaches neither the engine nor the row** — checked in the use case rather than in the page, because completion also arrives from the MCP tool, and because the reply is the one thing that cannot be taken back: a USER_TASK step that has been told it is done is done. |
+| AUTHZ-FORM-01..03 | **A form file may say who its work is for** (`FormAuthorizationTest`). Both halves matter for the import path: the schema is `additionalProperties: false`, so without it knowing these keys a form declaring them would be refused outright; and without the record defaulting them, every form written before today would come back requiring nothing — which is the answer that has to survive. |
 
 ## 9. Process tracing (`ProcessTraceE2eTest`, `RecordProcessTraceServiceTest`, `ProcessTraceTest`)
 

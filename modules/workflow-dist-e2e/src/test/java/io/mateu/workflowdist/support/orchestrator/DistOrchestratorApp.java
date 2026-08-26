@@ -1,4 +1,4 @@
-package io.mateu.workflowdist.support;
+package io.mateu.workflowdist.support.orchestrator;
 
 import io.mateu.workflow.autoconfigure.WorkflowEmbeddedApplication;
 import org.springframework.boot.persistence.autoconfigure.EntityScan;

@@ -3,6 +3,7 @@ package io.mateu.workflow.application.services;
 import io.mateu.workflow.domain.Field;
 import io.mateu.workflow.domain.Form;
 import io.mateu.workflow.domain.Value;
+import io.mateu.workflow.input.InputLimits;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
@@ -30,10 +31,25 @@ public final class FormSubmission {
     /**
      * Longest accepted value, in characters. Generous — a {@code richText} or {@code textarea}
      * field can legitimately hold a great deal — and present so that a single POST cannot decide
-     * how much memory the engine spends. Override with {@code workflow.forms.max-value-length}.
+     * how much memory the engine spends. Defaults to the engine-wide
+     * {@link InputLimits#MAX_VALUE_LENGTH} so a value that would be refused arriving over Kafka is
+     * refused arriving from a browser, and vice versa; the form-specific
+     * {@code workflow.forms.max-value-length} still overrides it where a deployment wants the two
+     * to differ.
      */
     public static final int MAX_VALUE_LENGTH =
-            Integer.getInteger("workflow.forms.max-value-length", 1_048_576);
+            Integer.getInteger("workflow.forms.max-value-length", InputLimits.MAX_VALUE_LENGTH);
+
+    /**
+     * Most values one submission may carry, counted before they are filtered against the form.
+     * The filtering is what protects the process — an undeclared name never becomes a variable —
+     * but it happens after every submitted value has been held in memory and compared, so a POST
+     * with a million of them is answered by dropping a million of them. Counted first, and against
+     * everything submitted rather than against what the form declares, because that is the number
+     * that decides the work. Override with {@code workflow.forms.max-values}.
+     */
+    public static final int MAX_VALUES =
+            Integer.getInteger("workflow.forms.max-values", InputLimits.MAX_VARIABLES);
 
     private FormSubmission() {
     }
@@ -42,7 +58,8 @@ public final class FormSubmission {
      * The submitted values, reduced to the ones this form actually declares.
      *
      * @throws IncompleteSubmissionException if a required field is missing or blank
-     * @throws OversizedValueException       if a value is longer than {@link #MAX_VALUE_LENGTH}
+     * @throws OversizedValueException       if a value is longer than {@link #MAX_VALUE_LENGTH},
+     *                                       or there are more than {@link #MAX_VALUES} of them
      */
     public static List<Value> accepted(Form form, List<Value> submitted, String taskId) {
         var values = submitted == null ? List.<Value>of() : submitted;
@@ -52,6 +69,11 @@ public final class FormSubmission {
             log.warn("Task {} names a form that is not in the catalogue; its {} submitted value(s)"
                     + " cannot be checked and are not accepted", taskId, values.size());
             return List.of();
+        }
+        if (values.size() > MAX_VALUES) {
+            throw new OversizedValueException(
+                    "Form '" + form.name() + "' was submitted with " + values.size()
+                            + " values, over the limit of " + MAX_VALUES);
         }
         var declared = form.fields() == null ? Set.<String>of()
                 : form.fields().stream().map(Field::id).collect(java.util.stream.Collectors.toSet());
@@ -93,7 +115,7 @@ public final class FormSubmission {
         }
     }
 
-    /** A single value was larger than the engine accepts. */
+    /** A single value, or the submission as a whole, was larger than the engine accepts. */
     public static class OversizedValueException extends RuntimeException {
         public OversizedValueException(String message) {
             super(message);

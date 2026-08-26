@@ -1,6 +1,5 @@
-package io.mateu.workflow.application.services;
+package io.mateu.workflow.security;
 
-import io.mateu.workflow.security.AuthorizationContext;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -10,7 +9,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 /** Requires-all, fail-closed flow authorization. */
 class FlowAuthorizationServiceTest {
 
-    private final FlowAuthorizationService service = new FlowAuthorizationService();
 
     private AuthorizationContext caller(List<String> scopes, List<String> roles) {
         return new AuthorizationContext("alice", scopes, roles);
@@ -18,14 +16,14 @@ class FlowAuthorizationServiceTest {
 
     @Test
     void noRequirementsIsOpenToAnyone() {
-        assertThat(service.authorize(caller(List.of(), List.of()), List.of(), List.of()).allowed()).isTrue();
+        assertThat(FlowAuthorizationService.authorize(caller(List.of(), List.of()), List.of(), List.of()).allowed()).isTrue();
         // ...even to an unauthenticated (null) caller — a step that declares nothing restricts nothing.
-        assertThat(service.authorize(null, List.of(), null).allowed()).isTrue();
+        assertThat(FlowAuthorizationService.authorize(null, List.of(), null).allowed()).isTrue();
     }
 
     @Test
     void allowsWhenTheCallerHoldsEveryRequiredScopeAndRole() {
-        var decision = service.authorize(
+        var decision = FlowAuthorizationService.authorize(
                 caller(List.of("orders:write", "orders:read"), List.of("operator")),
                 List.of("orders:write"), List.of("operator"));
         assertThat(decision.allowed()).isTrue();
@@ -35,7 +33,7 @@ class FlowAuthorizationServiceTest {
 
     @Test
     void deniesAndReportsExactlyWhatIsMissing() {
-        var decision = service.authorize(
+        var decision = FlowAuthorizationService.authorize(
                 caller(List.of("orders:read"), List.of()),
                 List.of("orders:read", "orders:write"), List.of("approver"));
         assertThat(decision.allowed()).isFalse();
@@ -45,23 +43,23 @@ class FlowAuthorizationServiceTest {
 
     @Test
     void requiresAllNotAnyScope() {
-        var decision = service.authorize(caller(List.of("a"), List.of()), List.of("a", "b"), List.of());
+        var decision = FlowAuthorizationService.authorize(caller(List.of("a"), List.of()), List.of("a", "b"), List.of());
         assertThat(decision.allowed()).isFalse();
         assertThat(decision.missingScopes()).containsExactly("b");
     }
 
     @Test
     void aMissingCallerIsDeniedTheMomentAnythingIsRequired() {
-        var decision = service.authorize(null, List.of("orders:write"), List.of());
+        var decision = FlowAuthorizationService.authorize(null, List.of("orders:write"), List.of());
         assertThat(decision.allowed()).isFalse();
         assertThat(decision.missingScopes()).containsExactly("orders:write");
     }
 
     @Test
     void theSystemIdentityHoldsNothingSoItCannotRunScopedSteps() {
-        assertThat(service.authorize(AuthorizationContext.SYSTEM, List.of("orders:write"), List.of()).allowed())
+        assertThat(FlowAuthorizationService.authorize(AuthorizationContext.SYSTEM, List.of("orders:write"), List.of()).allowed())
                 .isFalse();
         // ...but it runs anything unrestricted, like any caller.
-        assertThat(service.authorize(AuthorizationContext.SYSTEM, List.of(), List.of()).allowed()).isTrue();
+        assertThat(FlowAuthorizationService.authorize(AuthorizationContext.SYSTEM, List.of(), List.of()).allowed()).isTrue();
     }
 }
