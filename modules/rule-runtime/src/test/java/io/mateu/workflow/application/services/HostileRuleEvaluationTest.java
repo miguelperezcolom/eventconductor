@@ -175,6 +175,30 @@ class HostileRuleEvaluationTest {
         }).doesNotThrowAnyException();
     }
 
+    /**
+     * HARD-RULE-11. The rule engine runs the same linear-time regex the workflow guards run.
+     *
+     * <p>It got its own JexlEngine when it was split out to stay free of the UI dependencies, and
+     * a second engine is a second place to forget: the ReDoS hardening landed on the workflow one
+     * and left rules — read from the same git import, evaluated on the same threads — matching
+     * with {@code java.util.regex}. Under that engine this expression does not return.
+     */
+    @Test
+    void aBacktrackingRegexInARuleDoesNotBurnTheThread() {
+        var input = "a".repeat(40) + "b";
+        var rule = expression("country =~ '(a+)+$'", "'matched'");
+
+        assertTimeoutPreemptively(Duration.ofSeconds(2), () ->
+                assertThat(evaluator.evaluate(rule, Map.of("country", input)).matched()).isFalse());
+    }
+
+    /** HARD-RULE-12. And it keeps the operator's meaning: {@code =~} is a whole-string match. */
+    @Test
+    void ruleRegexMatchingStaysAnchored() {
+        assertThat(evaluator.evaluate(expression("country =~ 'E'", "'x'"), FACTS).matched()).isFalse();
+        assertThat(evaluator.evaluate(expression("country =~ 'ES'", "'x'"), FACTS).matched()).isTrue();
+    }
+
     /** HARD-RULE-10. A catalogue-sized table is evaluated, not choked on. */
     @Test
     void aVeryLargeDecisionTableStillEvaluates() {
