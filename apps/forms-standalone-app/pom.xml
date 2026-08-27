@@ -37,7 +37,7 @@
             <dependency>
                 <groupId>com.networknt</groupId>
                 <artifactId>json-schema-validator</artifactId>
-                <version>3.0.6</version>
+                <version>3.0.7</version>
             </dependency>
             <!-- Security overrides — pull deps up to their CVE-fixed versions. The app parents off
                  spring-boot-starter-parent, so these child dependencyManagement entries win over the
