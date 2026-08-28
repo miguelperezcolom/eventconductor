@@ -141,6 +141,17 @@ public interface WorkflowMetrics {
      */
     default void outboxRelayCycle(Duration draining, Duration waiting) {}
 
+    /**
+     * A relay pass that claimed rows and settled none of them — the broker is refusing.
+     *
+     * <p>This exists because the fix for the hot loop took away the signal that used to show an
+     * outage: an error line per message per pass, at the cadence of writes. Backing off removes the
+     * flood, and without this it would also remove the evidence. A rate above zero here means
+     * messages are sitting in the outbox undelivered, which is the alertable condition; the growing
+     * gap between passes means it stays true for a while after the broker recovers.
+     */
+    default void outboxRelayStalled() {}
+
     enum RetryTrigger { AUTO, MANUAL }
 
     /**

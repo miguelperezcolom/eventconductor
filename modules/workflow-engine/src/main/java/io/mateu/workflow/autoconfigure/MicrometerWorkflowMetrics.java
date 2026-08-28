@@ -45,6 +45,7 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
     public static final String OUTBOX_BATCH_SIZE = "eventconductor.outbox.batch.size";
     public static final String OUTBOX_RELAY_DRAINING = "eventconductor.outbox.relay.draining";
     public static final String OUTBOX_RELAY_WAITING = "eventconductor.outbox.relay.waiting";
+    public static final String OUTBOX_RELAY_STALLED = "eventconductor.outbox.relay.stalled";
 
     public static final String TAG_WORKFLOW_DEFINITION_ID = "workflowDefinitionId";
     public static final String TAG_OUTCOME = "outcome";
@@ -224,6 +225,19 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
                 + "timer is the relay's duty cycle; near 1 means the single relay thread is the ceiling", draining);
         record(OUTBOX_RELAY_WAITING, "Time the relay spent waiting for work in one cycle, either signalled by "
                 + "this pod's own commit or timed out on the poll interval", waiting);
+    }
+
+    @Override
+    public void outboxRelayStalled() {
+        var registry = registry();
+        if (registry == null) {
+            return;
+        }
+        Counter.builder(OUTBOX_RELAY_STALLED)
+                .description("Relay passes that claimed outbox rows and settled none of them. Anything "
+                        + "above zero means committed messages are not reaching the broker")
+                .register(registry)
+                .increment();
     }
 
     private void record(String name, String description, Duration duration) {
