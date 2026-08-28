@@ -17,6 +17,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.List;
@@ -48,13 +51,18 @@ public class MessageRestController {
     final MessageApiProperties messageApiProperties;
     final io.mateu.workflow.application.services.MessageDispatcher messageDispatcher;
 
-    public record SendMessageRequest(String messageName, String correlationKey, Map<String, String> variables) {
+    public record SendMessageRequest(
+            @NotBlank(message = "messageName is required")
+            String messageName,
+            @NotBlank(message = "correlationKey is required")
+            String correlationKey,
+            Map<String, String> variables) {
     }
 
     @PostMapping
     public ResponseEntity<String> sendMessage(
             @RequestHeader(value = "X-Api-Key", required = false) String apiKey,
-            @RequestBody SendMessageRequest request) {
+            @Valid @RequestBody SendMessageRequest request) {
 
         verifyApiKey(apiKey);
 
