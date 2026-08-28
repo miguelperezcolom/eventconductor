@@ -53,10 +53,18 @@ public interface ProcessEntityRepository extends JpaRepository<ProcessEntity, St
             where (:onlyErrors = false or p.status = 'ERROR')
               and (:pattern is null
                    or lower(concat(coalesce(p.name, ''), ' ', coalesce(p.businessKey, ''))) like :pattern)
+              and (:definitionId is null or p.workflowDefinitionId = :definitionId)
+              and (:status is null or p.status = :status)
+              and (cast(:createdFrom as LocalDateTime) is null or p.created >= :createdFrom)
+              and (cast(:createdTo as LocalDateTime) is null or p.created <= :createdTo)
             order by p.created desc nulls last
             """)
     List<ProcessSummaryView> searchSummaries(@Param("onlyErrors") boolean onlyErrors,
                                              @Param("pattern") String pattern,
+                                             @Param("definitionId") String definitionId,
+                                             @Param("status") String status,
+                                             @Param("createdFrom") LocalDateTime createdFrom,
+                                             @Param("createdTo") LocalDateTime createdTo,
                                              Pageable pageable);
 
     /**
@@ -71,8 +79,17 @@ public interface ProcessEntityRepository extends JpaRepository<ProcessEntity, St
             where (:onlyErrors = false or p.status = 'ERROR')
               and (:pattern is null
                    or lower(concat(coalesce(p.name, ''), ' ', coalesce(p.businessKey, ''))) like :pattern)
+              and (:definitionId is null or p.workflowDefinitionId = :definitionId)
+              and (:status is null or p.status = :status)
+              and (cast(:createdFrom as LocalDateTime) is null or p.created >= :createdFrom)
+              and (cast(:createdTo as LocalDateTime) is null or p.created <= :createdTo)
             """)
-    long countSummaries(@Param("onlyErrors") boolean onlyErrors, @Param("pattern") String pattern);
+    long countSummaries(@Param("onlyErrors") boolean onlyErrors,
+                        @Param("pattern") String pattern,
+                        @Param("definitionId") String definitionId,
+                        @Param("status") String status,
+                        @Param("createdFrom") LocalDateTime createdFrom,
+                        @Param("createdTo") LocalDateTime createdTo);
 
     /**
      * Every process created inside the window, as the columns analytics reads. The window bounds

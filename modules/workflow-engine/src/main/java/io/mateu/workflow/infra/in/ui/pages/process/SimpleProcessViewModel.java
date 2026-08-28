@@ -107,7 +107,12 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
     @Hidden
     ProcessStatus processStatus;
 
-    @ReadOnly
+    /**
+     * Where the "back" action goes, carried in from the query string. Plumbing, like
+     * {@link #processStatus} above it — it says nothing about the process, and read-only it was
+     * still a labelled field on screen showing a URL to somebody who did not ask for one.
+     */
+    @Hidden
     String returnTo;
 
     // Explicit tab names: since mateu 379440d83 consecutive @Tab annotations with the SAME

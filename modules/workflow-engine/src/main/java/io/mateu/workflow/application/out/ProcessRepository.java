@@ -141,10 +141,23 @@ public interface ProcessRepository extends CrudStore<Process> {
                 && (to == null || !moment.isAfter(to));
     }
 
-    default ProcessSummaryPage searchSummaries(String searchText, boolean onlyErrors, int page, int size) {
-        var needle = searchText == null ? "" : searchText.toLowerCase();
+    /**
+     * One page of the process listing.
+     *
+     * <p>Every field of the filter is applied here, including the ones a store might find
+     * inconvenient: a listing that silently drops one shows a page that does not answer the
+     * question that was asked, and nothing on screen says so.
+     */
+    default ProcessSummaryPage searchSummaries(ProcessListingFilter filter, int page, int size) {
+        var needle = filter.normalisedSearchText() == null
+                ? "" : filter.normalisedSearchText().toLowerCase();
         var matching = findAll().stream()
-                .filter(process -> !onlyErrors || ProcessStatus.ERROR.equals(process.getStatus()))
+                .filter(process -> !filter.onlyErrors() || ProcessStatus.ERROR.equals(process.getStatus()))
+                .filter(process -> filter.status() == null || filter.status().equals(process.getStatus()))
+                .filter(process -> filter.workflowDefinitionId() == null
+                        || filter.workflowDefinitionId().equals(process.getWorkflowDefinitionId()))
+                .filter(process -> filter.createdFrom() == null && filter.createdTo() == null
+                        || withinWindow(process.getCreated(), filter.createdFrom(), filter.createdTo()))
                 .filter(process -> needle.isEmpty()
                         || process.searchableText().toLowerCase().contains(needle))
                 // nullsFirst before the reverse, so a process with no creation date sorts last

@@ -33,7 +33,7 @@ import java.util.List;
 @RequiredArgsConstructor
 // Full width (uncapped) so the hosted table and the wide graph detail use the whole screen.
 @PageWidth(PageWidthStyle.FULL_WIDTH)
-public class WorkflowDefinitions extends Crud<Object, WorkflowDefinition, WorkflowDefinition, NoFilters, WorkflowDefinition, String> {
+public class WorkflowDefinitions extends Crud<Object, WorkflowDefinition, WorkflowDefinition, NoFilters, WorkflowDefinitionRow, String> {
 
     final WorkflowDefinitionDetailView detailView;
     final WorkflowDefinitionRepository repository;
@@ -43,12 +43,12 @@ public class WorkflowDefinitions extends Crud<Object, WorkflowDefinition, Workfl
     }
 
     @Override
-    public Class<WorkflowDefinition> rowClass() {
-        return WorkflowDefinition.class;
+    public Class<WorkflowDefinitionRow> rowClass() {
+        return WorkflowDefinitionRow.class;
     }
 
     @Override
-    public ListingData<WorkflowDefinition> search(SearchRequest searchRequest, HttpRequest httpRequest) {
+    public ListingData<WorkflowDefinitionRow> search(SearchRequest searchRequest, HttpRequest httpRequest) {
         var searchText = searchRequest.searchText();
         var pageable = searchRequest.pageable();
         var all = repository.findAll().stream()
@@ -64,6 +64,7 @@ public class WorkflowDefinitions extends Crud<Object, WorkflowDefinition, Workfl
         var content = all.stream()
                 .skip((long) pageNumber * size)
                 .limit(size)
+                .map(WorkflowDefinitionRow::of)
                 .toList();
         return new ListingData<>(new Page<>(searchText, size, pageNumber, all.size(), content));
     }
