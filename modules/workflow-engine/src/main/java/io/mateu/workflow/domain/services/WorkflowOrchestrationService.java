@@ -15,6 +15,7 @@ import java.util.Map;
 
 import static io.mateu.core.infra.JsonSerializer.pojoFromJson;
 import static io.mateu.workflow.application.services.JEXLEvaluator.eval;
+import static io.mateu.workflow.application.services.JEXLEvaluator.evaluate;
 
 /**
  * Domain Service that encapsulates the core business rules for workflow orchestration,
@@ -292,7 +293,10 @@ public class WorkflowOrchestrationService {
             return true;
         }
         try {
-            return isTruthy(eval(precondition.expression(), expressionContext(step, process)));
+            var evaluation = evaluate(precondition.expression(), expressionContext(step, process));
+            reportUndefined(evaluation, precondition.expression(),
+                    "the link " + precondition.stepId() + " -> " + step.id(), process);
+            return isTruthy(evaluation.value());
         } catch (Exception e) {
             log.error("Error evaluating the guard '{}' on the link {} -> {}, the link will not be "
                             + "satisfied", precondition.expression(), precondition.stepId(), step.id(), e);
@@ -310,7 +314,10 @@ public class WorkflowOrchestrationService {
             return true;
         }
         try {
-            return isTruthy(eval(step.preconditionExpression(), expressionContext(step, process)));
+            var evaluation = evaluate(step.preconditionExpression(), expressionContext(step, process));
+            reportUndefined(evaluation, step.preconditionExpression(),
+                    "the precondition of step " + step.id(), process);
+            return isTruthy(evaluation.value());
         } catch (Exception e) {
             // Fail closed: a guard that cannot be evaluated must not let the step run.
             log.error("Error evaluating precondition expression '{}' for step {}, step will not run",
@@ -332,9 +339,56 @@ public class WorkflowOrchestrationService {
         return variables;
     }
 
+    /**
+     * Whether a guard's result lets the link through.
+     *
+     * <p>Close to JavaScript, with one deliberate departure that must not be "corrected": the
+     * string {@code "false"} is falsy here and truthy in JavaScript. Every process variable in this
+     * engine is a {@code (name, value)} pair of <em>strings</em>, so a variable holding {@code
+     * "false"} is what a guard written as {@code !approved} reads — treating it as truthy the way
+     * JavaScript does would silently invert every negated guard in every deployed definition.
+     *
+     * <p>Numbers follow JavaScript: {@code 0} is falsy, anything else is not. Before, every
+     * non-Boolean non-String was falsy, so a guard yielding {@code 1} did not let its link through.
+     */
     private boolean isTruthy(Object result) {
-        return result != null && (result instanceof Boolean b && b
-                || result instanceof String s && !s.isEmpty() && !"false".equals(s));
+        if (result == null) {
+            return false;
+        }
+        if (result instanceof Boolean b) {
+            return b;
+        }
+        if (result instanceof String s) {
+            return !s.isEmpty() && !"false".equals(s);
+        }
+        if (result instanceof Number n) {
+            return n.doubleValue() != 0d && !Double.isNaN(n.doubleValue());
+        }
+        return true;
+    }
+
+    /**
+     * Says out loud which references a guard could not resolve.
+     *
+     * <p>An undefined variable is no longer an error — see {@code JEXLEvaluator} — which is what
+     * stops a process stranding on a two-way branch, and it means a mistyped variable now sends the
+     * process down the negative branch instead. That is silent from the process's side, so this is
+     * the only thing standing between a typo and a wrong route nobody notices. It logs at warn
+     * rather than failing: a guard that reads a variable set only on some paths is legitimate, and
+     * common.
+     */
+    private void reportUndefined(io.mateu.workflow.application.services.JEXLEvaluator.Evaluation evaluation,
+                                 String expression, String where, Process process) {
+        if (evaluation.undefinedVariables().isEmpty()) {
+            return;
+        }
+        log.warn("Guard '{}' on {} of process {} read {} that {} not set; treated as falsy. "
+                        + "If that is a typo, this is where the process takes the wrong branch.",
+                expression, where, process.getId(),
+                evaluation.undefinedVariables().size() == 1
+                        ? "the variable " + evaluation.undefinedVariables().iterator().next()
+                        : "the variables " + evaluation.undefinedVariables(),
+                evaluation.undefinedVariables().size() == 1 ? "was" : "were");
     }
 
     private TransitionResult handleEndStepTransition(Process process, List<StepExecution> stepExecutions, List<StepExecution> executableSteps, Map<String, Step> cache) {

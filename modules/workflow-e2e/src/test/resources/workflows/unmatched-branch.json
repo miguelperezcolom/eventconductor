@@ -1,0 +1,59 @@
+{
+  "id": "unmatched-branch",
+  "name": "A branch whose guards cover less than the values that reach them",
+  "version": 1,
+  "steps": [
+    {
+      "id": "start",
+      "type": "START",
+      "name": "Start"
+    },
+    {
+      "id": "decide",
+      "type": "ACTION",
+      "name": "Decide",
+      "topic": "work",
+      "preconditionStepId": "start"
+    },
+    {
+      "id": "approve",
+      "type": "ACTION",
+      "name": "Approve",
+      "topic": "work",
+      "preconditions": [
+        {
+          "stepId": "decide",
+          "expression": "decision == 'APPROVE'"
+        }
+      ]
+    },
+    {
+      "id": "reject",
+      "type": "ACTION",
+      "name": "Reject",
+      "topic": "work",
+      "preconditions": [
+        {
+          "stepId": "decide",
+          "expression": "decision == 'REJECT'"
+        }
+      ]
+    },
+    {
+      "id": "outcome",
+      "type": "JOIN",
+      "name": "Outcome decided",
+      "joinType": "XOR",
+      "preconditionStepIds": [
+        "approve",
+        "reject"
+      ]
+    },
+    {
+      "id": "end",
+      "type": "END",
+      "name": "End",
+      "preconditionStepId": "outcome"
+    }
+  ]
+}

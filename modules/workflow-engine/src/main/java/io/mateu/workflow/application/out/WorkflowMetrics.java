@@ -79,6 +79,19 @@ public interface WorkflowMetrics {
     default void stalledStepsObserved(long count) {}
 
     /**
+     * Processes that are RUNNING with nothing left to run and no clock anywhere — see
+     * {@code ProcessRepository#findStalled}.
+     *
+     * <p>Distinct from {@link #stalledStepsObserved} and not a subset of it: that one counts live
+     * steps a worker owes an answer for, and a process counted here has no live step at all.
+     * A deployment can have either without the other.
+     *
+     * <p>Cluster-wide, like the step figure: every pod reports the same number because both count
+     * rows in a shared table. Alert on the maximum across replicas, never the sum.
+     */
+    default void stalledProcessesObserved(long count) {}
+
+    /**
      * How long a message sat in the outbox between being committed and being claimed by a relay.
      *
      * <p>The engine's throughput is (processes advancing at once) ÷ (latency per step), and both

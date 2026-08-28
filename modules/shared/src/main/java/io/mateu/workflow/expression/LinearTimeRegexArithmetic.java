@@ -3,6 +3,7 @@ package io.mateu.workflow.expression;
 import com.google.re2j.Pattern;
 import com.google.re2j.PatternSyntaxException;
 import org.apache.commons.jexl3.JexlArithmetic;
+import org.apache.commons.jexl3.JexlOperator;
 
 /**
  * The arithmetic every JEXL engine in the product runs with, so {@code =~} cannot be used to burn
@@ -88,6 +89,50 @@ public class LinearTimeRegexArithmetic extends JexlArithmetic {
      * fails closed on {@code catch (Exception)}, so a definition with an unsupported pattern
      * stops its own step rather than the engine.
      */
+    /**
+     * A null operand is false, not an error — this is what {@code &&} and {@code ||} consult, and
+     * it is one of the two halves that make an undefined variable falsy.
+     */
+    @Override
+    public boolean toBoolean(Object val) {
+        return val != null && super.toBoolean(val);
+    }
+
+    /**
+     * The other half: the operators that only need a truth value tolerate a null operand, and
+     * every other operator does not.
+     *
+     * <p>An undefined variable used to throw, so both {@code x} and {@code !x} were false at once
+     * and a two-way branch had no eligible side — the process stopped dead rather than taking the
+     * negative branch. Fixing that is one line on the engine ({@code strict(false)}) plus this,
+     * and this is the part that is easy to get wrong. Measured on JEXL 3.7.0:
+     *
+     * <pre>
+     *   strict=true,  arithmetic=true   missing -&gt; THROWS   !missing -&gt; THROWS
+     *   strict=false, arithmetic=true   missing -&gt; null     !missing -&gt; THROWS
+     *   strict=false, arithmetic=false  missing -&gt; null     !missing -&gt; true, and amount/0 -&gt; 0.0
+     * </pre>
+     *
+     * The middle row is why {@code strict(false)} alone fixes nothing: the negation still throws,
+     * which is exactly the case that strands a process. The last row is why the arithmetic must not
+     * simply be relaxed: JEXL then swallows every arithmetic error, and no override puts that back
+     * because the interpreter catches what {@code divide} throws before the caller sees it.
+     *
+     * <p>Overriding {@code not} or {@code controlNullOperand} does not work either — the
+     * interpreter asks {@code isStrict(operator)} before it dispatches, so neither is reached.
+     *
+     * <p>So comparison and negation go quiet on null, and arithmetic stays loud. Which means
+     * {@code amount + missing} still fails, deliberately: JavaScript would hand you {@code NaN} and
+     * route the process on it, and {@code amount / 0} still fails, which HARD-RULE-08 requires.
+     */
+    @Override
+    public boolean isStrict(JexlOperator operator) {
+        return switch (operator) {
+            case NOT, AND, OR, EQ, EQSTRICT, LT, LTE, GT, GTE, CONDITION, EMPTY, SIZE -> false;
+            default -> super.isStrict(operator);
+        };
+    }
+
     public static class UnsupportedRegexException extends RuntimeException {
 
         UnsupportedRegexException(String pattern, Throwable cause) {

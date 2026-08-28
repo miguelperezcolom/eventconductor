@@ -45,7 +45,10 @@ public class RuleExpressionEvaluator {
             .permissions(JexlPermissions.RESTRICTED)
             .features(RULE_FEATURES)
             .cache(512)
-            .strict(true)
+            // Falsy, like the workflow guards and through the same shared arithmetic: a fact
+            // that is not in the map reads as false rather than throwing, so a rule that mentions
+            // one does not fail — it simply does not match.
+            .strict(false)
             .create();
 
     public Object eval(String expression, Map<String, Object> facts) {
