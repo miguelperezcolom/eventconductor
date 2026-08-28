@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Resuming a paused process that actually had somewhere to go rolled back, and left it paused.**
+  The resume saved the process (PAUSED → RUNNING), then `StepOverProcessUseCase` mapped it and ran
+  a derived query for its steps. On JPA that query auto-flushes — including the version bump the
+  resume had just left pending — so the object mapped a moment earlier carried a version the flush
+  superseded. Saving it afterwards failed optimistic locking, the whole handler rolled back, and
+  the process was still PAUSED:
+
+  ```
+  ObjectOptimisticLockingFailureException: Row was already updated or deleted by another
+  transaction for entity [ProcessEntity with id '…']
+    at ProcessUpdateStepExecutionUpdateUseCase.apply(…:122)
+    at ResumeProcessUseCase.handle(ResumeProcessUseCase.java:78)
+  ```
+
+  Only a resume that had work to release could fail: `StepOverProcessUseCase` saves the process
+  only when a transition changed it, so a resume that advanced nothing left no pending write to
+  collide with and committed happily. That is the shape that kept this invisible — and it is why
+  the existing pause/resume coverage never saw it: those tests run on `AbstractE2eTest`, which
+  boots the engine in **memory** mode, where there is no `@Version`, no persistence context and no
+  auto-flush. A JPA e2e on H2 does not reach it either. `Dist20ResumeAdvancingTest` does, on real
+  PostgreSQL and real Kafka, with the resume arriving as an upstream event.
+
+  Fixed by loading a process's steps **before** mapping the process, at both call sites — the query
+  flushes first, so the aggregate is mapped at the version the flush produced. `StepExecutionRepository`
+  gains `findByProcessId(String)` for exactly this; `findByProcess(Process)` stays as a default for
+  callers that hold the aggregate and are not about to save it.
+
 ## [2.11.0] - 2026-08-30
 
 ### Added

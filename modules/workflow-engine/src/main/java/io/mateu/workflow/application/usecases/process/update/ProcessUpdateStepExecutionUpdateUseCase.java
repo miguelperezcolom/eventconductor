@@ -32,8 +32,12 @@ public class ProcessUpdateStepExecutionUpdateUseCase {
     final io.mateu.workflow.application.services.RecordProcessTraceService recordProcessTraceService;
 
     public void handle(ProcessStepExecutionUpdateCommand command) {
+        // Steps first, process second — see StepOverProcessUseCase for why the order matters.
+        // This is the call site the failure surfaced at: StepOverProcessUseCase runs immediately
+        // before it during a resume, so there is always a pending write here to flush.
+        var executions = stepExecutionRepository.findByProcessId(command.processId());
         var process = repository.findById(command.processId()).orElseThrow();
-        apply(process, stepExecutionRepository.findByProcess(process));
+        apply(process, executions);
     }
 
     /**

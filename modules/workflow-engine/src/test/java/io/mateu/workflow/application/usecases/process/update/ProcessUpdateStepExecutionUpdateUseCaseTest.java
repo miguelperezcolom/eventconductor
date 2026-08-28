@@ -45,7 +45,7 @@ class ProcessUpdateStepExecutionUpdateUseCaseTest {
     void setsRunningWhenSomePending() {
         var proc = process("p-1", ProcessStatus.PENDING);
         when(repository.findById("p-1")).thenReturn(Optional.of(proc));
-        when(stepExecutionRepository.findByProcess(proc)).thenReturn(List.of(se(StepExecutionStatus.PENDING)));
+        when(stepExecutionRepository.findByProcessId(proc.id())).thenReturn(List.of(se(StepExecutionStatus.PENDING)));
 
         useCase.handle(new ProcessStepExecutionUpdateCommand("p-1"));
 
@@ -58,7 +58,7 @@ class ProcessUpdateStepExecutionUpdateUseCaseTest {
     void setsRunningWhenSomeRunning() {
         var proc = process("p-1", ProcessStatus.PENDING);
         when(repository.findById("p-1")).thenReturn(Optional.of(proc));
-        when(stepExecutionRepository.findByProcess(proc)).thenReturn(List.of(se(StepExecutionStatus.RUNNING)));
+        when(stepExecutionRepository.findByProcessId(proc.id())).thenReturn(List.of(se(StepExecutionStatus.RUNNING)));
 
         useCase.handle(new ProcessStepExecutionUpdateCommand("p-1"));
 
@@ -71,7 +71,7 @@ class ProcessUpdateStepExecutionUpdateUseCaseTest {
     void setsCompletedWhenAllCompleted() {
         var proc = process("p-1", ProcessStatus.RUNNING);
         when(repository.findById("p-1")).thenReturn(Optional.of(proc));
-        when(stepExecutionRepository.findByProcess(proc)).thenReturn(List.of(se(StepExecutionStatus.COMPLETED)));
+        when(stepExecutionRepository.findByProcessId(proc.id())).thenReturn(List.of(se(StepExecutionStatus.COMPLETED)));
 
         useCase.handle(new ProcessStepExecutionUpdateCommand("p-1"));
 
@@ -86,7 +86,7 @@ class ProcessUpdateStepExecutionUpdateUseCaseTest {
     void keepsCANCELLEDStatusWhenAlreadyCancelled() {
         var proc = process("p-1", ProcessStatus.CANCELLED);
         when(repository.findById("p-1")).thenReturn(Optional.of(proc));
-        when(stepExecutionRepository.findByProcess(proc)).thenReturn(List.of(se(StepExecutionStatus.RUNNING)));
+        when(stepExecutionRepository.findByProcessId(proc.id())).thenReturn(List.of(se(StepExecutionStatus.RUNNING)));
 
         useCase.handle(new ProcessStepExecutionUpdateCommand("p-1"));
 
@@ -99,7 +99,7 @@ class ProcessUpdateStepExecutionUpdateUseCaseTest {
     void keepsERRORStatusWhenAlreadyError() {
         var proc = process("p-1", ProcessStatus.ERROR);
         when(repository.findById("p-1")).thenReturn(Optional.of(proc));
-        when(stepExecutionRepository.findByProcess(proc)).thenReturn(List.of(se(StepExecutionStatus.PENDING)));
+        when(stepExecutionRepository.findByProcessId(proc.id())).thenReturn(List.of(se(StepExecutionStatus.PENDING)));
 
         useCase.handle(new ProcessStepExecutionUpdateCommand("p-1"));
 
@@ -114,7 +114,7 @@ class ProcessUpdateStepExecutionUpdateUseCaseTest {
     void setsStartedWhenTransitioningToRunning() {
         var proc = process("p-1", ProcessStatus.PENDING);
         when(repository.findById("p-1")).thenReturn(Optional.of(proc));
-        when(stepExecutionRepository.findByProcess(proc)).thenReturn(List.of(se(StepExecutionStatus.PENDING)));
+        when(stepExecutionRepository.findByProcessId(proc.id())).thenReturn(List.of(se(StepExecutionStatus.PENDING)));
 
         useCase.handle(new ProcessStepExecutionUpdateCommand("p-1"));
 
@@ -128,7 +128,7 @@ class ProcessUpdateStepExecutionUpdateUseCaseTest {
         var proc = process("p-1", ProcessStatus.PAUSED);
         when(repository.findById("p-1")).thenReturn(Optional.of(proc));
         // A worker report or a correlated message completed a step while paused.
-        when(stepExecutionRepository.findByProcess(proc)).thenReturn(List.of(se(StepExecutionStatus.COMPLETED)));
+        when(stepExecutionRepository.findByProcessId(proc.id())).thenReturn(List.of(se(StepExecutionStatus.COMPLETED)));
 
         useCase.handle(new ProcessStepExecutionUpdateCommand("p-1"));
 
@@ -143,7 +143,7 @@ class ProcessUpdateStepExecutionUpdateUseCaseTest {
     void setsFinishedWhenCompleted() {
         var proc = process("p-1", ProcessStatus.RUNNING);
         when(repository.findById("p-1")).thenReturn(Optional.of(proc));
-        when(stepExecutionRepository.findByProcess(proc)).thenReturn(List.of(se(StepExecutionStatus.COMPLETED)));
+        when(stepExecutionRepository.findByProcessId(proc.id())).thenReturn(List.of(se(StepExecutionStatus.COMPLETED)));
 
         useCase.handle(new ProcessStepExecutionUpdateCommand("p-1"));
 

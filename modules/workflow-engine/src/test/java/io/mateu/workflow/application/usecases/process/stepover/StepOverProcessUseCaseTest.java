@@ -94,7 +94,7 @@ class StepOverProcessUseCaseTest {
         var pending = se("se-2", "step-2", StepType.ACTION, StepExecutionStatus.CREATED, 1, "step-1");
 
         when(processRepository.findById("p-1")).thenReturn(Optional.of(process));
-        when(stepExecutionRepository.findByProcess(process)).thenReturn(List.of(completed, pending));
+        when(stepExecutionRepository.findByProcessId(process.id())).thenReturn(List.of(completed, pending));
 
         useCase.handle(new StepOverProcessCommand("p-1"));
 
@@ -109,7 +109,7 @@ class StepOverProcessUseCaseTest {
         var endStep = se("se-1", "end", StepType.END, StepExecutionStatus.CREATED, 0, "start");
 
         when(processRepository.findById("p-1")).thenReturn(Optional.of(process));
-        when(stepExecutionRepository.findByProcess(process)).thenReturn(List.of(startedFlow(), endStep));
+        when(stepExecutionRepository.findByProcessId(process.id())).thenReturn(List.of(startedFlow(), endStep));
 
         useCase.handle(new StepOverProcessCommand("p-1"));
 
@@ -139,7 +139,7 @@ class StepOverProcessUseCaseTest {
                 .status(StepExecutionStatus.CREATED).order(2).variables(List.of()).build();
 
         when(processRepository.findById("p-1")).thenReturn(Optional.of(process));
-        when(stepExecutionRepository.findByProcess(process)).thenReturn(List.of(start, spawn, end));
+        when(stepExecutionRepository.findByProcessId(process.id())).thenReturn(List.of(start, spawn, end));
 
         useCase.handle(new StepOverProcessCommand("p-1"));
 
@@ -167,7 +167,7 @@ class StepOverProcessUseCaseTest {
                 .status(StepExecutionStatus.CREATED).order(3).variables(List.of()).build();
 
         when(processRepository.findById("p-1")).thenReturn(Optional.of(process));
-        when(stepExecutionRepository.findByProcess(process))
+        when(stepExecutionRepository.findByProcessId(process.id()))
                 .thenReturn(List.of(start, running, waiting, end));
 
         useCase.handle(new StepOverProcessCommand("p-1"));
@@ -188,7 +188,7 @@ class StepOverProcessUseCaseTest {
         var created = se("se-2", "step-2", StepType.ACTION, StepExecutionStatus.CREATED, 1, "start");
 
         when(processRepository.findById("p-1")).thenReturn(Optional.of(process));
-        when(stepExecutionRepository.findByProcess(process)).thenReturn(List.of(startedFlow(), pending, created));
+        when(stepExecutionRepository.findByProcessId(process.id())).thenReturn(List.of(startedFlow(), pending, created));
 
         useCase.handle(new StepOverProcessCommand("p-1"));
 
@@ -209,7 +209,7 @@ class StepOverProcessUseCaseTest {
                 .status(StepExecutionStatus.CREATED).order(1).variables(List.of()).build();
 
         when(processRepository.findById("p-1")).thenReturn(Optional.of(process));
-        when(stepExecutionRepository.findByProcess(process)).thenReturn(List.of(pending, successor));
+        when(stepExecutionRepository.findByProcessId(process.id())).thenReturn(List.of(pending, successor));
 
         useCase.handle(new StepOverProcessCommand("p-1"));
 
@@ -222,7 +222,7 @@ class StepOverProcessUseCaseTest {
         var completed = se("se-1", "step-1", StepType.ACTION, StepExecutionStatus.COMPLETED, 0);
 
         when(processRepository.findById("p-1")).thenReturn(Optional.of(process));
-        when(stepExecutionRepository.findByProcess(process)).thenReturn(List.of(completed));
+        when(stepExecutionRepository.findByProcessId(process.id())).thenReturn(List.of(completed));
 
         useCase.handle(new StepOverProcessCommand("p-1"));
 
@@ -251,7 +251,7 @@ class StepOverProcessUseCaseTest {
         var next = se("se-2", "step-2", StepType.ACTION, StepExecutionStatus.CREATED, 1, "step-1");
 
         when(processRepository.findById("p-1")).thenReturn(Optional.of(process));
-        when(stepExecutionRepository.findByProcess(process)).thenReturn(List.of(startedFlow(), failed, next));
+        when(stepExecutionRepository.findByProcessId(process.id())).thenReturn(List.of(startedFlow(), failed, next));
 
         useCase.handle(new StepOverProcessCommand("p-1"));
 
@@ -279,7 +279,7 @@ class StepOverProcessUseCaseTest {
                 .status(StepExecutionStatus.CREATED).order(1).variables(List.of()).build();
 
         when(processRepository.findById("p-1")).thenReturn(Optional.of(process));
-        when(stepExecutionRepository.findByProcess(process)).thenReturn(List.of(startedFlow(), se1, se2));
+        when(stepExecutionRepository.findByProcessId(process.id())).thenReturn(List.of(startedFlow(), se1, se2));
 
         useCase.handle(new StepOverProcessCommand("p-1"));
 
@@ -299,7 +299,7 @@ class StepOverProcessUseCaseTest {
                 .status(StepExecutionStatus.CREATED).order(1).variables(List.of()).build();
 
         when(processRepository.findById("p-1")).thenReturn(Optional.of(process));
-        when(stepExecutionRepository.findByProcess(process)).thenReturn(List.of(startedFlow(), sePrereq, seDependent));
+        when(stepExecutionRepository.findByProcessId(process.id())).thenReturn(List.of(startedFlow(), sePrereq, seDependent));
 
         useCase.handle(new StepOverProcessCommand("p-1"));
 

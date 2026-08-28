@@ -114,8 +114,8 @@ public class StepExecutionDBRepository implements StepExecutionRepository {
     }
 
     @Override
-    public List<StepExecution> findByProcess(Process process) {
-        return stepExecutionEntityRepository.findAllByProcessIdOrderByOrder(process.id()).stream()
+    public List<StepExecution> findByProcessId(String processId) {
+        return stepExecutionEntityRepository.findAllByProcessIdOrderByOrder(processId).stream()
                 .map(this::map).toList();
     }
 
