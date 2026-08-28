@@ -176,4 +176,42 @@ public interface StepExecutionEntityRepository extends JpaRepository<StepExecuti
         LocalDateTime getStartedAt();
         int getAttemptCount();
     }
+
+    /**
+     * Per step, how many of this definition's processes are stopped there — RUNNING, nothing live,
+     * counted at the step they last finished. See {@code StepExecutionRepository#countStoppedByStep}.
+     *
+     * <p>Bounded by the RUNNING processes of one definition, not by the table: the {@code exists}
+     * on status is what keeps it off the 2.7-million-row scan, and it runs when a definition is
+     * opened rather than on any hot path.
+     */
+    @Query("""
+            select se.stepId as stepId, count(distinct se.processId) as count
+            from StepExecutionEntity se
+            where se.workflowDefinitionId = :definitionId
+              and se.finishedAt is not null
+              and se.finishedAt = (
+                  select max(x.finishedAt) from StepExecutionEntity x where x.processId = se.processId
+              )
+              and exists (
+                  select 1 from ProcessEntity p where p.id = se.processId and p.status = 'RUNNING'
+              )
+              and not exists (
+                  select 1 from StepExecutionEntity y
+                  where y.processId = se.processId and y.status in ('PENDING', 'RUNNING')
+              )
+            group by se.stepId
+            """)
+    List<StoppedStepCountView> countStoppedByStep(@Param("definitionId") String definitionId);
+
+    /**
+     * Projection for {@link #countStoppedByStep}. Its own rather than the wider {@code
+     * StepCountView}: a projection interface whose accessors the query does not select fails at
+     * runtime, not at compile time.
+     */
+    interface StoppedStepCountView {
+        String getStepId();
+        long getCount();
+    }
+
 }

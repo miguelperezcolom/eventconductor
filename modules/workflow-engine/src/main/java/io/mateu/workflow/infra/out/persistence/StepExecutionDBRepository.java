@@ -251,4 +251,13 @@ public class StepExecutionDBRepository implements StepExecutionRepository {
                 .toList();
         return new StepExecutionSummaryPage(content, total, served.number(), served.size());
     }
+
+    @Override
+    public java.util.Map<String, Integer> countStoppedByStep(String workflowDefinitionId) {
+        return stepExecutionEntityRepository.countStoppedByStep(workflowDefinitionId).stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        StepExecutionEntityRepository.StoppedStepCountView::getStepId,
+                        view -> (int) view.getCount()));
+    }
+
 }

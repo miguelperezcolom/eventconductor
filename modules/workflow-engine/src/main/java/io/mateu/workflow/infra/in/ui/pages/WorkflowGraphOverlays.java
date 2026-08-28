@@ -51,14 +51,44 @@ public final class WorkflowGraphOverlays {
      * {count, heat[]}}. Empty when there are no live step executions.
      */
     public static Map<String, Object> overlay(List<StepExecution> live) {
+        return overlay(live, Map.of());
+    }
+
+    /**
+     * The overlay, with the processes that are stopped at a step as well as the ones live on it.
+     *
+     * <p>The two are kept apart rather than summed. A live step is a worker owing an answer and a
+     * stopped one is a process that is not going anywhere, and the operator's next move differs:
+     * one is waiting, the other needs the definition looking at. Summing them would put a number on
+     * the node that reads as throughput when half of it is a stall.
+     *
+     * <p>A step can carry both — several processes live on it and others stopped after it.
+     */
+    public static Map<String, Object> overlay(List<StepExecution> live, Map<String, Integer> stopped) {
         var counts = countsByStep(live);
-        if (counts.isEmpty()) {
+        if (counts.isEmpty() && stopped.isEmpty()) {
             return Map.of();
         }
         var heat = heatByStep(live);
         var overlay = new HashMap<String, Object>();
-        counts.forEach((stepId, c) -> overlay.put(stepId,
-                Map.of("count", c, "heat", heat.getOrDefault(stepId, new int[HEAT_WINDOW_DAYS]))));
+        var steps = new java.util.LinkedHashSet<String>(counts.keySet());
+        steps.addAll(stopped.keySet());
+        for (var stepId : steps) {
+            var entry = new HashMap<String, Object>();
+            var liveCount = counts.getOrDefault(stepId, 0);
+            if (liveCount > 0) {
+                entry.put("count", liveCount);
+            }
+            var stoppedCount = stopped.getOrDefault(stepId, 0);
+            if (stoppedCount > 0) {
+                entry.put("stopped", stoppedCount);
+            }
+            // The histogram is built from live steps' start times, so a step with only stopped
+            // processes has no heat of its own — an empty array rather than an absent key, so the
+            // viewer's slider has something to sum either way.
+            entry.put("heat", heat.getOrDefault(stepId, new int[HEAT_WINDOW_DAYS]));
+            overlay.put(stepId, entry);
+        }
         return overlay;
     }
 
