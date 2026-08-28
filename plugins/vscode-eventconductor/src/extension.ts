@@ -174,6 +174,26 @@ class EventConductorEditorProvider implements vscode.CustomTextEditorProvider {
         );
         await vscode.workspace.applyEdit(edit);
         applyingOwnEdit = false;
+      } else if (msg?.type === "exportSvg") {
+        // The webview cannot save a file itself, so the export arrives here as text. Offered
+        // beside the definition it came from, which is where somebody exporting a diagram of
+        // this file is going to look for it.
+        const target = await vscode.window.showSaveDialog({
+          defaultUri: vscode.Uri.joinPath(
+            vscode.Uri.joinPath(document.uri, ".."),
+            String(msg.name || "workflow.svg")
+          ),
+          filters: { "SVG image": ["svg"] },
+          title: "Export workflow graph",
+        });
+        if (!target) return; // cancelled
+        await vscode.workspace.fs.writeFile(
+          target,
+          Buffer.from(String(msg.svg ?? ""), "utf8")
+        );
+        vscode.window.showInformationMessage(
+          `Graph exported to ${vscode.workspace.asRelativePath(target)}`
+        );
       }
     });
   }

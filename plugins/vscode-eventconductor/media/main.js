@@ -38,6 +38,14 @@
     vscode.postMessage({ type: "edit", value: e.detail.value });
   });
 
+  // Exporting. The component would otherwise hand the file to the browser through a blob URL,
+  // which this webview's CSP forbids outright, so we take the event and let the extension write
+  // the file through VS Code's own save dialog.
+  el.addEventListener("ec-export-svg", (e) => {
+    e.preventDefault();
+    vscode.postMessage({ type: "exportSvg", name: e.detail.name, svg: e.detail.svg });
+  });
+
   applyTheme();
   vscode.postMessage({ type: "ready" });
 })();

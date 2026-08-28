@@ -1,7 +1,7 @@
 import {customElement, property, state} from "lit/decorators.js";
 import {css, html, LitElement, nothing, svg} from "lit";
 import type {ELK, ElkNode, ElkExtendedEdge} from "elkjs/lib/elk.bundled.js";
-import {neutralButtonStyles, iconCog, iconSitemap, iconFit} from "./neutralChrome";
+import {neutralButtonStyles, iconCog, iconSitemap, iconFit, iconDownload} from "./neutralChrome";
 
 // ── Domain types ─────────────────────────────────────────────────────────────
 
@@ -175,6 +175,24 @@ const NODE_STYLE: Record<StepType, NodeStyle> = {
     // at a glance.
     DYNAMIC:          {fill: "#ecfeff", stroke: "#0d9488", symbol: "spark"},
 };
+/**
+ * The paint properties written onto each element when the graph is exported as a standalone SVG.
+ *
+ * <p>Deliberately paint only. `display` and `visibility` are left out: inside `<defs>` a browser
+ * can report values that are correct for an element that is never drawn directly and wrong for one
+ * referenced by a marker, and baking those in would empty the arrowheads. Transitions and
+ * animations are left out too — a file is a still.
+ */
+const EXPORT_PAINT_PROPS = [
+    "fill", "fill-opacity", "fill-rule",
+    "stroke", "stroke-opacity", "stroke-width", "stroke-dasharray", "stroke-dashoffset",
+    "stroke-linecap", "stroke-linejoin", "stroke-miterlimit",
+    "opacity", "color", "paint-order",
+    "font-family", "font-size", "font-weight", "font-style", "letter-spacing",
+    "text-anchor", "dominant-baseline", "alignment-baseline",
+    "filter", "marker-start", "marker-mid", "marker-end",
+];
+
 const DEFAULT_STYLE: NodeStyle = {fill: "#ffffff", stroke: "#94a3b8", symbol: "process"};
 const styleOf = (t: StepType): NodeStyle => NODE_STYLE[t] ?? DEFAULT_STYLE;
 
@@ -1612,6 +1630,104 @@ export class MateuWorkflowElk extends LitElement {
         this.panY = (this.viewH - k * b.h) / 2 - k * b.minY;
     };
 
+    /**
+     * The whole graph as a standalone SVG document: everything at 1:1 regardless of the current
+     * pan and zoom, on white, in the light palette whatever the host theme is.
+     *
+     * <p><b>Always light.</b> An exported drawing gets pasted into a document, a ticket or a slide,
+     * and those are white; a dark-theme export arrives as a black rectangle with the caption
+     * unreadable against the page. Light is this component's default palette — dark is the `dark`
+     * attribute mapping onto Lumo — so the export takes the attribute off, reads the styles back,
+     * and puts it where it was.
+     *
+     * <p><b>Paint is inlined, not linked.</b> Every resolved paint property is written onto the
+     * elements themselves rather than shipping the stylesheet alongside. The CSS lives in a shadow
+     * root and leans on custom properties the host page supplies; neither of those survives the
+     * file being opened anywhere else, and a drawing whose colours depend on where it is opened is
+     * not an export.
+     */
+    exportSvg(): string {
+        const src = this.svgEl;
+        const b = this.graphBounds();
+        if (!src || !b) return "";
+
+        const wasDark = this.hasAttribute("dark");
+        if (wasDark) this.removeAttribute("dark");
+        let out: string;
+        try {
+            const clone = src.cloneNode(true) as SVGSVGElement;
+            // cloneNode preserves document order, so the two walks stay aligned element for
+            // element. Reading the computed style is what flushes the palette change above.
+            const from = [src, ...Array.from(src.querySelectorAll<SVGElement>("*"))];
+            const to = [clone, ...Array.from(clone.querySelectorAll<SVGElement>("*"))];
+            for (let i = 0; i < from.length && i < to.length; i++) {
+                const cs = getComputedStyle(from[i]);
+                let inline = "";
+                for (const prop of EXPORT_PAINT_PROPS) {
+                    const v = cs.getPropertyValue(prop);
+                    if (v) inline += `${prop}:${v};`;
+                }
+                if (inline) to[i].setAttribute("style", inline);
+            }
+
+            // Anything that only means something while the graph is live on screen: a token
+            // mid-flight, a link being dragged, the panning cursor.
+            clone.querySelectorAll(".flow-token, .link-draft").forEach(n => n.remove());
+            clone.removeAttribute("class");
+
+            // The viewBox is the graph's own bounds, so the export is the whole graph rather than
+            // whatever happened to be framed when the button was pressed.
+            const scene = clone.querySelector("g.scene");
+            if (scene) scene.setAttribute("transform", "translate(0,0) scale(1)");
+            clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+            clone.setAttribute("xmlns:xlink", "http://www.w3.org/1999/xlink");
+            clone.setAttribute("viewBox", `${b.minX} ${b.minY} ${b.w} ${b.h}`);
+            clone.setAttribute("width", String(Math.round(b.w)));
+            clone.setAttribute("height", String(Math.round(b.h)));
+
+            // An explicit white ground, not a transparent one: transparent reads as white in a
+            // browser and as black in a dark viewer, which is the bug this whole method avoids.
+            const bg = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+            bg.setAttribute("x", String(b.minX));
+            bg.setAttribute("y", String(b.minY));
+            bg.setAttribute("width", String(b.w));
+            bg.setAttribute("height", String(b.h));
+            bg.setAttribute("fill", "#ffffff");
+            clone.insertBefore(bg, clone.firstChild);
+
+            out = '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(clone);
+        } finally {
+            if (wasDark) this.setAttribute("dark", "");
+        }
+        return out;
+    }
+
+    /** Filename for an export: the definition's own id, or its name, or a last resort. */
+    private exportFileName(): string {
+        const base = (this.wf?.id || this.wf?.name || "workflow").trim();
+        return (base.replace(/[^\w.-]+/g, "-").replace(/^-+|-+$/g, "") || "workflow") + ".svg";
+    }
+
+    private exportGraph = () => {
+        const svg = this.exportSvg();
+        if (!svg) return;
+        const name = this.exportFileName();
+        // The host gets first refusal. Inside an IDE the anchor below cannot work — VSCode's
+        // webview CSP blocks the blob and JCEF has no download handler — so the extension listens
+        // for this, calls preventDefault and writes the file through the IDE's own save dialog.
+        // In a browser nothing listens, the event stands, and the anchor does the work.
+        const wanted = this.dispatchEvent(new CustomEvent("ec-export-svg", {
+            detail: {name, svg}, bubbles: true, composed: true, cancelable: true,
+        }));
+        if (!wanted) return;
+        const url = URL.createObjectURL(new Blob([svg], {type: "image/svg+xml;charset=utf-8"}));
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = name;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    };
+
     private onWheel = (e: WheelEvent) => {
         e.preventDefault();
         if (!this.svgEl) return;
@@ -2327,6 +2443,8 @@ export class MateuWorkflowElk extends LitElement {
                 ${sim}
                 ${heat}
                 <button class="vbtn" title="Fit graph to view" @click="${() => this.fitToView()}">${iconFit}</button>
+                <button class="vbtn" title="Export the graph as SVG (light, on white)"
+                        @click="${this.exportGraph}">${iconDownload}</button>
                 ${this.noExpand ? nothing : html`
                     <button class="vbtn" title="${this.fullscreen ? "Collapse" : "Expand"}"
                             @click="${() => this.toggleFullscreen()}">${this.fullscreen ? "✕" : "⤢"}</button>`}
