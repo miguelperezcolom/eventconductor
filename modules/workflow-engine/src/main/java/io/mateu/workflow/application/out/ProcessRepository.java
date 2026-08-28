@@ -160,4 +160,32 @@ public interface ProcessRepository extends CrudStore<Process> {
         return new ProcessSummaryPage(content, matching.size(), served.number(), served.size());
     }
 
+
+    /**
+     * Processes that are RUNNING, have no step execution left to run, and have not moved since
+     * {@code idleBefore}.
+     *
+     * <p>A process in that state is stopped for good, and nothing else in the engine notices. The
+     * step-level watch cannot see it — that one counts <em>live</em> steps waiting on a worker, and
+     * here there are none: every step is either finished or was never eligible. Nor can a timeout,
+     * because a step that never started has no deadline. It is the one shape of stuck that leaves
+     * no clock running anywhere.
+     *
+     * <p>What puts a process here is a branch none of whose guards was true — the value they
+     * compare against turned out to be one nobody wrote a branch for. That is a gap in the
+     * definition rather than a fault in the engine, which is why this reports rather than failing
+     * the process: the repair is a definition change, and cancelling it here would destroy the
+     * evidence of what it was waiting to match.
+     *
+     * <p>Last movement is the newest {@code finishedAt} among the process's step executions, since
+     * a process row carries no timestamp of its own for it.
+     *
+     * @param limit ceiling on the ids returned. A deployment with more stalled processes than this
+     *              has a systemic problem, and the exact figure is not what anybody needs next.
+     * @return the ids; empty from implementations that cannot answer cheaply
+     */
+    default List<String> findStalled(LocalDateTime idleBefore, int limit) {
+        return List.of();
+    }
+
 }

@@ -206,4 +206,11 @@ public class ProcessDBRepository implements ProcessRepository {
                 .toList();
         return new ProcessSummaryPage(content, total, served.number(), served.size());
     }
+
+    @Override
+    public List<String> findStalled(LocalDateTime idleBefore, int limit) {
+        return processEntityRepository.findStalled(idleBefore,
+                org.springframework.data.domain.PageRequest.of(0, limit));
+    }
+
 }
