@@ -20,6 +20,12 @@ transition**, and **transitions per second**. (An *N*-step process is *N* transi
 *N−1* have their cost directly measurable: the first step has no preceding step to time the gap
 from.)
 
+**`START` and `END` are transitions.** They run no worker, but the engine writes a step execution,
+publishes it and decides what follows, exactly as it does for an `ACTION` — so the benchmark
+definition used throughout this page, three worker steps between a `START` and an `END`, is **five
+transitions per process**, not three. Worth knowing before carrying any figure here across to an
+engine that counts its unit differently.
+
 Process instances per second is not a property of the engine, and this page reports it only with
 the caveat attached. Three reasons:
 
@@ -44,8 +50,8 @@ none of it is worker time, so unlike throughput it does not move when the worker
 slower.
 
 On a developer machine (Apple M3 Max), PostgreSQL and Kafka in containers, two orchestrator pods,
-paced at **120 transitions per second** (40 process instances/s of the three-step benchmark
-definition), over 6,000 transitions:
+paced at **200 transitions per second** (40 process instances/s of the five-transition benchmark
+definition), over 6,000 measured transitions:
 
 | | per transition |
 |---|---|
@@ -67,19 +73,19 @@ fair to ask what it costs. Measured both ways on the same machine:
 
 | | p50 | p95 | p99 | max throughput |
 |---|---|---|---|---|
-| Synchronous (the default) | 7.7 ms | 11.7 ms | 14.1 ms | ~280 transitions/s |
-| Asynchronous | 7.1 ms | 11.1 ms | 13.4 ms | ~293 transitions/s |
+| Synchronous (the default) | 7.7 ms | 11.7 ms | 14.1 ms | ~466 transitions/s |
+| Asynchronous | 7.1 ms | 11.1 ms | 13.4 ms | ~488 transitions/s |
 
-(Both drove the three-step benchmark definition, so those are 93.2 and 97.5 process instances/s —
-the same measurement in the unit that depends on the definition.)
+(Both drove the five-transition benchmark definition, so those are 93.2 and 97.5 process
+instances/s — the same measurement in the unit that depends on the definition.)
 
 **0.6 ms per transition and 4.4% of peak throughput**, to stop silently losing messages whenever
 the broker blinks. Turning it off is `spring.cloud.stream.kafka.default.producer.sync=false`, and
 it should be a considered decision rather than a tuning reflex.
 
 One oddity worth recording rather than explaining away: the synchronous run reports *fewer*
-database commits per transition (7.0 against 11.0 at 120 transitions/s), and the gap nearly vanishes under
-saturation (5.0 against 5.5). The likely reason is that `xact_commit` counts implicit transactions,
+database commits per transition (4.2 against 6.6 at 200 transitions/s), and the gap nearly vanishes
+under saturation (3.0 against 3.3). The likely reason is that `xact_commit` counts implicit transactions,
 so it is measuring the relay's empty polls: a slower pass means fewer of them, and under saturation
 there are no empty passes either way. That is a hypothesis consistent with both measurements, not a
 verified finding.
@@ -87,8 +93,8 @@ verified finding.
 ## Two ways to measure this wrong
 
 **Unpaced load.** Fire everything at once and the pipeline saturates; from then on the gap between
-steps is time spent queueing behind the backlog. The same setup that reports **7.7 ms** paced at 120
-transitions/s reports **1,828 ms** unpaced — and 99.6 ms merely at 300 transitions/s, which is close
+steps is time spent queueing behind the backlog. The same setup that reports **7.7 ms** paced at 200
+transitions/s reports **1,828 ms** unpaced — and 99.6 ms merely at 500 transitions/s, which is close
 enough to saturation on this machine to be mostly queueing already. That is a measure of how deep the queue
 got, not of what a transition costs. Pace the load below saturation, or report the number as what
 it is.
@@ -101,7 +107,7 @@ The harness prints this caveat itself on any run where the roles are not split a
 
 Not the engine, in most deployments, and usually not the database either.
 
-Sweeping the harness at 120 transitions/s **on a single machine**: PostgreSQL absorbed 40% more traffic for 7%
+Sweeping the harness at 200 transitions/s **on a single machine**: PostgreSQL absorbed 40% more traffic for 7%
 more throughput, so it was nowhere near its limit. Adding consumer threads and partitions made things
 slightly *worse*. What moved the number was removing waiting — the outbox relay used to be found by a
 poll, and at the old 500 ms default that alone was ~500 ms of every transition, since a transition
@@ -111,7 +117,9 @@ crosses the relay twice. It is now woken by the write.
 They were measured before the harness reported transitions, driving the mixed benchmark suite
 (`bench.workload=scale`: a saga, a linear definition, child processes, a fanout and a timer, with a
 fraction made to fail and compensate). That suite's steps-per-process was never recorded, and the
-cluster it ran on is gone — so these are **relabelled, not converted**. Picking a multiplier for a
+cluster it ran on is gone — so these are **relabelled, not converted**. (Those definitions run 3 to
+7 transitions each, so the figures are on the order of five times as many transitions; that is an
+aid to reading them, not a measurement.) Picking a multiplier for a
 mixed workload after the fact would be manufacturing the number, which is the habit this page
 exists to break.
 
@@ -135,8 +143,8 @@ property, not an env var: the dashed `workflow.outbox-poll-interval-ms` does not
 relaxed binding.)
 
 **At that cluster ceiling, nothing is saturated.** Driving a single pipeline flat out on
-dedicated-vCPU nodes, the sustained rate held around 90–110 PI/s of the mixed suite — several times
-that in transitions — with PostgreSQL near a third of one
+dedicated-vCPU nodes, the sustained rate held around 90–110 PI/s of the mixed suite — on the order
+of five times that in transitions — with PostgreSQL near a third of one
 core, a handful of active queries against a connection pool sized in the hundreds, the outbox
 drained, and Kafka idle. That is the signature of a *latency*-bound system, not a resource-bound
 one. A transition is a chain of asynchronous round trips — the dispatch written to the outbox and

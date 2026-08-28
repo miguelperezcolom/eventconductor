@@ -19,7 +19,7 @@ Every knob is a `-Dbench.*` property and the report prints all of them back:
 
 | property | default | what it is |
 |---|---|---|
-| `bench.processes` | 2000 | instances to run (3 worker steps each) |
+| `bench.processes` | 2000 | instances to run (3 worker steps each, so 5 transitions with START and END) |
 | `bench.rate` | 100 | **arrival rate per second; 0 = unpaced.** See below — this decides what you are measuring |
 | `bench.pods` | 2 | orchestrator pods |
 | `bench.worker.think-ms` | 0 | simulated work per task |
@@ -56,6 +56,11 @@ A **transition** is one step advanced by the engine: an outbox write, a relay, a
 worker's reply, the resulting status change consumed to decide what happens next. Everything the
 engine does, it does once per transition — so it is the only unit in which the engine's cost and
 the engine's capacity are the same measurement read two ways.
+
+`START` and `END` are transitions: no worker runs, but the engine still writes a step execution,
+publishes it and decides what follows. The default definition here is three worker steps between a
+`START` and an `END`, so it is **five transitions per process**, and the report says so on its
+steps-per-process line rather than leaving you to assume three.
 
 Process instances per second is not a property of the engine, and the report says so where it
 prints it. The same engine running a twelve-step saga instead of a three-step definition reports a
@@ -135,8 +140,8 @@ publish the tuning line the report prints.
 
 ## A worked example
 
-Latency at 120 transitions/s (40 instances/s of a three-step definition), sweeping only the
-relay poll interval:
+Latency at 200 transitions/s (40 instances/s of the benchmark definition — three ACTION steps
+between START and END, so five transitions), sweeping only the relay poll interval:
 
 | `bench.outbox.poll-ms` | p50 | p95 |
 |---|---|---|

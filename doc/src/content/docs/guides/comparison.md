@@ -82,7 +82,7 @@ The honest framing: all three **persist workflow state durably and resume where 
 
 **Temporal** is horizontally scalable until the persistence layer becomes the bottleneck; with Cassandra that ceiling is very high. Temporal states the platform supports [millions of concurrent workflow executions](https://docs.temporal.io/workflow-execution), and organizations publicly report workloads on the order of 200M workflows/month. Temporal measures capacity in *state transitions per second* rather than workflows per second, since workflow cost varies enormously — worth keeping in mind when comparing numbers. EventConductor reports in that same unit and for that same reason (see [Performance](/guides/performance/)), which makes Temporal's figures the directly comparable ones and Zeebe's PI/s the ones that need a steps-per-process ratio attached before they mean anything across workloads.
 
-**EventConductor** scales on three axes. **Workers** are stateless Kafka consumers — add instances to a group and task execution scales linearly. **Orchestrators** scale by partition ownership: events are keyed by process, so partitions spread the work across pods and the outbox relay drains from every one. **Storage** is where the ceiling really sits: within a single database a transition costs a handful of `fsync`-bound commits, so the write ceiling is your database's — order of tens of process instances per second of a three-step definition on network block storage (a few hundred transitions per second), considerably higher on local NVMe, with the pods at a fraction of their CPU. For a long time that single database was also the hard limit; [**sharding**](/reference/configuration/#sharding-advanced-opt-in) removes it — N shared-nothing shards, each with its own database, added and removed *hot*, so write capacity scales with the shard count (the same shard-your-storage principle Temporal uses), opt-in and config-only with a single-database deployment unchanged. The honest framing, unchanged: EventConductor has **not** been benchmarked at the extreme throughputs Zeebe and Temporal publish, and while sharding's engine paths are unit- and e2e-tested, a live multi-shard run at those rates has not been published — so for *proven* headroom today the dedicated clusters lead. The ceiling is now what you provision, not one node's WAL, and you can measure whichever you run with the harness in the repo. Detail: [Performance](/guides/performance/) and the subsections below.
+**EventConductor** scales on three axes. **Workers** are stateless Kafka consumers — add instances to a group and task execution scales linearly. **Orchestrators** scale by partition ownership: events are keyed by process, so partitions spread the work across pods and the outbox relay drains from every one. **Storage** is where the ceiling really sits: within a single database a transition costs a handful of `fsync`-bound commits, so the write ceiling is your database's — order of tens of process instances per second of a five-transition definition on network block storage (a few hundred transitions per second), considerably higher on local NVMe, with the pods at a fraction of their CPU. For a long time that single database was also the hard limit; [**sharding**](/reference/configuration/#sharding-advanced-opt-in) removes it — N shared-nothing shards, each with its own database, added and removed *hot*, so write capacity scales with the shard count (the same shard-your-storage principle Temporal uses), opt-in and config-only with a single-database deployment unchanged. The honest framing, unchanged: EventConductor has **not** been benchmarked at the extreme throughputs Zeebe and Temporal publish, and while sharding's engine paths are unit- and e2e-tested, a live multi-shard run at those rates has not been published — so for *proven* headroom today the dedicated clusters lead. The ceiling is now what you provision, not one node's WAL, and you can measure whichever you run with the harness in the repo. Detail: [Performance](/guides/performance/) and the subsections below.
 
 ### Why the published numbers differ
 
@@ -174,7 +174,7 @@ EventConductor's published baseline comes from the distributed test suite (DIST-
 |---|---|
 | Process instances | 500 (3 ACTION steps each → 1,500 task executions) |
 | Wall clock (submit → all completed) | **5.5–6.4 s** |
-| End-to-end throughput | **234–273 transitions/second** (78–91 process instances/s × 3 steps) |
+| End-to-end throughput | **390–455 transitions/second** (78–91 process instances/s × 5 transitions: three ACTION steps between START and END) |
 | Lost or stuck instances | **0** |
 
 **Read that as a smoke test, not as a scalability figure.** It runs on laptop-class hardware (Apple
@@ -183,8 +183,8 @@ what it mostly demonstrates is that nothing is lost or stuck under concurrency. 
 Zeebe's published thousands would be comparing a laptop to a cluster.
 
 The number that *is* comparable is what the engine adds per transition — the gap between one step
-finishing and the next starting, which contains no worker time: **7.7 ms p50, 11.7 ms p95** at 120
-transitions/second (40 instances/second of a three-step definition). See [Performance](/guides/performance/) for how that is measured, the two ways it
+finishing and the next starting, which contains no worker time: **7.7 ms p50, 11.7 ms p95** at 200
+transitions/second (40 instances/second of a five-transition definition). See [Performance](/guides/performance/) for how that is measured, the two ways it
 is easy to measure wrongly, and a harness that reproduces it on your own hardware.
 
 ### The axis that does scale: one engine per bounded context

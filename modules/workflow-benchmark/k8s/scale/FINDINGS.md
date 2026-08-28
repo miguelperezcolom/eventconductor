@@ -17,8 +17,11 @@ are gone, so these figures are **relabelled, not converted** — picking a multi
 workload after the fact would be inventing the number, and this file exists because several readings
 here were wrong the first time and could be re-examined against the data that produced them.
 
-So: read every `PI/s` below as "process instances/s of the mixed suite on that topology", which is
-several times as many transitions. What the unit change does not touch is any comparison *among*
+So: read every `PI/s` below as "process instances/s of the mixed suite on that topology". The
+suite's definitions run 3 to 7 transitions each (`child-work` 3, `child` 4, `linear` and `timed` 5,
+`fanout` and `order-saga` 7, plus whatever the compensating fraction adds), so the figures are on
+the order of **five times** that in transitions — an aid to reading them, explicitly not a
+measurement, since the per-run mix was never recorded. What the unit change does not touch is any comparison *among*
 these runs — all of them drove the same workload — so the rung-2 ladder (~13 → ~28 → ~56) and the
 one-shard-against-two result stand exactly as written. New runs go in transitions/s.
 
