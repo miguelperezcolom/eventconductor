@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.10.0] - 2026-08-28
+
 ### Added
 - **A workflow can say who may start it, and a form can say who may do its work.** Both declarations
   existed on the workflow side and neither was ever read: `requiredScopes`/`requiredRoles` parsed on a
