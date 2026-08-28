@@ -3,6 +3,28 @@
 Results of running the scale-validation harness. Append each rung as it runs; the harness writes a
 machine verdict, this is the human record beside it.
 
+## A note on the unit — every rate below is in process instances/s
+
+The harness now reports **transitions per second** (one step advanced by the engine) as its headline
+figure, because process instances/s is a property of the definitions being driven and not of the
+engine: a twelve-step saga reports a quarter of the PI/s a three-step definition does, and a
+definition that waits on a human or a timer has no meaningful figure at all. See the module README.
+
+Every run recorded below predates that change and drove the **mixed suite**
+(`-Dbench.workload=scale`: order-saga, linear, child, fanout and timed definitions, with a fraction
+injected to fail and compensate). That suite's steps-per-process was not recorded and the clusters
+are gone, so these figures are **relabelled, not converted** — picking a multiplier for a mixed
+workload after the fact would be inventing the number, and this file exists because several readings
+here were wrong the first time and could be re-examined against the data that produced them.
+
+So: read every `PI/s` below as "process instances/s of the mixed suite on that topology". The
+suite's definitions run 3 to 7 transitions each (`child-work` 3, `child` 4, `linear` and `timed` 5,
+`fanout` and `order-saga` 7, plus whatever the compensating fraction adds), so the figures are on
+the order of **five times** that in transitions — an aid to reading them, explicitly not a
+measurement, since the per-run mix was never recorded. What the unit change does not touch is any comparison *among*
+these runs — all of them drove the same workload — so the rung-2 ladder (~13 → ~28 → ~56) and the
+one-shard-against-two result stand exactly as written. New runs go in transitions/s.
+
 ---
 
 ## Rung 1 — pipeline + crash recovery (2026-08-06, cloudfleet-hetzner)
@@ -78,7 +100,8 @@ real run.**
 cluster the sustained completion ceiling is **~12-15 process instances/s** (arrivals above that just
 grow the backlog; the engine holds ~300-375 commits/s ≈ **1/3 of the disk's single-thread fsync
 budget** — group commit is not fully closing that gap under this write pattern). For reference the
-same harness did ~120 steps/s on a laptop's real NVMe in compose.
+same harness did ~120 steps/s on a laptop's real NVMe in compose (steps/s is the same unit the
+harness now calls transitions/s).
 
 **What it means for 20M.** ~13 PI/s → **20M ≈ ~18 days** on this cluster. Two levers to reach the
 1-2 day target, in order of leverage:
