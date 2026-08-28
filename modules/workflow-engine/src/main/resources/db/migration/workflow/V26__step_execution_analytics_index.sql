@@ -1,0 +1,23 @@
+-- The analytics page's step grid, off an index instead of off the whole table.
+--
+-- Measured on the reference deployment (PostgreSQL 16, 2 714 697 step executions, 387 807
+-- processes): the step-counts aggregate takes 4 521 ms, and every millisecond of it is a parallel
+-- sequential scan of a 3 260 MB heap to produce about fifty rows on screen.
+--
+-- The four columns the aggregate actually reads come to 40 bytes a row — roughly 200 MB as an
+-- index against 3 260 MB as a table. That is the whole of this migration: give the planner
+-- something narrow enough to scan.
+--
+-- Column order is the GROUP BY's, so the aggregate can also be answered by an ordered walk rather
+-- than by building a hash table over every row. _order is a trailing key column rather than an
+-- INCLUDE: it is only ever read (min per group) and never matched on, so INCLUDE would be the
+-- narrower index -- but these migrations also run on H2, for the embedded mode and for every test
+-- that boots a context, and H2 has no INCLUDE. A trailing key column carries the value into the
+-- leaf pages just the same, which is what keeps the scan index-only.
+--
+-- IF NOT EXISTS, and not CONCURRENTLY: Flyway runs migrations inside a transaction, and
+-- CREATE INDEX CONCURRENTLY cannot. On a table this size the build takes a lock for its duration
+-- — on an engine that is already running, create it by hand with CONCURRENTLY first and this
+-- migration will find it and do nothing.
+CREATE INDEX IF NOT EXISTS idx_step_exec_analytics
+    ON step_execution_entity (workflow_definition_id, step_id, status, _order);
