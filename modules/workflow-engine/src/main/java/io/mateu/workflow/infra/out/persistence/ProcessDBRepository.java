@@ -185,15 +185,22 @@ public class ProcessDBRepository implements ProcessRepository {
      * megabytes per keystroke once a deployment has been running for a while.
      */
     @Override
-    public ProcessSummaryPage searchSummaries(String searchText, boolean onlyErrors, int page, int size) {
-        var pattern = (searchText == null || searchText.isBlank())
-                ? null : "%" + searchText.toLowerCase() + "%";
+    public ProcessSummaryPage searchSummaries(
+            io.mateu.workflow.application.out.ProcessListingFilter filter, int page, int size) {
+        var searchText = filter.normalisedSearchText();
+        var pattern = searchText == null ? null : "%" + searchText.toLowerCase() + "%";
+        // The status travels as its name: the column is a string, and passing the enum would leave
+        // the comparison to however the provider chooses to bind it.
+        var status = filter.status() == null ? null : filter.status().name();
         // Counted first, because which page can be served depends on how many there are — see
         // ServedPage. Two queries either way: a Spring Data Page would have run this same count.
-        var total = processEntityRepository.countSummaries(onlyErrors, pattern);
+        var total = processEntityRepository.countSummaries(filter.onlyErrors(), pattern,
+                filter.workflowDefinitionId(), status, filter.createdFrom(), filter.createdTo());
         var served = ServedPage.of(page, size, total);
         var content = processEntityRepository
-                .searchSummaries(onlyErrors, pattern, PageRequest.of(served.number(), served.size()))
+                .searchSummaries(filter.onlyErrors(), pattern,
+                        filter.workflowDefinitionId(), status, filter.createdFrom(), filter.createdTo(),
+                        PageRequest.of(served.number(), served.size()))
                 .stream()
                 .map(view -> new ProcessSummary(
                         view.getId(),

@@ -48,13 +48,14 @@ class SimpleProcessCrudAdapterTest {
         // findAll(), and Mockito does not run default methods — so it is routed to the real one,
         // which then reads the findAll() stub below. These assertions therefore still describe the
         // shipped behaviour rather than a reimplementation of it.
-        when(repository.searchSummaries(any(), anyBoolean(), anyInt(), anyInt())).thenCallRealMethod();
+        when(repository.searchSummaries(any(), anyInt(), anyInt())).thenCallRealMethod();
         when(repository.findAll()).thenReturn(IntStream.range(0, processes)
                 .mapToObj(i -> Process.builder()
                         .id("p-" + i)
                         .name("process " + i)
                         .businessKey("bk-" + i)
                         .status(ProcessStatus.COMPLETED)
+                        .workflowDefinitionId("d-" + (i % 2))
                         .created(LocalDateTime.of(2026, 1, 1, 0, 0).plusMinutes(i))
                         .build())
                 .toList());
