@@ -53,6 +53,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   evaluation is now static. Both engines ask the same question and the answer has to be the same one;
   two copies of a rule like this drift.
 
+### Fixed
+- **The outbox relay backs off when the broker refuses, instead of retrying at the rate the pod is
+  writing.** A send that the broker rejects is caught per message inside the drain — it never throws
+  out of it — so the row stays `Pending` and the pass simply settles nothing. The outer loop then
+  waited on `OutboxSignal`, which every commit raises; a commit is not news about the broker, so the
+  relay went straight back at it. Under load with the broker down the retry cadence was the *write*
+  cadence, not any configured interval: a connection attempt and an error line per message per pass.
+  On a deployment polling at 50 ms that is a hot loop.
+
+  A pass that claims rows and settles none of them is now paced by an exponential backoff that
+  deliberately ignores the signal while it waits — honouring it is precisely what defeated the
+  backoff. Recovery is immediate: the first pass that settles anything puts the wait back to the
+  base.
+
+  What is **not** a stall, and this is most of the correctness: an empty outbox (the healthy, common
+  case — pacing it down would make an idle engine take seconds to relay the next message anyone
+  wrote); a pass that settled some of what it claimed (a poisoned row is parked as `Error`, not
+  retried, and must not slow the rest); and a relay that could not take the relay gate, which the
+  chaos tests hold exclusively to freeze every relay at once.
+
+  | property | default | |
+  |---|---|---|
+  | `workflow.outbox.relay-backoff-base-ms` | `100` | wait after the first stalled pass |
+  | `workflow.outbox.relay-backoff-max-ms` | `5000` | the cap |
+  | `workflow.outbox.relay-backoff-jitter` | `0.2` | ±20 %, so a fleet that stalled on one outage does not come back on one tick |
+
+  The cap is seconds rather than a minute because nothing is relayed while the relay waits: it is
+  also how long the engine stays quiet after the broker comes back, and steps here are paced in tens
+  of milliseconds.
+
+  New counter `eventconductor.outbox.relay.stalled`. It exists because the fix removes the symptom:
+  the error flood *was* the signal that an outage was happening, and backing off would otherwise
+  have removed the evidence along with the noise. Anything above zero means committed messages are
+  not reaching the broker.
+
+- `OutboxRelay` now stops on context shutdown (`@PreDestroy`). Its thread is a daemon, so it never
+  held the JVM open, but it kept claiming rows and publishing while everything it depends on was
+  being closed.
+
 ### Upgrading
 - Nothing changes until `workflow.security.flow-authorization.enabled` is set. With it on, a
   definition or form that declares requirements refuses callers who do not hold them — including

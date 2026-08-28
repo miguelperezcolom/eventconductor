@@ -1,6 +1,7 @@
 package io.mateu.workflow.infra.out.async;
 
 import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -27,6 +28,13 @@ import org.springframework.stereotype.Service;
  * until it does not — otherwise throughput would be capped at one batch per poll interval, and a
  * backlog would take as many intervals as it has batches. It stops early if a full batch settles
  * nothing, so messages that always fail cannot spin the loop.
+ *
+ * <p><b>When the broker refuses, the relay backs off.</b> Stopping the inner loop early is not
+ * enough on its own: the outer loop waits on the signal, every commit raises it, and a commit does
+ * not mean the broker has come back — so a pod under load with a broker down retried at the rate it
+ * was writing, not at any configured interval. A pass that claims rows and settles none of them is
+ * now paced by {@link RelayPace} instead, which ignores the signal while it waits. See that class
+ * for what counts as a stall and why the cap is seconds.
  */
 @Service
 @ConditionalOnProperty(name = "workflow.mode", havingValue = "kafka")
@@ -61,21 +69,53 @@ public class OutboxRelay {
     @org.springframework.beans.factory.annotation.Value("${workflow.projection.mode:embedded}")
     String projectionMode;
 
+    // How the relay paces itself once passes stop settling anything — see RelayPace for why the
+    // signal cannot be what paces them and why the cap is seconds rather than a minute.
+    @org.springframework.beans.factory.annotation.Value("${workflow.outbox.relay-backoff-base-ms:100}")
+    long relayBackoffBaseMs;
+
+    @org.springframework.beans.factory.annotation.Value("${workflow.outbox.relay-backoff-max-ms:5000}")
+    long relayBackoffMaxMs;
+
+    @org.springframework.beans.factory.annotation.Value("${workflow.outbox.relay-backoff-jitter:0.2}")
+    double relayBackoffJitter;
+
+    private volatile boolean running = true;
+    private Thread relayThread;
+
     @PostConstruct
     public void iterate() {
-        var thread = new Thread(() -> {
+        var pace = new RelayPace(relayBackoffBaseMs, relayBackoffMaxMs, relayBackoffJitter);
+        relayThread = new Thread(() -> {
             try {
-                while (true) {
+                while (running) {
                     var cycleStartedAt = System.nanoTime();
+                    boolean stalled;
                     try {
-                        drainUntilEmpty();
+                        var lastPass = drainUntilEmpty();
+                        stalled = lastPass != null && RelayPace.isStall(lastPass.claimed(), lastPass.settled());
                     } catch (Throwable e) {
+                        stalled = true;
                         log.error("Error relaying outbox messages", e);
                     }
                     var drainedAt = System.nanoTime();
-                    // Woken by this pod's own writes, and falling back to the poll for rows
-                    // written by other pods, which there is no way to hear about directly.
-                    outboxSignal.awaitWork(pollIntervalMs);
+                    if (stalled) {
+                        // Claimed rows, settled none: the broker is refusing. Wait a growing
+                        // while and IGNORE the signal, because the signal is what turns this
+                        // into a hot loop — every commit raises it, and a commit does not mean
+                        // the broker has come back.
+                        var wait = pace.stalled();
+                        workflowMetrics.outboxRelayStalled();
+                        log.warn("The outbox relay settled nothing on {} consecutive passes; "
+                                        + "waiting {} ms before the next one",
+                                pace.consecutiveStalls(), wait.toMillis());
+                        Thread.sleep(wait.toMillis());
+                    } else {
+                        pace.progressed();
+                        // Woken by this pod's own writes, and falling back to the poll for rows
+                        // written by other pods, which there is no way to hear about directly.
+                        outboxSignal.awaitWork(pollIntervalMs);
+                    }
                     // Draining against waiting is this thread's duty cycle. It is one thread per
                     // pod and every transition in kafka mode passes through it, so a duty cycle
                     // that sits near 1 is the ceiling itself and not a symptom of one.
@@ -87,14 +127,33 @@ public class OutboxRelay {
                 Thread.currentThread().interrupt();
             }
         }, "outbox-relay");
-        thread.setDaemon(true);
-        thread.start();
+        relayThread.setDaemon(true);
+        relayThread.start();
     }
 
-    private void drainUntilEmpty() {
+    /**
+     * Stops the relay when the context goes down. A daemon thread would not hold the JVM open, but
+     * it would keep claiming rows and publishing while everything it depends on is being closed —
+     * and in a test it would keep running for the rest of the suite.
+     */
+    @PreDestroy
+    public void stop() {
+        running = false;
+        if (relayThread != null) {
+            relayThread.interrupt();
+        }
+    }
+
+    /**
+     * Drains until a pass comes back short or settles nothing, and reports that last pass so the
+     * caller can tell a relay that is keeping up from one the broker is refusing. Null when the
+     * gate was not taken — the chaos tests hold it exclusively to freeze every relay at once, and
+     * a relay that was not allowed to run has not failed at anything.
+     */
+    private OutboxDrain.Result drainUntilEmpty() {
         // The gate is held in shared mode: relays never block each other, but the chaos tests
         // can freeze every one of them by taking it exclusively.
-        jdbcTemplate.execute((org.springframework.jdbc.core.ConnectionCallback<Void>) con -> {
+        return jdbcTemplate.execute((org.springframework.jdbc.core.ConnectionCallback<OutboxDrain.Result>) con -> {
             if (!dbLockDialect.tryRelayGate(con)) {
                 return null;
             }
@@ -104,10 +163,10 @@ public class OutboxRelay {
                     result = outboxDrain.drain(batchSize, event ->
                             PartitionedEvents.send(streamBridge, bindingFor(event), event));
                 } while (result.claimed() >= batchSize && result.settled() > 0);
+                return result;
             } finally {
                 dbLockDialect.releaseRelayGate(con);
             }
-            return null;
         });
     }
 
