@@ -75,4 +75,45 @@ class AnalyticsJpaE2eTest extends AbstractJpaE2eTest {
         assertThat(analytics.steps()).isEmpty();
         assertThat(analytics.processDuration().samples()).isZero();
     }
+
+    /**
+     * The open window takes a different query — no join to the process, because with no window the
+     * join reaches {@code p.created} and filters nothing. That is worth a third of the query on a
+     * large deployment (4 521 ms against 2 993 ms over 2 714 697 rows) and it is only worth
+     * anything if the two paths agree, which is what this asserts: same report, both ways.
+     *
+     * <p>The bounded window here is deliberately wide enough to contain everything, so the only
+     * difference between the two calls is which SQL runs.
+     */
+    @Test
+    void theWindowlessReportMatchesTheWindowedOne() {
+        worker.on("s1", TestWorker.succeed());
+        worker.on("s2", TestWorker.succeed());
+        worker.on("s3", TestWorker.succeed());
+
+        createProcess("sequential-3", "ana-jpa-window-1");
+        awaitStatus("ana-jpa-window-1", ProcessStatus.COMPLETED);
+        createProcess("sequential-3", "ana-jpa-window-2");
+        awaitStatus("ana-jpa-window-2", ProcessStatus.COMPLETED);
+
+        var windowed = analyticsService.analyze("sequential-3", TimeWindow.lastDays(3650)).orElseThrow();
+        var allTime = analyticsService.analyze("sequential-3", TimeWindow.all()).orElseThrow();
+
+        assertThat(allTime.totalInstances()).isEqualTo(windowed.totalInstances());
+        assertThat(allTime.steps()).hasSameSizeAs(windowed.steps());
+
+        var windowedByStep = windowed.steps().stream()
+                .collect(java.util.stream.Collectors.toMap(step -> step.stepId(), step -> step));
+        allTime.steps().forEach(step -> {
+            var same = windowedByStep.get(step.stepId());
+            assertThat(same).as("step " + step.stepId() + " missing from the windowed report").isNotNull();
+            assertThat(step.executions()).as("executions of " + step.stepId())
+                    .isEqualTo(same.executions());
+            assertThat(step.completed()).as("completed of " + step.stepId())
+                    .isEqualTo(same.completed());
+            assertThat(step.failed()).as("failed of " + step.stepId()).isEqualTo(same.failed());
+            // Flow order comes from min(_order), which the join-free query also has to carry.
+            assertThat(step.stepId()).isEqualTo(same.stepId());
+        });
+    }
 }
