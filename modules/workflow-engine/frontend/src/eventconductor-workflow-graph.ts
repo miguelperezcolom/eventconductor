@@ -95,6 +95,13 @@ type StepState = "PENDING" | "RUNNING" | "COMPLETED" | "ERROR" | "CANCELLED" | "
 interface StepOverlay {
     count?: number;
     /**
+     * Definition view only: processes that are RUNNING and stopped here — nothing live anywhere in
+     * them, this being the last step they finished. Kept separate from {@link count} rather than
+     * added to it: a live step is a worker owing an answer, a stopped one is a process that is not
+     * going anywhere, and one number covering both reads as throughput when half of it is a stall.
+     */
+    stopped?: number;
+    /**
      * Process view only: this step's place in the order the process actually ran — 1 for the step
      * that started first. Absent on a step that never started, and on the definition view, where
      * there is no single run to order.
@@ -2832,6 +2839,19 @@ export class MateuWorkflowElk extends LitElement {
                 <text text-anchor="middle" dy="3.6">${count > 99 ? "99+" : count}</text>
             </g>` : nothing;
 
+        // Processes stopped here: RUNNING, nothing left to run, this the last step they finished.
+        // Its own badge, below the live one and in its own colour, because the two mean opposite
+        // things — one is work in progress, the other is work that has quietly ended. A stall was
+        // previously on no node at all, since the overlay is built from live step executions and a
+        // stopped process has none.
+        const stopped = ov?.stopped ?? 0;
+        const stoppedBadge = stopped > 0 ? svg`
+            <g class="ov-stopped" transform="translate(${w - 5}, 29)">
+                <circle r="10"/>
+                <text text-anchor="middle" dy="3.6">${stopped > 99 ? "99+" : stopped}</text>
+                <title>${stopped} process${stopped === 1 ? "" : "es"} stopped here: running, with no step left to run. Usually a branch below this one that no guard matched.</title>
+            </g>` : nothing;
+
         // A big check on executed (COMPLETED) steps, bottom-right corner — reads clearly. On a
         // compensation it turns into an undo arrow: a green tick there would say the work stands.
         const done = ov?.state === "COMPLETED" ? svg`
@@ -2883,7 +2903,7 @@ export class MateuWorkflowElk extends LitElement {
                @mouseleave="${() => this.onNodeHover(null)}">
                 ${pulse}
                 <g class="node-inner" data-inner="${step.id}">${shape}</g>
-                ${badge}
+                ${badge}${stoppedBadge}
                 ${order}
                 ${done}
                 ${failed}
@@ -3259,6 +3279,11 @@ export class MateuWorkflowElk extends LitElement {
         @keyframes ec-active-pulse {0%,100% {opacity: 1;} 50% {opacity: .72;}}
         .ov-count circle {fill: var(--ec-primary); stroke: var(--ec-surface); stroke-width: 1.5;}
         .ov-count text {fill: #fff; font-size: 11px; font-weight: 700;}
+        /* Amber, not the primary and not the error red: a stopped process is neither progress nor
+           a failure — nothing threw, the graph simply has nowhere to send it next. */
+        .ov-stopped circle {fill: #b45309; stroke: var(--ec-surface); stroke-width: 1.5;}
+        .ov-stopped text {fill: #fff; font-size: 11px; font-weight: 700;}
+        .ov-stopped {cursor: help;}
         .ov-done circle {fill: #16a34a; stroke: var(--ec-surface); stroke-width: 2;}
         .ov-done .ov-check {fill: none; stroke: #fff; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round;}
         .ov-done .ov-undo {fill: none; stroke: #fff; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round;}
@@ -3378,7 +3403,13 @@ export class MateuWorkflowElk extends LitElement {
         .node.link-target {cursor: alias;}
 
         /* precondition guard chips on edges */
+        /* The group ignores the pointer so a chip never steals a click meant for the edge or the
+           node underneath it. The chip's own rect does not: with pointer-events none inherited all
+           the way down, :hover never fires, which left the expansion below, the title tooltip and
+           the help cursor all written, styled, shipped -- and dead. Only the visible rect takes
+           events, so the hit area is the chip you are pointing at and nothing larger. */
         .guard {pointer-events: none; transition: opacity .2s;}
+        .guard-chip rect {pointer-events: all;}
         .guard.dim, .guard.focus-dim {opacity: .15;}   /* its edge is not in the focus */
         .guard-chip {transform-box: fill-box; transform-origin: center; transition: transform .2s;}
         .guard rect {fill: var(--ec-surface); stroke: var(--ec-border); stroke-width: 1; transition: stroke .2s, stroke-width .2s;}

@@ -170,7 +170,11 @@ public class WorkflowDefinitionDetailView implements VisibilitySupplier {
         // Per-step overlay: a live process count + a "stopped/waiting" heat histogram (index = days
         // ago) so the viewer's heatmap toggle + last-N-days slider can recolor and filter entirely
         // client-side. Built from this definition's live step executions across all versions.
-        var overlay = WorkflowGraphOverlays.overlay(liveForDefinition(def.id()));
+        // Live steps AND processes stopped at a step. Without the second the picture is silent
+        // about exactly the process worth looking at: one that is RUNNING with nothing live has no
+        // step in findPendingOrRunning, so it appears on no node at all.
+        var overlay = WorkflowGraphOverlays.overlay(liveForDefinition(def.id()),
+                stepExecutionRepository.countStoppedByStep(def.id()));
         if (!overlay.isEmpty()) {
             attrs.put("overlay", toJson(overlay));
         }
