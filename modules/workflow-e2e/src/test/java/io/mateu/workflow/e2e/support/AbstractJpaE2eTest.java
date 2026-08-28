@@ -34,7 +34,7 @@ import static org.awaitility.Awaitility.await;
  * the outbox table and are drained by the relay's poll loop, so tests fire the creation
  * event and then {@link #awaitStatus(String, ProcessStatus) await} the terminal state.
  */
-@SpringBootTest(classes = io.mateu.e2ejpa.JpaE2eTestApplication.class)
+@SpringBootTest(classes = io.mateu.e2ejpa.durability.JpaE2eTestApplication.class)
 @Import(E2eConfig.class)
 @TestPropertySource(properties = {
         "workflow.mode=embedded",

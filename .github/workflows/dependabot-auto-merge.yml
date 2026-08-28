@@ -1,0 +1,33 @@
+name: Dependabot auto-merge
+
+# Turns on GitHub's auto-merge for every pull request Dependabot opens, so a
+# dependency bump lands on its own once CI agrees with it.
+#
+# The waiting is not done here. `--auto` queues the merge and GitHub releases it
+# only when every required status check on `main` has passed, so the gate is the
+# branch protection rule, not this file. Take the required checks off `main` and
+# these merges stop waiting for anything.
+#
+# `pull_request_target` is what gives this workflow a token that can merge —
+# Dependabot's own pull_request runs get a read-only one. That trigger runs with
+# the base repository's permissions, so it must never check out or execute the
+# pull request's code. This job does neither: it only calls the API.
+
+on: pull_request_target
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    name: Enable auto-merge
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Queue the merge behind the required checks
+        run: gh pr merge --auto --squash "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

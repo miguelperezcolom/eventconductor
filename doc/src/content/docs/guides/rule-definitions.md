@@ -12,6 +12,11 @@ There are two rule types:
 - **`expression`** — a `when` condition plus `then` output assignments, all in [JEXL](https://commons.apache.org/proper/commons-jexl/) (the same expression language used by workflow step preconditions).
 - **`decision-table`** — input/output columns and rows of cases, with a `FIRST` or `COLLECT` hit policy.
 
+The sandbox is the same one, too: a rule catalogue is untrusted input for the same reasons a
+workflow definition is, and it evaluates on the same threads. What an expression may contain — and
+in particular which regular expressions `=~` accepts — is listed under
+[What an expression may contain](/guides/workflow-definitions/#what-an-expression-may-contain).
+
 ## Expression rules
 
 ```yaml

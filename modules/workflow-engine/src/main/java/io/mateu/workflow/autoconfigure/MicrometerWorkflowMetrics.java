@@ -36,6 +36,7 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
     public static final String EVENTS_DEAD_LETTERED = "eventconductor.events.dead.lettered";
 
     public static final String STALLED_STEPS = "eventconductor.steps.stalled";
+    public static final String STALLED_PROCESSES = "eventconductor.processes.stalled";
     public static final String PROCESSES_RUNNING = "eventconductor.process.running";
     public static final String OUTBOX_PENDING = "eventconductor.outbox.pending";
 
@@ -53,6 +54,8 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
 
     private final java.util.concurrent.atomic.AtomicLong stalledSteps = new java.util.concurrent.atomic.AtomicLong();
     private volatile boolean stalledGaugeRegistered;
+    private final java.util.concurrent.atomic.AtomicLong stalledProcesses = new java.util.concurrent.atomic.AtomicLong();
+    private volatile boolean stalledProcessGaugeRegistered;
 
     private final java.util.function.Supplier<MeterRegistry> registrySupplier;
     private volatile MeterRegistry resolvedRegistry;
@@ -249,6 +252,22 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
                         .description("Live step executions with no deadline that nothing will ever time out")
                         .register(registry);
                 stalledGaugeRegistered = true;
+            }
+        }
+    }
+
+    /** Same shape as the step gauge above, and deliberately a separate series: see the port. */
+    @Override
+    public void stalledProcessesObserved(long count) {
+        stalledProcesses.set(count);
+        if (!stalledProcessGaugeRegistered) {
+            var registry = registry();
+            if (registry != null) {
+                io.micrometer.core.instrument.Gauge
+                        .builder(STALLED_PROCESSES, stalledProcesses, java.util.concurrent.atomic.AtomicLong::doubleValue)
+                        .description("Running processes with no step left to run and no deadline anywhere")
+                        .register(registry);
+                stalledProcessGaugeRegistered = true;
             }
         }
     }

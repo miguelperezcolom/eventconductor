@@ -142,4 +142,8 @@ public class Process extends AggregateRoot implements Identifiable {
         });
         this.variables.addAll(variables);
     }
+
+    public List<Variable> getVariables() {
+        return this.variables == null ? List.of() : java.util.Collections.unmodifiableList(this.variables);
+    }
 }

@@ -4,6 +4,7 @@ import io.mateu.workflow.application.out.RuleCatalogMetrics;
 import io.mateu.workflow.domain.Rule;
 import io.mateu.workflow.application.usecases.directoryimport.ImportRulesFromDirectoryUseCase;
 import io.mateu.workflow.infra.config.RuleGitImportProperties;
+import io.mateu.workflow.webhook.UrlSanitizer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.api.Git;
@@ -42,8 +43,8 @@ public class ImportRulesFromGitUseCase {
             try {
                 importFromRepository(repo, imported, errors, pruned);
             } catch (Exception e) {
-                log.error("Failed to import from repository {}: {}", repo.getUrl(), e.getMessage(), e);
-                errors.add("Repository " + repo.getUrl() + ": " + e.getMessage());
+                log.error("Failed to import from repository {}: {}", UrlSanitizer.sanitize(repo.getUrl()), e.getMessage(), e);
+                errors.add("Repository " + UrlSanitizer.sanitize(repo.getUrl()) + ": " + e.getMessage());
             }
         }
 
@@ -113,7 +114,7 @@ public class ImportRulesFromGitUseCase {
 
     private void cloneRepository(RuleGitImportProperties.GitRepository repo, Path targetDir)
             throws GitAPIException {
-        log.info("Cloning repository {} (branch: {}) into {}", repo.getUrl(), repo.getBranch(), targetDir);
+        log.info("Cloning repository {} (branch: {}) into {}", UrlSanitizer.sanitize(repo.getUrl()), repo.getBranch(), targetDir);
         var cloneCommand = Git.cloneRepository()
                 .setURI(repo.getUrl())
                 .setDirectory(targetDir.toFile())

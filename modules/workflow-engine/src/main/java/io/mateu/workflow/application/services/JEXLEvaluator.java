@@ -1,6 +1,7 @@
 package io.mateu.workflow.application.services;
 
 import io.mateu.workflow.expression.ExpressionGuard;
+import io.mateu.workflow.expression.LinearTimeRegexArithmetic;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.jexl3.*;
 import org.apache.commons.jexl3.introspection.JexlPermissions;
@@ -38,13 +39,55 @@ public class JEXLEvaluator {
     // Expressions come from workflow definitions, which may be imported from git or edited
     // in the UI — treat them as untrusted: RESTRICTED blocks reflection, System, Runtime, etc.
     static JexlEngine jexl = new JexlBuilder()
+            .arithmetic(new LinearTimeRegexArithmetic(true))
             .permissions(JexlPermissions.RESTRICTED)
             .features(GUARD_FEATURES)
             .cache(512)
-            .strict(true) // Lanza error si una variable no existe (recomendado)
+            // Falsy, not strict: a guard reading a variable nobody set used to throw, every
+            // caller fails closed, and BOTH sides of a two-way branch became ineligible — so the
+            // process did not take the negative branch, it stopped dead with every downstream step
+            // still CREATED and no deadline anywhere to fire. See LinearTimeRegexArithmetic for the
+            // other half of this, which is the half that is easy to get wrong.
+            .strict(false)
             .create();
 
+    /**
+     * What an evaluation produced, and which references it could not resolve.
+     *
+     * <p>The second half is the whole reason this type exists. Undefined variables are no longer an
+     * error, so without recording them a mistyped guard is indistinguishable from a guard that
+     * legitimately evaluated to false.
+     */
+    public record Evaluation(Object value, java.util.Set<String> undefinedVariables) {
+    }
+
+    /**
+     * A context that notes every name it was asked for and did not have.
+     *
+     * <p>JEXL consults {@code has} before resolving, so this catches exactly the references that
+     * fell through to null — and it short-circuits with the expression, so
+     * {@code cancellable && ratePlan == 'X'} reports only {@code cancellable}, which is the one
+     * that decided the outcome.
+     */
+    private static final class RecordingContext extends MapContext {
+        private final java.util.Set<String> undefined = new java.util.LinkedHashSet<>();
+
+        @Override
+        public boolean has(String name) {
+            boolean has = super.has(name);
+            if (!has) {
+                undefined.add(name);
+            }
+            return has;
+        }
+    }
+
+    /** The value alone, for callers that do not care which references were missing. */
     public static Object eval(String expression, Object context) {
+        return evaluate(expression, context).value();
+    }
+
+    public static Evaluation evaluate(String expression, Object context) {
         // Size and nesting first, before a parser sees the source: an expression nested thousands
         // deep overflows the parser stack, and a StackOverflowError is an Error — it would sail
         // through every fail-closed `catch (Exception)` around a guard and unwind the orchestration
@@ -56,18 +99,34 @@ public class JEXLEvaluator {
             JexlExpression e = jexl.createExpression(expression);
 
             // 2. Crear el contexto con los datos
-            JexlContext jc = new MapContext();
+            RecordingContext jc = new RecordingContext();
             if (context != null) {
                 if (context instanceof Map map) {
-                    map.keySet().forEach(k -> jc.set(k.toString(), map.get(k)));
+                    map.keySet().forEach(k -> {
+                        Object val = map.get(k);
+                        if (val instanceof List<?> list) {
+                            jc.set(k.toString(), java.util.Collections.unmodifiableList(list));
+                        } else if (val instanceof Map<?, ?> innerMap) {
+                            jc.set(k.toString(), java.util.Collections.unmodifiableMap(innerMap));
+                        } else {
+                            jc.set(k.toString(), val);
+                        }
+                    });
                 } else if (context instanceof List list) {
-                    jc.set("list", list);
+                    jc.set("list", java.util.Collections.unmodifiableList(list));
                 } else if (isBasic(context)) {
                     jc.set("value", context);
                 } else {
                     getAllEditableFields(context.getClass()).forEach(field -> {
                         try {
-                            jc.set(field.getName(), field.get(context));
+                            Object val = field.get(context);
+                            if (val instanceof List<?> list) {
+                                jc.set(field.getName(), java.util.Collections.unmodifiableList(list));
+                            } else if (val instanceof Map<?, ?> innerMap) {
+                                jc.set(field.getName(), java.util.Collections.unmodifiableMap(innerMap));
+                            } else {
+                                jc.set(field.getName(), val);
+                            }
                         } catch (IllegalAccessException ex) {
                             log.error("Cannot read field {} of {}", field.getName(), context.getClass(), ex);
                         }
@@ -76,7 +135,7 @@ public class JEXLEvaluator {
             }
 
             // 3. Evaluar
-            return e.evaluate(jc);
+            return new Evaluation(e.evaluate(jc), java.util.Set.copyOf(jc.undefined));
         });
     }
 }

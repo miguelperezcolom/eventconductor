@@ -53,10 +53,18 @@ public interface ProcessEntityRepository extends JpaRepository<ProcessEntity, St
             where (:onlyErrors = false or p.status = 'ERROR')
               and (:pattern is null
                    or lower(concat(coalesce(p.name, ''), ' ', coalesce(p.businessKey, ''))) like :pattern)
+              and (:definitionId is null or p.workflowDefinitionId = :definitionId)
+              and (:status is null or p.status = :status)
+              and (cast(:createdFrom as LocalDateTime) is null or p.created >= :createdFrom)
+              and (cast(:createdTo as LocalDateTime) is null or p.created <= :createdTo)
             order by p.created desc nulls last
             """)
     List<ProcessSummaryView> searchSummaries(@Param("onlyErrors") boolean onlyErrors,
                                              @Param("pattern") String pattern,
+                                             @Param("definitionId") String definitionId,
+                                             @Param("status") String status,
+                                             @Param("createdFrom") LocalDateTime createdFrom,
+                                             @Param("createdTo") LocalDateTime createdTo,
                                              Pageable pageable);
 
     /**
@@ -71,8 +79,17 @@ public interface ProcessEntityRepository extends JpaRepository<ProcessEntity, St
             where (:onlyErrors = false or p.status = 'ERROR')
               and (:pattern is null
                    or lower(concat(coalesce(p.name, ''), ' ', coalesce(p.businessKey, ''))) like :pattern)
+              and (:definitionId is null or p.workflowDefinitionId = :definitionId)
+              and (:status is null or p.status = :status)
+              and (cast(:createdFrom as LocalDateTime) is null or p.created >= :createdFrom)
+              and (cast(:createdTo as LocalDateTime) is null or p.created <= :createdTo)
             """)
-    long countSummaries(@Param("onlyErrors") boolean onlyErrors, @Param("pattern") String pattern);
+    long countSummaries(@Param("onlyErrors") boolean onlyErrors,
+                        @Param("pattern") String pattern,
+                        @Param("definitionId") String definitionId,
+                        @Param("status") String status,
+                        @Param("createdFrom") LocalDateTime createdFrom,
+                        @Param("createdTo") LocalDateTime createdTo);
 
     /**
      * Every process created inside the window, as the columns analytics reads. The window bounds
@@ -213,5 +230,39 @@ public interface ProcessEntityRepository extends JpaRepository<ProcessEntity, St
         String getStatus();
         long getCount();
     }
+
+
+    /**
+     * Ids of processes that are RUNNING, have nothing left to run, and stopped moving before
+     * {@code idleBefore}. See {@code ProcessRepository#findStalled} for what that means.
+     *
+     * <p>Cheap because it starts from {@code status = 'RUNNING'}, which {@code idx_process_status}
+     * covers and which is a small set on a healthy deployment. The two correlated subqueries then
+     * run per candidate over {@code idx_step_exec_process_status}. It stops being cheap on a
+     * deployment holding tens of thousands of processes genuinely in flight — which is why it runs
+     * on its own slow loop and not on the timeout scan.
+     *
+     * <p>{@code max(finishedAt)} is null for a process whose steps have all been created and none
+     * finished; that is a process that never started moving, and it is excluded rather than
+     * reported, because "stalled" is about stopping, not about not having begun.
+     */
+    @Query("""
+            select p.id
+            from ProcessEntity p
+            where p.status = 'RUNNING'
+              and not exists (
+                  select 1 from StepExecutionEntity se
+                  where se.processId = p.id and se.status in ('PENDING', 'RUNNING')
+              )
+              and (
+                  select max(se2.finishedAt) from StepExecutionEntity se2
+                  where se2.processId = p.id
+              ) < :idleBefore
+            order by (
+                  select max(se3.finishedAt) from StepExecutionEntity se3
+                  where se3.processId = p.id
+            ) desc
+            """)
+    List<String> findStalled(@Param("idleBefore") LocalDateTime idleBefore, Pageable pageable);
 
 }

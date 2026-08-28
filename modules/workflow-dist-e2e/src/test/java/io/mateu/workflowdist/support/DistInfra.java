@@ -1,5 +1,6 @@
 package io.mateu.workflowdist.support;
 
+import io.mateu.workflowdist.support.orchestrator.DistOrchestratorApp;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.mateu.workflow.ddd.DomainEvent;
 import org.apache.kafka.clients.admin.AdminClient;

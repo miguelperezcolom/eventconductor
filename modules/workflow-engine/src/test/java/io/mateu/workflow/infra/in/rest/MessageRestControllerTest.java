@@ -35,6 +35,42 @@ class MessageRestControllerTest {
         controller = new MessageRestController(properties, messageDispatcher);
     }
 
+    /**
+     * A broker that is gone blocks the synchronous producer and then throws, and the caller used
+     * to get a 500 — which tells them their request was wrong when it was not, and gives them no
+     * reason to retry.
+     */
+    @Test
+    void aBrokerThatIsDownIsAnswered503() {
+        controller.mode = "kafka";
+        org.mockito.Mockito.doThrow(new IllegalStateException("Timed out waiting for a node assignment"))
+                .when(messageDispatcher).dispatch(org.mockito.ArgumentMatchers.any());
+
+        assertThatThrownBy(() -> controller.sendMessage(null,
+                new SendMessageRequest("payment-received", "res-123", null)))
+                .isInstanceOf(ResponseStatusException.class)
+                .extracting(e -> ((ResponseStatusException) e).getStatusCode())
+                .isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+    }
+
+    /**
+     * And the other half, which is the one that would hurt. In embedded mode there is no broker:
+     * the publisher is the engine, running the step-over inline on this thread. A failure is a bad
+     * definition or a database that said no, and calling that "the broker is offline" would be a
+     * lie that hides the bug behind a status inviting a retry that will fail the same way.
+     */
+    @Test
+    void inEmbeddedModeAFailureIsNotDressedUpAsAnOutage() {
+        controller.mode = "embedded";
+        org.mockito.Mockito.doThrow(new IllegalStateException("step has no form id defined"))
+                .when(messageDispatcher).dispatch(org.mockito.ArgumentMatchers.any());
+
+        assertThatThrownBy(() -> controller.sendMessage(null,
+                new SendMessageRequest("payment-received", "res-123", null)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("form id");
+    }
+
     @Test
     void publishesMessageReceivedWithMappedVariables() {
         var response = controller.sendMessage(null, new SendMessageRequest(

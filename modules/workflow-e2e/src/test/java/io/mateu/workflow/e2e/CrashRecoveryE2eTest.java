@@ -3,7 +3,7 @@ package io.mateu.workflow.e2e;
 import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.domain.aggregates.Process;
 import io.mateu.workflow.domain.aggregates.ProcessStatus;
-import io.mateu.e2ejpa.CrashRecoveryTestApp;
+import io.mateu.e2ejpa.crashrecovery.CrashRecoveryTestApp;
 import io.mateu.workflow.dtos.events.integration.ProcessCreationRequested;
 import io.mateu.workflow.infra.in.async.processupstreamevent.ProcessUpstreamEventCommand;
 import io.mateu.workflow.infra.in.async.processupstreamevent.ProcessUpstreamEventUseCase;

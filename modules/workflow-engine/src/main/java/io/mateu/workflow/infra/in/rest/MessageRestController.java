@@ -51,6 +51,10 @@ public class MessageRestController {
     final MessageApiProperties messageApiProperties;
     final io.mateu.workflow.application.services.MessageDispatcher messageDispatcher;
 
+    /** Whether there is a broker at all — see the dispatch below. */
+    @org.springframework.beans.factory.annotation.Value("${workflow.mode:embedded}")
+    String mode;
+
     public record SendMessageRequest(
             @NotBlank(message = "messageName is required")
             String messageName,
@@ -82,7 +86,31 @@ public class MessageRestController {
         // can still say no to its face.
         refuseIfOversized(request, variables);
         log.info("REST message '{}' received with correlation key '{}'", request.messageName(), request.correlationKey());
-        messageDispatcher.dispatch(new MessageReceived(request.messageName(), request.correlationKey(), variables));
+        try {
+            messageDispatcher.dispatch(new MessageReceived(request.messageName(), request.correlationKey(), variables));
+        } catch (ResponseStatusException e) {
+            // Something deeper already decided what to answer. Leave it alone.
+            throw e;
+        } catch (RuntimeException e) {
+            // Only kafka mode has a broker to be down. In embedded mode the publisher IS the
+            // engine — EmbeddedUpstreamEventPublisher runs the step-over inline on this thread —
+            // so a failure here is a bad definition, a guard that would not evaluate, a database
+            // that said no. Answering 503 "the broker is offline" would be a lie about a system
+            // that has no broker, and it would hide the bug behind a status that invites a retry.
+            if (!"kafka".equals(mode)) {
+                throw e;
+            }
+            // In kafka mode this call does one thing: hand the record to the binder. The producer
+            // is synchronous (see PartitionedEvents), so a broker that is gone blocks and then
+            // throws here rather than returning a false the caller would never hear about. 503
+            // says what is true — try again later — where 500 tells the caller their request was
+            // wrong when it was not.
+            log.error("Could not publish REST message '{}' to the broker", request.messageName(), e);
+            throw new ResponseStatusException(
+                    HttpStatus.SERVICE_UNAVAILABLE,
+                    "Messaging broker is temporarily unavailable. Please retry.",
+                    e);
+        }
 
         return ResponseEntity.accepted().body("message published");
     }
