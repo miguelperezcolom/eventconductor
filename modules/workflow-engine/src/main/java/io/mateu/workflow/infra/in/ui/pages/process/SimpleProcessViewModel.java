@@ -255,13 +255,16 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
         attrs.put("value", "${state.processGraph}");
         attrs.put("readonly", "true");
         if (!overlay.isEmpty()) attrs.put("overlay", "${state.processGraphOverlay}");
-        // Give the graph a tall, viewport-sized box. Inside a tab the host has no height context and
-        // falls back to its ~230px min-height, which is far too short for monitoring a live process.
+        // Give the graph a viewport-sized box. Inside a tab the host has no height context and falls
+        // back to its ~230px min-height, far too short for monitoring a live process. A fixed 68vh
+        // overflowed the process view — the graph sits under a header, a process summary and the tab
+        // strip (~28rem of chrome), so 68vh + that chrome scrolled the page. Sizing the graph to the
+        // space left below the chrome (calc) fills the viewport and keeps the whole view on screen.
         return Element.builder()
                 .name(GRAPH_TAG)
                 .attributes(attrs)
                 .content("")
-                .style("display: block; height: 68vh; min-height: 460px;")
+                .style("display: block; height: calc(100vh - 28rem); min-height: 320px;")
                 .build();
     }
 
