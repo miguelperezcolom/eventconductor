@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.11.0] - 2026-08-30
+
+### Added
+- **A read model for the analytics report, so it stops scanning the raw tables.** The report answered
+  its `GROUP BY`s over `process_entity` and `step_execution_entity` in full — O(rows), which no index
+  can help, because an aggregate over a window has to touch every row in it. On the reference
+  deployment (388k processes, 2.7M step executions, 3.8 GB) the step aggregate alone was ~1.2s in the
+  database on every page load, and grew linearly with history.
+
+  It is answered from daily rollups now, opt-in behind `workflow.analytics.rollup=true` and jpa-only.
+  A projector folds each immutable fact — a process created, a process finished, a step finished —
+  exactly once behind a `(timestamp, id)` cursor, so it never re-scans history; the first run drains
+  it as an implicit backfill. What is still in flight is counted live and merged at read time.
+  Durations carry a mergeable histogram so a p95 can be read from summed buckets — the one figure
+  that is not additive. Exact on counts, throughput, sample counts, totals and averages; the p95 is
+  approximate (never below the true value, at most a bucket over) and the window is day-aligned. It
+  plugs in behind the existing aggregate seam, so the memory-vs-jpa selection and its equivalence test
+  are untouched. See `modules/workflow-engine/ANALYTICS-READ-MODEL.md`.
+
+- **The test worker seeds an editable override the first time it meets a task.** The overrides table
+  was write-only from the UI: a canned reply existed only if someone typed it in from nothing, which
+  meant knowing the step ids up front. Now a task that resolves to the built-in default — no
+  `TEST_CONFIG`, no override already matching — leaves a `TaskOverride` behind, keyed by workflow
+  definition and step, copied from the default scenario and born enabled so it changes nothing until
+  edited. Run a workflow, then open Overrides and retouch the ones that matter; the next run picks
+  them up. Idempotent per signature, and seeding never fails a task.
+
 ## [2.10.0] - 2026-08-28
 
 ### Added
