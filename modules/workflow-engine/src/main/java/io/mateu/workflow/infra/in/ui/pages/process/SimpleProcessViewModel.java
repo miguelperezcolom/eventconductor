@@ -264,7 +264,7 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
                 .name(GRAPH_TAG)
                 .attributes(attrs)
                 .content("")
-                .style("display: block; height: calc(100vh - 28rem); min-height: 320px;")
+                .style("display: block; height: calc(100vh - 30rem); min-height: 320px;")
                 .build();
     }
 
