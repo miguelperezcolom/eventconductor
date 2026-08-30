@@ -1,5 +1,6 @@
 package io.mateu.testworker;
 
+import io.mateu.testworker.application.DefaultScenarioSeeder;
 import io.mateu.testworker.application.ReceivedTaskStore;
 import io.mateu.testworker.application.ScenarioResolver;
 import io.mateu.testworker.application.SimulatedTaskHandler;
@@ -92,7 +93,8 @@ class BlockingStoreConcurrencyTest {
         var handler = new SimulatedTaskHandler(
                 new ScenarioResolver(new InMemoryTaskOverrideStore(), Duration.ofMillis(20)),
                 new TaskSimulator(),
-                store);
+                store,
+                new DefaultScenarioSeeder(new InMemoryTaskOverrideStore()));
         var broker = new RecordingBroker();
         var cancelled = new CancelledTasks();
         // One consumer thread, which is what a partition gives a pod. The whole question is whether

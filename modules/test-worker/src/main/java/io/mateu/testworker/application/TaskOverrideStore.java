@@ -6,8 +6,10 @@ import io.mateu.testworker.domain.TaskOverride;
 import java.util.List;
 
 /**
- * Where the hand-edited replies live. Extends Mateu's {@code CrudStore} because the UI is the
- * only thing that writes to it — the worker only ever reads.
+ * Where the editable replies live. Extends Mateu's {@code CrudStore} for the UI that edits them;
+ * the worker reads them to resolve a task, and — via {@code DefaultScenarioSeeder} — writes one
+ * back the first time it meets a task it had no instructions for, so a run leaves a row per kind of
+ * task it saw, ready to be retouched.
  */
 public interface TaskOverrideStore extends CrudStore<TaskOverride> {
 
