@@ -32,6 +32,10 @@ public class ProcessDBRepository implements ProcessRepository {
     final io.mateu.workflow.application.out.WorkflowTracing workflowTracing;
     final io.mateu.workflow.infra.out.async.OutboxSignal outboxSignal;
     final io.mateu.workflow.application.services.ProcessStatusAnnouncer processStatusAnnouncer;
+    // Present only when the read model is switched on (workflow.analytics.rollup=true); empty
+    // otherwise, and then aggregateProcesses falls through to the GROUP BY below unchanged.
+    final org.springframework.beans.factory.ObjectProvider<
+            io.mateu.workflow.application.out.RollupAnalyticsPort> rollupAnalytics;
 
     @Override
     public Optional<Process> findById(String id) {
@@ -137,6 +141,10 @@ public class ProcessDBRepository implements ProcessRepository {
      */
     @Override
     public AnalyticsAggregates.ProcessAggregates aggregateProcesses(LocalDateTime from, LocalDateTime to) {
+        var rollup = rollupAnalytics.getIfAvailable();
+        if (rollup != null) {
+            return rollup.aggregateProcesses(from, to);
+        }
         var statusCounts = processEntityRepository.aggregateStatusCounts(from, to).stream()
                 .map(v -> new AnalyticsAggregates.DefinitionStatusCount(
                         v.getDefinitionId(), ProcessStatus.valueOf(v.getStatus()), v.getCount(), v.getAnyName()))
