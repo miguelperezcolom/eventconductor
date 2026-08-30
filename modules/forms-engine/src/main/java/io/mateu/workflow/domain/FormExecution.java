@@ -29,10 +29,15 @@ public record FormExecution(
         String stepId,
         String stepExecutionId,
         @NotNull
+        // The mapping matches on the enum's name, which is upper-case — PENDING, ASSIGNED,
+        // COMPLETED, CANCELLED. The earlier "Assigned"/"Completed" were title-case and matched
+        // nothing, so every status fell through to the grey default. And CANCELLED had no mapping
+        // at all, so a cancelled task looked no different from a pending one.
         @Status(defaultStatus = StatusType.NONE, mappings = {
-                @StatusMapping(from = "", to = StatusType.NONE),
-                @StatusMapping(from = "Assigned", to = StatusType.WARNING),
-                @StatusMapping(from = "Completed", to = StatusType.SUCCESS),
+                @StatusMapping(from = "PENDING", to = StatusType.INFO),
+                @StatusMapping(from = "ASSIGNED", to = StatusType.WARNING),
+                @StatusMapping(from = "COMPLETED", to = StatusType.SUCCESS),
+                @StatusMapping(from = "CANCELLED", to = StatusType.DANGER),
         })
         FormExecutionStatus status,
         String userId,
