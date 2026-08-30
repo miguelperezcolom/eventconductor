@@ -33,6 +33,10 @@ public class StepExecutionDBRepository implements StepExecutionRepository {
     final OutboxMessageEntityRepository outboxMessageEntityRepository;
     final io.mateu.workflow.application.out.WorkflowTracing workflowTracing;
     final io.mateu.workflow.infra.out.async.OutboxSignal outboxSignal;
+    // Present only when the read model is switched on (workflow.analytics.rollup=true); empty
+    // otherwise, and then aggregateSteps falls through to the GROUP BY below unchanged.
+    final org.springframework.beans.factory.ObjectProvider<
+            io.mateu.workflow.application.out.RollupAnalyticsPort> rollupAnalytics;
 
     @Override
     public Optional<StepExecution> findById(String id) {
@@ -193,6 +197,10 @@ public class StepExecutionDBRepository implements StepExecutionRepository {
      */
     @Override
     public AnalyticsAggregates.StepAggregates aggregateSteps(LocalDateTime from, LocalDateTime to) {
+        var rollup = rollupAnalytics.getIfAvailable();
+        if (rollup != null) {
+            return rollup.aggregateSteps(from, to);
+        }
         // No window means no reason to join: the join reaches p.created and nothing else, so with
         // both bounds open it filters nothing and costs a third of the query. Measured on the
         // reference deployment, 4 521 ms against 2 993 ms over 2 714 697 rows.
