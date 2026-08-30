@@ -1,6 +1,7 @@
 package io.mateu.testworker;
 
 import io.mateu.workflow.dtos.events.integration.TaskStatus;
+import io.mateu.testworker.application.DefaultScenarioSeeder;
 import io.mateu.testworker.application.ScenarioResolver;
 import io.mateu.testworker.application.SimulatedTaskHandler;
 import io.mateu.testworker.application.TaskSimulator;
@@ -33,7 +34,8 @@ class SimulatedTaskHandlerTest {
         handler = new SimulatedTaskHandler(
                 new ScenarioResolver(new InMemoryTaskOverrideStore(), Duration.ofMillis(1)),
                 new TaskSimulator(),
-                receivedTasks);
+                receivedTasks,
+                new DefaultScenarioSeeder(new InMemoryTaskOverrideStore()));
     }
 
     @Test
