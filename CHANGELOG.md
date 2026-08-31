@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.11.1] - 2026-08-31
+
 ### Fixed
 - **Resuming a paused process that actually had somewhere to go rolled back, and left it paused.**
   The resume saved the process (PAUSED → RUNNING), then `StepOverProcessUseCase` mapped it and ran
@@ -34,6 +36,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   flushes first, so the aggregate is mapped at the version the flush produced. `StepExecutionRepository`
   gains `findByProcessId(String)` for exactly this; `findByProcess(Process)` stays as a default for
   callers that hold the aggregate and are not about to save it.
+
+- **A step's on-timeout branch was laid out before the start of the flow.** The graph editor's
+  layout knew two kinds of edge, the flow and the rollback pointer. An on-timeout branch was drawn
+  but never handed to ELK, so a step that exists only as somebody's timeout target — it declares no
+  preconditions of its own — reached the layout as a node with no edges at all. ELK puts those in
+  the first layer: the timeout of a step half-way through a definition was drawn to the left of the
+  START, with its line coming back across the whole diagram.
+
+  The layout now gets one edge per `onTimeoutStepId`, carrying the same low direction priority as
+  the rollback edges, so the flow stays the straight line through the middle and it is the timeout
+  that bends. On `booking-fase2-grabar-reserva`, the `Cancelar RQ` that a wait step falls back to
+  moves from x=12 — above and left of the START — to x=570, beside the `Cobro confirmado` it is the
+  timeout of. Ships in the VS Code (0.1.16) and IntelliJ (0.1.17) plugins, which embed the same
+  component the engine serves.
+
+### Changed
+- **`POST /workflow/api/messages` declares its contract rather than checking it by hand.**
+  `messageName` and `correlationKey` carry `@NotBlank` and the body is `@Valid`, so the rule is
+  enforced at the HTTP boundary and visible in the schema instead of living as two `isBlank` checks
+  inside the method.
+
+  What a caller sees is unchanged, which took keeping: validation runs *before* the handler, so on
+  its own it would have cost the endpoint both the message that names the offending field and the
+  order of its own checks — a caller with no `X-Api-Key` would have been told what was wrong with a
+  body the endpoint should never have read. A blank field is still a 400 naming the field, and a
+  caller without the key is still turned away with a 401 first.
 
 ## [2.11.0] - 2026-08-30
 
