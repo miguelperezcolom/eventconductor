@@ -50,9 +50,9 @@ public class InMemoryStepExecutionRepository implements StepExecutionRepository 
     }
 
     @Override
-    public List<StepExecution> findByProcess(Process process) {
+    public List<StepExecution> findByProcessId(String processId) {
         return store.values().stream()
-                .filter(se -> process.id().equals(se.getProcessId()))
+                .filter(se -> processId.equals(se.getProcessId()))
                 .sorted(java.util.Comparator.comparingLong(StepExecution::getOrder))
                 .toList();
     }

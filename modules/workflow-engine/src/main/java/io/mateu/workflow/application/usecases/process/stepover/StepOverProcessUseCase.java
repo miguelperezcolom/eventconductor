@@ -55,8 +55,13 @@ public class StepOverProcessUseCase {
     }
 
     private void doHandle(StepOverProcessCommand command) {
+        // Steps first, process second, and the order is load-bearing. This query auto-flushes
+        // whatever writes are pending on JPA — including a version bump on this very process, left
+        // by a caller that saved it just before (ResumeProcessUseCase does exactly that). Mapping
+        // the process first would capture the version that flush is about to supersede, and the
+        // save below would then fail optimistic locking and roll the whole handler back.
+        var stepExecutions = stepExecutionRepository.findByProcessId(command.processId());
         var process = processRepository.findById(command.processId()).orElseThrow();
-        var stepExecutions = stepExecutionRepository.findByProcess(process);
 
         var result = workflowOrchestrationService.calculateNextTransitions(process, stepExecutions);
 

@@ -12,7 +12,21 @@ import java.util.List;
 
 public interface StepExecutionRepository extends CrudStore<StepExecution> {
 
-    List<StepExecution> findByProcess(Process process);
+    /**
+     * A process's step executions, by id.
+     *
+     * <p>By id rather than by aggregate, because the ORDER matters to the caller: this is a query,
+     * and on JPA a query auto-flushes whatever writes are pending — including a pending version
+     * bump on the very process being asked about. A caller that maps the aggregate BEFORE calling
+     * this holds a version the flush then supersedes, and saving it afterwards fails optimistic
+     * locking. Taking an id lets the caller run the query first and map the process after.
+     */
+    List<StepExecution> findByProcessId(String processId);
+
+    /** Convenience for callers that hold the aggregate and are not about to save it. */
+    default List<StepExecution> findByProcess(Process process) {
+        return findByProcessId(process.id());
+    }
 
     List<StepExecution> findPendingOrRunning();
 

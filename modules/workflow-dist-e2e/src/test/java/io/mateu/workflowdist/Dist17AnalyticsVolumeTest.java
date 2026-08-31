@@ -157,7 +157,7 @@ class Dist17AnalyticsVolumeTest extends AbstractDistTest {
             @Override public String save(StepExecution stepExecution) { throw new UnsupportedOperationException(); }
             @Override public List<StepExecution> findAll() { throw new UnsupportedOperationException(); }
             @Override public void deleteAllById(List<String> ids) { throw new UnsupportedOperationException(); }
-            @Override public List<StepExecution> findByProcess(Process process) { throw new UnsupportedOperationException(); }
+            @Override public List<StepExecution> findByProcessId(String processId) { throw new UnsupportedOperationException(); }
             @Override public List<StepExecution> findPendingOrRunning() { throw new UnsupportedOperationException(); }
             @Override public List<StepExecution> findPendingOrRunningByProcessId(String id) { throw new UnsupportedOperationException(); }
             @Override public List<StepExecution> findDue(LocalDateTime now) { throw new UnsupportedOperationException(); }
