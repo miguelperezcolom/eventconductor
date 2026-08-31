@@ -8,6 +8,7 @@ import io.mateu.workflow.dtos.events.integration.TimeoutCheckRequested;
 import io.mateu.workflow.dtos.events.integration.TimerCheckRequested;
 import io.mateu.workflow.infra.out.persistence.DbLockDialect;
 import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -72,11 +73,16 @@ public class TimeoutScheduler {
     /** Ceiling on the ids one report names; see ProcessRepository#findStalled. */
     private static final int STALLED_PROCESS_REPORT_LIMIT = 20;
 
+    private volatile boolean running = true;
+    private Thread timeoutSchedulerThread;
+    private Thread stalledStepWatchThread;
+    private Thread stalledProcessWatchThread;
+
     @PostConstruct
     public void start() {
-        var thread = new Thread(() -> {
+        timeoutSchedulerThread = new Thread(() -> {
             try {
-                while (true) {
+                while (running) {
                     try {
                         jdbcTemplate.execute((org.springframework.jdbc.core.ConnectionCallback<Void>) con -> {
                             if (!dbLockDialect.tryLock(con, LOCK_ID)) return null;
@@ -95,16 +101,20 @@ public class TimeoutScheduler {
                             return null;
                         });
                     } catch (Throwable e) {
-                        log.error("Error checking step timeouts", e);
+                        if (running) {
+                            log.error("Error checking step timeouts", e);
+                        }
                     }
-                    Thread.sleep(scanIntervalMs);
+                    if (running) {
+                        Thread.sleep(scanIntervalMs);
+                    }
                 }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
         }, "workflow-timeout-scheduler");
-        thread.setDaemon(true);
-        thread.start();
+        timeoutSchedulerThread.setDaemon(true);
+        timeoutSchedulerThread.start();
         startStalledStepWatch();
         startStalledProcessWatch();
     }
@@ -133,8 +143,8 @@ public class TimeoutScheduler {
      * maximum across replicas, never the sum, which would multiply it by the replica count.
      */
     private void startStalledStepWatch() {
-        var thread = new Thread(() -> {
-            while (true) {
+        stalledStepWatchThread = new Thread(() -> {
+            while (running) {
                 try {
                     Thread.sleep(stalledScanIntervalMs);
                     var stalled = stepExecutionRepository.countStalled(
@@ -151,12 +161,14 @@ public class TimeoutScheduler {
                     Thread.currentThread().interrupt();
                     return;
                 } catch (Throwable e) {
-                    log.error("Error counting stalled step executions", e);
+                    if (running) {
+                        log.error("Error counting stalled step executions", e);
+                    }
                 }
             }
         }, "workflow-stalled-step-watch");
-        thread.setDaemon(true);
-        thread.start();
+        stalledStepWatchThread.setDaemon(true);
+        stalledStepWatchThread.start();
     }
 
     /**
@@ -182,8 +194,8 @@ public class TimeoutScheduler {
      * never the sum.
      */
     private void startStalledProcessWatch() {
-        var thread = new Thread(() -> {
-            while (true) {
+        stalledProcessWatchThread = new Thread(() -> {
+            while (running) {
                 try {
                     Thread.sleep(stalledProcessScanIntervalMs);
                     var stalled = processRepository.findStalled(
@@ -204,12 +216,28 @@ public class TimeoutScheduler {
                     Thread.currentThread().interrupt();
                     return;
                 } catch (Throwable e) {
-                    log.error("Error looking for stalled processes", e);
+                    if (running) {
+                        log.error("Error looking for stalled processes", e);
+                    }
                 }
             }
         }, "workflow-stalled-process-watch");
-        thread.setDaemon(true);
-        thread.start();
+        stalledProcessWatchThread.setDaemon(true);
+        stalledProcessWatchThread.start();
+    }
+
+    @PreDestroy
+    public void stop() {
+        running = false;
+        if (timeoutSchedulerThread != null) {
+            timeoutSchedulerThread.interrupt();
+        }
+        if (stalledStepWatchThread != null) {
+            stalledStepWatchThread.interrupt();
+        }
+        if (stalledProcessWatchThread != null) {
+            stalledProcessWatchThread.interrupt();
+        }
     }
 
 }

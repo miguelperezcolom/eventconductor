@@ -8,14 +8,22 @@ import io.mateu.workflow.input.InputLimits;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
+import org.springframework.context.support.DefaultMessageSourceResolvable;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
+
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -45,6 +53,8 @@ import java.util.Map;
 @Slf4j
 public class MessageRestController {
 
+    private static final String MISSING_OR_INVALID_KEY = "Missing or invalid X-Api-Key header";
+
     final MessageApiProperties messageApiProperties;
     final io.mateu.workflow.application.services.MessageDispatcher messageDispatcher;
 
@@ -52,22 +62,20 @@ public class MessageRestController {
     @org.springframework.beans.factory.annotation.Value("${workflow.mode:embedded}")
     String mode;
 
-    public record SendMessageRequest(String messageName, String correlationKey, Map<String, String> variables) {
+    public record SendMessageRequest(
+            @NotBlank(message = "messageName is required")
+            String messageName,
+            @NotBlank(message = "correlationKey is required")
+            String correlationKey,
+            Map<String, String> variables) {
     }
 
     @PostMapping
     public ResponseEntity<String> sendMessage(
             @RequestHeader(value = "X-Api-Key", required = false) String apiKey,
-            @RequestBody SendMessageRequest request) {
+            @Valid @RequestBody SendMessageRequest request) {
 
         verifyApiKey(apiKey);
-
-        if (request.messageName() == null || request.messageName().isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "messageName is required");
-        }
-        if (request.correlationKey() == null || request.correlationKey().isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "correlationKey is required");
-        }
 
         var variables = request.variables() == null ? List.<Variable>of() : request.variables().entrySet().stream()
                 .map(entry -> new Variable(entry.getKey(), entry.getValue()))
@@ -117,15 +125,45 @@ public class MessageRestController {
         }
     }
 
+    /**
+     * The 400 for a body that breaks the record's contract, answered the way this endpoint answers
+     * every other refusal.
+     *
+     * <p>Two things changed the moment {@code @Valid} took over the blank checks that used to sit
+     * in the method body, and both are put back here. Spring renders a rejected body as "Invalid
+     * request content." — the caller is told they got it wrong but not which field, where before
+     * they were told exactly which one; the constraint's own message goes back into the detail.
+     * And validation runs <em>before</em> the method does, so a caller with no key would learn
+     * their body was malformed instead of being turned away: {@code verifyApiKey} is the first
+     * line of {@link #sendMessage} on purpose, and checking it again here keeps the 401 in front
+     * of the 400 for a request that is both.
+     */
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    ProblemDetail onInvalidBody(MethodArgumentNotValidException e, HttpServletRequest request) {
+        if (!apiKeyAccepted(request.getHeader("X-Api-Key"))) {
+            return ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, MISSING_OR_INVALID_KEY);
+        }
+        var reason = e.getBindingResult().getFieldErrors().stream()
+                .map(DefaultMessageSourceResolvable::getDefaultMessage)
+                .findFirst()
+                .orElse("the request body is not valid");
+        return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, reason);
+    }
+
     private void verifyApiKey(String received) {
+        if (!apiKeyAccepted(received)) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, MISSING_OR_INVALID_KEY);
+        }
+    }
+
+    /** Whether this caller may come in: true when no key is configured, otherwise it must match. */
+    private boolean apiKeyAccepted(String received) {
         String expected = messageApiProperties.getApiKey();
         if (expected == null || expected.isBlank()) {
-            return;
+            return true;
         }
         // constant-time comparison to prevent timing attacks
-        if (received == null || !MessageDigest.isEqual(
-                expected.getBytes(StandardCharsets.UTF_8), received.getBytes(StandardCharsets.UTF_8))) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Missing or invalid X-Api-Key header");
-        }
+        return received != null && MessageDigest.isEqual(
+                expected.getBytes(StandardCharsets.UTF_8), received.getBytes(StandardCharsets.UTF_8));
     }
 }

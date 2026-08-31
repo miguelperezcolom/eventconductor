@@ -4,6 +4,7 @@ import io.mateu.workflow.application.services.IngressRouter;
 import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
 import io.mateu.workflow.infra.out.persistence.DbLockDialect;
 import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -44,14 +45,17 @@ public class CronStartScheduler {
 
     private final Map<String, LocalDateTime> lastFireTimes = new ConcurrentHashMap<>();
 
+    private volatile boolean running = true;
+    private Thread cronSchedulerThread;
+
     @PostConstruct
     public void start() {
         if (!enabled) {
             return;
         }
-        new Thread(() -> {
+        cronSchedulerThread = new Thread(() -> {
             try {
-                while (true) {
+                while (running) {
                     try {
                         jdbcTemplate.execute((org.springframework.jdbc.core.ConnectionCallback<Void>) con -> {
                             if (!dbLockDialect.tryLock(con, LOCK_ID)) return null;
@@ -64,14 +68,28 @@ public class CronStartScheduler {
                             return null;
                         });
                     } catch (Throwable e) {
-                        log.error("Error checking cron process starts", e);
+                        if (running) {
+                            log.error("Error checking cron process starts", e);
+                        }
                     }
-                    Thread.sleep(scanIntervalMs);
+                    if (running) {
+                        Thread.sleep(scanIntervalMs);
+                    }
                 }
             } catch (InterruptedException e) {
-                throw new RuntimeException(e);
+                Thread.currentThread().interrupt();
             }
-        }).start();
+        }, "workflow-cron-scheduler");
+        cronSchedulerThread.setDaemon(true);
+        cronSchedulerThread.start();
+    }
+
+    @PreDestroy
+    public void stop() {
+        running = false;
+        if (cronSchedulerThread != null) {
+            cronSchedulerThread.interrupt();
+        }
     }
 
 }
