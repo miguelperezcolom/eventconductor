@@ -48,7 +48,20 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class Dist18OutboxBatchPublishTest extends AbstractDistTest {
 
-    static final int MESSAGES = 2_000;
+    /**
+     * Enough rows that the ratio is the measurement and not the machine. At two thousand the two
+     * passes came in at 1000ms and 534ms on a shared CI runner — a 1.87× win against a bar of 2×,
+     * so the same code passed or failed depending on what else the host was doing that minute.
+     *
+     * <p>What either pass carries whatever the batch size — the first round trip to the broker, the
+     * producer's own warm-up — is a bigger share of a short pass than of a long one, and it is
+     * shared cost, so it drags the two measurements together. Draining more rows spends
+     * proportionally more of the wall clock on the thing under test: 4149 → 6969 msg/s capped and
+     * 10695 → 19268 msg/s per key, measured locally going from two thousand rows to ten, with the
+     * ratio going 2.58× → 2.76×. The batch also takes longer to run, which is the point — a longer
+     * measurement averages out more of the noise that was deciding this test.
+     */
+    static final int MESSAGES = 10_000;
 
     private ConfigurableApplicationContext orchestrator;
 
