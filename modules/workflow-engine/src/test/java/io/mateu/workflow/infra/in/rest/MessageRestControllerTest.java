@@ -11,6 +11,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
@@ -20,6 +23,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @ExtendWith(MockitoExtension.class)
 class MessageRestControllerTest {
@@ -28,6 +34,11 @@ class MessageRestControllerTest {
 
     MessageApiProperties properties;
     MessageRestController controller;
+
+    /** The endpoint with the layer in between: @Valid only runs when Spring calls the method. */
+    private MockMvc mockMvc() {
+        return MockMvcBuilders.standaloneSetup(controller).build();
+    }
 
     @BeforeEach
     void setUp() {
@@ -88,21 +99,45 @@ class MessageRestControllerTest {
         verify(messageDispatcher).dispatch(new MessageReceived("payment-received", "res-123", List.of()));
     }
 
+    /**
+     * What correlation needs is declared on the record and enforced by {@code @Valid}, which runs
+     * before the method — so this one is driven through MockMvc: called directly, the controller
+     * never sees the validator and the assertion would be vacuous.
+     *
+     * <p>The status is the easy half. The message is the half worth pinning: Spring's own
+     * rendering of a rejected body is "Invalid request content.", which tells a caller their
+     * request was wrong and leaves them to guess which field, and this endpoint used to name it.
+     */
     @Test
-    void missingMessageNameIsRejected() {
-        assertThatThrownBy(() -> controller.sendMessage(null, new SendMessageRequest(" ", "res-123", null)))
-                .isInstanceOf(ResponseStatusException.class)
-                .extracting(e -> ((ResponseStatusException) e).getStatusCode())
-                .isEqualTo(HttpStatus.BAD_REQUEST);
+    void aBodyMissingWhatCorrelationNeedsIsRefusedAndSaysWhich() throws Exception {
+        var cases = Map.of(
+                "{\"messageName\": \" \", \"correlationKey\": \"res-123\"}", "messageName is required",
+                "{\"messageName\": \"payment-received\"}", "correlationKey is required");
+
+        for (var entry : cases.entrySet()) {
+            mockMvc().perform(post("/workflow/api/messages")
+                            .contentType(MediaType.APPLICATION_JSON).content(entry.getKey()))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.detail").value(entry.getValue()));
+        }
         verifyNoInteractions(messageDispatcher);
     }
 
+    /**
+     * A request that is both unauthorised and malformed is answered as unauthorised. Validation
+     * happens before the method body, so without the handler putting the check back in front, a
+     * caller with no key would be told what is wrong with a body the endpoint should never have
+     * looked at.
+     */
     @Test
-    void missingCorrelationKeyIsRejected() {
-        assertThatThrownBy(() -> controller.sendMessage(null, new SendMessageRequest("payment-received", null, null)))
-                .isInstanceOf(ResponseStatusException.class)
-                .extracting(e -> ((ResponseStatusException) e).getStatusCode())
-                .isEqualTo(HttpStatus.BAD_REQUEST);
+    void anInvalidBodyFromACallerWithNoKeyIsStillAnsweredUnauthorised() throws Exception {
+        properties.setApiKey("s3cret");
+
+        mockMvc().perform(post("/workflow/api/messages")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"messageName\": \" \", \"correlationKey\": \" \"}"))
+                .andExpect(status().isUnauthorized());
+
         verifyNoInteractions(messageDispatcher);
     }
 
