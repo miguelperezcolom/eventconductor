@@ -19,7 +19,7 @@
              (89.2%). Raise it when the module improves; never lower it. -->
         <jacoco.line.minimum>0.87</jacoco.line.minimum>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <grpc.version>1.83.0</grpc.version>
+        <grpc.version>1.83.1</grpc.version>
         <!-- The protoc that generates the stubs, pinned to the protobuf-java that hosts actually
              run: 4.32.0, which is what both grpc-java 1.83.x and the Spring Boot BOM resolve.
              Generated code refuses to load on an older runtime than the one it was generated with
