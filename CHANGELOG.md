@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.11.2] - 2026-08-31
+
+### Fixed
+- **Navigating to the screen already on display with different filters did nothing.** A Mateu
+  listing keeps its filters in the query string — `mateu-table-crud` writes them there with
+  `_syncStateToUrl` and reads them back with `_initStateFromUrl` — but `mateu-ui.routeChangedListener`
+  decided whether to push a history entry by comparing **paths only**. So `/workflow/processes` and
+  `/workflow/processes?status=RUNNING` were the same destination: no history entry, no re-read, no
+  error and no log.
+
+  It only shows where a navigation is generated rather than clicked, because a person filters
+  through the filter bar and never notices. Asking the demo console's agent to show the RUNNING
+  processes filters correctly from any other screen and does nothing at all from the process list
+  itself.
+
+  Fixed upstream in Mateu 3.0-alpha.306 (miguelperezcolom/mateu#429), which this release picks up:
+  the comparison is over path and query together, extracted into `nextHistoryUrl` with a test of
+  its own. An identical destination still pushes nothing, so the back button does not need
+  pressing twice.
+
 ## [2.11.1] - 2026-08-31
 
 ### Fixed
