@@ -63,6 +63,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   body the endpoint should never have read. A blank field is still a 400 naming the field, and a
   caller without the key is still turned away with a 401 first.
 
+- **Mateu 3.0-alpha.305.** A plain dependency bump. Verified rather than read off the release: the
+  browser suite was run against it in full alongside the engine, forms and worker suites, and the
+  distributed suite on real PostgreSQL and Kafka. Nothing it carries is visible here.
+
 ## [2.11.0] - 2026-08-30
 
 ### Added
