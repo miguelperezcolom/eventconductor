@@ -36,6 +36,7 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
     public static final String EVENTS_DEAD_LETTERED = "eventconductor.events.dead.lettered";
 
     public static final String STALLED_STEPS = "eventconductor.steps.stalled";
+    public static final String STALLED_PROCESSES = "eventconductor.processes.stalled";
     public static final String PROCESSES_RUNNING = "eventconductor.process.running";
     public static final String OUTBOX_PENDING = "eventconductor.outbox.pending";
 
@@ -44,6 +45,7 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
     public static final String OUTBOX_BATCH_SIZE = "eventconductor.outbox.batch.size";
     public static final String OUTBOX_RELAY_DRAINING = "eventconductor.outbox.relay.draining";
     public static final String OUTBOX_RELAY_WAITING = "eventconductor.outbox.relay.waiting";
+    public static final String OUTBOX_RELAY_STALLED = "eventconductor.outbox.relay.stalled";
 
     public static final String TAG_WORKFLOW_DEFINITION_ID = "workflowDefinitionId";
     public static final String TAG_OUTCOME = "outcome";
@@ -53,6 +55,8 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
 
     private final java.util.concurrent.atomic.AtomicLong stalledSteps = new java.util.concurrent.atomic.AtomicLong();
     private volatile boolean stalledGaugeRegistered;
+    private final java.util.concurrent.atomic.AtomicLong stalledProcesses = new java.util.concurrent.atomic.AtomicLong();
+    private volatile boolean stalledProcessGaugeRegistered;
 
     private final java.util.function.Supplier<MeterRegistry> registrySupplier;
     private volatile MeterRegistry resolvedRegistry;
@@ -223,6 +227,19 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
                 + "this pod's own commit or timed out on the poll interval", waiting);
     }
 
+    @Override
+    public void outboxRelayStalled() {
+        var registry = registry();
+        if (registry == null) {
+            return;
+        }
+        Counter.builder(OUTBOX_RELAY_STALLED)
+                .description("Relay passes that claimed outbox rows and settled none of them. Anything "
+                        + "above zero means committed messages are not reaching the broker")
+                .register(registry)
+                .increment();
+    }
+
     private void record(String name, String description, Duration duration) {
         var registry = registry();
         if (registry == null || duration == null || duration.isNegative()) {
@@ -249,6 +266,22 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
                         .description("Live step executions with no deadline that nothing will ever time out")
                         .register(registry);
                 stalledGaugeRegistered = true;
+            }
+        }
+    }
+
+    /** Same shape as the step gauge above, and deliberately a separate series: see the port. */
+    @Override
+    public void stalledProcessesObserved(long count) {
+        stalledProcesses.set(count);
+        if (!stalledProcessGaugeRegistered) {
+            var registry = registry();
+            if (registry != null) {
+                io.micrometer.core.instrument.Gauge
+                        .builder(STALLED_PROCESSES, stalledProcesses, java.util.concurrent.atomic.AtomicLong::doubleValue)
+                        .description("Running processes with no step left to run and no deadline anywhere")
+                        .register(registry);
+                stalledProcessGaugeRegistered = true;
             }
         }
     }

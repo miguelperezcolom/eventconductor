@@ -41,20 +41,18 @@ public class SimpleProcessCrudAdapter  {
     final DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     public ListingData<ProcessRow> search(String searchText, ProcessFilters filters, Pageable pageable, HttpRequest httpRequest) {
-        // SearchActionHandler passes filters = null; the filter values only travel in the component state
-        boolean onlyErrors = filters != null && Boolean.TRUE.equals(filters.onlyErrors())
-                || filters == null && stateFlag(httpRequest, "onlyErrors");
+        var filter = listingFilter(searchText, filters, httpRequest);
         // Filtering, ordering and paging all happen in the store. Doing them here meant loading
         // every process — and with it every process's workflow definition JSON — to paint ten rows.
         //
         // From the read model when it can answer, and from this shard's own database when it
         // cannot. The difference only shows in a sharded fleet, and there it is the difference
         // between listing the fleet and listing whichever shard served the request.
-        var fromIndex = searchIndex(searchText, onlyErrors, pageable);
+        var fromIndex = searchIndex(filter, pageable);
         if (fromIndex.isPresent()) {
             return fromIndex.get();
         }
-        var found = repository.searchSummaries(searchText, onlyErrors, pageable.page(), pageable.size());
+        var found = repository.searchSummaries(filter, pageable.page(), pageable.size());
         List<ProcessRow> page = found.content().stream().map(mapSummaryToRow(dtf)).toList();
         // The page number and size reported back are the ones the store served, not the ones that
         // were asked for. A request past the last page is answered with the last real one, and a
@@ -77,8 +75,15 @@ public class SimpleProcessCrudAdapter  {
      * render a blank where the operator looks, it falls back to the business key — the other thing
      * that identifies a process to a person.
      */
-    private Optional<ListingData<ProcessRow>> searchIndex(String searchText, boolean onlyErrors,
-                                                          Pageable pageable) {
+    private Optional<ListingData<ProcessRow>> searchIndex(
+            io.mateu.workflow.application.out.ProcessListingFilter filter, Pageable pageable) {
+        // The index holds a projection, not the process: it can answer text and the errors toggle
+        // and nothing else. Rather than serve a page that quietly ignores the definition, status or
+        // dates the operator chose, it declines and the write side answers. Slower, and the only
+        // version of this that is not a wrong answer wearing a right answer's clothes.
+        if (filter.hasNarrowingBeyondText()) {
+            return Optional.empty();
+        }
         // The read model being ON is the question, not the adapter existing. The adapter is wired
         // whenever persistence is jpa, projector or no projector, so asking it for a listing with
         // the projector off queries an empty table and answers "no processes" — which is not a
@@ -90,7 +95,8 @@ public class SimpleProcessCrudAdapter  {
         if (index == null) {
             return Optional.empty();
         }
-        return index.search(searchText, onlyErrors, pageable.page(), pageable.size())
+        return index.search(filter.normalisedSearchText(), filter.onlyErrors(),
+                        pageable.page(), pageable.size())
                 .map(found -> {
                     var rows = found.content().stream()
                             .map(row -> new ProcessRow(
@@ -102,9 +108,88 @@ public class SimpleProcessCrudAdapter  {
                                     row.started() != null ? row.started().format(dtf) : null,
                                     row.finished() != null ? row.finished().format(dtf) : null))
                             .toList();
-                    return new ListingData<>(new Page<>(searchText, found.pageSize(),
+                    return new ListingData<>(new Page<>(filter.searchText(), found.pageSize(),
                             found.pageNumber(), found.totalElements(), rows));
                 });
+    }
+
+    /**
+     * The filter, from the record when there is one and from the component state when there is not.
+     *
+     * <p>Both paths exist because {@code SearchActionHandler} passes {@code filters = null} and the
+     * values then travel only in the component state, while other routes arrive with the record
+     * filled in. Reading one and not the other gives a filter that works until you type in the
+     * search box.
+     */
+    io.mateu.workflow.application.out.ProcessListingFilter listingFilter(
+            String searchText, ProcessFilters filters, HttpRequest httpRequest) {
+        if (filters != null) {
+            return new io.mateu.workflow.application.out.ProcessListingFilter(
+                    searchText,
+                    Boolean.TRUE.equals(filters.onlyErrors()),
+                    blankToNull(filters.workflowDefinitionId()),
+                    filters.status(),
+                    filters.createdFrom(),
+                    filters.createdTo());
+        }
+        return new io.mateu.workflow.application.out.ProcessListingFilter(
+                searchText,
+                stateFlag(httpRequest, "onlyErrors"),
+                blankToNull(stateString(httpRequest, "workflowDefinitionId")),
+                stateStatus(httpRequest),
+                stateDateTime(httpRequest, "createdFrom"),
+                stateDateTime(httpRequest, "createdTo"));
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value;
+    }
+
+    private static Object state(HttpRequest httpRequest, String name) {
+        if (httpRequest == null || httpRequest.runActionRq() == null
+                || httpRequest.runActionRq().componentState() == null) {
+            return null;
+        }
+        return httpRequest.runActionRq().componentState().get(name);
+    }
+
+    private static String stateString(HttpRequest httpRequest, String name) {
+        var value = state(httpRequest, name);
+        return value == null ? null : String.valueOf(value);
+    }
+
+    /**
+     * An unrecognised status narrows nothing rather than failing: the value comes from a component
+     * state that can outlive the enum it was chosen from, and a stale bookmark should show
+     * everything rather than a stack trace.
+     */
+    private static io.mateu.workflow.domain.aggregates.ProcessStatus stateStatus(HttpRequest httpRequest) {
+        var raw = blankToNull(stateString(httpRequest, "status"));
+        if (raw == null) {
+            return null;
+        }
+        try {
+            return io.mateu.workflow.domain.aggregates.ProcessStatus.valueOf(raw);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
+    /** Same tolerance, same reason. A date-only value is read as that day's first moment. */
+    private static java.time.LocalDateTime stateDateTime(HttpRequest httpRequest, String name) {
+        var raw = blankToNull(stateString(httpRequest, name));
+        if (raw == null) {
+            return null;
+        }
+        try {
+            return java.time.LocalDateTime.parse(raw);
+        } catch (java.time.format.DateTimeParseException e) {
+            try {
+                return java.time.LocalDate.parse(raw).atStartOfDay();
+            } catch (java.time.format.DateTimeParseException ignored) {
+                return null;
+            }
+        }
     }
 
     static boolean stateFlag(HttpRequest httpRequest, String name) {

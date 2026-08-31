@@ -2,6 +2,8 @@ package com.eventconductor.intellij
 
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.command.WriteCommandAction
+import com.intellij.openapi.fileChooser.FileChooserFactory
+import com.intellij.openapi.fileChooser.FileSaverDescriptor
 import com.intellij.openapi.editor.Document
 import com.intellij.openapi.editor.event.DocumentEvent
 import com.intellij.openapi.editor.event.DocumentListener
@@ -38,6 +40,7 @@ class EcGraphFileEditor(
     private val browser = JBCefBrowser()
     private val document: Document? = FileDocumentManager.getInstance().getDocument(file)
     private val onEdit = JBCefJSQuery.create(browser as JBCefBrowserBase)
+    private val onExport = JBCefJSQuery.create(browser as JBCefBrowserBase)
 
     @Volatile private var applyingFromGraph = false
     @Volatile private var pageReady = false
@@ -57,9 +60,17 @@ class EcGraphFileEditor(
             null
         }
 
+        // Graph export -> a file the user picks. JCEF has no download handler, so the page hands
+        // the SVG over instead of trying to save it itself.
+        onExport.addHandler { payload ->
+            saveExport(payload)
+            null
+        }
+
         browser.jbCefClient.addLoadHandler(object : CefLoadHandlerAdapter() {
             override fun onLoadEnd(b: CefBrowser?, frame: CefFrame?, httpStatusCode: Int) {
                 exec("window.__ecOnEdit = function(t){ ${onEdit.inject("t")} };")
+                exec("window.__ecOnExport = function(p){ ${onExport.inject("p")} };")
                 exec("window.__ecSetTheme(${isDarkTheme()});")
                 pageReady = true
                 pushToBrowser()
@@ -83,6 +94,28 @@ class EcGraphFileEditor(
         val text = document?.text ?: ""
         val b64 = Base64.getEncoder().encodeToString(text.toByteArray(StandardCharsets.UTF_8))
         exec("window.__ecSetFileB64(\"$b64\");")
+    }
+
+    /**
+     * Writes an exported graph where the user asks. The payload is the suggested file name and the
+     * SVG, both base64 and joined by a dot — base64's alphabet has no dot, so the split needs no
+     * escaping in the injected call.
+     *
+     * <p>The save dialog opens beside the definition the graph came from, which is where somebody
+     * exporting a picture of this file expects to put it.
+     */
+    private fun saveExport(payload: String) {
+        val dot = payload.indexOf('.')
+        if (dot <= 0) return
+        val decoder = Base64.getDecoder()
+        val name = String(decoder.decode(payload.substring(0, dot)), StandardCharsets.UTF_8)
+        val svg = String(decoder.decode(payload.substring(dot + 1)), StandardCharsets.UTF_8)
+        ApplicationManager.getApplication().invokeLater {
+            val descriptor = FileSaverDescriptor("Export Workflow Graph", "Save the graph as an SVG image", "svg")
+            val dialog = FileChooserFactory.getInstance().createSaveFileDialog(descriptor, project)
+            val wrapper = dialog.save(file.parent, name) ?: return@invokeLater  // cancelled
+            wrapper.file.writeText(svg, StandardCharsets.UTF_8)
+        }
     }
 
     private fun writeToDocument(newText: String) {

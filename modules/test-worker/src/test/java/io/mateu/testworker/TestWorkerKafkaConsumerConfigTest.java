@@ -3,6 +3,7 @@ package io.mateu.testworker;
 import io.mateu.workflow.ddd.DomainEvent;
 import io.mateu.workflow.dtos.events.integration.TaskCancellationRequested;
 import io.mateu.workflow.dtos.events.integration.TaskStatus;
+import io.mateu.testworker.application.DefaultScenarioSeeder;
 import io.mateu.testworker.application.ScenarioResolver;
 import io.mateu.testworker.application.SimulatedTaskHandler;
 import io.mateu.testworker.application.TaskSimulator;
@@ -37,7 +38,8 @@ class TestWorkerKafkaConsumerConfigTest {
         var handler = new SimulatedTaskHandler(
                 new ScenarioResolver(new InMemoryTaskOverrideStore(), Duration.ZERO),
                 new TaskSimulator(),
-                new InMemoryReceivedTaskStore(100));
+                new InMemoryReceivedTaskStore(100),
+                new DefaultScenarioSeeder(new InMemoryTaskOverrideStore()));
         var config = new TestWorkerKafkaConsumerConfig(handler);
         cancelled = config.cancelledTasks();
         consumer = config.consumeWorkerEvent(cancelled, broker);

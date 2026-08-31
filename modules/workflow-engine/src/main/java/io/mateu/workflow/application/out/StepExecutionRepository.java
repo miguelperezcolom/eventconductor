@@ -185,4 +185,22 @@ public interface StepExecutionRepository extends CrudStore<StepExecution> {
         return stepExecution.id() + " " + stepExecution.getProcessId() + " " + stepExecution.getStepId();
     }
 
+
+    /**
+     * How many processes of a definition are stopped at each step, keyed by that step's id.
+     *
+     * <p>"Stopped" means RUNNING with no live step execution at all: the last step completed, no
+     * successor became eligible, and there is nothing waiting on a worker. The process is counted
+     * at the step it last finished, because that is where it is on the graph.
+     *
+     * <p>This exists because such a process appears nowhere. {@code findPendingOrRunning} is what
+     * the graph's counts and heatmap are built from, and by definition it cannot see a process with
+     * no live step — so the one that most needs looking at is the one the picture leaves out.
+     *
+     * @return empty from implementations that cannot answer cheaply; the caller only decorates
+     */
+    default java.util.Map<String, Integer> countStoppedByStep(String workflowDefinitionId) {
+        return java.util.Map.of();
+    }
+
 }

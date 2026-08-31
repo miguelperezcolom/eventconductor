@@ -45,8 +45,47 @@ public class WorkflowHome implements PostHydrationHandler {
     @Menu
     WorkflowMenu workflow;
 
+    /**
+     * Whether this hydration is going to show this page, rather than pass the route to a child.
+     *
+     * <p>A request carries the route it is for and the part of it consumed so far. When the two
+     * agree — including both being empty, which is a visit to the home itself — this component is
+     * where the route ends. When they differ there is still routing to do, so whatever this
+     * handler builds is discarded before it reaches the browser.
+     *
+     * <p>Errs towards building: a request with no routing information at all is treated as a
+     * visit, because a dashboard that is occasionally computed needlessly is a cost, and one that
+     * is occasionally blank is a bug.
+     */
+    private boolean isTheDestination(HttpRequest httpRequest) {
+        if (httpRequest == null || httpRequest.runActionRq() == null) {
+            return true;
+        }
+        var route = httpRequest.runActionRq().route();
+        var consumed = httpRequest.runActionRq().consumedRoute();
+        if (route == null || route.isBlank()) {
+            return true;
+        }
+        return route.equals(consumed);
+    }
+
     @Override
     public void onHydrated(HttpRequest httpRequest) {
+        // Only when this page is what the request is actually for.
+        //
+        // This app is mounted in the console as a RemoteMenu, so the shell owns the URL and every
+        // navigation to any /workflow/* route hydrates this root first, purely to resolve where the
+        // route goes. That hydration answers with `component: null` and `data: {}` — it renders
+        // nothing — and it used to build the whole dashboard on the way: two GROUP BYs over the
+        // process table plus every chart object, then thrown away.
+        //
+        // Measured on the reference deployment (387 807 processes) from a browser HAR: that
+        // routing hop took 777 ms to return 418 bytes of nothing, of which 262 ms was the two
+        // aggregates alone. It ran on every hop between Definitions, Processes and Steps.
+        if (!isTheDestination(httpRequest)) {
+            return;
+        }
+
         var data = adapter.fetch();
 
         charts = io.mateu.uidl.data.HorizontalLayout.builder()

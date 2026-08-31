@@ -79,6 +79,19 @@ public interface WorkflowMetrics {
     default void stalledStepsObserved(long count) {}
 
     /**
+     * Processes that are RUNNING with nothing left to run and no clock anywhere — see
+     * {@code ProcessRepository#findStalled}.
+     *
+     * <p>Distinct from {@link #stalledStepsObserved} and not a subset of it: that one counts live
+     * steps a worker owes an answer for, and a process counted here has no live step at all.
+     * A deployment can have either without the other.
+     *
+     * <p>Cluster-wide, like the step figure: every pod reports the same number because both count
+     * rows in a shared table. Alert on the maximum across replicas, never the sum.
+     */
+    default void stalledProcessesObserved(long count) {}
+
+    /**
      * How long a message sat in the outbox between being committed and being claimed by a relay.
      *
      * <p>The engine's throughput is (processes advancing at once) ÷ (latency per step), and both
@@ -127,6 +140,17 @@ public interface WorkflowMetrics {
      * asked. Two timers let the window be chosen when the question is.
      */
     default void outboxRelayCycle(Duration draining, Duration waiting) {}
+
+    /**
+     * A relay pass that claimed rows and settled none of them — the broker is refusing.
+     *
+     * <p>This exists because the fix for the hot loop took away the signal that used to show an
+     * outage: an error line per message per pass, at the cadence of writes. Backing off removes the
+     * flood, and without this it would also remove the evidence. A rate above zero here means
+     * messages are sitting in the outbox undelivered, which is the alertable condition; the growing
+     * gap between passes means it stays true for a while after the broker recovers.
+     */
+    default void outboxRelayStalled() {}
 
     enum RetryTrigger { AUTO, MANUAL }
 

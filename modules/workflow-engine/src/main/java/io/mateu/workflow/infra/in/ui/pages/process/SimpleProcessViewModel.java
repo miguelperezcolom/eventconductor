@@ -107,7 +107,12 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
     @Hidden
     ProcessStatus processStatus;
 
-    @ReadOnly
+    /**
+     * Where the "back" action goes, carried in from the query string. Plumbing, like
+     * {@link #processStatus} above it — it says nothing about the process, and read-only it was
+     * still a labelled field on screen showing a URL to somebody who did not ask for one.
+     */
+    @Hidden
     String returnTo;
 
     // Explicit tab names: since mateu 379440d83 consecutive @Tab annotations with the SAME
@@ -250,13 +255,16 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
         attrs.put("value", "${state.processGraph}");
         attrs.put("readonly", "true");
         if (!overlay.isEmpty()) attrs.put("overlay", "${state.processGraphOverlay}");
-        // Give the graph a tall, viewport-sized box. Inside a tab the host has no height context and
-        // falls back to its ~230px min-height, which is far too short for monitoring a live process.
+        // Give the graph a viewport-sized box. Inside a tab the host has no height context and falls
+        // back to its ~230px min-height, far too short for monitoring a live process. A fixed 68vh
+        // overflowed the process view — the graph sits under a header, a process summary and the tab
+        // strip (~28rem of chrome), so 68vh + that chrome scrolled the page. Sizing the graph to the
+        // space left below the chrome (calc) fills the viewport and keeps the whole view on screen.
         return Element.builder()
                 .name(GRAPH_TAG)
                 .attributes(attrs)
                 .content("")
-                .style("display: block; height: 68vh; min-height: 460px;")
+                .style("display: block; height: calc(100vh - 30rem); min-height: 320px;")
                 .build();
     }
 

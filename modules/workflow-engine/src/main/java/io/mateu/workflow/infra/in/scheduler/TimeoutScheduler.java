@@ -36,6 +36,7 @@ public class TimeoutScheduler {
     private static final long LOCK_ID = 777888999L;
 
     final StepExecutionRepository stepExecutionRepository;
+    final io.mateu.workflow.application.out.ProcessRepository processRepository;
     final UpstreamEventPublisher upstreamEventPublisher;
     final JdbcTemplate jdbcTemplate;
     final DbLockDialect dbLockDialect;
@@ -55,6 +56,21 @@ public class TimeoutScheduler {
 
     @org.springframework.beans.factory.annotation.Value("${workflow.stalled-step-scan-interval-ms:60000}")
     long stalledScanIntervalMs;
+
+    /**
+     * How long a running process with nothing left to run has to sit before it is reported. Longer
+     * than the step threshold on purpose: a process legitimately passes through this shape for the
+     * moment between one step finishing and the next being dispatched, and a threshold in seconds
+     * would report every process in flight.
+     */
+    @org.springframework.beans.factory.annotation.Value("${workflow.stalled-process-after-ms:1800000}")
+    long stalledProcessAfterMs;
+
+    @org.springframework.beans.factory.annotation.Value("${workflow.stalled-process-scan-interval-ms:300000}")
+    long stalledProcessScanIntervalMs;
+
+    /** Ceiling on the ids one report names; see ProcessRepository#findStalled. */
+    private static final int STALLED_PROCESS_REPORT_LIMIT = 20;
 
     @PostConstruct
     public void start() {
@@ -90,6 +106,7 @@ public class TimeoutScheduler {
         thread.setDaemon(true);
         thread.start();
         startStalledStepWatch();
+        startStalledProcessWatch();
     }
 
     /**
@@ -138,6 +155,59 @@ public class TimeoutScheduler {
                 }
             }
         }, "workflow-stalled-step-watch");
+        thread.setDaemon(true);
+        thread.start();
+    }
+
+    /**
+     * Reports processes that are RUNNING with no step left to run.
+     *
+     * <p>The other two watches cannot see this one, and that is the point. The deadline scan is an
+     * index range over {@code deadlineAt}, and a step that never started has none. The stalled-step
+     * watch counts <em>live</em> steps a worker owes an answer for, and here there are none: every
+     * step is either finished or was never eligible. So the engine had no clock, no queue and no
+     * count that would ever mention such a process again.
+     *
+     * <p>It is what a branch with no matching guard looks like from outside: the process completes
+     * a step, no successor becomes eligible, and it stops. Four processes on the reference
+     * deployment sat like that for a week, and what found them was a person asking.
+     *
+     * <p>Reporting only, and the ids are named because a count is not actionable here — the repair
+     * is a change to the definition, and you cannot make it without knowing which definition. It is
+     * deliberately not a status change: marking them ERROR would lose the state that says what they
+     * were waiting to match.
+     *
+     * <p>Its own loop, slower than the step watch, and no lock: like that one it counts rows in a
+     * shared table, so every pod reports the same number. Alert on the maximum across replicas,
+     * never the sum.
+     */
+    private void startStalledProcessWatch() {
+        var thread = new Thread(() -> {
+            while (true) {
+                try {
+                    Thread.sleep(stalledProcessScanIntervalMs);
+                    var stalled = processRepository.findStalled(
+                            java.time.LocalDateTime.now().minusNanos(stalledProcessAfterMs * 1_000_000),
+                            STALLED_PROCESS_REPORT_LIMIT);
+                    workflowMetrics.stalledProcessesObserved(stalled.size());
+                    if (!stalled.isEmpty()) {
+                        log.warn("{} process(es) have been RUNNING with no step left to run for more "
+                                        + "than {} ms. Nothing will time them out, because a step that "
+                                        + "never started has no deadline: the last step completed and "
+                                        + "no branch after it was eligible. Check the guards on what "
+                                        + "follows the last completed step. Ids{}: {}",
+                                stalled.size(), stalledProcessAfterMs,
+                                stalled.size() == STALLED_PROCESS_REPORT_LIMIT ? " (first " + STALLED_PROCESS_REPORT_LIMIT + ")" : "",
+                                String.join(", ", stalled));
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return;
+                } catch (Throwable e) {
+                    log.error("Error looking for stalled processes", e);
+                }
+            }
+        }, "workflow-stalled-process-watch");
         thread.setDaemon(true);
         thread.start();
     }

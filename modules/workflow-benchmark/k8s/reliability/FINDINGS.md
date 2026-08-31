@@ -11,6 +11,12 @@ Cloudfleet), with seven failure scenarios injected while it ran.
 | Total | 61 835 processes, 642 912 outbox messages, 230 417 task dispatches |
 | Harness | `ec-reliability.sh`, `chaos.sh`, `invariants.sql` in this directory |
 
+The rates here are arrival rates in process instances/s, from before the harness reported
+**transitions/s** (one step advanced by the engine — see the module README). At 3 worker steps per
+process, 4 PI/s is ~12 transitions/s; after the definition change, 4 steps, ~16. Relabelled, not
+re-derived. Nothing in this file is a throughput measurement anyway — it is a reliability record,
+and the load was deliberately far below any ceiling.
+
 ## Verification run (3 August, on the fixed build)
 
 The whole battery was repeated on a **wiped cluster**, installed from merged `main` with no manual

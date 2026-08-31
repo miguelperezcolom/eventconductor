@@ -1,6 +1,7 @@
 package io.mateu.workflow.application.services;
 
 import io.mateu.workflow.expression.ExpressionGuard;
+import io.mateu.workflow.expression.LinearTimeRegexArithmetic;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.jexl3.*;
 import org.apache.commons.jexl3.introspection.JexlPermissions;
@@ -13,43 +14,6 @@ import static io.mateu.core.infra.reflection.read.AllEditableFieldsProvider.getA
 
 @Slf4j
 public class JEXLEvaluator {
-
-    /**
-     * Safe JexlArithmetic that overrides the contains operator (associated with =~ and !~) to use RE2J (linear-time matching)
-     * instead of Java's native backtracking-prone regex matcher, defusing ReDoS CPU-exhaustion attacks.
-     *
-     * <p>Only the engine changes; the operator keeps the meaning JEXL gives it. {@code =~} against a
-     * pattern is an <em>anchored, whole-string</em> match — {@code 'hello world' =~ 'world'} is
-     * false, and only {@code '.*world.*'} makes it true — because JEXL's own implementation calls
-     * {@code Matcher.matches()}. Reaching for {@code find()} here would quietly turn every existing
-     * guard into a substring test and flip the ones written with {@code !~}.
-     */
-    public static class SafeJexlArithmetic extends JexlArithmetic {
-        public SafeJexlArithmetic(boolean astrict) {
-            super(astrict);
-        }
-
-        @Override
-        public Boolean contains(Object container, Object value) {
-            if (container == null || value == null) {
-                return false;
-            }
-            if (container instanceof java.util.regex.Pattern || container instanceof String) {
-                String patternStr = container instanceof java.util.regex.Pattern p ? p.pattern() : container.toString();
-                try {
-                    com.google.re2j.Pattern re2jPattern = com.google.re2j.Pattern.compile(patternStr);
-                    return re2jPattern.matcher(value.toString()).matches();
-                } catch (com.google.re2j.PatternSyntaxException e) {
-                    throw new IllegalArgumentException("Invalid regular expression pattern: " + patternStr, e);
-                }
-            }
-            try {
-                return super.contains(container, value);
-            } catch (Exception e) {
-                return false;
-            }
-        }
-    }
 
     /**
      * What a guard is allowed to be, stated rather than assumed.
@@ -75,14 +39,55 @@ public class JEXLEvaluator {
     // Expressions come from workflow definitions, which may be imported from git or edited
     // in the UI — treat them as untrusted: RESTRICTED blocks reflection, System, Runtime, etc.
     static JexlEngine jexl = new JexlBuilder()
-            .arithmetic(new SafeJexlArithmetic(true))
+            .arithmetic(new LinearTimeRegexArithmetic(true))
             .permissions(JexlPermissions.RESTRICTED)
             .features(GUARD_FEATURES)
             .cache(512)
-            .strict(true) // Lanza error si una variable no existe (recomendado)
+            // Falsy, not strict: a guard reading a variable nobody set used to throw, every
+            // caller fails closed, and BOTH sides of a two-way branch became ineligible — so the
+            // process did not take the negative branch, it stopped dead with every downstream step
+            // still CREATED and no deadline anywhere to fire. See LinearTimeRegexArithmetic for the
+            // other half of this, which is the half that is easy to get wrong.
+            .strict(false)
             .create();
 
+    /**
+     * What an evaluation produced, and which references it could not resolve.
+     *
+     * <p>The second half is the whole reason this type exists. Undefined variables are no longer an
+     * error, so without recording them a mistyped guard is indistinguishable from a guard that
+     * legitimately evaluated to false.
+     */
+    public record Evaluation(Object value, java.util.Set<String> undefinedVariables) {
+    }
+
+    /**
+     * A context that notes every name it was asked for and did not have.
+     *
+     * <p>JEXL consults {@code has} before resolving, so this catches exactly the references that
+     * fell through to null — and it short-circuits with the expression, so
+     * {@code cancellable && ratePlan == 'X'} reports only {@code cancellable}, which is the one
+     * that decided the outcome.
+     */
+    private static final class RecordingContext extends MapContext {
+        private final java.util.Set<String> undefined = new java.util.LinkedHashSet<>();
+
+        @Override
+        public boolean has(String name) {
+            boolean has = super.has(name);
+            if (!has) {
+                undefined.add(name);
+            }
+            return has;
+        }
+    }
+
+    /** The value alone, for callers that do not care which references were missing. */
     public static Object eval(String expression, Object context) {
+        return evaluate(expression, context).value();
+    }
+
+    public static Evaluation evaluate(String expression, Object context) {
         // Size and nesting first, before a parser sees the source: an expression nested thousands
         // deep overflows the parser stack, and a StackOverflowError is an Error — it would sail
         // through every fail-closed `catch (Exception)` around a guard and unwind the orchestration
@@ -94,7 +99,7 @@ public class JEXLEvaluator {
             JexlExpression e = jexl.createExpression(expression);
 
             // 2. Crear el contexto con los datos
-            JexlContext jc = new MapContext();
+            RecordingContext jc = new RecordingContext();
             if (context != null) {
                 if (context instanceof Map map) {
                     map.keySet().forEach(k -> {
@@ -130,7 +135,7 @@ public class JEXLEvaluator {
             }
 
             // 3. Evaluar
-            return e.evaluate(jc);
+            return new Evaluation(e.evaluate(jc), java.util.Set.copyOf(jc.undefined));
         });
     }
 }

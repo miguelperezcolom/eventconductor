@@ -138,6 +138,39 @@ public interface StepExecutionEntityRepository extends JpaRepository<StepExecuti
     List<StepDurationView> aggregateStepDurations(@Param("createdFrom") LocalDateTime createdFrom,
                                                   @Param("createdTo") LocalDateTime createdTo);
 
+    /**
+     * The same two aggregates with no window, and therefore with no join.
+     *
+     * <p>The join exists only to reach {@code p.created} for the window. With no window it filters
+     * nothing — measured on the reference deployment, zero step executions have no process and zero
+     * processes have a null {@code created} — and it costs a third of the query: 4 521 ms with it,
+     * 2 993 ms without, over 2 714 697 rows.
+     *
+     * <p>Two queries rather than one with a conditional join, because JPQL has no way to drop a
+     * join at runtime and the alternative — a criteria builder — would hide the shape of the two
+     * plans that actually run.
+     */
+    @Query("""
+            select s.workflowDefinitionId as definitionId, s.stepId as stepId, s.status as status,
+                   count(s) as count, min(s.order) as firstOrder
+            from StepExecutionEntity s
+            group by s.workflowDefinitionId, s.stepId, s.status
+            """)
+    List<StepCountView> aggregateStepCountsAllTime();
+
+    @Query("""
+            select s.workflowDefinitionId as definitionId, s.stepId as stepId,
+                   count(s) as samples,
+                   sum(timestampdiff(nanosecond, s.startedAt, s.finishedAt)) as totalNanos,
+                   percentile_disc(0.95) within group (
+                       order by timestampdiff(nanosecond, s.startedAt, s.finishedAt)
+                   ) as p95Nanos
+            from StepExecutionEntity s
+            where s.startedAt is not null and s.finishedAt is not null
+            group by s.workflowDefinitionId, s.stepId
+            """)
+    List<StepDurationView> aggregateStepDurationsAllTime();
+
     /** Projection for {@link #aggregateStepCounts}. */
     interface StepCountView {
         String getDefinitionId();
@@ -176,4 +209,42 @@ public interface StepExecutionEntityRepository extends JpaRepository<StepExecuti
         LocalDateTime getStartedAt();
         int getAttemptCount();
     }
+
+    /**
+     * Per step, how many of this definition's processes are stopped there — RUNNING, nothing live,
+     * counted at the step they last finished. See {@code StepExecutionRepository#countStoppedByStep}.
+     *
+     * <p>Bounded by the RUNNING processes of one definition, not by the table: the {@code exists}
+     * on status is what keeps it off the 2.7-million-row scan, and it runs when a definition is
+     * opened rather than on any hot path.
+     */
+    @Query("""
+            select se.stepId as stepId, count(distinct se.processId) as count
+            from StepExecutionEntity se
+            where se.workflowDefinitionId = :definitionId
+              and se.finishedAt is not null
+              and se.finishedAt = (
+                  select max(x.finishedAt) from StepExecutionEntity x where x.processId = se.processId
+              )
+              and exists (
+                  select 1 from ProcessEntity p where p.id = se.processId and p.status = 'RUNNING'
+              )
+              and not exists (
+                  select 1 from StepExecutionEntity y
+                  where y.processId = se.processId and y.status in ('PENDING', 'RUNNING')
+              )
+            group by se.stepId
+            """)
+    List<StoppedStepCountView> countStoppedByStep(@Param("definitionId") String definitionId);
+
+    /**
+     * Projection for {@link #countStoppedByStep}. Its own rather than the wider {@code
+     * StepCountView}: a projection interface whose accessors the query does not select fails at
+     * runtime, not at compile time.
+     */
+    interface StoppedStepCountView {
+        String getStepId();
+        long getCount();
+    }
+
 }
