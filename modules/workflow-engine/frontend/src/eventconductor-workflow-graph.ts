@@ -1103,8 +1103,15 @@ export class MateuWorkflowElk extends LitElement {
      * no width of its own: a compensation lands in the layer its predecessor's successor occupies,
      * stacked above or below it rather than beyond it.
      *
+     * <p>The same goes for the on-timeout branch: what a step falls back to when it gives up is
+     * its consequence, so it belongs beside it or after it. Without the edge the branch was
+     * another node ELK saw no reason to place anywhere in particular, so it landed in the first
+     * layer — the timeout of a step half-way through the flow drawn to the left of the start.
+     * With it, the branch sits in the layer after the step that timed out, at about its height,
+     * and the line is a short hop rather than a return trip across the drawing.
+     *
      * <p>Sequence edges carry a higher direction priority so the flow stays the straight line
-     * through the middle and the rollback edges are the ones that bend.
+     * through the middle and the rollback and timeout edges are the ones that bend.
      */
     private layoutEdges(steps: WorkflowStep[]): ElkExtendedEdge[] {
         const ids = new Set(steps.map(s => s.id));
@@ -1127,7 +1134,15 @@ export class MateuWorkflowElk extends LitElement {
                 targets: [s.compensationStepId!],
                 layoutOptions: {"elk.layered.priority.direction": "0"},
             } as ElkExtendedEdge));
-        return [...flow, ...rollback];
+        const timeout = steps
+            .filter(s => s.onTimeoutStepId && ids.has(s.onTimeoutStepId) && s.onTimeoutStepId !== s.id)
+            .map(s => ({
+                id: `${s.id}~t~${s.onTimeoutStepId}`,
+                sources: [s.id],
+                targets: [s.onTimeoutStepId!],
+                layoutOptions: {"elk.layered.priority.direction": "0"},
+            } as ElkExtendedEdge));
+        return [...flow, ...rollback, ...timeout];
     }
 
     private async runElkLayout() {
