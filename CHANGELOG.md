@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.11.0] - 2026-08-30
+
+### Added
+- **A read model for the analytics report, so it stops scanning the raw tables.** The report answered
+  its `GROUP BY`s over `process_entity` and `step_execution_entity` in full — O(rows), which no index
+  can help, because an aggregate over a window has to touch every row in it. On the reference
+  deployment (388k processes, 2.7M step executions, 3.8 GB) the step aggregate alone was ~1.2s in the
+  database on every page load, and grew linearly with history.
+
+  It is answered from daily rollups now, opt-in behind `workflow.analytics.rollup=true` and jpa-only.
+  A projector folds each immutable fact — a process created, a process finished, a step finished —
+  exactly once behind a `(timestamp, id)` cursor, so it never re-scans history; the first run drains
+  it as an implicit backfill. What is still in flight is counted live and merged at read time.
+  Durations carry a mergeable histogram so a p95 can be read from summed buckets — the one figure
+  that is not additive. Exact on counts, throughput, sample counts, totals and averages; the p95 is
+  approximate (never below the true value, at most a bucket over) and the window is day-aligned. It
+  plugs in behind the existing aggregate seam, so the memory-vs-jpa selection and its equivalence test
+  are untouched. See `modules/workflow-engine/ANALYTICS-READ-MODEL.md`.
+
+- **The test worker seeds an editable override the first time it meets a task.** The overrides table
+  was write-only from the UI: a canned reply existed only if someone typed it in from nothing, which
+  meant knowing the step ids up front. Now a task that resolves to the built-in default — no
+  `TEST_CONFIG`, no override already matching — leaves a `TaskOverride` behind, keyed by workflow
+  definition and step, copied from the default scenario and born enabled so it changes nothing until
+  edited. Run a workflow, then open Overrides and retouch the ones that matter; the next run picks
+  them up. Idempotent per signature, and seeding never fails a task.
+
+## [2.10.0] - 2026-08-28
+
 ### Added
 - **A workflow can say who may start it, and a form can say who may do its work.** Both declarations
   existed on the workflow side and neither was ever read: `requiredScopes`/`requiredRoles` parsed on a
@@ -52,6 +81,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `FlowAuthorizationService` and its denial moved to `io.mateu.workflow.security` in `shared`, and the
   evaluation is now static. Both engines ask the same question and the answer has to be the same one;
   two copies of a rule like this drift.
+
+### Fixed
+- **The outbox relay backs off when the broker refuses, instead of retrying at the rate the pod is
+  writing.** A send that the broker rejects is caught per message inside the drain — it never throws
+  out of it — so the row stays `Pending` and the pass simply settles nothing. The outer loop then
+  waited on `OutboxSignal`, which every commit raises; a commit is not news about the broker, so the
+  relay went straight back at it. Under load with the broker down the retry cadence was the *write*
+  cadence, not any configured interval: a connection attempt and an error line per message per pass.
+  On a deployment polling at 50 ms that is a hot loop.
+
+  A pass that claims rows and settles none of them is now paced by an exponential backoff that
+  deliberately ignores the signal while it waits — honouring it is precisely what defeated the
+  backoff. Recovery is immediate: the first pass that settles anything puts the wait back to the
+  base.
+
+  What is **not** a stall, and this is most of the correctness: an empty outbox (the healthy, common
+  case — pacing it down would make an idle engine take seconds to relay the next message anyone
+  wrote); a pass that settled some of what it claimed (a poisoned row is parked as `Error`, not
+  retried, and must not slow the rest); and a relay that could not take the relay gate, which the
+  chaos tests hold exclusively to freeze every relay at once.
+
+  | property | default | |
+  |---|---|---|
+  | `workflow.outbox.relay-backoff-base-ms` | `100` | wait after the first stalled pass |
+  | `workflow.outbox.relay-backoff-max-ms` | `5000` | the cap |
+  | `workflow.outbox.relay-backoff-jitter` | `0.2` | ±20 %, so a fleet that stalled on one outage does not come back on one tick |
+
+  The cap is seconds rather than a minute because nothing is relayed while the relay waits: it is
+  also how long the engine stays quiet after the broker comes back, and steps here are paced in tens
+  of milliseconds.
+
+  New counter `eventconductor.outbox.relay.stalled`. It exists because the fix removes the symptom:
+  the error flood *was* the signal that an outage was happening, and backing off would otherwise
+  have removed the evidence along with the noise. Anything above zero means committed messages are
+  not reaching the broker.
+
+- `OutboxRelay` now stops on context shutdown (`@PreDestroy`). Its thread is a daemon, so it never
+  held the JVM open, but it kept claiming rows and publishing while everything it depends on was
+  being closed.
 
 ### Upgrading
 - Nothing changes until `workflow.security.flow-authorization.enabled` is set. With it on, a

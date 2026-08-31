@@ -1,5 +1,6 @@
 package io.mateu.workflow.e2e;
 
+import io.mateu.workflow.application.out.ProcessListingFilter;
 import io.mateu.workflow.application.out.ProcessSummary;
 import io.mateu.workflow.application.out.StepExecutionSummary;
 import io.mateu.workflow.domain.aggregates.ProcessStatus;
@@ -39,8 +40,8 @@ class ListingPaginationJpaE2eTest extends AbstractJpaE2eTest {
         createProcess("sequential-3", "page-c");
         awaitStatus("page-c", ProcessStatus.COMPLETED);
 
-        var first = processRepository.searchSummaries(null, false, 0, 2);
-        var second = processRepository.searchSummaries(null, false, 1, 2);
+        var first = processRepository.searchSummaries(ProcessListingFilter.of(null, false), 0, 2);
+        var second = processRepository.searchSummaries(ProcessListingFilter.of(null, false), 1, 2);
 
         assertThat(first.content()).hasSize(2);
         assertThat(second.content()).hasSize(1);
@@ -69,22 +70,22 @@ class ListingPaginationJpaE2eTest extends AbstractJpaE2eTest {
         awaitStatus("broken-one", ProcessStatus.ERROR);
 
         // Business key, case-insensitively — the same text the in-memory store searches.
-        var byKey = processRepository.searchSummaries("KEEP-ME", false, 0, 10);
+        var byKey = processRepository.searchSummaries(ProcessListingFilter.of("KEEP-ME", false), 0, 10);
         assertThat(byKey.totalElements()).isEqualTo(1);
         assertThat(byKey.content()).singleElement()
                 .extracting(ProcessSummary::status).isEqualTo(ProcessStatus.COMPLETED);
 
         // Definition name, so a search is not limited to keys the operator has memorised.
-        assertThat(processRepository.searchSummaries("retry then succeed", false, 0, 10).totalElements())
+        assertThat(processRepository.searchSummaries(ProcessListingFilter.of("retry then succeed", false), 0, 10).totalElements())
                 .isEqualTo(1);
 
-        var onlyErrors = processRepository.searchSummaries(null, true, 0, 10);
+        var onlyErrors = processRepository.searchSummaries(ProcessListingFilter.of(null, true), 0, 10);
         assertThat(onlyErrors.totalElements()).isEqualTo(1);
         assertThat(onlyErrors.content()).singleElement()
                 .extracting(ProcessSummary::status).isEqualTo(ProcessStatus.ERROR);
 
         // Text and status filters compose rather than replacing one another.
-        assertThat(processRepository.searchSummaries("keep-me", true, 0, 10).totalElements()).isZero();
+        assertThat(processRepository.searchSummaries(ProcessListingFilter.of("keep-me", true), 0, 10).totalElements()).isZero();
     }
 
     @Test
@@ -148,7 +149,7 @@ class ListingPaginationJpaE2eTest extends AbstractJpaE2eTest {
         // dividing by it. Pushed down to SQL this cannot be clamped after the fact — the store has
         // to count before it knows which page exists — so it is worth pinning on the JPA path too
         // and not only on the in-memory one.
-        var beyondTheEnd = processRepository.searchSummaries(null, false, 3422, 2);
+        var beyondTheEnd = processRepository.searchSummaries(ProcessListingFilter.of(null, false), 3422, 2);
 
         assertThat(beyondTheEnd.pageNumber()).isEqualTo(1);
         assertThat(beyondTheEnd.pageSize()).isEqualTo(2);
@@ -156,7 +157,7 @@ class ListingPaginationJpaE2eTest extends AbstractJpaE2eTest {
         assertThat(beyondTheEnd.content()).hasSize(1);
 
         // No size asked for is everything, on one page — never a size of zero.
-        var everything = processRepository.searchSummaries(null, false, 0, 0);
+        var everything = processRepository.searchSummaries(ProcessListingFilter.of(null, false), 0, 0);
         assertThat(everything.pageSize()).isEqualTo(3);
         assertThat(everything.content()).hasSize(3);
 
@@ -170,7 +171,7 @@ class ListingPaginationJpaE2eTest extends AbstractJpaE2eTest {
 
     @Test
     void reportsAnEmptyResultWithoutFallingOver() {
-        var nothing = processRepository.searchSummaries("no-such-process-anywhere", false, 7, 10);
+        var nothing = processRepository.searchSummaries(ProcessListingFilter.of("no-such-process-anywhere", false), 7, 10);
 
         assertThat(nothing.totalElements()).isZero();
         assertThat(nothing.content()).isEmpty();

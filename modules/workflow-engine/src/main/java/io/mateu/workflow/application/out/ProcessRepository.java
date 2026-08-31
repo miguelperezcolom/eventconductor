@@ -141,10 +141,23 @@ public interface ProcessRepository extends CrudStore<Process> {
                 && (to == null || !moment.isAfter(to));
     }
 
-    default ProcessSummaryPage searchSummaries(String searchText, boolean onlyErrors, int page, int size) {
-        var needle = searchText == null ? "" : searchText.toLowerCase();
+    /**
+     * One page of the process listing.
+     *
+     * <p>Every field of the filter is applied here, including the ones a store might find
+     * inconvenient: a listing that silently drops one shows a page that does not answer the
+     * question that was asked, and nothing on screen says so.
+     */
+    default ProcessSummaryPage searchSummaries(ProcessListingFilter filter, int page, int size) {
+        var needle = filter.normalisedSearchText() == null
+                ? "" : filter.normalisedSearchText().toLowerCase();
         var matching = findAll().stream()
-                .filter(process -> !onlyErrors || ProcessStatus.ERROR.equals(process.getStatus()))
+                .filter(process -> !filter.onlyErrors() || ProcessStatus.ERROR.equals(process.getStatus()))
+                .filter(process -> filter.status() == null || filter.status().equals(process.getStatus()))
+                .filter(process -> filter.workflowDefinitionId() == null
+                        || filter.workflowDefinitionId().equals(process.getWorkflowDefinitionId()))
+                .filter(process -> filter.createdFrom() == null && filter.createdTo() == null
+                        || withinWindow(process.getCreated(), filter.createdFrom(), filter.createdTo()))
                 .filter(process -> needle.isEmpty()
                         || process.searchableText().toLowerCase().contains(needle))
                 // nullsFirst before the reverse, so a process with no creation date sorts last
@@ -158,6 +171,34 @@ public interface ProcessRepository extends CrudStore<Process> {
                 .map(ProcessSummary::from)
                 .toList();
         return new ProcessSummaryPage(content, matching.size(), served.number(), served.size());
+    }
+
+
+    /**
+     * Processes that are RUNNING, have no step execution left to run, and have not moved since
+     * {@code idleBefore}.
+     *
+     * <p>A process in that state is stopped for good, and nothing else in the engine notices. The
+     * step-level watch cannot see it — that one counts <em>live</em> steps waiting on a worker, and
+     * here there are none: every step is either finished or was never eligible. Nor can a timeout,
+     * because a step that never started has no deadline. It is the one shape of stuck that leaves
+     * no clock running anywhere.
+     *
+     * <p>What puts a process here is a branch none of whose guards was true — the value they
+     * compare against turned out to be one nobody wrote a branch for. That is a gap in the
+     * definition rather than a fault in the engine, which is why this reports rather than failing
+     * the process: the repair is a definition change, and cancelling it here would destroy the
+     * evidence of what it was waiting to match.
+     *
+     * <p>Last movement is the newest {@code finishedAt} among the process's step executions, since
+     * a process row carries no timestamp of its own for it.
+     *
+     * @param limit ceiling on the ids returned. A deployment with more stalled processes than this
+     *              has a systemic problem, and the exact figure is not what anybody needs next.
+     * @return the ids; empty from implementations that cannot answer cheaply
+     */
+    default List<String> findStalled(LocalDateTime idleBefore, int limit) {
+        return List.of();
     }
 
 }

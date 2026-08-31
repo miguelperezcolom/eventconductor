@@ -46,6 +46,7 @@ public class SimulatedTaskHandler {
     private final ScenarioResolver resolver;
     private final TaskSimulator simulator;
     private final ReceivedTaskStore receivedTasks;
+    private final DefaultScenarioSeeder seeder;
 
     public Mono<Void> handle(StreamOperations bridge, TaskExecutionRequested task,
                              CancelledTasks cancelled) {
@@ -71,6 +72,13 @@ public class SimulatedTaskHandler {
             resolved = resolver.resolve(task);
         } catch (ScenarioNotReadableException e) {
             return failUnreadable(bridge, task, attempt, e);
+        }
+
+        // A task the worker had nothing on record for: leave behind an editable override seeded with
+        // what it just did, so the next run of this step can be retouched by hand. Off the Reactor
+        // thread already — play() runs on the elastic thread the delivery count was read on.
+        if (resolved.source() == ScenarioSource.DEFAULT) {
+            seeder.seedIfAbsent(task, resolved.scenario());
         }
 
         var scenario = forcedFailure(resolved.scenario(), attempt);

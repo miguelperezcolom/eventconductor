@@ -523,6 +523,44 @@ steps:
 }
 ```
 
+### What an expression may contain
+
+Every expression in a definition — `preconditionExpression`, a link's `condition`, a
+`correlationExpression` — is **untrusted input**: definitions arrive from a git import or from the
+editor, and they evaluate on the thread that owns the process. The engine runs them in a sandbox,
+so a few things a JEXL expression can normally do are refused here.
+
+| Refused | Why |
+| --- | --- |
+| Reflection, `System`, `Runtime`, `new` | The road to RCE. JEXL runs under `RESTRICTED` permissions |
+| Loops, lambdas, scripts | The only way an expression could spin forever on an orchestration thread |
+| Assignment to a process variable | A guard reads the process; it must not rewrite what it is reading |
+| More than 4096 characters, or brackets nested more than 64 deep | Overflows the parser's stack. Both ceilings are configurable — see [Configuration](/reference/configuration/) |
+
+An expression that breaks one of these does not evaluate, and a step whose guard did not evaluate
+**does not run**. Failing closed is deliberate: a guard nobody could evaluate is not a guard that
+passes.
+
+#### Regular expressions
+
+The `=~` and `!~` operators match on [RE2](https://github.com/google/re2j), not on
+`java.util.regex`. RE2 matches in time linear in the length of the input, which is what stops a
+pattern like `(a+)+$` — 8 characters — from pinning a core for the rest of the afternoon on an
+input a worker wrote.
+
+Two consequences worth knowing before you write a guard:
+
+- **`=~` is a whole-string match, not a substring search.** `'hello world' =~ 'world'` is
+  `false`; write `'.*world.*'` if that is what you meant. This is JEXL's own semantics and has
+  not changed — it is just worth stating, because it surprises people.
+- **Lookahead, lookbehind and backreferences are not supported.** `(?=…)`, `(?!…)`, `(?<=…)` and
+  `\1` are what make backtracking necessary, so RE2 does without them. A pattern using one is
+  refused with a message saying so, and the step does not run. A lookahead can nearly always be
+  rewritten as an alternation.
+
+Everything else — character classes, quantifiers, anchors, groups, alternation — works as you
+would expect.
+
 ### Saga with compensation
 
 ```json

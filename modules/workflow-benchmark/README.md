@@ -19,7 +19,7 @@ Every knob is a `-Dbench.*` property and the report prints all of them back:
 
 | property | default | what it is |
 |---|---|---|
-| `bench.processes` | 2000 | instances to run (3 worker steps each) |
+| `bench.processes` | 2000 | instances to run (3 worker steps each, so 5 transitions with START and END) |
 | `bench.rate` | 100 | **arrival rate per second; 0 = unpaced.** See below — this decides what you are measuring |
 | `bench.pods` | 2 | orchestrator pods |
 | `bench.worker.think-ms` | 0 | simulated work per task |
@@ -44,11 +44,32 @@ transition costs. So pace the load (`-Dbench.rate=N`, comfortably under the thro
 measured) and the report says `ENGINE COST PER TRANSITION`. Leave it unpaced and it says
 `TRANSITION LATENCY UNDER SATURATION` and tells you not to read it as cost.
 
-**"How much can it get through?"** — run unpaced (`-Dbench.rate=0`) and read the throughput.
-But in any real deployment this is bounded by what the workers can do, not by the engine: set
-`-Dbench.worker.think-ms=50` and watch the throughput collapse to the workers' capacity while the
-engine cost per transition does not move. That is the point. A throughput figure mostly describes
-the load generator, which is why the report puts it second.
+**"How much can it get through?"** — run unpaced (`-Dbench.rate=0`) and read the throughput,
+which the report gives in **transitions per second**. In any real deployment this is bounded by
+what the workers can do, not by the engine: set `-Dbench.worker.think-ms=50` and watch it collapse
+to the workers' capacity while the engine cost per transition does not move. That is the point. A
+throughput figure mostly describes the load generator, which is why the report puts it second.
+
+## The unit is a transition, not a process instance
+
+A **transition** is one step advanced by the engine: an outbox write, a relay, a dispatch, the
+worker's reply, the resulting status change consumed to decide what happens next. Everything the
+engine does, it does once per transition — so it is the only unit in which the engine's cost and
+the engine's capacity are the same measurement read two ways.
+
+`START` and `END` are transitions: no worker runs, but the engine still writes a step execution,
+publishes it and decides what follows. The default definition here is three worker steps between a
+`START` and an `END`, so it is **five transitions per process**, and the report says so on its
+steps-per-process line rather than leaving you to assume three.
+
+Process instances per second is not a property of the engine, and the report says so where it
+prints it. The same engine running a twelve-step saga instead of a three-step definition reports a
+quarter of the PI/s with nothing having changed, and a definition that waits on a human or a timer
+has no meaningful figure at all: a process can sit in flight for three days and cost the engine two
+transitions. The report therefore counts steps and processes from the database rather than assuming
+either, prints the measured steps-per-process next to the PI/s, and leads with transitions/s.
+
+If you quote a PI/s number anywhere, quote the steps-per-process beside it or it says nothing.
 
 ## Across hosts
 
@@ -100,6 +121,8 @@ The report prints its own tuning line; publish it verbatim. Add what it cannot k
 - network between the hosts, since two of the ~10 ms are broker round trips
 - the arrival rate **and** the saturation throughput, so a reader can see the utilisation the
   latency was measured at
+- which workload drove it (`bench.workload`), because the steps-per-process the report prints is an
+  average over whatever mix that workload creates
 
 A latency figure without its utilisation is not comparable to anyone else's, and that is the most
 common way these numbers get quoted wrongly — including by us, before this module existed.
@@ -117,7 +140,8 @@ publish the tuning line the report prints.
 
 ## A worked example
 
-Latency at 40 instances/s (120 steps/s), sweeping only the relay poll interval:
+Latency at 200 transitions/s (40 instances/s of the benchmark definition — three ACTION steps
+between START and END, so five transitions), sweeping only the relay poll interval:
 
 | `bench.outbox.poll-ms` | p50 | p95 |
 |---|---|---|
