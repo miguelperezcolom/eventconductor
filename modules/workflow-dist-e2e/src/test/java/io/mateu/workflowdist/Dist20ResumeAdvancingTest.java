@@ -74,6 +74,15 @@ class Dist20ResumeAdvancingTest extends AbstractDistTest {
         WorkerStub.on(DEFINITION, "s2", WorkerStub::silent);
 
         createProcess(DEFINITION, KEY);
+        // Creation is a Kafka round trip, so the row is not there the moment this returns — and
+        // processId() is a queryForObject, which does not answer "not yet": it throws. Awaitility
+        // does not ignore exceptions unless told to, so the throw from the first poll of the next
+        // await would come out as the test's own error rather than as one more turn of the loop.
+        Awaitility.await("process created")
+                .atMost(DEFAULT_TIMEOUT)
+                .pollInterval(Duration.ofMillis(250))
+                .until(() -> processStatus(KEY).isPresent());
+
         Awaitility.await("s2 dispatched")
                 .atMost(DEFAULT_TIMEOUT)
                 .pollInterval(Duration.ofMillis(250))
