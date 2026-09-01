@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.13.0] - 2026-09-01
+
+### Changed
+- **Mateu 3.0-alpha.307.** Seven fixes, five of which this engine's own UI is the reason anyone
+  noticed:
+
+  - a save flashed the value the field had **before** the edit — measured on a deployment running
+    this engine, the pre-edit value on screen at t+135ms and corrected at t+234ms. A form field
+    reads its value out of the component state, and the parent re-binds that state on every render
+    from a copy that predates the typing; saving exposes it because saving is two round-trips.
+  - a crud action pushed a url that had lost its menu prefix: `/booking/bookings/77PXQQ` → Edit →
+    `/77PXQQ/edit`, which 404s on reload. All four crud navigations were affected.
+  - a filtered listing asked for from a chat agent filtered on a **doubled** query string — the
+    view's own route came out as the query, was round-tripped and appended to a url that already
+    carried it, and `?status=CANCELLED?status=CANCELLED` parses as one parameter whose value holds
+    the second copy. The chip read `Status: CANCELLED?status=CANCELLED` and matched nothing. Only a
+    GENERATED navigation shows it, which is why it survived: a person filtering through the filter
+    bar never round-trips the query as a route.
+  - a collection field the browser sent nothing for landed null rather than empty, throwing several
+    layers below the form.
+  - the listing collapsed to its natural height on the way into a detail view — 554px of grid down
+    to 400px for a frame, on a table about to be replaced anyway.
+
+  Two are cosmetic: the way back out of a crud page is a chevron before its title rather than a
+  labelled button, and the chat panel's input bar is no longer clipped when opened from the FAB.
+
+- **`ProcessDetailPage` locates the way back by ACCESSIBLE NAME**, not by visible text. The chevron
+  above broke 15 of the 27 UI e2e tests here, all through one locator: `awaitLoaded` waited on
+  `getByText("Back to list")` to decide a detail had loaded, so every journey that opens one
+  failed. Nothing about the page regressed — the control is still there and still named "Back to
+  list"; the label moved to `aria-label` and `title`.
+
+  Keying on the name is the better locator regardless: it survives the control being drawn as an
+  icon, and it fails when the NAME is dropped — which is when a screen reader user actually loses
+  the button, and when the old locator would have kept passing.
+
 ## [2.12.0] - 2026-09-01
 
 ### Added
