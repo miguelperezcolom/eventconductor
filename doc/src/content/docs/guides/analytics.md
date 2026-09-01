@@ -19,7 +19,7 @@ This is a pragmatic, built-in analytics layer — per-definition operational met
 
 ## The Analytics page
 
-The workflow UI (`/_workflow`) has an **Analytics** entry in the menu. It shows, for the last 30 days: KPI cards (processes, completed, errors, cancelled), a processes-per-day chart and a per-definition table (counts, rates, average/p95 duration, bottleneck step):
+The workflow UI has an **Analytics** entry in the menu, under `/_workflow-admin` since 2.12.0 (it was under `/_workflow` before the operations / administration split; the route, `/workflow/analytics`, is the same either way). It shows, for the last 30 days: KPI cards (processes, completed, errors, cancelled), a processes-per-day chart and a per-definition table (counts, rates, average/p95 duration, bottleneck step):
 
 ![Analytics page — KPIs, throughput chart and per-definition table](/screenshots/11-analytics.png)
 

@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.12.0] - 2026-09-01
+
+### Added
+- **Each engine now serves its UI in two halves, on two base URLs.** A deployment with two consoles
+  — one for using the product, one for administering the platform — could not split either engine's
+  menu, because a `RemoteMenu` mounts the whole menu a pod declares and nothing less. Everything an
+  engine offered therefore had to live on whichever console mounted it, so workflow definitions and
+  the form editor sat next to a user's task list.
+
+  ```
+  /_workflow        Processes, Steps              /_workflow-admin   Definitions, Analytics
+  /_forms           Executions, Tasks, Tasks v2   /_forms-admin      Forms
+  ```
+
+  Same pod, same page beans, a second front door. Not a menu filtered by role: an engine runs with
+  its own security disabled behind something that authenticates, so a menu hiding entries would be
+  hiding them from a request it cannot judge. A separate path is something a gateway *can* judge,
+  with the rule written in one place instead of two.
+
+  Routes are unchanged. Mateu derives a menu entry's route from the field name, and the new
+  administration homes name their menu field the same as the home they were split from, so
+  `/workflow/definitions` is still `/workflow/definitions` and `/forms/forms` is still
+  `/forms/forms` — only the base URL they hang from is new. Deep links, and the `[NAVIGATE:]` blocks
+  a chat agent may hold, keep working.
+
+  New: `WorkflowAdminHome`, `WorkflowAdminMenu`, `WorkflowOperationsMenu`, `FormsAdminHome`,
+  `FormsAdminMenu`, `FormsOperationsMenu`.
+
+### Changed
+- **`WorkflowHome` and `FormsHome` now mount the operations half only.** An application mounting
+  `/_workflow` as a remote menu sees Processes and Steps; one mounting `/_forms` sees Executions,
+  Tasks and Tasks v 2. To get the other half, mount the matching `-admin` base URL as a second
+  remote menu.
+
+  **`WorkflowMenu` and `FormsMenu` are deliberately unchanged and still offer all four sections.**
+  They are the navigation contract an embedding application mounts — the testbenches and the UI e2e
+  suite do exactly that — and narrowing them would have taken two sections away from every embedder
+  to serve one deployment's layout. An embedder that wants everything keeps getting everything.
+
+- **The standalone orchestrator shows both halves**, as two menu groups rather than one: a
+  deployment with a single console splitting its UI in two would only be hiding half of it. Its
+  administration routes are `/administration/*` there, because the inherited field already holds
+  the operations half. Standalone mode only — behind a shell both halves keep their `/workflow/*`
+  routes.
+
 ## [2.11.2] - 2026-08-31
 
 ### Fixed
