@@ -38,8 +38,24 @@ public class ProcessDetailPage {
         this.page = page;
     }
 
+    /**
+     * Waits for the way back out of the detail, which is what tells a loaded detail apart from a
+     * listing still mounted underneath.
+     *
+     * <p>Located by ACCESSIBLE NAME rather than by visible text. Mateu 3.0-alpha.307 renders it as
+     * a chevron before the title instead of a labelled button — the label moved to aria-label and
+     * title, so the control and its name are both still there and only {@code getByText} stopped
+     * finding it. Keying on the name is the better locator anyway: it survives the control being
+     * drawn as an icon, and it fails when the name is dropped, which is when a screen reader user
+     * loses the button.
+     */
     public void awaitLoaded() {
-        assertThat(page.getByText("Back to list")).isVisible();
+        assertThat(backControl()).isVisible();
+    }
+
+    /** The back affordance, however the renderer chose to draw it. */
+    private com.microsoft.playwright.Locator backControl() {
+        return page.getByLabel("Back to list").or(page.getByText("Back to list")).first();
     }
 
     /**
@@ -262,7 +278,7 @@ public class ProcessDetailPage {
     }
 
     public ProcessesPage backToList() {
-        page.getByText("Back to list").click();
+        backControl().click();
         var processes = new ProcessesPage(page);
         processes.awaitLoaded();
         return processes;
