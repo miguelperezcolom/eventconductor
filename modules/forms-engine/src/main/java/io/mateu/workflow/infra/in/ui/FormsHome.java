@@ -13,8 +13,13 @@ import io.mateu.workflow.infra.in.ui.pages.Forms;
 @Title("Forms")
 public class FormsHome {
 
+    // Operations only: executions and the two task lists. Designing forms moved to FormsAdminHome,
+    // on a base URL of its own, so a deployment with two consoles can put it behind an
+    // administrator's gate. The field keeps its name, so /forms/tasks is still /forms/tasks.
+    //
+    // FormsMenu is untouched and still offers all four — see its javadoc.
     @Menu
-    FormsMenu forms;
+    FormsOperationsMenu forms;
 
     @Stereotype(FieldStereotype.html)
     String message = "<p>Welcome to the forms engine.</p>" +
