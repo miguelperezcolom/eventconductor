@@ -42,8 +42,14 @@ public class WorkflowHome implements PostHydrationHandler {
     String message = "<p>Welcome to the event driven orchestrator.</p>" +
             "<p>Here you will be able to create workflow definitions and processes.</p>";
 
+    // Operations only: processes and steps. Definitions and Analytics moved to
+    // WorkflowAdminHome, on a base URL of its own, so a deployment with two consoles can put them
+    // behind an administrator's gate. The field keeps its name, so the routes under it are still
+    // /workflow/processes and /workflow/steps.
+    //
+    // WorkflowMenu is untouched and still offers all four — see its javadoc.
     @Menu
-    WorkflowMenu workflow;
+    WorkflowOperationsMenu workflow;
 
     /**
      * Whether this hydration is going to show this page, rather than pass the route to a child.

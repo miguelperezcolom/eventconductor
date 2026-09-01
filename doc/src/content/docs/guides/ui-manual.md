@@ -31,6 +31,21 @@ After logging in you land on the **Console** — a top-level management hub that
 
 Access the workflow engine by navigating to `http://localhost:8191/_workflow` or clicking **Workflow** in the top navigation bar.
 
+:::note[Two base URLs since 2.12.0]
+The engine serves its UI in two halves. `/_workflow` carries the operations pages — Processes and
+Steps — and `/_workflow-admin` carries Definitions and Analytics. The forms engine is split the
+same way, `/_forms` and `/_forms-admin`.
+
+Same pod either way; the split exists so a deployment with two consoles can put administration
+behind a different gate, because a remote menu mounts the whole menu a pod declares and nothing
+less. The routes underneath are unchanged — `/workflow/definitions` is still
+`/workflow/definitions`, reached from the other base URL.
+
+An application embedding the engine's menu directly still mounts `WorkflowMenu` (or `FormsMenu`)
+and gets every section, as before. Mount `WorkflowOperationsMenu` and `WorkflowAdminMenu` instead
+to take the halves apart.
+:::
+
 ### Dashboard
 
 The workflow dashboard gives you an instant overview of your orchestration platform:
@@ -281,21 +296,32 @@ can be created and existing ones deleted from the same page.
 
 ```
 http://localhost:8191/                   Console (main dashboard)
-http://localhost:8191/_workflow          Workflow Engine
-  └─ Workflow → Definitions             Workflow definitions list
+
+http://localhost:8191/_workflow          Workflow Engine — operations
   └─ Workflow → Processes               Process instances list
        └─ View                          Process detail + step executions
+  └─ Workflow → Steps                   Step executions list
+
+http://localhost:8191/_workflow-admin    Workflow Engine — administration
+  └─ Workflow → Definitions             Workflow definitions list
   └─ Workflow → Analytics               Per-definition analytics & bottlenecks
 
-http://localhost:8191/_forms             Forms Engine
-  └─ Forms → Forms                      Form definitions list
+http://localhost:8191/_forms             Forms Engine — operations
   └─ Forms → Executions                 Form executions (user tasks)
   └─ Forms → Tasks                      Pending tasks simplified view
+  └─ Forms → Tasks v 2                  Pending tasks, second view
   └─ /my-tasks                          Personal task inbox
+
+http://localhost:8191/_forms-admin       Forms Engine — administration
+  └─ Forms → Forms                      Form definitions list
 
 /_rules                                  Rule Engine (on apps bundling rule-engine,
   └─ Rules → Rules                      e.g. dev-app or rule-standalone-app)
 ```
+
+The two `-admin` paths are the same pods as the two above them, through a second `@UI` each. The
+routes under a menu do not depend on which base URL served it: `/workflow/definitions` is
+`/workflow/definitions` from either.
 
 ---
 
