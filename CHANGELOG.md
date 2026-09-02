@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.13.1] - 2026-09-02
+
+### Changed
+- **Mateu 3.0-alpha.309.** One fix, and it is one this engine's screens were showing: a page's
+  width stuck to the SESSION rather than to the screen. Entering a console by url came up
+  edge-to-edge on everything, and one navigation into a detail view then capped everything after
+  it.
+
+  The renderer stamps the resolved width on its host and the stylesheets size the content column
+  from it — but it stamped only where a full structure arrived, and two of the three ways content
+  reaches a view carry none: the client cache seeds a structure straight onto the fragment before
+  the request goes out, and a server that recognises the echoed ETag replies state-only. So a
+  reload into a cached route stamped nothing at all, and the first uncached route's width stuck to
+  every cached screen visited after it. The structure cache lives in `localStorage`, which is why
+  it survived reloads and read as the console remembering a decision.
+
+  Vaadin only. The Redwood renderer has its own implementation and already carried the previous
+  width forward only when a fragment had no component of its own.
+
+- **`orchestrator-standalone-app` catches up on five Mateu releases.** Its pom pinned
+  `3.0-alpha.304` while the root pom had moved to 307, with nothing saying why — the override sits
+  directly above a `json-schema-validator` one that IS explained, which is how it read as drift
+  rather than as a decision. It matters more than the number suggests: that module is the image a
+  deployment runs, so it is what serves the workflow screens, and a fix released into the root pom
+  reached everything except the place anyone would look at it.
+
 ## [2.13.0] - 2026-09-01
 
 ### Changed
