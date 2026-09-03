@@ -29,7 +29,7 @@
              newer protoc than that is what broke the rule engine's gRPC server on startup: the
              bean failed, and with it the whole application context. Raise this only together with
              the version the BOM manages, never past it. -->
-        <protobuf.version>4.32.0</protobuf.version>
+        <protobuf.version>4.36.0</protobuf.version>
     </properties>
 
     <dependencyManagement>
