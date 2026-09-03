@@ -27,6 +27,7 @@ public record FormExecution(
         String formId,
         String processId,
         String stepId,
+        @HiddenInList
         String stepExecutionId,
         @NotNull
         // The mapping matches on the enum's name, which is upper-case — PENDING, ASSIGNED,
