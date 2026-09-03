@@ -44,7 +44,8 @@ public class WorkflowHomeAdapter {
                 .filter(c -> ProcessStatus.COMPLETED.name().equals(c.getKey())
                         || ProcessStatus.ERROR.name().equals(c.getKey())
                         || ProcessStatus.CANCELLED.name().equals(c.getKey())
-                        || ProcessStatus.COMPENSATED.name().equals(c.getKey()))
+                        || ProcessStatus.COMPENSATED.name().equals(c.getKey())
+                        || ProcessStatus.COMPENSATION_FAILED.name().equals(c.getKey()))
                 .mapToLong(ProcessEntityRepository.CountByKey::getCount).sum();
         long totalProcesses = byStatus.stream()
                 .mapToLong(ProcessEntityRepository.CountByKey::getCount).sum();

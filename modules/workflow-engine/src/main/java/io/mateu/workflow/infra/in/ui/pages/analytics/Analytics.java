@@ -16,6 +16,7 @@ import io.mateu.uidl.data.GridColumn;
 import io.mateu.uidl.data.HorizontalLayout;
 import io.mateu.uidl.data.Page;
 import io.mateu.uidl.data.Text;
+import io.mateu.uidl.fluent.Component;
 import io.mateu.uidl.interfaces.HttpRequest;
 import io.mateu.uidl.interfaces.PostHydrationHandler;
 import io.mateu.workflow.application.services.ProcessAnalyticsService;
@@ -83,19 +84,37 @@ public class Analytics implements PostHydrationHandler {
         steps = buildStepsGrid(analytics);
     }
 
+    /**
+     * The headline counts. Every terminal outcome a process can have needs a card of its own or the
+     * numbers do not add up: a rolled-back saga is neither completed nor errored, so before
+     * COMPENSATED was here a definition whose instances all compensated showed instances with
+     * nothing under them.
+     *
+     * <p>COMPENSATION_FAILED only earns a card when there is one — it is rare, and it is the
+     * outcome an operator must never miss, so it is shown when it happens rather than as a
+     * permanent zero next to the four that always matter.
+     */
     private HorizontalLayout buildKpis(List<DefinitionAnalytics> analytics) {
         var total = analytics.stream().mapToLong(DefinitionAnalytics::totalInstances).sum();
         var completed = countByStatus(analytics, ProcessStatus.COMPLETED);
         var errored = countByStatus(analytics, ProcessStatus.ERROR);
         var cancelled = countByStatus(analytics, ProcessStatus.CANCELLED);
+        var compensated = countByStatus(analytics, ProcessStatus.COMPENSATED);
+        var compensationFailed = countByStatus(analytics, ProcessStatus.COMPENSATION_FAILED);
+        var cards = new ArrayList<Component>(List.of(
+                kpiCard("Processes", "" + total),
+                kpiCard("Completed", completed + " (" + pct(completed, total) + ")"),
+                kpiCard("Errors", errored + " (" + pct(errored, total) + ")"),
+                kpiCard("Cancelled", cancelled + " (" + pct(cancelled, total) + ")"),
+                kpiCard("Compensated", compensated + " (" + pct(compensated, total) + ")")));
+        if (compensationFailed > 0) {
+            cards.add(kpiCard("Rollback failed",
+                    compensationFailed + " (" + pct(compensationFailed, total) + ")"));
+        }
         return HorizontalLayout.builder()
-                .content(List.of(
-                        kpiCard("Processes", "" + total),
-                        kpiCard("Completed", completed + " (" + pct(completed, total) + ")"),
-                        kpiCard("Errors", errored + " (" + pct(errored, total) + ")"),
-                        kpiCard("Cancelled", cancelled + " (" + pct(cancelled, total) + ")")
-                ))
+                .content(List.copyOf(cards))
                 .spacing(true)
+                .wrap(true)
                 .build();
     }
 
@@ -137,9 +156,16 @@ public class Analytics implements PostHydrationHandler {
             row.put("definition", definition.workflowDefinitionName());
             row.put("instances", "" + definition.totalInstances());
             row.put("completed", "" + statusCount(definition, ProcessStatus.COMPLETED));
-            row.put("running", "" + (statusCount(definition, ProcessStatus.PENDING) + statusCount(definition, ProcessStatus.RUNNING)));
+            // In flight: everything that has not reached a terminal state, PAUSED included — a
+            // paused process is still an open instance, and left out of here it was an instance
+            // this row counted but never showed.
+            row.put("running", "" + (statusCount(definition, ProcessStatus.PENDING)
+                    + statusCount(definition, ProcessStatus.RUNNING)
+                    + statusCount(definition, ProcessStatus.PAUSED)));
             row.put("errors", "" + statusCount(definition, ProcessStatus.ERROR));
             row.put("cancelled", "" + statusCount(definition, ProcessStatus.CANCELLED));
+            row.put("compensated", "" + statusCount(definition, ProcessStatus.COMPENSATED));
+            row.put("compensationFailed", "" + statusCount(definition, ProcessStatus.COMPENSATION_FAILED));
             row.put("completionRate", definition.completionRatePct() + " %");
             row.put("errorRate", definition.errorRatePct() + " %");
             row.put("avgDuration", format(definition.processDuration().average()));
@@ -154,6 +180,8 @@ public class Analytics implements PostHydrationHandler {
                 GridColumn.builder().id("running").label("Active").build(),
                 GridColumn.builder().id("errors").label("Errors").build(),
                 GridColumn.builder().id("cancelled").label("Cancelled").build(),
+                GridColumn.builder().id("compensated").label("Compensated").build(),
+                GridColumn.builder().id("compensationFailed").label("Rollback failed").build(),
                 GridColumn.builder().id("completionRate").label("Completion").build(),
                 GridColumn.builder().id("errorRate").label("Error rate").build(),
                 GridColumn.builder().id("avgDuration").label("Avg duration").build(),
