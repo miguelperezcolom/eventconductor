@@ -7,6 +7,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.13.3] - 2026-09-03
+
+### Fixed
+- **The process detail drew the definition the engine holds today, not the one the process is
+  actually running.** A definition is editable, and an instance that started before an edit keeps
+  running the version it started with: the engine never re-reads the definition, because every step
+  execution carries its own frozen `stepJson` and the process carries a `workflowDefinitionJson`
+  snapshot of its own. That snapshot was written at creation and read by nobody — the diagram was
+  built from `WorkflowDefinitionRepository.findById(...)` instead.
+
+  So the screen painted a process that does not exist. Steps added since the instance started
+  appeared as nodes that never ran; steps removed since vanished from under the executions that did
+  run; a rewired precondition drew edges the instance never followed. Deleting a definition erased
+  the diagram of every finished process that had used it. The diagram now comes from the process's
+  own snapshot, and falls back to the stored definition only for a process that carries none.
+
+- **Analytics did not show compensated processes.** The aggregation had them all along — it groups
+  by status without filtering — but the report only ever painted COMPLETED, ERROR, CANCELLED and
+  PENDING+RUNNING. A rolled-back saga was counted in "Instances" and shown in no column and no KPI,
+  and so were `COMPENSATION_FAILED` and `PAUSED`. A definition whose instances had all compensated
+  showed a row of instances with nothing under them.
+
+  The report now accounts for every instance it counts: a **Compensated** KPI and column,
+  a **Rollback failed** column (and a KPI when there is one — it is rare, and it is the outcome an
+  operator must not miss), and PAUSED folded into "Active", which is everything not yet terminal.
+  A test holds the columns to summing to the instance count.
+
+- The workflow home's "completed processes" KPI counted every terminal status except
+  `COMPENSATION_FAILED`, so a partially rolled-back saga counted as neither active nor finished.
+
+### Changed
+- **Mateu 3.0-alpha.313.** Redwood-renderer work: federated menu entries route back to the pod that
+  serves them, the listing-to-detail path, the Page toolbar painted twice, header action
+  distribution, tabs/embedded grids/web components in forms, and the page frame no longer rendered
+  as a card. This engine's console runs the Vaadin renderer, so nothing here changes what it shows;
+  the bump keeps the engine current.
+- `orchestrator-standalone-app` had drifted back to `3.0-alpha.309` while the root pom moved to
+  312. Both are on 313 now. That module is the image a deployment runs, so a Mateu fix that stops
+  at the root pom reaches everything except the place anyone looks at it — the same drift the 2.13.1
+  notes called out.
+
+## [2.13.2] - 2026-09-03
+
+Released without a changelog entry; recorded here after the fact.
+
+### Changed
+- The form-executions listing dropped two ids an operator does not read: the step-execution id is
+  hidden from the list (`@HiddenInList`, so the editor keeps it) and the process id shows its last
+  segment (`…a1b2c3d4`) instead of a full UUID that pushed the useful columns off the row. Display
+  only — the stored value is untouched and nothing shortened is written back.
+- **Mateu 3.0-alpha.312**, for the Vaadin listing-height fix: the grid no longer collapses on the
+  way into a detail.
+
 ## [2.13.1] - 2026-09-02
 
 ### Changed
