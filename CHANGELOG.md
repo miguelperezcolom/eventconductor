@@ -37,6 +37,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The workflow home's "completed processes" KPI counted every terminal status except
   `COMPENSATION_FAILED`, so a partially rolled-back saga counted as neither active nor finished.
 
+### Security
+- **`projector-standalone-app` was the one app of five that did not repeat the Tomcat security
+  override**, so its image shipped the Boot BOM's `tomcat-embed-core` 11.0.24 and three CRITICAL
+  CVEs (CVE-2026-65182, CVE-2026-65905, CVE-2026-68525; all fixed in 11.0.25). The release gate
+  requires *every* image to be clean before *any* is pushed, so this one image is why the 2.13.2
+  release published its artifacts to Maven Central and pushed no Docker image at all — the four
+  clean ones included. The app parents off `spring-boot-starter-parent`, not the EventConductor
+  root, so the root pom's overrides never reached it; it now carries the same block the other four
+  do, next to the Postgres override that was there for exactly this reason.
+
 ### Changed
 - **Mateu 3.0-alpha.313.** Redwood-renderer work: federated menu entries route back to the pod that
   serves them, the listing-to-detail path, the Page toolbar painted twice, header action

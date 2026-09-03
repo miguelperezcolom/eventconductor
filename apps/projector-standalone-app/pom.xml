@@ -43,6 +43,26 @@
                 <artifactId>postgresql</artifactId>
                 <version>42.7.13</version>
             </dependency>
+            <!-- The same override for the same reason, and the reason it is here now: this app is
+                 the only one of the five that did not repeat it, so its image shipped the Boot BOM's
+                 tomcat 11.0.24 with three CRITICAL CVEs. Trivy gates the release on every image
+                 being clean, so the 2.13.2 release published to Maven Central and pushed NOT ONE
+                 image — the four clean ones included. Drop when the Boot BOM catches up. -->
+            <dependency>
+                <groupId>org.apache.tomcat.embed</groupId>
+                <artifactId>tomcat-embed-core</artifactId>
+                <version>11.0.25</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.tomcat.embed</groupId>
+                <artifactId>tomcat-embed-el</artifactId>
+                <version>11.0.25</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.tomcat.embed</groupId>
+                <artifactId>tomcat-embed-websocket</artifactId>
+                <version>11.0.25</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 
