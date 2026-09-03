@@ -23,6 +23,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class SimpleProcessViewModelTest {
@@ -83,6 +84,54 @@ class SimpleProcessViewModelTest {
 
         JsonNode overlay = mapper.readTree(view.processGraphOverlay);
         assertThat(overlay.get("charge").get("state").asText()).isEqualTo("RUNNING");
+    }
+
+    /**
+     * A definition can be edited after a process started, and that process keeps running the
+     * version it started with — so the diagram must be drawn from the copy frozen into it, never
+     * from whatever the engine holds under that id now.
+     */
+    @Test
+    void drawsTheDefinitionFrozenIntoTheProcessAndNotTheEditedOne() throws Exception {
+        var defs = mock(WorkflowDefinitionRepository.class);
+        var process = mock(Process.class);
+        when(process.getWorkflowDefinitionJson()).thenReturn(io.mateu.core.infra.JsonSerializer.toJson(
+                new WorkflowDefinition("wd-1", "As it ran", 1, null, false, 0, false, null, 0, List.of())));
+
+        var view = view(defs);
+        var element = view.buildDiagram(process, List.of(se("charge", StepExecutionStatus.COMPLETED)), List.of());
+
+        assertThat(element).isNotNull();
+        JsonNode graph = mapper.readTree(view.processGraph);
+        assertThat(graph.get("name").asText()).isEqualTo("As it ran");
+        assertThat(graph.get("version").asInt()).isEqualTo(1);
+        // The live definition is not even consulted: the snapshot is the process's own truth.
+        verifyNoInteractions(defs);
+    }
+
+    /** And it survives the definition being deleted, which used to erase the diagram outright. */
+    @Test
+    void stillDrawsWhenTheDefinitionIsGoneFromTheEngine() {
+        var defs = mock(WorkflowDefinitionRepository.class);
+        var process = mock(Process.class);
+        when(process.getWorkflowDefinitionJson()).thenReturn(
+                io.mateu.core.infra.JsonSerializer.toJson(emptyDefinition()));
+
+        assertThat(view(defs).buildDiagram(process, List.of(), List.of())).isNotNull();
+    }
+
+    /** Processes stored before the snapshot existed still have the stored definition to fall back on. */
+    @Test
+    void fallsBackToTheStoredDefinitionWhenTheProcessCarriesNoSnapshot() throws Exception {
+        var defs = mock(WorkflowDefinitionRepository.class);
+        when(defs.findById("wd-1")).thenReturn(Optional.of(emptyDefinition()));
+        var process = mock(Process.class);
+        when(process.getWorkflowDefinitionId()).thenReturn("wd-1");
+        when(process.getWorkflowDefinitionJson()).thenReturn("   ");
+
+        var view = view(defs);
+        assertThat(view.buildDiagram(process, List.of(), List.of())).isNotNull();
+        assertThat(mapper.readTree(view.processGraph).get("id").asText()).isEqualTo("wd-1");
     }
 
     @Test
