@@ -49,7 +49,9 @@ public class StepCrudAdapter  {
             @Override
             public List<Step> findAll() {
                 return repository.findAllByProcessIdOrderByOrder(processId).stream()
-                        .map(entity -> new Step(processId, entity.getId(), entity.getStepId(), map(entity.getStatus())))
+                        .map(entity -> new Step(processId, entity.getId(), entity.getStepId(),
+                                map(entity.getStatus()),
+                                Step.format(entity.getStartedAt()), Step.format(entity.getFinishedAt())))
                         .toList();
             }
 
