@@ -3,7 +3,6 @@ package io.mateu.workflow.infra.in.ui;
 import io.mateu.uidl.annotations.Menu;
 import io.mateu.workflow.infra.in.ui.pages.FormExecutions;
 import io.mateu.workflow.infra.in.ui.pages.Tasks;
-import io.mateu.workflow.infra.in.ui.pages.TasksV2;
 
 /**
  * The half of the forms UI that is about work waiting to be done: the executions a process created
@@ -25,6 +24,7 @@ public class FormsOperationsMenu {
     @Menu
     Tasks tasks;
 
-    @Menu
-    TasksV2 tasksV2;
+    // Tasks v 2 is deliberately not here: two task lists side by side in a product console is a
+    // question the person using it cannot answer. FormsMenu still carries it for embedders, and
+    // the route still resolves.
 }
