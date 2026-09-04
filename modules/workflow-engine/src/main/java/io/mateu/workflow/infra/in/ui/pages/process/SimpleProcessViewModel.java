@@ -177,7 +177,8 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
         this.status = mapProcessStatus(process.getStatus(), process.getCompletionPercentage());
         var stepExecutions = stepExecutionRepository.findByProcess(process);
         this.steps = stepExecutions.stream()
-                .map(se -> new Step(id, se.id(), se.getStepId(), mapStepStatus(se.getStatus().name())))
+                .map(se -> new Step(id, se.id(), se.getStepId(), mapStepStatus(se.getStatus().name()),
+                        Step.format(se.getStartedAt()), Step.format(se.getFinishedAt())))
                 .toList();
         var logs = logMessageRepository.findByProcessId(id);
         this.diagram = buildDiagram(process, stepExecutions, logs);
