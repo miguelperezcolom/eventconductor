@@ -3473,8 +3473,19 @@ export class MateuWorkflowElk extends LitElement {
         .flow-pulse {fill: var(--ec-primary); pointer-events: none;}
 
         /* monitoring overlay (read-only): state tint, active highlight, live count badge */
-        .node.ov-running   .node-shape {stroke: #d97706 !important; stroke-width: 2.4 !important;}
-        .node.ov-pending   .node-shape {stroke: #64748b !important; stroke-dasharray: 4 3 !important;}
+        /* Work in flight moves; work that is finished, failed or cancelled stands still. The two
+           unfinished states get a border of travelling dashes — the marching-ants idiom — because a
+           process view is read at a glance and a still picture cannot say "this is happening right
+           now" without the operator comparing it against the previous refresh. Running marches
+           briskly, pending crawls: the same language, at the speed of what the step is actually
+           doing. Every dash period below divides the 24 units the keyframe travels, so the loop is
+           seamless whichever dasharray ends up winning (ov-injected overrides it with 3 3). */
+        .node.ov-running   .node-shape {stroke: #d97706 !important; stroke-width: 2.4 !important;
+                                        stroke-dasharray: 8 4 !important;
+                                        animation: ec-march 1s linear infinite;}
+        .node.ov-pending   .node-shape {stroke: #64748b !important; stroke-dasharray: 4 2 !important;
+                                        animation: ec-march 2.6s linear infinite;}
+        @keyframes ec-march {from {stroke-dashoffset: 0;} to {stroke-dashoffset: -24;}}
         .node.ov-completed .node-shape {stroke: #16a34a !important;}
         .node.ov-error     .node-shape {stroke: #dc2626 !important; stroke-width: 2.4 !important;}
         .node.ov-cancelled .node-shape {stroke: #94a3b8 !important; opacity: .7;}
@@ -3485,9 +3496,25 @@ export class MateuWorkflowElk extends LitElement {
         .node.ov-undone .node-shape {stroke: #f59e0b !important; stroke-width: 2.4 !important; fill: #fffbeb !important;}
         .node.ov-undone.ov-error .node-shape {stroke: #dc2626 !important; stroke-dasharray: 5 4 !important;}
         .node.ov-undone .ov-done circle {fill: #f59e0b;}
-        .node.ov-active .node-shape {stroke: var(--ec-primary) !important; stroke-width: 3 !important; filter: drop-shadow(0 0 5px color-mix(in srgb, var(--ec-primary) 60%, transparent));}
-        .node.ov-active .node-inner {animation: ec-active-pulse 1.6s ease-in-out infinite;}
-        @keyframes ec-active-pulse {0%,100% {opacity: 1;} 50% {opacity: .72;}}
+        /* Where the process is now. The marching border is inherited from ov-running (the two
+           always travel together); what this adds is the primary colour and a halo that breathes,
+           so the step being worked on is findable in a graph where several are pending. The halo
+           replaced an opacity pulse on the node's whole content, which took the title and id with
+           it and left the one node an operator most wants to read the hardest to read. */
+        .node.ov-active .node-shape {stroke: var(--ec-primary) !important; stroke-width: 3 !important;
+                                     animation: ec-march 1s linear infinite, ec-active-halo 1.8s ease-in-out infinite;}
+        @keyframes ec-active-halo {
+            0%, 100% {filter: drop-shadow(0 0 3px color-mix(in srgb, var(--ec-primary) 45%, transparent));}
+            50%      {filter: drop-shadow(0 0 9px color-mix(in srgb, var(--ec-primary) 85%, transparent));}
+        }
+        /* Motion is the signal here, so switching it off has to leave a signal behind: the dashes
+           stop travelling but stay dashed, and the running step keeps a static halo. */
+        @media (prefers-reduced-motion: reduce) {
+            .node.ov-running .node-shape,
+            .node.ov-pending .node-shape {animation: none;}
+            .node.ov-active  .node-shape {animation: none;
+                                          filter: drop-shadow(0 0 5px color-mix(in srgb, var(--ec-primary) 60%, transparent));}
+        }
         .ov-count circle {fill: var(--ec-primary); stroke: var(--ec-surface); stroke-width: 1.5;}
         .ov-count text {fill: #fff; font-size: 11px; font-weight: 700;}
         /* Amber, not the primary and not the error red: a stopped process is neither progress nor
@@ -3510,6 +3537,11 @@ export class MateuWorkflowElk extends LitElement {
         .ov-injected-badge .ov-spark {fill: #fff; stroke: none;}
         /* parts the process hasn't reached yet fade back */
         .node.mon-dim {opacity: .3;}
+        /* ...but a PENDING step is not one of them. It has a step execution: the engine has
+           scheduled it and a worker is about to take it, which is not the same as a step the run
+           may never arrive at — and at .3 the two were the same picture. Lifted to sit between the
+           untouched steps and the ones already done, which is where it belongs. */
+        .node.mon-dim.ov-pending {opacity: .62;}
         .edge.mon-dim, .comp-edge.mon-dim {opacity: .18;}
 
         /* stopped/waiting heatmap (definition view): --heat is 0–100, set per node. The fill mix is
