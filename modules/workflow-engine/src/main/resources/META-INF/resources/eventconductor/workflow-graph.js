@@ -1029,7 +1029,8 @@ let xc = class extends lP {
         }
       };
     }, this.onMouseUp = () => {
-      this.draggingId = null, window.removeEventListener("mousemove", this.onMouseMove), window.removeEventListener("mouseup", this.onMouseUp);
+      const M = this.draggingId;
+      this.draggingId = null, window.removeEventListener("mousemove", this.onMouseMove), window.removeEventListener("mouseup", this.onMouseUp), M && this.captureLayout();
     }, this.onLinkMove = (M) => {
       this.linkingFrom && (this.linkCursor = this.toSvgPoint(M), this.linkHoverId = this.nodeAt(this.linkCursor));
     }, this.onLinkUp = () => {
@@ -1074,7 +1075,7 @@ let xc = class extends lP {
           const k = (this.wf.steps ?? []).find((Ie) => Ie.id === oe), Je = ($.steps ?? []).find((Ie) => Ie.id === oe);
           return k && Je && tp(k).join(",") !== tp(Je).join(",");
         });
-        this.wf = dDn($), (J || !this.layoutReady) && (this.didInitialFit = !1, this.runElkLayout());
+        this.wf = dDn($), this.adoptLayout(this.wf.layout), (J || !this.layoutReady) && (this.didInitialFit = !1, this.runElkLayout());
       } catch {
       }
     if (M.has("wf") && this.refreshFlowPaths(), M.has("overlay"))
@@ -1209,12 +1210,48 @@ let xc = class extends lP {
     const M = JSON.stringify(this.wf, null, 2);
     this.dispatchEvent(new CustomEvent("value-changed", { detail: { value: M }, bubbles: !0, composed: !0 }));
   }
+  /**
+   * Whether this workflow carries a hand-made arrangement. The graph has two modes and this is
+   * the switch between them: an arranged workflow is drawn where its file says, an unarranged one
+   * wherever ELK puts it today.
+   */
+  isArranged() {
+    return !!this.wf.layout && Object.keys(this.wf.layout).length > 0;
+  }
+  /** Takes the positions a file declares as given, and pins them so a layout run leaves them be. */
+  adoptLayout(M) {
+    if (!M) return;
+    const $ = { ...this.positions };
+    for (const [N, _] of Object.entries(M))
+      !_ || typeof _.x != "number" || typeof _.y != "number" || ($[N] = { x: _.x, y: _.y }, this.elkPositioned.add(N));
+    this.positions = $;
+  }
+  /**
+   * Writes the current arrangement into the definition and emits it, so the host can persist it.
+   *
+   * <p>Every step's position goes in, not only the ones just dragged. Half an arrangement is
+   * worse than none: the steps the file did not mention would be re-placed by whatever ELK
+   * decided on the viewer's machine, landing on top of the ones it did, and the author would be
+   * the only person ever to see the graph they arranged. So arranging is all-or-nothing — which
+   * is also why an untouched workflow keeps no `layout` key at all and its file does not change.
+   *
+   * <p>Rounded to whole pixels. A drag that lands a fraction of a pixel away is not a change
+   * anybody should have to read in a diff.
+   */
+  captureLayout() {
+    const M = {};
+    for (const $ of this.wf.steps ?? []) {
+      const N = this.positions[$.id];
+      N && (M[$.id] = { x: Math.round(N.x), y: Math.round(N.y) });
+    }
+    this.wf = { ...this.wf, layout: M }, this.emit();
+  }
   updateWf(M) {
     this.wf = { ...this.wf, ...M }, this.emit();
   }
   updateStep(M, $) {
     const N = this.wf.steps.map((k) => k.id === M ? { ...k, ...$ } : k), _ = this.wf.steps.find((k) => k.id === M), J = N.find((k) => k.id === M), oe = !!_ && !!J && tp(_).join(",") !== tp(J).join(",");
-    this.wf = { ...this.wf, steps: N }, oe && (this.elkPositioned.clear(), this.runElkLayout()), this.emit();
+    this.wf = { ...this.wf, steps: N }, oe && (this.isArranged() || this.elkPositioned.clear(), this.runElkLayout()), this.emit();
   }
   /**
    * Adds or removes one incoming precondition. Normalises onto the plural
@@ -1255,7 +1292,7 @@ let xc = class extends lP {
     this.positions = {
       ...this.positions,
       [N]: { x: Math.max(0, $.x - oe / 2), y: Math.max(0, $.y - k / 2) }
-    }, this.elkPositioned.add(N), this.selectedEdge = null, this.selectedId = N, this.emit();
+    }, this.elkPositioned.add(N), this.selectedEdge = null, this.selectedId = N, this.isArranged() ? this.captureLayout() : this.emit();
   }
   /**
    * Creates a step linked as a successor of an existing node — a palette drop onto that node.
@@ -1275,7 +1312,7 @@ let xc = class extends lP {
         [_]: { x: k.x + Je.w + 90, y: Math.max(0, k.y + (Je.h - Ie.h) / 2) }
       }, this.elkPositioned.add(_);
     }
-    this.selectedEdge = null, this.selectedId = _, this.emit();
+    this.selectedEdge = null, this.selectedId = _, this.isArranged() ? this.captureLayout() : this.emit();
   }
   /**
    * Begins a pointer-driven palette drag. Native HTML5 drag-and-drop is unreliable inside the
@@ -1323,7 +1360,7 @@ let xc = class extends lP {
       })
     };
     const { [M]: $, ...N } = this.positions;
-    this.positions = N, this.elkPositioned.delete(M), this.selectedId === M && (this.selectedId = null), this.selectedEdge = null, this.runElkLayout(), this.emit();
+    this.positions = N, this.elkPositioned.delete(M), this.selectedId === M && (this.selectedId = null), this.selectedEdge = null, this.runElkLayout(), this.isArranged() ? this.captureLayout() : this.emit();
   }
   /**
    * Removes one connection, leaving both steps in place: a sequence edge is one precondition of
@@ -1435,8 +1472,15 @@ let xc = class extends lP {
     };
   }
   // ── Re-layout button ──────────────────────────────────────────────────────
+  /**
+   * Hands the graph back to ELK: the arrangement is dropped, the file loses its `layout` key, and
+   * the workflow is drawn automatically again. The way out for an arrangement that has stopped
+   * helping — and the reason arranging one is safe to try.
+   */
   relayout() {
-    this.elkPositioned.clear(), this.runElkLayout();
+    this.elkPositioned.clear();
+    const { layout: M, ...$ } = this.wf;
+    this.wf = $, this.runElkLayout(), this.readOnly || this.emit();
   }
   // ── Canvas size ───────────────────────────────────────────────────────────
   canvasSize() {

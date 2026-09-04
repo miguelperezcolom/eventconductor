@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import java.util.Collections;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -58,6 +59,35 @@ class WorkflowDefinitionTest {
     void checkInvariantsPassesWhenNullSteps() {
         var wd = new WorkflowDefinition("wd-1", "Test", 1, "desc",  false, 0, false, null, 0, null);
         wd.checkInvariants();
+    }
+
+    /**
+     * Every copy has to carry the arrangement. Each `with*` here rebuilds the record through the
+     * canonical constructor, so a component that is not threaded through one of them is dropped
+     * without a word — which is exactly how `requiredScopes` and `requiredRoles` came to be lost
+     * on the paths that copy through a narrower constructor.
+     */
+    @Test
+    void everyCopyKeepsTheArrangement() {
+        var layout = Map.of("s1", new NodePosition(60, 160));
+        var wd = definition(List.of(step("s1"))).withLayout(layout);
+
+        assertThat(wd.withSteps(List.of(step("s2"))).layout()).isEqualTo(layout);
+        assertThat(wd.withMaxSteps(7).layout()).isEqualTo(layout);
+        assertThat(wd.withPaused(true).layout()).isEqualTo(layout);
+        assertThat(wd.withVersion(9).layout()).isEqualTo(layout);
+        assertThat(wd.withDeclaredStatus(WorkflowStatus.DISABLED).layout()).isEqualTo(layout);
+        assertThat(wd.withRuntimeStatus(WorkflowStatus.DISABLED).layout()).isEqualTo(layout);
+        assertThat(wd.withRuntimeStateOf(wd).layout()).isEqualTo(layout);
+    }
+
+    /**
+     * Null, not an empty map. The two mean different things to the exporter — only null is omitted
+     * — and defaulting it would put a `layout: {}` line into every definition ever written.
+     */
+    @Test
+    void aDefinitionNobodyArrangedHasNoLayoutAtAll() {
+        assertThat(definition(List.of(step("s1"))).layout()).isNull();
     }
 
     @Test
