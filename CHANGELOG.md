@@ -7,6 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.14.0] - 2026-09-04
+
+### Added
+- **The diagram remembers where you put its nodes.** A workflow's graph was laid out
+  automatically every time anyone opened it; you could drag the nodes, and the drag went nowhere.
+  Definitions now carry a `layout` — step id to `{x, y}` — written by the graph editor as you drag
+  and read by everything that draws the graph, so the arrangement you made in the IDE is the one the
+  console shows too. Absent means the automatic layout, so no existing file changes. Arranging is
+  all or nothing (a partial layout would let the auto-layout drop the remaining steps on top of the
+  ones you placed), it survives rewiring, "Re-layout" undoes it, and moving a node does not mint a
+  new definition version. New nullable `layout_json` column (`V28`).
+- **Cancel several processes at once.** The process listing already applied *Retry from failure* and
+  *Restart from the beginning* to a selection; cancel was still one process per visit to a detail
+  page. Asks before it runs, and each process is addressed by its own id so the request reaches the
+  pod that owns it.
+- **`started` and `finished` on the process detail's step list.** The status said a step was RUNNING
+  and not since when, which is the whole question when deciding whether to wait or intervene — and
+  on a finished process nothing on the row said which step took the time.
+
+### Changed
+- **A step that is working looks like it is working.** RUNNING and PENDING steps now carry a border
+  of travelling dashes — running briskly, pending crawling — so a live process reads as live without
+  comparing it against the previous refresh. The opacity pulse that faded a running node's whole
+  content is gone; it took the title and id with it. `prefers-reduced-motion` stops the motion and
+  keeps the distinction.
+- **PENDING steps are no longer drawn as faintly as unreached ones.** A PENDING step has a step
+  execution — the engine has scheduled it and a worker is about to take it — and at 30% opacity it
+  looked the same as a step the run may never arrive at.
+- **The operations consoles offer what an operator can act on.** *Steps* leaves
+  `WorkflowOperationsMenu` (a step execution is diagnosis of the engine, and the process detail
+  already lists the steps of the process in front of you), *Tasks v2* leaves `FormsOperationsMenu`,
+  and the Forms detail loses its *Graph editor* button — a form definition is imported from git, so
+  editing one on screen produces a form the next import silently replaces. `WorkflowMenu` and
+  `FormsMenu` still carry all of it, so an application embedding the engine whole is unaffected and
+  every route still resolves.
+
+### Fixed
+- **An END is reached by the first branch, not joined from all of them.** Eligibility ANDs a step's
+  incoming links unless it is a JOIN declared XOR, so an END drawn with two exclusive routes into it
+  — confirm if the payment arrived, cancel if it did not — waited for both, and one of them can
+  never complete. Processes sat RUNNING at 60% forever, waiting for something that cannot happen.
+  An END is not a join: it now takes the first satisfied link, as XOR does. The rest of the
+  behaviour was already there — the untaken branch was already cancelled.
+
 ## [2.13.3] - 2026-09-03
 
 ### Fixed
