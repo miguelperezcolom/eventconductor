@@ -3,12 +3,14 @@ package io.mateu.workflow.application.usecases.export;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
+import io.mateu.workflow.domain.aggregates.NodePosition;
 import io.mateu.workflow.domain.aggregates.Step;
 import io.mateu.workflow.domain.aggregates.StepType;
 import io.mateu.workflow.domain.aggregates.WorkflowDefinition;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 
@@ -39,6 +41,40 @@ class ExportWorkflowDefinitionToYamlUseCaseTest {
                 .treeToValue(node, WorkflowDefinition.class);
 
         assertThat(reimported).isEqualTo(definition);
+    }
+
+    /**
+     * The arrangement is part of the document, so it has to survive the same round trip: exported
+     * to YAML, read back by the importer's strict parse path, and equal to what went in.
+     */
+    @Test
+    void anArrangedDefinitionRoundTripsWithItsLayout() throws Exception {
+        var definition = definition().withLayout(Map.of(
+                "reserve", new NodePosition(320, 160)));
+        when(repository.findById("wf-1")).thenReturn(Optional.of(definition));
+
+        var export = useCase.handle("wf-1");
+
+        assertThat(export.content()).contains("layout:");
+        var node = new YAMLMapper().readTree(export.content());
+        var reimported = new ObjectMapper().findAndRegisterModules()
+                .treeToValue(node, WorkflowDefinition.class);
+
+        assertThat(reimported.layout()).containsExactly(
+                org.assertj.core.api.Assertions.entry("reserve", new NodePosition(320, 160)));
+        assertThat(reimported).isEqualTo(definition);
+    }
+
+    /**
+     * And a workflow nobody arranged exports without the key at all. The reason layout is null
+     * rather than an empty map: an empty map would put `layout: {}` into every file the engine
+     * ever wrote, for a feature its author never used.
+     */
+    @Test
+    void anUnarrangedDefinitionExportsWithNoLayoutKey() {
+        when(repository.findById("wf-1")).thenReturn(Optional.of(definition()));
+
+        assertThat(useCase.handle("wf-1").content()).doesNotContain("layout");
     }
 
     @Test

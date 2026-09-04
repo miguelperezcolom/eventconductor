@@ -92,6 +92,11 @@ public class WorkflowDefinitionVersioningService {
                 .sorted(Comparator.comparing(Step::id, Comparator.nullsLast(Comparator.naturalOrder())))
                 .map(io.mateu.core.infra.JsonSerializer::toJson)
                 .toList());
+        // `layout` is deliberately absent, and this list is exhaustive rather than a subset of the
+        // record by accident. A version is a thing an operator can roll a running process back to;
+        // dragging a node on the diagram changes nothing a process could run differently, so it must
+        // not mint one. Tidying the two lists into agreement would make every re-arrangement a new
+        // version of the workflow.
         return sha256(toJson(canonical));
     }
 

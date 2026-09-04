@@ -2,6 +2,7 @@ package io.mateu.workflow.application.usecases.directoryimport;
 
 import io.mateu.workflow.application.services.WorkflowDefinitionValidator;
 import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
+import io.mateu.workflow.domain.aggregates.NodePosition;
 import io.mateu.workflow.domain.aggregates.WorkflowDefinition;
 import io.mateu.workflow.infra.config.DirectoryImportProperties;
 import io.mateu.workflow.webhook.InMemoryImportedDefinitionsRegistry;
@@ -13,6 +14,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -67,6 +69,73 @@ class ImportWorkflowDefinitionsFromDirectoryTest {
         assertThat(result.errors()).isEmpty();
         assertThat(saved()).extracting(WorkflowDefinition::id).containsExactlyInAnyOrder("one", "two");
         assertThat(result.imported()).hasSize(2);
+    }
+
+    private void writeArranged(Path dir, String name, String body) throws IOException {
+        Files.writeString(dir.resolve(name), """
+                name: Arranged
+                version: 1
+                steps:
+                  - id: start
+                    type: START
+                    name: Start
+                  - id: end
+                    type: END
+                    name: End
+                    preconditionStepId: start
+                %s
+                """.formatted(body));
+    }
+
+    /**
+     * The arrangement has to survive the rebuild that assigns a derived id — a file with no id of
+     * its own goes through a narrower constructor, which is where a field that is not threaded
+     * through is silently lost. It is also the commonest kind of file: most authors never write one.
+     */
+    @Test
+    void aFileWithNoIdKeepsItsArrangement(@TempDir Path dir) throws Exception {
+        writeArranged(dir, "arranged.ec", """
+                layout:
+                  start: {x: 60, y: 160}
+                  end: {x: 420, y: 160}""");
+
+        useCase.handle(List.of(dir.toString()));
+
+        assertThat(saved()).singleElement().satisfies(def -> {
+            assertThat(def.id()).isEqualTo("arranged");
+            assertThat(def.layout()).containsOnlyKeys("start", "end");
+            assertThat(def.layout().get("end")).isEqualTo(new NodePosition(420, 160));
+        });
+    }
+
+    /** A workflow nobody arranged imports with no arrangement at all, not with an empty one. */
+    @Test
+    void aFileWithNoLayoutImportsWithoutOne(@TempDir Path dir) throws Exception {
+        write(dir, "plain.ec", "plain");
+
+        useCase.handle(List.of(dir.toString()));
+
+        assertThat(saved()).singleElement()
+                .satisfies(def -> assertThat(def.layout()).isNull());
+    }
+
+    /**
+     * A coordinate for a step that has since been deleted is a stale coordinate, not a broken
+     * workflow. It imports, and the graph simply has nothing to draw at it — refusing the file
+     * would make deleting a step from a YAML by hand a way to break the import.
+     */
+    @Test
+    void aLayoutEntryForAStepThatIsGoneDoesNotRefuseTheFile(@TempDir Path dir) throws Exception {
+        writeArranged(dir, "stale.ec", """
+                layout:
+                  start: {x: 60, y: 160}
+                  removed-long-ago: {x: 999, y: 999}""");
+
+        var result = useCase.handle(List.of(dir.toString()));
+
+        assertThat(result.errors()).isEmpty();
+        assertThat(saved()).singleElement().satisfies(def ->
+                assertThat(def.layout()).containsKey("removed-long-ago"));
     }
 
     @Test

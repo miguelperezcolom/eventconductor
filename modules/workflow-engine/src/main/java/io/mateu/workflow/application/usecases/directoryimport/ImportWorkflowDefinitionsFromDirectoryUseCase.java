@@ -158,7 +158,8 @@ public class ImportWorkflowDefinitionsFromDirectoryUseCase {
                     definition.cronExpression(),
                     definition.defaultMaxStepExecutions(),
                     definition.steps()
-            ).withMaxSteps(definition.maxSteps());
+            ).withMaxSteps(definition.maxSteps())
+                    .withLayout(definition.layout());
         }
 
         // What the file says about being disabled or archived is a declaration, not a runtime
@@ -228,7 +229,8 @@ public class ImportWorkflowDefinitionsFromDirectoryUseCase {
                 fromFile.enqueueOnLimit(), fromFile.cronExpression(),
                 fromFile.defaultMaxStepExecutions(), fromFile.steps(),
                 false, fromFile.declaredStatus(), WorkflowStatus.ACTIVE)
-                .withMaxSteps(fromFile.maxSteps());
+                .withMaxSteps(fromFile.maxSteps())
+                .withLayout(fromFile.layout());
     }
 
     /**

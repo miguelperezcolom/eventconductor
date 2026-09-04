@@ -61,7 +61,8 @@ public final class StepTimeoutDefaults {
                 definition.enqueueOnLimit(), definition.cronExpression(),
                 definition.defaultMaxStepExecutions(), steps,
                 definition.paused(), definition.declaredStatus(), definition.runtimeStatus())
-                .withMaxSteps(definition.maxSteps());
+                .withMaxSteps(definition.maxSteps())
+                .withLayout(definition.layout());
     }
 
     private StepTimeoutDefaults() {

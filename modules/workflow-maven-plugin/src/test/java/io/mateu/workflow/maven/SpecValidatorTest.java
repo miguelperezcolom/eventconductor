@@ -33,6 +33,17 @@ class SpecValidatorTest {
         assertThat(validate(SpecValidator.Kind.WORKFLOW, "/valid/workflows/cron.yaml")).isEmpty();
     }
 
+    /**
+     * A definition carrying a hand-made diagram arrangement passes the build gate. The graph editor
+     * writes `layout` into .ec files, and the schema root refuses anything it does not declare — so
+     * without this the plugin would fail the build of every project whose workflows had been
+     * arranged.
+     */
+    @Test
+    void anArrangedWorkflowPasses() throws Exception {
+        assertThat(validate(SpecValidator.Kind.WORKFLOW, "/valid/workflows/arranged.yaml")).isEmpty();
+    }
+
     @Test
     void validFormPasses() throws Exception {
         assertThat(validate(SpecValidator.Kind.FORM, "/valid/forms/approval.json")).isEmpty();

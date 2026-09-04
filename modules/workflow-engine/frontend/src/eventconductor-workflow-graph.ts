@@ -83,6 +83,16 @@ interface WorkflowDefinition {
     maxConcurrentExecutions?: number;
     enqueueOnLimit?: boolean;
     steps: WorkflowStep[];
+    /**
+     * Where each node sits, by step id — the arrangement someone made by hand. The only key here
+     * that says nothing about what the workflow does, and the only one this component writes on its
+     * own rather than because a field was edited.
+     *
+     * <p>Absent means nobody has arranged this workflow and ELK lays it out, which is how every
+     * graph behaved before. Present means the file decides, so the picture in the IDE, in the
+     * console and in a colleague's checkout is the same picture.
+     */
+    layout?: Record<string, NodePos>;
 }
 
 type StepState = "PENDING" | "RUNNING" | "COMPLETED" | "ERROR" | "CANCELLED" | "COMPENSATED";
@@ -971,6 +981,11 @@ export class MateuWorkflowElk extends LitElement {
                             preconditionsOf(oldStep).join(",") !== preconditionsOf(newStep).join(",");
                     });
                 this.wf = normaliseLegacyStatus(parsed);
+                // Before any layout runs: what the file says wins over what ELK would decide. Pinned
+                // as well as placed, so the run below only has to find room for the steps the file
+                // says nothing about — a step added since the arrangement was made, or one a DYNAMIC
+                // step injected into a running process.
+                this.adoptLayout(this.wf.layout);
                 if (structureChanged || !this.layoutReady) {
                     this.didInitialFit = false;   // re-fit the new graph in view
                     this.runElkLayout();
@@ -1203,6 +1218,49 @@ export class MateuWorkflowElk extends LitElement {
         this.dispatchEvent(new CustomEvent("value-changed", {detail: {value: json}, bubbles: true, composed: true}));
     }
 
+    /**
+     * Whether this workflow carries a hand-made arrangement. The graph has two modes and this is
+     * the switch between them: an arranged workflow is drawn where its file says, an unarranged one
+     * wherever ELK puts it today.
+     */
+    private isArranged(): boolean {
+        return !!this.wf.layout && Object.keys(this.wf.layout).length > 0;
+    }
+
+    /** Takes the positions a file declares as given, and pins them so a layout run leaves them be. */
+    private adoptLayout(layout?: Record<string, NodePos>) {
+        if (!layout) return;
+        const adopted: Record<string, NodePos> = {...this.positions};
+        for (const [id, pos] of Object.entries(layout)) {
+            if (!pos || typeof pos.x !== "number" || typeof pos.y !== "number") continue;
+            adopted[id] = {x: pos.x, y: pos.y};
+            this.elkPositioned.add(id);
+        }
+        this.positions = adopted;
+    }
+
+    /**
+     * Writes the current arrangement into the definition and emits it, so the host can persist it.
+     *
+     * <p>Every step's position goes in, not only the ones just dragged. Half an arrangement is
+     * worse than none: the steps the file did not mention would be re-placed by whatever ELK
+     * decided on the viewer's machine, landing on top of the ones it did, and the author would be
+     * the only person ever to see the graph they arranged. So arranging is all-or-nothing — which
+     * is also why an untouched workflow keeps no `layout` key at all and its file does not change.
+     *
+     * <p>Rounded to whole pixels. A drag that lands a fraction of a pixel away is not a change
+     * anybody should have to read in a diff.
+     */
+    private captureLayout() {
+        const layout: Record<string, NodePos> = {};
+        for (const step of this.wf.steps ?? []) {
+            const pos = this.positions[step.id];
+            if (pos) layout[step.id] = {x: Math.round(pos.x), y: Math.round(pos.y)};
+        }
+        this.wf = {...this.wf, layout};
+        this.emit();
+    }
+
     private updateWf(patch: Partial<WorkflowDefinition>) {
         this.wf = {...this.wf, ...patch};
         this.emit();
@@ -1216,8 +1274,11 @@ export class MateuWorkflowElk extends LitElement {
             preconditionsOf(oldStep).join(",") !== preconditionsOf(newStep).join(",");
         this.wf = {...this.wf, steps};
         if (edgeChanged) {
-            // Invalidate ELK positions so a fresh layout runs
-            this.elkPositioned.clear();
+            // An arranged workflow keeps its arrangement: rewiring changes which lines are drawn,
+            // not where the author decided the boxes go. Only an unarranged graph re-flows — which
+            // is what every graph used to do, and what made arranging one pointless, since the next
+            // link you drew put it all back.
+            if (!this.isArranged()) this.elkPositioned.clear();
             this.runElkLayout();
         }
         this.emit();
@@ -1273,7 +1334,9 @@ export class MateuWorkflowElk extends LitElement {
         this.elkPositioned.add(id);   // the author placed it — ELK must not move it
         this.selectedEdge = null;
         this.selectedId = id;
-        this.emit();
+        // Dropping a node onto an arranged graph is itself an arrangement — the author chose where
+        // it lands. On an unarranged one it is not, and the file stays free of coordinates.
+        if (this.isArranged()) this.captureLayout(); else this.emit();
     }
 
     /**
@@ -1302,7 +1365,7 @@ export class MateuWorkflowElk extends LitElement {
         }
         this.selectedEdge = null;
         this.selectedId = id;
-        this.emit();
+        if (this.isArranged()) this.captureLayout(); else this.emit();
     }
 
     /**
@@ -1393,7 +1456,10 @@ export class MateuWorkflowElk extends LitElement {
         if (this.selectedId === id) this.selectedId = null;
         this.selectedEdge = null;      // it may have been an edge of the step just removed
         this.runElkLayout();
-        this.emit();
+        // Its coordinates go with it, rather than being left behind for a step id that no longer
+        // exists. Nothing breaks if they linger — a stale entry is ignored — but a file should not
+        // accumulate the ghosts of deleted steps.
+        if (this.isArranged()) this.captureLayout(); else this.emit();
     }
 
     /**
@@ -1479,9 +1545,13 @@ export class MateuWorkflowElk extends LitElement {
     };
 
     private onMouseUp = () => {
+        const moved = this.draggingId;
         this.draggingId = null;
         window.removeEventListener("mousemove", this.onMouseMove);
         window.removeEventListener("mouseup", this.onMouseUp);
+        // On the way up, not on every frame of the way across: emitting from onMouseMove would ask
+        // the host to rewrite the file a few hundred times for one drag.
+        if (moved) this.captureLayout();
     };
 
     // ── Edge drawing ────────────────────────────────────────────────────────────
@@ -1597,9 +1667,17 @@ export class MateuWorkflowElk extends LitElement {
 
     // ── Re-layout button ──────────────────────────────────────────────────────
 
+    /**
+     * Hands the graph back to ELK: the arrangement is dropped, the file loses its `layout` key, and
+     * the workflow is drawn automatically again. The way out for an arrangement that has stopped
+     * helping — and the reason arranging one is safe to try.
+     */
     private relayout() {
         this.elkPositioned.clear();
+        const {layout: _dropped, ...unarranged} = this.wf;
+        this.wf = unarranged;
         this.runElkLayout();
+        if (!this.readOnly) this.emit();
     }
 
     // ── Canvas size ───────────────────────────────────────────────────────────
