@@ -2,7 +2,6 @@ package io.mateu.workflow.infra.in.ui;
 
 import io.mateu.uidl.annotations.Menu;
 import io.mateu.workflow.infra.in.ui.pages.process.Processes;
-import io.mateu.workflow.infra.in.ui.pages.steps.StepExecutions;
 
 /**
  * The half of the engine's UI that is about running work: what is in flight, and what each step
@@ -25,7 +24,9 @@ public class WorkflowOperationsMenu {
     @Menu
     Processes processes;
 
-    @Menu
-    StepExecutions steps;
+    // Steps is deliberately NOT here. A step execution is diagnosis of the engine rather than the
+    // work itself, and the process detail already lists the steps of the one you are looking at —
+    // which is how you reach a step you actually care about. WorkflowMenu still offers it, so an
+    // application embedding the engine whole is unaffected, and the route still resolves.
 
 }
