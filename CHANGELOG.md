@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.14.1] - 2026-09-05
+
+### Changed
+- **Mateu bumped to `3.0-alpha.314`.** A dependency-only patch: every module's `mateu.version`
+  — which had drifted apart at `.312` / `.309` / `.304` / `.288` — is unified on the latest
+  published `3.0-alpha.314`. No engine behaviour changes; consumers that embed the workflow-admin
+  or forms UI pick up the newer Mateu transitively.
+
+### Internal
+- **`mvnw.cmd` line endings renormalized.** The four `apps/*/mvnw.cmd` were stored with CRLF while
+  `.gitattributes` declares `*.cmd text eol=crlf` (LF in-repo, CRLF on checkout), so git reported
+  them as perpetually modified. Renormalized to the canonical form — an EOL-only change, no content
+  difference, and Windows checkouts still get CRLF.
+
 ## [2.14.0] - 2026-09-04
 
 ### Added
