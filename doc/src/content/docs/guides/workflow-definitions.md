@@ -78,6 +78,47 @@ steps: [...]
 | `cronExpression` | string | Spring cron expression (six fields, seconds first). Unless the definition is disabled or archived, the engine creates a process instance at each occurrence. `null` = no scheduled starts |
 | `defaultMaxStepExecutions` | integer | Default cap on how many times each step may successfully run within one process instance; a step's own `maxSuccessfulExecutions` overrides it. `0` or `null` = unbounded |
 | `maxSteps` | integer | Cap on the total number of step executions one process instance may ever hold, runtime injections included (see [Dynamic Workflows](/guides/dynamic-workflows/)). `0` or `null` falls back to the engine-wide `workflow.dynamic.max-steps-per-process` default; any positive value overrides it for this definition's processes |
+| `layout` | object | Where each step's node sits on the diagram, keyed by step id: `{x, y}` in whole pixels. Written by the graph editor as you drag, not by hand. Absent means the graph is laid out automatically (see [Diagram layout](#diagram-layout)) |
+
+### Diagram layout
+
+A workflow's graph is laid out automatically unless somebody has arranged it. Drag a node in the
+graph editor — VS Code or IntelliJ — and the arrangement is written into the file under `layout`:
+
+```yaml
+steps:
+  - id: start
+    type: START
+  - id: charge
+    type: ACTION
+    preconditionStepId: start
+
+layout:
+  start:  {x: 60, y: 160}
+  charge: {x: 320, y: 160}
+```
+
+It says nothing about what the workflow does; it is there so the picture you arranged is the picture
+everyone gets — in the console's diagrams as well as in your editor, since those are drawn from the
+engine rather than from your working copy.
+
+A few things worth knowing:
+
+- **Arranging is all or nothing.** The first drag writes a coordinate for every step, not just the
+  one you moved. Half an arrangement would let the auto-layout re-place the rest on whoever's machine
+  is drawing it, on top of the steps you did place.
+- **The arrangement survives rewiring.** Drawing or deleting a link changes which lines are drawn,
+  not where you put the boxes. Only an unarranged graph re-flows.
+- **A step with no coordinate is placed automatically** — one added since you arranged the workflow,
+  or one a [DYNAMIC step](/guides/dynamic-workflows/) injected while a process was running.
+- **"Re-layout" undoes it.** The button hands the graph back to the automatic layout and removes
+  `layout` from the file.
+- **Moving a node does not mint a new version.** A version is something a process can be rolled back
+  to, and a coordinate changes nothing a process could run differently (see [Versioning](#versioning)).
+- **A file nobody arranged does not change.** No `layout` key is written, and none is exported.
+
+A coordinate naming a step that no longer exists is ignored rather than refused: it is a stale
+coordinate, not a broken workflow.
 
 ### Runtime state
 

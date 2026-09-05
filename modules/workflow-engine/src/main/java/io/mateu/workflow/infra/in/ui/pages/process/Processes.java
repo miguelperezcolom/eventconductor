@@ -10,6 +10,7 @@ import io.mateu.uidl.data.SearchRequest;
 import io.mateu.uidl.fluent.GridLayout;
 import io.mateu.uidl.interfaces.CrudStore;
 import io.mateu.uidl.interfaces.HttpRequest;
+import io.mateu.workflow.dtos.events.domain.ProcessCancellationRequested;
 import io.mateu.workflow.dtos.events.integration.RestartProcessRequested;
 import io.mateu.workflow.dtos.events.integration.RetryProcessRequested;
 import io.mateu.workflow.application.usecases.process.retry.RetryProcessCommand;
@@ -144,6 +145,22 @@ public class Processes extends Crud<Object, Object, Object, ProcessFilters, Proc
     public void restart(List<ProcessRow> selectedRows) {
         selectedRows.forEach(row ->
                 commandDispatcher.dispatch(new RestartProcessRequested(row.id())));
+    }
+
+    /**
+     * Stops the selected processes: each one and its live steps are marked cancelled and the
+     * workers are told. Asks first — a running process is being stopped mid-flight, and in bulk
+     * that is a lot of work abandoned at once.
+     *
+     * <p>Like retry and restart, applied to whatever the operator ticked. A process that is
+     * already finished is left alone by the engine rather than filtered out here, where the list
+     * may be out of date by the time the click lands.
+     */
+    @ListToolbarButton(rowsSelectedRequired = true, confirmationRequired = true)
+    @Label("Cancel")
+    public void cancel(List<ProcessRow> selectedRows) {
+        selectedRows.forEach(row ->
+                commandDispatcher.dispatch(new ProcessCancellationRequested(null, row.id())));
     }
 
 }

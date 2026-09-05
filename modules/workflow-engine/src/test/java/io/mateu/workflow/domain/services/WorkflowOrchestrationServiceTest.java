@@ -118,6 +118,48 @@ class WorkflowOrchestrationServiceTest {
                 io.mateu.workflow.domain.aggregates.JoinType.XOR);
     }
 
+    @Test
+    void anEndIsReachedByTheFirstBranch_notJoinedFromAllOfThem() {
+        // Two exclusive routes drawn into one END, which is the obvious way to draw them:
+        // confirm on paid, cancel on unpaid. Only one can ever run — the other's guard reads a
+        // variable that already has the other value — so an END that waits for BOTH waits for
+        // something that cannot happen. Observed on a live deployment: two processes stuck at 60%,
+        // RUNNING, their END still CREATED next to the branch the flow never took.
+        var taken = se(step("confirm-booking", StepType.ACTION, "verify", null),
+                StepExecutionStatus.COMPLETED);
+        var notTaken = se(step("cancel-booking", StepType.ACTION, "verify", null),
+                StepExecutionStatus.CREATED);
+        var end = se(step("end", StepType.END, null, List.of("confirm-booking", "cancel-booking")),
+                StepExecutionStatus.CREATED);
+
+        var result = service.calculateNextTransitions(process(), List.of(taken, notTaken, end));
+
+        assertThat(result.getStepsToSave()).extracting(StepExecution::getStepId).contains("end");
+        assertThat(result.getStepsToSave().stream()
+                .filter(se -> "end".equals(se.getStepId())).findFirst().orElseThrow().getStatus())
+                .as("one arriving branch is the whole of an END's condition")
+                .isEqualTo(StepExecutionStatus.COMPLETED);
+    }
+
+    @Test
+    void reachingAnEndCancelsTheBranchThatWasNeverTaken() {
+        // And the other half of "the process terminates there": what is still pending stops
+        // mattering, rather than being left CREATED for ever beside a finished process.
+        var taken = se(step("confirm-booking", StepType.ACTION, "verify", null),
+                StepExecutionStatus.COMPLETED);
+        var notTaken = se(step("cancel-booking", StepType.ACTION, "verify", null),
+                StepExecutionStatus.CREATED);
+        var end = se(step("end", StepType.END, null, List.of("confirm-booking", "cancel-booking")),
+                StepExecutionStatus.CREATED);
+
+        var result = service.calculateNextTransitions(process(), List.of(taken, notTaken, end));
+
+        assertThat(result.getStepsToSave())
+                .filteredOn(se -> "cancel-booking".equals(se.getStepId()))
+                .extracting(StepExecution::getStatus)
+                .containsExactly(StepExecutionStatus.CANCELLED);
+    }
+
     // ── END transition: only ENDs complete, co-eligible siblings are cancelled ──
 
     @Test

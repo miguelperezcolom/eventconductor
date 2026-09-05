@@ -83,6 +83,16 @@ interface WorkflowDefinition {
     maxConcurrentExecutions?: number;
     enqueueOnLimit?: boolean;
     steps: WorkflowStep[];
+    /**
+     * Where each node sits, by step id — the arrangement someone made by hand. The only key here
+     * that says nothing about what the workflow does, and the only one this component writes on its
+     * own rather than because a field was edited.
+     *
+     * <p>Absent means nobody has arranged this workflow and ELK lays it out, which is how every
+     * graph behaved before. Present means the file decides, so the picture in the IDE, in the
+     * console and in a colleague's checkout is the same picture.
+     */
+    layout?: Record<string, NodePos>;
 }
 
 type StepState = "PENDING" | "RUNNING" | "COMPLETED" | "ERROR" | "CANCELLED" | "COMPENSATED";
@@ -971,6 +981,11 @@ export class MateuWorkflowElk extends LitElement {
                             preconditionsOf(oldStep).join(",") !== preconditionsOf(newStep).join(",");
                     });
                 this.wf = normaliseLegacyStatus(parsed);
+                // Before any layout runs: what the file says wins over what ELK would decide. Pinned
+                // as well as placed, so the run below only has to find room for the steps the file
+                // says nothing about — a step added since the arrangement was made, or one a DYNAMIC
+                // step injected into a running process.
+                this.adoptLayout(this.wf.layout);
                 if (structureChanged || !this.layoutReady) {
                     this.didInitialFit = false;   // re-fit the new graph in view
                     this.runElkLayout();
@@ -1203,6 +1218,49 @@ export class MateuWorkflowElk extends LitElement {
         this.dispatchEvent(new CustomEvent("value-changed", {detail: {value: json}, bubbles: true, composed: true}));
     }
 
+    /**
+     * Whether this workflow carries a hand-made arrangement. The graph has two modes and this is
+     * the switch between them: an arranged workflow is drawn where its file says, an unarranged one
+     * wherever ELK puts it today.
+     */
+    private isArranged(): boolean {
+        return !!this.wf.layout && Object.keys(this.wf.layout).length > 0;
+    }
+
+    /** Takes the positions a file declares as given, and pins them so a layout run leaves them be. */
+    private adoptLayout(layout?: Record<string, NodePos>) {
+        if (!layout) return;
+        const adopted: Record<string, NodePos> = {...this.positions};
+        for (const [id, pos] of Object.entries(layout)) {
+            if (!pos || typeof pos.x !== "number" || typeof pos.y !== "number") continue;
+            adopted[id] = {x: pos.x, y: pos.y};
+            this.elkPositioned.add(id);
+        }
+        this.positions = adopted;
+    }
+
+    /**
+     * Writes the current arrangement into the definition and emits it, so the host can persist it.
+     *
+     * <p>Every step's position goes in, not only the ones just dragged. Half an arrangement is
+     * worse than none: the steps the file did not mention would be re-placed by whatever ELK
+     * decided on the viewer's machine, landing on top of the ones it did, and the author would be
+     * the only person ever to see the graph they arranged. So arranging is all-or-nothing — which
+     * is also why an untouched workflow keeps no `layout` key at all and its file does not change.
+     *
+     * <p>Rounded to whole pixels. A drag that lands a fraction of a pixel away is not a change
+     * anybody should have to read in a diff.
+     */
+    private captureLayout() {
+        const layout: Record<string, NodePos> = {};
+        for (const step of this.wf.steps ?? []) {
+            const pos = this.positions[step.id];
+            if (pos) layout[step.id] = {x: Math.round(pos.x), y: Math.round(pos.y)};
+        }
+        this.wf = {...this.wf, layout};
+        this.emit();
+    }
+
     private updateWf(patch: Partial<WorkflowDefinition>) {
         this.wf = {...this.wf, ...patch};
         this.emit();
@@ -1216,8 +1274,11 @@ export class MateuWorkflowElk extends LitElement {
             preconditionsOf(oldStep).join(",") !== preconditionsOf(newStep).join(",");
         this.wf = {...this.wf, steps};
         if (edgeChanged) {
-            // Invalidate ELK positions so a fresh layout runs
-            this.elkPositioned.clear();
+            // An arranged workflow keeps its arrangement: rewiring changes which lines are drawn,
+            // not where the author decided the boxes go. Only an unarranged graph re-flows — which
+            // is what every graph used to do, and what made arranging one pointless, since the next
+            // link you drew put it all back.
+            if (!this.isArranged()) this.elkPositioned.clear();
             this.runElkLayout();
         }
         this.emit();
@@ -1273,7 +1334,9 @@ export class MateuWorkflowElk extends LitElement {
         this.elkPositioned.add(id);   // the author placed it — ELK must not move it
         this.selectedEdge = null;
         this.selectedId = id;
-        this.emit();
+        // Dropping a node onto an arranged graph is itself an arrangement — the author chose where
+        // it lands. On an unarranged one it is not, and the file stays free of coordinates.
+        if (this.isArranged()) this.captureLayout(); else this.emit();
     }
 
     /**
@@ -1302,7 +1365,7 @@ export class MateuWorkflowElk extends LitElement {
         }
         this.selectedEdge = null;
         this.selectedId = id;
-        this.emit();
+        if (this.isArranged()) this.captureLayout(); else this.emit();
     }
 
     /**
@@ -1393,7 +1456,10 @@ export class MateuWorkflowElk extends LitElement {
         if (this.selectedId === id) this.selectedId = null;
         this.selectedEdge = null;      // it may have been an edge of the step just removed
         this.runElkLayout();
-        this.emit();
+        // Its coordinates go with it, rather than being left behind for a step id that no longer
+        // exists. Nothing breaks if they linger — a stale entry is ignored — but a file should not
+        // accumulate the ghosts of deleted steps.
+        if (this.isArranged()) this.captureLayout(); else this.emit();
     }
 
     /**
@@ -1479,9 +1545,13 @@ export class MateuWorkflowElk extends LitElement {
     };
 
     private onMouseUp = () => {
+        const moved = this.draggingId;
         this.draggingId = null;
         window.removeEventListener("mousemove", this.onMouseMove);
         window.removeEventListener("mouseup", this.onMouseUp);
+        // On the way up, not on every frame of the way across: emitting from onMouseMove would ask
+        // the host to rewrite the file a few hundred times for one drag.
+        if (moved) this.captureLayout();
     };
 
     // ── Edge drawing ────────────────────────────────────────────────────────────
@@ -1597,9 +1667,17 @@ export class MateuWorkflowElk extends LitElement {
 
     // ── Re-layout button ──────────────────────────────────────────────────────
 
+    /**
+     * Hands the graph back to ELK: the arrangement is dropped, the file loses its `layout` key, and
+     * the workflow is drawn automatically again. The way out for an arrangement that has stopped
+     * helping — and the reason arranging one is safe to try.
+     */
     private relayout() {
         this.elkPositioned.clear();
+        const {layout: _dropped, ...unarranged} = this.wf;
+        this.wf = unarranged;
         this.runElkLayout();
+        if (!this.readOnly) this.emit();
     }
 
     // ── Canvas size ───────────────────────────────────────────────────────────
@@ -3395,8 +3473,19 @@ export class MateuWorkflowElk extends LitElement {
         .flow-pulse {fill: var(--ec-primary); pointer-events: none;}
 
         /* monitoring overlay (read-only): state tint, active highlight, live count badge */
-        .node.ov-running   .node-shape {stroke: #d97706 !important; stroke-width: 2.4 !important;}
-        .node.ov-pending   .node-shape {stroke: #64748b !important; stroke-dasharray: 4 3 !important;}
+        /* Work in flight moves; work that is finished, failed or cancelled stands still. The two
+           unfinished states get a border of travelling dashes — the marching-ants idiom — because a
+           process view is read at a glance and a still picture cannot say "this is happening right
+           now" without the operator comparing it against the previous refresh. Running marches
+           briskly, pending crawls: the same language, at the speed of what the step is actually
+           doing. Every dash period below divides the 24 units the keyframe travels, so the loop is
+           seamless whichever dasharray ends up winning (ov-injected overrides it with 3 3). */
+        .node.ov-running   .node-shape {stroke: #d97706 !important; stroke-width: 2.4 !important;
+                                        stroke-dasharray: 8 4 !important;
+                                        animation: ec-march 1s linear infinite;}
+        .node.ov-pending   .node-shape {stroke: #64748b !important; stroke-dasharray: 4 2 !important;
+                                        animation: ec-march 2.6s linear infinite;}
+        @keyframes ec-march {from {stroke-dashoffset: 0;} to {stroke-dashoffset: -24;}}
         .node.ov-completed .node-shape {stroke: #16a34a !important;}
         .node.ov-error     .node-shape {stroke: #dc2626 !important; stroke-width: 2.4 !important;}
         .node.ov-cancelled .node-shape {stroke: #94a3b8 !important; opacity: .7;}
@@ -3407,9 +3496,25 @@ export class MateuWorkflowElk extends LitElement {
         .node.ov-undone .node-shape {stroke: #f59e0b !important; stroke-width: 2.4 !important; fill: #fffbeb !important;}
         .node.ov-undone.ov-error .node-shape {stroke: #dc2626 !important; stroke-dasharray: 5 4 !important;}
         .node.ov-undone .ov-done circle {fill: #f59e0b;}
-        .node.ov-active .node-shape {stroke: var(--ec-primary) !important; stroke-width: 3 !important; filter: drop-shadow(0 0 5px color-mix(in srgb, var(--ec-primary) 60%, transparent));}
-        .node.ov-active .node-inner {animation: ec-active-pulse 1.6s ease-in-out infinite;}
-        @keyframes ec-active-pulse {0%,100% {opacity: 1;} 50% {opacity: .72;}}
+        /* Where the process is now. The marching border is inherited from ov-running (the two
+           always travel together); what this adds is the primary colour and a halo that breathes,
+           so the step being worked on is findable in a graph where several are pending. The halo
+           replaced an opacity pulse on the node's whole content, which took the title and id with
+           it and left the one node an operator most wants to read the hardest to read. */
+        .node.ov-active .node-shape {stroke: var(--ec-primary) !important; stroke-width: 3 !important;
+                                     animation: ec-march 1s linear infinite, ec-active-halo 1.8s ease-in-out infinite;}
+        @keyframes ec-active-halo {
+            0%, 100% {filter: drop-shadow(0 0 3px color-mix(in srgb, var(--ec-primary) 45%, transparent));}
+            50%      {filter: drop-shadow(0 0 9px color-mix(in srgb, var(--ec-primary) 85%, transparent));}
+        }
+        /* Motion is the signal here, so switching it off has to leave a signal behind: the dashes
+           stop travelling but stay dashed, and the running step keeps a static halo. */
+        @media (prefers-reduced-motion: reduce) {
+            .node.ov-running .node-shape,
+            .node.ov-pending .node-shape {animation: none;}
+            .node.ov-active  .node-shape {animation: none;
+                                          filter: drop-shadow(0 0 5px color-mix(in srgb, var(--ec-primary) 60%, transparent));}
+        }
         .ov-count circle {fill: var(--ec-primary); stroke: var(--ec-surface); stroke-width: 1.5;}
         .ov-count text {fill: #fff; font-size: 11px; font-weight: 700;}
         /* Amber, not the primary and not the error red: a stopped process is neither progress nor
@@ -3432,6 +3537,11 @@ export class MateuWorkflowElk extends LitElement {
         .ov-injected-badge .ov-spark {fill: #fff; stroke: none;}
         /* parts the process hasn't reached yet fade back */
         .node.mon-dim {opacity: .3;}
+        /* ...but a PENDING step is not one of them. It has a step execution: the engine has
+           scheduled it and a worker is about to take it, which is not the same as a step the run
+           may never arrive at — and at .3 the two were the same picture. Lifted to sit between the
+           untouched steps and the ones already done, which is where it belongs. */
+        .node.mon-dim.ov-pending {opacity: .62;}
         .edge.mon-dim, .comp-edge.mon-dim {opacity: .18;}
 
         /* stopped/waiting heatmap (definition view): --heat is 0–100, set per node. The fill mix is

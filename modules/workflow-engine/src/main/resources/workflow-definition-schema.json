@@ -163,9 +163,39 @@
       "items": {
         "$ref": "#/$defs/Step"
       }
+    },
+    "layout": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "Where each step's node sits on the diagram, keyed by step id \u2014 the arrangement whoever authored this workflow made by hand in the graph editor. The only key here that says nothing about what the workflow does, and the only one written by a tool rather than by a person: the editor rewrites it as nodes are dragged. Absent means the graph is laid out automatically, which is what happens to any step with no entry here (including the steps a DYNAMIC step injects at runtime). An entry naming a step that does not exist is ignored rather than refused \u2014 it is a stale coordinate, not a broken workflow.",
+      "additionalProperties": {
+        "$ref": "#/$defs/NodePosition"
+      }
     }
   },
   "$defs": {
+    "NodePosition": {
+      "title": "NodePosition",
+      "type": "object",
+      "description": "A node's top-left corner on the diagram canvas, in whole pixels.",
+      "required": [
+        "x",
+        "y"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "x": {
+          "type": "integer",
+          "description": "Distance from the canvas' left edge to the node's left edge."
+        },
+        "y": {
+          "type": "integer",
+          "description": "Distance from the canvas' top edge to the node's top edge."
+        }
+      }
+    },
     "Step": {
       "title": "Step",
       "type": "object",

@@ -63,4 +63,15 @@ public class WorkflowDefinitionEntity {
     @ColumnDefault("'ACTIVE'")
     String runtimeStatus;
 
+    /**
+     * The diagram arrangement the author made by hand, as the JSON object the .ec file carries
+     * under {@code layout}: step id to {x, y}.
+     *
+     * <p>Null when nobody arranged this workflow, which is what rows written before the column
+     * existed read as, and what makes the graph lay itself out. Kept as JSON rather than as a table
+     * of its own because nothing queries it — it is read whole, with the definition, or not at all.
+     */
+    @Column(columnDefinition = "TEXT")
+    String layoutJson;
+
 }

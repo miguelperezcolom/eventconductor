@@ -1,0 +1,23 @@
+# A workflow whose author arranged its diagram by hand. The coordinates are presentation and the
+# build has no opinion about them beyond their shape — but the file has to validate, because the
+# graph editor writes this key into the definitions this plugin gates.
+id: arranged
+name: Arranged workflow
+version: 1
+steps:
+  - id: start
+    type: START
+    name: Start
+  - id: work
+    type: ACTION
+    name: Work
+    topic: work
+    preconditionStepId: start
+  - id: end
+    type: END
+    name: End
+    preconditionStepId: work
+layout:
+  start: {x: 60, y: 160}
+  work: {x: 320, y: 160}
+  end: {x: 620, y: 160}

@@ -53,7 +53,8 @@ class CreateProcessFlowAuthorizationTest {
                 null, false, "topic", null, null, null, null, 0, null, null, null, null, 0, 0, false,
                 null, 0, null);
         return new WorkflowDefinition(DEFINITION_ID, "Payments", 1, "", false, 0, false, null, 0,
-                List.of(step), false, WorkflowStatus.ACTIVE, WorkflowStatus.ACTIVE, scopes, roles, 0);
+                List.of(step), false, WorkflowStatus.ACTIVE, WorkflowStatus.ACTIVE, scopes, roles, 0,
+                null);
     }
 
     private void definitionIs(WorkflowDefinition definition) {

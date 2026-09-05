@@ -177,7 +177,8 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
         this.status = mapProcessStatus(process.getStatus(), process.getCompletionPercentage());
         var stepExecutions = stepExecutionRepository.findByProcess(process);
         this.steps = stepExecutions.stream()
-                .map(se -> new Step(id, se.id(), se.getStepId(), mapStepStatus(se.getStatus().name())))
+                .map(se -> new Step(id, se.id(), se.getStepId(), mapStepStatus(se.getStatus().name()),
+                        Step.format(se.getStartedAt()), Step.format(se.getFinishedAt())))
                 .toList();
         var logs = logMessageRepository.findByProcessId(id);
         this.diagram = buildDiagram(process, stepExecutions, logs);
@@ -218,7 +219,7 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
      * highlight on the running step(s) — so the diagram shows where the process currently is.
      */
     Element buildDiagram(Process process, List<StepExecution> stepExecutions, List<LogMessage> logs) {
-        var def = workflowDefinitionRepository.findById(process.getWorkflowDefinitionId()).orElse(null);
+        var def = definitionOf(process);
         if (def == null) return null;
         // Collapse retries: keep the most telling execution per step (running/error over completed,
         // and the latest attempt when equally telling) so the overlay reads the current situation.
@@ -266,6 +267,39 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
                 .content("")
                 .style("display: block; height: calc(100vh - 30rem); min-height: 320px;")
                 .build();
+    }
+
+    /**
+     * The definition <em>this</em> process is running: the copy frozen into it when it was created,
+     * not whatever the engine holds under that id today.
+     *
+     * <p>A definition is editable, and every process that started before an edit keeps running the
+     * version it started with — the engine never re-reads it, because each step execution carries
+     * its own frozen {@code stepJson}. Drawing the diagram from the repository therefore drew a
+     * process that does not exist: steps added since appeared as nodes that never ran, steps
+     * removed since vanished under the executions that did run, and a rewired precondition drew
+     * edges the instance never followed. Deleting the definition erased the diagram of every
+     * finished process that used it.
+     *
+     * <p>The snapshot is authoritative here; the repository is only a fallback, for a process
+     * stored before {@code workflowDefinitionJson} was filled in, or one whose snapshot cannot be
+     * read back.
+     */
+    io.mateu.workflow.domain.aggregates.WorkflowDefinition definitionOf(Process process) {
+        var snapshot = safeDefinition(process.getWorkflowDefinitionJson());
+        if (snapshot != null) {
+            return snapshot;
+        }
+        return workflowDefinitionRepository.findById(process.getWorkflowDefinitionId()).orElse(null);
+    }
+
+    private static io.mateu.workflow.domain.aggregates.WorkflowDefinition safeDefinition(String definitionJson) {
+        try {
+            return definitionJson == null || definitionJson.isBlank() ? null
+                    : pojoFromJson(definitionJson, io.mateu.workflow.domain.aggregates.WorkflowDefinition.class);
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     /**

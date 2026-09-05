@@ -167,7 +167,21 @@ public class WorkflowOrchestrationService {
             return completed && evaluateGuard(precondition, step, process);
         };
         boolean xorJoin = step.type() == StepType.JOIN && step.joinType() == JoinType.XOR;
-        return xorJoin
+        // An END is reached, not joined. One arriving branch is the whole of its condition.
+        //
+        // Draw two exclusive routes — confirm on paid, cancel on unpaid — and let both point at
+        // the same END, which is the obvious way to draw it. Under allMatch that END waits for
+        // BOTH, and one of them is a route the flow did not take and never will: its guard read a
+        // variable that already has the other value. The process sits at 60% for ever, RUNNING,
+        // with the last step CREATED and the untaken branch CREATED beside it. Nothing is broken
+        // enough to report — it is simply waiting for something that cannot happen.
+        //
+        // Treating END as a join is also the wrong shape on its own terms: a JOIN says "gather
+        // these branches", an END says "the process is over". Whatever else was pending stops
+        // mattering the moment one branch reaches it, which is exactly what the engine already
+        // does to a branch still at a worker when another reaches END.
+        boolean anyBranchIsEnough = xorJoin || step.type() == StepType.END;
+        return anyBranchIsEnough
                 ? step.resolvedPreconditions().stream().anyMatch(satisfied)
                 : step.resolvedPreconditions().stream().allMatch(satisfied);
     }

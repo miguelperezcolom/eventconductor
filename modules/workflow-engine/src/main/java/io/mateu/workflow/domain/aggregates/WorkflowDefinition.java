@@ -19,6 +19,7 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotEmpty;
 
 import java.util.List;
+import java.util.Map;
 
 @FormLayout(columns = 5)
 @Style(StyleConstants.FULL_WIDTH_WITH_PADDING)
@@ -87,7 +88,23 @@ public record WorkflowDefinition(
          * a definition file (or a row) written before this field existed deserialises to 0.
          */
         @Min(0)
-        int maxSteps
+        int maxSteps,
+        /**
+         * Where each step's node sits on the diagram, by step id — the arrangement whoever authored
+         * this workflow made by hand, carried in the file as `layout`.
+         *
+         * <p>The only component here that says nothing about what the workflow does. It is in the
+         * definition rather than beside it because the console draws its graphs from the engine, not
+         * from the author's working copy: a layout the engine did not carry would be a layout only
+         * the person who made it ever saw.
+         *
+         * <p>Null when nobody has arranged anything, and null is what the exporter omits — so a file
+         * that was never touched by hand stays exactly as its author wrote it. A step id with no
+         * entry is placed by the auto-layout, which is also what happens to the steps a DYNAMIC step
+         * injects at runtime.
+         */
+        @Hidden
+        Map<String, NodePosition> layout
 ) implements Identifiable, SearchableText, LookupOptionsSupplier, VisibilitySupplier {
 
     /**
@@ -103,6 +120,11 @@ public record WorkflowDefinition(
         // Absent in a file, in an old row, or in a copy from an older caller all mean "no requirement".
         requiredScopes = requiredScopes == null ? List.of() : List.copyOf(requiredScopes);
         requiredRoles = requiredRoles == null ? List.of() : List.copyOf(requiredRoles);
+        // Not defaulted to an empty map, unlike the lists above: "nobody arranged this" and
+        // "somebody arranged it and then moved every node back" are worth telling apart, and only
+        // null is omitted by the exporter's NON_NULL inclusion. An empty map would write
+        // `layout: {}` into every file the engine ever exported.
+        layout = layout == null ? null : Map.copyOf(layout);
     }
 
     /** Creation without any lifecycle state: definitions start unpaused and active. */
@@ -112,7 +134,7 @@ public record WorkflowDefinition(
                               int defaultMaxStepExecutions, List<Step> steps) {
         this(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
-                steps, false, WorkflowStatus.ACTIVE, WorkflowStatus.ACTIVE, List.of(), List.of(), 0);
+                steps, false, WorkflowStatus.ACTIVE, WorkflowStatus.ACTIVE, List.of(), List.of(), 0, null);
     }
 
     /**
@@ -127,7 +149,7 @@ public record WorkflowDefinition(
         this(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
                 steps, paused, WorkflowStatus.ACTIVE,
-                WorkflowStatus.of(null, disabled, archived), List.of(), List.of(), 0);
+                WorkflowStatus.of(null, disabled, archived), List.of(), List.of(), 0, null);
     }
 
     /** The canonical shape before flow-authorization requirements existed — callers that build a
@@ -139,7 +161,7 @@ public record WorkflowDefinition(
                               boolean paused, WorkflowStatus declaredStatus, WorkflowStatus runtimeStatus) {
         this(id, name, version, description, limitConcurrentExecutions, maxConcurrentExecutions,
                 enqueueOnLimit, cronExpression, defaultMaxStepExecutions, steps, paused,
-                declaredStatus, runtimeStatus, List.of(), List.of(), 0);
+                declaredStatus, runtimeStatus, List.of(), List.of(), 0, null);
     }
 
     /**
@@ -181,21 +203,21 @@ public record WorkflowDefinition(
     public WorkflowDefinition withPaused(boolean newPaused) {
         return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
-                steps, newPaused, declaredStatus, runtimeStatus, requiredScopes, requiredRoles, maxSteps);
+                steps, newPaused, declaredStatus, runtimeStatus, requiredScopes, requiredRoles, maxSteps, layout);
     }
 
     /** Returns a copy with a different runtime status — what an operator decided. */
     public WorkflowDefinition withRuntimeStatus(WorkflowStatus newStatus) {
         return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
-                steps, paused, declaredStatus, newStatus, requiredScopes, requiredRoles, maxSteps);
+                steps, paused, declaredStatus, newStatus, requiredScopes, requiredRoles, maxSteps, layout);
     }
 
     /** Returns a copy with a different declared status — what the definition file says. */
     public WorkflowDefinition withDeclaredStatus(WorkflowStatus newStatus) {
         return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
-                steps, paused, newStatus, runtimeStatus, requiredScopes, requiredRoles, maxSteps);
+                steps, paused, newStatus, runtimeStatus, requiredScopes, requiredRoles, maxSteps, layout);
     }
 
     /** Kept for callers written against the boolean API. */
@@ -212,28 +234,42 @@ public record WorkflowDefinition(
     public WorkflowDefinition withRuntimeStateOf(WorkflowDefinition existing) {
         return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
-                steps, existing.paused(), declaredStatus, existing.runtimeStatus(), requiredScopes, requiredRoles, maxSteps);
+                steps, existing.paused(), declaredStatus, existing.runtimeStatus(), requiredScopes, requiredRoles, maxSteps, layout);
     }
 
     /** Returns a copy carrying a different step list, every other field unchanged. */
     public WorkflowDefinition withSteps(List<Step> newSteps) {
         return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
-                newSteps, paused, declaredStatus, runtimeStatus, requiredScopes, requiredRoles, maxSteps);
+                newSteps, paused, declaredStatus, runtimeStatus, requiredScopes, requiredRoles, maxSteps, layout);
     }
 
     /** Returns a copy carrying the given per-process step cap ({@code maxSteps}). */
     public WorkflowDefinition withMaxSteps(int newMaxSteps) {
         return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
-                steps, paused, declaredStatus, runtimeStatus, requiredScopes, requiredRoles, newMaxSteps);
+                steps, paused, declaredStatus, runtimeStatus, requiredScopes, requiredRoles, newMaxSteps, layout);
+    }
+
+    /**
+     * Returns a copy carrying a different hand-made diagram arrangement.
+     *
+     * <p>Chained at every place that rebuilds a definition through one of the narrower constructors
+     * above, the way {@link #withMaxSteps(int)} is — those constructors default the field, so a copy
+     * made through one silently drops whatever the file said.
+     */
+    public WorkflowDefinition withLayout(Map<String, NodePosition> newLayout) {
+        return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
+                maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
+                steps, paused, declaredStatus, runtimeStatus, requiredScopes, requiredRoles, maxSteps,
+                newLayout);
     }
 
     /** Returns a copy carrying the given (engine-assigned) version number. */
     public WorkflowDefinition withVersion(int newVersion) {
         return new WorkflowDefinition(id, name, newVersion, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
-                steps, paused, declaredStatus(), runtimeStatus(), requiredScopes, requiredRoles, maxSteps);
+                steps, paused, declaredStatus(), runtimeStatus(), requiredScopes, requiredRoles, maxSteps, layout);
     }
 
     // ── Detail-view lifecycle buttons (conditional on state via VisibilitySupplier) ──
