@@ -2,6 +2,7 @@ package io.mateu.workflow.application.usecases.process.create;
 
 import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
+import io.mateu.workflow.application.out.UnknownWorkflowDefinitionException;
 import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
 import io.mateu.workflow.application.out.WorkflowMetrics;
 import io.mateu.workflow.security.FlowAuthorizationDeniedException;
@@ -114,7 +115,8 @@ public class CreateProcessUseCase {
         // reads and writes back stays exactly as its author wrote it. Applying it in the
         // repository instead would let an editor round-trip bake the default in permanently.
         var workflowDefinition = StepTimeoutDefaults.applyTo(
-                workflowDefinitionRepository.findById(command.workflowDefinitionId()).orElseThrow(),
+                workflowDefinitionRepository.findById(command.workflowDefinitionId())
+                        .orElseThrow(() -> new UnknownWorkflowDefinitionException(command.workflowDefinitionId())),
                 defaultStepTimeoutMillis);
 
         // A disabled workflow accepts no new instances — which the cron scheduler already

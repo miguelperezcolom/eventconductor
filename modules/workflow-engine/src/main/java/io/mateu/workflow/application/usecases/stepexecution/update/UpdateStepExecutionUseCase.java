@@ -1,9 +1,12 @@
 package io.mateu.workflow.application.usecases.stepexecution.update;
 
+import io.mateu.workflow.application.out.ConcurrentProcessAccessException;
 import io.mateu.workflow.application.out.LogMessageRepository;
 import io.mateu.workflow.application.out.ProcessLockService;
 import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
+import io.mateu.workflow.application.out.UnknownProcessException;
+import io.mateu.workflow.application.out.UnknownStepExecutionException;
 import io.mateu.workflow.application.out.WorkflowMetrics;
 import io.mateu.workflow.application.services.MessageSubscriptionService;
 import io.mateu.workflow.domain.aggregates.LogMessage;
@@ -44,19 +47,25 @@ public class UpdateStepExecutionUseCase {
     final WorkflowMetrics workflowMetrics;
 
     public void handle(UpdateStepExecutionCommand command) {
-        var processId = repository.findById(command.stepId()).orElseThrow().getProcessId();
+        var processId = repository.findById(command.stepId())
+                .orElseThrow(() -> new UnknownStepExecutionException(command.stepId()))
+                .getProcessId();
 
         // Waiting rather than dropping: silently discarding a worker status update because
         // another node happened to hold the process would leave the step PENDING/RUNNING
         // forever. The wait is the database's row-lock queue now, not a sleep loop.
         if (!processLockService.runExclusively(processId, () -> doUpdate(command))) {
-            log.error("Could not acquire lock for process {}, status update {} for step {} was NOT applied",
-                    processId, command.status(), command.stepId());
+            // The lock queue should block until this attempt owns the process; if it still comes
+            // back unacquired (a lost race / rebalance) the worker's result must not be dropped —
+            // that would leave the step PENDING/RUNNING forever. Signal a retryable failure so
+            // whoever delivered the event redelivers it, exactly as for a lost concurrent write.
+            throw new ConcurrentProcessAccessException(processId, null);
         }
     }
 
     private void doUpdate(UpdateStepExecutionCommand command) {
-        var execution = repository.findById(command.stepId()).orElseThrow();
+        var execution = repository.findById(command.stepId())
+                .orElseThrow(() -> new UnknownStepExecutionException(command.stepId()));
         if (TERMINAL_STATUSES.contains(execution.getStatus())) {
             // Late report from a worker whose task already reached a final state
             // (timed out, cancelled, …) — applying it would resurrect the step.
@@ -64,7 +73,8 @@ public class UpdateStepExecutionUseCase {
                     command.status(), execution.id(), execution.getStatus());
             return;
         }
-        var process = processRepository.findById(execution.getProcessId()).orElseThrow();
+        var process = processRepository.findById(execution.getProcessId())
+                .orElseThrow(() -> new UnknownProcessException(execution.getProcessId()));
         process.updateVariables(command.variables());
         processRepository.save(process);
 

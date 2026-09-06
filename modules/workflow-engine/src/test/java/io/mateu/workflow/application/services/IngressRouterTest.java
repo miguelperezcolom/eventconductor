@@ -42,7 +42,7 @@ class IngressRouterTest {
 
     private IngressRouter router(boolean sharding) {
         return new IngressRouter(upstreamEventPublisher, ingressPublisher,
-                processIndexRepository, shardRegistry, noPlacementStore(), sharding);
+                processIndexRepository, shardRegistry, noPlacementStore(), sharding, false);
     }
 
     /** No placement store configured — the pre-existing behaviour these tests were written for. */
@@ -129,6 +129,27 @@ class IngressRouterTest {
         verify(ingressPublisher).publishToShard(a, "s0");
         verify(ingressPublisher).publishToShard(b, "s1");
         verify(ingressPublisher).publishToShard(c, "s0");
+    }
+
+    @Test
+    void failsFastWhenPlacementIsRequiredButNoStoreIsConfigured() {
+        // workflow.sharding.placement.required=true turns the startup warning into a refusal: a
+        // sharded fleet with no placement store can silently duplicate a process on redelivery.
+        var strict = new IngressRouter(upstreamEventPublisher, ingressPublisher,
+                processIndexRepository, shardRegistry, noPlacementStore(), true, true);
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(strict::warnIfPlacementIsMissing)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("placement");
+    }
+
+    @Test
+    void toleratesAMissingStoreWhenPlacementIsNotRequired() {
+        // Default: the safe single-cluster case must still start (warn, not throw).
+        var lenient = new IngressRouter(upstreamEventPublisher, ingressPublisher,
+                processIndexRepository, shardRegistry, noPlacementStore(), true, false);
+
+        lenient.warnIfPlacementIsMissing();
     }
 
     @Test

@@ -64,6 +64,24 @@ class CreateProcessUseCaseTest {
     }
 
     @Test
+    void aCreationForAWorkflowDefinitionThatDoesNotExistIsPoison() {
+        // A creation naming a definition the engine has never loaded cannot succeed on any retry
+        // (the definition is not going to appear). It throws a typed poison exception so the
+        // delivery machinery parks it rather than retrying it forever — the previously untested path.
+        String missing = "no-such-definition";
+        when(workflowDefinitionRepository.findById(missing)).thenReturn(Optional.empty());
+
+        CreateProcessCommand command = new CreateProcessCommand(
+                "process-1", missing, "BK-1", List.of(), null);
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> createProcessUseCase.handle(command))
+                .isInstanceOf(io.mateu.workflow.application.out.UnknownWorkflowDefinitionException.class);
+
+        verify(processRepository, never()).save(any());
+        verify(stepExecutionRepository, never()).save(any());
+    }
+
+    @Test
     void shouldCreateProcessBornPausedWhenTheDefinitionIsPaused() {
         // given
         String workflowDefinitionId = "wd-1";

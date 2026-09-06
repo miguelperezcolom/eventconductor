@@ -126,15 +126,34 @@ class UpdateStepExecutionUseCaseTest {
     }
 
     @Test
-    void doesNotUpdateWhenLockNotAcquired() {
+    void lockNotAcquiredThrowsRetryableRatherThanDroppingTheUpdate() {
+        // A lock the queue never granted must not silently discard the worker's result — that would
+        // leave the step PENDING/RUNNING forever. It throws a retryable failure so the event is
+        // redelivered, and nothing is written in the meantime.
         var se = stepExecution("se-1", "p-1");
         when(repository.findById("se-1")).thenReturn(Optional.of(se));
         when(processLockService.runExclusively(eq("p-1"), any())).thenReturn(false);
 
-        useCase.handle(new UpdateStepExecutionCommand("se-1", List.of(), "", StepExecutionStatus.COMPLETED));
+        var command = new UpdateStepExecutionCommand("se-1", List.of(), "", StepExecutionStatus.COMPLETED);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> useCase.handle(command))
+                .isInstanceOf(io.mateu.workflow.application.out.ConcurrentProcessAccessException.class);
 
         verify(repository, never()).save(any());
         verify(processRepository, never()).save(any());
+    }
+
+    @Test
+    void aStatusUpdateForAStepThatDoesNotExistIsPoison() {
+        // A report for a step execution the engine has never heard of (a stale or forged event)
+        // cannot succeed on any retry — it throws a typed poison exception so the delivery machinery
+        // parks it rather than retrying it forever.
+        when(repository.findById("no-such-step")).thenReturn(Optional.empty());
+
+        var command = new UpdateStepExecutionCommand("no-such-step", List.of(), "", StepExecutionStatus.COMPLETED);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> useCase.handle(command))
+                .isInstanceOf(io.mateu.workflow.application.out.UnknownStepExecutionException.class);
+
+        verify(processLockService, never()).runExclusively(any(), any());
     }
 
     @Test
