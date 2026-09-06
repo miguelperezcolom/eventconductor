@@ -1,6 +1,7 @@
 package io.mateu.workflow.application.services;
 
 import io.mateu.workflow.application.out.ConcurrentProcessAccessException;
+import io.mateu.workflow.application.out.PoisonEventException;
 import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.dao.RecoverableDataAccessException;
 import org.springframework.dao.TransientDataAccessException;
@@ -33,7 +34,18 @@ public final class EventFailures {
     private static final int MAX_CAUSE_DEPTH = 20;
 
     public static boolean isRetryable(Throwable failure) {
+        // Poison beats retryable. A defective event — one that names a step, process or definition
+        // that does not exist — stays parked even if it also surfaced a retryable-looking failure
+        // on the way (a data-access exception raised while loading the row that is not there).
+        // Checked first, and across the whole chain, so the incidental exception cannot flip a
+        // defective event into one retried forever.
         var depth = 0;
+        for (var cause = failure; cause != null && depth++ < MAX_CAUSE_DEPTH; cause = cause.getCause()) {
+            if (cause instanceof PoisonEventException) {
+                return false;
+            }
+        }
+        depth = 0;
         for (var cause = failure; cause != null && depth++ < MAX_CAUSE_DEPTH; cause = cause.getCause()) {
             if (cause instanceof ConcurrentProcessAccessException
                     || cause instanceof TransientDataAccessException

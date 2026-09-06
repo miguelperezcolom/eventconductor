@@ -55,6 +55,7 @@ public class IngressRouter {
     private final ShardRegistry shardRegistry;
     private final ObjectProvider<ProcessPlacementRepository> processPlacementRepository;
     private final boolean sharding;
+    private final boolean placementRequired;
     private final AtomicInteger cursor = new AtomicInteger();
 
     public IngressRouter(UpstreamEventPublisher upstreamEventPublisher,
@@ -62,30 +63,46 @@ public class IngressRouter {
                          ProcessIndexRepository processIndexRepository,
                          ShardRegistry shardRegistry,
                          ObjectProvider<ProcessPlacementRepository> processPlacementRepository,
-                         @Value("${workflow.sharding.enabled:false}") boolean sharding) {
+                         @Value("${workflow.sharding.enabled:false}") boolean sharding,
+                         @Value("${workflow.sharding.placement.required:false}") boolean placementRequired) {
         this.upstreamEventPublisher = upstreamEventPublisher;
         this.ingressPublisher = ingressPublisher;
         this.processIndexRepository = processIndexRepository;
         this.shardRegistry = shardRegistry;
         this.processPlacementRepository = processPlacementRepository;
         this.sharding = sharding;
+        this.placementRequired = placementRequired;
     }
 
     /**
      * A sharded fleet without a placement store is one redelivery away from two processes sharing a
      * business key, and nothing downstream would notice. It is a supported configuration — the
-     * placement store is opt-in like everything else here — so this warns rather than refusing to
-     * start, but it warns in the terms of the damage rather than the terms of the setting.
+     * placement store is opt-in like everything else here — so by default this warns rather than
+     * refusing to start, but it warns in the terms of the damage rather than the terms of the setting.
+     *
+     * <p>A deployment that cannot tolerate that window sets {@code workflow.sharding.placement.required=true}
+     * and the same condition becomes fail-fast: the engine refuses to start rather than run in a shape
+     * where a redelivery can silently duplicate a process. Off by default so the safe single-cluster
+     * case (where the eventually-consistent index is enough) is unaffected.
      */
     @PostConstruct
     void warnIfPlacementIsMissing() {
         if (sharding && processPlacementRepository.getIfAvailable() == null) {
+            if (placementRequired) {
+                throw new IllegalStateException(
+                        "Sharding is on and workflow.sharding.placement.required=true, but no placement "
+                        + "store is configured (workflow.sharding.placement.datasource.url). Refusing to "
+                        + "start: without it, a creation redelivered before the process-index projection "
+                        + "catches up can be placed on a second shard, leaving two processes for one "
+                        + "business key. Configure the placement store or unset placement.required.");
+            }
             log.warn("Sharding is on but no placement store is configured "
                     + "(workflow.sharding.placement.datasource.url). New processes will be placed "
                     + "from the process-index read model, which is eventually consistent: a creation "
                     + "redelivered before the projection catches up can be placed on a SECOND shard, "
-                    + "leaving two processes for one business key. Configure the placement store, or "
-                    + "make sure every creation is de-duplicated before it reaches the engine.");
+                    + "leaving two processes for one business key. Configure the placement store, set "
+                    + "workflow.sharding.placement.required=true to fail fast instead, or make sure every "
+                    + "creation is de-duplicated before it reaches the engine.");
         }
     }
 
