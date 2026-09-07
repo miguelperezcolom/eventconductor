@@ -49,7 +49,7 @@ class IngressRouterPlacementTest {
     private IngressRouter router(ProcessPlacementRepository store) {
         return new IngressRouter(upstreamEventPublisher, ingressPublisher,
                 processIndexRepository, shardRegistry,
-                IngressRouterTest.placementStore(store), true);
+                IngressRouterTest.placementStore(store), true, false);
     }
 
     private ProcessCreationRequested creation(String businessKey) {

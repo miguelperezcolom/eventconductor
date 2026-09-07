@@ -1,6 +1,8 @@
 package io.mateu.workflow.application.services;
 
 import io.mateu.workflow.application.out.ConcurrentProcessAccessException;
+import io.mateu.workflow.application.out.UnknownStepExecutionException;
+import io.mateu.workflow.application.out.UnknownWorkflowDefinitionException;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.dao.DataAccessResourceFailureException;
@@ -32,6 +34,27 @@ class EventFailuresTest {
                 .isFalse();
         assertThat(EventFailures.isRetryable(new IllegalArgumentException("bad payload"))).isFalse();
         assertThat(EventFailures.isRetryable(new NullPointerException())).isFalse();
+    }
+
+    @Test
+    void aPoisonEventIsNeverRetried() {
+        // Named references that do not resolve fail the same way forever, so they are parked, not
+        // retried — now by an explicit type rather than by the incidental NoSuchElementException.
+        assertThat(EventFailures.isRetryable(new UnknownStepExecutionException("no-such-step"))).isFalse();
+        assertThat(EventFailures.isRetryable(new UnknownWorkflowDefinitionException("no-such-wd"))).isFalse();
+    }
+
+    @Test
+    void poisonBeatsRetryableEvenWhenWrapped() {
+        // The point of the explicit type: a defective event that also surfaced a retryable-looking
+        // failure on the way (a lock exception raised while loading the row that is not there) must
+        // still be parked, not retried forever. Both orderings of the chain classify as poison.
+        assertThat(EventFailures.isRetryable(new UnknownStepExecutionException("no-such-step") {{
+            initCause(new CannotAcquireLockException("busy"));
+        }})).isFalse();
+        assertThat(EventFailures.isRetryable(
+                new CannotAcquireLockException("busy", new UnknownStepExecutionException("no-such-step"))))
+                .isFalse();
     }
 
     @Test
