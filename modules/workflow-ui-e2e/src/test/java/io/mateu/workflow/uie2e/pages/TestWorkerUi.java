@@ -51,23 +51,16 @@ public class TestWorkerUi {
         assertThat(text(item)).isVisible();
     }
 
-    /** A row in the list, addressed the way the UI exposes it: a button named after the record. */
-    public Locator row(String id) {
-        return page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName(id)).first();
-    }
-
-    /** Opens a record's detail panel. */
-    public TestWorkerUi openRow(String id) {
-        row(id).click();
-        return this;
-    }
-
     /**
-     * Any text on the page — the page title, or a value in the detail panel.
+     * Any text on the page — the page title, or a value in a list row.
      *
      * <p>Not an exact match, on purpose. A list row renders its title and subtitle into one text
      * node, so a row whose name is "slow charge-card down" reads as "slow charge-card down booking"
      * and an exact matcher finds nothing.
+     *
+     * <p>There is no {@code openRow} counterpart: the Received-tasks Crud is {@code @NotEditable}, so
+     * clicking a row opens no detail, and doing it churned the grid mid-render and made the last
+     * columns flake. Every field is a column, so the values are read from the list directly.
      */
     public Locator text(String value) {
         return page.getByText(value).first();

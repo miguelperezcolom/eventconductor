@@ -52,15 +52,22 @@ class TestWorkerJourneyTest extends AbstractUiE2eTest {
     }
 
     @Test
-    void the_list_shows_a_task_the_worker_recorded_and_the_detail_says_who_answered_it() {
+    void the_list_shows_a_recorded_task_with_the_source_that_answered_it() {
         receivedTasks.save(recorded("exec-ui-1", "charge-card", ScenarioSource.TEST_CONFIG,
                 Outcome.ERROR, "card declined"));
 
-        worker.goToReceivedTasks().openRow("exec-ui-1");
+        worker.goToReceivedTasks();
 
-        // The fields people actually come to this page for. `source` most of all: when a run
-        // surprises you, the first question is whether the reply came from the scenario the test
-        // wrote or from an override somebody left enabled, and this is where that is answered.
+        // The fields people actually come to this page for, read straight from the list row. `source`
+        // most of all: when a run surprises you, the first question is whether the reply came from the
+        // scenario the test wrote or from an override somebody left enabled, and this is where that is
+        // answered.
+        //
+        // Read from the list, not from a detail opened by clicking the row: this Crud is
+        // @NotEditable, so a row click opens nothing — and it was the source of the flake. Clicking
+        // mid-render churned the grid, and the outcome and note columns (rendered last) would flicker
+        // out of the DOM just as the assertion sampled, timing it out under CI load. Every field is a
+        // column here, so the list already shows all of it and no click is needed.
         assertThat(worker.text("charge-card")).isVisible();
         assertThat(worker.text("TEST_CONFIG")).isVisible();
         assertThat(worker.text("ERROR")).isVisible();
