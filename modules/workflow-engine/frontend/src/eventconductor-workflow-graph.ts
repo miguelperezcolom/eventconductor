@@ -3,6 +3,48 @@ import {css, html, LitElement, nothing, svg} from "lit";
 import type {ELK, ElkNode, ElkExtendedEdge} from "elkjs/lib/elk.bundled.js";
 import {neutralButtonStyles, iconCog, iconSitemap, iconFit, iconDownload} from "./neutralChrome";
 
+// ── Clipboard bridge ─────────────────────────────────────────────────────────
+//
+// The process detail's "Copy state" toolbar action runs on the server, which cannot reach the
+// browser's clipboard, so it dispatches an `ec-copy-to-clipboard` event carrying the JSON; this
+// writes it and shows a "copied" toast. Registered once at module load — which happens when the
+// detail mounts its diagram — and on `window`, so it works whichever tab is showing when the
+// button is pressed, and outlives the graph element being torn down as tabs switch.
+declare global {
+    interface Window { __ecClipboardBridge?: boolean; }
+}
+
+function ecShowToast(message: string) {
+    const toast = document.createElement("div");
+    toast.textContent = message;
+    toast.setAttribute("role", "status");
+    toast.style.cssText = "position:fixed;left:50%;bottom:32px;transform:translateX(-50%);"
+        + "background:#1e293b;color:#fff;padding:10px 16px;border-radius:8px;font:500 13px/1.4 "
+        + "system-ui,sans-serif;box-shadow:0 6px 20px rgba(15,23,42,.25);z-index:100000;"
+        + "opacity:0;transition:opacity .15s;pointer-events:none;";
+    document.body.appendChild(toast);
+    requestAnimationFrame(() => { toast.style.opacity = "1"; });
+    setTimeout(() => {
+        toast.style.opacity = "0";
+        setTimeout(() => toast.remove(), 200);
+    }, 2200);
+}
+
+if (typeof window !== "undefined" && !window.__ecClipboardBridge) {
+    window.__ecClipboardBridge = true;
+    window.addEventListener("ec-copy-to-clipboard", (e: Event) => {
+        const detail = (e as CustomEvent).detail ?? {};
+        const text = typeof detail.text === "string" ? detail.text : "";
+        const ok = detail.message || "Copied to the clipboard";
+        // clipboard.writeText needs a secure context (https, or localhost); the console makes
+        // the reason plain when a stray http origin has none, rather than failing silently.
+        navigator.clipboard?.writeText(text).then(
+            () => ecShowToast(ok),
+            (err) => { console.error("Clipboard write failed", err); ecShowToast("Could not copy to the clipboard"); },
+        );
+    });
+}
+
 // ── Domain types ─────────────────────────────────────────────────────────────
 
 type StepType =
