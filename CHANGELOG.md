@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.15.0] - 2026-09-09
+
+### Added
+- **Filter the process listing by business key.** The listing could be narrowed by definition,
+  status and creation dates, and the search box matched a process's name or business key together —
+  but there was no way to narrow to the business key alone, the identifier an operator most often
+  has in hand (an order number, a booking reference). A new **Business key** filter matches it, and
+  it alone, as a case-insensitive substring, wired through both the in-memory store and the
+  pushed-down JPA query.
+- **Copy a process's state to the clipboard.** A **Copy state** action on the process detail
+  serialises the process — identity, status, variables, steps and the message/error log — to JSON
+  and copies it, with a "copied" toast, so it can be pasted into a ticket or a chat instead of
+  screenshotting a screen a paste cannot carry.
+
+### Fixed
+- **The step's hover card on the diagram can be reached and scrolled.** In the monitoring view,
+  hovering a step shows a card with its variables; when there were many, the card gave them a
+  scrollbar that could never be reached — moving the pointer toward the card left the node and
+  closed it, and the card itself was pointer-transparent. The card is now hoverable, with a short
+  grace period bridging the 8px gap from the node to the card, so a long variable list can be read.
+- **Starting a process from the browser works instead of throwing.** *Processes → New → Create*
+  answered with an `UnsupportedOperationException`: a Crud renders its own Create submit for a
+  creation form, and that submit fires the reserved `create` action, routed to a `create()` that
+  only threw — the form's own action was never the button that submitted. Create now assembles the
+  process from the submitted form and navigates to its detail. Covered by a new browser journey.
+
+### Internal
+- **De-flaked `TestWorkerJourneyTest`.** Dropped a pointless row click that raced the render.
+
 ## [2.14.1] - 2026-09-05
 
 ### Changed
