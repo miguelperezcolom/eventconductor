@@ -860,6 +860,12 @@ export class MateuWorkflowElk extends LitElement {
     @state() private paletteHoverNode: string | null = null;
     /** Node the pointer is over in monitoring view — drives the diagnostic hover tooltip. */
     @state() private hoverId: string | null = null;
+    /**
+     * Pending close of the hover card. The card sits 8px below the node, so moving the pointer from
+     * the node onto the card crosses a gap where neither is hovered; a short grace timer bridges it,
+     * and the card's own mouseenter cancels the timer so it can be scrolled and read.
+     */
+    private hoverHideTimer?: ReturnType<typeof setTimeout>;
     @state() private showMeta = false;
     /** Whether the editing-gestures help popover is open. */
     @state() private showHelp = false;
@@ -1058,6 +1064,7 @@ export class MateuWorkflowElk extends LitElement {
     disconnectedCallback() {
         super.disconnectedCallback();
         this.stopFlow();
+        this.cancelHoverHide();
         this.resizeObs?.disconnect();
         this.svgEl?.removeEventListener("wheel", this.onWheel);
         document.removeEventListener("fullscreenchange", this.onFullscreenChange);
@@ -3126,14 +3133,39 @@ export class MateuWorkflowElk extends LitElement {
     /** Hover detail only makes sense in monitoring view; ignore hovers on the plain editor. */
     private onNodeHover(id: string | null) {
         if (id !== null && !this.hasStateOverlay()) return;
-        this.hoverId = id;
+        if (id !== null) {
+            this.cancelHoverHide();
+            this.hoverId = id;
+        } else {
+            // Do not drop the card the instant the node is left: the pointer may be on its way onto
+            // the card itself (to scroll the variables). Give it a moment; the card cancels this.
+            this.scheduleHoverHide();
+        }
+    }
+
+    /** Keep the hover card open — called when the pointer is over the node or the card itself. */
+    private cancelHoverHide() {
+        if (this.hoverHideTimer !== undefined) {
+            clearTimeout(this.hoverHideTimer);
+            this.hoverHideTimer = undefined;
+        }
+    }
+
+    /** Close the hover card shortly, unless {@link cancelHoverHide} intervenes first. */
+    private scheduleHoverHide() {
+        this.cancelHoverHide();
+        this.hoverHideTimer = setTimeout(() => {
+            this.hoverId = null;
+            this.hoverHideTimer = undefined;
+        }, 140);
     }
 
     /**
      * The diagnostic hover card for a monitored step: the consolidated "why it is here", the last
      * error, and the detail (retries, awaited message/key, deadlines, worker, variables) an operator
      * needs to answer it without opening the code. Positioned in screen space so it stays legible at
-     * any zoom, and pointer-transparent so it never eats the pan/hover it floats over.
+     * any zoom, and hoverable in its own right so a long variable list can be scrolled and read —
+     * moving onto it keeps it open (see {@link cancelHoverHide}).
      */
     private renderOverlayTooltip() {
         const id = this.hoverId;
@@ -3156,7 +3188,9 @@ export class MateuWorkflowElk extends LitElement {
         const attempt = ov.attempt != null
             ? (ov.maxRetries ? `${ov.attempt}/${ov.maxRetries}` : `${ov.attempt}`) : null;
         return html`
-            <div class="ov-tip" style="left:${left}px; top:${top}px;">
+            <div class="ov-tip" style="left:${left}px; top:${top}px;"
+                 @mouseenter="${() => this.cancelHoverHide()}"
+                 @mouseleave="${() => this.scheduleHoverHide()}">
                 <div class="tip-head"><span class="tip-name">${step?.name ?? id}</span>${chip}${undoneChip}</div>
                 ${ov.reason ? html`<div class="tip-reason">${ov.reason}</div>` : nothing}
                 ${ov.error ? html`<div class="tip-errmsg">${ov.error}</div>` : nothing}
@@ -3556,7 +3590,7 @@ export class MateuWorkflowElk extends LitElement {
 
         /* diagnostic hover card (monitoring view): "why is this step here?" without opening code */
         .ov-tip {
-            position: absolute; z-index: 30; pointer-events: none;
+            position: absolute; z-index: 30; pointer-events: auto;
             min-width: 200px; max-width: 300px;
             background: var(--ec-surface, #fff); color: var(--ec-text, #1e293b);
             border: 1px solid var(--ec-border, #e2e8f0); border-radius: 8px;
