@@ -53,6 +53,7 @@ public interface ProcessEntityRepository extends JpaRepository<ProcessEntity, St
             where (:onlyErrors = false or p.status = 'ERROR')
               and (:pattern is null
                    or lower(concat(coalesce(p.name, ''), ' ', coalesce(p.businessKey, ''))) like :pattern)
+              and (:businessKey is null or lower(coalesce(p.businessKey, '')) like :businessKey)
               and (:definitionId is null or p.workflowDefinitionId = :definitionId)
               and (:status is null or p.status = :status)
               and (cast(:createdFrom as LocalDateTime) is null or p.created >= :createdFrom)
@@ -61,6 +62,7 @@ public interface ProcessEntityRepository extends JpaRepository<ProcessEntity, St
             """)
     List<ProcessSummaryView> searchSummaries(@Param("onlyErrors") boolean onlyErrors,
                                              @Param("pattern") String pattern,
+                                             @Param("businessKey") String businessKey,
                                              @Param("definitionId") String definitionId,
                                              @Param("status") String status,
                                              @Param("createdFrom") LocalDateTime createdFrom,
@@ -79,6 +81,7 @@ public interface ProcessEntityRepository extends JpaRepository<ProcessEntity, St
             where (:onlyErrors = false or p.status = 'ERROR')
               and (:pattern is null
                    or lower(concat(coalesce(p.name, ''), ' ', coalesce(p.businessKey, ''))) like :pattern)
+              and (:businessKey is null or lower(coalesce(p.businessKey, '')) like :businessKey)
               and (:definitionId is null or p.workflowDefinitionId = :definitionId)
               and (:status is null or p.status = :status)
               and (cast(:createdFrom as LocalDateTime) is null or p.created >= :createdFrom)
@@ -86,6 +89,7 @@ public interface ProcessEntityRepository extends JpaRepository<ProcessEntity, St
             """)
     long countSummaries(@Param("onlyErrors") boolean onlyErrors,
                         @Param("pattern") String pattern,
+                        @Param("businessKey") String businessKey,
                         @Param("definitionId") String definitionId,
                         @Param("status") String status,
                         @Param("createdFrom") LocalDateTime createdFrom,

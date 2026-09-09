@@ -197,16 +197,18 @@ public class ProcessDBRepository implements ProcessRepository {
             io.mateu.workflow.application.out.ProcessListingFilter filter, int page, int size) {
         var searchText = filter.normalisedSearchText();
         var pattern = searchText == null ? null : "%" + searchText.toLowerCase() + "%";
+        var businessKey = filter.normalisedBusinessKey();
+        var businessKeyPattern = businessKey == null ? null : "%" + businessKey.toLowerCase() + "%";
         // The status travels as its name: the column is a string, and passing the enum would leave
         // the comparison to however the provider chooses to bind it.
         var status = filter.status() == null ? null : filter.status().name();
         // Counted first, because which page can be served depends on how many there are — see
         // ServedPage. Two queries either way: a Spring Data Page would have run this same count.
-        var total = processEntityRepository.countSummaries(filter.onlyErrors(), pattern,
+        var total = processEntityRepository.countSummaries(filter.onlyErrors(), pattern, businessKeyPattern,
                 filter.workflowDefinitionId(), status, filter.createdFrom(), filter.createdTo());
         var served = ServedPage.of(page, size, total);
         var content = processEntityRepository
-                .searchSummaries(filter.onlyErrors(), pattern,
+                .searchSummaries(filter.onlyErrors(), pattern, businessKeyPattern,
                         filter.workflowDefinitionId(), status, filter.createdFrom(), filter.createdTo(),
                         PageRequest.of(served.number(), served.size()))
                 .stream()

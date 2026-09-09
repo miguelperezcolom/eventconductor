@@ -81,6 +81,29 @@ class ProcessListingFilterTest {
         }
 
         @Test
+        void byBusinessKey() {
+            assertThat(ids(new ProcessListingFilter(null, false, null, null, null, null, "bk-b")))
+                    .containsExactly("b");
+        }
+
+        /** Case-insensitive and a substring — both of which the field's help text promises. */
+        @Test
+        void byBusinessKeyCaseInsensitiveSubstring() {
+            assertThat(ids(new ProcessListingFilter(null, false, null, null, null, null, "BK-C")))
+                    .containsExactly("c");
+        }
+
+        /**
+         * It matches the key, not the name: {@code "bk-"} is in every business key and in no name,
+         * so a hit on all three can only have come from the key.
+         */
+        @Test
+        void byBusinessKeyMatchesTheKeyNotTheName() {
+            assertThat(ids(new ProcessListingFilter(null, false, null, null, null, null, "bk-")))
+                    .containsExactly("a", "b", "c");
+        }
+
+        @Test
         void byCreatedFrom() {
             assertThat(ids(new ProcessListingFilter(null, false, null, null, JAN_1.plusDays(1), null)))
                     .containsExactly("b", "c");
@@ -151,6 +174,8 @@ class ProcessListingFilterTest {
             assertThat(new ProcessListingFilter(null, false, null, null, JAN_1, null)
                     .hasNarrowingBeyondText()).isTrue();
             assertThat(new ProcessListingFilter(null, false, null, null, null, JAN_1)
+                    .hasNarrowingBeyondText()).isTrue();
+            assertThat(new ProcessListingFilter(null, false, null, null, null, null, "bk-a")
                     .hasNarrowingBeyondText()).isTrue();
         }
     }
