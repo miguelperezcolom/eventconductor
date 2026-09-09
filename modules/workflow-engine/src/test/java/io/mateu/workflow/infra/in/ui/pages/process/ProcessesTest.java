@@ -20,7 +20,7 @@ class ProcessesTest {
     private final CommandDispatcher commandDispatcher = mock(CommandDispatcher.class);
 
     private Processes page() {
-        return new Processes(null, commandDispatcher, null);
+        return new Processes(null, commandDispatcher, null, null, null);
     }
 
     private ProcessRow row(String id) {
