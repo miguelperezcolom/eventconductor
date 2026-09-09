@@ -130,7 +130,8 @@ public class SimpleProcessCrudAdapter  {
                     blankToNull(filters.workflowDefinitionId()),
                     filters.status(),
                     filters.createdFrom(),
-                    filters.createdTo());
+                    filters.createdTo(),
+                    blankToNull(filters.businessKey()));
         }
         return new io.mateu.workflow.application.out.ProcessListingFilter(
                 searchText,
@@ -138,7 +139,8 @@ public class SimpleProcessCrudAdapter  {
                 blankToNull(stateString(httpRequest, "workflowDefinitionId")),
                 stateStatus(httpRequest),
                 stateDateTime(httpRequest, "createdFrom"),
-                stateDateTime(httpRequest, "createdTo"));
+                stateDateTime(httpRequest, "createdTo"),
+                blankToNull(stateString(httpRequest, "businessKey")));
     }
 
     private static String blankToNull(String value) {

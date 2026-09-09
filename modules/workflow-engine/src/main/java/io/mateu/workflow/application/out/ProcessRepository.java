@@ -151,11 +151,16 @@ public interface ProcessRepository extends CrudStore<Process> {
     default ProcessSummaryPage searchSummaries(ProcessListingFilter filter, int page, int size) {
         var needle = filter.normalisedSearchText() == null
                 ? "" : filter.normalisedSearchText().toLowerCase();
+        var businessKeyNeedle = filter.normalisedBusinessKey() == null
+                ? null : filter.normalisedBusinessKey().toLowerCase();
         var matching = findAll().stream()
                 .filter(process -> !filter.onlyErrors() || ProcessStatus.ERROR.equals(process.getStatus()))
                 .filter(process -> filter.status() == null || filter.status().equals(process.getStatus()))
                 .filter(process -> filter.workflowDefinitionId() == null
                         || filter.workflowDefinitionId().equals(process.getWorkflowDefinitionId()))
+                .filter(process -> businessKeyNeedle == null
+                        || (process.getBusinessKey() != null
+                                && process.getBusinessKey().toLowerCase().contains(businessKeyNeedle)))
                 .filter(process -> filter.createdFrom() == null && filter.createdTo() == null
                         || withinWindow(process.getCreated(), filter.createdFrom(), filter.createdTo()))
                 .filter(process -> needle.isEmpty()
