@@ -563,6 +563,73 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
     }
 
 
+    /**
+     * Copies the process's state to the clipboard as JSON — the identity, status, variables, steps
+     * and the message/error log — so it can be pasted into a ticket or a chat without screenshotting
+     * a screen a paste cannot carry.
+     *
+     * <p>The clipboard is the browser's, which the server cannot reach, so the JSON is handed to the
+     * page as a {@code DispatchEvent} the frontend turns into a {@code navigator.clipboard} write and
+     * a "copied" toast (see {@code eventconductor-workflow-graph}'s clipboard bridge). Read fresh from
+     * the store rather than from the bound state, so it is the process as it is now, not as the tab
+     * last painted it.
+     */
+    @Toolbar(buttonStyle = ButtonStyle.secondary)
+    @Label("Copy state")
+    @Action
+    public Object copyState(HttpRequest httpRequest) {
+        var processId = (String) httpRequest.runActionRq().componentState().get("id");
+        if (processId == null) {
+            processId = id;
+        }
+        var process = processRepository.findById(processId)
+                .orElse(processRepository.findByBusinessKey(processId).orElse(null));
+        if (process == null) {
+            return new State(this);
+        }
+        return UICommand.builder()
+                .type(UICommandType.DispatchEvent)
+                .data(new DispatchEventData("ec-copy-to-clipboard", Map.of(
+                        "text", toJson(stateSnapshot(process)),
+                        "message", "Process state copied to the clipboard")))
+                .build();
+    }
+
+    /** The process's state as a plain, pasteable value — the shape {@link #copyState} serialises. */
+    private ProcessStateSnapshot stateSnapshot(Process process) {
+        var stepExecutions = stepExecutionRepository.findByProcess(process);
+        var logs = logMessageRepository.findByProcessId(process.id());
+        return new ProcessStateSnapshot(
+                process.id(),
+                process.getName(),
+                process.getBusinessKey(),
+                process.getStatus().name(),
+                process.getCompletionPercentage(),
+                process.getVariables().stream()
+                        .map(v -> new Variable(v.name(), v.value())).toList(),
+                stepExecutions.stream()
+                        .map(se -> new StepStateSnapshot(se.getStepId(), se.getStatus().name(),
+                                Step.format(se.getStartedAt()), Step.format(se.getFinishedAt())))
+                        .toList(),
+                logs.stream()
+                        .sorted(Comparator.comparing(LogMessage::getTimestamp))
+                        .map(m -> new LogStateSnapshot(
+                                m.getTimestamp() == null ? null : m.getTimestamp().toString(),
+                                m.getMessageType(), m.getMessage()))
+                        .toList());
+    }
+
+    private record ProcessStateSnapshot(String id, String name, String businessKey, String status,
+                                        int completionPercentage, List<Variable> variables,
+                                        List<StepStateSnapshot> steps, List<LogStateSnapshot> log) {
+    }
+
+    private record StepStateSnapshot(String stepId, String status, String startedAt, String finishedAt) {
+    }
+
+    private record LogStateSnapshot(String timestamp, String type, String message) {
+    }
+
     @Action
     public Object refresh(HttpRequest httpRequest) {
         var id = (String) httpRequest.runActionRq().componentState().get("id");
