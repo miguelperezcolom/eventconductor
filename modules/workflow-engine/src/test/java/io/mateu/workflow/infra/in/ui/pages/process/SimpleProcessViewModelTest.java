@@ -149,7 +149,7 @@ class SimpleProcessViewModelTest {
         assertThat(SimpleProcessViewModel.overlayState(StepExecutionStatus.RUNNING)).isEqualTo("RUNNING");
         assertThat(SimpleProcessViewModel.overlayState(StepExecutionStatus.COMPLETED)).isEqualTo("COMPLETED");
         assertThat(SimpleProcessViewModel.overlayState(StepExecutionStatus.ERROR)).isEqualTo("ERROR");
-        assertThat(SimpleProcessViewModel.overlayState(StepExecutionStatus.TIMEOUT)).isEqualTo("ERROR");
+        assertThat(SimpleProcessViewModel.overlayState(StepExecutionStatus.TIMEOUT)).isEqualTo("TIMEOUT");
         assertThat(SimpleProcessViewModel.overlayState(StepExecutionStatus.CANCELLED)).isEqualTo("CANCELLED");
         assertThat(SimpleProcessViewModel.overlayState(StepExecutionStatus.CREATED)).isEqualTo("PENDING");
         assertThat(SimpleProcessViewModel.overlayState(StepExecutionStatus.PENDING)).isEqualTo("PENDING");

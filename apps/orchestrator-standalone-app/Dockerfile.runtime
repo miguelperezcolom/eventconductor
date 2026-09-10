@@ -1,7 +1,7 @@
 # Runtime-only image built from a pre-built jar (the reactor is built locally so uncommitted
 # workflow-engine changes are included; the in-container maven build in Dockerfile would instead
 # resolve a published workflow-engine SNAPSHOT). Mirrors the runtime stage of ./Dockerfile.
-FROM eclipse-temurin:21-jre-alpine
+FROM eclipse-temurin:26-jre-alpine
 RUN addgroup -S app && adduser -S -G app -u 10001 app
 WORKDIR /opt/app
 COPY --chown=app:app target/orchestrator-standalone-app-*.jar app.jar
