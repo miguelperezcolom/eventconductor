@@ -338,7 +338,10 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
         return switch (status) {
             case RUNNING -> "RUNNING";
             case COMPLETED -> "COMPLETED";
-            case ERROR, TIMEOUT -> "ERROR";
+            case ERROR -> "ERROR";
+            // TIMEOUT gets its own token (not folded into ERROR): the graph draws it with its own
+            // amber clock badge, since a step that ran out of time is not the same as one that failed.
+            case TIMEOUT -> "TIMEOUT";
             case CANCELLED -> "CANCELLED";
             // A step waiting out its retry backoff reads as pending work on the graph, not as an
             // error — it failed but is going to run again, and the overlay reason spells that out.
