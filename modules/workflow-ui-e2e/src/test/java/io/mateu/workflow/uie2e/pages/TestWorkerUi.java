@@ -70,4 +70,56 @@ public class TestWorkerUi {
     public Locator button(String label) {
         return page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName(label));
     }
+
+    /**
+     * The field names the current listing renders as columns, in order.
+     *
+     * <p>Read from the grid's own {@code vaadin-grid-column} elements and their {@code path}, not
+     * from the header cells: a grid materialises cell content only for what is on screen, so
+     * counting rendered headers counts what fits in the viewport rather than what the listing has.
+     * That difference is the whole point here — {@code @HiddenInList} is invisible to every Java
+     * test, and a listing that has quietly grown a dozen columns looks fine to all of them.
+     */
+    @SuppressWarnings("unchecked")
+    public java.util.List<String> listedColumns() {
+        // Waits rather than samples, like every other assertion here: the grid is rendered after
+        // the page title it is on, so reading straight after navigating reads an empty grid.
+        page.waitForFunction("(" + COLUMN_PATHS + ")().length > 0");
+        return (java.util.List<String>) page.evaluate("""
+                () => {
+                  const out = [];
+                  const walk = (root, depth) => {
+                    if (depth > 14 || !root) return;
+                    for (const el of root.querySelectorAll('*')) {
+                      if (el.tagName.toLowerCase().startsWith('vaadin-grid-column')) {
+                        const path = el.getAttribute('path');
+                        if (path) out.push(path);
+                      }
+                      if (el.shadowRoot) walk(el.shadowRoot, depth + 1);
+                    }
+                  };
+                  walk(document, 0);
+                  return out;
+                }
+                """);
+    }
+
+    /** The one reader, shared by the wait and the read so they cannot disagree. */
+    private static final String COLUMN_PATHS = """
+            () => {
+              const out = [];
+              const walk = (root, depth) => {
+                if (depth > 14 || !root) return;
+                for (const el of root.querySelectorAll('*')) {
+                  if (el.tagName.toLowerCase().startsWith('vaadin-grid-column')) {
+                    const path = el.getAttribute('path');
+                    if (path) out.push(path);
+                  }
+                  if (el.shadowRoot) walk(el.shadowRoot, depth + 1);
+                }
+              };
+              walk(document, 0);
+              return out;
+            }
+            """;
 }
