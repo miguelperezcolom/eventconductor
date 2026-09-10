@@ -137,7 +137,7 @@ interface WorkflowDefinition {
     layout?: Record<string, NodePos>;
 }
 
-type StepState = "PENDING" | "RUNNING" | "COMPLETED" | "ERROR" | "CANCELLED" | "COMPENSATED";
+type StepState = "PENDING" | "RUNNING" | "COMPLETED" | "ERROR" | "TIMEOUT" | "CANCELLED" | "COMPENSATED";
 /**
  * Per-step monitoring overlay entry (read-only views): a live process count and/or a state, plus
  * the diagnostic detail the hover shows so an operator can answer "why is it here?" without opening
@@ -867,6 +867,14 @@ export class MateuWorkflowElk extends LitElement {
      * a page among other things, leaves it on.
      */
     @property({type: Boolean, attribute: "no-expand"}) noExpand = false;
+
+    /**
+     * Whether to offer the stopped/waiting heatmap toggle. Set by the definition view, where the
+     * heatmap belongs. Kept separate from there being heat data: the overlay is empty until some
+     * process is live or stopped, and gating the toggle on the data hid it exactly when an operator
+     * wanted to turn it on to look for stalls. With no data the toggle simply tints nothing.
+     */
+    @property({type: Boolean, attribute: "heatmap"}) heatmap = false;
 
     /**
      * JSON string with a per-step monitoring overlay (read-only views). Map of stepId →
@@ -2570,7 +2578,7 @@ export class MateuWorkflowElk extends LitElement {
                    @input="${(e: Event) => { this.flowSpeed = Number((e.target as HTMLInputElement).value); }}"/>`;
         // Definition view: a heatmap of where stopped/waiting tasks pile up, with a last-N-days
         // window. Both operate client-side on the per-step heat histograms already in the overlay.
-        const heat = !this.hasHeatData() ? nothing : html`
+        const heat = !(this.heatmap || this.hasHeatData()) ? nothing : html`
             <button class="vbtn ${this.heatmapOn ? "on" : ""}" title="Toggle stopped/waiting heatmap"
                     @click="${() => { this.heatmapOn = !this.heatmapOn; }}">🔥</button>
             ${this.heatmapOn ? html`
@@ -3130,6 +3138,23 @@ export class MateuWorkflowElk extends LitElement {
                 <path class="ov-cross" d="M -4.2 -4.2 L 4.2 4.2 M 4.2 -4.2 L -4.2 4.2"/>
             </g>` : nothing;
 
+        // A grey no-entry badge on cancelled steps, same corner — so a cancelled step reads as
+        // deliberately stopped, distinct from a success (check) or a failure (cross).
+        const cancelled = ov?.state === "CANCELLED" ? svg`
+            <g class="ov-cancel" transform="translate(${w - 6}, ${h - 6})">
+                <circle r="12"/>
+                <path class="ov-bar" d="M -4.6 0 L 4.6 0"/>
+            </g>` : nothing;
+
+        // An amber clock on timed-out steps: a timeout is not a plain error — the step ran out of
+        // time rather than failing outright — so it gets its own badge and colour in that corner.
+        const timedOut = ov?.state === "TIMEOUT" ? svg`
+            <g class="ov-timedout" transform="translate(${w - 6}, ${h - 6})">
+                <circle r="12"/>
+                <circle class="ov-clock-face" r="6.5"/>
+                <path class="ov-clock-hands" d="M 0 0 L 0 -4 M 0 0 L 3 1.5"/>
+            </g>` : nothing;
+
         // The step's place in the order this process ran, bottom-left — the one corner the other
         // badges leave alone.
         //
@@ -3167,6 +3192,8 @@ export class MateuWorkflowElk extends LitElement {
                 ${order}
                 ${done}
                 ${failed}
+                ${cancelled}
+                ${timedOut}
                 ${injectedBadge}
             </g>
         `;
@@ -3564,6 +3591,7 @@ export class MateuWorkflowElk extends LitElement {
         @keyframes ec-march {from {stroke-dashoffset: 0;} to {stroke-dashoffset: -24;}}
         .node.ov-completed .node-shape {stroke: #16a34a !important;}
         .node.ov-error     .node-shape {stroke: #dc2626 !important; stroke-width: 2.4 !important;}
+        .node.ov-timeout   .node-shape {stroke: #d97706 !important; stroke-width: 2.4 !important;}
         .node.ov-cancelled .node-shape {stroke: #94a3b8 !important; opacity: .7;}
         .node.ov-compensated .node-shape {stroke: #dc2626 !important; stroke-dasharray: 5 4 !important;}
         /* ran as a compensation: amber, whatever the state says. A completed compensation is
@@ -3603,6 +3631,11 @@ export class MateuWorkflowElk extends LitElement {
         .ov-done .ov-undo {fill: none; stroke: #fff; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round;}
         .ov-fail circle {fill: #dc2626; stroke: var(--ec-surface); stroke-width: 2;}
         .ov-fail .ov-cross {fill: none; stroke: #fff; stroke-width: 2.8; stroke-linecap: round; stroke-linejoin: round;}
+        .ov-cancel circle {fill: #94a3b8; stroke: var(--ec-surface); stroke-width: 2;}
+        .ov-cancel .ov-bar {fill: none; stroke: #fff; stroke-width: 2.8; stroke-linecap: round;}
+        .ov-timedout circle {fill: #d97706; stroke: var(--ec-surface); stroke-width: 2;}
+        .ov-timedout .ov-clock-face {fill: none; stroke: #fff; stroke-width: 1.6;}
+        .ov-timedout .ov-clock-hands {fill: none; stroke: #fff; stroke-width: 1.8; stroke-linecap: round;}
         /* runtime-injected step (a DYNAMIC step added it): a dashed accent border and a ⚡ corner
            badge, subtle so it reads as a mark ON the node rather than a new state. Only the dash is
            set here (last, so it wins over the state rules) — the state keeps its own stroke colour,
@@ -3649,6 +3682,7 @@ export class MateuWorkflowElk extends LitElement {
         .tip-pending {background: #64748b;}
         .tip-completed {background: #16a34a;}
         .tip-error {background: #dc2626;}
+        .tip-timeout {background: #d97706;}
         .tip-cancelled {background: #94a3b8;}
         .tip-compensated {background: #dc2626;}
         .tip-undone {background: #f59e0b;}

@@ -178,6 +178,11 @@ public class WorkflowDefinitionDetailView implements VisibilitySupplier {
         if (!overlay.isEmpty()) {
             attrs.put("overlay", toJson(overlay));
         }
+        // This is the definition view, where the stopped/waiting heatmap belongs — so offer its
+        // toggle unconditionally. The overlay above is empty until some process is live or stopped,
+        // and gating the button on it hid the control whenever nothing was running; the operator
+        // then had no way to turn the heatmap on precisely when they wanted to check for stalls.
+        attrs.put("heatmap", "true");
         // Give the graph a tall, viewport-sized box: on its own the host falls back to a ~230px
         // min-height, which is too short now that the graph is the primary content of this view.
         this.workflow = Element.builder()
