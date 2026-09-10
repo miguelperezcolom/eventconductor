@@ -8,7 +8,7 @@
 #   mvn -Pbenchmark -pl apps/orchestrator-standalone-app -am -DskipTests package
 #   docker buildx build --platform linux/amd64 -f apps/orchestrator-standalone-app/Dockerfile.prebuilt \
 #     -t <user>/orchestrator-standalone-app:<tag> --push .
-FROM eclipse-temurin:21-jre
+FROM eclipse-temurin:26-jre
 RUN groupadd -r app && useradd -r -g app -u 10001 app
 WORKDIR /opt/app
 COPY --chown=app:app apps/orchestrator-standalone-app/target/orchestrator-standalone-app-*.jar app.jar
