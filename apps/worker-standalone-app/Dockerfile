@@ -12,7 +12,7 @@
 #
 # This is the same shape as demo/*/Dockerfile.runtime, which is what the images that do get built
 # are built from.
-FROM eclipse-temurin:21-jre-alpine
+FROM eclipse-temurin:26-jre-alpine
 RUN addgroup -S app && adduser -S -G app -u 10001 app
 WORKDIR /opt/app
 COPY --chown=app:app target/worker-standalone-app-*.jar app.jar
