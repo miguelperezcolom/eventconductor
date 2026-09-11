@@ -5,6 +5,7 @@ import io.mateu.uidl.annotations.Colspan;
 import io.mateu.uidl.annotations.GeneratedValue;
 import io.mateu.uidl.annotations.Help;
 import io.mateu.uidl.annotations.HiddenInCreate;
+import io.mateu.uidl.annotations.HiddenInList;
 import io.mateu.uidl.annotations.MasterDetail;
 import io.mateu.uidl.annotations.Section;
 import io.mateu.uidl.annotations.Style;
@@ -31,12 +32,20 @@ import java.util.List;
  */
 @Style("width: 100%;")
 public record TaskOverride(
-        // A generated UUID, and the list titles every row with it — the name someone wrote reads
-        // as the subtitle underneath. That is worth knowing when picking a rule by hand, and it is
-        // not something these annotations reach: @HiddenInList was tried and the title did not
-        // move. Only visible from a browser, which is why TestWorkerJourneyTest exists.
+        // A generated uuid: the widest column on the row and the least useful thing on it. What
+        // identifies an override to a person is its name and what it matches, which is the whole
+        // of the section below.
+        //
+        // The note that stood here said @HiddenInList had been tried and the row's title had not
+        // moved. That was written when the listing rendered as titled rows; it renders as a table
+        // now, and measured in a browser the annotation drops the column cleanly and the row
+        // starts at the name — at 1920px and again at 1100px, where the auto-layout might have
+        // fallen back to cards and did not. Only visible from a browser, which is why
+        // TestWorkerJourneyTest exists; if this listing ever becomes cards again, check it there
+        // before trusting this.
         @GeneratedValue(UUIDValueGenerator.class)
         @HiddenInCreate
+        @HiddenInList
         String id,
 
         @Section("What it matches")
@@ -50,27 +59,40 @@ public record TaskOverride(
         @Help("Disabled rows are ignored, and stay here for next time")
         boolean enabled,
 
+        // Everything below is hidden from the LISTING and untouched everywhere else — still on the
+        // form, still on the detail, still saved. An override is found by its name and by what it
+        // matches, which is the whole of the section above; what it then replies is what you open
+        // the row to read, and eight columns of it pushed the four that identify a rule off the
+        // side of the screen.
         @Section("What it replies")
+        @HiddenInList
         Long durationMs,
+        @HiddenInList
         Outcome outcome,
         @Help("Sent as an Error log line before the failure. Only used when the outcome is ERROR")
+        @HiddenInList
         String reason,
         @Help("Fail this many executions of the step within a process, then succeed")
+        @HiddenInList
         Integer failuresBeforeSuccess,
         @Help("More than one is a worker misbehaving on purpose — it tests the engine's idempotency")
+        @HiddenInList
         Integer replyTimes,
         @Help("Keep working and reply after the engine has cancelled the task")
+        @HiddenInList
         boolean ignoreCancellation,
 
         @Section("Variables and logs")
         @Colspan(2)
         @MasterDetail(minHeightWhenDetailVisible = "18rem;")
         @Help("Reported back with the reply, and merged into the process")
+        @HiddenInList
         List<Variable> variables,
 
         @Colspan(2)
         @MasterDetail(minHeightWhenDetailVisible = "18rem;")
         @Help("Emitted while the task runs. atMs is milliseconds into the task; blank means at the start")
+        @HiddenInList
         List<LogLine> logs) implements Identifiable {
 
     public TaskOverride {

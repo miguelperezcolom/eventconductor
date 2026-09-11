@@ -89,6 +89,30 @@ class TestWorkerJourneyTest extends AbstractUiE2eTest {
         assertThat(worker.button("New")).hasCount(1);
     }
 
+    /**
+     * The overrides listing shows what identifies a rule, and keeps what it replies for the row
+     * you open.
+     *
+     * <p>Asserted in a browser because there is nowhere else to assert it: {@code @HiddenInList}
+     * produces no Java-visible effect, so a column added or lost here is invisible to every other
+     * test in this repository. The record once carried a note saying the id could not be hidden
+     * this way; it could, and only a browser could say so.
+     *
+     * <p>Exact and ordered on purpose. "Does not contain durationMs" would still pass on the day
+     * someone adds a fifteenth column, which is the failure this is here to catch.
+     */
+    @Test
+    void the_overrides_listing_shows_what_identifies_a_rule_and_not_what_it_replies() {
+        taskOverrides.save(new TaskOverride(null, "slow charge-card down", "booking", "charge-card",
+                null, true, 4_000L, Outcome.ERROR, "card declined", null, null, false,
+                List.of(), List.of()));
+
+        worker.goToTaskOverrides();
+
+        org.assertj.core.api.Assertions.assertThat(worker.listedColumns())
+                .containsExactly("name", "workflowDefinitionId", "stepId", "taskId", "enabled");
+    }
+
     @Test
     void an_override_on_the_page_is_the_rule_the_worker_will_apply() {
         taskOverrides.save(new TaskOverride(null, "slow charge-card down", "booking", "charge-card",
