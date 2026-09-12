@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.16.1] - 2026-09-12
+
+### Fixed
+- **Removing a filter chip removes it.** In a listing, clicking a filter chip's ✕ cleared the
+  filtering from the results but left the chip on the bar, so the listing looked filtered when it was
+  not. Fixed upstream in Mateu (`3.0-alpha.331`): the component's "keep edited field" defence used to
+  restore a field from the value it held *before* the parent's re-bind, which for a **cleared** field
+  is the stale pre-clear value — resurrecting what the user had just removed. It now restores the
+  element's own last-committed value, so a clear stays cleared. Covered end-to-end by a new browser
+  journey.
+
+### Internal
+- **Mateu 3.0-alpha.314 → 3.0-alpha.331.** Carries the fix above and the changes accumulated since.
+  One migration: `@Route` folded into `@UI` (parameterized routes are `@UI("/x/:id")`).
+
 ## [2.16.0] - 2026-09-12
 
 ### Added
