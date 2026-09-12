@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.16.0] - 2026-09-12
+
+### Added
+- **Cancelled and timed-out steps are badged on the graph.** Completed steps show a green check and
+  errored ones a red cross in the bottom-right corner; cancelled steps now get a grey no-entry badge
+  and timed-out steps an amber clock, so each terminal state reads at a glance. `TIMEOUT` gets its
+  own overlay token (it was folded into `ERROR`), its own amber tint and tooltip chip — a step that
+  ran out of time is not the same as one that failed.
+- **The stopped/waiting heatmap toggle is always available in the definition view.** It used to
+  appear only once some process was live or stopped, because it was gated on the heat overlay having
+  data — backwards, since an operator turns it on precisely to look for stalls. With no data it just
+  tints nothing.
+
+### Changed
+- **Leaner listings.** The overrides listing shows what identifies a rule, and listing columns were
+  trimmed to what an operator scans.
+
+### Internal
+- Dependency bumps: grpc 1.84, protobuf-java, several Maven plugins, the Temurin base images, and a
+  handful of npm/doc packages (js-yaml, Starlight).
+
 ## [2.15.0] - 2026-09-09
 
 ### Added
