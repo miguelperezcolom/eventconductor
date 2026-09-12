@@ -2,7 +2,7 @@ package io.mateu.workflow.infra.in.ui.pages;
 
 import io.mateu.uidl.StyleConstants;
 import io.mateu.uidl.annotations.Action;
-import io.mateu.uidl.annotations.Route;
+import io.mateu.uidl.annotations.UI;
 import io.mateu.uidl.data.*;
 import io.mateu.uidl.fluent.Component;
 import io.mateu.uidl.fluent.Form;
@@ -29,7 +29,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-@Route("/forms/task/:_taskId")
+@UI("/forms/task/:_taskId")
 @Service
 @RequiredArgsConstructor
 @Action(id = "complete", validationRequired = true)
