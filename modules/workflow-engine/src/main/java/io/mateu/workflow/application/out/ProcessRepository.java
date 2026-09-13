@@ -155,7 +155,8 @@ public interface ProcessRepository extends CrudStore<Process> {
                 ? null : filter.normalisedBusinessKey().toLowerCase();
         var matching = findAll().stream()
                 .filter(process -> !filter.onlyErrors() || ProcessStatus.ERROR.equals(process.getStatus()))
-                .filter(process -> filter.status() == null || filter.status().equals(process.getStatus()))
+                .filter(process -> filter.status() == null || filter.status().isEmpty()
+                        || filter.status().contains(process.getStatus()))
                 .filter(process -> filter.workflowDefinitionId() == null
                         || filter.workflowDefinitionId().equals(process.getWorkflowDefinitionId()))
                 .filter(process -> businessKeyNeedle == null

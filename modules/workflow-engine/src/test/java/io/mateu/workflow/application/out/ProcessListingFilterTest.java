@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -76,8 +77,29 @@ class ProcessListingFilterTest {
 
         @Test
         void byStatus() {
-            assertThat(ids(new ProcessListingFilter(null, false, null, ProcessStatus.RUNNING, null, null)))
+            assertThat(ids(new ProcessListingFilter(null, false, null, Set.of(ProcessStatus.RUNNING), null, null)))
                     .containsExactly("c");
+        }
+
+        /**
+         * Multiple statuses are an any-of match (SQL {@code IN}): a filter of PAUSED+COMPLETED keeps
+         * the PAUSED and the COMPLETED processes and drops the RUNNING and ERROR ones — the exact
+         * case a single-valued status filter got wrong by ignoring all but the first value.
+         */
+        @Test
+        void byMultipleStatuses() {
+            var sample = List.of(
+                    process("run", "orders", ProcessStatus.RUNNING, JAN_1),
+                    process("pau", "orders", ProcessStatus.PAUSED, JAN_1.plusDays(1)),
+                    process("com", "orders", ProcessStatus.COMPLETED, JAN_1.plusDays(2)),
+                    process("err", "orders", ProcessStatus.ERROR, JAN_1.plusDays(3)));
+            var filter = new ProcessListingFilter(null, false, null,
+                    Set.of(ProcessStatus.PAUSED, ProcessStatus.COMPLETED), null, null);
+            var found = storeOf(sample).searchSummaries(filter, 0, 50).content().stream()
+                    .map(ProcessSummary::id)
+                    .sorted()
+                    .toList();
+            assertThat(found).containsExactly("com", "pau");
         }
 
         @Test
@@ -125,7 +147,7 @@ class ProcessListingFilterTest {
 
         @Test
         void andTheyCompose() {
-            assertThat(ids(new ProcessListingFilter(null, false, "orders", ProcessStatus.ERROR, null, null)))
+            assertThat(ids(new ProcessListingFilter(null, false, "orders", Set.of(ProcessStatus.ERROR), null, null)))
                     .containsExactly("b");
         }
     }
@@ -169,7 +191,7 @@ class ProcessListingFilterTest {
         void anythingElseCannot() {
             assertThat(new ProcessListingFilter(null, false, "orders", null, null, null)
                     .hasNarrowingBeyondText()).isTrue();
-            assertThat(new ProcessListingFilter(null, false, null, ProcessStatus.ERROR, null, null)
+            assertThat(new ProcessListingFilter(null, false, null, Set.of(ProcessStatus.ERROR), null, null)
                     .hasNarrowingBeyondText()).isTrue();
             assertThat(new ProcessListingFilter(null, false, null, null, JAN_1, null)
                     .hasNarrowingBeyondText()).isTrue();

@@ -3,6 +3,7 @@ package io.mateu.workflow.application.out;
 import io.mateu.workflow.domain.aggregates.ProcessStatus;
 
 import java.time.LocalDateTime;
+import java.util.Set;
 
 /**
  * Everything the process listing filters by, in one value.
@@ -23,7 +24,7 @@ import java.time.LocalDateTime;
  * @param searchText           matched against name and business key, case-insensitively
  * @param onlyErrors           the pre-existing toggle
  * @param workflowDefinitionId exact match
- * @param status               exact match
+ * @param status               any-of match; null or empty = don't narrow
  * @param createdFrom          inclusive lower bound on creation
  * @param createdTo            inclusive upper bound on creation
  * @param businessKey          matched against business key alone, case-insensitively, as a substring
@@ -32,7 +33,7 @@ public record ProcessListingFilter(
         String searchText,
         boolean onlyErrors,
         String workflowDefinitionId,
-        ProcessStatus status,
+        Set<ProcessStatus> status,
         LocalDateTime createdFrom,
         LocalDateTime createdTo,
         String businessKey) {
@@ -47,7 +48,7 @@ public record ProcessListingFilter(
      * the tests that pin the other filters — read unchanged; a null business key narrows nothing.
      */
     public ProcessListingFilter(String searchText, boolean onlyErrors, String workflowDefinitionId,
-                                ProcessStatus status, LocalDateTime createdFrom, LocalDateTime createdTo) {
+                                Set<ProcessStatus> status, LocalDateTime createdFrom, LocalDateTime createdTo) {
         this(searchText, onlyErrors, workflowDefinitionId, status, createdFrom, createdTo, null);
     }
 
@@ -61,7 +62,7 @@ public record ProcessListingFilter(
      * the index, everything else on the write side — rather than a per-field patchwork.
      */
     public boolean hasNarrowingBeyondText() {
-        return workflowDefinitionId != null || status != null
+        return workflowDefinitionId != null || (status != null && !status.isEmpty())
                 || createdFrom != null || createdTo != null || normalisedBusinessKey() != null;
     }
 
@@ -73,5 +74,10 @@ public record ProcessListingFilter(
     /** Null and blank both mean "no business-key filter"; normalised here so no store has to decide. */
     public String normalisedBusinessKey() {
         return businessKey == null || businessKey.isBlank() ? null : businessKey;
+    }
+
+    /** Null and empty both mean "no status filter"; normalised here so no store has to decide. */
+    public Set<ProcessStatus> normalisedStatuses() {
+        return status == null || status.isEmpty() ? null : status;
     }
 }
