@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.16.4] - 2026-09-13
+
+### Fixed
+- **The multi-select Status filter (2.16.3) actually works now.** 2.16.3 made the process listing's
+  Status filter multi-valued, but applying it threw `ClassCastException: LinkedHashSet cannot be cast
+  to List` and every search on the listing failed — a Mateu bug: its reflection coercer assumed a
+  collection filter value was always a `List` and produced an `ArrayList`, so a `Set<enum>` filter
+  field could neither be read nor built. Fixed upstream in Mateu `3.0-alpha.336` (#490) and picked up
+  here. `?status=PAUSED,COMPLETED` now filters by both.
+
+### Internal
+- **Mateu 3.0-alpha.333 → 3.0-alpha.336.** Carries the coercer fix above, plus the embedded
+  micro-frontend/background-trigger and GA-prep changes accumulated since.
+
 ## [2.16.3] - 2026-09-13
 
 ### Changed
