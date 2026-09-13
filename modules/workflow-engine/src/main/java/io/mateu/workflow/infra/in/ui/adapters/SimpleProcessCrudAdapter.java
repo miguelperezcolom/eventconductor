@@ -161,20 +161,30 @@ public class SimpleProcessCrudAdapter  {
     }
 
     /**
-     * An unrecognised status narrows nothing rather than failing: the value comes from a component
-     * state that can outlive the enum it was chosen from, and a stale bookmark should show
-     * everything rather than a stack trace.
+     * The chosen statuses, from a component state that arrives as a comma-joined string (the
+     * multi-select restores {@code ?status=PAUSED,COMPLETED} that way). Each token is trimmed and
+     * parsed; an unrecognised one is dropped rather than failing, because the value can outlive the
+     * enum it was chosen from and a stale bookmark should show everything rather than a stack trace.
+     * Blank input, or every token invalid, narrows nothing (null).
      */
-    private static io.mateu.workflow.domain.aggregates.ProcessStatus stateStatus(HttpRequest httpRequest) {
+    private static java.util.Set<io.mateu.workflow.domain.aggregates.ProcessStatus> stateStatus(HttpRequest httpRequest) {
         var raw = blankToNull(stateString(httpRequest, "status"));
         if (raw == null) {
             return null;
         }
-        try {
-            return io.mateu.workflow.domain.aggregates.ProcessStatus.valueOf(raw);
-        } catch (IllegalArgumentException e) {
-            return null;
+        var statuses = new java.util.LinkedHashSet<io.mateu.workflow.domain.aggregates.ProcessStatus>();
+        for (var token : raw.split(",")) {
+            var trimmed = token.trim();
+            if (trimmed.isEmpty()) {
+                continue;
+            }
+            try {
+                statuses.add(io.mateu.workflow.domain.aggregates.ProcessStatus.valueOf(trimmed));
+            } catch (IllegalArgumentException ignored) {
+                // A stale token from a since-removed status narrows nothing rather than failing.
+            }
         }
+        return statuses.isEmpty() ? null : statuses;
     }
 
     /** Same tolerance, same reason. A date-only value is read as that day's first moment. */

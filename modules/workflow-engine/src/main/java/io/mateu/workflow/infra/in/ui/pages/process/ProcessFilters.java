@@ -9,6 +9,7 @@ import io.mateu.workflow.infra.in.ui.suppliers.WorkflowDefinitionIdLabelSupplier
 import io.mateu.workflow.infra.in.ui.suppliers.WorkflowDefinitionIdOptionsSupplier;
 
 import java.time.LocalDateTime;
+import java.util.Set;
 
 /**
  * What the process listing can be narrowed by.
@@ -23,7 +24,7 @@ import java.time.LocalDateTime;
  *
  * @param onlyErrors           the pre-existing toggle
  * @param workflowDefinitionId which definition, chosen from the ones actually loaded
- * @param status               exact status
+ * @param status               one or more statuses (multi-select); a process matches if its status is any of them
  * @param businessKey          the business identifier, matched as a case-insensitive substring
  * @param createdFrom          inclusive; either end may be left open
  * @param createdTo            inclusive
@@ -34,7 +35,7 @@ public record ProcessFilters(
         @Lookup(search = WorkflowDefinitionIdOptionsSupplier.class,
                 label = WorkflowDefinitionIdLabelSupplier.class)
         String workflowDefinitionId,
-        @MainFilter @Label("Status") ProcessStatus status,
+        @MainFilter @Label("Status") Set<ProcessStatus> status,
         @MainFilter @Label("Business key")
         @Help("Matches the business key alone — an order number, a booking reference — as a "
                 + "case-insensitive substring. The search box matches the name or the key; this "

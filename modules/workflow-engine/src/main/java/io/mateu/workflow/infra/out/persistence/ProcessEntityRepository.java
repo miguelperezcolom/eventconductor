@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -55,7 +56,7 @@ public interface ProcessEntityRepository extends JpaRepository<ProcessEntity, St
                    or lower(concat(coalesce(p.name, ''), ' ', coalesce(p.businessKey, ''))) like :pattern)
               and (:businessKey is null or lower(coalesce(p.businessKey, '')) like :businessKey)
               and (:definitionId is null or p.workflowDefinitionId = :definitionId)
-              and (:status is null or p.status = :status)
+              and (:statuses is null or p.status in :statuses)
               and (cast(:createdFrom as LocalDateTime) is null or p.created >= :createdFrom)
               and (cast(:createdTo as LocalDateTime) is null or p.created <= :createdTo)
             order by p.created desc nulls last
@@ -64,7 +65,7 @@ public interface ProcessEntityRepository extends JpaRepository<ProcessEntity, St
                                              @Param("pattern") String pattern,
                                              @Param("businessKey") String businessKey,
                                              @Param("definitionId") String definitionId,
-                                             @Param("status") String status,
+                                             @Param("statuses") Collection<String> statuses,
                                              @Param("createdFrom") LocalDateTime createdFrom,
                                              @Param("createdTo") LocalDateTime createdTo,
                                              Pageable pageable);
@@ -83,7 +84,7 @@ public interface ProcessEntityRepository extends JpaRepository<ProcessEntity, St
                    or lower(concat(coalesce(p.name, ''), ' ', coalesce(p.businessKey, ''))) like :pattern)
               and (:businessKey is null or lower(coalesce(p.businessKey, '')) like :businessKey)
               and (:definitionId is null or p.workflowDefinitionId = :definitionId)
-              and (:status is null or p.status = :status)
+              and (:statuses is null or p.status in :statuses)
               and (cast(:createdFrom as LocalDateTime) is null or p.created >= :createdFrom)
               and (cast(:createdTo as LocalDateTime) is null or p.created <= :createdTo)
             """)
@@ -91,7 +92,7 @@ public interface ProcessEntityRepository extends JpaRepository<ProcessEntity, St
                         @Param("pattern") String pattern,
                         @Param("businessKey") String businessKey,
                         @Param("definitionId") String definitionId,
-                        @Param("status") String status,
+                        @Param("statuses") Collection<String> statuses,
                         @Param("createdFrom") LocalDateTime createdFrom,
                         @Param("createdTo") LocalDateTime createdTo);
 

@@ -199,17 +199,19 @@ public class ProcessDBRepository implements ProcessRepository {
         var pattern = searchText == null ? null : "%" + searchText.toLowerCase() + "%";
         var businessKey = filter.normalisedBusinessKey();
         var businessKeyPattern = businessKey == null ? null : "%" + businessKey.toLowerCase() + "%";
-        // The status travels as its name: the column is a string, and passing the enum would leave
-        // the comparison to however the provider chooses to bind it.
-        var status = filter.status() == null ? null : filter.status().name();
+        // The statuses travel as their names: the column is a string, and passing the enum would
+        // leave the comparison to however the provider chooses to bind it. Null (no status filter)
+        // short-circuits the SQL IN via the ":statuses is null" guard.
+        var statuses = filter.normalisedStatuses() == null
+                ? null : filter.normalisedStatuses().stream().map(Enum::name).toList();
         // Counted first, because which page can be served depends on how many there are — see
         // ServedPage. Two queries either way: a Spring Data Page would have run this same count.
         var total = processEntityRepository.countSummaries(filter.onlyErrors(), pattern, businessKeyPattern,
-                filter.workflowDefinitionId(), status, filter.createdFrom(), filter.createdTo());
+                filter.workflowDefinitionId(), statuses, filter.createdFrom(), filter.createdTo());
         var served = ServedPage.of(page, size, total);
         var content = processEntityRepository
                 .searchSummaries(filter.onlyErrors(), pattern, businessKeyPattern,
-                        filter.workflowDefinitionId(), status, filter.createdFrom(), filter.createdTo(),
+                        filter.workflowDefinitionId(), statuses, filter.createdFrom(), filter.createdTo(),
                         PageRequest.of(served.number(), served.size()))
                 .stream()
                 .map(view -> new ProcessSummary(

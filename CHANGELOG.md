@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.16.3] - 2026-09-13
+
+### Changed
+- **The process listing's Status filter is now multi-select.** It was single-valued, so a link like
+  `/workflow/processes?status=PAUSED,COMPLETED` silently returned the *unfiltered* list (a
+  comma-joined value can't coerce to one enum, so it was dropped). Status is now a
+  `Set<ProcessStatus>` end to end — the filter renders as a multi-select, the URL restores several
+  values, and the store applies them as SQL `IN` (`ProcessFilters`, `ProcessListingFilter`,
+  `ProcessEntityRepository` `p.status in :statuses`, the in-memory `ProcessRepository`, and the
+  component-state parse in `SimpleProcessCrudAdapter`). One status still works; none narrows nothing.
+
 ## [2.16.2] - 2026-09-13
 
 ### Fixed
