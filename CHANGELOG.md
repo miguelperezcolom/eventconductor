@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.16.2] - 2026-09-13
+
+### Fixed
+- **Embedded micro-frontends no longer flicker (reload + dim) on a shell re-render.** Behind a
+  federated shell (the demo consoles), opening a screen showed a brief "the page is reloading"
+  effect: content that had already painted got re-loaded with the loading veil on. Fixed upstream in
+  Mateu (`3.0-alpha.333`, #483): an embedded `<mateu-ux>` was given a fresh `nanoid()` id on every
+  render, so each shell re-render re-loaded its route; the id is now derived deterministically from
+  what the micro-frontend points at, so a re-render reuses the same element instead of remounting.
+  Verified A/B upstream against a live federated shell.
+
+### Internal
+- **Mateu 3.0-alpha.331 → 3.0-alpha.333.** Also carries a fix for a removed search/filter chip
+  reappearing on a self-refreshing page (`3.0-alpha.332`, #482).
+
 ## [2.16.1] - 2026-09-12
 
 ### Fixed
