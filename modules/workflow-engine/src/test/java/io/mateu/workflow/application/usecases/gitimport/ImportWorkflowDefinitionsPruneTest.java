@@ -24,7 +24,9 @@ class ImportWorkflowDefinitionsPruneTest {
     private final ImportWorkflowDefinitionsFromDirectoryUseCase useCase =
             new ImportWorkflowDefinitionsFromDirectoryUseCase(
                     mock(DirectoryImportProperties.class), repository, registry,
-                    new WorkflowDefinitionValidator());
+                    new WorkflowDefinitionValidator(),
+                    new io.mateu.workflow.application.services.TaskReferenceResolver(
+                            new io.mateu.workflow.infra.out.classpath.ClasspathTaskContractRepository()));
 
     private static final String REPO = "https://github.com/org/defs.git";
 

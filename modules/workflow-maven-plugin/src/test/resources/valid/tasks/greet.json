@@ -1,0 +1,16 @@
+{
+  "id": "greet",
+  "version": 1,
+  "group": "greetings",
+  "topic": "greetings",
+  "description": "Greet someone",
+  "input": {
+    "name": {"type": "string", "required": true}
+  },
+  "output": {
+    "message": {"type": "string"}
+  },
+  "errors": [
+    {"code": "UNKNOWN_NAME", "description": "no such name"}
+  ]
+}

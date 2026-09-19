@@ -119,6 +119,12 @@
                                         <include>rule-schema.json</include>
                                     </includes>
                                 </resource>
+                                <resource>
+                                    <directory>${project.basedir}/../shared/src/main/resources</directory>
+                                    <includes>
+                                        <include>task-contract-schema.json</include>
+                                    </includes>
+                                </resource>
                             </resources>
                         </configuration>
                     </execution>

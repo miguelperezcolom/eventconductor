@@ -40,6 +40,7 @@ public class ClasspathWorkflowDefinitionImporter implements ApplicationRunner {
 
     final WorkflowDefinitionRepository workflowDefinitionRepository;
     final WorkflowDefinitionValidator workflowDefinitionValidator;
+    final io.mateu.workflow.application.services.TaskReferenceResolver taskReferenceResolver;
 
     @Override
     public void run(ApplicationArguments args) {
@@ -80,7 +81,7 @@ public class ClasspathWorkflowDefinitionImporter implements ApplicationRunner {
                                 .withLayout(def.layout())
                                 .withProcessLock(def.processLock());
                     }
-                    workflowDefinitionRepository.save(def);
+                    workflowDefinitionRepository.save(taskReferenceResolver.resolve(def));
                     log.info("Imported workflow definition '{}' from classpath:{}", def.id(), filename);
                 } catch (Exception e) {
                     log.error("Failed to import workflow definition from classpath:{}", resource.getFilename(), e);

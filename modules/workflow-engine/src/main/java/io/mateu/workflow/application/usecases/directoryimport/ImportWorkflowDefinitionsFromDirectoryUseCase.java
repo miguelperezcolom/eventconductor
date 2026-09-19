@@ -45,6 +45,7 @@ public class ImportWorkflowDefinitionsFromDirectoryUseCase {
     final WorkflowDefinitionRepository workflowDefinitionRepository;
     final ImportedDefinitionsRegistry importedDefinitionsRegistry;
     final WorkflowDefinitionValidator workflowDefinitionValidator;
+    final io.mateu.workflow.application.services.TaskReferenceResolver taskReferenceResolver;
     final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
     private static final YAMLMapper YAML_MAPPER = new YAMLMapper();
 
@@ -173,6 +174,10 @@ public class ImportWorkflowDefinitionsFromDirectoryUseCase {
         if (existing.isPresent()) {
             definition = definition.withRuntimeStateOf(existing.get());
         }
+
+        // Pin each ACTION step's task reference to a concrete contract version (and default its
+        // topic) before saving, so an imported definition never changes contract without an edit.
+        definition = taskReferenceResolver.resolve(definition);
 
         // Validation is delegated to WorkflowDefinitionValidator (called inside repository.save()).
         // Any violation will throw WorkflowDefinitionValidationException, caught by the caller.

@@ -27,6 +27,10 @@ const assets = [
     from: path.join(repo, "modules/forms-engine/src/main/resources/form-schema.json"),
     to: path.join(root, "schema/form-schema.json"),
   },
+  {
+    from: path.join(repo, "modules/shared/src/main/resources/task-contract-schema.json"),
+    to: path.join(root, "schema/task.schema.json"),
+  },
 ];
 
 let ok = true;

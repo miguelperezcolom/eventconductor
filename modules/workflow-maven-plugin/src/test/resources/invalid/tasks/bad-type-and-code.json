@@ -1,0 +1,11 @@
+{
+  "id": "broken",
+  "version": 1,
+  "group": "g",
+  "input": {
+    "amount": {"type": "money"}
+  },
+  "errors": [
+    {"code": "not a constant"}
+  ]
+}

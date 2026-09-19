@@ -37,7 +37,9 @@ class GitImportScanTest {
                     mock(DirectoryImportProperties.class),
                     mock(WorkflowDefinitionRepository.class),
                     new InMemoryImportedDefinitionsRegistry(),
-                    new WorkflowDefinitionValidator());
+                    new WorkflowDefinitionValidator(),
+                    new io.mateu.workflow.application.services.TaskReferenceResolver(
+                            new io.mateu.workflow.infra.out.classpath.ClasspathTaskContractRepository()));
 
     private final ImportWorkflowDefinitionsFromGitUseCase useCase =
             new ImportWorkflowDefinitionsFromGitUseCase(mock(GitImportProperties.class), directoryImport);

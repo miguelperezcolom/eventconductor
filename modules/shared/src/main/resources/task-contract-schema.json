@@ -1,0 +1,92 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:eventconductor:task-contract-schema:1",
+  "title": "EventConductor task contract",
+  "description": "The contract of a worker task: the shape a definition's ACTION step commits to when it references this task by id. Lives in a .ectask file under definitions/tasks/. A backward-incompatible change is a new version; a step pins the version it was imported against.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "version", "group"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Stable identifier of the task, unique across all groups. A step references it with `task: <id>` or `task: <id>@<version>`."
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Contract version. A backward-incompatible change (a removed/renamed field, a tightened type, a moved group) is a new version. A service may implement several versions at once."
+    },
+    "group": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Free-form grouping; one group is one generated module (artifactId defaults to `<group>-tasks`). An id belongs to exactly one group; moving a task to another group is a breaking change."
+    },
+    "topic": {
+      "type": ["string", "null"],
+      "description": "Default transport destination (Kafka topic) for steps that use this task. An explicit `topic` on the step overrides it."
+    },
+    "description": {
+      "type": ["string", "null"],
+      "description": "Human-readable description of what the task does."
+    },
+    "input": {
+      "$ref": "#/definitions/attributes",
+      "description": "The variables the task expects, by name. Declaration order is significant (it is the order of the generated Input record's components)."
+    },
+    "output": {
+      "$ref": "#/definitions/attributes",
+      "description": "The variables the task returns, by name. Declaration order is significant."
+    },
+    "errors": {
+      "type": ["array", "null"],
+      "description": "The business errors the task may report. Each becomes a typed exception in the generated code and, when thrown, fails the step with its code as the reason.",
+      "items": {"$ref": "#/definitions/error"}
+    }
+  },
+  "definitions": {
+    "attributes": {
+      "type": ["object", "null"],
+      "description": "A map of attribute name to its declaration.",
+      "additionalProperties": {"$ref": "#/definitions/attribute"}
+    },
+    "attribute": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "enum": ["string", "integer", "number", "boolean", "date", "datetime", "object", "array"],
+          "description": "The attribute's type. `object` is an opaque JSON object; `array` requires `items`."
+        },
+        "required": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether the task cannot run without this attribute."
+        },
+        "description": {
+          "type": ["string", "null"]
+        },
+        "items": {
+          "$ref": "#/definitions/attribute",
+          "description": "The element type, required when `type` is `array`."
+        }
+      }
+    },
+    "error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code"],
+      "properties": {
+        "code": {
+          "type": "string",
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+          "description": "A code that is also a valid Java identifier, so it maps to a generated exception type."
+        },
+        "description": {
+          "type": ["string", "null"]
+        }
+      }
+    }
+  }
+}

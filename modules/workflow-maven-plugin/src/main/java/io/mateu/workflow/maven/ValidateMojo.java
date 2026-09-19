@@ -45,6 +45,10 @@ public class ValidateMojo extends AbstractMojo {
     @Parameter(defaultValue = "${project.basedir}/src/main/resources/rules")
     private File rulesDirectory;
 
+    /** Directory holding task contracts ({@code .ectask}). */
+    @Parameter(defaultValue = "${project.basedir}/src/main/resources/tasks")
+    private File tasksDirectory;
+
     /** Validate workflow definitions. */
     @Parameter(property = "eventconductor.validate.workflows", defaultValue = "true")
     private boolean validateWorkflows;
@@ -56,6 +60,10 @@ public class ValidateMojo extends AbstractMojo {
     /** Validate rule definitions. */
     @Parameter(property = "eventconductor.validate.rules", defaultValue = "true")
     private boolean validateRules;
+
+    /** Validate task contracts. */
+    @Parameter(property = "eventconductor.validate.tasks", defaultValue = "true")
+    private boolean validateTasks;
 
     /** Fail the build when a definition is invalid (otherwise only warn). */
     @Parameter(property = "eventconductor.validate.failOnError", defaultValue = "true")
@@ -88,6 +96,10 @@ public class ValidateMojo extends AbstractMojo {
         }
         if (validateRules) {
             validated += validateDirectory(validator, SpecValidator.Kind.RULE, rulesDirectory, failures);
+        }
+        if (validateTasks) {
+            validated += validateDirectory(validator, SpecValidator.Kind.TASK, tasksDirectory, failures);
+            crossCheckTasks(failures);
         }
 
         if (!failures.isEmpty()) {
@@ -166,7 +178,7 @@ public class ValidateMojo extends AbstractMojo {
      * of definitions found nothing and passed.
      */
     private static final List<String> DEFINITION_EXTENSIONS =
-            List.of(".ec", ".ecform", ".ecrule", ".json", ".yaml", ".yml");
+            List.of(".ec", ".ecform", ".ecrule", ".ectask", ".json", ".yaml", ".yml");
 
     private static boolean isDefinitionFile(Path path) {
         String name = path.getFileName().toString().toLowerCase();
@@ -185,5 +197,85 @@ public class ValidateMojo extends AbstractMojo {
         String name = file.getFileName().toString().toLowerCase();
         ObjectMapper mapper = name.endsWith(".json") ? JSON : YAML;
         return mapper.readTree(file.toFile());
+    }
+
+    /**
+     * Cross-file task checks the per-document schema pass cannot make: an id must belong to exactly
+     * one group, no two files may define the same {@code id@version}, and every {@code task} an
+     * ACTION step references must exist (with the pinned version, if one is given).
+     *
+     * <p>TODO: also check that a referenced task's {@code required} inputs are reachable in the
+     * graph — start variables, branch and JOIN paths. Deferred (documented in the plugin reference)
+     * because it needs the same dataflow analysis the engine does at runtime.
+     */
+    private void crossCheckTasks(List<String> failures) throws MojoExecutionException {
+        var versionsById = new java.util.LinkedHashMap<String, java.util.Set<Integer>>();
+        var groupsById = new java.util.LinkedHashMap<String, java.util.Set<String>>();
+        if (tasksDirectory != null && tasksDirectory.isDirectory()) {
+            for (Path file : listDefinitionFiles(tasksDirectory.toPath())) {
+                JsonNode doc;
+                try {
+                    doc = parse(file);
+                } catch (IOException e) {
+                    continue; // the schema pass already reported the parse failure
+                }
+                if (!doc.has("id") || !doc.has("version") || !doc.has("group")) {
+                    continue;
+                }
+                String id = doc.get("id").asText();
+                int version = doc.get("version").asInt();
+                String group = doc.get("group").asText();
+                if (!versionsById.computeIfAbsent(id, k -> new java.util.LinkedHashSet<>()).add(version)) {
+                    failures.add(file + ": duplicate task '" + id + "@" + version
+                            + "' — another file already defines that id and version.");
+                }
+                groupsById.computeIfAbsent(id, k -> new java.util.LinkedHashSet<>()).add(group);
+            }
+        }
+        groupsById.forEach((id, groups) -> {
+            if (groups.size() > 1) {
+                failures.add("Task '" + id + "' is declared in more than one group " + groups
+                        + " — an id belongs to exactly one group.");
+            }
+        });
+
+        if (validateWorkflows && workflowsDirectory != null && workflowsDirectory.isDirectory()) {
+            for (Path file : listDefinitionFiles(workflowsDirectory.toPath())) {
+                JsonNode wf;
+                try {
+                    wf = parse(file);
+                } catch (IOException e) {
+                    continue;
+                }
+                JsonNode steps = wf.get("steps");
+                if (steps == null || !steps.isArray()) {
+                    continue;
+                }
+                for (JsonNode step : steps) {
+                    JsonNode taskNode = step.get("task");
+                    if (taskNode == null || !taskNode.isTextual() || taskNode.asText().isBlank()) {
+                        continue;
+                    }
+                    String stepId = step.hasNonNull("id") ? step.get("id").asText() : "?";
+                    String ref = taskNode.asText().trim();
+                    int at = ref.indexOf('@');
+                    String id = at >= 0 ? ref.substring(0, at) : ref;
+                    var versions = versionsById.get(id);
+                    if (versions == null) {
+                        failures.add(file + ": step '" + stepId + "' references unknown task '" + ref + "'.");
+                    } else if (at >= 0) {
+                        try {
+                            int v = Integer.parseInt(ref.substring(at + 1));
+                            if (!versions.contains(v)) {
+                                failures.add(file + ": step '" + stepId + "' references task version '" + ref
+                                        + "' which does not exist (known versions: " + versions + ").");
+                            }
+                        } catch (NumberFormatException e) {
+                            failures.add(file + ": step '" + stepId + "' has a malformed task reference '" + ref + "'.");
+                        }
+                    }
+                }
+            }
+        }
     }
 }

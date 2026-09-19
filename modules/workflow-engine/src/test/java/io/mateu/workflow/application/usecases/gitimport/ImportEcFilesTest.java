@@ -26,7 +26,9 @@ class ImportEcFilesTest {
     private final ImportWorkflowDefinitionsFromDirectoryUseCase useCase =
             new ImportWorkflowDefinitionsFromDirectoryUseCase(
                     mock(DirectoryImportProperties.class), repository, new InMemoryImportedDefinitionsRegistry(),
-                    new WorkflowDefinitionValidator());
+                    new WorkflowDefinitionValidator(),
+                    new io.mateu.workflow.application.services.TaskReferenceResolver(
+                            new io.mateu.workflow.infra.out.classpath.ClasspathTaskContractRepository()));
 
     private void write(Path dir, String name, String content) throws Exception {
         Files.write(dir.resolve(name), content.getBytes(StandardCharsets.UTF_8));

@@ -20,9 +20,13 @@ class ValidateMojoTest {
         set(mojo, "workflowsDirectory", fixtures.resolve(root + "/workflows").toFile());
         set(mojo, "formsDirectory", fixtures.resolve(root + "/forms").toFile());
         set(mojo, "rulesDirectory", fixtures.resolve(root + "/rules").toFile());
+        set(mojo, "tasksDirectory", fixtures.resolve(root + "/tasks").toFile());
         set(mojo, "validateWorkflows", true);
         set(mojo, "validateForms", true);
         set(mojo, "validateRules", true);
+        // Task validation is opted into per test (some fixtures set failOnMissing and have no
+        // tasks/ dir); the tests that exercise it turn it on explicitly.
+        set(mojo, "validateTasks", false);
         set(mojo, "failOnError", true);
         set(mojo, "failOnMissing", false);
         set(mojo, "skip", false);
@@ -38,6 +42,33 @@ class ValidateMojoTest {
     @Test
     void validDefinitionsPass() throws Exception {
         assertThatCode(() -> mojo("valid").execute()).doesNotThrowAnyException();
+    }
+
+    @Test
+    void aWorkflowReferencingAnUnknownTaskFailsTheBuild() throws Exception {
+        ValidateMojo mojo = mojo("taskref");
+        set(mojo, "validateTasks", true);
+        assertThatThrownBy(mojo::execute)
+                .isInstanceOf(MojoFailureException.class)
+                .hasMessageContaining("references unknown task 'missing'");
+    }
+
+    @Test
+    void validTaskReferencesAndContractsPass() throws Exception {
+        // A workflow that pins an existing task version, against contracts with two versions in one
+        // group — the happy path of the cross-checks (known ref, single group, distinct versions).
+        ValidateMojo mojo = mojo("taskref-ok");
+        set(mojo, "validateTasks", true);
+        assertThatCode(mojo::execute).doesNotThrowAnyException();
+    }
+
+    @Test
+    void aTaskIdInTwoGroupsFailsTheBuild() throws Exception {
+        ValidateMojo mojo = mojo("taskref-badgroup");
+        set(mojo, "validateTasks", true);
+        assertThatThrownBy(mojo::execute)
+                .isInstanceOf(MojoFailureException.class)
+                .hasMessageContaining("more than one group");
     }
 
     @Test

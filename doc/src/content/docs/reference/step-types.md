@@ -141,6 +141,14 @@ Dispatches a task to a worker microservice (or embedded bean). The workflow paus
 
 **Required fields:** none beyond `id`, `type` and `name`.
 
+`task` is **optional** and names the [task contract](/reference/versioning/#task-contracts) this step
+runs, as `<id>` or `<id>@<version>`. A bare id is **pinned to the contract's latest version when the
+definition is imported**, so the reference the worker receives (as the task's `taskId`) is always
+fully qualified and a definition never changes contract without someone editing the file. The
+contract's own `topic` becomes this step's default destination — so with a contract you usually need
+no `topic` here — and an explicit `topic` still overrides it. A step with no `task` dispatches an
+empty `taskId`, exactly as every ACTION did before task contracts.
+
 `topic` is **optional** and names the destination this step's task is dispatched to, which is how a
 step is handed to a worker pool of its own. Omitted — the usual case — it means the shared
 `downstream` destination, where every task goes unless told otherwise.

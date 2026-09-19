@@ -8,7 +8,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
-@EnableConfigurationProperties({GitImportProperties.class, DirectoryImportProperties.class, MessageApiProperties.class})
+@EnableConfigurationProperties({GitImportProperties.class, DirectoryImportProperties.class, MessageApiProperties.class,
+        TaskContractDirectoryImportProperties.class, TaskContractGitImportProperties.class})
 public class WorkflowEngineConfiguration {
 
     /**

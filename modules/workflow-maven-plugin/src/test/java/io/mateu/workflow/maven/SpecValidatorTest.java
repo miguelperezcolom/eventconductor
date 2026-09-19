@@ -56,6 +56,19 @@ class SpecValidatorTest {
     }
 
     @Test
+    void validTaskContractPasses() throws Exception {
+        assertThat(validate(SpecValidator.Kind.TASK, "/valid/tasks/greet.json")).isEmpty();
+    }
+
+    @Test
+    void aTaskWithABadTypeAndANonConstantErrorCodeFails() throws Exception {
+        var violations = validate(SpecValidator.Kind.TASK, "/invalid/tasks/bad-type-and-code.json");
+        // An unknown attribute type and an error code that is not a Java identifier are both rejected.
+        assertThat(violations).isNotEmpty();
+        assertThat(String.join("\n", violations)).contains("amount").contains("code");
+    }
+
+    @Test
     void joinOnGuardedPreconditionWarnsButStaysValid() throws Exception {
         JsonNode document = load("/valid/workflows/join-on-guarded-branch.json");
         // Legal (fail-closed dataflow) → no violation…

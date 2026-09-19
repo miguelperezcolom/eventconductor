@@ -1,0 +1,10 @@
+{
+  "id": "uses",
+  "name": "Uses a pinned task",
+  "version": 1,
+  "steps": [
+    {"id": "start", "type": "START", "name": "Start"},
+    {"id": "act", "type": "ACTION", "name": "Act", "task": "present@1", "preconditionStepId": "start"},
+    {"id": "end", "type": "END", "name": "End", "preconditionStepId": "act"}
+  ]
+}

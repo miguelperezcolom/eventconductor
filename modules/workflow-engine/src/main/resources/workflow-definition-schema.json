@@ -368,7 +368,15 @@
             "null"
           ],
           "default": "downstream",
-          "description": "Logical destination this step's task is dispatched to, so a step may be handed to a worker pool of its own. Optional: omitted (the default) means the shared 'downstream' destination, where every task went before per-step routing existed. In Kafka mode a topic with no binding of its own becomes a dynamic destination, created on first use. Embedded mode has one in-process executor and no transport to route over, so it takes every task whatever this says. The step's cancellation follows its task to the same destination."
+          "description": "Logical destination this step's task is dispatched to, so a step may be handed to a worker pool of its own. Optional: omitted (the default) means the shared 'downstream' destination, where every task went before per-step routing existed. In Kafka mode a topic with no binding of its own becomes a dynamic destination, created on first use. Embedded mode has one in-process executor and no transport to route over, so it takes every task whatever this says. The step's cancellation follows its task to the same destination. When a task contract is referenced (see `task`), its topic is the default and an explicit `topic` here overrides it."
+        },
+        "task": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[^@]+(@[0-9]+)?$",
+          "description": "ACTION only: the task contract this step runs, as `<id>` or `<id>@<version>`. A bare id is pinned to the latest version when the definition is imported, so the reference dispatched to the worker is always fully qualified and a definition never changes contract without someone editing the file. The contract's topic becomes the step's default destination unless `topic` is set here."
         },
         "formId": {
           "type": [
