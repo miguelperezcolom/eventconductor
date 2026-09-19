@@ -8,6 +8,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Task contracts: an ACTION step can declare the task it runs, so worker types can be generated
+  from it.** A contract lives in a `.ectask` file under `definitions/tasks/` — `id`, `version`,
+  `group`, `topic`, `description`, `input`, `output`, `errors` (see
+  `urn:eventconductor:task-contract-schema:1`) — and a step references it with `task: <id>` or
+  `task: <id>@<version>`. Contracts are **versioned**: several versions of one id coexist, so an
+  in-flight process keeps the version it was pinned to while new definitions pick up the latest. On
+  import the engine pins a bare `task: <id>` to `<id>@<latest>` (an explicit version is left as
+  written) and defaults the step's topic from the contract, so a definition never changes contract
+  without an edit; the pinned `<id>@<version>` is dispatched to the worker as the taskId.
+  Contracts are imported from the classpath, from directories (`tasks.directory-import`) and from
+  git (`tasks.git-import`) alongside workflows, forms and rules — ahead of workflows so references
+  resolve; there is no pruning, because a contract a process still depends on must not disappear.
+  The `workflow-maven-plugin` gained a `validateTasks` goal (schema, one group per id, unique
+  `id@version`, and every referenced task exists), and the IDE plugins recognise `.ectask`. This is
+  the contract-and-engine groundwork; the worker runtime and code generator come next.
 - **Serialization locks: a definition can now make processes that touch the same entity run one at a
   time.** Two shapes, both keyed by a JEXL expression over the process variables (e.g. `bookingId`):
   - **Step-level critical section** — `LOCK` / `UNLOCK` steps carrying a `lockName` + `lockKey`.

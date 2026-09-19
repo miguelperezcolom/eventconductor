@@ -33,6 +33,11 @@ schema cannot express:
 - **Rules** — schema, decision-table row arity (one `when` cell per input, one `then` cell
   per output) and JEXL parseability of expressions.
 - **Forms** — schema validation.
+- **Tasks** — schema validation of each `.ectask`, plus cross-file checks: an `id` belongs to
+  exactly one `group`, no two files define the same `id@version`, and every task an ACTION step
+  references exists (with the pinned version, if one is given). Checking that a referenced task's
+  `required` inputs are actually reachable in the graph (start variables, branches, JOINs) is a
+  documented **TODO** — it needs the same dataflow analysis the engine does at runtime.
 
 :::note[Checks that only happen at engine load]
 A few of the engine's invariants (`WorkflowDefinition.checkInvariants()`) are **not**
@@ -68,12 +73,13 @@ same layout the engine loads from the classpath:
 
 ```
 src/main/resources/
-  workflows/**/*.{ec,ecform,ecrule,json,yaml,yml}
-  forms/**/*.{ec,ecform,ecrule,json,yaml,yml}
-  rules/**/*.{ec,ecform,ecrule,json,yaml,yml}
+  workflows/**/*.{ec,ecform,ecrule,ectask,json,yaml,yml}
+  forms/**/*.{ec,ecform,ecrule,ectask,json,yaml,yml}
+  rules/**/*.{ec,ecform,ecrule,ectask,json,yaml,yml}
+  tasks/**/*.{ec,ecform,ecrule,ectask,json,yaml,yml}
 ```
 
-The same six the engine imports. `.ec`, `.ecform` and `.ecrule` are what the graph editor and the
+The same extensions the engine imports. `.ec`, `.ecform` and `.ecrule` are what the graph editor and the
 two IDE plugins write, and they were not collected before 2.2.3 — a repository of them was walked,
 nothing was found, and the build passed. Anything that is not `.json` is read by the YAML parser,
 which reads JSON too, so an `.ec` holding either parses.
@@ -96,9 +102,11 @@ src/main/resources/workflows/order.yaml:
 | `workflowsDirectory` | | `${basedir}/src/main/resources/workflows` | Workflow definitions directory. |
 | `formsDirectory` | | `${basedir}/src/main/resources/forms` | Form definitions directory. |
 | `rulesDirectory` | | `${basedir}/src/main/resources/rules` | Rule definitions directory. |
+| `tasksDirectory` | | `${basedir}/src/main/resources/tasks` | Task contracts directory. |
 | `validateWorkflows` | `eventconductor.validate.workflows` | `true` | Validate workflows. |
 | `validateForms` | `eventconductor.validate.forms` | `true` | Validate forms. |
 | `validateRules` | `eventconductor.validate.rules` | `true` | Validate rules. |
+| `validateTasks` | `eventconductor.validate.tasks` | `true` | Validate task contracts. |
 | `failOnError` | `eventconductor.validate.failOnError` | `true` | Fail the build on violations (otherwise warn). |
 | `failOnMissing` | `eventconductor.validate.failOnMissing` | `false` | Fail if a configured directory has no definitions. |
 | `skip` | `eventconductor.validate.skip` | `false` | Skip validation entirely. |

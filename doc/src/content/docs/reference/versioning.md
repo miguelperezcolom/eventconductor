@@ -69,6 +69,29 @@ is the 1.0 format.
   it is the engine-assigned **instance revision counter** for a stored definition, not the schema
   version.
 
+## Task contracts
+
+A [task contract](/reference/step-types/#action) (`.ectask`, schema
+`urn:eventconductor:task-contract-schema:1`) is the shape an ACTION step commits to. Unlike a
+workflow, a form or a rule — each stored as a single current definition — **contracts are versioned
+and append-only**: the store keeps every `id@version` it has imported, and nothing prunes them,
+because an in-flight process may still be running against one.
+
+- A step references a contract by `task: <id>` or `task: <id>@<version>`. When the definition is
+  **imported**, a bare id is pinned to the latest known version and an explicit version is left as
+  written, so what a definition dispatches is fixed at import and never shifts underneath a running
+  process. That pinned `<id>@<version>` is what travels to the worker as the task's `taskId`.
+- **A backward-incompatible change to a contract is a new `version`** — a removed or renamed field,
+  a tightened type, a moved `group`. The old version keeps being served for the processes and
+  definitions pinned to it; new definitions pick up the new one on their next import. A service may
+  implement several versions at once.
+- **An `id` belongs to exactly one `group`** (one generated worker module), for its whole life;
+  moving it to another group is a breaking change, not a new version. The build-time `validateTasks`
+  goal enforces this, the uniqueness of each `id@version`, and that every referenced contract exists.
+- Removing a `.ectask` file from its source does **not** delete the contract: a version a process is
+  pinned to must remain resolvable. Retiring a version is therefore a deliberate operation, not a
+  side effect of deleting a file.
+
 ## Database upgrades
 
 **The engine ships its schema and applies it itself.** The migrations live in the engine jar, and
