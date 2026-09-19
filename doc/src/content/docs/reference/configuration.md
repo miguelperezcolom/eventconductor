@@ -116,6 +116,21 @@ Clones Git repositories at startup and imports rule definition files (`.json`, `
 
 The webhook endpoint is `POST /rules/webhooks/{provider}` (`github`/`gitlab`/`bitbucket`/`generic`); it reloads only the pushed repository/branch and deletes rules removed from the repo. See [Rule Definitions — Git import](/guides/rule-definitions/#git-import) for setup instructions.
 
+## Task contracts import (`tasks.*`)
+
+Imports [task contracts](/reference/versioning/#task-contracts) (`.ectask`, and `.json`/`.yaml`/`.yml`) from the classpath, local directories and Git — alongside workflows, forms and rules, and **ahead of them**, so a workflow step's `task: <id>` resolves to the latest contract version as the definition loads. Contracts are versioned and **append-only**: nothing is pruned, because a version an in-flight process is pinned to must stay resolvable.
+
+| Property | Default | Description |
+|---|---|---|
+| `tasks.directory-import.directories[]` | — | Local directories to scan for `.ectask` contracts. |
+| `tasks.git-import.repositories[].url` | — | Git clone URL (HTTPS or SSH). |
+| `tasks.git-import.repositories[].branch` | `main` | Branch to check out. |
+| `tasks.git-import.repositories[].directory` | — | Subdirectory to scan (relative to the repo root). Leave blank to scan the whole clone. |
+| `tasks.git-import.repositories[].username` | — | Username for HTTPS authentication. |
+| `tasks.git-import.repositories[].password` | — | Password or personal access token. |
+
+Task git import runs at **startup only** — there is no push webhook yet, so a restart re-imports. Contracts also load from `classpath:/tasks/` (memory mode serves them from the heap; jpa mode imports them into the database at startup).
+
 ## Application class (embedded modes)
 
 ### Workflow engine
@@ -255,7 +270,7 @@ How the engine keeps two pods off the same process depends on the mode:
 - **`workflow.mode=embedded` + `workflow.persistence=jpa`** — a **row lock**. The action runs in a transaction that opens with `SELECT … FOR UPDATE` on the process row and releases on commit; waiting is bounded by `workflow.process-lock-timeout-seconds` (default `10`). Embedded pods share no partitioning, so this is what keeps two of them off the same process. No separate connection and no watchdog are involved.
 - **`workflow.mode=embedded` + `workflow.persistence=memory`** — an in-JVM lock (single process only).
 
-Separately, the **singleton background jobs** — the timeout/timer scan, cron-scheduled starts, and the embedded outbox relay — take a short-lived **database advisory lock** so only one pod runs each. The lock dialect is auto-detected from the JDBC connection:
+Separately, the **singleton background jobs** — the timeout/timer scan, cron-scheduled starts, the embedded outbox relay, and the serialization-lock lease reaper (below) — take a short-lived **database advisory lock** so only one pod runs each. The lock dialect is auto-detected from the JDBC connection:
 
 | Database | Lock mechanism |
 |---|---|
@@ -264,6 +279,18 @@ Separately, the **singleton background jobs** — the timeout/timer scan, cron-s
 | Oracle | `DBMS_LOCK.REQUEST` / `DBMS_LOCK.RELEASE` (via PL/SQL) |
 
 These locks are held only for the length of one scan and are session-scoped, so a crashed pod's locks are released automatically by the database when its JDBC connection closes — no watchdog needed.
+
+### Serialization locks (`workflow.lock.*`)
+
+A definition can serialize processes by a key — [`LOCK`/`UNLOCK`](/reference/step-types/#action) steps around a critical section, or a process-level `processLock`. The held lock is a row keyed by `(name, key)`; whoever cannot take it waits its turn (FIFO). A **lease** bounds how long a hold survives if the process that took it dies without releasing — the crash backstop — and a reaper frees expired holds and admits the next waiter.
+
+| Property | Default | Description |
+|---|---|---|
+| `workflow.lock.lease-ms` | `900000` | How long a hold lasts (ms) before the reaper may evict it. Generous by design — long enough that a merely-slow holder is never evicted. |
+| `workflow.lock.lease-scan-interval-ms` | `60000` | How often (ms) the lease reaper scans for expired holds (jpa mode; one pod at a time via an advisory lock). |
+| `workflow.lock.wait-timeout-seconds` | `10` | How long an acquire/release waits for the per-key row lock before giving up (jpa mode). |
+
+Only relevant to definitions that declare locks; one that uses none pays nothing. See [Step types — LOCK / UNLOCK](/reference/step-types/).
 
 ## Kafka (when `workflow.mode=kafka`)
 
