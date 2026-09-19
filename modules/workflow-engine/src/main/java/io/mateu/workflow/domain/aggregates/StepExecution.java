@@ -382,6 +382,22 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
             send(new TaskExecutionRequested(id, processId, workflowDefinitionId, stepId, "evaluate-rule", taskVariables.stream()
                     .map(variable -> new io.mateu.workflow.dtos.Variable(variable.name(), variable.value()))
                     .toList()));
+        } else if (StepType.LOCK.equals(step.type()) || StepType.UNLOCK.equals(step.type())) {
+            // A lock step involves no worker: the step stays PENDING and the step-over use case,
+            // which has the LockService the domain cannot reach, resolves it in the same
+            // transaction — acquiring/releasing and then completing it, or parking it in
+            // WAITING_ON_LOCK. Here we only validate the key resolves and record the intent; a key
+            // that will not evaluate is a misconfiguration, failed loud like the others above.
+            var lockKey = io.mateu.workflow.domain.services.LockKeyResolver.resolve(step, process);
+            if (lockKey == null) {
+                send(new TaskLogEmitted(id, MessageType.Error,
+                        "Step " + step.name() + ": lockKey '" + step.lockKey()
+                                + "' could not be evaluated."));
+                updateStatus(StepExecutionStatus.ERROR);
+                return this;
+            }
+            send(new TaskLogEmitted(id, MessageType.Info,
+                    step.type() + " step " + step.name() + " on key '" + lockKey + "'."));
         } else {
             send(new TaskExecutionRequested(id, processId, workflowDefinitionId, stepId, "", variables.stream()
                     .map(variable -> new io.mateu.workflow.dtos.Variable(variable.name(), variable.value()))
@@ -465,5 +481,18 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
         this.deadlineAt = null;
         send(new TaskLogEmitted(id, MessageType.Info,
                 "Backoff elapsed; re-dispatching step " + stepId + " (attempt " + attemptCount + ")"));
+    }
+
+    /**
+     * Parks a LOCK step in {@link StepExecutionStatus#WAITING_ON_LOCK}: it could not take its lock
+     * and is queued behind the current holder. Set directly, without a {@code StepExecutionStatusChanged}
+     * — like {@link #scheduleRetry(java.time.Duration)}, the wait is not driven off the status
+     * pipeline (nothing should re-dispatch it); the holder's release wakes it, completing the step
+     * through the ordinary update path. {@code WAITING_ON_LOCK} is also absent from the wire
+     * {@code TaskStatus}, so it must not go through {@link #updateStatus(StepExecutionStatus)}.
+     */
+    public void markWaitingOnLock() {
+        this.status = StepExecutionStatus.WAITING_ON_LOCK;
+        this.finishedAt = null;
     }
 }

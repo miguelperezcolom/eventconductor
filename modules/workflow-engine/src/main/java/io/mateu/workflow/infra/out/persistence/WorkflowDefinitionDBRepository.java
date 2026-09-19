@@ -49,7 +49,24 @@ public class WorkflowDefinitionDBRepository implements WorkflowDefinitionReposit
                 WorkflowStatus.of(entity.getDeclaredStatus(), false, false),
                 WorkflowStatus.of(entity.getRuntimeStatus(), false, false)
         ).withMaxSteps(entity.getMaxSteps())
-                .withLayout(layoutFromJson(entity.getLayoutJson()));
+                .withLayout(layoutFromJson(entity.getLayoutJson()))
+                .withProcessLock(processLockFromJson(entity.getProcessLockJson()));
+    }
+
+    /** The stored process-level lock, or null when the definition declares none (read leniently). */
+    private static ProcessLock processLockFromJson(String json) {
+        if (json == null || json.isBlank()) {
+            return null;
+        }
+        try {
+            return LAYOUT_MAPPER.readValue(json, ProcessLock.class);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static String processLockToJson(ProcessLock processLock) {
+        return processLock == null ? null : toJson(processLock);
     }
 
     /**
@@ -97,7 +114,8 @@ public class WorkflowDefinitionDBRepository implements WorkflowDefinitionReposit
                 workflowDefinition.paused(),
                 workflowDefinition.declaredStatus().name(),
                 workflowDefinition.runtimeStatus().name(),
-                layoutToJson(workflowDefinition.layout())
+                layoutToJson(workflowDefinition.layout()),
+                processLockToJson(workflowDefinition.processLock())
         ));
         return workflowDefinition.id();
     }

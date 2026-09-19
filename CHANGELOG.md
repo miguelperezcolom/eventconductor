@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Serialization locks: a definition can now make processes that touch the same entity run one at a
+  time.** Two shapes, both keyed by a JEXL expression over the process variables (e.g. `bookingId`):
+  - **Step-level critical section** — `LOCK` / `UNLOCK` steps carrying a `lockName` + `lockKey`.
+    Only the stretch between them is serialized, so the lock is not held across long worker
+    round-trips outside the section.
+  - **Process-level** — a definition-level `processLock: { name, key }`. The whole instance is
+    serialized against other instances resolving to the same key; a second instance makes no
+    progress until the first finishes.
+
+  Whoever cannot take the lock is queued and admitted in **arrival order (FIFO)**; a parked step sits
+  in the new `WAITING_ON_LOCK` status (the process stays running, neither completing nor erroring
+  around it). Locks are created on the fly, coordinate across pods through the database (a
+  `SELECT … FOR UPDATE` on the held-lock row, no `ON CONFLICT`/`SKIP LOCKED`, portable across H2 /
+  PostgreSQL / MariaDB), and are released by the `UNLOCK` step, on the process reaching a terminal
+  state, or — the crash backstop — by a lease reaper (`workflow.lock.lease-ms`, default 15 min;
+  scan `workflow.lock.lease-scan-interval-ms`, default 60 s). New tables `process_lock` /
+  `process_lock_waiter` (`V29`). The graph draws `LOCK`/`UNLOCK` with a padlock glyph and a parked
+  step with a distinct slate "waiting on a lock" border; the `.ec` schema and the IDE plugins gained
+  the new step types and the `processLock` attribute. Wait order under identical `enqueued_at` ticks
+  is not yet a strict FIFO tie-break (a monotonic sequence column is the hardening).
+
 ## [2.16.3] - 2026-09-13
 
 ### Changed

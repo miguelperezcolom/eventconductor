@@ -64,7 +64,8 @@ public class ClasspathWorkflowDefinitionRepository implements WorkflowDefinition
                                 def.maxConcurrentExecutions(), def.enqueueOnLimit(),
                                 def.cronExpression(), def.defaultMaxStepExecutions(), stepsWithId)
                                 .withMaxSteps(def.maxSteps())
-                                .withLayout(def.layout());
+                                .withLayout(def.layout())
+                                .withProcessLock(def.processLock());
                     }
                     definitions.put(def.id(), def);
                     log.info("Loaded workflow definition '{}' from classpath:{}", def.id(), resource.getFilename());

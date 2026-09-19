@@ -343,6 +343,9 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
             // amber clock badge, since a step that ran out of time is not the same as one that failed.
             case TIMEOUT -> "TIMEOUT";
             case CANCELLED -> "CANCELLED";
+            // A step parked in a lock queue gets its own token so the graph can badge it distinctly
+            // (a padlock, not a plain spinner) — it is waiting for a lock, not for a worker.
+            case WAITING_ON_LOCK -> "WAITING_ON_LOCK";
             // A step waiting out its retry backoff reads as pending work on the graph, not as an
             // error — it failed but is going to run again, and the overlay reason spells that out.
             case CREATED, PENDING, AWAITING_RETRY -> "PENDING";
@@ -358,6 +361,8 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
             // step has several executions, because it says the last attempt failed.
             case AWAITING_RETRY -> 4;
             case PENDING -> 3;
+            // Parked on a lock: waiting work, as telling as a plain pending.
+            case WAITING_ON_LOCK -> 3;
             case CREATED -> 2;
             case COMPLETED -> 1;
             case CANCELLED -> 0;
@@ -476,6 +481,7 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
             case TIMEOUT -> "Timed out" + (se.getDeadlineAt() != null ? " (deadline " + se.getDeadlineAt() + ")" : "");
             case COMPLETED -> "Completed";
             case CANCELLED -> "Cancelled";
+            case WAITING_ON_LOCK -> "Waiting for a lock";
         };
     }
 
@@ -651,7 +657,7 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
         StepExecutionStatus status = StepExecutionStatus.valueOf(rawStatus);
         StatusType statusType = switch (status) {
             case CREATED -> StatusType.NONE;
-            case PENDING -> StatusType.INFO;
+            case PENDING, WAITING_ON_LOCK -> StatusType.INFO;
             case RUNNING, AWAITING_RETRY -> StatusType.WARNING;
             case COMPLETED -> StatusType.SUCCESS;
             case ERROR, TIMEOUT, CANCELLED -> StatusType.DANGER;

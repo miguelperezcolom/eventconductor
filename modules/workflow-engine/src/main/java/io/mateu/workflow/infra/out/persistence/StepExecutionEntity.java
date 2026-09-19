@@ -30,7 +30,9 @@ import java.time.LocalDateTime;
         // The scheduler still lists live steps system-wide at boot.
         @Index(name = "idx_step_exec_status", columnList = "status"),
         // An arriving message finds its subscribers by name and correlation key.
-        @Index(name = "idx_step_exec_awaiting_message", columnList = "awaitingMessageName, awaitingCorrelationKey")
+        @Index(name = "idx_step_exec_awaiting_message", columnList = "awaitingMessageName, awaitingCorrelationKey"),
+        // The lease reaper finds a lock's waiting/holding steps by the key they carry.
+        @Index(name = "idx_step_exec_lock", columnList = "lockName, lockKey, status")
 })
 @Getter@Setter
 @NoArgsConstructor@AllArgsConstructor
@@ -80,6 +82,15 @@ public class StepExecutionEntity {
     String awaitingCorrelationKey;
 
     /**
+     * The named lock a step in {@code WAITING_ON_LOCK} (or holding one) is bound to, lifted out so
+     * the lease reaper can find it and so re-entry after a restart is idempotent. Null for every
+     * step that is not a lock step. Wired by the engine in P3.
+     */
+    String lockName;
+
+    String lockKey;
+
+    /**
      * Optimistic-locking version. Boxed on purpose: Spring Data reads a null version as "never
      * persisted" and inserts, which is what keeps assigned ids working without a separate
      * existence check.
@@ -94,5 +105,21 @@ public class StepExecutionEntity {
      * processes.
      */
     String injectedByStepExecutionId;
+
+    /**
+     * Backward-compatible constructor for the callers that predate the lock columns (the write-side
+     * mapping in {@code StepExecutionDBRepository}). They arrive null; only lock steps set them,
+     * once the engine wires that in. Kept as an overload rather than reordering the fields, the same
+     * way {@code Step} evolves its constructors.
+     */
+    public StepExecutionEntity(String id, String processId, String workflowDefinitionId, String stepId,
+            String stepJson, String stepType, String variables, String status, String workerId, long order,
+            LocalDateTime startedAt, LocalDateTime finishedAt, int attemptCount, LocalDateTime deadlineAt,
+            String awaitingMessageName, String awaitingCorrelationKey, Integer version,
+            String injectedByStepExecutionId) {
+        this(id, processId, workflowDefinitionId, stepId, stepJson, stepType, variables, status, workerId,
+                order, startedAt, finishedAt, attemptCount, deadlineAt, awaitingMessageName,
+                awaitingCorrelationKey, null, null, version, injectedByStepExecutionId);
+    }
 
 }

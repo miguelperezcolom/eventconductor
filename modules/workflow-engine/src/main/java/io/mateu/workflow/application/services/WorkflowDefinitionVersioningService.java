@@ -87,6 +87,11 @@ public class WorkflowDefinitionVersioningService {
         canonical.put("limitConcurrentExecutions", d.limitConcurrentExecutions());
         canonical.put("maxConcurrentExecutions", d.maxConcurrentExecutions());
         canonical.put("enqueueOnLimit", d.enqueueOnLimit());
+        // Process-level serialization is version-relevant: turning it on, off, or changing its key
+        // changes how instances run, so it must mint a new version. Step-level LOCK/UNLOCK fields
+        // ride along inside the serialized steps above.
+        canonical.put("processLock", d.processLock() == null ? null
+                : io.mateu.core.infra.JsonSerializer.toJson(d.processLock()));
         canonical.put("defaultMaxStepExecutions", d.defaultMaxStepExecutions());
         canonical.put("steps", d.steps().stream()
                 .sorted(Comparator.comparing(Step::id, Comparator.nullsLast(Comparator.naturalOrder())))

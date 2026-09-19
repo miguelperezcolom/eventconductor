@@ -74,4 +74,12 @@ public class WorkflowDefinitionEntity {
     @Column(columnDefinition = "TEXT")
     String layoutJson;
 
+    /**
+     * The process-level serialization lock as the {@code .ec} file carries it under
+     * {@code processLock}: {@code {name, key}}, or null when the definition declares none. JSON for
+     * the same reason as {@code layoutJson} — read whole with the definition, never queried.
+     */
+    @Column(columnDefinition = "TEXT")
+    String processLockJson;
+
 }

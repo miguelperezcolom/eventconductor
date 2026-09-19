@@ -1,0 +1,216 @@
+package io.mateu.workflow.infra.out.persistence;
+
+import io.mateu.workflow.application.out.LockService;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.dao.DuplicateKeyException;
+import org.springframework.jdbc.core.ConnectionCallback;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionTemplate;
+
+import java.sql.Timestamp;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+/**
+ * JDBC {@link LockService} for {@code jpa} mode. It coordinates across pods through the database:
+ * the held lock is one row in {@code process_lock} keyed by {@code (lockName, lockKey)}, and both
+ * acquire and release open by taking {@code SELECT … FOR UPDATE} on that row, so the two are
+ * serialized per key across every pod — the same discipline {@link JdbcProcessLockService} uses for
+ * the per-process row lock.
+ *
+ * <p>The queue lives in {@code process_lock_waiter}, ordered by {@code enqueued_at}. On release the
+ * earliest waiter (if any) is promoted to holder in the same transaction, so no window exists where
+ * the lock is free but a waiter is still queued behind it.
+ *
+ * <p>The composite key is materialised into a single {@code id} column
+ * ({@code lockName + '\0' + lockKey}) so the mutex is a plain primary key and {@code FOR UPDATE} is
+ * a by-id lookup. The first acquirer of a fresh key races on that INSERT; the loser catches the
+ * duplicate-key and retries the {@code FOR UPDATE} path once, by which point the winner's row is
+ * visible and it enqueues.
+ *
+ * <p>Portable across the supported databases: no {@code ON CONFLICT} and no {@code SKIP LOCKED}.
+ * {@code LIMIT 1} on the waiter query holds on H2, PostgreSQL and MariaDB; Oracle would route it
+ * through {@link DbLockDialect} in a later pass (this deployment is PostgreSQL, tested on H2).
+ */
+@Service
+@ConditionalOnProperty(name = "workflow.persistence", havingValue = "jpa")
+@RequiredArgsConstructor
+@Slf4j
+public class JdbcLockService implements LockService {
+
+    private static final char SEP = '\u0000';
+
+    final JdbcTemplate jdbcTemplate;
+    final TransactionTemplate transactionTemplate;
+
+    /** Bounds how long an acquire/release waits for the per-key row lock before giving up. */
+    @Value("${workflow.lock.wait-timeout-seconds:10}")
+    int waitTimeoutSeconds;
+
+    /** How long a hold lasts before the reaper may evict it (crash backstop). Generous by design. */
+    @Value("${workflow.lock.lease-ms:900000}")
+    long leaseMs;
+
+    private static String rowId(String lockName, String lockKey) {
+        return lockName + SEP + lockKey;
+    }
+
+    private Timestamp newLease() {
+        return Timestamp.valueOf(LocalDateTime.now().plusNanos(leaseMs * 1_000_000));
+    }
+
+    @Override
+    public Outcome acquire(String lockName, String lockKey, String processId, String stepExecutionId) {
+        return transactionTemplate.execute(status ->
+                acquireInTx(lockName, lockKey, processId, stepExecutionId, false));
+    }
+
+    private Outcome acquireInTx(String lockName, String lockKey, String processId,
+                                String stepExecutionId, boolean retried) {
+        String id = rowId(lockName, lockKey);
+        String holder = lockRowForUpdate(id);
+        if (holder == null) {
+            try {
+                jdbcTemplate.update(
+                        "INSERT INTO process_lock (id, lock_name, lock_key, holder_process_id, "
+                                + "holder_step_execution_id, acquired_at, lease_deadline_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                        id, lockName, lockKey, processId, stepExecutionId,
+                        Timestamp.valueOf(LocalDateTime.now()), newLease());
+                return Outcome.ACQUIRED;
+            } catch (DuplicateKeyException raced) {
+                // Another pod inserted the fresh row between our FOR UPDATE (which locked nothing,
+                // the row not existing yet) and this INSERT. Retry once: the row is now visible and
+                // FOR UPDATE will block on, then read, the winner.
+                if (retried) {
+                    throw raced;
+                }
+                return acquireInTx(lockName, lockKey, processId, stepExecutionId, true);
+            }
+        }
+        if (processId.equals(holder)) {
+            return Outcome.ACQUIRED; // reentrant
+        }
+        enqueueIfAbsent(lockName, lockKey, processId, stepExecutionId);
+        return Outcome.ENQUEUED;
+    }
+
+    @Override
+    public Optional<Grant> release(String lockName, String lockKey, String processId) {
+        return transactionTemplate.execute(status -> releaseInTx(lockName, lockKey, processId));
+    }
+
+    @Override
+    public List<Grant> releaseAll(String processId) {
+        return transactionTemplate.execute(status -> {
+            List<String[]> held = jdbcTemplate.query(
+                    "SELECT lock_name, lock_key FROM process_lock WHERE holder_process_id = ?",
+                    (rs, i) -> new String[]{rs.getString(1), rs.getString(2)}, processId);
+            List<Grant> grants = new ArrayList<>();
+            for (String[] lock : held) {
+                releaseInTx(lock[0], lock[1], processId).ifPresent(grants::add);
+            }
+            // Drop this process from every queue it was waiting in.
+            jdbcTemplate.update("DELETE FROM process_lock_waiter WHERE process_id = ?", processId);
+            return grants;
+        });
+    }
+
+    private Optional<Grant> releaseInTx(String lockName, String lockKey, String processId) {
+        String id = rowId(lockName, lockKey);
+        String holder = lockRowForUpdate(id);
+        if (holder == null || !processId.equals(holder)) {
+            return Optional.empty();
+        }
+        return reassignOrFree(id, lockName, lockKey);
+    }
+
+    @Override
+    public List<Grant> expireLeases(LocalDateTime now) {
+        return transactionTemplate.execute(status -> {
+            var expired = jdbcTemplate.query(
+                    "SELECT lock_name, lock_key FROM process_lock "
+                            + "WHERE lease_deadline_at IS NOT NULL AND lease_deadline_at < ?",
+                    (rs, i) -> new String[]{rs.getString(1), rs.getString(2)}, Timestamp.valueOf(now));
+            List<Grant> grants = new ArrayList<>();
+            for (String[] lock : expired) {
+                String id = rowId(lock[0], lock[1]);
+                // Re-lock and re-check the deadline: another pod may have released or renewed it
+                // between the scan and here.
+                if (lockRowForUpdate(id) == null || !leaseExpired(id, now)) {
+                    continue;
+                }
+                reassignOrFree(id, lock[0], lock[1]).ifPresent(grants::add);
+            }
+            return grants;
+        });
+    }
+
+    private boolean leaseExpired(String id, LocalDateTime now) {
+        var deadline = jdbcTemplate.query(
+                "SELECT lease_deadline_at FROM process_lock WHERE id = ?",
+                (rs, i) -> rs.getTimestamp(1), id);
+        return !deadline.isEmpty() && deadline.get(0) != null
+                && deadline.get(0).toLocalDateTime().isBefore(now);
+    }
+
+    /** Hand the (already row-locked) lock to the earliest waiter, or free it if none wait. */
+    private Optional<Grant> reassignOrFree(String id, String lockName, String lockKey) {
+        List<String[]> next = jdbcTemplate.query(
+                "SELECT id, process_id, step_execution_id FROM process_lock_waiter "
+                        + "WHERE lock_name = ? AND lock_key = ? ORDER BY enqueued_at, id LIMIT 1",
+                (rs, i) -> new String[]{rs.getString(1), rs.getString(2), rs.getString(3)},
+                lockName, lockKey);
+        if (!next.isEmpty()) {
+            String waiterRowId = next.get(0)[0];
+            String waiterProcess = next.get(0)[1];
+            String waiterStep = next.get(0)[2];
+            jdbcTemplate.update("DELETE FROM process_lock_waiter WHERE id = ?", waiterRowId);
+            jdbcTemplate.update(
+                    "UPDATE process_lock SET holder_process_id = ?, holder_step_execution_id = ?, "
+                            + "acquired_at = ?, lease_deadline_at = ? WHERE id = ?",
+                    waiterProcess, waiterStep, Timestamp.valueOf(LocalDateTime.now()), newLease(), id);
+            return Optional.of(new Grant(lockName, lockKey, waiterProcess, waiterStep));
+        }
+        jdbcTemplate.update("DELETE FROM process_lock WHERE id = ?", id);
+        return Optional.empty();
+    }
+
+    /**
+     * Takes {@code SELECT … FOR UPDATE} on the lock row and returns its current holder, or null if
+     * the row does not exist yet. The query timeout bounds the wait so a stuck holder never wedges
+     * an acquirer forever.
+     */
+    private String lockRowForUpdate(String id) {
+        return jdbcTemplate.execute((ConnectionCallback<String>) con -> {
+            try (var ps = con.prepareStatement(
+                    "SELECT holder_process_id FROM process_lock WHERE id = ? FOR UPDATE")) {
+                ps.setQueryTimeout(waitTimeoutSeconds);
+                ps.setString(1, id);
+                try (var rs = ps.executeQuery()) {
+                    return rs.next() ? rs.getString(1) : null;
+                }
+            }
+        });
+    }
+
+    private void enqueueIfAbsent(String lockName, String lockKey, String processId, String stepExecutionId) {
+        Integer already = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM process_lock_waiter WHERE lock_name = ? AND lock_key = ? AND process_id = ?",
+                Integer.class, lockName, lockKey, processId);
+        if (already != null && already > 0) {
+            return; // idempotent: this process is already queued for the key
+        }
+        jdbcTemplate.update(
+                "INSERT INTO process_lock_waiter (id, lock_name, lock_key, process_id, step_execution_id, "
+                        + "enqueued_at) VALUES (?, ?, ?, ?, ?, ?)",
+                UUID.randomUUID().toString(), lockName, lockKey, processId, stepExecutionId,
+                Timestamp.valueOf(LocalDateTime.now()));
+    }
+}
