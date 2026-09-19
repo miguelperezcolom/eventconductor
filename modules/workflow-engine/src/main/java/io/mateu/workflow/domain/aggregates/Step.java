@@ -179,7 +179,23 @@ public record Step(
         @HiddenInList
         List<String> requiredScopes,
         @HiddenInList
-        List<String> requiredRoles
+        List<String> requiredRoles,
+        /**
+         * LOCK/UNLOCK only: the lock domain this step acts on (e.g. {@code "booking"}). Together
+         * with {@link #lockKey} it names the lock — every step and process sharing the pair is
+         * serialized against each other. Ignored on any other step type.
+         */
+        @HiddenInList
+        @Hidden("state['type'] != 'LOCK' && state['type'] != 'UNLOCK'")
+        String lockName,
+        /**
+         * LOCK/UNLOCK only: a JEXL expression evaluated against the process variables to the key
+         * that is locked — e.g. {@code bookingId} to serialize by reservation. Ignored on any other
+         * step type.
+         */
+        @HiddenInList
+        @Hidden("state['type'] != 'LOCK' && state['type'] != 'UNLOCK'")
+        String lockKey
 ) implements Identifiable {
 
     public Step {
@@ -203,7 +219,27 @@ public record Step(
                 null, preconditionExpression, parallel, topic, formId, ruleId, childWorkflowDefinitionId,
                 outputVariables, duration, untilVariable, messageName, correlationExpression,
                 messageVariables, timeout, retries, compensable, compensationStepId, null,
-                maxSuccessfulExecutions, joinType, java.util.List.of(), java.util.List.of());
+                maxSuccessfulExecutions, joinType, java.util.List.of(), java.util.List.of(), null, null);
+    }
+
+    /**
+     * The shape this record had before it carried lock fields, so every caller of the full
+     * constructor — the parser, the copiers, the tests — keeps compiling and locks default to
+     * absent. Only LOCK/UNLOCK steps set {@code lockName}/{@code lockKey}.
+     */
+    public Step(String id, String workflowDefinitionId, StepType type, String name, String description,
+                String preconditionStepId, List<String> preconditionStepIds, List<Precondition> preconditions,
+                String preconditionExpression, boolean parallel, String topic, String formId, String ruleId,
+                String childWorkflowDefinitionId, List<String> outputVariables, long duration,
+                String untilVariable, String messageName, String correlationExpression,
+                List<String> messageVariables, long timeout, int retries, boolean compensable,
+                String compensationStepId, String onTimeoutStepId, int maxSuccessfulExecutions,
+                JoinType joinType, List<String> requiredScopes, List<String> requiredRoles) {
+        this(id, workflowDefinitionId, type, name, description, preconditionStepId, preconditionStepIds,
+                preconditions, preconditionExpression, parallel, topic, formId, ruleId,
+                childWorkflowDefinitionId, outputVariables, duration, untilVariable, messageName,
+                correlationExpression, messageVariables, timeout, retries, compensable, compensationStepId,
+                onTimeoutStepId, maxSuccessfulExecutions, joinType, requiredScopes, requiredRoles, null, null);
     }
 
     /**

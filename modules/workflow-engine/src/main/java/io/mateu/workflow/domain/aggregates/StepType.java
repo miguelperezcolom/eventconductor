@@ -4,7 +4,18 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 
 public enum StepType {
 
-    START, ACTION, JOIN, FORK, CHOICE, END, USER_TASK, PROCESS, TIMER, WAIT_FOR_MESSAGE, SEND_MESSAGE, RULE, DYNAMIC;
+    START, ACTION, JOIN, FORK, CHOICE, END, USER_TASK, PROCESS, TIMER, WAIT_FOR_MESSAGE, SEND_MESSAGE, RULE, DYNAMIC,
+
+    /**
+     * Acquire a named per-key lock ({@code lockName} + {@code lockKey}), serializing every process
+     * or critical section that targets the same key. The step completes the moment it holds the
+     * lock; if another process holds it, this one parks in {@code WAITING_ON_LOCK} and is admitted
+     * FIFO when the lock frees. Released by a matching {@link #UNLOCK} step or when the process ends.
+     */
+    LOCK,
+
+    /** Release a lock taken by a {@link #LOCK} step, admitting the next waiter for that key. */
+    UNLOCK;
 
     /**
      * Accepts the pre-rename alias {@code MESSAGE} (now {@code WAIT_FOR_MESSAGE}) so that the

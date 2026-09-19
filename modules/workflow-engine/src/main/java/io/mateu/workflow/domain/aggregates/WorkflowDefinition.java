@@ -104,7 +104,14 @@ public record WorkflowDefinition(
          * injects at runtime.
          */
         @Hidden
-        Map<String, NodePosition> layout
+        Map<String, NodePosition> layout,
+        /**
+         * Serialize every instance of this definition by a key (process-level lock). Null — the
+         * default — means no process-level serialization. Carried in the file as {@code processLock};
+         * see {@link ProcessLock}.
+         */
+        @Colspan(2)
+        ProcessLock processLock
 ) implements Identifiable, SearchableText, LookupOptionsSupplier, VisibilitySupplier {
 
     /**
@@ -125,6 +132,22 @@ public record WorkflowDefinition(
         // null is omitted by the exporter's NON_NULL inclusion. An empty map would write
         // `layout: {}` into every file the engine ever exported.
         layout = layout == null ? null : Map.copyOf(layout);
+    }
+
+    /**
+     * The canonical shape before the process-level lock existed, so every caller of the full
+     * constructor — the DB mapping, the exporter/importer, the tests — keeps compiling and the lock
+     * defaults to absent.
+     */
+    public WorkflowDefinition(String id, String name, int version, String description,
+                              boolean limitConcurrentExecutions, int maxConcurrentExecutions,
+                              boolean enqueueOnLimit, String cronExpression, int defaultMaxStepExecutions,
+                              List<Step> steps, boolean paused, WorkflowStatus declaredStatus,
+                              WorkflowStatus runtimeStatus, List<String> requiredScopes,
+                              List<String> requiredRoles, int maxSteps, Map<String, NodePosition> layout) {
+        this(id, name, version, description, limitConcurrentExecutions, maxConcurrentExecutions,
+                enqueueOnLimit, cronExpression, defaultMaxStepExecutions, steps, paused, declaredStatus,
+                runtimeStatus, requiredScopes, requiredRoles, maxSteps, layout, null);
     }
 
     /** Creation without any lifecycle state: definitions start unpaused and active. */
@@ -203,21 +226,21 @@ public record WorkflowDefinition(
     public WorkflowDefinition withPaused(boolean newPaused) {
         return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
-                steps, newPaused, declaredStatus, runtimeStatus, requiredScopes, requiredRoles, maxSteps, layout);
+                steps, newPaused, declaredStatus, runtimeStatus, requiredScopes, requiredRoles, maxSteps, layout, processLock);
     }
 
     /** Returns a copy with a different runtime status — what an operator decided. */
     public WorkflowDefinition withRuntimeStatus(WorkflowStatus newStatus) {
         return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
-                steps, paused, declaredStatus, newStatus, requiredScopes, requiredRoles, maxSteps, layout);
+                steps, paused, declaredStatus, newStatus, requiredScopes, requiredRoles, maxSteps, layout, processLock);
     }
 
     /** Returns a copy with a different declared status — what the definition file says. */
     public WorkflowDefinition withDeclaredStatus(WorkflowStatus newStatus) {
         return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
-                steps, paused, newStatus, runtimeStatus, requiredScopes, requiredRoles, maxSteps, layout);
+                steps, paused, newStatus, runtimeStatus, requiredScopes, requiredRoles, maxSteps, layout, processLock);
     }
 
     /** Kept for callers written against the boolean API. */
@@ -234,21 +257,21 @@ public record WorkflowDefinition(
     public WorkflowDefinition withRuntimeStateOf(WorkflowDefinition existing) {
         return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
-                steps, existing.paused(), declaredStatus, existing.runtimeStatus(), requiredScopes, requiredRoles, maxSteps, layout);
+                steps, existing.paused(), declaredStatus, existing.runtimeStatus(), requiredScopes, requiredRoles, maxSteps, layout, processLock);
     }
 
     /** Returns a copy carrying a different step list, every other field unchanged. */
     public WorkflowDefinition withSteps(List<Step> newSteps) {
         return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
-                newSteps, paused, declaredStatus, runtimeStatus, requiredScopes, requiredRoles, maxSteps, layout);
+                newSteps, paused, declaredStatus, runtimeStatus, requiredScopes, requiredRoles, maxSteps, layout, processLock);
     }
 
     /** Returns a copy carrying the given per-process step cap ({@code maxSteps}). */
     public WorkflowDefinition withMaxSteps(int newMaxSteps) {
         return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
-                steps, paused, declaredStatus, runtimeStatus, requiredScopes, requiredRoles, newMaxSteps, layout);
+                steps, paused, declaredStatus, runtimeStatus, requiredScopes, requiredRoles, newMaxSteps, layout, processLock);
     }
 
     /**
@@ -262,14 +285,28 @@ public record WorkflowDefinition(
         return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
                 steps, paused, declaredStatus, runtimeStatus, requiredScopes, requiredRoles, maxSteps,
-                newLayout);
+                newLayout, processLock);
+    }
+
+    /**
+     * Returns a copy carrying a different process-level lock.
+     *
+     * <p>Chained wherever a definition is rebuilt through one of the narrower constructors above,
+     * the way {@link #withMaxSteps(int)} and {@link #withLayout(Map)} are — those constructors
+     * default the lock to null, so a copy made through one would otherwise drop what the file said.
+     */
+    public WorkflowDefinition withProcessLock(ProcessLock newProcessLock) {
+        return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
+                maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
+                steps, paused, declaredStatus, runtimeStatus, requiredScopes, requiredRoles, maxSteps,
+                layout, newProcessLock);
     }
 
     /** Returns a copy carrying the given (engine-assigned) version number. */
     public WorkflowDefinition withVersion(int newVersion) {
         return new WorkflowDefinition(id, name, newVersion, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
-                steps, paused, declaredStatus(), runtimeStatus(), requiredScopes, requiredRoles, maxSteps, layout);
+                steps, paused, declaredStatus(), runtimeStatus(), requiredScopes, requiredRoles, maxSteps, layout, processLock);
     }
 
     // ── Detail-view lifecycle buttons (conditional on state via VisibilitySupplier) ──
@@ -392,6 +429,12 @@ public record WorkflowDefinition(
                 if (step.correlationExpression() == null || step.correlationExpression().isBlank()) {
                     throw new IllegalStateException(
                             "Message step '" + step.id() + "' must define a correlationExpression.");
+                }
+            }
+            if (StepType.LOCK.equals(step.type()) || StepType.UNLOCK.equals(step.type())) {
+                if (step.lockKey() == null || step.lockKey().isBlank()) {
+                    throw new IllegalStateException(
+                            "Lock step '" + step.id() + "' must define a lockKey.");
                 }
             }
         }

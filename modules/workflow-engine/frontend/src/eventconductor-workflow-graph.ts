@@ -49,7 +49,8 @@ if (typeof window !== "undefined" && !window.__ecClipboardBridge) {
 
 type StepType =
     | "START" | "ACTION" | "USER_TASK" | "RULE" | "TIMER"
-    | "WAIT_FOR_MESSAGE" | "SEND_MESSAGE" | "FORK" | "JOIN" | "CHOICE" | "PROCESS" | "END" | "DYNAMIC";
+    | "WAIT_FOR_MESSAGE" | "SEND_MESSAGE" | "FORK" | "JOIN" | "CHOICE" | "PROCESS" | "END" | "DYNAMIC"
+    | "LOCK" | "UNLOCK";
 /** Whether a workflow is open for business. DRAFT is an older value that meant nothing. */
 type WorkflowStatus = "ACTIVE" | "DISABLED" | "ARCHIVED" | "DRAFT";
 
@@ -137,7 +138,7 @@ interface WorkflowDefinition {
     layout?: Record<string, NodePos>;
 }
 
-type StepState = "PENDING" | "RUNNING" | "COMPLETED" | "ERROR" | "TIMEOUT" | "CANCELLED" | "COMPENSATED";
+type StepState = "PENDING" | "RUNNING" | "COMPLETED" | "ERROR" | "TIMEOUT" | "CANCELLED" | "COMPENSATED" | "WAITING_ON_LOCK";
 /**
  * Per-step monitoring overlay entry (read-only views): a live process count and/or a state, plus
  * the diagnostic detail the hover shows so an operator can answer "why is it here?" without opening
@@ -197,6 +198,7 @@ const PAD = 60;
 const STEP_TYPES: StepType[] = [
     "START", "ACTION", "USER_TASK", "RULE", "TIMER",
     "WAIT_FOR_MESSAGE", "SEND_MESSAGE", "FORK", "JOIN", "CHOICE", "PROCESS", "END", "DYNAMIC",
+    "LOCK", "UNLOCK",
 ];
 
 /**
@@ -226,6 +228,10 @@ const NODE_STYLE: Record<StepType, NodeStyle> = {
     // with a spark glyph, distinct from the ACTION/RULE indigos so "this one grows the graph" reads
     // at a glance.
     DYNAMIC:          {fill: "#ecfeff", stroke: "#0d9488", symbol: "spark"},
+    // Serialization locks: slate task nodes with a padlock glyph, so "this stretch runs one process
+    // at a time" reads at a glance. LOCK takes the key, UNLOCK releases it.
+    LOCK:             {fill: "#f8fafc", stroke: "#475569", symbol: "lock"},
+    UNLOCK:           {fill: "#f8fafc", stroke: "#475569", symbol: "unlock"},
 };
 /**
  * The paint properties written onto each element when the graph is exported as a standalone SVG.
@@ -287,6 +293,9 @@ const SYMBOLS: Record<string, ReturnType<typeof svg>> = {
     component: svg`<rect x="3.5" y="0.5" width="8" height="11" rx="1"/><rect x="0.5" y="2.5" width="6" height="2.6"/><rect x="0.5" y="6.9" width="6" height="2.6"/>`,
     // A lightning spark — the generator step that grows the graph at runtime.
     spark:     svg`<path d="M6.5 0.5 L2 6.5 H5.5 L4.5 11.5 L9.5 5 H6 Z"/>`,
+    // A padlock (shackle closed) for LOCK; the same body with an open shackle for UNLOCK.
+    lock:      svg`<rect x="2" y="5.5" width="8" height="6" rx="1"/><path d="M3.5 5.5 V3.6 Q3.5 1.2 6 1.2 Q8.5 1.2 8.5 3.6 V5.5"/>`,
+    unlock:    svg`<rect x="2" y="5.5" width="8" height="6" rx="1"/><path d="M3.5 5.5 V3.6 Q3.5 1.2 6 1.2 Q8.5 1.2 8.5 3.6" />`,
 };
 
 /**
@@ -3588,6 +3597,11 @@ export class MateuWorkflowElk extends LitElement {
                                         animation: ec-march 1s linear infinite;}
         .node.ov-pending   .node-shape {stroke: #64748b !important; stroke-dasharray: 4 2 !important;
                                         animation: ec-march 2.6s linear infinite;}
+        /* Parked on a lock: waiting like pending, but held back rather than in flight — a slower
+           slate-blue march, distinct from the plain pending grey, so "queued behind a lock" reads
+           apart from "dispatched, waiting for a worker". */
+        .node.ov-waiting_on_lock .node-shape {stroke: #475569 !important; stroke-dasharray: 2 3 !important;
+                                        animation: ec-march 3.4s linear infinite;}
         @keyframes ec-march {from {stroke-dashoffset: 0;} to {stroke-dashoffset: -24;}}
         .node.ov-completed .node-shape {stroke: #16a34a !important;}
         .node.ov-error     .node-shape {stroke: #dc2626 !important; stroke-width: 2.4 !important;}
@@ -3615,7 +3629,8 @@ export class MateuWorkflowElk extends LitElement {
            stop travelling but stay dashed, and the running step keeps a static halo. */
         @media (prefers-reduced-motion: reduce) {
             .node.ov-running .node-shape,
-            .node.ov-pending .node-shape {animation: none;}
+            .node.ov-pending .node-shape,
+            .node.ov-waiting_on_lock .node-shape {animation: none;}
             .node.ov-active  .node-shape {animation: none;
                                           filter: drop-shadow(0 0 5px color-mix(in srgb, var(--ec-primary) 60%, transparent));}
         }

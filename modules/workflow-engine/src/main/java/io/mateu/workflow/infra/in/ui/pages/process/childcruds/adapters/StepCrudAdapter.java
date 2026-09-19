@@ -66,7 +66,7 @@ public class StepCrudAdapter  {
         StepExecutionStatus status = StepExecutionStatus.valueOf(rawStatus);
         StatusType statusType = switch (status) {
             case CREATED -> StatusType.NONE;
-            case PENDING -> StatusType.INFO;
+            case PENDING, WAITING_ON_LOCK -> StatusType.INFO;
             case RUNNING, AWAITING_RETRY -> StatusType.WARNING;
             case COMPLETED -> StatusType.SUCCESS;
             case CANCELLED -> StatusType.DANGER;

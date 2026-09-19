@@ -71,6 +71,31 @@
       "description": "When the concurrency limit is reached, enqueue new requests instead of rejecting them.",
       "default": false
     },
+    "processLock": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "required": [
+        "key"
+      ],
+      "description": "Serialize every instance of this definition by a key (a process-level lock). Instances that resolve to the same key run one at a time; the rest wait and are admitted in arrival order (FIFO). Null means no process-level serialization.",
+      "properties": {
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "The lock domain. Two definitions serialize together only if they name the same lock. Defaults to this definition's id when absent."
+        },
+        "key": {
+          "type": "string",
+          "description": "A JEXL expression over the process variables giving the key to serialize by — e.g. bookingId to serialize by reservation.",
+          "minLength": 1
+        }
+      }
+    },
     "draftOfId": {
       "type": [
         "string",
@@ -234,7 +259,9 @@
             "WAIT_FOR_MESSAGE",
             "SEND_MESSAGE",
             "RULE",
-            "DYNAMIC"
+            "DYNAMIC",
+            "LOCK",
+            "UNLOCK"
           ]
         },
         "name": {
@@ -248,6 +275,20 @@
             "null"
           ],
           "description": "Optional description of what this step does."
+        },
+        "lockName": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "LOCK/UNLOCK only: the lock domain (e.g. \"booking\"). Together with lockKey it names the lock; every step and process sharing the pair is serialized against each other. Ignored on other step types."
+        },
+        "lockKey": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "LOCK/UNLOCK only: a JEXL expression over the process variables giving the key that is locked — e.g. bookingId to serialize by reservation. Ignored on other step types."
         },
         "preconditionStepId": {
           "type": [

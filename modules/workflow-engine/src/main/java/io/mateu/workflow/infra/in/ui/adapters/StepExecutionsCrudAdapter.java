@@ -57,7 +57,7 @@ public class StepExecutionsCrudAdapter {
     private Status mapStatus(StepExecutionStatus status) {
         StatusType statusType = switch (status) {
             case CREATED -> StatusType.NONE;
-            case PENDING -> StatusType.INFO;
+            case PENDING, WAITING_ON_LOCK -> StatusType.INFO;
             case RUNNING, AWAITING_RETRY -> StatusType.WARNING;
             case COMPLETED -> StatusType.SUCCESS;
             case CANCELLED, ERROR, TIMEOUT -> StatusType.DANGER;

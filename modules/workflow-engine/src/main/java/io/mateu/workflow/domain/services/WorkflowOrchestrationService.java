@@ -431,7 +431,11 @@ public class WorkflowOrchestrationService {
                 .filter(execution -> List.of(StepExecutionStatus.PENDING,
                                 StepExecutionStatus.CREATED,
                                 StepExecutionStatus.RUNNING,
-                                StepExecutionStatus.AWAITING_RETRY)
+                                StepExecutionStatus.AWAITING_RETRY,
+                                // A parked lock-waiter is uncompleted work like any other: when a
+                                // sibling branch reaches END it is cancelled, and the process's
+                                // terminal-state releaseAll drops it from the wait queue.
+                                StepExecutionStatus.WAITING_ON_LOCK)
                         .contains(execution.getStatus()))
                 .map(execution -> execution.withStatus(StepExecutionStatus.CANCELLED))
                 .forEach(stepsToSave::add);
@@ -513,9 +517,11 @@ public class WorkflowOrchestrationService {
     private boolean hasNoActiveStepsRemaining(List<StepExecution> stepExecutions) {
         // AWAITING_RETRY is active work: a step waiting out its backoff will run again, so a process
         // holding one has not reached the point where it can complete and cancel the rest.
+        // WAITING_ON_LOCK likewise: a step parked in a lock queue will run once the lock frees, so
+        // the process must not wrap up around it as if the branch were dead.
         return stepExecutions.stream()
                 .noneMatch(execution -> List.of(StepExecutionStatus.PENDING, StepExecutionStatus.RUNNING,
-                                StepExecutionStatus.AWAITING_RETRY)
+                                StepExecutionStatus.AWAITING_RETRY, StepExecutionStatus.WAITING_ON_LOCK)
                         .contains(execution.getStatus()));
     }
 

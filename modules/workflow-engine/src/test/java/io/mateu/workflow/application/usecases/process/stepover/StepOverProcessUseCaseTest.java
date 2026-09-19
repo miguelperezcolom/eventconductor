@@ -38,6 +38,11 @@ class StepOverProcessUseCaseTest {
     @Mock io.mateu.workflow.application.services.RecordProcessTraceService recordProcessTraceService;
     @Mock CancelChildProcessService    cancelChildProcessService;
     @Mock io.mateu.workflow.application.out.DownstreamEventPublisher downstreamEventPublisher;
+    // The per-key lock service (distinct from the per-process lock above). Mockito's default answer
+    // returns an empty list for releaseAll, so a process completing/erroring wakes nobody here.
+    @Mock io.mateu.workflow.application.out.LockService namedLockService;
+    @Mock org.springframework.beans.factory.ObjectProvider<io.mateu.workflow.application.usecases.stepexecution.update.UpdateStepExecutionUseCase> updateStepExecutionUseCase;
+    @Mock org.springframework.beans.factory.ObjectProvider<StepOverProcessUseCase> self;
     @Spy  WorkflowOrchestrationService workflowOrchestrationService = new WorkflowOrchestrationService();
 
     // The real no-op, not a mock: a mocked span() would swallow the work it is meant to wrap.

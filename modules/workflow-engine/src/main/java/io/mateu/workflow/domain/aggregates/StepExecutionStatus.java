@@ -12,6 +12,15 @@ public enum StepExecutionStatus {
      * for one whose worker deadline has expired.
      */
     AWAITING_RETRY,
+    /**
+     * A LOCK step that could not take its lock — another process holds it — and is parked in the
+     * FIFO wait queue. Active work, not a worker task: no worker is running it (so not
+     * {@link #isInFlightAtAWorker()}) and it is not terminal. When the lock frees, the holder's
+     * release admits this waiter and completes the step, and the flow proceeds into the critical
+     * section. The engine must treat it as "still going" so the process neither completes nor errors
+     * around it.
+     */
+    WAITING_ON_LOCK,
     COMPLETED,
     CANCELLED,
     ERROR,

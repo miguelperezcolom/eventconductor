@@ -1,0 +1,29 @@
+{
+  "id": "process-lock-serialization",
+  "name": "Process-level serialized workflow",
+  "version": 1,
+  "processLock": {
+    "name": "reservation",
+    "key": "bookingId"
+  },
+  "steps": [
+    {
+      "id": "start",
+      "type": "START",
+      "name": "Start"
+    },
+    {
+      "id": "pwork",
+      "type": "ACTION",
+      "name": "Touch the reservation",
+      "topic": "pwork",
+      "preconditionStepId": "start"
+    },
+    {
+      "id": "end",
+      "type": "END",
+      "name": "End",
+      "preconditionStepId": "pwork"
+    }
+  ]
+}
