@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "com.eventconductor"
-version = "0.1.19"
+version = "0.1.20"
 
 repositories {
     mavenCentral()
@@ -89,6 +89,9 @@ val syncSchema by tasks.registering(Copy::class) {
     }
     from(repo.resolve("modules/forms-engine/src/main/resources/form-schema.json")) {
         rename { "form.schema.json" }
+    }
+    from(repo.resolve("modules/shared/src/main/resources/task-contract-schema.json")) {
+        rename { "task.schema.json" }
     }
     into(layout.projectDirectory.dir("src/main/resources/schema"))
 }
