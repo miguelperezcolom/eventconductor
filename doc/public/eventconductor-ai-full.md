@@ -109,6 +109,7 @@ Written in JSON or YAML (`.json`, `.yaml`, `.yml`); version-controlled and PR-re
 | `enqueueOnLimit` | boolean | Queue new instances when the limit is reached |
 | `cronExpression` | string | Spring cron; the engine starts a new instance at each occurrence (deterministic business keys, multi-pod safe) |
 | `defaultMaxStepExecutions` | integer | Default cap on executions per step (validated metadata; not enforced at runtime today) |
+| `processLock` | object | `{name, key}` — serialize every instance of this definition by a JEXL `key` (e.g. `bookingId`): instances resolving to the same key run one at a time, the rest wait FIFO. The process-level counterpart of a `LOCK`/`UNLOCK` section |
 | `steps` | array | The step definitions |
 
 ### Runtime state
@@ -160,6 +161,23 @@ definition, add one `START` and point the old first steps at it.
 ```
 - **Kafka mode:** `topic` is the destination; a `TaskExecutionRequested` is published there. Required.
 - **Embedded mode:** `topic` is ignored — all ACTION steps route to the single `EmbeddedTaskExecutor` bean. May be omitted.
+- **Task contract (optional):** set `"task": "<id>"` or `"<id>@<version>"` to reference a task contract (below). A bare id is pinned to the latest version at import; the contract's `topic` becomes the step's default (an explicit `topic` still wins); the pinned `<id>@<version>` is sent to the worker as its `taskId`.
+
+#### Task contracts (`.ectask`)
+The shape an ACTION commits to, so worker types can be generated from it. A contract lives in `definitions/tasks/*.ectask` (schema `urn:eventconductor:task-contract-schema:1`):
+```yaml
+id: confirm-booking
+version: 1
+group: booking          # one group = one generated worker module; an id belongs to exactly one group
+topic: booking          # default destination for steps that use this task
+input:
+  bookingId: { type: string, required: true }
+output:
+  confirmationCode: { type: string }
+errors:
+  - { code: SOLD_OUT }  # each becomes a typed exception; code is a valid Java identifier
+```
+Types: `string`/`integer`/`number`/`boolean`/`date`/`datetime`/`object`/`array` (array carries `items`). Contracts are **versioned and append-only** — a backward-incompatible change is a new `version`, and nothing prunes an old one because an in-flight process may be pinned to it. Imported alongside workflows (classpath, `tasks.directory-import`, `tasks.git-import`) **ahead of** them so references resolve. The `workflow-maven-plugin` `validateTasks` goal checks the schema, one group per id, unique `id@version`, and that every referenced task exists. (The worker runtime that turns a contract into interfaces to implement is upcoming; today the engine dispatches the pinned `taskId` and workers still read it themselves.)
 
 ### USER_TASK — pause for a human form
 ```json
@@ -231,6 +249,16 @@ makes it visible). JOIN is the barrier/converge point: its **multiple preconditi
 (`preconditionStepIds`) must ALL complete before it runs. Do not use `parallel: true` — it is
 deprecated and ignored.
 
+### LOCK / UNLOCK — serialize a critical section by a key
+```json
+{ "id": "lock",   "type": "LOCK",   "name": "Take booking lock",
+  "lockName": "booking", "lockKey": "bookingId", "preconditionStepId": "start" },
+{ "id": "work",   "type": "ACTION", "topic": "booking", "preconditionStepId": "lock" },
+{ "id": "unlock", "type": "UNLOCK", "name": "Release booking lock",
+  "lockName": "booking", "lockKey": "bookingId", "preconditionStepId": "work" }
+```
+No worker. `LOCK` takes the named per-key lock — `lockName` (the domain, defaults to the definition id) plus `lockKey` (a **required** JEXL expression over the process variables, e.g. `bookingId`). If it is free the step completes and the flow proceeds; if another process holds it, the step parks in the `WAITING_ON_LOCK` status and is admitted in **arrival order (FIFO)** when the lock frees. A parked step is active work — the process neither completes nor errors around it. `UNLOCK` releases it and admits the next waiter. Everything between them is serialized against every process sharing that key; the lock is not held during work outside the section. Released by `UNLOCK`, on the process reaching a terminal state (all held locks freed), or — the crash backstop — by a lease reaper (`workflow.lock.lease-ms`, default 15 min). For serializing a **whole** instance instead of a section, set the definition-level `processLock` (a Top-level field, §3).
+
 ### END — complete the process
 ```json
 { "id": "end", "type": "END", "name": "Done", "preconditionStepId": "last-step" }
@@ -242,7 +270,7 @@ Exactly one per workflow. Transitions the process to `COMPLETED`. With parallel 
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `id` | string | — | Unique within the workflow |
-| `type` | enum | — | `START`/`ACTION`/`USER_TASK`/`RULE`/`TIMER`/`WAIT_FOR_MESSAGE`/`SEND_MESSAGE`/`PROCESS`/`FORK`/`JOIN`/`END` |
+| `type` | enum | — | `START`/`ACTION`/`USER_TASK`/`RULE`/`TIMER`/`WAIT_FOR_MESSAGE`/`SEND_MESSAGE`/`PROCESS`/`FORK`/`JOIN`/`LOCK`/`UNLOCK`/`END` |
 | `name` | string | — | Human-readable |
 | `description` | string | — | Optional |
 | `preconditionStepId` | string | — | Single step that must complete first |
@@ -250,7 +278,8 @@ Exactly one per workflow. Transitions the process to `COMPLETED`. With parallel 
 | `preconditions` | object[] | — | `{stepId, expression?, onFalse?}` per incoming link: the condition belongs to that route in, not to the step. Wins over both spellings above. A link whose `expression` is falsy is **not satisfied**; `onFalse` says what that means — `WAIT` (default) holds the step (it is not skipped, and the process does not finish around it), `DISCARD` makes it a branch not taken (skipped, and the process may finish and cancel it) |
 | `preconditionExpression` | string | — | JEXL guard on the step, whatever route reached it; while falsy the step is never run (stays `CREATED`, → `CANCELLED` when `END` fires). The older spelling: folded into every link of the step as an `onFalse: DISCARD` guard, so prefer `preconditions[].expression` |
 | `parallel` | boolean | `false` | **Deprecated and ignored** (kept for deserialization of old files) |
-| `topic` | string | — | Worker destination (ACTION, Kafka mode) |
+| `topic` | string | — | Worker destination (ACTION, Kafka mode); defaults to the task contract's topic when `task` is set |
+| `task` | string | — | Task contract this ACTION runs: `<id>` or `<id>@<version>`. A bare id is pinned to the latest version at import; dispatched to the worker as its `taskId` |
 | `formId` | string | — | Form to render (USER_TASK) |
 | `ruleId` | string | — | Rule to evaluate (RULE) |
 | `childWorkflowDefinitionId` | string | — | Child workflow (PROCESS; must differ from the workflow's own id) |
@@ -265,6 +294,8 @@ Exactly one per workflow. Transitions the process to `COMPLETED`. With parallel 
 | `compensable` | boolean | `false` | Enable saga compensation on failure |
 | `compensationStepId` | string | — | Compensation step (needs `compensable: true`) |
 | `maxSuccessfulExecutions` | integer | `0` | Cap on successful executions of this step (validated metadata; not enforced at runtime today) |
+| `lockName` | string | — | Lock domain (LOCK/UNLOCK); defaults to the definition id |
+| `lockKey` | string | — | JEXL expression giving the key to serialize on (LOCK/UNLOCK; **required** on those) |
 
 ---
 
@@ -444,7 +475,7 @@ A worker that does no work: it plays back the scenario the process asks for, so 
 }
 ```
 
-**The keys are step ids.** They are matched against `taskId` first and `stepId` second, but the engine sends an empty `taskId` for every `ACTION` step — it fills that field only for `USER_TASK` (`complete-form`) and `RULE` (`evaluate-rule`). Anything unstated is inherited from `default`, then from the built-in "take `worker.task-duration` and complete". Per-task fields: `durationMs`, `outcome` (`COMPLETED` | `ERROR` | `NO_REPLY`), `reason`, `logs[{type, message, atMs}]`, `variables[{name, value}]`, `failuresBeforeSuccess` (attempts of one task execution — the engine retries by re-dispatching the same `taskExecutionId`, so this and the step's `attempt_count` agree; pair it with `retries` on the step), `replyTimes`, `ignoreCancellation`.
+**The keys are step ids.** They are matched against `taskId` first and `stepId` second. The engine sends an ACTION's task-contract reference (`<id>@<version>`) as the `taskId` when the step declares a `task`, and an empty `taskId` otherwise; it fills the field with `complete-form` for `USER_TASK` and `evaluate-rule` for `RULE`. Anything unstated is inherited from `default`, then from the built-in "take `worker.task-duration` and complete". Per-task fields: `durationMs`, `outcome` (`COMPLETED` | `ERROR` | `NO_REPLY`), `reason`, `logs[{type, message, atMs}]`, `variables[{name, value}]`, `failuresBeforeSuccess` (attempts of one task execution — the engine retries by re-dispatching the same `taskExecutionId`, so this and the step's `attempt_count` agree; pair it with `retries` on the step), `replyTimes`, `ignoreCancellation`.
 
 - `NO_REPLY` reports `RUNNING` and then goes quiet: the scenario for a step timeout.
 - Unknown properties and malformed JSON **fail the task** with the parse error as its reason, rather than falling back to a default.
@@ -495,6 +526,7 @@ A worker that does no work: it plays back the scenario the process asks for, so 
 | `COMPLETED` | Worker reported success |
 | `ERROR` | Worker reported failure, or timeout with no retries left |
 | `TIMEOUT` | Exceeded `timeout` — retries if attempts remain |
+| `WAITING_ON_LOCK` | A `LOCK` step parked behind another holder, admitted FIFO on release — active work (the process does not complete or error around it), no worker involved |
 | `CANCELLED` | Process cancellation, saga compensation, or step never run when `END` fired |
 
 There is **no `SKIPPED` status**. A step whose `preconditionExpression` is falsy is simply never run: it stays `CREATED` and is flipped to `CANCELLED` when the `END` step fires. Because dependent steps require their `preconditionStepId` step to be `COMPLETED`, a never-run step permanently blocks its dependents — give conditional chains an alternative path to `END`.
