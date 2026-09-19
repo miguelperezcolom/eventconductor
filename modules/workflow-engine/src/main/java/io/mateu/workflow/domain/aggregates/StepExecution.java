@@ -399,7 +399,13 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
             send(new TaskLogEmitted(id, MessageType.Info,
                     step.type() + " step " + step.name() + " on key '" + lockKey + "'."));
         } else {
-            send(new TaskExecutionRequested(id, processId, workflowDefinitionId, stepId, "", variables.stream()
+            // ACTION (and any other worker step): the taskId is the step's task contract reference
+            // when it declares one — `<id>@<version>`, already pinned at import — so a worker can
+            // resolve its handler by contract rather than by stepId. Empty when no contract is
+            // referenced, which is what every ACTION sent before task contracts existed, and what
+            // the runtime falls back to stepId for.
+            var taskId = step.task() != null && !step.task().isBlank() ? step.task() : "";
+            send(new TaskExecutionRequested(id, processId, workflowDefinitionId, stepId, taskId, variables.stream()
                     .map(variable -> new io.mateu.workflow.dtos.Variable(variable.name(), variable.value()))
                     .toList()));
         }

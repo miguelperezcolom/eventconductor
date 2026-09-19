@@ -195,7 +195,17 @@ public record Step(
          */
         @HiddenInList
         @Hidden("state['type'] != 'LOCK' && state['type'] != 'UNLOCK'")
-        String lockKey
+        String lockKey,
+        /**
+         * ACTION only: the task contract this step runs, referenced as {@code <id>} or
+         * {@code <id>@<version>}. When a bare id is given, the engine pins the latest version at
+         * import (see the task import), so the reference the step dispatches is always fully
+         * qualified. The contract's topic is the step's default destination; an explicit
+         * {@code topic} on the step overrides it. Ignored on any other step type.
+         */
+        @HiddenInList
+        @Hidden("state['type'] != 'ACTION'")
+        String task
 ) implements Identifiable {
 
     public Step {
@@ -219,7 +229,7 @@ public record Step(
                 null, preconditionExpression, parallel, topic, formId, ruleId, childWorkflowDefinitionId,
                 outputVariables, duration, untilVariable, messageName, correlationExpression,
                 messageVariables, timeout, retries, compensable, compensationStepId, null,
-                maxSuccessfulExecutions, joinType, java.util.List.of(), java.util.List.of(), null, null);
+                maxSuccessfulExecutions, joinType, java.util.List.of(), java.util.List.of(), null, null, null);
     }
 
     /**
@@ -239,7 +249,7 @@ public record Step(
                 preconditions, preconditionExpression, parallel, topic, formId, ruleId,
                 childWorkflowDefinitionId, outputVariables, duration, untilVariable, messageName,
                 correlationExpression, messageVariables, timeout, retries, compensable, compensationStepId,
-                onTimeoutStepId, maxSuccessfulExecutions, joinType, requiredScopes, requiredRoles, null, null);
+                onTimeoutStepId, maxSuccessfulExecutions, joinType, requiredScopes, requiredRoles, null, null, null);
     }
 
     /**
