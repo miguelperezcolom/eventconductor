@@ -34,7 +34,8 @@ public class SpecValidator {
     public enum Kind {
         WORKFLOW("schemas/workflow-definition-schema.json"),
         FORM("schemas/form-schema.json"),
-        RULE("schemas/rule-schema.json");
+        RULE("schemas/rule-schema.json"),
+        TASK("schemas/task-contract-schema.json");
 
         final String schemaResource;
 
@@ -46,6 +47,7 @@ public class SpecValidator {
     private final Schema workflowSchema;
     private final Schema formSchema;
     private final Schema ruleSchema;
+    private final Schema taskSchema;
     // parse-only engine; expressions are never evaluated during validation.
     private final JexlEngine jexl = new JexlBuilder().create();
 
@@ -53,6 +55,7 @@ public class SpecValidator {
         this.workflowSchema = loadSchema(Kind.WORKFLOW.schemaResource);
         this.formSchema = loadSchema(Kind.FORM.schemaResource);
         this.ruleSchema = loadSchema(Kind.RULE.schemaResource);
+        this.taskSchema = loadSchema(Kind.TASK.schemaResource);
     }
 
     private static Schema loadSchema(String resource) {
@@ -79,6 +82,7 @@ public class SpecValidator {
                 addSchemaViolations(ruleSchema, document, violations);
                 addRuleSemantics(document, violations);
             }
+            case TASK -> addSchemaViolations(taskSchema, document, violations);
         }
         return violations;
     }

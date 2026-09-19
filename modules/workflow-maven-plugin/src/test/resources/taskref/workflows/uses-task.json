@@ -1,0 +1,10 @@
+{
+  "id": "uses-task",
+  "name": "References a task",
+  "version": 1,
+  "steps": [
+    {"id": "start", "type": "START", "name": "Start"},
+    {"id": "act", "type": "ACTION", "name": "Act", "task": "missing", "preconditionStepId": "start"},
+    {"id": "end", "type": "END", "name": "End", "preconditionStepId": "act"}
+  ]
+}

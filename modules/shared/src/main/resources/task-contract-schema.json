@@ -1,5 +1,5 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "urn:eventconductor:task-contract-schema:1",
   "title": "EventConductor task contract",
   "description": "The contract of a worker task: the shape a definition's ACTION step commits to when it references this task by id. Lives in a .ectask file under definitions/tasks/. A backward-incompatible change is a new version; a step pins the version it was imported against.",
@@ -31,24 +31,24 @@
       "description": "Human-readable description of what the task does."
     },
     "input": {
-      "$ref": "#/$defs/attributes",
+      "$ref": "#/definitions/attributes",
       "description": "The variables the task expects, by name. Declaration order is significant (it is the order of the generated Input record's components)."
     },
     "output": {
-      "$ref": "#/$defs/attributes",
+      "$ref": "#/definitions/attributes",
       "description": "The variables the task returns, by name. Declaration order is significant."
     },
     "errors": {
       "type": ["array", "null"],
       "description": "The business errors the task may report. Each becomes a typed exception in the generated code and, when thrown, fails the step with its code as the reason.",
-      "items": {"$ref": "#/$defs/error"}
+      "items": {"$ref": "#/definitions/error"}
     }
   },
-  "$defs": {
+  "definitions": {
     "attributes": {
       "type": ["object", "null"],
       "description": "A map of attribute name to its declaration.",
-      "additionalProperties": {"$ref": "#/$defs/attribute"}
+      "additionalProperties": {"$ref": "#/definitions/attribute"}
     },
     "attribute": {
       "type": "object",
@@ -68,7 +68,7 @@
           "type": ["string", "null"]
         },
         "items": {
-          "$ref": "#/$defs/attribute",
+          "$ref": "#/definitions/attribute",
           "description": "The element type, required when `type` is `array`."
         }
       }
