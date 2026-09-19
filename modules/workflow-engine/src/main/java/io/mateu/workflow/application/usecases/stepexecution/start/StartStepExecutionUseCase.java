@@ -78,6 +78,12 @@ public class StartStepExecutionUseCase {
         if (StepType.RULE.equals(step.type())) {
             taskId = "evaluate-rule";
         }
+        // An ACTION that references a task contract dispatches its pinned `<id>@<version>` as the
+        // taskId, so a worker resolves its handler by contract rather than by stepId. Pinned at
+        // import; empty for an ACTION with no contract, unchanged from before task contracts.
+        if (StepType.ACTION.equals(step.type()) && step.task() != null && !step.task().isBlank()) {
+            taskId = step.task();
+        }
         downstreamEventPublisher.publish(new TaskExecutionRequested(
                 stepExecution.id(),
                 stepExecution.getProcessId(),

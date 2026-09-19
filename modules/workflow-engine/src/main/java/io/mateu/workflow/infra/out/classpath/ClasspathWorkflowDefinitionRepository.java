@@ -32,7 +32,13 @@ public class ClasspathWorkflowDefinitionRepository implements WorkflowDefinition
 
     private final Map<String, WorkflowDefinition> definitions = new ConcurrentHashMap<>();
 
-    public ClasspathWorkflowDefinitionRepository() {
+    // Injected so the task repository (and its classpath contracts) is constructed first: a step's
+    // `task: <id>` is pinned to <id>@<latest> as the definition loads, exactly as it is on import.
+    private final io.mateu.workflow.application.services.TaskReferenceResolver taskReferenceResolver;
+
+    public ClasspathWorkflowDefinitionRepository(
+            io.mateu.workflow.application.services.TaskReferenceResolver taskReferenceResolver) {
+        this.taskReferenceResolver = taskReferenceResolver;
         loadFromClasspath();
     }
 
@@ -67,6 +73,7 @@ public class ClasspathWorkflowDefinitionRepository implements WorkflowDefinition
                                 .withLayout(def.layout())
                                 .withProcessLock(def.processLock());
                     }
+                    def = taskReferenceResolver.resolve(def);
                     definitions.put(def.id(), def);
                     log.info("Loaded workflow definition '{}' from classpath:{}", def.id(), resource.getFilename());
                 } catch (Exception e) {

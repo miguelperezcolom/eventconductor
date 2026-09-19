@@ -1,0 +1,25 @@
+{
+  "id": "task-ref",
+  "name": "References a task contract by bare id",
+  "version": 1,
+  "steps": [
+    {
+      "id": "start",
+      "type": "START",
+      "name": "Start"
+    },
+    {
+      "id": "greet",
+      "type": "ACTION",
+      "name": "Greet",
+      "task": "greet",
+      "preconditionStepId": "start"
+    },
+    {
+      "id": "end",
+      "type": "END",
+      "name": "End",
+      "preconditionStepId": "greet"
+    }
+  ]
+}
