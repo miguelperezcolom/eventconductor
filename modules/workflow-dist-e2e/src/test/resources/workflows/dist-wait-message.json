@@ -1,0 +1,19 @@
+{
+  "id": "dist-wait-message",
+  "name": "Distributed: action, wait for message, action",
+  "version": 1,
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "s1", "type": "ACTION", "name": "Before wait", "topic": "work", "preconditionStepId": "start" },
+    {
+      "id": "wait",
+      "type": "WAIT_FOR_MESSAGE",
+      "name": "Wait for resume",
+      "messageName": "resume",
+      "correlationExpression": "businessKey",
+      "preconditionStepId": "s1"
+    },
+    { "id": "s2", "type": "ACTION", "name": "After resume", "topic": "work", "preconditionStepId": "wait" },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "s2" }
+  ]
+}

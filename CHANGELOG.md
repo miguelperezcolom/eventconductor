@@ -61,6 +61,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `bench.workload=message` mode (an action → `WAIT_FOR_MESSAGE` → action definition, a driver that
   resumes each process by its business key over the shared `messages` topic) for the wall-clock
   transitions/s run on a multi-node sharded cluster. Results are in `guides/performance.md`.
+- **Sharded message routing: a chaos test proves the message path loses nothing across a broker
+  outage.** `Dist21` (real PostgreSQL + Kafka) drives 20 processes to a `WAIT_FOR_MESSAGE`, stops the
+  broker, publishes each resume into the dead broker, and confirms nothing advances while it is down;
+  when the broker returns all 20 correlate their resume and complete, the outbox drains to zero, and
+  nothing is dead-lettered — with the per-shard filter on the correlation path, the end-to-end evidence
+  that it drops no message it should have kept. Results in `guides/reliability.md`.
 
 ## [2.17.1] - 2026-09-20
 
