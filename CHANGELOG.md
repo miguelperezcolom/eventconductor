@@ -8,6 +8,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Worker runtime: implement a `TaskHandler` and a library speaks the engine's protocol for you,
+  the same handler in Kafka and embedded mode.** Three modules split the concern: `worker-api` is
+  the broker-free core a developer (and the generator) codes against — `TaskHandler<I,O>`,
+  `TaskContext`, `TaskFailure` (a declared business error), `TaskRegistration`, and a `TaskDispatcher`
+  that resolves the handler by the dispatched `taskId` (falling back to `stepId`), binds the process
+  `Variable`s to the handler's typed input and its output back to variables with Jackson, checks
+  cancellation before starting and before replying, and maps the outcome (return → completed,
+  `TaskFailure` → failed with its code, anything else → failed with the message, so the engine
+  retries per the step's `retries`). `worker-kafka` binds the `consumeWorkerEvent` function to the
+  task topic and answers over the `upstream` topic via `WorkerReply` — its `EnvironmentPostProcessor`
+  adds `consumeWorkerEvent` to `spring.cloud.function.definition` without dropping an application's
+  own functions; a broker that refuses the reply after its retries leaves the offset uncommitted so
+  the task is redelivered. `worker-embedded` supplies the engine's `EmbeddedTaskExecutor` and calls
+  `UpdateStepExecutionUseCase` back directly, in `afterCommit` when a transaction is open. A reply is
+  transaction-aware and worker-api never drags Spring Cloud Stream onto a handler's classpath. This
+  is the runtime the task contracts are for; the code generator that turns a `.ectask` into the
+  typed interfaces and registration comes next.
 - **Task contracts: an ACTION step can declare the task it runs, so worker types can be generated
   from it.** A contract lives in a `.ectask` file under `definitions/tasks/` — `id`, `version`,
   `group`, `topic`, `description`, `input`, `output`, `errors` (see

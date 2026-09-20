@@ -48,6 +48,9 @@
       <module>apps/worker-standalone-app</module>
       <module>apps/dev-app</module>
       <module>modules/shared</module>
+      <module>modules/worker-api</module>
+      <module>modules/worker-kafka</module>
+      <module>modules/worker-embedded</module>
   </modules>
 
   <properties>
