@@ -458,6 +458,19 @@ everything after it while the process still completes successfully. The
 on a guarded step.
 :::
 
+:::note[Only `AND` and `XOR` — no *n-of-m* join]
+The merge is a two-valued choice: wait for **all** branches (`AND`) or the **first** one (`XOR`).
+There is deliberately no first-class *n-of-m* (partial join / discriminator) — "proceed once **2
+of 3** branches complete". You can approximate one with a guard that counts completed branches out
+of a process variable, but that count then lives inside a JEXL expression rather than a declared
+field, so the graph no longer shows the real merge condition — losing the one property this DSL
+otherwise keeps: the derived graph never says less than the definition means. That is why it is
+left out rather than papered over. If a genuine quorum requirement appears (n-of-m approvals, a
+majority of redundant calls), the intended shape is a **declared threshold on the JOIN** — a
+first-class `count`/`quorum` field the renderer can show — not hand-rolled counting. Until then,
+model the quorum explicitly with the branches you have.
+:::
+
 ---
 
 ## CHOICE
