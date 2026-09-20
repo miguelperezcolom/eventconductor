@@ -250,9 +250,12 @@ shard, so removing it is transition throughput a message-heavy shard gets back �
 stops being the part of the workload that a bigger fleet cannot help.
 
 The measurement above counts queries, the quantity the design targets; it is not a wall-clock
-transitions/s run. Routing is layered — business keys go by placement (measured here); expression
-keys and keys the placement store does not own (e.g. child processes) go by a shared subscription
-table, and anything unresolved still broadcasts, so a wrong guess costs a query, never a lost message.
+transitions/s run (that scales with the shard count on a multi-node cluster — a single machine's
+shards contend for the same CPU and disk, as above). Routing is layered: **business keys go by
+placement** — what is wired and measured here — while expression keys and keys the placement store
+does not own (e.g. child processes) are designed to go by a shared subscription table, with anything
+unresolved still broadcast. The router only ever *filters*, and a key it cannot place falls through
+to broadcast, so a wrong or unavailable answer costs a query, never a lost message.
 
 ## Absorbing spikes
 

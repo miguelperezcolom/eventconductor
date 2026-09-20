@@ -19,8 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   process, whose key is `parent:<id>` and never placed), or no placement store — falls through to the
   broadcast that exists today. Routing only filters; the receiving shard still runs the normal
   correlation, so a wrong guess costs a query or a broadcast, never a lost message. Metrics count
-  messages by route and correlation queries per shard. (The subscription table for expression and
-  unplaced keys is phase 2; the residual Bloom filter is phase 3.)
+  messages by route and correlation queries per shard. The shared subscription table
+  (`message_subscription`) and the router's layer-2 lookup for expression/unplaced keys are in place
+  but **not yet populated** — the projection that fills them from waiting steps, and the residual
+  per-shard Bloom filter, come next; until then those keys fall through to broadcast, unchanged.
 - **Task contracts: an ACTION step can declare the task it runs, so worker types can be generated
   from it.** A contract lives in a `.ectask` file under `definitions/tasks/` — `id`, `version`,
   `group`, `topic`, `description`, `input`, `output`, `errors` (see

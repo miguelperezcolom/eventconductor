@@ -160,10 +160,10 @@ cannot, by two properties, both of which hold with routing on:
 
 Re-running the **broker-down** chaos scenario (`Dist06`) with routing present confirmed recovery is
 unchanged: the outage is ridden and progress resumes when the broker returns, exactly as with routing
-off. The one semantic to know is the *projection window* of the subscription layer: a step that has
-started waiting but whose subscription has not projected yet is not yet visible to that layer — it is
-still covered by the business-key and broadcast layers, and a `WAIT_FOR_MESSAGE` that cannot tolerate
-the window can opt out of routing to force broadcast.
+off. When the subscription layer is added, it carries one semantic to know — a *projection window*: a
+step that has started waiting but whose subscription has not projected yet is not yet visible to that
+layer, so it is still covered by the business-key and broadcast layers, and a `WAIT_FOR_MESSAGE` that
+cannot tolerate the window can opt out of routing to force broadcast.
 
 ## What to watch in production
 
