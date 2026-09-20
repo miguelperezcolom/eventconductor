@@ -101,6 +101,23 @@ public final class LoadDriver implements AutoCloseable {
         producer.send(new ProducerRecord<>(ingressTopic(), key(event), serialize(event)), callback);
     }
 
+    /**
+     * Injects an external {@link MessageReceived} onto the shared {@code messages} topic — the one
+     * broadcast channel every shard consumes (each in its own group) — so it reaches whichever shard
+     * has a step waiting for it, exactly as the engine's own {@code MessagePublisher} would. This is
+     * the receiving-side, layer-3 path of the message workload: the routing that reduces the broadcast
+     * fan-out is the per-shard filter on the consuming side, not a choice the driver makes.
+     *
+     * <p>Unkeyed on purpose (like the engine's publisher): the owning shard is the one that correlates,
+     * not the one the partition maps to. Meaningful only against a sharded engine, which is the only
+     * arrangement that consumes {@code messages}.
+     */
+    public void sendMessage(String messageName, String correlationKey, Callback callback) {
+        var event = new io.mateu.workflow.dtos.events.integration.MessageReceived(
+                messageName, correlationKey, List.of());
+        producer.send(new ProducerRecord<>("messages", null, serialize(event)), callback);
+    }
+
     public void flush() {
         producer.flush();
     }

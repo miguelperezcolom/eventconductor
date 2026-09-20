@@ -71,6 +71,25 @@ either, prints the measured steps-per-process next to the PI/s, and leads with t
 
 If you quote a PI/s number anywhere, quote the steps-per-process beside it or it says nothing.
 
+## The message workload (`bench.workload=message`)
+
+The default workload measures the transition pipeline. `-Dbench.workload=message` drives a different
+definition — an action, a `WAIT_FOR_MESSAGE`, another action — so the run also exercises the
+**receiving-side message path**: each process runs its first step, parks on the wait, and advances
+again only when its resume message arrives. The driver creates the processes (paced by `bench.rate`),
+waits until every one is confirmed waiting, then sends one `resume` message per process; each message
+correlates by the process business key.
+
+This is the workload behind the message-routing scaling numbers in `guides/performance.md`. On a
+**sharded** cluster the resume goes onto the shared `messages` topic every shard consumes, so the run
+measures what a broadcast costs and how the **per-shard filter**
+(`workflow.sharding.message-routing.filter.enabled`) and the placement/subscription routing
+(`workflow.sharding.message-routing.enabled`) cut it: run it at 2/4/8 shards with the flags on and
+off and compare transitions/s and the `eventconductor.messages.correlation.queries*` counters. It is
+meaningful only against a sharded engine — the `messages` topic exists only there — so a single-JVM
+`bench.role=all` run has nothing to consume it. See `k8s/scale/sharded/README.md` for the multi-node
+arrangement the divide-with-the-fleet figure has to come from.
+
 ## Across hosts
 
 Everything above runs the pods, the workers and the load in one JVM, which measures a machine.

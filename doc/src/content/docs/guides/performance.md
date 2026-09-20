@@ -249,13 +249,54 @@ it. That per-shard query stream is database work that competes with the transiti
 shard, so removing it is transition throughput a message-heavy shard gets back — the correlation load
 stops being the part of the workload that a bigger fleet cannot help.
 
-The measurement above counts queries, the quantity the design targets; it is not a wall-clock
-transitions/s run (that scales with the shard count on a multi-node cluster — a single machine's
-shards contend for the same CPU and disk, as above). Routing is layered: **business keys go by
-placement** — what is wired and measured here — while expression keys and keys the placement store
-does not own (e.g. child processes) are designed to go by a shared subscription table, with anything
-unresolved still broadcast. The router only ever *filters*, and a key it cannot place falls through
-to broadcast, so a wrong or unavailable answer costs a query, never a lost message.
+That table is the first of **three layers**, each targeting a different kind of key, and each now
+measured. The busiest-shard query count for **M = 100,000** messages, across shard counts:
+
+**Layer 2 — the subscription table**, for keys that are not the business key. An expression key, or a
+business key the placement store does not own (a child process, whose key is `parent:<id>` and is
+never placed), cannot be resolved by placement. As a step starts waiting it writes its
+`(name, key) → shard` into a shared subscription table; the router looks the message up there and
+sends it only to the shard(s) waiting for it:
+
+| shards | broadcast (routing off) | routed via subscriptions |
+|---|---|---|
+| 2 | 100,000/shard — 200,000 total | ~50,000/shard — 100,000 total |
+| 4 | 100,000/shard — 400,000 total | ~25,000/shard — 100,000 total |
+| 8 | 100,000/shard — 800,000 total | ~12,500/shard — 100,000 total |
+
+**Layer 3 — a per-shard Bloom filter**, the residual, for anything still broadcast. A message the
+first two layers cannot place still goes to every shard — but each shard first checks an in-memory
+Bloom filter over the `(name, key)` pairs *it* has waiting, and drops the message without a query
+when the filter rules it out. It needs no shared store at all, so it recovers the same M/S per-shard
+load even in pure broadcast mode:
+
+| shards | broadcast (no filter) | broadcast + filter |
+|---|---|---|
+| 2 | 100,000/shard — 200,000 total | ~50,000/shard — 100,000 total |
+| 4 | 100,000/shard — 400,000 total | ~25,000/shard — 100,000 total |
+| 8 | 100,000/shard — 800,000 total | ~12,500/shard — 100,000 total |
+
+The filter never says "absent" for a pair a step is waiting for, so it drops no message it should
+have kept; the only overhead is its false positives — at this load **24 extra queries in 100,000
+(0.02%)**, a fraction of the 1% the filter is sized for — so the per-shard total is M/S plus that
+sliver. Across all three layers the total stays at **M** (each message is queried on essentially only
+the shards that can match it) and the per-shard load is **M / S** — it **halves every time the shard
+count doubles**, the same horizontal scaling the transitions already had. Without routing it is flat
+at **M** per shard: adding shards never lightens it.
+
+The router only ever *filters*: layers 1 and 2 send a message to a subset of shards, layer 3 drops it
+on shards that cannot match, and anything unresolved still broadcasts — so a wrong or unavailable
+answer costs a query, never a lost message. (Numbers from `MessageRoutingScalingBenchmarkTest`, which
+drives real messages through the real router, placement store, subscription table and filter on H2.)
+
+These tables count **queries**, the quantity the design targets and the one that decides whether the
+correlation load divides with the fleet. They are not a wall-clock transitions/s run: that per-shard
+query stream is database work competing with the transition writes on the same shard, so removing it
+is throughput a message-heavy shard gets back, but the *rate* it gets back only shows up when the
+shards do not share hardware. On a single machine the shards contend for the same CPU and disk (as the
+two-shard note above), so the wall-clock figure comes from the message workload run on the multi-node
+scale cluster (`bench.workload`, 2/4/8 shards, routing flag on and off — see the benchmark README); the
+query scaling here is what says the figure will divide rather than stay flat.
 
 ## Absorbing spikes
 
