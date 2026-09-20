@@ -300,6 +300,76 @@ public final class DistInfra {
         return kafka.getBootstrapServers();
     }
 
+    // ---- Sharded-topology helpers (DIST-22) ---------------------------------------------------
+    // A real shard is a full stack with its OWN database and its own per-shard topics, plus the one
+    // shared `messages` topic. These give a test that shape inside the shared containers: extra
+    // databases in the one PostgreSQL (so each shard's rows are genuinely separate) and the per-shard
+    // and shared topics on the one Kafka.
+
+    public static String postgresUsername() {
+        ensureStarted();
+        return postgres.getUsername();
+    }
+
+    public static String postgresPassword() {
+        ensureStarted();
+        return postgres.getPassword();
+    }
+
+    /** The base JDBC url with its database swapped for {@code database} — another database in the same
+     *  container, standing in for a shard's or the fleet's own database. */
+    public static String jdbcUrlFor(String database) {
+        ensureStarted();
+        var url = postgres.getJdbcUrl();
+        var pathStart = url.indexOf('/', "jdbc:postgresql://".length());
+        var query = url.contains("?") ? url.substring(url.indexOf('?')) : "";
+        return url.substring(0, pathStart) + "/" + database + query;
+    }
+
+    /** Creates a database in the shared container if it is not already there. */
+    public static void createDatabase(String name) {
+        ensureStarted();
+        try (var connection = DriverManager.getConnection(
+                postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
+             var statement = connection.createStatement()) {
+            try (var rs = statement.executeQuery("SELECT 1 FROM pg_database WHERE datname = '" + name + "'")) {
+                if (rs.next()) {
+                    return;
+                }
+            }
+            statement.executeUpdate("CREATE DATABASE " + name);
+        } catch (Exception e) {
+            throw new IllegalStateException("Could not create database " + name, e);
+        }
+    }
+
+    /** A JdbcTemplate against one of the per-shard / fleet databases. */
+    public static JdbcTemplate jdbcFor(String database) {
+        return new JdbcTemplate(new DriverManagerDataSource(
+                jdbcUrlFor(database), postgres.getUsername(), postgres.getPassword()));
+    }
+
+    /** Creates the given Kafka topics; topics that already exist in the shared container are ignored. */
+    public static void createTopics(List<String> names) {
+        ensureStarted();
+        try (var admin = AdminClient.create(Map.of("bootstrap.servers", kafka.getBootstrapServers()))) {
+            var topics = names.stream().map(n -> new NewTopic(n, PARTITIONS, (short) 1)).toList();
+            admin.createTopics(topics).all().get();
+        } catch (Exception alreadyExistsOrRace) {
+            // Shared container across classes: the topics may already be there, which is fine.
+        }
+    }
+
+    /** Publishes a domain event onto an arbitrary topic, fire-and-forget (call {@link #flushProducer()}). */
+    public static void publishToAsync(String topic, DomainEvent event) {
+        try {
+            var json = eventWriter.writerFor(DomainEvent.class).writeValueAsString(event);
+            producer.send(new ProducerRecord<>(topic, json));
+        } catch (Exception e) {
+            throw new IllegalStateException("Could not publish to " + topic, e);
+        }
+    }
+
     /** A harness knob, overridable with -Dtune.&lt;name&gt; so a sweep needs no recompile. */
     private static String tune(String name, String fallback) {
         return System.getProperty("tune." + name, fallback);

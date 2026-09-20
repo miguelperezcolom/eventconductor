@@ -1,0 +1,17 @@
+{
+  "id": "dist-wait-only",
+  "name": "Distributed: wait for a message, no worker",
+  "version": 1,
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    {
+      "id": "wait",
+      "type": "WAIT_FOR_MESSAGE",
+      "name": "Wait for resume",
+      "messageName": "resume",
+      "correlationExpression": "businessKey",
+      "preconditionStepId": "start"
+    },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "wait" }
+  ]
+}

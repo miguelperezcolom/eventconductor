@@ -164,14 +164,22 @@ cannot, by two properties, both of which hold with routing on:
   so a shard that is down when a message is routed to it correlates the message when it returns — the
   same recovery the broker-outage scenario already measures.
 
-Two chaos scenarios confirm it. Re-running the **broker-down** scenario (`Dist06`) with routing present
-showed recovery unchanged: the outage is ridden and progress resumes when the broker returns, exactly
-as with routing off. `Dist21` then puts the message path itself through an outage with the filter on:
-20 processes are driven to a `WAIT_FOR_MESSAGE` and parked, the broker is stopped, each process's resume
-message is published into the dead broker, and while it is down nothing advances; when the broker
-returns **all 20 correlate their resume and complete, the outbox drains to zero, and nothing is
-dead-lettered** — no resume is lost across the outage, and the filter on the correlation path drops
+Three chaos scenarios confirm it. Re-running the **broker-down** scenario (`Dist06`) with routing
+present showed recovery unchanged: the outage is ridden and progress resumes when the broker returns,
+exactly as with routing off. `Dist21` then puts the message path itself through an outage with the
+filter on: 20 processes are driven to a `WAIT_FOR_MESSAGE` and parked, the broker is stopped, each
+process's resume message is published into the dead broker, and while it is down nothing advances; when
+the broker returns **all 20 correlate their resume and complete, the outbox drains to zero, and nothing
+is dead-lettered** — no resume is lost across the outage, and the filter on the correlation path drops
 none of them.
+
+`Dist22` runs the same outage across **two genuinely separate shards** — each a full engine with its own
+database and its own `upstream`/`outbox` topics, sharing the one `messages` topic every shard consumes.
+Twelve processes are split across the shards and parked; the broker is stopped; each resume is broadcast
+onto the shared topic; and when the broker returns **both shards receive every resume, each completes
+exactly its own six, both outboxes drain to zero, and nothing is dead-lettered**. It is the cross-shard
+properties the single-node tests cannot reach, shown to survive an outage: the shared-topic fan-out, the
+per-shard filter ruling out the keys a shard does not hold, and recovery of the message path itself.
 
 The subscription layer carries one semantic to know — a *projection window*: a step that has started
 waiting but whose subscription has not projected yet is not yet visible to that layer, so it is still
