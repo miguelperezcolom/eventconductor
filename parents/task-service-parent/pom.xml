@@ -21,6 +21,8 @@
     <name>task-service-parent</name>
 
     <properties>
+        <!-- Not published to Maven Central in the engine release — see task-module-parent. -->
+        <maven.deploy.skip>true</maven.deploy.skip>
         <!-- The standalone application class the generator emits, and the base package it lives in. -->
         <ec.applicationClass>${ec.basePackage}.TaskServiceApplication</ec.applicationClass>
     </properties>
