@@ -8,6 +8,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Task worker code generation: a `.ectask` contract becomes the Java you implement against, and a
+  whole project is just a parent and a few properties.** A new pure module `worker-codegen` (the
+  single source the Maven goal, the IDE and the UI share — contracts and a little configuration in,
+  files out, deterministically) turns each contract version into an `Input` and `Output` record with
+  the attributes mapped to Java types (string→String, integer→Long, number→BigDecimal,
+  boolean→Boolean, date→LocalDate, datetime→LocalDateTime, object→JsonNode, array→List; an attribute
+  whose name is not a Java identifier keeps its wire name via `@JsonProperty`), a `<Id>V<n>Task`
+  interface that specialises worker-api's `TaskHandler` with a nested `TaskFailure` subclass per
+  declared error, and — one per `group` — an `@AutoConfiguration` that binds each implemented handler
+  into a `TaskRegistration` bean, gated by `eventconductor.tasks.<id>.enabled` (a task declared but
+  not implemented fails startup naming the interface, unless disabled). The version is part of every
+  generated type name so a contract's versions coexist, and the generated `AutoConfiguration.imports`
+  is written to a generated resources root so the registrations are found without component-scanning.
+  For a standalone service it also emits the `@SpringBootApplication` class. The `workflow-maven-plugin`
+  goal `generate-worker-sources` (bound to `generate-sources`) resolves the contracts from a versioned
+  Maven artifact (`definitions`, the reproducible default), a git checkout pinned to a tag or commit
+  (`repository`/`ref`; a branch is refused unless `allowBranch`), or the project's own
+  `src/main/resources/tasks`, selects them by `group` or `tasks`, and writes to `generated-sources`.
+  Two parents carry all the build logic (decisions 14/15): `task-module-parent` for a library added
+  to an existing service, `task-service-parent` for a runnable Kafka service (Actuator, image build,
+  `KAFKA_BROKERS`/group defaults) — a generated project is then only a `pom` with parent, coordinates
+  and `ec.*` properties, plus a README generated from the contract. An in-repo example
+  (`examples/greetings-tasks`) is exactly that pom and one handler, and it builds end to end. A
+  developer now writes only the handler.
 - **Worker runtime: implement a `TaskHandler` and a library speaks the engine's protocol for you,
   the same handler in Kafka and embedded mode.** Three modules split the concern: `worker-api` is
   the broker-free core a developer (and the generator) codes against — `TaskHandler<I,O>`,

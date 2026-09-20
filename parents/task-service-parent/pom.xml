@@ -1,0 +1,71 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <!--
+      Parent for a generated STANDALONE task SERVICE: everything the module parent does, plus the
+      Kafka transport, a runnable Spring Boot application (its @SpringBootApplication class is also
+      generated), Actuator, and the ability to build a container image. The generated project stays
+      just coordinates and ec.* properties (decision 15); the developer writes only the handler
+      implementations.
+    -->
+    <parent>
+        <groupId>io.mateu.workflow</groupId>
+        <artifactId>task-module-parent</artifactId>
+        <version>1.0-SNAPSHOT</version>
+        <relativePath>../task-module-parent/pom.xml</relativePath>
+    </parent>
+
+    <artifactId>task-service-parent</artifactId>
+    <packaging>pom</packaging>
+    <name>task-service-parent</name>
+
+    <properties>
+        <!-- The standalone application class the generator emits, and the base package it lives in. -->
+        <ec.applicationClass>${ec.basePackage}.TaskServiceApplication</ec.applicationClass>
+    </properties>
+
+    <dependencies>
+        <!-- The transport: a standalone service talks to the engine over Kafka. -->
+        <dependency>
+            <groupId>io.mateu.workflow</groupId>
+            <artifactId>worker-kafka</artifactId>
+            <version>${ec.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!-- Also generate the @SpringBootApplication class (standalone only). The config merges
+                 with the execution inherited from task-module-parent. -->
+            <plugin>
+                <groupId>io.mateu.workflow</groupId>
+                <artifactId>workflow-maven-plugin</artifactId>
+                <version>${ec.version}</version>
+                <configuration>
+                    <applicationClass>${ec.applicationClass}</applicationClass>
+                </configuration>
+            </plugin>
+            <!-- Runnable jar + `mvnw spring-boot:build-image`. -->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>repackage</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>
