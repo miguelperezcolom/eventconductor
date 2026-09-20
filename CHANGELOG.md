@@ -23,6 +23,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`message_subscription`) and the router's layer-2 lookup for expression/unplaced keys are in place
   but **not yet populated** — the projection that fills them from waiting steps, and the residual
   per-shard Bloom filter, come next; until then those keys fall through to broadcast, unchanged.
+- **Sharded message routing (phase 2): the subscription table is now populated, so layer-2 routing is
+  live.** A `WAIT_FOR_MESSAGE` step emits a `MessageSubscriptionChanged` when it starts to wait (with
+  the resolved correlation key) and again when it reaches any terminal status; an embedded projection
+  (`MessageSubscriptionProjectionHandler`) stamps its own shard id onto the row and writes it to the
+  shared routing database (the same datasource as the placement store, wired only when
+  `workflow.sharding.placement.datasource.url` is set). The router's layer-2 lookup now resolves an
+  expression key — or a business key the placement store does not own (e.g. a child process) — to the
+  exact shard(s) whose step is waiting, and sends the message only there; all waiters are projected
+  (business key and expression alike), so a message with several waiters across shards reaches each.
+  Keyed by step execution, so a redelivered start upserts and a stop deletes idempotently; a stale row
+  never loses a message, since the receiving shard still runs the normal correlation and an
+  unresolved key still falls through to broadcast. Where no shared routing database is configured
+  (a single-database engine) the projection is a no-op.
 
 ## [2.17.1] - 2026-09-20
 

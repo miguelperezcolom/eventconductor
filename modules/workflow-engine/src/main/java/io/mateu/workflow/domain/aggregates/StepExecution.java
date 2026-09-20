@@ -296,6 +296,12 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
             this.awaitingCorrelationKey = MessageCorrelation.expectedKey(step, process);
             send(new TaskLogEmitted(id, MessageType.Info,
                     "Waiting for message '" + step.messageName() + "' on step " + step.name() + "."));
+            // Announce the subscription so a sharded router can send a matching message straight to
+            // this shard (layer 2). A null key matches nothing, so there is nothing to route to.
+            if (this.awaitingCorrelationKey != null) {
+                send(new io.mateu.workflow.dtos.events.domain.MessageSubscriptionChanged(
+                        id, this.awaitingMessageName, this.awaitingCorrelationKey, true, processId));
+            }
         } else if (StepType.SEND_MESSAGE.equals(step.type())) {
             // A message throw involves no worker: compute the target correlation key, emit
             // the MessageReceived through the outbox and complete immediately. Delivery is
@@ -421,6 +427,12 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
             this.finishedAt = null;
         }
         send(new StepExecutionStatusChanged(id, TaskStatus.valueOf(status.name()), List.of(), processId));
+        // A WAIT_FOR_MESSAGE step that reaches a terminal status is no longer waiting: drop its
+        // routing subscription (keyed by this step, so the delete is idempotent).
+        if (status.isTerminal() && awaitingMessageName != null) {
+            send(new io.mateu.workflow.dtos.events.domain.MessageSubscriptionChanged(
+                    id, awaitingMessageName, awaitingCorrelationKey, false, processId));
+        }
     }
 
     /**
