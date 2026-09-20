@@ -67,6 +67,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   when the broker returns all 20 correlate their resume and complete, the outbox drains to zero, and
   nothing is dead-lettered — with the per-shard filter on the correlation path, the end-to-end evidence
   that it drops no message it should have kept. Results in `guides/reliability.md`.
+- **Sharded message routing: a chaos test proves the message path loses nothing across a broker outage
+  on genuinely separate shards.** `Dist22` runs two full engines, each with its own database and its own
+  `upstream`/`outbox` topics, sharing the one `messages` topic every shard consumes. Twelve processes are
+  split across the shards and parked on a `WAIT_FOR_MESSAGE`; the broker is stopped; each resume is
+  broadcast onto the shared topic; and when the broker returns both shards receive every resume, each
+  completes exactly its own six, both outboxes drain to zero, and nothing is dead-lettered — the
+  cross-shard fan-out, the per-shard filter ruling out the keys a shard does not hold, and recovery of
+  the message path, shown to survive an outage. `DistInfra` gained per-shard database/topic helpers for
+  it. Results in `guides/reliability.md`.
 
 ## [2.17.1] - 2026-09-20
 
