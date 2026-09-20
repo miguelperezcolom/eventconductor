@@ -41,6 +41,13 @@ public class MessageRoutingMetrics {
         }
     }
 
+    /** A subscription-table lookup failed; the message fell through to broadcast. */
+    public void subscriptionLookupFailed() {
+        if (registry != null) {
+            registry.counter("eventconductor.messages.subscription.lookup.failed").increment();
+        }
+    }
+
     /** A correlation query ran on this shard (its cost is what routing exists to reduce). */
     public void correlationQuery() {
         if (registry != null) {

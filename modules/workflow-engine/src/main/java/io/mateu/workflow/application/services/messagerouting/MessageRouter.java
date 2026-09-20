@@ -32,6 +32,7 @@ public class MessageRouter {
 
     private final MessageClassifier classifier;
     private final ObjectProvider<ProcessPlacementRepository> placementRepository;
+    private final ObjectProvider<io.mateu.workflow.application.out.MessageSubscriptionRepository> subscriptionRepository;
     private final IngressPublisher ingressPublisher;
     private final MessagePublisher messagePublisher;
     private final MessageRoutingMetrics metrics;
@@ -39,12 +40,14 @@ public class MessageRouter {
 
     public MessageRouter(MessageClassifier classifier,
                          ObjectProvider<ProcessPlacementRepository> placementRepository,
+                         ObjectProvider<io.mateu.workflow.application.out.MessageSubscriptionRepository> subscriptionRepository,
                          IngressPublisher ingressPublisher,
                          MessagePublisher messagePublisher,
                          MessageRoutingMetrics metrics,
                          @Value("${workflow.sharding.message-routing.enabled:false}") boolean enabled) {
         this.classifier = classifier;
         this.placementRepository = placementRepository;
+        this.subscriptionRepository = subscriptionRepository;
         this.ingressPublisher = ingressPublisher;
         this.messagePublisher = messagePublisher;
         this.metrics = metrics;
@@ -58,7 +61,10 @@ public class MessageRouter {
 
     /** Route one message to the shard(s) that can correlate it, falling through to broadcast. */
     public void route(MessageReceived message) {
-        if (classifier.classify(message.messageName()) == MessageClassification.BUSINESS_KEY) {
+        var classification = classifier.classify(message.messageName());
+
+        // Layer 1 — placement: a business-key message goes straight to the shard that owns the key.
+        if (classification == MessageClassification.BUSINESS_KEY) {
             var shard = placedShard(message.correlationKey());
             if (shard != null) {
                 ingressPublisher.publishToShard(message, shard);
@@ -66,10 +72,36 @@ public class MessageRouter {
                 return;
             }
         }
-        // EXPRESSION / UNKNOWN / BROADCAST, or a key the placement store does not own: the
-        // subscription layer (phase 2) goes here; until then, broadcast.
+
+        // Layer 2 — subscriptions: an expression key, or a business key the placement store does not
+        // own (e.g. a child process), is resolved by the shared subscription table. A message a
+        // waiter opted out of routing for (BROADCAST) skips straight to layer 3.
+        if (classification != MessageClassification.BROADCAST) {
+            var shards = subscribedShards(message.messageName(), message.correlationKey());
+            if (!shards.isEmpty()) {
+                shards.forEach(shard -> ingressPublisher.publishToShard(message, shard));
+                metrics.routed("subscription");
+                return;
+            }
+        }
+
+        // Layer 3 — broadcast: the residual, exactly as before routing existed.
         messagePublisher.publish(message);
         metrics.routed("broadcast");
+    }
+
+    private java.util.List<String> subscribedShards(String messageName, String correlationKey) {
+        var store = subscriptionRepository.getIfAvailable();
+        if (store == null || correlationKey == null || correlationKey.isBlank()) {
+            return java.util.List.of();
+        }
+        try {
+            var shards = store.shardsWaitingFor(messageName, correlationKey);
+            return shards == null ? java.util.List.of() : shards;
+        } catch (RuntimeException e) {
+            metrics.subscriptionLookupFailed();
+            return java.util.List.of();
+        }
     }
 
     private String placedShard(String correlationKey) {
