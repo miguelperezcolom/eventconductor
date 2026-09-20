@@ -2,6 +2,7 @@ package io.mateu.workflow.application.services;
 
 import io.mateu.workflow.application.out.MessagePublisher;
 import io.mateu.workflow.application.out.UpstreamEventPublisher;
+import io.mateu.workflow.application.services.messagerouting.MessageRouter;
 import io.mateu.workflow.dtos.events.integration.MessageReceived;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -22,21 +23,27 @@ public class MessageDispatcher {
 
     private final UpstreamEventPublisher upstreamEventPublisher;
     private final MessagePublisher messagePublisher;
+    private final MessageRouter messageRouter;
     private final boolean sharding;
 
     public MessageDispatcher(UpstreamEventPublisher upstreamEventPublisher,
                              MessagePublisher messagePublisher,
+                             MessageRouter messageRouter,
                              @Value("${workflow.sharding.enabled:false}") boolean sharding) {
         this.upstreamEventPublisher = upstreamEventPublisher;
         this.messagePublisher = messagePublisher;
+        this.messageRouter = messageRouter;
         this.sharding = sharding;
     }
 
     public void dispatch(MessageReceived message) {
-        if (sharding) {
-            messagePublisher.publish(message);
-        } else {
+        if (!sharding) {
             upstreamEventPublisher.publish(message);
+        } else if (messageRouter.isEnabled()) {
+            // Route to the shard(s) that can correlate it instead of broadcasting to every shard.
+            messageRouter.route(message);
+        } else {
+            messagePublisher.publish(message);
         }
     }
 }

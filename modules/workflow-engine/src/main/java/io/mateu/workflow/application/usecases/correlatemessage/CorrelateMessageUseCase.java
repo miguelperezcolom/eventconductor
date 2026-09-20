@@ -31,8 +31,12 @@ public class CorrelateMessageUseCase {
     final CompleteMessageStepHandler completeMessageStepHandler;
     final io.mateu.workflow.application.out.WorkflowTracing workflowTracing;
     final io.mateu.workflow.application.services.ProcessTrace processTrace;
+    final io.mateu.workflow.application.services.messagerouting.MessageRoutingMetrics messageRoutingMetrics;
 
     public void handle(CorrelateMessageCommand command) {
+        // The query whose S×M cost message routing exists to reduce; counted per shard so the
+        // effect is measurable (a routed message reaches only the shard(s) that can match it).
+        messageRoutingMetrics.correlationQuery();
         // Correlation is the one piece of engine work that does not know whose process it is until
         // it has done it: a message arrives naming a message and a key, and which step — if any —
         // is waiting for that pair is precisely what the lookup answers. So the lookup itself runs

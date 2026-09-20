@@ -141,6 +141,30 @@ It is still skipped rather than retried, and deliberately: bytes that cannot be 
 be parsed on redelivery either, so failing the batch would stall the partition for every process
 behind it, for ever. What changed is that the skip says so.
 
+## Sharded message routing cannot lose a message
+
+[Message routing](/guides/performance/#the-one-part-that-did-not-scale-message-correlation) sends a
+message to the shard that can correlate it instead of broadcasting it to all of them. The reliability
+question is whether narrowing the fan-out can drop a message the broadcast would have delivered. It
+cannot, by two properties, both of which hold with routing on:
+
+- **The router only filters; it never decides.** Every layer fails toward the broadcast that always
+  worked: a message whose key the placement store does not own, or an expression key no shard has
+  subscribed, is broadcast; and if a routing store is **down**, the lookup is caught and the message
+  is broadcast too. A wrong or unavailable answer costs an extra query on a shard that will not match,
+  never a lost message — the receiving shard still runs the ordinary correlation, so routing changes
+  *where* a message is tried, not *whether* it is.
+- **A routed message is as durable as any other.** It rides the target shard's `upstream` Kafka topic,
+  so a shard that is down when a message is routed to it correlates the message when it returns — the
+  same recovery the broker-outage scenario already measures.
+
+Re-running the **broker-down** chaos scenario (`Dist06`) with routing present confirmed recovery is
+unchanged: the outage is ridden and progress resumes when the broker returns, exactly as with routing
+off. When the subscription layer is added, it carries one semantic to know — a *projection window*: a
+step that has started waiting but whose subscription has not projected yet is not yet visible to that
+layer, so it is still covered by the business-key and broadcast layers, and a `WAIT_FOR_MESSAGE` that
+cannot tolerate the window can opt out of routing to force broadcast.
+
 ## What to watch in production
 
 | | |

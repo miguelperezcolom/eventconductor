@@ -219,6 +219,44 @@ Two properties make it practical rather than a rewrite:
 So the ceiling is what you provision: one database's throughput, or N of them. What stays constant is
 that the engine adds nothing on top — a claim the harness lets you check either way.
 
+### The one part that did not scale: message correlation
+
+Sharding scales transitions, but message delivery had a piece that did not. A `MessageReceived`
+carries a name and a correlation key, not a shard, so the shard that can answer it is not derivable
+from the sender; the message was **broadcast** to every shard, and each shard ran an indexed
+correlation query against its own waiting steps to find out. With **S** shards and **M** messages,
+that is **S × M** queries — and the per-shard cost is the *full* message rate **M**, no matter how
+many shards you add. Adding shards scaled the transitions but not the correlation load, so a
+message-heavy workload kept the one query stream that would not divide.
+
+[Message routing](/reference/configuration/#sharding-advanced-opt-in)
+(`workflow.sharding.message-routing.enabled`, off by default) removes it: a message correlated by
+the process **business key** — the default correlation — is sent only to the shard the placement
+store already owns that key on, so it is one query, on one shard. Driving **M = 100,000** business-key
+messages through the router and the placement store, counting the correlation queries each shard is
+asked to run:
+
+| shards | broadcast (routing off) | routed (routing on) |
+|---|---|---|
+| 2 | 100,000/shard — 200,000 total | ~50,000/shard — 100,000 total |
+| 4 | 100,000/shard — 400,000 total | ~25,000/shard — 100,000 total |
+| 8 | 100,000/shard — 800,000 total | ~12,500/shard — 100,000 total |
+
+The total stays at **M** (each message reaches exactly one shard), and the per-shard query load is
+**M / S** — it **halves every time the shard count doubles**, the same horizontal scaling the
+transitions already had. Without routing it is flat at **M** per shard: adding shards never lightens
+it. That per-shard query stream is database work that competes with the transition writes on the same
+shard, so removing it is transition throughput a message-heavy shard gets back — the correlation load
+stops being the part of the workload that a bigger fleet cannot help.
+
+The measurement above counts queries, the quantity the design targets; it is not a wall-clock
+transitions/s run (that scales with the shard count on a multi-node cluster — a single machine's
+shards contend for the same CPU and disk, as above). Routing is layered: **business keys go by
+placement** — what is wired and measured here — while expression keys and keys the placement store
+does not own (e.g. child processes) are designed to go by a shared subscription table, with anything
+unresolved still broadcast. The router only ever *filters*, and a key it cannot place falls through
+to broadcast, so a wrong or unavailable answer costs a query, never a lost message.
+
 ## Absorbing spikes
 
 That ceiling is a *sustained* rate. Bursty load behaves better than the raw number suggests, because

@@ -65,6 +65,24 @@ public class JdbcProcessPlacementStore implements ProcessPlacementRepository {
     }
 
     @Override
+    public java.util.Optional<String> find(String businessKey) {
+        if (businessKey == null || businessKey.isBlank()) {
+            return java.util.Optional.empty();
+        }
+        try (var connection = dataSource.getConnection();
+             var statement = connection.prepareStatement(SELECT)) {
+            statement.setString(1, businessKey);
+            try (var rows = statement.executeQuery()) {
+                return rows.next() ? java.util.Optional.ofNullable(rows.getString(1))
+                        : java.util.Optional.empty();
+            }
+        } catch (SQLException e) {
+            throw new IllegalStateException(
+                    "Could not read the shard for business key '" + businessKey + "'", e);
+        }
+    }
+
+    @Override
     public String claim(String businessKey, String candidateShardId) {
         try (var connection = dataSource.getConnection()) {
             if (singleStatementClaim) {
