@@ -108,7 +108,11 @@ public final class Benchmark {
                 Thread.currentThread().join();
                 return;
             }
-            awaitDefinition(jdbc);
+            // The message workload drives a definition that parks on a WAIT_FOR_MESSAGE step, so the
+            // run also measures the receiving-side, cross-shard message path (correlation, and — when
+            // sharded — the per-shard filter that keeps a broadcast from costing every shard a query).
+            var messageWorkload = "message".equals(config.workload());
+            awaitDefinition(jdbc, messageWorkload ? "bench-wait-message" : "bench-3-steps");
             clearPreviousRun(jdbc);
 
             try (var driver = new LoadDriver(config)) {
@@ -116,13 +120,21 @@ public final class Benchmark {
                 // folding that into the measurement makes the first percentile buckets
                 // meaningless.
                 var warmup = Math.min(200, config.processes());
-                drive(driver, "warmup", warmup, config);
+                if (messageWorkload) {
+                    driveMessages(driver, jdbc, "warmup", warmup, config);
+                } else {
+                    drive(driver, "warmup", warmup, config);
+                }
                 awaitCompletion(jdbc, "warmup", warmup, 300);
                 clearPreviousRun(jdbc);
 
                 var commitsBefore = commits(jdbc);
                 var start = System.nanoTime();
-                drive(driver, "bench", config.processes(), config);
+                if (messageWorkload) {
+                    driveMessages(driver, jdbc, "bench", config.processes(), config);
+                } else {
+                    drive(driver, "bench", config.processes(), config);
+                }
                 awaitCompletion(jdbc, "bench", config.processes(), 900);
                 wallClock = (System.nanoTime() - start) / 1_000_000_000.0;
                 commits = commits(jdbc) - commitsBefore;
@@ -143,19 +155,19 @@ public final class Benchmark {
         return new JdbcTemplate(new DriverManagerDataSource(url, config.jdbcUser(), config.jdbcPassword()));
     }
 
-    private static void awaitDefinition(JdbcTemplate jdbc) throws InterruptedException {
+    private static void awaitDefinition(JdbcTemplate jdbc, String definitionId) throws InterruptedException {
         var deadline = System.nanoTime() + 60_000_000_000L;
         while (System.nanoTime() < deadline) {
             var found = jdbc.queryForObject(
-                    "SELECT count(*) FROM workflow_definition_entity WHERE id = 'bench-3-steps'",
-                    Integer.class);
+                    "SELECT count(*) FROM workflow_definition_entity WHERE id = ?",
+                    Integer.class, definitionId);
             if (found != null && found > 0) {
                 return;
             }
             Thread.sleep(500);
         }
         throw new IllegalStateException(
-                "bench-3-steps is not deployed. A pod imports it from classpath:/workflows/ at "
+                definitionId + " is not deployed. A pod imports it from classpath:/workflows/ at "
                         + "startup — start the pods before the driver, and check they see this database.");
     }
 
@@ -189,6 +201,60 @@ public final class Benchmark {
             }
         }
         driver.flush();
+    }
+
+    /**
+     * Drives the message workload: create {@code count} processes that each run a step, park on a
+     * {@code WAIT_FOR_MESSAGE}, then advance again once their message arrives.
+     *
+     * <p>Creation is paced like {@link #drive} so the arrival rate is still the experiment. The
+     * resume messages are then sent in a burst <em>after</em> every process is confirmed waiting: the
+     * point of this workload is the correlation and cross-shard delivery of the message, and pacing
+     * those against processes that were not waiting yet would measure the wait, not the delivery. Each
+     * process correlates the resume by its own business key, so the message reaches exactly the shard
+     * holding it.
+     */
+    private static void driveMessages(LoadDriver driver, JdbcTemplate jdbc, String prefix, int count,
+                                      BenchmarkConfig config) throws InterruptedException {
+        var nanosBetween = config.ratePerSecond() == 0 ? 0L : 1_000_000_000L / config.ratePerSecond();
+        var next = System.nanoTime();
+        for (var i = 0; i < count; i++) {
+            driver.createProcess("bench-wait-message", prefix + "-" + i, java.util.List.of(), null);
+            if (nanosBetween > 0) {
+                next += nanosBetween;
+                var wait = next - System.nanoTime();
+                if (wait > 0) {
+                    Thread.sleep(wait / 1_000_000, (int) (wait % 1_000_000));
+                }
+            }
+        }
+        driver.flush();
+
+        awaitWaiting(jdbc, prefix, count, 300);
+
+        for (var i = 0; i < count; i++) {
+            driver.sendMessage("resume", prefix + "-" + i, null);
+        }
+        driver.flush();
+    }
+
+    /** Waits until every driven process has reached its {@code WAIT_FOR_MESSAGE} step (PENDING). */
+    private static void awaitWaiting(JdbcTemplate jdbc, String prefix, int expected, int timeoutSeconds)
+            throws InterruptedException {
+        var deadline = System.nanoTime() + timeoutSeconds * 1_000_000_000L;
+        while (System.nanoTime() < deadline) {
+            var waiting = jdbc.queryForObject(
+                    "SELECT count(*) FROM step_execution_entity se JOIN process_entity p ON se.process_id = p.id "
+                            + "WHERE p.business_key LIKE ? AND se.step_id = 'wait' AND se.status = 'PENDING'",
+                    Integer.class, prefix + "-%");
+            if (waiting != null && waiting >= expected) {
+                return;
+            }
+            Thread.sleep(20);
+        }
+        throw new IllegalStateException(
+                "Only some processes reached the wait step within " + timeoutSeconds
+                        + "s — the message run is not comparable to any other");
     }
 
     private static void awaitCompletion(JdbcTemplate jdbc, String prefix, int expected, int timeoutSeconds)

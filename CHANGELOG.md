@@ -50,6 +50,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   yet populated the filter says "maybe" so every message runs the query exactly as before; the only
   drop window (a step that just started waiting, not yet added) is the case the engine already handles
   by at-least-once redelivery. A `queries.skipped` counter meters the queries saved.
+- **Sharded message routing (phase 4): the scaling is measured across all three layers, and the
+  benchmark gained a message workload.** `MessageRoutingScalingBenchmarkTest` now drives real messages
+  through the real router, placement store, subscription table and Bloom filter (on H2) and records
+  the correlation queries each shard runs: for M = 100,000 messages the busiest shard is **M / S** —
+  ~50k at 2 shards, ~25k at 4, ~12.5k at 8 — for business keys (layer 1), expression keys (layer 2),
+  and pure broadcast filtered on the receiving side (layer 3), against a flat **M per shard** without
+  routing. The filter recovers M/S with no shared store at all, at a false-positive cost of 24 extra
+  queries in 100,000 (0.02%) at this load. The `workflow-benchmark` harness gained a
+  `bench.workload=message` mode (an action → `WAIT_FOR_MESSAGE` → action definition, a driver that
+  resumes each process by its business key over the shared `messages` topic) for the wall-clock
+  transitions/s run on a multi-node sharded cluster. Results are in `guides/performance.md`.
 
 ## [2.17.1] - 2026-09-20
 
