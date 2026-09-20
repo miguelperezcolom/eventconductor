@@ -85,6 +85,30 @@ class MessageRouterTest {
     }
 
     @Test
+    void a_placement_store_that_is_down_fails_safe_to_broadcast() {
+        when(classifier.classify("orderPaid")).thenReturn(MessageClassification.BUSINESS_KEY);
+        when(placement.find("bk-1")).thenThrow(new IllegalStateException("routing db is down"));
+
+        router(placement, subscriptions).route(message);
+
+        // Never lost: a store failure degrades to the broadcast that always worked.
+        verify(messagePublisher).publish(message);
+        verify(ingressPublisher, never()).publishToShard(any(), any());
+    }
+
+    @Test
+    void a_subscription_store_that_is_down_fails_safe_to_broadcast() {
+        when(classifier.classify("orderPaid")).thenReturn(MessageClassification.EXPRESSION);
+        when(subscriptions.shardsWaitingFor("orderPaid", "bk-1"))
+                .thenThrow(new IllegalStateException("routing db is down"));
+
+        router(placement, subscriptions).route(message);
+
+        verify(messagePublisher).publish(message);
+        verify(ingressPublisher, never()).publishToShard(any(), any());
+    }
+
+    @Test
     void a_broadcast_message_skips_the_subscription_layer() {
         when(classifier.classify("orderPaid")).thenReturn(MessageClassification.BROADCAST);
 
