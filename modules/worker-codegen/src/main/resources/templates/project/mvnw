@@ -1,0 +1,37 @@
+#!/bin/sh
+# ----------------------------------------------------------------------------
+# Minimal Maven wrapper: downloads the distribution named in
+# .mvn/wrapper/maven-wrapper.properties into a per-user cache and runs it, so
+# the project builds the same way everywhere without a Maven install. Generated
+# by EventConductor — replace with the full `mvn wrapper:wrapper` output if you
+# want the upstream script.
+# ----------------------------------------------------------------------------
+set -e
+
+script_dir=$(cd "$(dirname "$0")" && pwd)
+props="$script_dir/.mvn/wrapper/maven-wrapper.properties"
+
+if command -v mvn >/dev/null 2>&1; then
+  exec mvn "$@"
+fi
+
+if [ ! -f "$props" ]; then
+  echo "No Maven found and no $props; install Maven or run 'mvn wrapper:wrapper'." >&2
+  exit 1
+fi
+
+url=$(sed -n 's/^distributionUrl=//p' "$props")
+cache="${MAVEN_USER_HOME:-$HOME/.m2}/wrapper/dists"
+name=$(basename "$url" .zip)
+home="$cache/$name/$name"
+
+if [ ! -x "$home/bin/mvn" ]; then
+  mkdir -p "$cache/$name"
+  echo "Downloading $url ..." >&2
+  zip="$cache/$name/dist.zip"
+  if command -v curl >/dev/null 2>&1; then curl -fsSL -o "$zip" "$url";
+  else wget -q -O "$zip" "$url"; fi
+  (cd "$cache/$name" && unzip -q -o dist.zip)
+fi
+
+exec "$home/bin/mvn" "$@"
