@@ -1,35 +1,36 @@
 ---
-title: "Comparison: Camunda & Temporal"
-description: An honest, in-depth comparison of EventConductor, Camunda 8, and Temporal — philosophy, architecture, licensing, human tasks, failure handling, and AI integration.
+title: "Comparison: Camunda, Temporal & Conductor"
+description: An honest, in-depth comparison of EventConductor, Camunda 8, Temporal, and Conductor (OSS / Orkes) — philosophy, architecture, licensing, human tasks, failure handling, and AI integration.
 ---
 
-Camunda, Temporal, and EventConductor all orchestrate long-running business processes, but they start from very different philosophies:
+Camunda, Temporal, Conductor, and EventConductor all orchestrate long-running business processes, but they start from very different philosophies:
 
 - **Camunda 8** is a *BPMN platform*: processes are BPMN 2.0 diagrams executed by a dedicated engine (Zeebe), surrounded by a suite of tools (Modeler, Tasklist, Operate, Optimize).
 - **Temporal** is *durable execution as code*: workflows are ordinary functions in your programming language, made fault-tolerant by an event-sourced replay engine running in a dedicated cluster.
+- **Conductor** is a *JSON-DSL orchestration platform*: workflows are versioned JSON documents run by a central server cluster, with external, polyglot workers polling it for tasks. Built at Netflix, it is now community- and Orkes-governed (`conductor-oss/conductor`); **Orkes** sells a managed/enterprise build on the same core.
 - **EventConductor** is an *embeddable, event-driven engine with a declarative DSL*: workflows are flat JSON/YAML files owned by developers, executed by a Spring Boot library that scales from an in-memory unit test to a Kafka + PostgreSQL cluster.
 
-None of the three is universally "better" — they optimize for different teams and constraints. This page compares them honestly, including where the alternatives are stronger. Facts about Camunda and Temporal are accurate as of **July 2026** (Camunda 8.8/8.9, current Temporal server and SDKs).
+None of the four is universally "better" — they optimize for different teams and constraints. This page compares them honestly, including where the alternatives are stronger. Facts about Camunda, Temporal, and Conductor are accurate as of **September 2026** (Camunda 8.8/8.9, current Temporal server and SDKs, and current Conductor OSS / Orkes).
 
 ## At a glance
 
-| | EventConductor | Camunda 8 | Temporal |
-|---|---|---|---|
-| **Workflow definition** | Declarative JSON/YAML DSL (flat file, PR-reviewable) | BPMN 2.0 XML diagrams (+ DMN for decisions) | Code (workflow functions in your language) |
-| **Execution model** | Event-driven state machine (outbox pattern) | Token-based BPMN engine (Zeebe) | Durable execution via event-sourced replay |
-| **Runs as** | Library embedded in your Spring Boot app | Dedicated cluster (Zeebe + Operate + Tasklist + Identity + Elasticsearch/OpenSearch) or SaaS | Dedicated cluster (server + DB, optional Elasticsearch) or Temporal Cloud |
-| **Minimum footprint** | Zero dependencies (in-memory, in-process) | Docker Compose / Helm with several services | Local dev server (single binary); production needs a cluster |
-| **Production infrastructure** | PostgreSQL (+ Kafka for distributed mode) | Full component stack, typically on Kubernetes | Temporal cluster + Cassandra/PostgreSQL/MySQL |
-| **License** | MIT | Source-available (Camunda License); production self-managed requires a paid Enterprise license | MIT (server); Temporal Cloud is the paid SaaS |
-| **Human tasks & forms** | Built-in forms engine + drag-and-drop form editor | Built-in (Tasklist + Camunda Forms) | Not built-in — model with signals/updates, build your own UI |
-| **Visual designer** | Drag-and-drop workflow & form editors (persist back to JSON) | Best-in-class BPMN Modeler (desktop & web) | None (code is the source of truth) |
-| **Operations UI** | Built-in management UI | Operate + Optimize | Temporal Web UI |
-| **Retries / timeouts** | Declarative per step (`retries`, `timeout`) | BPMN error/timer events + job retries | Retry policies & timeouts in code (very fine-grained) |
-| **Saga / compensation** | Declarative (`compensable` + `compensationStepId`, reverse-order execution) | BPMN compensation events | Coded manually (saga pattern in workflow code) |
-| **Worker languages** | Java/Spring first-class; any language via Kafka in distributed mode | Polyglot job workers over gRPC (Java, Node, Go, ...) | Go, Java, TypeScript, Python, .NET, PHP, Ruby SDKs |
-| **AI integration** | Native MCP servers in every module + bundled AI agent service | AI Agent connector, MCP client & A2A (8.8+), API MCP server | MCP server, OpenAI Agents SDK & Google ADK integrations |
-| **Maturity & community** | Young open-source project | Very mature (company founded 2008, large ecosystem) | Mature (2019, from Uber's Cadence; large community) |
-| **Learning curve** | Low (a JSON schema and a worker contract) | High (BPMN, DMN, component suite, operations) | Medium-high (determinism rules, replay semantics, versioning) |
+| | EventConductor | Camunda 8 | Temporal | Conductor (OSS / Orkes) |
+|---|---|---|---|---|
+| **Workflow definition** | Declarative JSON/YAML DSL (flat file, PR-reviewable) | BPMN 2.0 XML diagrams (+ DMN for decisions) | Code (workflow functions in your language) | Declarative JSON DSL (versioned, developer-owned) + UI visualizer |
+| **Execution model** | Event-driven state machine (outbox pattern) | Token-based BPMN engine (Zeebe) | Durable execution via event-sourced replay | Central decider + queue-driven sweeper; state in an external store |
+| **Runs as** | Library embedded in your Spring Boot app | Dedicated cluster (Zeebe + Operate + Tasklist + Identity + Elasticsearch/OpenSearch) or SaaS | Dedicated cluster (server + DB, optional Elasticsearch) or Temporal Cloud | Dedicated server cluster (+ store + Elasticsearch) or Orkes managed cloud |
+| **Minimum footprint** | Zero dependencies (in-memory, in-process) | Docker Compose / Helm with several services | Local dev server (single binary); production needs a cluster | Docker (server + Redis + Elasticsearch); SDK harness for unit tests |
+| **Production infrastructure** | PostgreSQL (+ Kafka for distributed mode) | Full component stack, typically on Kubernetes | Temporal cluster + Cassandra/PostgreSQL/MySQL | Redis/Dynomite, Cassandra, or Postgres/MySQL + Elasticsearch/OpenSearch |
+| **License** | MIT | Source-available (Camunda License); production self-managed requires a paid Enterprise license | MIT (server); Temporal Cloud is the paid SaaS | Apache 2.0 (OSS); Orkes is the paid managed/enterprise build |
+| **Human tasks & forms** | Built-in forms engine + drag-and-drop form editor | Built-in (Tasklist + Camunda Forms) | Not built-in — model with signals/updates, build your own UI | Basic `Human` task (OSS); full human-task orchestration + forms in Orkes |
+| **Visual designer** | Drag-and-drop workflow & form editors (persist back to JSON) | Best-in-class BPMN Modeler (desktop & web) | None (code is the source of truth) | UI workflow visualizer (JSON is the source); drag-and-drop editor in Orkes |
+| **Operations UI** | Built-in management UI | Operate + Optimize | Temporal Web UI | Built-in UI (search via Elasticsearch/OpenSearch) |
+| **Retries / timeouts** | Declarative per step (`retries`, `timeout`) | BPMN error/timer events + job retries | Retry policies & timeouts in code (very fine-grained) | Declarative per task definition (`retryCount`, backoff, timeout policies) |
+| **Saga / compensation** | Declarative (`compensable` + `compensationStepId`, reverse-order execution) | BPMN compensation events | Coded manually (saga pattern in workflow code) | `failureWorkflow` — a compensating workflow on failure (not reverse-order steps) |
+| **Worker languages** | Java/Spring first-class; any language via Kafka in distributed mode | Polyglot job workers over gRPC (Java, Node, Go, ...) | Go, Java, TypeScript, Python, .NET, PHP, Ruby SDKs | Polyglot SDKs long-polling (Java, Python, Go, JS/TS, C#, Clojure) |
+| **AI integration** | Native MCP servers in every module + bundled AI agent service | AI Agent connector, MCP client & A2A (8.8+), API MCP server | MCP server, OpenAI Agents SDK & Google ADK integrations | In-workflow LLM & vector tasks + A2A (OSS); AI Prompt Studio in Orkes |
+| **Maturity & community** | Young open-source project | Very mature (company founded 2008, large ecosystem) | Mature (2019, from Uber's Cadence; large community) | Mature (Netflix 2016; community/Orkes-governed since 2023; large community) |
+| **Learning curve** | Low (a JSON schema and a worker contract) | High (BPMN, DMN, component suite, operations) | Medium-high (determinism rules, replay semantics, versioning) | Medium (JSON DSL + task/worker model + a cluster to operate) |
 
 ## Philosophy: who owns the workflow?
 
@@ -37,15 +38,19 @@ None of the three is universally "better" — they optimize for different teams 
 
 **Temporal** is code-first to the extreme: there is no definition artifact at all. A workflow *is* a function, and the engine reconstructs it by **replaying its recorded history** — not only after a crash, but whenever the workflow is evicted from a worker's cache or resumes after a wait, which for long-running processes is routine. This is enormously powerful — loops, conditionals, and abstractions in a real programming language with full type safety. The trade-off is that workflow code must stay **deterministic** (no random numbers, no wall-clock reads, no direct I/O, no iterating unordered maps in some SDKs): a violation makes the replay diverge from its history and the instance gets stuck on a non-determinism error — which, because a fast in-and-out workflow may never replay, can surface late, in production, on one long-lived or redeployed instance. It is a real cost, well-managed in practice with the SDK's deterministic APIs and replay tests in CI, but it is discipline the definition-as-data engines do not require. Versioning running workflows likewise needs explicit patching APIs, and the workflow logic is only readable by programmers of that language.
 
+**Conductor** is the closest of the three to EventConductor's answer: the workflow is *data* too — a versioned JSON document, developer-owned, not a diagram and not code. The differences are of deployment and style, not philosophy. It is a **platform, not a library**: a central server cluster owns and drives the state while your workers poll it from outside, so unlike EventConductor it is something you run *alongside* your applications rather than *inside* them. And its control flow is **explicit and structural** — `FORK_JOIN`, `SWITCH`, `DO_WHILE`, `SUB_WORKFLOW` drawn as nodes — where EventConductor lets concurrency emerge from preconditions; the explicit graph reads more directly for someone who did not write it, at the cost of more ceremony in the definition.
+
 **EventConductor** sits deliberately in the middle: the workflow is *data* (a flat JSON/YAML document), not a diagram and not code. It is expressive enough for retries, timeouts, compensation, parallel branches, sub-processes, conditional expressions, and human tasks — but it stays a single file that fits in a pull request, diffs cleanly, and can be edited either by hand or in the included drag-and-drop editor. Business logic never lives in the definition; it lives in your workers.
 
-**Change management is where these philosophies bite.** Long-running processes mean there are always instances in flight when you deploy — for a booking or an onboarding that lives for weeks, versioning is not an edge case, it is part of every release. Engines that version definitions as *data* handle this structurally: in EventConductor, every process instance carries an **immutable snapshot of the definition it started with**, so redeploying a definition can never affect running instances, while new instances pick up the new version — no migration step, no code branches. Camunda likewise keeps versioned deployments (running instances stay on their version, with optional instance migration). Temporal, having no definition artifact, must version *code*: changing logic that touches in-flight workflows requires explicit patching APIs (`patched()` / `getVersion()`) or worker versioning, the workflow code accumulates per-version branches, and a mistake surfaces as a non-deterministic replay error. Teams run this successfully at scale, but it is recurring friction that the definition-as-data engines simply do not have.
+**Change management is where these philosophies bite.** Long-running processes mean there are always instances in flight when you deploy — for a booking or an onboarding that lives for weeks, versioning is not an edge case, it is part of every release. Engines that version definitions as *data* handle this structurally: in EventConductor, every process instance carries an **immutable snapshot of the definition it started with**, so redeploying a definition can never affect running instances, while new instances pick up the new version — no migration step, no code branches. Camunda likewise keeps versioned deployments (running instances stay on their version, with optional instance migration); Conductor, also definition-as-data, versions its JSON workflow definitions, so in-flight executions keep running on the version they started with. Temporal, having no definition artifact, must version *code*: changing logic that touches in-flight workflows requires explicit patching APIs (`patched()` / `getVersion()`) or worker versioning, the workflow code accumulates per-version branches, and a mistake surfaces as a non-deterministic replay error. Teams run this successfully at scale, but it is recurring friction that the definition-as-data engines simply do not have.
 
 ## Architecture & deployment
 
 **Camunda 8** is a distributed platform. Self-managed installations run Zeebe brokers and gateway, Operate, Tasklist, Identity, Connectors, and Elasticsearch or OpenSearch — realistically a Kubernetes deployment with the official Helm charts. The SaaS offering removes that burden entirely. Zeebe itself is impressively scalable (partitioned, replicated, benchmarked at very high throughput), but you are operating (or renting) a platform that is separate from your applications.
 
 **Temporal** is also a dedicated cluster: the Temporal server (frontend, history, matching, worker services) plus a persistence store (Cassandra, PostgreSQL, or MySQL) and optionally Elasticsearch for search/visibility. Your application code runs in *workers* that long-poll the cluster over gRPC. Temporal Cloud is the managed alternative. The local dev server is a single binary, so getting started is easy — the operational weight comes later, in production.
+
+**Conductor** is likewise a dedicated cluster, but with an unusually **pluggable** backend. A stateless Conductor server (Spring Boot) owns orchestration; durable state lives in a persistence tier you choose — Redis/Dynomite (the classic default), Cassandra, or a relational store (Postgres/MySQL) — with Elasticsearch or OpenSearch alongside for search and the UI, and optional external payload storage (S3/GCS/Blob) for large task payloads. Servers coordinate through shared **dyno-queues** (work is sharded across nodes) and a distributed lock (Redisson or Postgres) that keeps one server deciding a given workflow at a time, while a **sweeper/reconciler** re-runs the decider on a short interval so a workflow always makes progress even with no external trigger. Your workers run outside the cluster and **long-poll** it over REST or gRPC. Orkes packages and operates this stack as a managed cloud (or on-prem enterprise build). Like Camunda and Temporal, it is a platform to run, not a library to embed.
 
 **EventConductor** inverts the model: the engine is a **library inside your Spring Boot application**. There is no separate orchestrator platform to operate. Three modes, selected by configuration only, cover the whole spectrum with zero changes to business code:
 
@@ -65,6 +70,8 @@ For a production evaluation, the delivery and consistency semantics matter more 
 
 **Temporal** is built around **durable execution**: the full event history of every workflow is persisted, and after any crash the workflow *function* is replayed deterministically against that history, reconstructing the running program itself — local variables, in-line waits and all — so long-running orchestration can be written as ordinary imperative code that survives process, pod, and datacenter failures. Activities are **at-least-once** (retried per policy), so activity code should be idempotent. It is a genuinely different programming model, and its power comes with its own discipline: workflow code must stay deterministic, and replay makes versioning already-deployed workflows a first-class operational concern.
 
+**Conductor** externalizes all state into its persistence tier and keeps the servers stateless, so its guarantees are largely **the guarantees of the store you choose**. Cassandra gives quorum-replicated durability at high scale; Redis/Dynomite gives fast in-memory state with configurable persistence and replication; a relational backend gives ordinary ACID commits. Task execution is **at-least-once** — a worker that does not acknowledge within the task's response timeout has the work redelivered, so worker code should be idempotent — and a distributed lock keeps a single server deciding each workflow while the **sweeper/reconciler** re-drives it and enforces timeouts, so a workflow never silently stalls. Idempotency is keyed on workflow and task ids. The honest note: the correctness floor is comparable to the others — durable state, resume after crash — but *how* durable is a function of the backend and how you replicate it, not one built-in guarantee, so it is a tier you must size and operate deliberately.
+
 **EventConductor** builds its guarantees on two well-understood primitives — the **transactional outbox pattern** and **Kafka partition ownership** — rather than a custom replicated log:
 
 - Every state transition is an immutable domain event written **in the same database transaction** as the state change, then relayed (publish-then-mark, so delivery is **at-least-once**; a crashed relay re-delivers, never loses).
@@ -74,7 +81,7 @@ For a production evaluation, the delivery and consistency semantics matter more 
 
 These guarantees are not just claimed — they are pinned down as an explicit, public test specification ([TESTING.md](https://github.com/miguelperezcolom/eventconductor/blob/main/TESTING.md)) covering orchestration semantics, failure handling, idempotency, durability through the real outbox, and security, run in CI on every commit. A distributed chaos suite (orchestrator crash recovery, two-pod dispatch exclusivity, worker crash redelivery) is specified in the same document.
 
-The honest framing: all three **persist workflow state durably and resume where they left off** after a crash — that reliability floor is the same, and it is the property that actually matters for most workloads. What differs is the *model*, not a durability tier. Temporal replays history to make the workflow *function itself* durable (durable execution) — powerful when you want workflows-as-code, at the cost of determinism and replay-versioning constraints you may never need. Zeebe's Raft-replicated log is proven at very high scale. EventConductor is a **declarative state machine**: the state is authoritative rows in PostgreSQL plus an immutable event log you can inspect with SQL, recovered by reading the current state rather than replaying code — boring, auditable technology an operations team can reason about without learning a new distributed system. If you model a process as steps and data (the common case), you get the same state durability with far less to operate; if you specifically need workflows-as-durable-code, that is the reason Temporal exists.
+The honest framing: all four **persist workflow state durably and resume where they left off** after a crash — that reliability floor is the same, and it is the property that actually matters for most workloads. What differs is the *model*, not a durability tier. Temporal replays history to make the workflow *function itself* durable (durable execution) — powerful when you want workflows-as-code, at the cost of determinism and replay-versioning constraints you may never need. Zeebe's Raft-replicated log is proven at very high scale. EventConductor is a **declarative state machine**: the state is authoritative rows in PostgreSQL plus an immutable event log you can inspect with SQL, recovered by reading the current state rather than replaying code — boring, auditable technology an operations team can reason about without learning a new distributed system. Conductor is a declarative state machine too, but externalizes that state into a pluggable store (Redis, Cassandra or an RDBMS) and runs as a cluster — the same read-the-state recovery, with a backend you choose and operate. If you model a process as steps and data (the common case), you get the same state durability with far less to operate; if you specifically need workflows-as-durable-code, that is the reason Temporal exists.
 
 ## Scalability & performance
 
@@ -82,12 +89,15 @@ The honest framing: all three **persist workflow state durably and resume where 
 
 **Temporal** is horizontally scalable until the persistence layer becomes the bottleneck; with Cassandra that ceiling is very high. Temporal states the platform supports [millions of concurrent workflow executions](https://docs.temporal.io/workflow-execution), and organizations publicly report workloads on the order of 200M workflows/month. Temporal measures capacity in *state transitions per second* rather than workflows per second, since workflow cost varies enormously — worth keeping in mind when comparing numbers. EventConductor reports in that same unit and for that same reason (see [Performance](/guides/performance/)), which makes Temporal's figures the directly comparable ones and Zeebe's PI/s the ones that need a steps-per-process ratio attached before they mean anything across workloads.
 
+**Conductor** scales the way the platforms do: the servers are stateless, so you add them behind a load balancer, and dyno-queues spread work across them; the real ceiling is the **persistence tier**, which is exactly why the backend is pluggable — Cassandra scales writes very high, Redis/Dynomite high, an RDBMS less so. Netflix ran Conductor at large scale historically, which is the track record behind it. Independent throughput numbers for the current OSS are scarce; **Orkes** positions its managed build at thousands of tasks per second with multi-region failover and an availability SLA, above a self-managed OSS deployment — vendor figures, so weigh them as positioning rather than a neutral benchmark, but the Cassandra-backed architecture has genuine headroom.
+
 **EventConductor** scales on three axes. **Workers** are stateless Kafka consumers — add instances to a group and task execution scales linearly. **Orchestrators** scale by partition ownership: events are keyed by process, so partitions spread the work across pods and the outbox relay drains from every one. **Storage** is where the ceiling really sits: within a single database a transition costs a handful of `fsync`-bound commits, so the write ceiling is your database's — order of tens of process instances per second of a five-transition definition on network block storage (a few hundred transitions per second), considerably higher on local NVMe, with the pods at a fraction of their CPU. For a long time that single database was also the hard limit; [**sharding**](/reference/configuration/#sharding-advanced-opt-in) removes it — N shared-nothing shards, each with its own database, added and removed *hot*, so write capacity scales with the shard count (the same shard-your-storage principle Temporal uses), opt-in and config-only with a single-database deployment unchanged. The honest framing, unchanged: EventConductor has **not** been benchmarked at the extreme throughputs Zeebe and Temporal publish, and while sharding's engine paths are unit- and e2e-tested, a live multi-shard run at those rates has not been published — so for *proven* headroom today the dedicated clusters lead. The ceiling is now what you provision, not one node's WAL, and you can measure whichever you run with the harness in the repo. Detail: [Performance](/guides/performance/) and the subsections below.
 
 ### Why the published numbers differ
 
-None of the three engines avoids the cost of making state durable — all three must commit before
-they can safely proceed. What separates them is *how they pay for it*, and there are only two
+None of these engines avoids the cost of making state durable — each must commit before it can
+safely proceed. (Conductor maps onto the same two levers by its choice of backend: Cassandra in
+the replication column, an RDBMS on local disk, Redis/Dynomite a memory-first variant.) What separates them is *how they pay for it*, and there are only two
 levers:
 
 - **Durability by replication.** Zeebe considers state committed once it reaches a Raft quorum of
@@ -115,7 +125,7 @@ Two things follow that are easy to get wrong. First, for a like-for-like compari
 PostgreSQL pays `fsync` per commit exactly as EventConductor does.** Its advantage in that
 configuration is arithmetic — batching and sync match — not a different durability architecture. The
 architectural gap only opens when Temporal runs on Cassandra. Second, amortisation buys *throughput,
-not latency*: batching adds delay to the first transition in a batch, and all three engines report
+not latency*: batching adds delay to the first transition in a batch, and all of them report
 per-transition latency in the same order of magnitude. If what matters to you is the cycle time of
 one business process rather than the aggregate rate, this axis may not decide anything.
 
@@ -214,12 +224,13 @@ tenant inside a shared cluster.
 - **EventConductor** is **MIT-licensed**, free for any use, including production. Your only costs are your own infrastructure (a database you probably already run, plus Kafka if you go distributed).
 - **Temporal**'s server is **MIT-licensed** and free to self-host; you pay in operational effort or by using **Temporal Cloud**.
 - **Camunda 8** moved to a **source-available license** (Camunda License 1.0) with version 8.6: self-managed is free for development and non-production use, but **production self-managed requires a paid Enterprise license** (a free non-commercial license exists for qualifying individuals, academia, and non-profits). Camunda 7's community edition reached end of life in October 2025.
+- **Conductor** is **Apache-2.0** and free to self-host — you operate the server cluster and its backing store. **Orkes** is the paid offering (managed cloud or on-prem enterprise), and it is where RBAC, a secrets store, mature human tasks, analytics dashboards, and the multi-region SLA live — so the OSS/paid split resembles Temporal's, except Orkes bundles more enterprise capability into the commercial tier.
 
-If a fully free, open-source production deployment matters to you, that narrows the field to Temporal (with the operational cost of a cluster) or EventConductor (embedded, on infrastructure you already have).
+If a fully free, open-source production deployment matters to you, that narrows the field to Temporal, Conductor (both self-hosted clusters, MIT / Apache-2.0), or EventConductor (embedded, on infrastructure you already have) — with the caveat that the two clusters cost you operational effort EventConductor does not, and that Conductor's enterprise features largely sit in the paid Orkes tier.
 
 ## Failure handling: retries, timeouts, sagas
 
-All three handle failure well — the difference is *where* you express it.
+All four handle failure well — the difference is *where* you express it.
 
 **EventConductor** — declaratively, per step in the definition:
 
@@ -237,7 +248,9 @@ On exhausted retries, compensation steps for previously completed `compensable` 
 
 **Camunda** — via BPMN constructs: job retries on service tasks, timer boundary events for timeouts, error boundary events, and BPMN compensation events with compensation handlers. Complete and standard, but spread across diagram elements and their technical bindings.
 
-**Temporal** — in code, with the finest-grained control of the three: per-activity retry policies (initial interval, backoff, max attempts, non-retryable error types), multiple timeout types (schedule-to-start, start-to-close, heartbeat), and sagas implemented as explicit compensation logic in the workflow function. Maximum flexibility; you write and test it yourself.
+**Temporal** — in code, with the finest-grained control of the four: per-activity retry policies (initial interval, backoff, max attempts, non-retryable error types), multiple timeout types (schedule-to-start, start-to-close, heartbeat), and sagas implemented as explicit compensation logic in the workflow function. Maximum flexibility; you write and test it yourself.
+
+**Conductor** — declaratively, on the task definition: `retryCount` with a `retryLogic` (fixed, linear, or exponential backoff), `timeoutSeconds` / `responseTimeoutSeconds` with a `timeoutPolicy`, and rate/concurrency limits. Compensation differs from EventConductor's reverse-order model: you attach a **`failureWorkflow`** to a workflow and Conductor starts it when the workflow fails — a separate, explicitly authored compensating flow rather than automatic reverse-order rollback of the completed steps. More flexible for bespoke recovery, less automatic for the common undo-in-reverse case.
 
 ## What the diagram costs: an asynchronous, compensating saga
 
@@ -280,20 +293,22 @@ The same sentence carries the cost, as it does for Maven and Spring Boot: conven
 
 ## Human tasks & forms
 
-This is where the three diverge most sharply:
+This is where the four diverge most sharply:
 
 - **EventConductor** ships a **forms engine as a first-class module**: form definitions in JSON, a drag-and-drop form editor, validation, versioned storage, and dynamic rendering to any front-end. A `USER_TASK` step references a `formId`; the engine creates the form execution, pauses the process, and resumes it on submission. Task list and form UI are included.
 - **Camunda** also treats human tasks as first-class: BPMN user tasks, Camunda Forms with a visual form builder, and the Tasklist application. Mature and complete — human workflow has been Camunda's bread and butter since its beginnings.
 - **Temporal** has **no built-in human task concept**. A human step is modeled as a workflow waiting on a signal or update; the task inbox, form rendering, validation, and completion UI are all yours to build. Perfectly doable — but it is application work, not engine features.
+- **Conductor** sits between the two: OSS ships a basic **`Human` system task** — a step that waits for external completion — but the surrounding machinery (task inbox, forms, assignment, SLA timers, escalation, delegation) is largely **Orkes commercial**. Self-hosted OSS gives you the wait-for-a-human primitive; the full human-workflow experience is a paid feature, where Camunda and EventConductor include it.
 
-If your processes are human-heavy (approvals, reviews, data entry), EventConductor and Camunda give you a large head start over Temporal.
+If your processes are human-heavy (approvals, reviews, data entry), EventConductor and Camunda give you a large head start over Temporal — and over self-hosted Conductor OSS, whose richer human tasks are an Orkes feature.
 
 ## AI integration (MCP)
 
-The landscape changed in 2025–2026 and all three now have an AI story — but they address different problems:
+The landscape changed in 2025–2026 and all four now have an AI story — but they address different problems:
 
 - **Camunda** focuses on *AI inside the process*: the AI Agent connector plus BPMN ad-hoc sub-processes let an LLM-driven agent choose and invoke tools as part of a running process, with an MCP client connector (and A2A support arriving in 8.9) for external tools, plus an MCP server over its orchestration API. Powerful, and tied to the BPMN toolchain and its licensing.
 - **Temporal** focuses on *durable AI applications*: integrations with the OpenAI Agents SDK and Google ADK run LLM calls and tool executions as retryable Activities, and a Temporal MCP server lets AI assistants inspect and operate a cluster in natural language.
+- **Conductor** focuses on *AI inside the process*, like Camunda: the OSS core now ships an `ai` module (LLM tasks, embeddings and a vector-DB abstraction for RAG-style steps) and `agentspan` with agent-to-agent (A2A) support, so an LLM call or an agent step is just another task in the graph; **Orkes** adds an AI Prompt Management Studio (versioned, testable prompts) on top. The emphasis is putting AI *into* workflows, where EventConductor's is operating the engine and your services *through* AI over MCP.
 - **EventConductor** focuses on *operating the engine — and your domain — through AI, out of the box*: every module (orchestrator, forms engine, and any of your own services via the `McpTools` interface) exposes its capabilities as **native MCP servers**, and the bundled `ia-agent-service` connects them to an LLM so operators can say *"retry all failed processes from today"* or *"show me pending user tasks for the onboarding workflow"* with **zero integration code**. Each server self-describes its domain through a `system-context` MCP prompt, so the agent's knowledge stays current as your services evolve.
 
 EventConductor was, to our knowledge, the first workflow engine to ship native MCP support; it remains the only one where MCP exposure of the engine *and your own business services* is a built-in, embeddable feature rather than a separate connector or add-on.
@@ -302,33 +317,33 @@ EventConductor was, to our knowledge, the first workflow engine to ship native M
 
 A detailed capability-by-capability view. ✅ built-in · 🟡 possible with extra work or limitations · ❌ not available.
 
-| Capability | EventConductor | Camunda 8 | Temporal |
-|---|---|---|---|
-| Sequential & parallel execution (fork/join) | ✅ `FORK`/`JOIN` + multi-preconditions | ✅ gateways | ✅ native code |
-| Sub-processes | ✅ `PROCESS` step | ✅ call activities | ✅ child workflows |
-| Conditional branching | ✅ JEXL expressions | ✅ gateways + FEEL | ✅ native code |
-| Dynamic / data-driven flow shape | 🟡 expressions over a static graph | 🟡 multi-instance, ad-hoc sub-processes | ✅ unrestricted (it's code) |
-| Declarative retries & timeouts | ✅ per step | ✅ BPMN + job retries | 🟡 in code (finest control) |
-| Saga compensation | ✅ declarative, reverse-order | ✅ BPMN compensation events | 🟡 coded manually |
-| Human tasks + forms + task UI | ✅ built-in module + editors | ✅ Tasklist + Forms | ❌ build your own |
-| Timer / delay steps ("wait 3 days") | ✅ `TIMER` step (duration or date variable) | ✅ timer events | ✅ durable timers |
-| Cron / scheduled process starts | ✅ `cronExpression` on the definition | ✅ timer start events | ✅ Schedules |
-| Message correlation into running processes | ✅ `WAIT_FOR_MESSAGE` / `SEND_MESSAGE` steps (JEXL correlation) | ✅ message events | ✅ signals & updates |
-| Query running workflow state | ✅ repositories / API / UI | ✅ Operate API | ✅ queries + visibility API |
-| Business decision tables | ✅ rule engine (`RULE` step; expression rules & decision tables in JSON/YAML) | ✅ DMN engine | 🟡 code |
-| Definition versioning | ✅ versions + draft working copies | ✅ versioned deployments | 🟡 code patching APIs |
-| Per-definition concurrency limits & queueing | ✅ `maxConcurrentExecutions` + enqueue | 🟡 not built-in | 🟡 workflow-id uniqueness, worker limits |
-| Multi-tenancy | ❌ | ✅ | ✅ namespaces |
-| GitOps import of definitions | ✅ built-in Git import | 🟡 Web Modeler / pipelines | n/a (code deploys) |
-| Audit trail / history per instance | ✅ logs + step history | ✅ Operate + history data | ✅ full event history |
-| Engine metrics (Prometheus etc.) | ✅ engine counters/timers/gauges via Micrometer ([reference](/reference/configuration/#metrics)) | ✅ extensive | ✅ extensive |
-| Process analytics & reporting | ✅ built-in per-definition analytics ([guide](/guides/analytics/)) — not a BI suite like Optimize | ✅ Optimize | 🟡 visibility/search attributes |
-| Workflow & form visual editors | ✅ included, output is JSON | ✅ Modeler (best-in-class) | ❌ |
-| AI agent / MCP integration | ✅ native, engine + your services | ✅ connectors (8.8+) | ✅ SDK integrations + MCP server |
-| Embeddable in your application | ✅ core design | ❌ | ❌ (dev server only for tests) |
-| Zero-infrastructure test mode | ✅ in-memory, in-process | 🟡 Testcontainers | 🟡 local dev server / test framework |
+| Capability | EventConductor | Camunda 8 | Temporal | Conductor (OSS / Orkes) |
+|---|---|---|---|---|
+| Sequential & parallel execution (fork/join) | ✅ `FORK`/`JOIN` + multi-preconditions | ✅ gateways | ✅ native code | ✅ `FORK_JOIN` / `FORK_JOIN_DYNAMIC` / `JOIN` |
+| Sub-processes | ✅ `PROCESS` step | ✅ call activities | ✅ child workflows | ✅ `SUB_WORKFLOW` |
+| Conditional branching | ✅ JEXL expressions | ✅ gateways + FEEL | ✅ native code | ✅ `SWITCH` (+ `Inline`/`Lambda`) |
+| Dynamic / data-driven flow shape | 🟡 expressions over a static graph | 🟡 multi-instance, ad-hoc sub-processes | ✅ unrestricted (it's code) | ✅ `FORK_JOIN_DYNAMIC` + `DO_WHILE` |
+| Declarative retries & timeouts | ✅ per step | ✅ BPMN + job retries | 🟡 in code (finest control) | ✅ per task definition |
+| Saga compensation | ✅ declarative, reverse-order | ✅ BPMN compensation events | 🟡 coded manually | 🟡 `failureWorkflow` (compensating workflow) |
+| Human tasks + forms + task UI | ✅ built-in module + editors | ✅ Tasklist + Forms | ❌ build your own | 🟡 OSS (`Human` task) · ✅ Orkes |
+| Timer / delay steps ("wait 3 days") | ✅ `TIMER` step (duration or date variable) | ✅ timer events | ✅ durable timers | ✅ `WAIT` task |
+| Cron / scheduled process starts | ✅ `cronExpression` on the definition | ✅ timer start events | ✅ Schedules | ✅ scheduler module |
+| Message correlation into running processes | ✅ `WAIT_FOR_MESSAGE` / `SEND_MESSAGE` steps (JEXL correlation) | ✅ message events | ✅ signals & updates | ✅ event handlers (SQS/Kafka/AMQP/NATS) |
+| Query running workflow state | ✅ repositories / API / UI | ✅ Operate API | ✅ queries + visibility API | ✅ REST/gRPC + UI |
+| Business decision tables | ✅ rule engine (`RULE` step; expression rules & decision tables in JSON/YAML) | ✅ DMN engine | 🟡 code | 🟡 no DMN (use `SWITCH`/`Inline`) |
+| Definition versioning | ✅ versions + draft working copies | ✅ versioned deployments | 🟡 code patching APIs | ✅ versioned workflow defs |
+| Per-definition concurrency limits & queueing | ✅ `maxConcurrentExecutions` + enqueue | 🟡 not built-in | 🟡 workflow-id uniqueness, worker limits | ✅ task rate / concurrency limits |
+| Multi-tenancy | ❌ | ✅ | ✅ namespaces | ✅ Orkes (❌ OSS) |
+| GitOps import of definitions | ✅ built-in Git import | 🟡 Web Modeler / pipelines | n/a (code deploys) | 🟡 metadata API / CLI |
+| Audit trail / history per instance | ✅ logs + step history | ✅ Operate + history data | ✅ full event history | ✅ execution history + search |
+| Engine metrics (Prometheus etc.) | ✅ engine counters/timers/gauges via Micrometer ([reference](/reference/configuration/#metrics)) | ✅ extensive | ✅ extensive | ✅ Prometheus / metrics |
+| Process analytics & reporting | ✅ built-in per-definition analytics ([guide](/guides/analytics/)) — not a BI suite like Optimize | ✅ Optimize | 🟡 visibility/search attributes | ✅ Orkes dashboards (🟡 OSS) |
+| Workflow & form visual editors | ✅ included, output is JSON | ✅ Modeler (best-in-class) | ❌ | 🟡 visualizer · ✅ Orkes editor |
+| AI agent / MCP integration | ✅ native, engine + your services | ✅ connectors (8.8+) | ✅ SDK integrations + MCP server | ✅ in-workflow LLM / A2A |
+| Embeddable in your application | ✅ core design | ❌ | ❌ (dev server only for tests) | ❌ (dedicated cluster) |
+| Zero-infrastructure test mode | ✅ in-memory, in-process | 🟡 Testcontainers | 🟡 local dev server / test framework | 🟡 SDK test harness / in-memory |
 
-The gaps are as informative as the checkmarks: if you need multi-tenancy **inside a single engine** — one deployment serving isolated tenants — Camunda and Temporal have it and EventConductor does not. Note, though, that this follows from the architecture rather than being a missing feature: an embedded engine partitions by deployment, so the isolation boundary is the service (see [one engine per bounded context](#the-axis-that-does-scale-one-engine-per-bounded-context)). If your tenants are genuinely a runtime dimension of one shared deployment, that distinction will not help you and the platforms are the better fit. Conversely, if you want the engine *inside* your application, workflows as reviewable data, forms included, and MIT licensing in production, only EventConductor offers that combination.
+The gaps are as informative as the checkmarks: if you need multi-tenancy **inside a single engine** — one deployment serving isolated tenants — Camunda, Temporal, and Orkes have it and EventConductor does not. Note, though, that this follows from the architecture rather than being a missing feature: an embedded engine partitions by deployment, so the isolation boundary is the service (see [one engine per bounded context](#the-axis-that-does-scale-one-engine-per-bounded-context)). If your tenants are genuinely a runtime dimension of one shared deployment, that distinction will not help you and the platforms are the better fit. Conversely, if you want the engine *inside* your application, workflows as reviewable data, forms included, and MIT licensing in production, only EventConductor offers that combination.
 
 ## When to choose which
 
@@ -344,6 +359,12 @@ The gaps are as informative as the checkmarks: if you need multi-tenancy **insid
 - You need extreme scale or polyglot workflow authors (Go, TypeScript, Python, .NET teams writing their own workflows).
 - Human tasks are rare or absent, and your team is comfortable with determinism rules and workflow versioning.
 
+**Choose Conductor (OSS / Orkes) if:**
+
+- You want declarative JSON workflows like EventConductor's, but as a **standalone, language-agnostic platform** with first-class polyglot worker SDKs (Go, Python, .NET, JS) rather than an embedded Java/Spring library.
+- You want an explicit, structural control-flow graph (`FORK_JOIN`, `SWITCH`, `DO_WHILE`) and a pluggable persistence tier — Cassandra when you need proven high scale — and you are willing to run the cluster, or to buy **Orkes** to have it managed with enterprise RBAC, secrets, and human tasks.
+- Your workers are polyglot and a poll-based task model suits them.
+
 **Choose EventConductor if:**
 
 - You live in the Java/Spring ecosystem and want orchestration as a **library, not another platform to operate**.
@@ -354,4 +375,4 @@ The gaps are as informative as the checkmarks: if you need multi-tenancy **insid
 
 Read the Temporal trade-off as **fit, not fragility**. Its determinism rules, workflow versioning and replay debugging are a genuine learning curve and an ongoing discipline — but a learnable and well-tooled one (SDK guardrails, replay tests in CI, and Temporal Cloud to take the cluster off your hands), not a defect. If your process truly needs durable execution as code, that discipline is worth the investment and nothing else matches it. If your process is naturally steps and data, a declarative engine simply spares you the discipline — you skip the cost because you would be paying for power you are not going to use, not because the alternative is delicate. Choosing the simpler tool is a statement about your problem, not a verdict on the others.
 
-It is fair to also state the reverse: EventConductor is a young project without Camunda's ecosystem or Temporal's proven extreme-scale deployments, its engine is Java/Spring only (workers can be any language via Kafka), and there is no BPMN standard behind it. If those are your constraints, the alternatives above are excellent tools.
+It is fair to also state the reverse: EventConductor is a young project without Camunda's ecosystem, Temporal's proven extreme-scale deployments, or Conductor's polyglot-platform maturity; its engine is Java/Spring only (workers can be any language via Kafka), and there is no BPMN standard behind it. Conductor in particular is the closest alternative in philosophy — declarative JSON owned by developers — so if you want that model as a standalone, polyglot platform (and are happy to run a cluster, or pay Orkes to) rather than an embedded library, it is the natural thing to weigh EventConductor against. If those are your constraints, the alternatives above are excellent tools.
