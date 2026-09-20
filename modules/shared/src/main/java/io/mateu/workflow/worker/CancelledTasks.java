@@ -79,6 +79,16 @@ public final class CancelledTasks {
     }
 
     /**
+     * Whether this task is currently recorded as cancelled, <b>without</b> consuming the record.
+     * For a running handler to poll mid-flight (the imperative worker runtime's {@code
+     * TaskContext.isCancelled()}); the before-start and before-reply checks stay {@link #claim} so
+     * a single cancellation still fires exactly once.
+     */
+    public boolean isCancelled(String taskExecutionId) {
+        return cancelled.contains(taskExecutionId);
+    }
+
+    /**
      * Completes when this task is cancelled. Never completes otherwise, which is what makes it
      * usable as the "other" of a {@code takeUntilOther}: it only ever cuts work short on purpose.
      */
