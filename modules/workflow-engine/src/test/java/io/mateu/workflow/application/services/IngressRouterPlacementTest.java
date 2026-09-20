@@ -43,8 +43,15 @@ class IngressRouterPlacementTest {
 
     /** A stand-in for the real store: first claim wins, everyone else reads the incumbent. */
     private final Map<String, String> placed = new HashMap<>();
-    private final ProcessPlacementRepository placement =
-            (businessKey, candidate) -> placed.computeIfAbsent(businessKey, k -> candidate);
+    private final ProcessPlacementRepository placement = new ProcessPlacementRepository() {
+        public java.util.Optional<String> find(String businessKey) {
+            return java.util.Optional.ofNullable(placed.get(businessKey));
+        }
+
+        public String claim(String businessKey, String candidate) {
+            return placed.computeIfAbsent(businessKey, k -> candidate);
+        }
+    };
 
     private IngressRouter router(ProcessPlacementRepository store) {
         return new IngressRouter(upstreamEventPublisher, ingressPublisher,
@@ -105,8 +112,14 @@ class IngressRouterPlacementTest {
     @Test
     void aClaimThatCannotBeMadeStopsTheCreationRatherThanPlacingItAnyway() {
         when(shardRegistry.activeShards()).thenReturn(List.of("s0"));
-        ProcessPlacementRepository unreachable = (businessKey, candidate) -> {
-            throw new IllegalStateException("read database is down");
+        ProcessPlacementRepository unreachable = new ProcessPlacementRepository() {
+            public java.util.Optional<String> find(String businessKey) {
+                throw new IllegalStateException("read database is down");
+            }
+
+            public String claim(String businessKey, String candidate) {
+                throw new IllegalStateException("read database is down");
+            }
         };
 
         // Fail closed: a creation is retryable at its source, a duplicated process is not repairable.

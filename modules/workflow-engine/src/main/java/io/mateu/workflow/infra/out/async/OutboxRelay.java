@@ -49,6 +49,7 @@ public class OutboxRelay {
     final StreamBridge streamBridge;
     final JdbcTemplate jdbcTemplate;
     final DbLockDialect dbLockDialect;
+    final io.mateu.workflow.application.services.messagerouting.MessageRouter messageRouter;
 
     @org.springframework.beans.factory.annotation.Value("${workflow.outbox-poll-interval-ms:500}")
     long pollIntervalMs;
@@ -160,14 +161,28 @@ public class OutboxRelay {
             try {
                 OutboxDrain.Result result;
                 do {
-                    result = outboxDrain.drain(batchSize, event ->
-                            PartitionedEvents.send(streamBridge, bindingFor(event), event));
+                    result = outboxDrain.drain(batchSize, this::relay);
                 } while (result.claimed() >= batchSize && result.settled() > 0);
                 return result;
             } finally {
                 dbLockDialect.releaseRelayGate(con);
             }
         });
+    }
+
+    /**
+     * Relays one drained event. A {@code SEND_MESSAGE}'s {@link MessageReceived}, when sharding and
+     * message routing are on, is handed to the {@link MessageRouter} — which sends it to the shard(s)
+     * that can correlate it — instead of being broadcast to the shared {@code messages} topic.
+     * Everything else (and every message with routing off) goes to its {@link RelayDestination}.
+     */
+    private void relay(io.mateu.workflow.ddd.DomainEvent event) {
+        if (sharedMessages && messageRouter.isEnabled()
+                && event instanceof io.mateu.workflow.dtos.events.integration.MessageReceived message) {
+            messageRouter.route(message);
+            return;
+        }
+        PartitionedEvents.send(streamBridge, bindingFor(event), event);
     }
 
     /** See {@link RelayDestination} — where a relayed event goes, and why anything leaves `outbox`. */

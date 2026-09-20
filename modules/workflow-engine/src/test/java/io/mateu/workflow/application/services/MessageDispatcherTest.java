@@ -2,6 +2,7 @@ package io.mateu.workflow.application.services;
 
 import io.mateu.workflow.application.out.MessagePublisher;
 import io.mateu.workflow.application.out.UpstreamEventPublisher;
+import io.mateu.workflow.application.services.messagerouting.MessageRouter;
 import io.mateu.workflow.dtos.events.integration.MessageReceived;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -10,8 +11,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
 
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 /**
  * The message routing switch. Off (single cluster) → the process's own {@code upstream}, exactly as
@@ -23,22 +26,35 @@ class MessageDispatcherTest {
 
     @Mock UpstreamEventPublisher upstreamEventPublisher;
     @Mock MessagePublisher messagePublisher;
+    @Mock MessageRouter messageRouter;
 
     private final MessageReceived message = new MessageReceived("payment-received", "bk-1", List.of());
 
     @Test
     void routesToUpstreamWhenSharedTopicOff() {
-        new MessageDispatcher(upstreamEventPublisher, messagePublisher, false).dispatch(message);
+        new MessageDispatcher(upstreamEventPublisher, messagePublisher, messageRouter, false).dispatch(message);
 
         verify(upstreamEventPublisher).publish(message);
-        verifyNoInteractions(messagePublisher);
+        verifyNoInteractions(messagePublisher, messageRouter);
     }
 
     @Test
-    void routesToSharedMessagesTopicWhenOn() {
-        new MessageDispatcher(upstreamEventPublisher, messagePublisher, true).dispatch(message);
+    void broadcastsToSharedMessagesTopicWhenShardedAndRoutingOff() {
+        lenient().when(messageRouter.isEnabled()).thenReturn(false);
+
+        new MessageDispatcher(upstreamEventPublisher, messagePublisher, messageRouter, true).dispatch(message);
 
         verify(messagePublisher).publish(message);
         verifyNoInteractions(upstreamEventPublisher);
+    }
+
+    @Test
+    void routesThroughTheRouterWhenShardedAndRoutingOn() {
+        when(messageRouter.isEnabled()).thenReturn(true);
+
+        new MessageDispatcher(upstreamEventPublisher, messagePublisher, messageRouter, true).dispatch(message);
+
+        verify(messageRouter).route(message);
+        verifyNoInteractions(upstreamEventPublisher, messagePublisher);
     }
 }

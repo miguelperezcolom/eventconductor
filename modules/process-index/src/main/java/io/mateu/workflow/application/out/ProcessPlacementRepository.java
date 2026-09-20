@@ -23,6 +23,13 @@ package io.mateu.workflow.application.out;
 public interface ProcessPlacementRepository {
 
     /**
+     * The shard this business key is already placed on, or empty if it was never claimed. A
+     * read-only lookup — unlike {@link #claim(String, String)} it never places the key — used to
+     * <b>route</b> a message to the shard that owns a business key rather than broadcasting it.
+     */
+    java.util.Optional<String> find(String businessKey);
+
+    /**
      * The shard this business key is placed on: {@code candidateShardId} if this call won the claim,
      * the incumbent's shard if another call got there first. Never null.
      *

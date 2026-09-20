@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Sharded message routing (phase 1): messages start to reach only the shards that can correlate
+  them, instead of every shard.** Behind `workflow.sharding.message-routing.enabled` (default false;
+  with it off, or with sharding off, behaviour is exactly as before). A single `MessageRouter` — used
+  by both the external-message path (`MessageDispatcher`) and the `SEND_MESSAGE` relay — routes each
+  message: a `MessageClassifier` derives, from the `WAIT_FOR_MESSAGE` steps of every imported
+  definition, whether a message name correlates by business key or by expression; a business-key
+  message is sent to the shard the placement store owns that key on (`ProcessPlacementRepository.find`,
+  a new read-only lookup), and everything else — an expression key, an unplaced key (e.g. a child
+  process, whose key is `parent:<id>` and never placed), or no placement store — falls through to the
+  broadcast that exists today. Routing only filters; the receiving shard still runs the normal
+  correlation, so a wrong guess costs a query or a broadcast, never a lost message. Metrics count
+  messages by route and correlation queries per shard. (The subscription table for expression and
+  unplaced keys is phase 2; the residual Bloom filter is phase 3.)
 - **Task contracts: an ACTION step can declare the task it runs, so worker types can be generated
   from it.** A contract lives in a `.ectask` file under `definitions/tasks/` — `id`, `version`,
   `group`, `topic`, `description`, `input`, `output`, `errors` (see

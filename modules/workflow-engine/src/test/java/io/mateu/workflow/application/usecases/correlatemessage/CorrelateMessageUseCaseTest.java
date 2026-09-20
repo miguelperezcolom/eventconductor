@@ -28,6 +28,7 @@ class CorrelateMessageUseCaseTest {
 
     @Mock StepExecutionRepository stepExecutionRepository;
     @Mock CompleteMessageStepHandler completeMessageStepHandler;
+    @Mock io.mateu.workflow.application.services.messagerouting.MessageRoutingMetrics messageRoutingMetrics;
 
     // The real no-op, not a mock: a mocked span() would swallow the work it is meant to wrap.
     @org.mockito.Spy
