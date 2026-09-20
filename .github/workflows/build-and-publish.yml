@@ -52,7 +52,13 @@ jobs:
           node-version: 24
 
       - name: Set Maven version from release tag
-        run: mvn -B versions:set -DnewVersion=${{ env.RELEASE_VERSION }} -DprocessAllModules=true -DgenerateBackupPoms=false --file pom.xml
+        # Also bump the ec.version property, which the generated-worker parents (task-module-parent /
+        # task-service-parent) hand downstream as the engine version to build against: versions:set
+        # bumps module versions but not properties, so without this the published parents would point
+        # at a stale engine and the in-repo example would not resolve the plugin at the release version.
+        run: |
+          mvn -B versions:set -DnewVersion=${{ env.RELEASE_VERSION }} -DprocessAllModules=true -DgenerateBackupPoms=false --file pom.xml
+          mvn -B versions:set-property -Dproperty=ec.version -DnewVersion=${{ env.RELEASE_VERSION }} -DprocessAllModules=true -DgenerateBackupPoms=false --file pom.xml
 
       - name: Build + run tests + JaCoCo coverage check
         run: mvn -B -ntp verify --file pom.xml
