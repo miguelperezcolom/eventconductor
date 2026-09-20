@@ -1,0 +1,28 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <!--
+      Example generated TASK MODULE, and the integration test for the parents and the generator:
+      its whole pom is a parent plus two ec.* properties, exactly as a real one would be. Building it
+      runs generate-worker-sources over greet.ectask and compiles the hand-written handler below
+      against the generated interface and records — so if this module builds, the module parent, the
+      goal and the generator all agree.
+    -->
+    <parent>
+        <groupId>io.mateu.workflow</groupId>
+        <artifactId>task-module-parent</artifactId>
+        <version>1.0-SNAPSHOT</version>
+        <relativePath>../../parents/task-module-parent/pom.xml</relativePath>
+    </parent>
+
+    <artifactId>greetings-tasks</artifactId>
+    <name>greetings-tasks (example)</name>
+
+    <properties>
+        <ec.group>greetings</ec.group>
+        <ec.basePackage>com.example</ec.basePackage>
+        <!-- An in-repo example, not a published artifact: keep it off Maven Central. -->
+        <maven.deploy.skip>true</maven.deploy.skip>
+    </properties>
+</project>

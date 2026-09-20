@@ -23,6 +23,75 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`message_subscription`) and the router's layer-2 lookup for expression/unplaced keys are in place
   but **not yet populated** — the projection that fills them from waiting steps, and the residual
   per-shard Bloom filter, come next; until then those keys fall through to broadcast, unchanged.
+
+## [2.17.1] - 2026-09-20
+
+<!-- 2.17.0 was tagged but never published (a transient Central 429, then a release-config fix);
+     2.17.1 is the first published cut of this work. -->
+
+### Added
+- **UI: a Tasks view and one-click worker projects.** The engine UI gained a read-only **Tasks**
+  view (in the full and admin menus) listing every task contract version, its group and topic, how
+  many workflow definitions use it, and links to download a ready-to-build worker project. A plain
+  HTTP endpoint (`/eventconductor/tasks/{group}/module.zip` and `…/service.zip`) serves the zip —
+  the generated project skeleton (from `worker-codegen`, the same generator the Maven goal and IDE
+  use) bundled with the group's `.ectask` contracts, so the download builds on its own — and the
+  view shows the Maven dependency snippet for adding the module to an existing service.
+- **Task worker code generation: a `.ectask` contract becomes the Java you implement against, and a
+  whole project is just a parent and a few properties.** A new pure module `worker-codegen` (the
+  single source the Maven goal, the IDE and the UI share — contracts and a little configuration in,
+  files out, deterministically) turns each contract version into an `Input` and `Output` record with
+  the attributes mapped to Java types (string→String, integer→Long, number→BigDecimal,
+  boolean→Boolean, date→LocalDate, datetime→LocalDateTime, object→JsonNode, array→List; an attribute
+  whose name is not a Java identifier keeps its wire name via `@JsonProperty`), a `<Id>V<n>Task`
+  interface that specialises worker-api's `TaskHandler` with a nested `TaskFailure` subclass per
+  declared error, and — one per `group` — an `@AutoConfiguration` that binds each implemented handler
+  into a `TaskRegistration` bean, gated by `eventconductor.tasks.<id>.enabled` (a task declared but
+  not implemented fails startup naming the interface, unless disabled). The version is part of every
+  generated type name so a contract's versions coexist, and the generated `AutoConfiguration.imports`
+  is written to a generated resources root so the registrations are found without component-scanning.
+  For a standalone service it also emits the `@SpringBootApplication` class. The `workflow-maven-plugin`
+  goal `generate-worker-sources` (bound to `generate-sources`) resolves the contracts from a versioned
+  Maven artifact (`definitions`, the reproducible default), a git checkout pinned to a tag or commit
+  (`repository`/`ref`; a branch is refused unless `allowBranch`), or the project's own
+  `src/main/resources/tasks`, selects them by `group` or `tasks`, and writes to `generated-sources`.
+  Two parents carry all the build logic (decisions 14/15): `task-module-parent` for a library added
+  to an existing service, `task-service-parent` for a runnable Kafka service (Actuator, image build,
+  `KAFKA_BROKERS`/group defaults) — a generated project is then only a `pom` with parent, coordinates
+  and `ec.*` properties, plus a README generated from the contract. An in-repo example
+  (`examples/greetings-tasks`) is exactly that pom and one handler, and it builds end to end. A
+  developer now writes only the handler.
+- **Docs: the task contract format and the worker protocol are documented for other-language
+  generators (decision 17).** A new reference page (`reference/task-contracts.md`) specifies the
+  `.ectask` fields, the attribute→JSON→Java type mapping, and the three-event wire protocol
+  (`TaskExecutionRequested`, `TaskCancellationRequested`, `TaskStatusChanged`) with its at-least-once
+  reply contract; `reference/maven-plugin.md` documents the `generate-worker-sources` goal; and
+  `guides/workers.md` now leads with the generated flow, keeping `WorkerReply`/`EmbeddedTaskExecutor`
+  as the documented low-level protocol beneath it.
+- **IDE actions scaffold a worker from a task contract.** Both IDE plugins gained, on a `.ectask`,
+  three actions: **Create task module** and **Create task service** (generate a `<group>-tasks` /
+  `<group>-service` project — a `pom` inheriting the right parent, the contract, and for a service
+  the `application.yaml`/`.gitignore`), and **Add task dependency** (insert a dependency on the
+  `<group>-tasks` module into the nearest `pom.xml`). The IntelliJ plugin reuses `worker-codegen`
+  directly (decision 16: one source of templates), resolving it from the local Maven build; the
+  VS Code plugin mirrors the same output in TypeScript.
+- **Worker runtime: implement a `TaskHandler` and a library speaks the engine's protocol for you,
+  the same handler in Kafka and embedded mode.** Three modules split the concern: `worker-api` is
+  the broker-free core a developer (and the generator) codes against — `TaskHandler<I,O>`,
+  `TaskContext`, `TaskFailure` (a declared business error), `TaskRegistration`, and a `TaskDispatcher`
+  that resolves the handler by the dispatched `taskId` (falling back to `stepId`), binds the process
+  `Variable`s to the handler's typed input and its output back to variables with Jackson, checks
+  cancellation before starting and before replying, and maps the outcome (return → completed,
+  `TaskFailure` → failed with its code, anything else → failed with the message, so the engine
+  retries per the step's `retries`). `worker-kafka` binds the `consumeWorkerEvent` function to the
+  task topic and answers over the `upstream` topic via `WorkerReply` — its `EnvironmentPostProcessor`
+  adds `consumeWorkerEvent` to `spring.cloud.function.definition` without dropping an application's
+  own functions; a broker that refuses the reply after its retries leaves the offset uncommitted so
+  the task is redelivered. `worker-embedded` supplies the engine's `EmbeddedTaskExecutor` and calls
+  `UpdateStepExecutionUseCase` back directly, in `afterCommit` when a transaction is open. A reply is
+  transaction-aware and worker-api never drags Spring Cloud Stream onto a handler's classpath. This
+  is the runtime the task contracts are for; the code generator that turns a `.ectask` into the
+  typed interfaces and registration comes next.
 - **Task contracts: an ACTION step can declare the task it runs, so worker types can be generated
   from it.** A contract lives in a `.ectask` file under `definitions/tasks/` — `id`, `version`,
   `group`, `topic`, `description`, `input`, `output`, `errors` (see
@@ -58,6 +127,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   step with a distinct slate "waiting on a lock" border; the `.ec` schema and the IDE plugins gained
   the new step types and the `processLock` attribute. Wait order under identical `enqueued_at` ticks
   is not yet a strict FIFO tie-break (a monotonic sequence column is the hardening).
+
+### Changed
+- **`sample-worker` migrated to the generated runtime.** The canonical copyable worker no longer
+  hand-wires a Spring Cloud Stream consumer: it declares `greet.ectask`, depends on `worker-kafka`,
+  and its whole implementation is a `@Component` handler of the generated `GreetV1Task` interface.
+  The hand-written consumer and its cancellation test are gone — that behaviour now lives in, and is
+  tested in, `worker-kafka`.
+
+<!--
+  Next steps outside this repo (task-contract workers), noted per the plan:
+  - ec-definitions: publish the versioned definitions zip so services resolve contracts by artifact.
+  - ec-demo1: migrate the booking worker to a `booking-tasks` module, implemented in the `booking`
+    service alongside its CRUD and MCP tools.
+-->
 
 ## [2.16.5] - 2026-09-19
 

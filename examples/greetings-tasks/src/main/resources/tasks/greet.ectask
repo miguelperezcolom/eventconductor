@@ -1,0 +1,12 @@
+id: greet
+version: 1
+group: greetings
+topic: greetings
+description: Greet someone by name
+input:
+  name:
+    type: string
+    required: true
+output:
+  message:
+    type: string

@@ -1,0 +1,15 @@
+id: greet
+version: 1
+group: greetings
+topic: sample-greetings
+description: Greet a person by name — the sample worker task.
+input:
+  name:
+    type: string
+    required: true
+output:
+  message:
+    type: string
+errors:
+  - code: EMPTY_NAME
+    description: the name was blank

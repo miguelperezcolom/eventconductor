@@ -14,9 +14,9 @@ import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertTha
 class NavigationJourneyTest extends AbstractUiE2eTest {
 
     @Test
-    void theWorkflowMenuOffersTheEnginesFourSections() {
+    void theWorkflowMenuOffersTheEnginesSections() {
         org.assertj.core.api.Assertions.assertThat(ui.workflowMenuItems())
-                .containsExactlyInAnyOrder("Definitions", "Processes", "Steps", "Analytics");
+                .containsExactlyInAnyOrder("Definitions", "Processes", "Steps", "Tasks", "Analytics");
     }
 
     @Test

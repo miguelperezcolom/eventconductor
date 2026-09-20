@@ -110,3 +110,48 @@ src/main/resources/workflows/order.yaml:
 | `failOnError` | `eventconductor.validate.failOnError` | `true` | Fail the build on violations (otherwise warn). |
 | `failOnMissing` | `eventconductor.validate.failOnMissing` | `false` | Fail if a configured directory has no definitions. |
 | `skip` | `eventconductor.validate.skip` | `false` | Skip validation entirely. |
+
+## Generating worker types: the `generate-worker-sources` goal
+
+The second goal turns task contracts into the Java a worker developer implements against — records,
+a `<Id>V<n>Task` interface per contract version, a `TaskFailure` subclass per declared error, and a
+per-group `@AutoConfiguration` that registers each implemented handler. It binds to
+`generate-sources`, writes to `target/generated-sources` (added as a compile root) and a generated
+resources root (the `AutoConfiguration.imports`), and never emits code you edit. Most projects get
+it for free by inheriting `task-module-parent` or `task-service-parent`; see
+[implementing workers](/guides/workers/#generating-a-worker-from-a-task-contract) and
+[the task contract format](/reference/task-contracts/).
+
+The contracts come from, in order of precedence: a **Maven artifact** (`definitions`, a versioned
+zip — the reproducible default), a **git** checkout (`repository` + `ref`, pinned to a tag or
+commit; a branch is refused unless `allowBranch`), or the project's own `tasksDirectory`. Select a
+subset with `group` or `tasks`.
+
+```xml
+<plugin>
+  <groupId>io.mateu.workflow</groupId>
+  <artifactId>workflow-maven-plugin</artifactId>
+  <executions>
+    <execution>
+      <goals><goal>generate-worker-sources</goal></goals>
+    </execution>
+  </executions>
+  <configuration>
+    <basePackage>com.example</basePackage>
+    <group>greetings</group>
+  </configuration>
+</plugin>
+```
+
+| Parameter | Property | Default | Description |
+|---|---|---|---|
+| `basePackage` | `eventconductor.generate.basePackage` | `io.mateu.workflow.tasks.generated` | Base package; a contract's group is appended as a sub-package. |
+| `tasksDirectory` | | `${basedir}/src/main/resources/tasks` | Local contracts, used when neither `definitions` nor `repository` is set. |
+| `definitions` | `eventconductor.generate.definitions` | | Definitions Maven artifact `groupId:artifactId:version` (resolved as a zip). |
+| `repository` | `eventconductor.generate.repository` | | Git repository URL for the definitions. |
+| `ref` | `eventconductor.generate.ref` | | Git tag or commit to check out (a branch needs `allowBranch`). |
+| `allowBranch` | `eventconductor.generate.allowBranch` | `false` | Allow a git branch ref (warns instead of failing). |
+| `group` | `eventconductor.generate.group` | | Generate only these groups (comma-separated). |
+| `tasks` | `eventconductor.generate.tasks` | | Generate only these tasks (`id` or `id@version`, comma-separated). |
+| `applicationClass` | `eventconductor.generate.applicationClass` | | Also generate this `@SpringBootApplication` class (a standalone service). |
+| `skip` | `eventconductor.generate.skip` | `false` | Skip generation entirely. |

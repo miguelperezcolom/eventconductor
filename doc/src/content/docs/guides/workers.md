@@ -3,9 +3,94 @@ title: Implementing Workers
 description: How to implement workers that handle ACTION steps in your workflows.
 ---
 
-A worker receives a `TaskExecutionRequested` event, performs business logic, and reports back a `TaskStatusChanged` event with the outcome and output variables.
+A worker performs the business logic of an `ACTION` step: it is handed the process variables, does its work, and reports the outcome and any output variables back to the engine. Workers are **stateless** — the orchestrator handles retries, timeouts and error tracking.
 
-Workers are **stateless** — they receive input variables, do their work, and return output variables. The orchestrator handles retries, timeouts, and error tracking.
+There are two ways to write one. The **recommended** way is to declare a *task contract* and let EventConductor generate the typed interface you implement — you write only the business logic, and the same handler runs unchanged over Kafka or embedded in the engine. Underneath it sits a **low-level protocol** (`WorkerReply`, `EmbeddedTaskExecutor`) that you can still use directly when you need to; it is documented in full further down.
+
+## Generating a worker from a task contract
+
+### 1. Declare the contract
+
+A task contract is a `.ectask` file under `src/main/resources/tasks/` (or in your definitions repository, next to the workflows). It is the shape an `ACTION` step commits to when it references the task by id:
+
+```yaml
+id: greet
+version: 1
+group: greetings
+topic: sample-greetings
+description: Greet a person by name.
+input:
+  name:
+    type: string
+    required: true
+output:
+  message:
+    type: string
+errors:
+  - code: EMPTY_NAME
+    description: the name was blank
+```
+
+A workflow step uses it with `task: greet` (pinned to the latest version at import) or `task: greet@1`. See [versioning](/reference/versioning/) for how versions and in-flight processes coexist, and [the task contract format](/reference/task-contracts/) for every field.
+
+### 2. Generate the types
+
+Run the `generate-worker-sources` goal of the [workflow-maven-plugin](/reference/maven-plugin/). The simplest projects inherit a parent that wires it for you:
+
+- **`task-module-parent`** — a library you add to any Spring Boot service;
+- **`task-service-parent`** — a runnable standalone Kafka service (the `@SpringBootApplication`, Actuator and image build are set up for you).
+
+Either way the generated project is just a `pom` with the parent, coordinates and a few properties:
+
+```xml
+<parent>
+  <groupId>io.mateu.workflow</groupId>
+  <artifactId>task-module-parent</artifactId>
+  <version>...</version>
+</parent>
+<artifactId>greetings-tasks</artifactId>
+<properties>
+  <ec.group>greetings</ec.group>
+  <ec.basePackage>com.example</ec.basePackage>
+</properties>
+```
+
+For each contract version the generator writes, into `target/generated-sources` (never edited), a `GreetV1Input` and `GreetV1Output` record, a `GreetV1Task` interface, a `TaskFailure` subclass per declared error, and a per-group `@AutoConfiguration` that registers your handler.
+
+### 3. Implement the handler
+
+Implement the generated interface as a Spring bean. That is the entire worker:
+
+```java
+@Component
+public class GreetHandler implements GreetV1Task {
+
+    @Override
+    public GreetV1Output handle(GreetV1Input input, TaskContext context) {
+        if (input.name() == null || input.name().isBlank()) {
+            throw new GreetV1Task.EmptyName("a name is required");   // a declared business error
+        }
+        return new GreetV1Output("Hello, " + input.name() + "!");
+    }
+}
+```
+
+Return normally to complete the step; throw a generated `TaskFailure` subclass (one per `errors` entry) to fail it with that business code; any other exception fails it with the exception's text and the engine retries it per the step's `retries`. `TaskContext` gives you the ids, `isCancelled()` and `progress(...)`.
+
+**Declaring a task obliges you to implement it**: if the handler bean is missing, the application fails to start with a message naming the interface — unless you opt out with `eventconductor.tasks.<id>.enabled=false`.
+
+### 4. Choose the transport
+
+The host decides the transport; the handler does not change:
+
+- add **`worker-kafka`** for a service that talks to the engine over Kafka (the `consumeWorkerEvent` binding, the `upstream`/task topics and cancellation are wired automatically);
+- add **`worker-embedded`** to run the handler in-process inside an embedded engine.
+
+`worker-api`, which the generated code depends on, never puts Spring Cloud Stream on your classpath. The in-repo `modules/sample-worker` is a full Kafka example, and `examples/greetings-tasks` is the minimal task module.
+
+## The low-level worker protocol
+
+Everything above is built on the protocol below. Use it directly when you are not generating from a contract, or to understand what the runtime does on your behalf.
 
 ## Kafka worker
 

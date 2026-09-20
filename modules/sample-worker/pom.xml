@@ -64,21 +64,42 @@
             <optional>true</optional>
         </dependency>
 
-        <dependency>
-            <groupId>org.springframework.cloud</groupId>
-            <artifactId>spring-cloud-starter-stream-kafka</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.cloud</groupId>
-            <artifactId>spring-cloud-stream</artifactId>
-        </dependency>
+        <!-- The Kafka worker runtime: it brings worker-api, the wire contracts, Spring Cloud Stream
+             and the consumeWorkerEvent binding, so this module carries no hand-wired consumer. -->
         <dependency>
             <groupId>io.mateu.workflow</groupId>
-            <artifactId>shared</artifactId>
+            <artifactId>worker-kafka</artifactId>
             <version>1.0-SNAPSHOT</version>
-            <scope>compile</scope>
+        </dependency>
+        <!-- The generated @AutoConfiguration/@Bean annotations (worker-api keeps Spring optional). -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-autoconfigure</artifactId>
         </dependency>
 
     </dependencies>
+
+    <build>
+        <plugins>
+            <!-- Generate the task types from src/main/resources/tasks/*.ectask before compiling, so
+                 the only thing left to write is the handler below. -->
+            <plugin>
+                <groupId>io.mateu.workflow</groupId>
+                <artifactId>workflow-maven-plugin</artifactId>
+                <version>1.0-SNAPSHOT</version>
+                <executions>
+                    <execution>
+                        <id>generate-worker-sources</id>
+                        <goals>
+                            <goal>generate-worker-sources</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <basePackage>io.mateu.sample</basePackage>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
 
 </project>

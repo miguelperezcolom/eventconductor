@@ -11,6 +11,10 @@ version = "0.1.20"
 
 repositories {
     mavenCentral()
+    // The task-worker generator (worker-codegen) is built and installed from this repo's Maven
+    // reactor, so the "Create task module/service" actions can reuse it — decision 16 keeps the
+    // project templates in one place, and the JVM plugin calls that place directly.
+    mavenLocal()
     intellijPlatform {
         defaultRepositories()
     }
@@ -25,6 +29,14 @@ dependencies {
         // YAML support so .ec (parsed as YAML) gets highlighting + schema validation.
         bundledPlugin("org.jetbrains.plugins.yaml")
     }
+    // The single source of task-worker project templates and source generation. Resolved from the
+    // local Maven repository (built with `mvn install` in the repo root); it brings jackson-databind
+    // transitively, which the actions use to parse a .ectask.
+    implementation("io.mateu.workflow:worker-codegen:1.0-SNAPSHOT")
+    // SnakeYAML is bundled with the YAML plugin this plugin already depends on, so it is on the
+    // classpath at runtime; compileOnly lets the actions parse a YAML .ectask without shipping a
+    // second copy.
+    compileOnly("org.yaml:snakeyaml:2.2")
 }
 
 intellijPlatform {
