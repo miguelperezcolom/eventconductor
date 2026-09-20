@@ -6,6 +6,7 @@ import io.mateu.workflow.application.usecases.correlatemessage.completemessagest
 import io.mateu.workflow.domain.aggregates.StepExecution;
 import io.mateu.workflow.domain.aggregates.StepExecutionStatus;
 import io.mateu.workflow.domain.aggregates.Variable;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -29,6 +30,7 @@ class CorrelateMessageUseCaseTest {
     @Mock StepExecutionRepository stepExecutionRepository;
     @Mock CompleteMessageStepHandler completeMessageStepHandler;
     @Mock io.mateu.workflow.application.services.messagerouting.MessageRoutingMetrics messageRoutingMetrics;
+    @Mock io.mateu.workflow.application.services.messagerouting.WaitingMessageFilter waitingMessageFilter;
 
     // The real no-op, not a mock: a mocked span() would swallow the work it is meant to wrap.
     @org.mockito.Spy
@@ -43,6 +45,13 @@ class CorrelateMessageUseCaseTest {
             new io.mateu.workflow.application.services.ProcessTrace(1.0);
 
     @InjectMocks CorrelateMessageUseCase useCase;
+
+    @BeforeEach
+    void filterLetsEverythingThrough() {
+        // The layer-3 filter is exercised in its own test; here it is transparent so these focus on
+        // the use case's own job. The one skip case stubs it back to false explicitly.
+        lenient().when(waitingMessageFilter.mightBeWaitingFor(any(), any())).thenReturn(true);
+    }
 
     private StepExecution pending(String id) {
         return StepExecution.builder()
@@ -81,5 +90,18 @@ class CorrelateMessageUseCaseTest {
         useCase.handle(new CorrelateMessageCommand("payment-received", "bk-1", List.of()));
 
         verify(completeMessageStepHandler, never()).handle(any());
+    }
+
+    @Test
+    void dropsWithoutQueryingWhenTheFilterSaysNoStepHereCanMatch() {
+        // Layer 3: the per-shard filter rules the pair out, so the shard drops a broadcast message
+        // without touching the database — the query this layer exists to save.
+        when(waitingMessageFilter.mightBeWaitingFor("payment-received", "bk-1")).thenReturn(false);
+
+        useCase.handle(new CorrelateMessageCommand("payment-received", "bk-1", List.of()));
+
+        verify(stepExecutionRepository, never()).findWaitingForMessage(any(), any());
+        verify(messageRoutingMetrics).correlationQuerySkipped();
+        verify(messageRoutingMetrics, never()).correlationQuery();
     }
 }

@@ -32,8 +32,17 @@ public class CorrelateMessageUseCase {
     final io.mateu.workflow.application.out.WorkflowTracing workflowTracing;
     final io.mateu.workflow.application.services.ProcessTrace processTrace;
     final io.mateu.workflow.application.services.messagerouting.MessageRoutingMetrics messageRoutingMetrics;
+    final io.mateu.workflow.application.services.messagerouting.WaitingMessageFilter waitingMessageFilter;
 
     public void handle(CorrelateMessageCommand command) {
+        // Layer 3: a broadcast reaches every shard, but the per-shard filter can say — without a
+        // query — that no step here is waiting for this pair, so the shard drops it. No false
+        // negatives: a pair a step here is waiting for is always in the filter (or the filter is
+        // disabled/not-ready and says "maybe"), so this only ever saves the query below.
+        if (!waitingMessageFilter.mightBeWaitingFor(command.messageName(), command.correlationKey())) {
+            messageRoutingMetrics.correlationQuerySkipped();
+            return;
+        }
         // The query whose S×M cost message routing exists to reduce; counted per shard so the
         // effect is measurable (a routed message reaches only the shard(s) that can match it).
         messageRoutingMetrics.correlationQuery();
