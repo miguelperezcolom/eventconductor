@@ -154,16 +154,29 @@ cannot, by two properties, both of which hold with routing on:
   is broadcast too. A wrong or unavailable answer costs an extra query on a shard that will not match,
   never a lost message — the receiving shard still runs the ordinary correlation, so routing changes
   *where* a message is tried, not *whether* it is.
+- **The per-shard filter can only ever save a query.** The residual layer — a Bloom filter each shard
+  keeps over the pairs it has waiting — is asked, of a broadcast message, "could a step here match?"
+  A Bloom filter never answers "no" for a pair it holds, so a waiting step is never filtered away; its
+  only possible error is the opposite one, saying "maybe" when nothing waits, which costs a query that
+  finds nothing and drops no message. The failure that would lose a message — "did not look, and
+  something was there" — cannot occur.
 - **A routed message is as durable as any other.** It rides the target shard's `upstream` Kafka topic,
   so a shard that is down when a message is routed to it correlates the message when it returns — the
   same recovery the broker-outage scenario already measures.
 
-Re-running the **broker-down** chaos scenario (`Dist06`) with routing present confirmed recovery is
-unchanged: the outage is ridden and progress resumes when the broker returns, exactly as with routing
-off. When the subscription layer is added, it carries one semantic to know — a *projection window*: a
-step that has started waiting but whose subscription has not projected yet is not yet visible to that
-layer, so it is still covered by the business-key and broadcast layers, and a `WAIT_FOR_MESSAGE` that
-cannot tolerate the window can opt out of routing to force broadcast.
+Two chaos scenarios confirm it. Re-running the **broker-down** scenario (`Dist06`) with routing present
+showed recovery unchanged: the outage is ridden and progress resumes when the broker returns, exactly
+as with routing off. `Dist21` then puts the message path itself through an outage with the filter on:
+20 processes are driven to a `WAIT_FOR_MESSAGE` and parked, the broker is stopped, each process's resume
+message is published into the dead broker, and while it is down nothing advances; when the broker
+returns **all 20 correlate their resume and complete, the outbox drains to zero, and nothing is
+dead-lettered** — no resume is lost across the outage, and the filter on the correlation path drops
+none of them.
+
+The subscription layer carries one semantic to know — a *projection window*: a step that has started
+waiting but whose subscription has not projected yet is not yet visible to that layer, so it is still
+covered by the business-key and broadcast layers, and a `WAIT_FOR_MESSAGE` that cannot tolerate the
+window can opt out of routing to force broadcast.
 
 ## What to watch in production
 
