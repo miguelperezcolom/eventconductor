@@ -1,6 +1,8 @@
 package io.mateu.workflow.infra.out.persistence;
 
+import io.mateu.workflow.application.out.MessageSubscriptionRepository;
 import io.mateu.workflow.application.out.ProcessPlacementRepository;
+import io.mateu.workflow.processindex.JdbcMessageSubscriptionStore;
 import io.mateu.workflow.processindex.JdbcProcessPlacementStore;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -34,5 +36,15 @@ public class ProcessPlacementConfiguration {
     @Bean
     public ProcessPlacementRepository processPlacementRepository(ProcessPlacementDataSource dataSource) {
         return new JdbcProcessPlacementStore(dataSource.dataSource());
+    }
+
+    /**
+     * The message-subscription routing table (layer 2), sharing the placement datasource: it is the
+     * same shared routing database, written by every shard's projection and read by the router to send
+     * a correlating message straight to the shard whose step is waiting.
+     */
+    @Bean
+    public MessageSubscriptionRepository messageSubscriptionRepository(ProcessPlacementDataSource dataSource) {
+        return new JdbcMessageSubscriptionStore(dataSource.dataSource());
     }
 }

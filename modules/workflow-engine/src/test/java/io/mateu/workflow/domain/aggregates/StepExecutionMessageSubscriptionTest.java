@@ -116,6 +116,61 @@ class StepExecutionMessageSubscriptionTest {
         assertThat(rearmed.getStartedAt()).isEqualTo(waiting.getStartedAt());
     }
 
+    private List<io.mateu.workflow.dtos.events.domain.MessageSubscriptionChanged> subscriptionEvents(
+            StepExecution stepExecution) {
+        return stepExecution.popEvents().stream()
+                .filter(io.mateu.workflow.dtos.events.domain.MessageSubscriptionChanged.class::isInstance)
+                .map(io.mateu.workflow.dtos.events.domain.MessageSubscriptionChanged.class::cast)
+                .toList();
+    }
+
+    @Test
+    void startingAWaitEmitsASubscribeSignal() {
+        var stepExecution = created(waitStep("payment-received", "orderId"))
+                .start(process("bk-1", new Variable("orderId", "O-77")));
+
+        assertThat(subscriptionEvents(stepExecution)).singleElement().satisfies(e -> {
+            assertThat(e.stepExecutionId()).isEqualTo(stepExecution.getId());
+            assertThat(e.messageName()).isEqualTo("payment-received");
+            assertThat(e.correlationKey()).isEqualTo("O-77");
+            assertThat(e.waiting()).isTrue();
+            assertThat(e.processId()).isEqualTo("p-1");
+        });
+    }
+
+    @Test
+    void startingAWaitWithNoResolvableKeyEmitsNoSubscribeSignal() {
+        // A null key indexes to nothing, so there is nothing to route: skip the subscription.
+        var stepExecution = created(waitStep("payment-received", "orderId")).start(process("bk-1"));
+
+        assertThat(subscriptionEvents(stepExecution)).isEmpty();
+    }
+
+    @Test
+    void reachingATerminalStatusEmitsAnUnsubscribeSignal() {
+        var stepExecution = created(waitStep("payment-received", "orderId"))
+                .start(process("bk-1", new Variable("orderId", "O-77")));
+        stepExecution.popEvents(); // drain the subscribe emitted at start
+
+        stepExecution.updateStatus(StepExecutionStatus.COMPLETED);
+
+        assertThat(subscriptionEvents(stepExecution)).singleElement().satisfies(e -> {
+            assertThat(e.stepExecutionId()).isEqualTo(stepExecution.getId());
+            assertThat(e.messageName()).isEqualTo("payment-received");
+            assertThat(e.waiting()).isFalse();
+        });
+    }
+
+    @Test
+    void aNonWaitStepReachingTerminalEmitsNoUnsubscribeSignal() {
+        var stepExecution = created(actionStep()).start(process("bk-1"));
+        stepExecution.popEvents();
+
+        stepExecution.updateStatus(StepExecutionStatus.COMPLETED);
+
+        assertThat(subscriptionEvents(stepExecution)).isEmpty();
+    }
+
     @Test
     void rearmingArmsAStepThatStartedBeforeTheFieldsExisted() {
         // What the boot-time runner relies on: a step rehydrated without a subscription gets
