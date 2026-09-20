@@ -267,8 +267,16 @@ sends it only to the shard(s) waiting for it:
 **Layer 3 — a per-shard Bloom filter**, the residual, for anything still broadcast. A message the
 first two layers cannot place still goes to every shard — but each shard first checks an in-memory
 Bloom filter over the `(name, key)` pairs *it* has waiting, and drops the message without a query
-when the filter rules it out. It needs no shared store at all, so it recovers the same M/S per-shard
-load even in pure broadcast mode:
+when the filter rules it out.
+
+A [Bloom filter](https://en.wikipedia.org/wiki/Bloom_filter) is a small, fixed-size bit array with a
+handful of hash functions that answers one question — "is this in the set?" — in constant memory. To
+record a pair it hashes it to *k* positions and sets those bits; to test one it checks the same
+positions, and if *any* is still zero the pair was definitely never added. That is the property that
+makes it safe to skip a query: a "no" is always true. Its whole cost is a fixed-size array (here about
+120 KB per shard for 100,000 waiting pairs, whatever the actual count) instead of an exact set that
+would grow with every waiter — and it needs no shared store at all, so it recovers the same M/S
+per-shard load even in pure broadcast mode:
 
 | shards | broadcast (no filter) | broadcast + filter |
 |---|---|---|
