@@ -7,7 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [2.17.0] - 2026-09-20
+## [2.17.1] - 2026-09-20
+
+<!-- 2.17.0 was tagged but never published (a transient Central 429, then a release-config fix);
+     2.17.1 is the first published cut of this work. -->
 
 ### Added
 - **UI: a Tasks view and one-click worker projects.** The engine UI gained a read-only **Tasks**
