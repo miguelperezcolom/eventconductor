@@ -106,9 +106,55 @@
         "command": "eventconductor.form.showTextBeside",
         "title": "EventConductor: Show YAML/JSON side-by-side",
         "icon": "$(split-horizontal)"
+      },
+      {
+        "command": "eventconductor.createTaskModule",
+        "title": "EventConductor: Create Task Module"
+      },
+      {
+        "command": "eventconductor.createTaskService",
+        "title": "EventConductor: Create Task Service"
+      },
+      {
+        "command": "eventconductor.addTaskDependency",
+        "title": "EventConductor: Add Task Dependency"
       }
     ],
     "menus": {
+      "explorer/context": [
+        {
+          "command": "eventconductor.createTaskModule",
+          "when": "resourceExtname == .ectask",
+          "group": "eventconductor@1"
+        },
+        {
+          "command": "eventconductor.createTaskService",
+          "when": "resourceExtname == .ectask",
+          "group": "eventconductor@2"
+        },
+        {
+          "command": "eventconductor.addTaskDependency",
+          "when": "resourceExtname == .ectask",
+          "group": "eventconductor@3"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "eventconductor.createTaskModule",
+          "when": "resourceExtname == .ectask",
+          "group": "eventconductor@1"
+        },
+        {
+          "command": "eventconductor.createTaskService",
+          "when": "resourceExtname == .ectask",
+          "group": "eventconductor@2"
+        },
+        {
+          "command": "eventconductor.addTaskDependency",
+          "when": "resourceExtname == .ectask",
+          "group": "eventconductor@3"
+        }
+      ],
       "editor/title": [
         {
           "command": "eventconductor.showTextBeside",

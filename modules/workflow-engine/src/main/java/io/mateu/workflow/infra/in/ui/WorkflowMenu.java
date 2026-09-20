@@ -5,6 +5,7 @@ import io.mateu.workflow.infra.in.ui.pages.WorkflowDefinitions;
 import io.mateu.workflow.infra.in.ui.pages.analytics.Analytics;
 import io.mateu.workflow.infra.in.ui.pages.process.Processes;
 import io.mateu.workflow.infra.in.ui.pages.steps.StepExecutions;
+import io.mateu.workflow.infra.in.ui.pages.taskcontracts.TaskContracts;
 
 /**
  * Everything the engine's UI offers, in one menu: the navigation contract an embedding application
@@ -28,6 +29,9 @@ public class WorkflowMenu {
 
     @Menu
     StepExecutions steps;
+
+    @Menu
+    TaskContracts tasks;
 
     @Menu
     Analytics analytics;

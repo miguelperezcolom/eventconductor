@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **UI: a Tasks view and one-click worker projects.** The engine UI gained a read-only **Tasks**
+  view (in the full and admin menus) listing every task contract version, its group and topic, how
+  many workflow definitions use it, and links to download a ready-to-build worker project. A plain
+  HTTP endpoint (`/eventconductor/tasks/{group}/module.zip` and `…/service.zip`) serves the zip —
+  the generated project skeleton (from `worker-codegen`, the same generator the Maven goal and IDE
+  use) bundled with the group's `.ectask` contracts, so the download builds on its own — and the
+  view shows the Maven dependency snippet for adding the module to an existing service.
 - **Task worker code generation: a `.ectask` contract becomes the Java you implement against, and a
   whole project is just a parent and a few properties.** A new pure module `worker-codegen` (the
   single source the Maven goal, the IDE and the UI share — contracts and a little configuration in,
@@ -32,6 +39,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and `ec.*` properties, plus a README generated from the contract. An in-repo example
   (`examples/greetings-tasks`) is exactly that pom and one handler, and it builds end to end. A
   developer now writes only the handler.
+- **Docs: the task contract format and the worker protocol are documented for other-language
+  generators (decision 17).** A new reference page (`reference/task-contracts.md`) specifies the
+  `.ectask` fields, the attribute→JSON→Java type mapping, and the three-event wire protocol
+  (`TaskExecutionRequested`, `TaskCancellationRequested`, `TaskStatusChanged`) with its at-least-once
+  reply contract; `reference/maven-plugin.md` documents the `generate-worker-sources` goal; and
+  `guides/workers.md` now leads with the generated flow, keeping `WorkerReply`/`EmbeddedTaskExecutor`
+  as the documented low-level protocol beneath it.
+- **IDE actions scaffold a worker from a task contract.** Both IDE plugins gained, on a `.ectask`,
+  three actions: **Create task module** and **Create task service** (generate a `<group>-tasks` /
+  `<group>-service` project — a `pom` inheriting the right parent, the contract, and for a service
+  the `application.yaml`/`.gitignore`), and **Add task dependency** (insert a dependency on the
+  `<group>-tasks` module into the nearest `pom.xml`). The IntelliJ plugin reuses `worker-codegen`
+  directly (decision 16: one source of templates), resolving it from the local Maven build; the
+  VS Code plugin mirrors the same output in TypeScript.
 - **Worker runtime: implement a `TaskHandler` and a library speaks the engine's protocol for you,
   the same handler in Kafka and embedded mode.** Three modules split the concern: `worker-api` is
   the broker-free core a developer (and the generator) codes against — `TaskHandler<I,O>`,
@@ -84,6 +105,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   step with a distinct slate "waiting on a lock" border; the `.ec` schema and the IDE plugins gained
   the new step types and the `processLock` attribute. Wait order under identical `enqueued_at` ticks
   is not yet a strict FIFO tie-break (a monotonic sequence column is the hardening).
+
+### Changed
+- **`sample-worker` migrated to the generated runtime.** The canonical copyable worker no longer
+  hand-wires a Spring Cloud Stream consumer: it declares `greet.ectask`, depends on `worker-kafka`,
+  and its whole implementation is a `@Component` handler of the generated `GreetV1Task` interface.
+  The hand-written consumer and its cancellation test are gone — that behaviour now lives in, and is
+  tested in, `worker-kafka`.
+
+<!--
+  Next steps outside this repo (task-contract workers), noted per the plan:
+  - ec-definitions: publish the versioned definitions zip so services resolve contracts by artifact.
+  - ec-demo1: migrate the booking worker to a `booking-tasks` module, implemented in the `booking`
+    service alongside its CRUD and MCP tools.
+-->
 
 ## [2.16.5] - 2026-09-19
 

@@ -36,4 +36,26 @@
         <JsonSchema.ProviderFactory implementation="com.eventconductor.intellij.RuleJsonSchemaProviderFactory"/>
         <JsonSchema.ProviderFactory implementation="com.eventconductor.intellij.TaskJsonSchemaProviderFactory"/>
     </extensions>
+
+    <!-- Scaffold a worker project from a task contract, or wire an existing module to one. The
+         create actions reuse worker-codegen (the same templates the Maven goal and the UI use), so a
+         developer goes from a .ectask to a buildable module or service without leaving the editor. -->
+    <actions>
+        <group id="eventconductor.taskActions" text="EventConductor" popup="true">
+            <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+            <action id="eventconductor.createTaskModule"
+                    class="com.eventconductor.intellij.CreateTaskModuleAction"
+                    text="Create Task Module"
+                    description="Generate a task-module project (a library added to a Spring Boot service) from this task contract."/>
+            <action id="eventconductor.createTaskService"
+                    class="com.eventconductor.intellij.CreateTaskServiceAction"
+                    text="Create Task Service"
+                    description="Generate a standalone Kafka task-service project from this task contract."/>
+            <action id="eventconductor.addTaskDependency"
+                    class="com.eventconductor.intellij.AddTaskDependencyAction"
+                    text="Add Task Dependency"
+                    description="Add a dependency on this task's generated &lt;group&gt;-tasks module to the nearest pom.xml."/>
+        </group>
+    </actions>
 </idea-plugin>

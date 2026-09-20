@@ -1,5 +1,14 @@
 import * as vscode from "vscode";
 import * as yaml from "js-yaml";
+import {
+  applicationYaml,
+  artifactIdFor,
+  GITIGNORE,
+  pomXml,
+  readme,
+  TaskContract,
+  Variant,
+} from "./taskProject";
 
 const GRAPH_VIEW_TYPE = "eventconductor.graphEditor";
 const FORM_VIEW_TYPE = "eventconductor.formEditor";
@@ -23,13 +32,127 @@ export function activate(context: vscode.ExtensionContext) {
     // .ecform visual editor commands (mirrors the .ec ones).
     vscode.commands.registerCommand("eventconductor.form.openAsText", () => reopenActive("default")),
     vscode.commands.registerCommand("eventconductor.form.openAsForm", () => reopenActive(FORM_VIEW_TYPE)),
-    vscode.commands.registerCommand("eventconductor.form.showTextBeside", () => openActiveBeside())
+    vscode.commands.registerCommand("eventconductor.form.showTextBeside", () => openActiveBeside()),
+    // Task-contract scaffolding: from a .ectask, generate a worker project or wire a module to it.
+    vscode.commands.registerCommand("eventconductor.createTaskModule", (uri?: vscode.Uri) => createTaskProject("module", uri)),
+    vscode.commands.registerCommand("eventconductor.createTaskService", (uri?: vscode.Uri) => createTaskProject("service", uri)),
+    vscode.commands.registerCommand("eventconductor.addTaskDependency", (uri?: vscode.Uri) => addTaskDependency(uri))
   );
   // Validate .ec / .ecform (YAML or JSON) against their bundled schemas.
   registerYamlSchema(context);
 }
 
 export function deactivate() {}
+
+/** The .ectask to act on: the explorer/editor menu passes it; otherwise use the active tab. */
+function taskUri(uri?: vscode.Uri): vscode.Uri | undefined {
+  if (uri) return uri;
+  const active = activeUri();
+  return active?.path.endsWith(".ectask") ? active : undefined;
+}
+
+async function readContract(uri: vscode.Uri): Promise<TaskContract> {
+  const bytes = await vscode.workspace.fs.readFile(uri);
+  return yaml.load(Buffer.from(bytes).toString("utf8")) as TaskContract;
+}
+
+/** Generate a task-module or task-service project next to the workspace root and open its pom. */
+async function createTaskProject(variant: Variant, uri?: vscode.Uri) {
+  const contractUri = taskUri(uri);
+  if (!contractUri) {
+    vscode.window.showErrorMessage("Run this on a .ectask task contract.");
+    return;
+  }
+  const workspace = vscode.workspace.getWorkspaceFolder(contractUri) ?? vscode.workspace.workspaceFolders?.[0];
+  if (!workspace) {
+    vscode.window.showErrorMessage("No workspace folder is open.");
+    return;
+  }
+  const contract = await readContract(contractUri);
+  const group = contract.group ?? "tasks";
+
+  const artifactId = await vscode.window.showInputBox({
+    prompt: "Artifact id",
+    value: artifactIdFor(group, variant),
+  });
+  if (!artifactId) return;
+  const basePackage = await vscode.window.showInputBox({ prompt: "Base package", value: "com.example" });
+  if (!basePackage) return;
+
+  const moduleDir = vscode.Uri.joinPath(workspace.uri, artifactId);
+  const write = async (relative: string, content: string) => {
+    const target = vscode.Uri.joinPath(moduleDir, ...relative.split("/"));
+    await vscode.workspace.fs.writeFile(target, Buffer.from(content, "utf8"));
+  };
+
+  await write("pom.xml", pomXml(variant, "com.example", artifactId, group, basePackage));
+  await write("README.md", readme(variant, artifactId, contract));
+  // The contract travels with the project so it builds on its own (the goal reads it locally).
+  await write(`src/main/resources/tasks/${contractUri.path.split("/").pop()}`,
+    Buffer.from(await vscode.workspace.fs.readFile(contractUri)).toString("utf8"));
+  if (variant === "service") {
+    await write("src/main/resources/application.yaml", applicationYaml(artifactId));
+    await write(".gitignore", GITIGNORE);
+    // The Maven wrapper (mvnw / .mvn) is added by `mvn wrapper:wrapper`; noted in the README.
+  }
+
+  const pom = vscode.Uri.joinPath(moduleDir, "pom.xml");
+  vscode.window.showTextDocument(await vscode.workspace.openTextDocument(pom));
+  vscode.window.showInformationMessage(`Created ${artifactId}.`);
+}
+
+/** Insert a dependency on the task's `<group>-tasks` module into the nearest pom.xml above the file. */
+async function addTaskDependency(uri?: vscode.Uri) {
+  const contractUri = taskUri(uri);
+  if (!contractUri) {
+    vscode.window.showErrorMessage("Run this on a .ectask task contract.");
+    return;
+  }
+  const contract = await readContract(contractUri);
+  const artifact = artifactIdFor(contract.group ?? "tasks", "module");
+
+  const pom = await findNearestPom(contractUri);
+  if (!pom) {
+    vscode.window.showErrorMessage("No pom.xml found above this file.");
+    return;
+  }
+  let text = Buffer.from(await vscode.workspace.fs.readFile(pom)).toString("utf8");
+  if (text.includes(`<artifactId>${artifact}</artifactId>`)) {
+    vscode.window.showInformationMessage(`${artifact} is already a dependency.`);
+    return;
+  }
+  const dependency =
+    `        <dependency>\n` +
+    `            <groupId>com.example</groupId>\n` +
+    `            <artifactId>${artifact}</artifactId>\n` +
+    `            <version>0.1.0-SNAPSHOT</version>\n` +
+    `        </dependency>`;
+  text = text.includes("</dependencies>")
+    ? text.replace("</dependencies>", `${dependency}\n    </dependencies>`)
+    : text.replace("</project>", `    <dependencies>\n${dependency}\n    </dependencies>\n</project>`);
+  await vscode.workspace.fs.writeFile(pom, Buffer.from(text, "utf8"));
+  vscode.window.showInformationMessage(`Added ${artifact} to ${vscode.workspace.asRelativePath(pom)}.`);
+}
+
+/** Walk up from a file to the first directory that has a pom.xml. */
+async function findNearestPom(from: vscode.Uri): Promise<vscode.Uri | undefined> {
+  let dir = vscode.Uri.joinPath(from, "..");
+  const workspace = vscode.workspace.getWorkspaceFolder(from);
+  const stop = workspace ? workspace.uri.path : "/";
+  // Bounded walk up to the workspace root.
+  for (let i = 0; i < 64; i++) {
+    const pom = vscode.Uri.joinPath(dir, "pom.xml");
+    try {
+      await vscode.workspace.fs.stat(pom);
+      return pom;
+    } catch {
+      /* no pom here, keep walking */
+    }
+    if (dir.path === stop || dir.path === "/") break;
+    dir = vscode.Uri.joinPath(dir, "..");
+  }
+  return undefined;
+}
 
 /**
  * Bind the bundled JSON schemas through the Red Hat YAML extension's API, so YAML (and JSON, a

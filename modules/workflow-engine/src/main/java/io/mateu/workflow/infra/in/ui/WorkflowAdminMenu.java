@@ -3,6 +3,7 @@ package io.mateu.workflow.infra.in.ui;
 import io.mateu.uidl.annotations.Menu;
 import io.mateu.workflow.infra.in.ui.pages.WorkflowDefinitions;
 import io.mateu.workflow.infra.in.ui.pages.analytics.Analytics;
+import io.mateu.workflow.infra.in.ui.pages.taskcontracts.TaskContracts;
 
 /**
  * The half of the engine's UI that is about how the engine is configured and how it is behaving,
@@ -19,6 +20,9 @@ public class WorkflowAdminMenu {
 
     @Menu
     WorkflowDefinitions definitions;
+
+    @Menu
+    TaskContracts tasks;
 
     @Menu
     Analytics analytics;
