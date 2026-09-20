@@ -22,5 +22,7 @@
     <properties>
         <ec.group>greetings</ec.group>
         <ec.basePackage>com.example</ec.basePackage>
+        <!-- An in-repo example, not a published artifact: keep it off Maven Central. -->
+        <maven.deploy.skip>true</maven.deploy.skip>
     </properties>
 </project>
