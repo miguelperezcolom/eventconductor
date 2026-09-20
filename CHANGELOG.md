@@ -36,6 +36,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   never loses a message, since the receiving shard still runs the normal correlation and an
   unresolved key still falls through to broadcast. Where no shared routing database is configured
   (a single-database engine) the projection is a no-op.
+- **Sharded message routing (phase 3): a per-shard filter drops broadcast messages a shard cannot
+  possibly correlate, without a query.** Behind `workflow.sharding.message-routing.filter.enabled`
+  (default false). A residual message still reaches every shard by broadcast; each now checks an
+  in-memory Bloom filter over the `(messageName, correlationKey)` pairs it has a step waiting for, and
+  where the filter rules the pair out the shard drops the message instead of running the correlation
+  query — cutting the S×M broadcast cost to roughly the shards that can actually match. The filter is
+  shared-nothing (no placement store, no subscription table), so it helps even with layers 1–2 off. It
+  is fed as steps start waiting and rebuilt wholesale from the authoritative waiting set at startup and
+  every 30s (`WaitingMessageFilterRebuilder`, on a daemon thread that does not hold up boot or need the
+  database to be up); the rebuild is what sheds pairs of steps that have stopped waiting. No false
+  negatives by construction — a pair a step is waiting for is always present, and while disabled or not
+  yet populated the filter says "maybe" so every message runs the query exactly as before; the only
+  drop window (a step that just started waiting, not yet added) is the case the engine already handles
+  by at-least-once redelivery. A `queries.skipped` counter meters the queries saved.
 
 ## [2.17.1] - 2026-09-20
 

@@ -54,4 +54,14 @@ public class MessageRoutingMetrics {
             registry.counter("eventconductor.messages.correlation.queries").increment();
         }
     }
+
+    /**
+     * A broadcast message was dropped without a correlation query because the per-shard filter
+     * (layer 3) said no step here could be waiting for it — the query this layer exists to save.
+     */
+    public void correlationQuerySkipped() {
+        if (registry != null) {
+            registry.counter("eventconductor.messages.correlation.queries.skipped").increment();
+        }
+    }
 }
