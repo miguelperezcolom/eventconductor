@@ -276,13 +276,26 @@ load even in pure broadcast mode:
 | 4 | 100,000/shard — 400,000 total | ~25,000/shard — 100,000 total |
 | 8 | 100,000/shard — 800,000 total | ~12,500/shard — 100,000 total |
 
-The filter never says "absent" for a pair a step is waiting for, so it drops no message it should
-have kept; the only overhead is its false positives — at this load **24 extra queries in 100,000
-(0.02%)**, a fraction of the 1% the filter is sized for — so the per-shard total is M/S plus that
-sliver. Across all three layers the total stays at **M** (each message is queried on essentially only
-the shards that can match it) and the per-shard load is **M / S** — it **halves every time the shard
-count doubles**, the same horizontal scaling the transitions already had. Without routing it is flat
-at **M** per shard: adding shards never lightens it.
+The two ways a Bloom filter can be wrong are not the same, and only one of them would matter here. A
+**false negative** — saying "not waiting" when a step *is* — would drop a message that had a home, and
+a Bloom filter is defined by never doing it: it never answers "absent" for a pair that was added, so a
+waiting step is always queried. That is the property the routing rests on, and it is asserted directly
+in the benchmark over thousands of pairs. A **false positive** — saying "maybe" when nothing is
+waiting — is the only error it can make, and it is *not a lost message*: the shard runs the correlation
+query, finds no waiter, and does nothing, which is exactly what a broadcast without the filter does for
+that same message. It costs one query and changes no outcome. So the filter can only ever save queries,
+never mis-route or drop; a false positive is "looked and found nothing", and the failure that would
+break delivery — "did not look, and something was there" — cannot happen.
+
+That is why the overhead is only a handful of extra queries: at this load **24 in 100,000 (0.02%)**, a
+fraction of the 1% the filter is sized for (each shard runs at half load here, so its real rate is well
+under the target). The rate is tunable down with
+`workflow.sharding.message-routing.filter.false-positive-rate`, but never to zero — a zero-false-positive
+structure is an exact set of every waiting pair, the unbounded memory the filter exists to avoid. Across
+all three layers the total stays at **M** (each message is queried on essentially only the shards that
+can match it) and the per-shard load is **M / S** — it **halves every time the shard count doubles**, the
+same horizontal scaling the transitions already had. Without routing it is flat at **M** per shard:
+adding shards never lightens it.
 
 The router only ever *filters*: layers 1 and 2 send a message to a subset of shards, layer 3 drops it
 on shards that cannot match, and anything unresolved still broadcasts — so a wrong or unavailable
