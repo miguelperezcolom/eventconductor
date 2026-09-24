@@ -67,7 +67,7 @@ class ReplyDslRoundTripTest {
     void a_reply_step_declaring_both_sources_is_rejected() {
         var def = definition(step("start", StepType.START, null),
                 step("reply", StepType.REPLY, "start").withReplyVariables(List.of("a")).withReplyExpression("b"));
-        assertThatThrownBy(def::checkInvariants).hasMessageContaining("both replyVariables and replyExpression");
+        assertThatThrownBy(def::checkInvariants).hasMessageContaining("more than one of replyVariables");
     }
 
     @Test
@@ -106,5 +106,16 @@ class ReplyDslRoundTripTest {
         assertThat(ProcessReply.of(ProcessReply.Outcome.FAILED, null, "boom").compensation())
                 .isEqualTo(ProcessReply.Compensation.NONE);
         assertThat(ProcessReply.of(ProcessReply.Outcome.FAILED, null, "boom").isFailure()).isTrue();
+    }
+
+    @Test
+    void a_reply_template_round_trips_and_a_broken_one_is_rejected() {
+        var reply = step("reply", StepType.REPLY, "start").withReplyTemplate(java.util.Map.of("id", "${bookingId}"));
+        var back = JsonSerializer.pojoFromJson(JsonSerializer.toJson(reply), Step.class);
+        assertThat(back.replyTemplate()).isEqualTo(java.util.Map.of("id", "${bookingId}"));
+
+        var bad = definition(step("start", StepType.START, null),
+                step("reply", StepType.REPLY, "start").withReplyTemplate(java.util.Map.of("id", "${bookingId +}")));
+        assertThatThrownBy(bad::checkInvariants).hasMessageContaining("replyTemplate.id");
     }
 }

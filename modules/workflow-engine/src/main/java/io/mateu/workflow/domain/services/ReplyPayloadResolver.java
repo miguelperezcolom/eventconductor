@@ -42,12 +42,19 @@ public final class ReplyPayloadResolver {
         var expression = step.replyExpression();
         boolean hasVariables = variables != null && !variables.isEmpty();
         boolean hasExpression = expression != null && !expression.isBlank();
-        if (hasVariables && hasExpression) {
+        boolean hasTemplate = step.replyTemplate() != null;
+        if ((hasVariables ? 1 : 0) + (hasExpression ? 1 : 0) + (hasTemplate ? 1 : 0) > 1) {
             return Result.failed("REPLY step '" + step.id()
-                    + "' declares both replyVariables and replyExpression; it must declare one.");
+                    + "' declares more than one of replyVariables, replyExpression and replyTemplate; it must declare one.");
         }
         String json;
-        if (hasExpression) {
+        if (hasTemplate) {
+            try {
+                json = io.mateu.workflow.template.Templates.renderJson(step.replyTemplate(), TemplateContext.of(process, step, null));
+            } catch (io.mateu.workflow.template.Templates.TemplateException e) {
+                return Result.failed("replyTemplate could not be rendered: " + e.getMessage());
+            }
+        } else if (hasExpression) {
             try {
                 json = toJson(evaluate(expression, contextOf(process)).value());
             } catch (Exception e) {

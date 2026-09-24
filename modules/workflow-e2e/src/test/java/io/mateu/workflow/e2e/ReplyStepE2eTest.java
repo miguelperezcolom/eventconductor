@@ -43,4 +43,16 @@ class ReplyStepE2eTest extends AbstractE2eTest {
         assertThat(process.getReply().payload()).contains("\"bookingId\":\"B-2\"").contains("\"status\":\"ACCEPTED\"");
         assertThat(step("reply-early-1", "notify").getStatus()).isEqualTo(StepExecutionStatus.PENDING);
     }
+
+    @Test
+    void aReplyTemplateAnswersWithStructuredTypedJson() {
+        worker.on("book", TestWorker.succeed(var("confirmation", "C-T1")));
+
+        createProcess("sync-reply-template", "reply-template-1", new Variable("bookingId", "B-T1"),
+                new Variable("nights", "3"));
+
+        var payload = process("reply-template-1").getReply().payload();
+        assertThat(payload).contains("\"booking\":{\"id\":\"B-T1\",\"confirmation\":\"C-T1\"}")
+                .contains("\"nights\":3").contains("\"summary\":\"Booking B-T1 confirmed as C-T1\"");
+    }
 }

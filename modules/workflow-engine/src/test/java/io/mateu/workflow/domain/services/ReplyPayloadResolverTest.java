@@ -55,7 +55,7 @@ class ReplyPayloadResolverTest {
         var result = ReplyPayloadResolver.resolve(
                 REPLY.withReplyVariables(List.of("a")).withReplyExpression("b"), process(), 0);
         assertThat(result.json()).isNull();
-        assertThat(result.error()).contains("both");
+        assertThat(result.error()).contains("more than one");
     }
 
     @Test
@@ -68,5 +68,23 @@ class ReplyPayloadResolverTest {
     void a_reply_over_the_limit_fails() {
         var result = ReplyPayloadResolver.resolve(REPLY.withReplyVariables(List.of("bookingId")), process(), 5);
         assertThat(result.error()).contains("over the 5-byte limit");
+    }
+
+    @Test
+    void a_template_renders_typed_json_with_the_process_context() {
+        var result = ReplyPayloadResolver.resolve(REPLY.withReplyTemplate(java.util.Map.of(
+                "id", "${bookingId}", "total", "${amount * 2}", "who", "${process.businessKey}",
+                "note", "Booking ${bookingId}", "step", "${step.id}")), process(), 0);
+        assertThat(result.error()).isNull();
+        assertThat(result.json()).contains("\"id\":\"B-1\"").contains("\"total\":240")
+                .contains("\"who\":\"BK-9\"").contains("\"note\":\"Booking B-1\"").contains("\"step\":\"reply\"");
+    }
+
+    @Test
+    void a_template_that_cannot_render_fails_and_two_sources_are_refused() {
+        assertThat(ReplyPayloadResolver.resolve(REPLY.withReplyTemplate("${a +}"), process(), 0).error())
+                .contains("replyTemplate");
+        assertThat(ReplyPayloadResolver.resolve(REPLY.withReplyTemplate("x").withReplyExpression("y"), process(), 0).error())
+                .contains("more than one");
     }
 }

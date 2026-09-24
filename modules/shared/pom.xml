@@ -66,6 +66,12 @@
             <artifactId>commons-jexl3</artifactId>
             <version>3.7.0</version>
         </dependency>
+        <!-- Template syntax (where the ${…} are), shared with the Maven plugin; JDK-only. -->
+        <dependency>
+            <groupId>io.mateu.workflow</groupId>
+            <artifactId>definition-analysis</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
         <!-- Linear-time regex for the =~ operator. See LinearTimeRegexArithmetic: java.util.regex
              backtracks, and a workflow definition is untrusted input. -->
         <dependency>

@@ -1,0 +1,17 @@
+{
+  "id": "sync-reply-template",
+  "name": "Synchronous booking — reply from a template",
+  "version": 1,
+  "syncInvocation": { "enabled": true },
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "book", "type": "ACTION", "name": "Book", "topic": "book", "preconditionStepId": "start" },
+    { "id": "reply", "type": "REPLY", "name": "Reply", "preconditionStepId": "book",
+      "replyTemplate": {
+        "booking": { "id": "${bookingId}", "confirmation": "${confirmation}" },
+        "nights": "${nights * 1}",
+        "summary": "Booking ${bookingId} confirmed as ${confirmation}"
+      } },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "reply" }
+  ]
+}

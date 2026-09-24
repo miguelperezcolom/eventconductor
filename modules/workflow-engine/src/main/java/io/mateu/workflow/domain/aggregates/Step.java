@@ -222,7 +222,14 @@ public record Step(
          */
         @HiddenInList
         @Hidden("state['type'] != 'REPLY'")
-        String replyExpression
+        String replyExpression,
+        /**
+         * REPLY only: a structured payload template — the reply written as JSON/YAML whose string
+         * leaves may hold {@code ${…}} JEXL expressions (see {@code io.mateu.workflow.template.Templates}).
+         * Exclusive with {@link #replyVariables} and {@link #replyExpression}.
+         */
+        @Hidden
+        Object replyTemplate
 ) implements Identifiable {
 
     public Step {
@@ -246,7 +253,7 @@ public record Step(
                 null, preconditionExpression, parallel, topic, formId, ruleId, childWorkflowDefinitionId,
                 outputVariables, duration, untilVariable, messageName, correlationExpression,
                 messageVariables, timeout, retries, compensable, compensationStepId, null,
-                maxSuccessfulExecutions, joinType, java.util.List.of(), java.util.List.of(), null, null, null, null, null);
+                maxSuccessfulExecutions, joinType, java.util.List.of(), java.util.List.of(), null, null, null, null, null, null);
     }
 
     /**
@@ -266,7 +273,7 @@ public record Step(
                 preconditions, preconditionExpression, parallel, topic, formId, ruleId,
                 childWorkflowDefinitionId, outputVariables, duration, untilVariable, messageName,
                 correlationExpression, messageVariables, timeout, retries, compensable, compensationStepId,
-                onTimeoutStepId, maxSuccessfulExecutions, joinType, requiredScopes, requiredRoles, null, null, null, null, null);
+                onTimeoutStepId, maxSuccessfulExecutions, joinType, requiredScopes, requiredRoles, null, null, null, null, null, null);
     }
 
     /**
@@ -287,7 +294,29 @@ public record Step(
                 childWorkflowDefinitionId, outputVariables, duration, untilVariable, messageName,
                 correlationExpression, messageVariables, timeout, retries, compensable, compensationStepId,
                 onTimeoutStepId, maxSuccessfulExecutions, joinType, requiredScopes, requiredRoles,
-                lockName, lockKey, task, null, null);
+                lockName, lockKey, task, null, null, null);
+    }
+
+    /**
+     * The shape this record had before REPLY could take a template, so every caller of the full
+     * constructor keeps compiling.
+     */
+    public Step(String id, String workflowDefinitionId, StepType type, String name, String description,
+                String preconditionStepId, List<String> preconditionStepIds, List<Precondition> preconditions,
+                String preconditionExpression, boolean parallel, String topic, String formId, String ruleId,
+                String childWorkflowDefinitionId, List<String> outputVariables, long duration,
+                String untilVariable, String messageName, String correlationExpression,
+                List<String> messageVariables, long timeout, int retries, boolean compensable,
+                String compensationStepId, String onTimeoutStepId, int maxSuccessfulExecutions,
+                JoinType joinType, List<String> requiredScopes, List<String> requiredRoles,
+                String lockName, String lockKey, String task, List<String> replyVariables,
+                String replyExpression) {
+        this(id, workflowDefinitionId, type, name, description, preconditionStepId, preconditionStepIds,
+                preconditions, preconditionExpression, parallel, topic, formId, ruleId,
+                childWorkflowDefinitionId, outputVariables, duration, untilVariable, messageName,
+                correlationExpression, messageVariables, timeout, retries, compensable, compensationStepId,
+                onTimeoutStepId, maxSuccessfulExecutions, joinType, requiredScopes, requiredRoles,
+                lockName, lockKey, task, replyVariables, replyExpression, null);
     }
 
     /**
