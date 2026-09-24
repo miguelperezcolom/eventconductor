@@ -404,6 +404,11 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
             }
             send(new TaskLogEmitted(id, MessageType.Info,
                     step.type() + " step " + step.name() + " on key '" + lockKey + "'."));
+        } else if (StepType.REPLY.equals(step.type())) {
+            // A reply involves no worker: the step stays PENDING and the step-over use case, which
+            // holds the process as well as the step, computes the payload, records it on the
+            // process and completes the step in the same transaction — the LOCK/UNLOCK pattern.
+            send(new TaskLogEmitted(id, MessageType.Info, "REPLY step " + step.name() + " reached."));
         } else {
             // ACTION (and any other worker step): the taskId is the step's task contract reference
             // when it declares one — `<id>@<version>`, already pinned at import — so a worker can
@@ -417,6 +422,11 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
         }
         status = StepExecutionStatus.PENDING;
         return this;
+    }
+
+    /** Records an error line in this step's log — for failures decided outside {@link #start}. */
+    public void logError(String message) {
+        send(new TaskLogEmitted(id, MessageType.Error, message));
     }
 
     public void updateStatus(StepExecutionStatus status) {

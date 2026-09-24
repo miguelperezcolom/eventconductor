@@ -50,7 +50,7 @@ if (typeof window !== "undefined" && !window.__ecClipboardBridge) {
 type StepType =
     | "START" | "ACTION" | "USER_TASK" | "RULE" | "TIMER"
     | "WAIT_FOR_MESSAGE" | "SEND_MESSAGE" | "FORK" | "JOIN" | "CHOICE" | "PROCESS" | "END" | "DYNAMIC"
-    | "LOCK" | "UNLOCK";
+    | "LOCK" | "UNLOCK" | "REPLY";
 /** Whether a workflow is open for business. DRAFT is an older value that meant nothing. */
 type WorkflowStatus = "ACTIVE" | "DISABLED" | "ARCHIVED" | "DRAFT";
 
@@ -81,6 +81,10 @@ interface WorkflowStep {
     onTimeoutStepId?: string;
     /** JOIN only: "AND" (default, wait all) or "XOR" (proceed on any one). */
     joinType?: "AND" | "XOR";
+    /** REPLY only: the variables the reply is made of. */
+    replyVariables?: string[];
+    /** REPLY only: a JEXL expression whose value is the reply. */
+    replyExpression?: string;
 }
 
 /** The kind of connection being drawn, by drag gesture. */
@@ -198,7 +202,7 @@ const PAD = 60;
 const STEP_TYPES: StepType[] = [
     "START", "ACTION", "USER_TASK", "RULE", "TIMER",
     "WAIT_FOR_MESSAGE", "SEND_MESSAGE", "FORK", "JOIN", "CHOICE", "PROCESS", "END", "DYNAMIC",
-    "LOCK", "UNLOCK",
+    "LOCK", "UNLOCK", "REPLY",
 ];
 
 /**
@@ -232,6 +236,9 @@ const NODE_STYLE: Record<StepType, NodeStyle> = {
     // at a time" reads at a glance. LOCK takes the key, UNLOCK releases it.
     LOCK:             {fill: "#f8fafc", stroke: "#475569", symbol: "lock"},
     UNLOCK:           {fill: "#f8fafc", stroke: "#475569", symbol: "unlock"},
+    // The answer to a synchronous caller: an emerald task node with a "reply" arrow, so where the
+    // caller gets its response — at the end, or early while the saga carries on — reads at a glance.
+    REPLY:            {fill: "#ecfdf5", stroke: "#059669", symbol: "reply"},
 };
 /**
  * The paint properties written onto each element when the graph is exported as a standalone SVG.
@@ -296,6 +303,8 @@ const SYMBOLS: Record<string, ReturnType<typeof svg>> = {
     // A padlock (shackle closed) for LOCK; the same body with an open shackle for UNLOCK.
     lock:      svg`<rect x="2" y="5.5" width="8" height="6" rx="1"/><path d="M3.5 5.5 V3.6 Q3.5 1.2 6 1.2 Q8.5 1.2 8.5 3.6 V5.5"/>`,
     unlock:    svg`<rect x="2" y="5.5" width="8" height="6" rx="1"/><path d="M3.5 5.5 V3.6 Q3.5 1.2 6 1.2 Q8.5 1.2 8.5 3.6" />`,
+    // A curved "reply" arrow, bending back towards the caller.
+    reply:     svg`<path d="M11 10.5 V8 Q11 4.5 7.5 4.5 H1.5"/><path d="M4.5 1.5 L1.5 4.5 L4.5 7.5"/>`,
 };
 
 /**
@@ -341,6 +350,8 @@ function badgeOf(step: WorkflowStep): string {
         case "JOIN": return "⨝ JOIN";
         case "PROCESS": return "⚙ " + (step.childWorkflowDefinitionId || "subprocess");
         case "DYNAMIC": return "⚡ " + (step.topic ? "→ " + step.topic : "DYNAMIC");
+        case "REPLY": return "↩ " + (step.replyVariables && step.replyVariables.length
+            ? step.replyVariables.join(", ") : (step.replyExpression ? "expression" : "REPLY"));
         default: return step.type; // START, TIMER, END
     }
 }
@@ -3358,6 +3369,18 @@ export class MateuWorkflowElk extends LitElement {
                     ${step.type === "PROCESS" ? field("Child workflow ID", html`
                         <input class="inp" ?readonly="${ro}" .value="${step.childWorkflowDefinitionId ?? ""}"
                                @change="${ro ? nothing : (e: Event) => this.updateStep(step.id, {childWorkflowDefinitionId: (e.target as HTMLInputElement).value || undefined})}"/>`) : ""}
+                    ${step.type === "REPLY" ? field("Reply variables", html`
+                        <input class="inp" placeholder="bookingId, status" ?readonly="${ro}"
+                               .value="${(step.replyVariables ?? []).join(", ")}"
+                               @change="${ro ? nothing : (e: Event) => {
+                                   const names = (e.target as HTMLInputElement).value.split(",")
+                                       .map(v => v.trim()).filter(v => v.length > 0);
+                                   this.updateStep(step.id, {replyVariables: names.length ? names : undefined});
+                               }}"/>`) : ""}
+                    ${step.type === "REPLY" ? field("Reply expression", html`
+                        <input class="inp" placeholder="{'id': bookingId}" ?readonly="${ro}"
+                               .value="${step.replyExpression ?? ""}"
+                               @change="${ro ? nothing : (e: Event) => this.updateStep(step.id, {replyExpression: (e.target as HTMLInputElement).value || undefined})}"/>`) : ""}
                 </div>
             </div>
         `;

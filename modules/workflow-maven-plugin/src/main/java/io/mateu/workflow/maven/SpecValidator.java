@@ -110,6 +110,7 @@ public class SpecValidator {
         if (steps == null || !steps.isArray()) {
             return;
         }
+        warnings.addAll(replyAnalysis(wf).warnings());
         java.util.Map<String, JsonNode> stepsById = new java.util.HashMap<>();
         for (JsonNode step : steps) {
             String id = text(step, "id");
@@ -225,6 +226,10 @@ public class SpecValidator {
             if (isSet(corrExpr)) {
                 checkJexl(corrExpr, "step '" + id + "' correlationExpression", violations);
             }
+            String replyExpr = text(step, "replyExpression");
+            if (isSet(replyExpr)) {
+                checkJexl(replyExpr, "step '" + id + "' replyExpression", violations);
+            }
         }
         // Cycle detection: DFS (white/grey/black) over the multi-edge precondition graph —
         // revisiting a grey node means a cycle, and none of those steps could ever run.
@@ -236,9 +241,32 @@ public class SpecValidator {
             }
         }
         Set<String> acyclic = new HashSet<>();
+        int violationsBeforeCycles = violations.size();
         for (String start : preconditionGraph.keySet()) {
             findPreconditionCycle(start, preconditionGraph, new java.util.LinkedHashSet<>(), acyclic, violations);
         }
+        // The REPLY rules run the engine's own analysis (definition-analysis), which assumes an
+        // acyclic graph — so only once the cycle check found nothing.
+        if (violations.size() == violationsBeforeCycles) {
+            violations.addAll(replyAnalysis(wf).errors());
+        }
+    }
+
+    /** The shared REPLY path analysis over this document's steps. */
+    private static io.mateu.workflow.analysis.ReplyPathAnalyzer.Report replyAnalysis(JsonNode wf) {
+        JsonNode steps = wf.get("steps");
+        List<io.mateu.workflow.analysis.ReplyPathAnalyzer.Node> nodes = new ArrayList<>();
+        if (steps != null && steps.isArray()) {
+            for (JsonNode step : steps) {
+                String id = text(step, "id");
+                if (id == null) continue;
+                nodes.add(new io.mateu.workflow.analysis.ReplyPathAnalyzer.Node(id, text(step, "type"),
+                        preconditions(step), text(step, "onTimeoutStepId"), text(step, "compensationStepId")));
+            }
+        }
+        JsonNode sync = wf.get("syncInvocation");
+        boolean syncEnabled = sync != null && sync.path("enabled").asBoolean(false);
+        return io.mateu.workflow.analysis.ReplyPathAnalyzer.analyze(nodes, syncEnabled);
     }
 
     /**

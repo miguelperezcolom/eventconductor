@@ -59,8 +59,24 @@ public class ProcessDBRepository implements ProcessRepository {
                 entity.getFinished(),
                 entity.getPausedAt(),
                 entity.getParentStepExecutionId(),
-                entity.getVersion()
+                entity.getVersion(),
+                replyOf(entity)
         );
+    }
+
+    /** The recorded reply, or null while the process has not replied (no outcome stored). */
+    static io.mateu.workflow.domain.aggregates.ProcessReply replyOf(ProcessEntity entity) {
+        if (entity.getReplyOutcome() == null) {
+            return null;
+        }
+        return new io.mateu.workflow.domain.aggregates.ProcessReply(
+                entity.getReplyStepId(),
+                entity.getReplyJson(),
+                io.mateu.workflow.domain.aggregates.ProcessReply.Outcome.valueOf(entity.getReplyOutcome()),
+                entity.getReplyCompensation() == null ? null
+                        : io.mateu.workflow.domain.aggregates.ProcessReply.Compensation.valueOf(entity.getReplyCompensation()),
+                entity.getReplyError(),
+                entity.getRepliedAt());
     }
 
     @Override
@@ -78,6 +94,7 @@ public class ProcessDBRepository implements ProcessRepository {
         // reject multiple processes that have no business key.
         var businessKey = (process.getBusinessKey() == null || process.getBusinessKey().isBlank())
                 ? null : process.getBusinessKey();
+        var reply = process.getReply();
         processEntityRepository.save(new ProcessEntity(
                 process.getId(),
                 businessKey,
@@ -94,7 +111,13 @@ public class ProcessDBRepository implements ProcessRepository {
                 process.getFinished(),
                 process.getPausedAt(),
                 process.getParentStepExecutionId(),
-                process.getVersion()
+                process.getVersion(),
+                reply == null ? null : reply.stepId(),
+                reply == null ? null : reply.payload(),
+                reply == null ? null : reply.outcome().name(),
+                reply == null ? null : reply.compensation().name(),
+                reply == null ? null : reply.error(),
+                reply == null ? null : reply.repliedAt()
         ));
         // Captured here, at the one moment the event and the context that produced it are both
         // in hand: the relay publishes this row later, from a thread that has neither.

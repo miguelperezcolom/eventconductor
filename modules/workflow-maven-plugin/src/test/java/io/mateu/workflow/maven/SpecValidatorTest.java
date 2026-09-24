@@ -182,4 +182,70 @@ class SpecValidatorTest {
                         .contains("step 'next' precondition on 'start'")
                         .contains("invalid JEXL expression"));
     }
+
+    private static JsonNode json(String text) throws Exception {
+        return new ObjectMapper().readTree(text);
+    }
+
+    private static final String SYNC_BOOKING = """
+            {"id": "sync", "name": "Sync", "version": 1,
+             "syncInvocation": {"enabled": true, "onFailure": "REPLY_AFTER_COMPENSATION"},
+             "steps": [
+               {"id": "start", "type": "START", "name": "Start"},
+               {"id": "choice", "type": "CHOICE", "name": "Choice", "preconditionStepId": "start"},
+               {"id": "ok", "type": "REPLY", "name": "Ok", "replyVariables": ["bookingId"], "preconditionStepId": "choice"},
+               {"id": "ko", "type": "REPLY", "name": "Ko", "replyExpression": "{'ok': false}", "preconditionStepId": "choice"},
+               {"id": "end", "type": "END", "name": "End", "preconditionStepId": "ok"},
+               {"id": "silent", "type": "END", "name": "Silent", "preconditionStepId": "choice"}
+             ]}
+            """;
+
+    @Test
+    void replyStepsOnDifferentChoiceBranchesPassWithAWarningForASilentEnd() throws Exception {
+        var doc = json(SYNC_BOOKING);
+        assertThat(validator.validate(SpecValidator.Kind.WORKFLOW, doc)).isEmpty();
+        assertThat(validator.warnings(SpecValidator.Kind.WORKFLOW, doc)).anyMatch(w -> w.contains("silent"));
+    }
+
+    @Test
+    void twoRepliesOnOnePathFailTheBuild() throws Exception {
+        var doc = json("""
+                {"id": "twice", "name": "Twice", "version": 1, "steps": [
+                  {"id": "start", "type": "START", "name": "Start"},
+                  {"id": "r1", "type": "REPLY", "name": "R1", "preconditionStepId": "start"},
+                  {"id": "r2", "type": "REPLY", "name": "R2", "preconditionStepId": "r1"}
+                ]}
+                """);
+        assertThat(validator.validate(SpecValidator.Kind.WORKFLOW, doc)).anyMatch(v -> v.contains("same path"));
+    }
+
+    @Test
+    void aSyncInvocableWorkflowWithoutAReplyFailsTheBuild() throws Exception {
+        var doc = json("""
+                {"id": "mute", "name": "Mute", "version": 1, "syncInvocation": {"enabled": true}, "steps": [
+                  {"id": "start", "type": "START", "name": "Start"},
+                  {"id": "end", "type": "END", "name": "End", "preconditionStepId": "start"}
+                ]}
+                """);
+        assertThat(validator.validate(SpecValidator.Kind.WORKFLOW, doc)).anyMatch(v -> v.contains("no REPLY step"));
+    }
+
+    @Test
+    void aReplyWithBothSourcesOrABadExpressionFails() throws Exception {
+        var both = json("""
+                {"id": "both", "name": "Both", "version": 1, "steps": [
+                  {"id": "start", "type": "START", "name": "Start"},
+                  {"id": "r", "type": "REPLY", "name": "R", "preconditionStepId": "start",
+                   "replyVariables": ["a"], "replyExpression": "b"}
+                ]}
+                """);
+        assertThat(validator.validate(SpecValidator.Kind.WORKFLOW, both)).isNotEmpty();
+        var bad = json("""
+                {"id": "bad", "name": "Bad", "version": 1, "steps": [
+                  {"id": "start", "type": "START", "name": "Start"},
+                  {"id": "r", "type": "REPLY", "name": "R", "preconditionStepId": "start", "replyExpression": "{{{"}
+                ]}
+                """);
+        assertThat(validator.validate(SpecValidator.Kind.WORKFLOW, bad)).anyMatch(v -> v.contains("replyExpression"));
+    }
 }

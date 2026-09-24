@@ -1,0 +1,14 @@
+{
+  "id": "sync-reply-early",
+  "name": "Synchronous booking — reply early, keep going",
+  "version": 1,
+  "syncInvocation": {
+    "enabled": true
+  },
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "reply", "type": "REPLY", "name": "Accepted", "replyExpression": "{'bookingId': bookingId, 'status': 'ACCEPTED'}", "preconditionStepId": "start" },
+    { "id": "notify", "type": "ACTION", "name": "Notify", "topic": "notify", "preconditionStepId": "reply" },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "notify" }
+  ]
+}

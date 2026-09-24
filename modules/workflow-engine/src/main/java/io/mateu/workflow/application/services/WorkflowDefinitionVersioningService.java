@@ -92,6 +92,11 @@ public class WorkflowDefinitionVersioningService {
         // ride along inside the serialized steps above.
         canonical.put("processLock", d.processLock() == null ? null
                 : io.mateu.core.infra.JsonSerializer.toJson(d.processLock()));
+        // Whether and how instances can be invoked synchronously changes what a caller gets back
+        // (when a failure answers, whether a busy lock refuses), so it mints a new version too. The
+        // REPLY steps' own fields ride inside the serialized steps.
+        canonical.put("syncInvocation", d.syncInvocation() == null ? null
+                : io.mateu.core.infra.JsonSerializer.toJson(d.syncInvocation()));
         canonical.put("defaultMaxStepExecutions", d.defaultMaxStepExecutions());
         canonical.put("steps", d.steps().stream()
                 .sorted(Comparator.comparing(Step::id, Comparator.nullsLast(Comparator.naturalOrder())))

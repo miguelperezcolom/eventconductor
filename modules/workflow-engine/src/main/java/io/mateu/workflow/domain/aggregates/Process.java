@@ -81,6 +81,13 @@ public class Process extends AggregateRoot implements Identifiable {
      */
     @Hidden
     private Integer version;
+    /**
+     * The answer this process gave its synchronous caller — from a REPLY step, or the one the
+     * engine gave on its behalf when it failed, was cancelled, or completed without replying. Null
+     * until then. Recorded at most once: the first answer is the one the caller got.
+     */
+    @Hidden
+    private ProcessReply reply;
 
     public static Process create(
             String processId,
@@ -141,6 +148,26 @@ public class Process extends AggregateRoot implements Identifiable {
             this.variables.removeIf(x -> x.name().equals(v.name()));
         });
         this.variables.addAll(variables);
+    }
+
+    /** Whether this process has already given its (one) reply. */
+    public boolean hasReplied() {
+        return reply != null;
+    }
+
+    /**
+     * Records this process's reply, unless it has already replied — the first answer is the one
+     * the caller got, so a second one (a REPLY reached after an operator retried a failed process,
+     * or a redelivered event) is ignored.
+     *
+     * @return true if the reply was recorded now
+     */
+    public boolean recordReply(ProcessReply newReply) {
+        if (newReply == null || this.reply != null) {
+            return false;
+        }
+        this.reply = newReply;
+        return true;
     }
 
     public List<Variable> getVariables() {

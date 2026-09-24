@@ -1,0 +1,38 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>io.mateu.workflow</groupId>
+        <artifactId>eventconductor</artifactId>
+        <version>1.0-SNAPSHOT</version>
+        <relativePath>../../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>definition-analysis</artifactId>
+    <packaging>jar</packaging>
+    <name>definition-analysis</name>
+
+    <!--
+      Static analysis of a workflow definition's step graph, with no dependency beyond the JDK, so
+      that the engine (on import) and the Maven plugin (at build time) run the very same code. Rules
+      subtle enough to need a graph algorithm live here rather than being written twice: the
+      plugin's hand-mirrored copy of the engine's invariants has already drifted once.
+    -->
+    <properties>
+        <jacoco.line.minimum>0.90</jacoco.line.minimum>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>

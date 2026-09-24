@@ -177,6 +177,15 @@ public class InjectStepsUseCase {
             }
         }
 
+        // A REPLY is the definition's answer to its synchronous caller, and whether a definition can
+        // answer twice is decided statically when it is imported (at most one reachable REPLY per
+        // instance). A step injected at runtime was never part of that analysis, so it may not add one.
+        for (var step : injectedSteps) {
+            if (io.mateu.workflow.domain.aggregates.StepType.REPLY.equals(step.type())) {
+                return "injected step '" + step.id() + "' is a REPLY; a REPLY cannot be injected at runtime";
+            }
+        }
+
         // Every precondition must resolve to a step already in the process or another injected one.
         var knownIds = new HashSet<>(existingIds);
         knownIds.addAll(injectedIds);

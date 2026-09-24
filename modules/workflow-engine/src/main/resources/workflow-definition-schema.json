@@ -96,6 +96,55 @@
         }
       }
     },
+    "syncInvocation": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "description": "Lets a caller start an instance over HTTP and wait, up to a deadline, for the reply a REPLY step emits. Null or absent means the definition cannot be invoked synchronously; asynchronous starts are unaffected either way.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Whether the synchronous invocation endpoint accepts this definition. When true, at least one REPLY step must be reachable.",
+          "default": false
+        },
+        "onFailure": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "REPLY_IMMEDIATELY",
+            "REPLY_AFTER_COMPENSATION",
+            null
+          ],
+          "description": "When a process that fails before replying answers its caller: as soon as it fails (the answer says whether a compensation is under way), or once the saga rollback has finished.",
+          "default": "REPLY_IMMEDIATELY"
+        },
+        "onLockBusy": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "WAIT",
+            "FAIL",
+            null
+          ],
+          "description": "What an invocation does when the processLock is held by another instance: queue FIFO like any instance (a long wait becomes a 202 through the deadline), or refuse with 409 without creating an instance.",
+          "default": "WAIT"
+        },
+        "defaultDeadlineMs": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "description": "How long a caller waits when it does not say (Prefer: wait=N). 0 or absent means the engine default; always capped by workflow.sync.max-deadline-ms."
+        }
+      }
+    },
     "draftOfId": {
       "type": [
         "string",
@@ -261,7 +310,8 @@
             "RULE",
             "DYNAMIC",
             "LOCK",
-            "UNLOCK"
+            "UNLOCK",
+            "REPLY"
           ]
         },
         "name": {
@@ -408,6 +458,23 @@
             "type": "string"
           },
           "description": "PROCESS only: names of the child process variables copied back into the parent when the child completes. Empty or absent means none."
+        },
+        "replyVariables": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "description": "REPLY only: the process variables the reply is made of — the reply is a JSON object with one member per listed variable. Mutually exclusive with replyExpression; neither means an empty object (a plain acknowledgement)."
+        },
+        "replyExpression": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "REPLY only: a JEXL expression over the process variables whose value is the reply — e.g. {'bookingId': bookingId, 'status': 'CONFIRMED'}. Mutually exclusive with replyVariables."
         },
         "duration": {
           "type": [
@@ -648,6 +715,36 @@
             "required": [
               "ruleId"
             ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "REPLY"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "not": {
+              "required": [
+                "replyVariables",
+                "replyExpression"
+              ],
+              "properties": {
+                "replyVariables": {
+                  "type": "array",
+                  "minItems": 1
+                },
+                "replyExpression": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
           }
         },
         {

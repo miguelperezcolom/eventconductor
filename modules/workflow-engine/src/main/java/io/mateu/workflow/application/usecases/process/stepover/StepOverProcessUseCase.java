@@ -55,6 +55,10 @@ public class StepOverProcessUseCase {
     // itself directly.
     final ObjectProvider<StepOverProcessUseCase> self;
 
+    /** The largest reply a REPLY step may record, in bytes of JSON; 0 or less means no limit. */
+    @org.springframework.beans.factory.annotation.Value("${workflow.sync.max-reply-bytes:262144}")
+    long maxReplyBytes;
+
     public void handle(StepOverProcessCommand command) {
         // Serialize per process: two concurrent step-overs (e.g. two parallel steps
         // completing at once, or two pods handling events for the same process) would
@@ -102,7 +106,12 @@ public class StepOverProcessUseCase {
         // an UNLOCK completes and may hand the lock to a waiter, whom we wake once it is persisted.
         var grantsToWake = resolveLockSteps(process, result.getStepsToSave());
 
-        if (result.getUpdatedProcess() != process) {
+        // Resolve any REPLY step that just started: its payload is computed from the process as it
+        // stands and recorded on it, in this same transaction, so the reply commits with the
+        // transition that produced it.
+        boolean replied = resolveReplySteps(result.getUpdatedProcess(), result.getStepsToSave());
+
+        if (result.getUpdatedProcess() != process || replied) {
             processRepository.save(result.getUpdatedProcess());
         }
 
@@ -203,6 +212,43 @@ public class StepOverProcessUseCase {
             }
         }
         return grants;
+    }
+
+    /**
+     * Completes each REPLY step that {@code start()} just moved to PENDING this pass: computes its
+     * payload and records it on the process. A process replies once — a second REPLY (which
+     * validation rules out, but a runtime-injected step or an operator retry could still reach)
+     * completes without replacing the first answer. A payload that cannot be computed fails the
+     * step, so the failure contract answers the caller instead.
+     *
+     * @return whether a reply was recorded on the process (which must then be saved)
+     */
+    private boolean resolveReplySteps(Process process, List<StepExecution> stepsToSave) {
+        boolean recorded = false;
+        for (var stepExecution : stepsToSave) {
+            if (!StepExecutionStatus.PENDING.equals(stepExecution.getStatus())) {
+                continue;
+            }
+            var step = pojoFromJson(stepExecution.getStepJson(), Step.class);
+            if (!StepType.REPLY.equals(step.type())) {
+                continue;
+            }
+            var payload = io.mateu.workflow.domain.services.ReplyPayloadResolver.resolve(step, process, maxReplyBytes);
+            if (payload.error() != null) {
+                log.warn("REPLY step {} of process {} failed: {}", step.id(), process.getId(), payload.error());
+                stepExecution.logError(payload.error());
+                stepExecution.updateStatus(StepExecutionStatus.ERROR);
+                continue;
+            }
+            if (process.recordReply(io.mateu.workflow.domain.aggregates.ProcessReply.replied(step.id(), payload.json()))) {
+                recorded = true;
+            } else {
+                log.warn("Process {} already replied; REPLY step {} completes without replacing the first answer",
+                        process.getId(), step.id());
+            }
+            stepExecution.updateStatus(StepExecutionStatus.COMPLETED);
+        }
+        return recorded;
     }
 
     /** A step-level lock defaults its domain to the definition id, so unrelated definitions do not
