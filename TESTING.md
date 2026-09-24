@@ -203,6 +203,27 @@ profile and a dedicated CI job.
 | DIST-13 | **A whole saga driven by a scenario, through the real test worker.** Every other test here programs its worker from Java in this JVM, which proves the engine and proves nothing about the worker anyone would test with. This one boots `modules/test-worker` — the code `apps/worker-standalone-app` ships — on its own topic, and the only instruction it gets is the `TEST_CONFIG` variable on the process: a happy path that hands variables and a log line back, a failure that rolls the saga back with its reason on the process log, `failuresBeforeSuccess: 2` answered by the engine's retries (3 attempts, counted the same on both sides), a `NO_REPLY` step timed out by the engine, and two processes disagreeing about the same task at the same time. Assertions read the engine's tables and the worker's `received_task` out of the same schema. | ✅ `Dist13TestWorkerScenariosTest` |
 | DIST-12 | **An unprocessable event is parked, not dropped, and does not stall the traffic around it.** Real traffic is driven with a report for a step execution the engine has never heard of mixed into it: the real processes finish, and the poison event turns up on the dead-letter topic unchanged. Both halves matter — a poll batch shares transactions, so the scope has to be one process; and an event the engine gives up on has to be visible somewhere. |
 
+### Synchronous invocation (distributed)
+
+| ID | Spec | Status |
+|----|------|--------|
+| DIST-23 | **Reply recorded on another pod.** Two pods; invocations land on the first while the Kafka workers' replies are consumed by the partition owner, which reaches the REPLY about half the time. With the waiters' poll at 10 s, every caller is answered well inside it — by PostgreSQL NOTIFY (or locally). | ✅ `Dist23ReplyOnAnotherPodTest` |
+| DIST-24 | **The waiting pod dies.** The caller's wait ends with the pod; the process finishes on the survivor; a retry with the same idempotency key there gets the one reply — no second process, each step run once. | ✅ `Dist24WaitingPodDiesTest` |
+| DIST-25 | **Broker outage during an invocation.** Accepted with the broker paused (creation needs only the database), answered 202 at the deadline; after the broker returns the process finishes, the reply is there, no Error or stranded inline claims. | ✅ `Dist25BrokerOutageDuringSyncTest` |
+| DIST-26 | **Two shards.** An invocation is placed on the shard that received it (idempotency and business keys claimed in the fleet placement store); a retry on the other shard is refused `ON_ANOTHER_SHARD` naming the owner, and creates nothing. | ✅ `Dist26ShardedSyncInvocationTest` |
+| DIST-27 | **Inline drive vs partition owner.** A two-worker FORK: the receiving pod dispatches inline while a worker reply may land on the owner — two writers for a moment. Every step runs exactly once, every caller is answered. | ✅ `Dist27InlineAgainstPartitionOwnerTest` |
+| DIST-28 | **NOTIFY listener killed.** The listeners' backends are terminated; callers are still answered (poll), and the listeners come back. | ✅ `Dist28ReplyListenerKilledTest` |
+| BENCH | **Sync latency, fast path on/off, 1 and 2 pods** — opt-in (`-Dbench.sync=true`), prints p50/p95/p99. | `SyncLatencyBenchmarkTest` |
+
+Embedded suite (`modules/workflow-e2e`): `ReplyStepE2eTest`/`ReplyStepJpaE2eTest` (REPLY recorded with
+the transition), `SyncInvocationE2eTest` (over Spring MVC: reply, early reply, deadline → 202 → GET,
+retries, refusals), `SyncInvocationJpaE2eTest` (through the relay; six concurrent same-key requests →
+one process), `SyncInvocationStreamE2eTest` (SSE), `SyncInvocationFailureE2eTest` and its JPA twin (the
+failure contract in both modes, cancellation, silent end, busy lock WAIT/FAIL), and the fast path —
+`InlineFastPathJpaE2eTest` (relay switched off: only the inline drive can move the process),
+`InlineBudgetJpaE2eTest`, `InlineCrashRecoveryE2eTest` (a node dies inside an embedded worker with the
+row claimed; another node finishes it).
+
 ## 7. The UI, in a browser (`modules/workflow-ui-e2e`)
 
 Everything above drives the engine through its ports. These drive it the way an operator does:

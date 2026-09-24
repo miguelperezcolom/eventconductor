@@ -292,6 +292,27 @@ A definition can serialize processes by a key — [`LOCK`/`UNLOCK`](/reference/s
 
 Only relevant to definitions that declare locks; one that uses none pays nothing. See [Step types — LOCK / UNLOCK](/reference/step-types/).
 
+### Synchronous invocation (`workflow.sync.*`)
+
+Only relevant to definitions that declare `syncInvocation`; see [Synchronous Invocation](/guides/synchronous-invocation/).
+
+| Property | Default | Description |
+|---|---|---|
+| `workflow.sync.default-deadline-ms` | `5000` | How long a caller waits when neither it (`Prefer: wait=N`) nor the definition says. |
+| `workflow.sync.max-deadline-ms` | `30000` | The longest any caller may wait. |
+| `workflow.sync.max-waiting` | `200` | Callers and progress streams waiting per node; past it, 429. |
+| `workflow.sync.poll-interval-ms` | `250` | How often a node polls for replies recorded elsewhere — the fallback when NOTIFY is unavailable. |
+| `workflow.sync.retention` | `PT24H` | How long an invocation (and so its idempotency key) is remembered. |
+| `workflow.sync.purge-interval` | `PT10M` | How often expired invocations are forgotten. |
+| `workflow.sync.max-reply-bytes` | `262144` | Largest reply a `REPLY` step may record; larger fails the step. |
+| `workflow.sync.stream-interval-ms` | `200` | How often a progress stream (SSE) looks at its process. |
+| `workflow.sync.inline.enabled` | `true` | The fast path: drive a synchronously invoked process on the node that received it (jpa). |
+| `workflow.sync.inline.threads` | `8` | Processes driven inline at once per node; beyond, the normal path. Keep well under the pool size. |
+| `workflow.sync.inline.max-steps` | `64` | Outbox messages per inline drive before the rest goes to the relay. |
+| `workflow.sync.inline.claim-lease-ms` | `30000` | How long an inline claim survives a dead node before the sweeper hands it back. |
+| `workflow.sync.inline.sweep-interval-ms` | `5000` | How often lapsed inline claims are handed back. |
+| `workflow.sync.notify.enabled` | `true` | PostgreSQL `LISTEN/NOTIFY` wake-up across nodes (needs a direct connection, not PgBouncer in transaction mode). |
+
 ## Kafka (when `workflow.mode=kafka`)
 
 ```properties

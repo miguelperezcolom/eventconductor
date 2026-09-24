@@ -73,6 +73,22 @@ than one pod's share of the work. Alert on `max()` across replicas, not `sum()`,
 it by the replica count. It reads zero in `workflow.persistence=memory`, which keeps no such
 table — there it means "not measured", not "nothing stalled".
 
+#### Synchronous invocation
+
+| Meter | Type | Tags | Meaning |
+|---|---|---|---|
+| `eventconductor.sync.invocations` | counter | `workflowDefinitionId` | Invocations that started a process (retries of an existing one are not counted) |
+| `eventconductor.sync.answers` | counter | `workflowDefinitionId`, `outcome` | Callers answered, by outcome — `DEADLINE` means a 202 |
+| `eventconductor.sync.response.latency` | timer (histogram) | `workflowDefinitionId`, `outcome` | Request arriving → answer ready |
+| `eventconductor.sync.deadline.expired` | counter | `workflowDefinitionId` | Callers whose deadline passed before the reply |
+| `eventconductor.sync.rejected` | counter | `workflowDefinitionId`, `reason` | Invocations refused before creating anything |
+| `eventconductor.sync.waiting` | gauge | — | Callers waiting on this node |
+| `eventconductor.sync.wakeups` | counter | `via` | How replies reached waiting callers: `registration`, `local`, `notify`, `poll` — a rising `poll` share means NOTIFY is not working |
+| `eventconductor.sync.inline.steps` | summary | — | Outbox messages handled per inline drive (the fast path) |
+| `eventconductor.sync.inline.fallbacks` | counter | `reason` | Inline drives that stopped early or never started: `saturated`, `budget`, `claim_lost`, `failure` |
+
+Tracing: the request's span `eventconductor.sync.invoke` carries a **link** to the process's anchored trace, and the `eventconductor.sync.reply` span in the process trace links back to the caller's — so each can be reached from the other without the process becoming a child of one request.
+
 ### Forms engine
 
 | Metric | Type | Tags | Description |

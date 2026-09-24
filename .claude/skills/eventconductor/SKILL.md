@@ -31,6 +31,7 @@ machine, a scheduler, or retry/timeout loops — declare them on the step.
 | a reusable child workflow (sub-process) | `PROCESS` step (`childWorkflowDefinitionId`, optional `outputVariables`) | [workflow-definitions.md](reference/workflow-definitions.md) |
 | undo-on-failure (saga) | `rollbackable: true` + `compensationStepId` | [workflow-definitions.md](reference/workflow-definitions.md) |
 | start / cancel / query a process | `ProcessUpstreamEventUseCase`, `ProcessRepository` | [api.md](reference/api.md) |
+| call a process over HTTP and wait for its answer | `REPLY` step + definition `syncInvocation.enabled` + `POST /workflow/api/definitions/{id}/invocations` | [workflow-definitions.md](reference/workflow-definitions.md), [api.md](reference/api.md) |
 | conditional / skipped steps | `preconditionExpression` (JEXL over variables) | [workflow-definitions.md](reference/workflow-definitions.md) |
 
 Common mistakes: [gotchas.md](reference/gotchas.md). Deployment topology & config:
