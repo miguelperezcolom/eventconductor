@@ -55,6 +55,8 @@ public class SyncInvocationService {
     final SyncReplyWaiters waiters;
     final WorkflowMetrics workflowMetrics;
     final WorkflowTracing workflowTracing;
+    final io.mateu.workflow.application.out.StepExecutionRepository stepExecutionRepository;
+    final io.mateu.workflow.application.out.LogMessageRepository logMessageRepository;
 
     /** Wait when neither the caller nor the definition says how long. */
     @org.springframework.beans.factory.annotation.Value("${workflow.sync.default-deadline-ms:5000}")
@@ -137,6 +139,29 @@ public class SyncInvocationService {
 
     public Optional<Invocation> findByKey(String workflowDefinitionId, String idempotencyKey) {
         return invocationRepository.findByKey(workflowDefinitionId, idempotencyKey);
+    }
+
+    /** One look at a streamed invocation: what happened since the last look, and where it stands. */
+    public record Tick(List<InvocationProgress.Event> events, View view, boolean processFinished) {
+    }
+
+    /**
+     * Reads the process, its steps and its log once, and returns the progress events not sent yet —
+     * the SSE stream's heartbeat. Plain reads of persisted state, so it sees the same thing on any
+     * pod, whoever is running the process.
+     */
+    public Tick tick(Invocation invocation, InvocationProgress progress) {
+        var process = processRepository.findById(invocation.processId());
+        if (process.isEmpty()) {
+            return new Tick(List.of(), new View(invocation, null, null), false);
+        }
+        var events = progress.next(process.get(),
+                stepExecutionRepository.findByProcessId(invocation.processId()),
+                logMessageRepository.findByProcessId(invocation.processId()));
+        var status = process.get().getStatus();
+        boolean finished = status == ProcessStatus.COMPLETED || status == ProcessStatus.CANCELLED
+                || status == ProcessStatus.COMPENSATED || status == ProcessStatus.COMPENSATION_FAILED;
+        return new Tick(events, viewOf(invocation, process.get()), finished);
     }
 
     /** The invocation as it stands now. */

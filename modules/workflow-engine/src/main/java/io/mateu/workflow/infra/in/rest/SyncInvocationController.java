@@ -87,12 +87,155 @@ public class SyncInvocationController {
     int maxWaiting = 200;
 
     private Semaphore admission;
+    private java.util.concurrent.ScheduledExecutorService streams;
+
+    /** How often a progress stream (SSE) looks at its process. */
+    @org.springframework.beans.factory.annotation.Value("${workflow.sync.stream-interval-ms:200}")
+    long streamIntervalMs = 200;
 
     /** Public so an embedder (or a test) that builds the controller by hand can start it. */
     @PostConstruct
     public void init() {
         admission = new Semaphore(Math.max(1, maxWaiting));
         workflowMetrics.syncWaitingGauge(waiters::waitingCount);
+        streams = java.util.concurrent.Executors.newScheduledThreadPool(2, runnable -> {
+            var thread = new Thread(runnable, "sync-invocation-streams");
+            thread.setDaemon(true);
+            return thread;
+        });
+    }
+
+    @jakarta.annotation.PreDestroy
+    public void shutdown() {
+        if (streams != null) {
+            streams.shutdownNow();
+        }
+    }
+
+    // ── Progress over Server-Sent Events ─────────────────────────────────────────────────────────
+
+    /**
+     * The same invocation, answered as a stream: {@code status}, {@code step} and {@code log}
+     * events while the process runs, then {@code reply} (the envelope a plain POST returns), or
+     * {@code timeout} if the deadline passes first. {@code follow=true} keeps the stream open after
+     * the reply until the process finishes or the deadline passes.
+     */
+    @PostMapping(value = "/definitions/{definitionId}/invocations",
+            produces = org.springframework.http.MediaType.TEXT_EVENT_STREAM_VALUE)
+    public org.springframework.web.servlet.mvc.method.annotation.SseEmitter invokeStreaming(
+            @PathVariable("definitionId") String definitionId,
+            @RequestHeader(value = "X-Api-Key", required = false) String apiKey,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+            @RequestHeader(value = "Prefer", required = false) String prefer,
+            @RequestHeader(value = "Last-Event-ID", required = false) String lastEventId,
+            @RequestParam(value = "follow", defaultValue = "false") boolean follow,
+            @RequestBody(required = false) StartBody body) {
+        verifyApiKey(apiKey);
+        if (idempotencyKey == null || idempotencyKey.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The Idempotency-Key header is required.");
+        }
+        var variables = variablesOf(body);
+        var businessKey = body == null ? null : body.businessKey();
+        refuseIfOversized(idempotencyKey, businessKey, variables);
+        acquireOrRefuse(definitionId);
+        try {
+            var started = service.start(new SyncInvocationService.StartRequest(definitionId, idempotencyKey,
+                    businessKey, variables, waitOf(prefer), caller()));
+            return stream(started.invocation(), started.timeToWait(), follow, lastEventId);
+        } catch (RuntimeException e) {
+            admission.release();
+            throw e;
+        }
+    }
+
+    @GetMapping(value = "/invocations/{invocationId}",
+            produces = org.springframework.http.MediaType.TEXT_EVENT_STREAM_VALUE)
+    public org.springframework.web.servlet.mvc.method.annotation.SseEmitter getStreaming(
+            @PathVariable("invocationId") String invocationId,
+            @RequestHeader(value = "X-Api-Key", required = false) String apiKey,
+            @RequestHeader(value = "Prefer", required = false) String prefer,
+            @RequestHeader(value = "Last-Event-ID", required = false) String lastEventId,
+            @RequestParam(value = "follow", defaultValue = "false") boolean follow) {
+        verifyApiKey(apiKey);
+        var invocation = service.find(invocationId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No such invocation."));
+        acquireOrRefuse(invocation.workflowDefinitionId());
+        return stream(invocation, service.waitFor(waitOf(prefer)), follow, lastEventId);
+    }
+
+    /** Streams until the reply (or, following, the end of the process) or the deadline; the permit is held until then. */
+    private org.springframework.web.servlet.mvc.method.annotation.SseEmitter stream(
+            Invocation invocation, Duration wait, boolean follow, String lastEventId) {
+        var emitter = new org.springframework.web.servlet.mvc.method.annotation.SseEmitter(wait.toMillis() + 30_000);
+        var progress = new io.mateu.workflow.application.sync.InvocationProgress(lastEventId);
+        var deadline = System.nanoTime() + wait.toNanos();
+        var done = new java.util.concurrent.atomic.AtomicBoolean();
+        var replySent = new java.util.concurrent.atomic.AtomicBoolean();
+        var task = new java.util.concurrent.atomic.AtomicReference<java.util.concurrent.ScheduledFuture<?>>();
+        Runnable finish = () -> {
+            if (done.compareAndSet(false, true)) {
+                var scheduled = task.get();
+                if (scheduled != null) {
+                    scheduled.cancel(false);
+                }
+                admission.release();
+            }
+        };
+        emitter.onCompletion(finish);
+        emitter.onTimeout(finish);
+        emitter.onError(error -> finish.run());
+        Runnable tick = () -> {
+            if (done.get()) {
+                return;
+            }
+            try {
+                var look = service.tick(invocation, progress);
+                for (var event : look.events()) {
+                    send(emitter, event);
+                }
+                var view = look.view();
+                if (view.replied() && replySent.compareAndSet(false, true)) {
+                    send(emitter, progress.now("reply", toResponse(view).getBody()));
+                    if (!follow) {
+                        emitter.complete();
+                        finish.run();
+                        return;
+                    }
+                }
+                if (follow && replySent.get() && look.processFinished()) {
+                    emitter.complete();
+                    finish.run();
+                    return;
+                }
+                if (System.nanoTime() >= deadline) {
+                    if (!replySent.get()) {
+                        var data = new LinkedHashMap<String, Object>();
+                        data.put("invocationId", invocation.id());
+                        data.put("processId", invocation.processId());
+                        data.put("location", "/workflow/api/invocations/" + invocation.id());
+                        send(emitter, progress.now("timeout", data));
+                    }
+                    emitter.complete();
+                    finish.run();
+                }
+            } catch (java.io.IOException | IllegalStateException e) {
+                // The caller hung up. The process never depended on it.
+                finish.run();
+            } catch (RuntimeException e) {
+                log.warn("Progress stream of invocation {} failed: {}", invocation.id(), e.getMessage());
+                emitter.completeWithError(e);
+                finish.run();
+            }
+        };
+        task.set(streams.scheduleWithFixedDelay(tick, 0, Math.max(10, streamIntervalMs),
+                java.util.concurrent.TimeUnit.MILLISECONDS));
+        return emitter;
+    }
+
+    private static void send(org.springframework.web.servlet.mvc.method.annotation.SseEmitter emitter,
+                             io.mateu.workflow.application.sync.InvocationProgress.Event event) throws java.io.IOException {
+        emitter.send(org.springframework.web.servlet.mvc.method.annotation.SseEmitter.event()
+                .name(event.name()).id(event.id()).data(event.data(), org.springframework.http.MediaType.APPLICATION_JSON));
     }
 
     /** The request body. Variables may be any JSON: strings pass through, anything else is kept as JSON text. */
