@@ -14,6 +14,10 @@ public interface ProcessEntityRepository extends JpaRepository<ProcessEntity, St
 
     Optional<ProcessEntity> findByBusinessKey(String businessKey);
 
+    /** Which of these processes have replied — one query for every caller waiting on a pod. */
+    @Query("select p.id from ProcessEntity p where p.id in :ids and p.repliedAt is not null")
+    List<String> findRepliedIdsIn(java.util.Collection<String> ids);
+
     long countByStatus(String status);
 
     /** Process counts grouped by status — a handful of rows, for the home dashboard KPIs. */

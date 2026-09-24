@@ -43,6 +43,7 @@ class StepOverProcessUseCaseTest {
     @Mock io.mateu.workflow.application.out.LockService namedLockService;
     @Mock org.springframework.beans.factory.ObjectProvider<io.mateu.workflow.application.usecases.stepexecution.update.UpdateStepExecutionUseCase> updateStepExecutionUseCase;
     @Mock org.springframework.beans.factory.ObjectProvider<StepOverProcessUseCase> self;
+    @Mock io.mateu.workflow.application.out.ReplySignal replySignal;
     @Spy  WorkflowOrchestrationService workflowOrchestrationService = new WorkflowOrchestrationService();
 
     // The real no-op, not a mock: a mocked span() would swallow the work it is meant to wrap.

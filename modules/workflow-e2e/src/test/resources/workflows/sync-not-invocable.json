@@ -1,0 +1,10 @@
+{
+  "id": "sync-not-invocable",
+  "name": "Has a REPLY but is not sync-invocable",
+  "version": 1,
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "reply", "type": "REPLY", "name": "Reply", "preconditionStepId": "start" },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "reply" }
+  ]
+}

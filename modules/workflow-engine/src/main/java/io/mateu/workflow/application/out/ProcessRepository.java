@@ -16,6 +16,19 @@ public interface ProcessRepository extends CrudStore<Process> {
 
     Optional<Process> findByBusinessKey(String businessKey);
 
+    /**
+     * Which of these processes have recorded a reply — the one question the pods waiting on
+     * synchronous invocations ask, all their waiters at once, every poll. The default reads each
+     * process; the JPA store answers it with one query over the ids.
+     */
+    default java.util.Set<String> findRepliedAmong(java.util.Collection<String> processIds) {
+        var replied = new java.util.HashSet<String>();
+        for (var id : processIds) {
+            findById(id).filter(Process::hasReplied).ifPresent(process -> replied.add(id));
+        }
+        return replied;
+    }
+
     default long countByStatus(ProcessStatus status) {
         return findAll().stream().filter(process -> status.equals(process.getStatus())).count();
     }

@@ -47,6 +47,14 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
     public static final String OUTBOX_RELAY_WAITING = "eventconductor.outbox.relay.waiting";
     public static final String OUTBOX_RELAY_STALLED = "eventconductor.outbox.relay.stalled";
 
+    public static final String SYNC_INVOCATIONS = "eventconductor.sync.invocations";
+    public static final String SYNC_ANSWERS = "eventconductor.sync.answers";
+    public static final String SYNC_RESPONSE_LATENCY = "eventconductor.sync.response.latency";
+    public static final String SYNC_DEADLINE_EXPIRED = "eventconductor.sync.deadline.expired";
+    public static final String SYNC_REJECTED = "eventconductor.sync.rejected";
+    public static final String SYNC_WAITING = "eventconductor.sync.waiting";
+    public static final String TAG_REASON = "reason";
+
     public static final String TAG_WORKFLOW_DEFINITION_ID = "workflowDefinitionId";
     public static final String TAG_OUTCOME = "outcome";
     public static final String TAG_TRIGGER = "trigger";
@@ -307,5 +315,86 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
 
     private static String tagValue(String value) {
         return value != null && !value.isBlank() ? value : UNKNOWN;
+    }
+
+    // ── Synchronous invocation ─────────────────────────────────────────────────────────────────
+
+    private volatile java.util.function.IntSupplier syncWaiting;
+    private volatile boolean syncWaitingRegistered;
+
+    @Override
+    public void syncInvocationStarted(String workflowDefinitionId) {
+        var registry = registry();
+        if (registry == null) return;
+        registerSyncWaiting(registry);
+        Counter.builder(SYNC_INVOCATIONS)
+                .description("Synchronous invocations that started a process")
+                .tag(TAG_WORKFLOW_DEFINITION_ID, tagValue(workflowDefinitionId))
+                .register(registry)
+                .increment();
+    }
+
+    @Override
+    public void syncInvocationAnswered(String workflowDefinitionId, String outcome, Duration latency) {
+        var registry = registry();
+        if (registry == null) return;
+        registerSyncWaiting(registry);
+        var outcomeTag = outcome == null ? UNKNOWN : outcome;
+        Counter.builder(SYNC_ANSWERS)
+                .description("Synchronous callers answered, by outcome (DEADLINE = answered 202)")
+                .tag(TAG_WORKFLOW_DEFINITION_ID, tagValue(workflowDefinitionId))
+                .tag(TAG_OUTCOME, outcomeTag)
+                .register(registry)
+                .increment();
+        if ("DEADLINE".equals(outcomeTag)) {
+            Counter.builder(SYNC_DEADLINE_EXPIRED)
+                    .description("Synchronous callers whose deadline passed before the reply (answered 202)")
+                    .tag(TAG_WORKFLOW_DEFINITION_ID, tagValue(workflowDefinitionId))
+                    .register(registry)
+                    .increment();
+        }
+        if (latency != null) {
+            Timer.builder(SYNC_RESPONSE_LATENCY)
+                    .description("From a synchronous request arriving to its answer being ready")
+                    .tag(TAG_WORKFLOW_DEFINITION_ID, tagValue(workflowDefinitionId))
+                    .tag(TAG_OUTCOME, outcomeTag)
+                    .publishPercentileHistogram()
+                    .register(registry)
+                    .record(latency);
+        }
+    }
+
+    @Override
+    public void syncInvocationRejected(String workflowDefinitionId, String reason) {
+        var registry = registry();
+        if (registry == null) return;
+        Counter.builder(SYNC_REJECTED)
+                .description("Synchronous invocations refused before creating anything, by reason")
+                .tag(TAG_WORKFLOW_DEFINITION_ID, tagValue(workflowDefinitionId))
+                .tag(TAG_REASON, reason == null ? UNKNOWN : reason)
+                .register(registry)
+                .increment();
+    }
+
+    @Override
+    public void syncWaitingGauge(java.util.function.IntSupplier waiting) {
+        this.syncWaiting = waiting;
+        var registry = registry();
+        if (registry != null) {
+            registerSyncWaiting(registry);
+        }
+    }
+
+    /** Registered on first use for the same reason the registry is resolved lazily (see the class doc). */
+    private void registerSyncWaiting(MeterRegistry registry) {
+        var supplier = syncWaiting;
+        if (syncWaitingRegistered || supplier == null) return;
+        synchronized (this) {
+            if (syncWaitingRegistered) return;
+            io.micrometer.core.instrument.Gauge.builder(SYNC_WAITING, supplier, s -> s.getAsInt())
+                    .description("Synchronous callers waiting for a reply on this node")
+                    .register(registry);
+            syncWaitingRegistered = true;
+        }
     }
 }

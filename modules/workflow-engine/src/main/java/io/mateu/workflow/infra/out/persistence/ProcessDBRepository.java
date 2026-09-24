@@ -134,6 +134,14 @@ public class ProcessDBRepository implements ProcessRepository {
     }
 
     @Override
+    public java.util.Set<String> findRepliedAmong(java.util.Collection<String> processIds) {
+        if (processIds.isEmpty()) {
+            return java.util.Set.of();
+        }
+        return new java.util.HashSet<>(processEntityRepository.findRepliedIdsIn(processIds));
+    }
+
+    @Override
     public List<Process> findAll() {
         return processEntityRepository.findAll().stream().map(this::map).toList();
     }

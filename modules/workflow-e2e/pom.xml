@@ -61,6 +61,18 @@
             <artifactId>h2</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- The synchronous-invocation endpoint is driven through Spring MVC (MockMvc), which
+             needs the servlet API and Spring MVC on the test classpath; the engine itself runs without a server. -->
+        <dependency>
+            <groupId>jakarta.servlet</groupId>
+            <artifactId>jakarta.servlet-api</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-webmvc</artifactId>
+            <scope>test</scope>
+        </dependency>
         <!-- The distributed suite (real Kafka + PostgreSQL via Testcontainers) lives in the
              separate, Docker-gated modules/workflow-dist-e2e module. -->
     </dependencies>
