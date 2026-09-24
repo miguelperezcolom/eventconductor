@@ -26,6 +26,7 @@ class CancelTaskUseCaseTest {
     @Mock FormExecutionRepository formExecutionRepository;
     @Mock FormExecutionEntityRepository formExecutionEntityRepository;
     @Mock FormsMetrics formsMetrics;
+    @Mock io.mateu.workflow.application.services.HumanTaskEvents humanTaskEvents;
 
     @InjectMocks CancelTaskUseCase useCase;
 

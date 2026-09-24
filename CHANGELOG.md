@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **The forms engine announces its human tasks.** Every task opened, completed or cancelled is
+  published as a `HumanTaskChanged` (in `shared`: task, form and its name, process, step, status, the
+  roles its form requires, who holds it) on the `humanTasks` binding — topic `human-tasks` in the
+  standalone app, `FORMS_HUMAN_TASKS_TOPIC` to change it. It is for whoever keeps a person's work in
+  one place — an inbox or notification centre that shows a task next to the other things waiting
+  for that person — without polling the forms engine. Best effort, published after the task is
+  saved: a broker that refuses it makes an inbox lag, never a task fail to open or close.
 - **Sharded message routing (phase 1): messages start to reach only the shards that can correlate
   them, instead of every shard.** Behind `workflow.sharding.message-routing.enabled` (default false;
   with it off, or with sharding off, behaviour is exactly as before). A single `MessageRouter` — used

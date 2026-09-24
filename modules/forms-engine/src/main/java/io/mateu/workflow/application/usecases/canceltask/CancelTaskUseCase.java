@@ -16,14 +16,17 @@ public class CancelTaskUseCase {
     final FormExecutionRepository formExecutionRepository;
     final FormExecutionEntityRepository formExecutionEntityRepository;
     final FormsMetrics formsMetrics;
+    final io.mateu.workflow.application.services.HumanTaskEvents humanTaskEvents;
 
     public void handle(CancelTaskCommand command) {
         var formExecutions = formExecutionEntityRepository.findByStepExecutionId(command.taskId());
         formExecutions.forEach(entity -> {
             var formExecution = formExecutionRepository.findById(entity.getId());
             formExecution.ifPresent(execution -> {
-                formExecutionRepository.save(execution.withStatus(FormExecutionStatus.CANCELLED));
+                var cancelled = execution.withStatus(FormExecutionStatus.CANCELLED);
+                formExecutionRepository.save(cancelled);
                 formsMetrics.taskCancelled(execution.formId(), FormsMetrics.durationOf(execution));
+                humanTaskEvents.changed(cancelled);
             });
         });
     }

@@ -28,6 +28,7 @@ public class CompleteTaskUseCase {
     final StreamBridge streamBridge;
     final FormsMetrics formsMetrics;
     final TaskAuthorization taskAuthorization;
+    final io.mateu.workflow.application.services.HumanTaskEvents humanTaskEvents;
 
     /**
      * Closes a human task and tells the engine — the reply first, and through {@link WorkerReply},
@@ -85,6 +86,8 @@ public class CompleteTaskUseCase {
         formExecutionRepository.save(execution);
 
         formsMetrics.taskCompleted(execution.formId(), FormsMetrics.durationOf(execution));
+
+        humanTaskEvents.changed(execution);
     }
 
     /**

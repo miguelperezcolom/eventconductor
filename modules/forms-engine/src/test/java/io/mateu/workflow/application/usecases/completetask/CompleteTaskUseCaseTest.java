@@ -39,6 +39,7 @@ class CompleteTaskUseCaseTest {
     @Mock FormRepository formRepository;
     @Mock StreamBridge streamBridge;
     @Mock FormsMetrics formsMetrics;
+    @Mock io.mateu.workflow.application.services.HumanTaskEvents humanTaskEvents;
     @Mock io.mateu.workflow.application.services.TaskAuthorization taskAuthorization;
 
     @InjectMocks CompleteTaskUseCase useCase;
