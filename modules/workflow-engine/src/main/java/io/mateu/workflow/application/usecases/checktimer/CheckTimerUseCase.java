@@ -54,12 +54,9 @@ public class CheckTimerUseCase {
         if (!StepType.TIMER.equals(step.type())) {
             return false;
         }
-        try {
-            return !step.timerDueAt(stepExecution.getStartedAt(), stepExecution.getVariables()).isAfter(now);
-        } catch (IllegalArgumentException e) {
-            // A misconfigured timer already failed at start(); nothing to fire here.
-            return false;
-        }
+        // Null for a misconfigured timer, which already failed at start(): nothing to fire here.
+        var dueAt = stepExecution.currentDeadline();
+        return dueAt != null && !dueAt.isAfter(now);
     }
 
 }

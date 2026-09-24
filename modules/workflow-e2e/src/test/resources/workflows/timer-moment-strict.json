@@ -1,0 +1,11 @@
+{
+  "id": "timer-moment-strict",
+  "name": "Timer: a moment already past, no route — the process fails",
+  "version": 1,
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "wait", "type": "TIMER", "name": "Three days before check-in", "preconditionStepId": "start",
+      "until": { "date": "${checkinAt}", "offset": "-P3D", "ifPast": "timeout" } },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "wait" }
+  ]
+}

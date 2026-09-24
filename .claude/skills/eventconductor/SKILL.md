@@ -32,6 +32,7 @@ machine, a scheduler, or retry/timeout loops — declare them on the step.
 | undo-on-failure (saga) | `rollbackable: true` + `compensationStepId` | [workflow-definitions.md](reference/workflow-definitions.md) |
 | start / cancel / query a process | `ProcessUpstreamEventUseCase`, `ProcessRepository` | [api.md](reference/api.md) |
 | call a REST endpoint without writing a worker | `HTTP_CALL` step (+ `worker-http` / `http-worker-standalone-app`, `workflow.http.*`) | [workflow-definitions.md](reference/workflow-definitions.md) |
+| run a step at / by a date from the process ("3 days before check-in") | TIMER `until` / any waiting step's `deadline` (moments, follow variable changes; `workflow.time.zone`) | [workflow-definitions.md](reference/workflow-definitions.md) |
 | emit a domain event for other services | `PUBLISH_EVENT` step (+ `workflow.events.destinations`) | [workflow-definitions.md](reference/workflow-definitions.md) |
 | call a process over HTTP and wait for its answer | `REPLY` step + definition `syncInvocation.enabled` + `POST /workflow/api/definitions/{id}/invocations` | [workflow-definitions.md](reference/workflow-definitions.md), [api.md](reference/api.md) |
 | conditional / skipped steps | `preconditionExpression` (JEXL over variables) | [workflow-definitions.md](reference/workflow-definitions.md) |

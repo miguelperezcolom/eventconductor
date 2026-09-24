@@ -66,6 +66,13 @@ public abstract class AbstractE2eTest {
                 .findFirst().orElseThrow();
     }
 
+    /** Every line the process logged, in any level. */
+    protected List<String> logsOf(String businessKey) {
+        return logMessageRepository.findByProcessId(process(businessKey).id()).stream()
+                .map(io.mateu.workflow.domain.aggregates.LogMessage::getMessage)
+                .toList();
+    }
+
     /** What the process recorded as errors — the Errors tab of its detail page. */
     protected List<String> errorsOf(String businessKey) {
         return logMessageRepository.findByProcessId(process(businessKey).id()).stream()

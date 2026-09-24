@@ -49,16 +49,21 @@ public class CheckStepTimeoutHandler {
 
         var step = pojoFromJson(stepExecution.getStepJson(), Step.class);
 
-        if (step.timeout() <= 0 || stepExecution.getStartedAt() == null) {
+        if (!step.hasTimeLimit() || stepExecution.getStartedAt() == null) {
             return;
         }
 
-        var timeoutAt = stepExecution.getStartedAt().plus(step.timeout(), ChronoUnit.MILLIS);
-        if (LocalDateTime.now().isBefore(timeoutAt)) {
+        var timeoutAt = stepExecution.currentDeadline();
+        if (timeoutAt == null || LocalDateTime.now().isBefore(timeoutAt)) {
             return;
         }
+        // Which limit was reached, for the log: the timeout counted from the start, or the deadline.
+        var byTimeout = step.timeout() > 0
+                && !timeoutAt.isBefore(stepExecution.getStartedAt().plus(step.timeout(), ChronoUnit.MILLIS));
 
-        stepExecution.updateStatus(StepExecutionStatus.TIMEOUT);
+        // A deadline is a business moment, not a per-attempt budget: once reached, a retry would
+        // start past it, so the step's retries are not spent on it.
+        stepExecution.updateStatus(StepExecutionStatus.TIMEOUT, !byTimeout);
         stepExecutionRepository.save(stepExecution);
 
         workflowMetrics.stepExecutionFinished(stepExecution.getWorkflowDefinitionId(),
@@ -71,7 +76,8 @@ public class CheckStepTimeoutHandler {
                 stepExecution.getProcessId(),
                 stepExecution.id(),
                 MessageType.Error.name(),
-                "Step timed out after " + Duration.ofMillis(step.timeout()),
+                byTimeout ? "Step timed out after " + Duration.ofMillis(step.timeout())
+                        : "Step reached its deadline (" + step.deadline().describe() + ", due " + timeoutAt + ")",
                 "system"
         ));
         // Compensation (and retry) is handled centrally by StepExecutionStatusUpdatedEventHandler

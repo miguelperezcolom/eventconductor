@@ -74,6 +74,7 @@ export default defineConfig({
 						{ label: 'HTTP Calls', slug: 'guides/http-calls' },
 						{ label: 'Publishing Domain Events', slug: 'guides/publishing-events' },
 						{ label: 'Payload Templates', slug: 'guides/payload-templates' },
+						{ label: 'Scheduling and Deadlines', slug: 'guides/scheduling-and-deadlines' },
 						{ label: 'Implementing Workers', slug: 'guides/workers' },
 						{ label: 'The Test Worker', slug: 'guides/test-worker' },
 						{ label: 'Dynamic Workflows', slug: 'guides/dynamic-workflows' },

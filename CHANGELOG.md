@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Moments** — "3 days before check-in, at 09:00 hotel time", from the process's data: `{date, offset, at, zone}` (or a date template). Offsets in days and up are calendar arithmetic in the zone, DST-safe. `workflow.time.zone` sets the zone for dates that carry none (default: the JVM's, as before).
+- **TIMER `until`** — wait for a moment; `ifPast: fire | timeout` decides what a moment already past does (`timeout` follows `onTimeoutStepId` or fails, without retries).
+- **`deadline` on any waiting step** (ACTION, USER_TASK, RULE, WAIT_FOR_MESSAGE, PROCESS, HTTP_CALL) — a moment by which it must finish; a timeout that retries do not extend; with `timeout`, the earlier wins.
+- `until` timers and `deadline`s **follow the process's variables**: a moved check-in moves them (logged); a cleared date keeps the armed moment.
+- The workflow graph shows a TIMER's moment, and a step's deadline.
+
 ## [2.21.0] - 2026-09-24
 
 ### Added

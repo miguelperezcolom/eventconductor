@@ -10,7 +10,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
 
 import static io.mateu.core.infra.JsonSerializer.pojoFromJson;
 
@@ -33,8 +32,11 @@ public class CheckTimeoutUseCase {
                 .filter(se -> se.getStartedAt() != null)
                 .filter(se -> {
                     var step = pojoFromJson(se.getStepJson(), Step.class);
-                    return step.timeout() > 0
-                            && se.getStartedAt().plus(step.timeout(), ChronoUnit.MILLIS).isBefore(now);
+                    if (!step.hasTimeLimit()) {
+                        return false;
+                    }
+                    var limit = se.currentDeadline();
+                    return limit != null && limit.isBefore(now);
                 })
                 .toList();
         if (expired.isEmpty()) {
