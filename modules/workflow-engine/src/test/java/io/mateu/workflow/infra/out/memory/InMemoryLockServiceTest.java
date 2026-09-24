@@ -159,4 +159,14 @@ class InMemoryLockServiceTest {
         // With p2 gone from the queue, releasing p1 frees the key rather than handing it to p2.
         assertThat(locks.release(LOCK, KEY, "p1")).isEmpty();
     }
+
+    @org.junit.jupiter.api.Test
+    void tryAcquireTakesAFreeLockAndNeverQueues() {
+        assertThat(locks.tryAcquire("booking", "B1", "p1")).isEqualTo(io.mateu.workflow.application.out.LockService.Outcome.ACQUIRED);
+        assertThat(locks.tryAcquire("booking", "B1", "p1")).as("reentrant").isEqualTo(io.mateu.workflow.application.out.LockService.Outcome.ACQUIRED);
+        assertThat(locks.tryAcquire("booking", "B1", "p2")).isEqualTo(io.mateu.workflow.application.out.LockService.Outcome.BUSY);
+        // p2 was not queued: releasing p1's hold admits nobody.
+        assertThat(locks.release("booking", "B1", "p1")).isEmpty();
+        assertThat(locks.tryAcquire("booking", "B1", "p2")).isEqualTo(io.mateu.workflow.application.out.LockService.Outcome.ACQUIRED);
+    }
 }

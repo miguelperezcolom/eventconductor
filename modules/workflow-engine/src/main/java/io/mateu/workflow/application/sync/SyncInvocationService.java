@@ -57,6 +57,7 @@ public class SyncInvocationService {
     final WorkflowTracing workflowTracing;
     final io.mateu.workflow.application.out.StepExecutionRepository stepExecutionRepository;
     final io.mateu.workflow.application.out.LogMessageRepository logMessageRepository;
+    final io.mateu.workflow.application.out.LockService lockService;
 
     /** Wait when neither the caller nor the definition says how long. */
     @org.springframework.beans.factory.annotation.Value("${workflow.sync.default-deadline-ms:5000}")
@@ -91,12 +92,12 @@ public class SyncInvocationService {
         var definition = workflowDefinitionRepository.findById(request.workflowDefinitionId())
                 .orElseThrow(() -> new UnknownWorkflowDefinitionException(request.workflowDefinitionId()));
         if (!definition.isSyncInvocable()) {
-            throw new SyncInvocationRejectedException(SyncInvocationRejectedException.Reason.NOT_SYNC_INVOCABLE,
+            throw reject(definition.id(), SyncInvocationRejectedException.Reason.NOT_SYNC_INVOCABLE,
                     "Workflow '" + definition.id() + "' cannot be invoked synchronously"
                             + " (it does not declare syncInvocation.enabled).");
         }
         if (!definition.status().accceptsNewInstances()) {
-            throw new SyncInvocationRejectedException(SyncInvocationRejectedException.Reason.NOT_ACCEPTING,
+            throw reject(definition.id(), SyncInvocationRejectedException.Reason.NOT_ACCEPTING,
                     "Workflow '" + definition.id() + "' is " + definition.status() + " and accepts no new instances.");
         }
         var wait = waitFor(definition, request.requestedWait());
@@ -112,7 +113,7 @@ public class SyncInvocationService {
                 hash, UUID.randomUUID().toString(), now.plus(wait), now, now.plus(retention),
                 workflowTracing.currentTraceParent());
         try {
-            invocationRepository.createWith(invocation, () -> create(invocation, request));
+            invocationRepository.createWith(invocation, () -> create(definition, invocation, request));
         } catch (InvocationRepository.DuplicateInvocationException e) {
             // Somebody else got the key between the lookup and the insert — a concurrent retry. Their
             // invocation is the one; this request joins it.
@@ -192,7 +193,7 @@ public class SyncInvocationService {
 
     private Started retried(Invocation existing, String hash, Duration wait) {
         if (!existing.requestHash().equals(hash)) {
-            throw new SyncInvocationRejectedException(SyncInvocationRejectedException.Reason.IDEMPOTENCY_KEY_REUSED,
+            throw reject(existing.workflowDefinitionId(), SyncInvocationRejectedException.Reason.IDEMPOTENCY_KEY_REUSED,
                     "Idempotency key '" + existing.idempotencyKey() + "' was already used for a different request.");
         }
         log.info("Synchronous invocation {} retried with key '{}'", existing.id(), existing.idempotencyKey());
@@ -200,26 +201,73 @@ public class SyncInvocationService {
     }
 
     /** Creates the process, inside the invocation's transaction; refuses (rolling both back) if it was not. */
-    private void create(Invocation invocation, StartRequest request) {
+    private void create(WorkflowDefinition definition, Invocation invocation, StartRequest request) {
         var variables = request.variables() == null ? List.<Variable>of() : request.variables().entrySet().stream()
                 .map(entry -> new Variable(entry.getKey(), entry.getValue()))
                 .toList();
         var businessKey = request.businessKey() == null || request.businessKey().isBlank()
                 ? null : request.businessKey();
         if (businessKey != null && processRepository.findByBusinessKey(businessKey).isPresent()) {
-            throw new SyncInvocationRejectedException(SyncInvocationRejectedException.Reason.BUSINESS_KEY_TAKEN,
+            throw reject(definition.id(), SyncInvocationRejectedException.Reason.BUSINESS_KEY_TAKEN,
                     "A process with business key '" + businessKey + "' already exists.");
         }
-        createProcessUseCase.handle(new CreateProcessCommand(invocation.processId(),
-                invocation.workflowDefinitionId(), businessKey, variables, null, request.caller()));
-        if (processRepository.findById(invocation.processId()).isEmpty()) {
-            // CreateProcessUseCase declines silently (a definition switched off under us, a business
-            // key taken by a concurrent start). The caller must hear about it, and the invocation
-            // must not survive pointing at nothing.
-            throw new SyncInvocationRejectedException(SyncInvocationRejectedException.Reason.NOT_ACCEPTING,
-                    "The process was not created (the definition stopped accepting instances,"
-                            + " or its business key was taken concurrently).");
+        boolean tookLock = takeProcessLockOrRefuse(definition, invocation, businessKey, variables);
+        try {
+            createProcessUseCase.handle(new CreateProcessCommand(invocation.processId(),
+                    invocation.workflowDefinitionId(), businessKey, variables, null, request.caller()));
+            if (processRepository.findById(invocation.processId()).isEmpty()) {
+                // CreateProcessUseCase declines silently (a definition switched off under us, a
+                // business key taken by a concurrent start). The caller must hear about it, and the
+                // invocation must not survive pointing at nothing.
+                throw reject(definition.id(), SyncInvocationRejectedException.Reason.NOT_ACCEPTING,
+                        "The process was not created (the definition stopped accepting instances,"
+                                + " or its business key was taken concurrently).");
+            }
+        } catch (RuntimeException e) {
+            if (tookLock) {
+                // In a database this is rolled back with the transaction anyway; in memory mode it
+                // has to be given back by hand.
+                lockService.releaseAll(invocation.processId());
+            }
+            throw e;
         }
+    }
+
+    /**
+     * {@code onLockBusy: FAIL}: take the definition's process-level lock for the new process now, in
+     * the creation's transaction, or refuse the invocation outright — no instance, no place in the
+     * queue, so the caller can simply retry. The process's own first step-over re-acquires it
+     * reentrantly. With {@code WAIT} (the default) nothing happens here and the instance queues FIFO
+     * like any other.
+     *
+     * @return whether a lock was taken here
+     */
+    private boolean takeProcessLockOrRefuse(WorkflowDefinition definition, Invocation invocation,
+                                            String businessKey, List<Variable> variables) {
+        var processLock = definition.processLock();
+        if (processLock == null || definition.syncInvocation() == null
+                || definition.syncInvocation().onLockBusy() != io.mateu.workflow.domain.aggregates.SyncInvocation.LockBusyPolicy.FAIL) {
+            return false;
+        }
+        var candidate = Process.builder().id(invocation.processId()).businessKey(businessKey)
+                .variables(variables).build();
+        var key = io.mateu.workflow.domain.services.LockKeyResolver.resolveExpression(processLock.key(), candidate,
+                "processLock key '" + processLock.key() + "' for definition " + definition.id());
+        if (key == null) {
+            return false; // the process itself will run unserialized, as the step-over decides
+        }
+        var name = processLock.resolvedName(definition.id());
+        if (lockService.tryAcquire(name, key, invocation.processId()) == io.mateu.workflow.application.out.LockService.Outcome.BUSY) {
+            throw reject(definition.id(), SyncInvocationRejectedException.Reason.LOCK_BUSY,
+                    "Another instance holds the lock '" + name + "' on '" + key + "'; retry later.");
+        }
+        return true;
+    }
+
+    private SyncInvocationRejectedException reject(String definitionId, SyncInvocationRejectedException.Reason reason,
+                                                   String message) {
+        workflowMetrics.syncInvocationRejected(definitionId, reason.name());
+        return new SyncInvocationRejectedException(reason, message);
     }
 
     private View viewOf(Invocation invocation, Process process) {

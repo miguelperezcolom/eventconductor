@@ -1,0 +1,49 @@
+{
+  "id": "sync-choice-silent",
+  "name": "Replies on one branch only",
+  "version": 1,
+  "syncInvocation": {
+    "enabled": true
+  },
+  "steps": [
+    {
+      "id": "start",
+      "type": "START",
+      "name": "Start"
+    },
+    {
+      "id": "choice",
+      "type": "CHOICE",
+      "name": "Reply?",
+      "preconditionStepId": "start"
+    },
+    {
+      "id": "reply",
+      "type": "REPLY",
+      "name": "Reply",
+      "replyExpression": "{'answered': true}",
+      "preconditions": [
+        {
+          "stepId": "choice",
+          "expression": "mode == 'reply'"
+        }
+      ]
+    },
+    {
+      "id": "end-replied",
+      "type": "END",
+      "name": "Replied",
+      "preconditionStepId": "reply"
+    },
+    {
+      "id": "end-silent",
+      "type": "END",
+      "name": "Silent",
+      "preconditions": [
+        {
+          "stepId": "choice"
+        }
+      ]
+    }
+  ]
+}

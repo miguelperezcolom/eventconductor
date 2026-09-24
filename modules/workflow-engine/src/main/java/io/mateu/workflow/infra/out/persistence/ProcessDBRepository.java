@@ -36,6 +36,11 @@ public class ProcessDBRepository implements ProcessRepository {
     // otherwise, and then aggregateProcesses falls through to the GROUP BY below unchanged.
     final org.springframework.beans.factory.ObjectProvider<
             io.mateu.workflow.application.out.RollupAnalyticsPort> rollupAnalytics;
+    // Providers, not direct dependencies: both read processes back through this repository.
+    final org.springframework.beans.factory.ObjectProvider<
+            io.mateu.workflow.application.sync.EngineReplyPolicy> engineReplyPolicy;
+    final org.springframework.beans.factory.ObjectProvider<
+            io.mateu.workflow.application.out.ReplySignal> replySignal;
 
     @Override
     public Optional<Process> findById(String id) {
@@ -81,6 +86,10 @@ public class ProcessDBRepository implements ProcessRepository {
 
     @Override
     public String save(Process process) {
+        // The failure contract of synchronous invocation: a process that reaches an end without
+        // having replied gets the engine's answer recorded now, in this save — so it commits with
+        // the transition that decided it, whichever use case made that transition.
+        engineReplyPolicy.ifAvailable(policy -> policy.apply(process));
         // Read-model event, emitted at the one point every status transition funnels through: if the
         // read model is on and this save changes the status, ride a ProcessStatusChanged through the
         // outbox alongside the other domain events. Off → no prior-status read, no event.
@@ -129,6 +138,12 @@ public class ProcessDBRepository implements ProcessRepository {
             // Wake this pod's relay once the transaction commits, rather than leaving the row to
             // be found on the next poll — which is latency added to every step.
             outboxSignal.raise();
+        }
+        if (reply != null) {
+            // A caller waiting on this pod hears on commit rather than on the next poll. Cheap when
+            // nobody is waiting (a map lookup), so it is said on every save of a replied process
+            // rather than working out whether this is the save that recorded it.
+            replySignal.ifAvailable(signal -> signal.replyRecorded(process.getId()));
         }
         return process.getId();
     }

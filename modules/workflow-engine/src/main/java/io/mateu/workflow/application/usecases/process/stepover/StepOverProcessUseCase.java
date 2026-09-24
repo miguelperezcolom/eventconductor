@@ -54,7 +54,6 @@ public class StepOverProcessUseCase {
     // Self, via a provider: waking a process-level waiter steps IT over, and a bean cannot inject
     // itself directly.
     final ObjectProvider<StepOverProcessUseCase> self;
-    final io.mateu.workflow.application.out.ReplySignal replySignal;
 
     /** The largest reply a REPLY step may record, in bytes of JSON; 0 or less means no limit. */
     @org.springframework.beans.factory.annotation.Value("${workflow.sync.max-reply-bytes:262144}")
@@ -114,10 +113,6 @@ public class StepOverProcessUseCase {
 
         if (result.getUpdatedProcess() != process || replied) {
             processRepository.save(result.getUpdatedProcess());
-        }
-        if (replied) {
-            // A caller may be waiting on this pod: tell it on commit rather than on the next poll.
-            replySignal.replyRecorded(process.getId());
         }
 
         // Status as it was before the transition decided anything. The orchestration service is

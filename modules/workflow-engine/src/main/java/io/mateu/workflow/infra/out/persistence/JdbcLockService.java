@@ -69,11 +69,17 @@ public class JdbcLockService implements LockService {
     @Override
     public Outcome acquire(String lockName, String lockKey, String processId, String stepExecutionId) {
         return transactionTemplate.execute(status ->
-                acquireInTx(lockName, lockKey, processId, stepExecutionId, false));
+                acquireInTx(lockName, lockKey, processId, stepExecutionId, false, true));
+    }
+
+    @Override
+    public Outcome tryAcquire(String lockName, String lockKey, String processId) {
+        return transactionTemplate.execute(status ->
+                acquireInTx(lockName, lockKey, processId, null, false, false));
     }
 
     private Outcome acquireInTx(String lockName, String lockKey, String processId,
-                                String stepExecutionId, boolean retried) {
+                                String stepExecutionId, boolean retried, boolean enqueue) {
         String id = rowId(lockName, lockKey);
         String holder = lockRowForUpdate(id);
         if (holder == null) {
@@ -91,11 +97,14 @@ public class JdbcLockService implements LockService {
                 if (retried) {
                     throw raced;
                 }
-                return acquireInTx(lockName, lockKey, processId, stepExecutionId, true);
+                return acquireInTx(lockName, lockKey, processId, stepExecutionId, true, enqueue);
             }
         }
         if (processId.equals(holder)) {
             return Outcome.ACQUIRED; // reentrant
+        }
+        if (!enqueue) {
+            return Outcome.BUSY;
         }
         enqueueIfAbsent(lockName, lockKey, processId, stepExecutionId);
         return Outcome.ENQUEUED;
