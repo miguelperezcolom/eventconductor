@@ -114,7 +114,9 @@ Set `onTimeoutStepId` to route forward on timeout instead of failing:
 ```
 
 When `verify-payment` times out (after any retries), the flow moves to `cancel-booking`; the timed-out
-step ends `TIMEOUT` but is **not** counted as a process failure. Here `cancel-booking` is reached two
+step ends `TIMEOUT` but is **not** counted as a process failure — so nothing is compensated either: the
+saga carries on down the on-timeout route (before 2.21.0 a routed timeout also rolled the completed
+compensable steps back, and the process both compensated and reached its `END`). Here `cancel-booking` is reached two
 ways — a human rejection (its precondition guard) or the timeout (`onTimeoutStepId`) — so both paths
 converge on the same step. The pending task is cancelled when the process moves on (it disappears from
 the worker/forms inbox).
