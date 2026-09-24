@@ -27,6 +27,13 @@ public class InMemoryProcessRepository implements ProcessRepository {
     @Autowired
     private io.mateu.workflow.application.services.ProcessStatusAnnouncer processStatusAnnouncer;
 
+    // Providers: both read processes back through this repository.
+    @Autowired
+    private org.springframework.beans.factory.ObjectProvider<io.mateu.workflow.application.sync.EngineReplyPolicy> engineReplyPolicy;
+
+    @Autowired
+    private org.springframework.beans.factory.ObjectProvider<io.mateu.workflow.application.out.ReplySignal> replySignal;
+
     private final Map<String, Process> store = new ConcurrentHashMap<>();
 
     @Override
@@ -36,6 +43,10 @@ public class InMemoryProcessRepository implements ProcessRepository {
 
     @Override
     public String save(Process process) {
+        // See ProcessDBRepository: the engine's answer for a process that ended without replying.
+        if (engineReplyPolicy != null) {
+            engineReplyPolicy.ifAvailable(policy -> policy.apply(process));
+        }
         // Read-model event, emitted at the one point every status transition funnels through: if the
         // read model is on and this save changes the status, ride a ProcessStatusChanged on the same
         // dispatch below. Off → no store read, no event.
@@ -44,6 +55,9 @@ public class InMemoryProcessRepository implements ProcessRepository {
             processStatusAnnouncer.announceIfChanged(process, previous == null ? null : previous.getStatus());
         }
         store.put(process.id(), process);
+        if (process.hasReplied() && replySignal != null) {
+            replySignal.ifAvailable(signal -> signal.replyRecorded(process.id()));
+        }
         process.popEvents().forEach(event ->
                 processDomainEventUseCase.handle(new ProcessDomainEventCommand(event)));
         return process.id();

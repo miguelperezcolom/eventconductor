@@ -27,7 +27,9 @@ public interface LockService {
         /** The caller now holds the lock (or already held it — acquisition is reentrant). */
         ACQUIRED,
         /** Another process holds the lock; the caller was appended to the FIFO wait queue. */
-        ENQUEUED
+        ENQUEUED,
+        /** Another process holds the lock and the caller was NOT queued ({@link #tryAcquire}). */
+        BUSY
     }
 
     /**
@@ -46,6 +48,15 @@ public interface LockService {
      * key is not queued twice.
      */
     Outcome acquire(String lockName, String lockKey, String processId, String stepExecutionId);
+
+    /**
+     * Take {@code (lockName, lockKey)} for {@code processId} only if nobody else holds it — never
+     * joining the queue. Returns {@link Outcome#ACQUIRED} (reentrant, as {@link #acquire}) or
+     * {@link Outcome#BUSY}. For callers that would rather be refused than wait: a synchronous
+     * invocation of a definition that says {@code onLockBusy: FAIL}. Joins the caller's transaction
+     * where there is one, so a creation that is rolled back gives the lock back with it.
+     */
+    Outcome tryAcquire(String lockName, String lockKey, String processId);
 
     /**
      * Release {@code (lockName, lockKey)} if {@code processId} holds it. If a waiter was queued it

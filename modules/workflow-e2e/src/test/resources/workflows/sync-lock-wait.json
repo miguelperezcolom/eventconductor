@@ -1,0 +1,41 @@
+{
+  "id": "sync-lock-wait",
+  "name": "Synchronous, serialized by booking (WAIT)",
+  "version": 1,
+  "processLock": {
+    "key": "bookingId"
+  },
+  "syncInvocation": {
+    "enabled": true,
+    "onLockBusy": "WAIT"
+  },
+  "steps": [
+    {
+      "id": "start",
+      "type": "START",
+      "name": "Start"
+    },
+    {
+      "id": "work",
+      "type": "ACTION",
+      "name": "Work",
+      "topic": "work",
+      "preconditionStepId": "start"
+    },
+    {
+      "id": "reply",
+      "type": "REPLY",
+      "name": "Reply",
+      "replyVariables": [
+        "bookingId"
+      ],
+      "preconditionStepId": "work"
+    },
+    {
+      "id": "end",
+      "type": "END",
+      "name": "End",
+      "preconditionStepId": "reply"
+    }
+  ]
+}

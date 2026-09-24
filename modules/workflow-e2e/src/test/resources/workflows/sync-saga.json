@@ -1,0 +1,53 @@
+{
+  "id": "sync-saga",
+  "name": "Synchronous saga (REPLY_IMMEDIATELY)",
+  "version": 1,
+  "syncInvocation": {
+    "enabled": true,
+    "onFailure": "REPLY_IMMEDIATELY"
+  },
+  "steps": [
+    {
+      "id": "start",
+      "type": "START",
+      "name": "Start"
+    },
+    {
+      "id": "book",
+      "type": "ACTION",
+      "name": "Book",
+      "topic": "work",
+      "compensable": true,
+      "compensationStepId": "undo-book",
+      "preconditionStepId": "start"
+    },
+    {
+      "id": "pay",
+      "type": "ACTION",
+      "name": "Pay",
+      "topic": "work",
+      "preconditionStepId": "book"
+    },
+    {
+      "id": "reply",
+      "type": "REPLY",
+      "name": "Reply",
+      "replyVariables": [
+        "bookingId"
+      ],
+      "preconditionStepId": "pay"
+    },
+    {
+      "id": "end",
+      "type": "END",
+      "name": "End",
+      "preconditionStepId": "reply"
+    },
+    {
+      "id": "undo-book",
+      "type": "ACTION",
+      "name": "Undo booking",
+      "topic": "work"
+    }
+  ]
+}

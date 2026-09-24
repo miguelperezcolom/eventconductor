@@ -775,9 +775,18 @@ claim).
       `Accept: text/event-stream`, sharing the admission budget. Tests: `SyncInvocationStreamE2eTest`
       (4: stream ending in `reply`, `timeout`, `follow` past an early reply, resume),
       `InvocationProgressTest` (3).
-- [ ] **P3 — Error contract + lock policy.** `onFailure` both modes, CANCELLED /
+- [x] **P3 — Error contract + lock policy.** `onFailure` both modes, CANCELLED /
       COMPLETED_WITHOUT_REPLY, error summary, `onLockBusy: FAIL` with `LockService.tryAcquire` and
-      rollback, retry-after-failure behaviour. E2E failure matrix + lock tests.
+      rollback, retry-after-failure behaviour. E2E failure matrix + lock tests. — DONE:
+      `EngineReplyPolicy`, applied inside `ProcessRepository.save` (memory and JPA) — the one point
+      every status transition funnels through — so the engine's answer commits with whichever
+      transition decided it (step-over, status recompute, rollback handler, cancellation); the reply
+      signal moved there too. Decision table in its Javadoc. One subtlety found by the e2e: in
+      `REPLY_AFTER_COMPENSATION` the status recompute saves the process ERROR once more just before
+      it is marked COMPENSATED, so an ERROR save only answers when there is nothing to undo.
+      `LockService.tryAcquire` (never queues) backs `onLockBusy: FAIL`, taken inside the creation
+      transaction. Tests: `SyncInvocationFailureE2eTest` (8), `SyncInvocationFailureJpaE2eTest` (2,
+      incl. the lock row rolled back with the refusal), `EngineReplyPolicyTest` (6), `tryAcquire`.
 - [ ] **P4 — Fast path.** Outbox `process_id`/claim columns (V31 part 2 or V32), CAS in
       `EmbeddedOutboxRelay`, `InlineOutboxDriver` + lease/heartbeat + sweeper, inline executor +
       budget + saturation fallback, explicit row lock in kafka mode. Inline crash e2e, DIST-27,

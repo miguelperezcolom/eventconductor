@@ -69,6 +69,17 @@ public class InMemoryLockService implements LockService {
     }
 
     @Override
+    public synchronized Outcome tryAcquire(String lockName, String lockKey, String processId) {
+        String id = id(lockName, lockKey);
+        Holder current = held.get(id);
+        if (current == null) {
+            held.put(id, new Holder(processId, null, newLease()));
+            return Outcome.ACQUIRED;
+        }
+        return current.processId().equals(processId) ? Outcome.ACQUIRED : Outcome.BUSY;
+    }
+
+    @Override
     public synchronized Optional<Grant> release(String lockName, String lockKey, String processId) {
         String id = id(lockName, lockKey);
         Holder current = held.get(id);
