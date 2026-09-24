@@ -41,6 +41,7 @@ public class ProcessDBRepository implements ProcessRepository {
             io.mateu.workflow.application.sync.EngineReplyPolicy> engineReplyPolicy;
     final org.springframework.beans.factory.ObjectProvider<
             io.mateu.workflow.application.out.ReplySignal> replySignal;
+    final org.springframework.beans.factory.ObjectProvider<ReplyNotifier> replyNotifier;
 
     @Override
     public Optional<Process> findById(String id) {
@@ -104,6 +105,10 @@ public class ProcessDBRepository implements ProcessRepository {
         var businessKey = (process.getBusinessKey() == null || process.getBusinessKey().isBlank())
                 ? null : process.getBusinessKey();
         var reply = process.getReply();
+        // Whether this save is the one that records the reply — the moment the other pods are told.
+        // Read before the save: afterwards the row says replied either way.
+        boolean newlyReplied = reply != null && processEntityRepository.findById(process.getId())
+                .map(entity -> entity.getRepliedAt() == null).orElse(true);
         processEntityRepository.save(new ProcessEntity(
                 process.getId(),
                 businessKey,
@@ -144,6 +149,10 @@ public class ProcessDBRepository implements ProcessRepository {
             // Wake this pod's relay once the transaction commits, rather than leaving the row to
             // be found on the next poll — which is latency added to every step.
             outboxSignal.raise();
+        }
+        if (newlyReplied) {
+            // A caller waiting on another pod: NOTIFY rides this transaction, delivered on commit.
+            replyNotifier.ifAvailable(notifier -> notifier.replyRecorded(process.getId()));
         }
         if (reply != null) {
             // A caller waiting on this pod hears on commit rather than on the next poll. Cheap when

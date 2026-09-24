@@ -48,6 +48,10 @@ public class SyncReplyWaiters implements ReplySignal {
 
     final ProcessRepository processRepository;
 
+    /** Optional (the waiters run without it in plain unit tests): wake-ups are counted, by how. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    io.mateu.workflow.application.out.WorkflowMetrics workflowMetrics;
+
     @org.springframework.beans.factory.annotation.Value("${workflow.sync.poll-interval-ms:250}")
     long pollIntervalMs;
 
@@ -120,20 +124,36 @@ public class SyncReplyWaiters implements ReplySignal {
         }
     }
 
-    /** Re-reads the process off-thread and answers its waiters if it has replied. */
+    /** Re-reads the process off-thread and answers its waiters if it has replied (a local signal). */
     public void wake(String processId) {
+        wake(processId, "local");
+    }
+
+    /** The same, for a reply another node announced (PostgreSQL NOTIFY). */
+    public void wakeFromNotification(String processId) {
+        wake(processId, "notify");
+    }
+
+    private void wake(String processId, String via) {
         if (waiting.containsKey(processId) && scheduler != null) {
-            scheduler.execute(() -> check(processId));
+            scheduler.execute(() -> check(processId, via));
         }
     }
 
     private void check(String processId) {
+        check(processId, "registration");
+    }
+
+    private void check(String processId, String via) {
         try {
             var process = processRepository.findById(processId).filter(Process::hasReplied);
             if (process.isPresent()) {
                 var futures = waiting.get(processId);
                 if (futures != null) {
-                    futures.forEach(future -> future.complete(process));
+                    var answered = futures.stream().filter(future -> future.complete(process)).count();
+                    if (answered > 0 && workflowMetrics != null) {
+                        workflowMetrics.syncWakeup(via);
+                    }
                 }
             }
         } catch (Exception e) {
@@ -147,7 +167,7 @@ public class SyncReplyWaiters implements ReplySignal {
             if (waiting.isEmpty()) {
                 return;
             }
-            processRepository.findRepliedAmong(List.copyOf(waiting.keySet())).forEach(this::check);
+            processRepository.findRepliedAmong(List.copyOf(waiting.keySet())).forEach(id -> check(id, "poll"));
         } catch (Exception e) {
             log.warn("Polling for synchronous replies failed, will try again: {}", e.getMessage());
         }

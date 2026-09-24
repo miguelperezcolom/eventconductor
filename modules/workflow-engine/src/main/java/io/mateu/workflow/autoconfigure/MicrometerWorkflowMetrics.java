@@ -53,6 +53,7 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
     public static final String SYNC_DEADLINE_EXPIRED = "eventconductor.sync.deadline.expired";
     public static final String SYNC_REJECTED = "eventconductor.sync.rejected";
     public static final String SYNC_WAITING = "eventconductor.sync.waiting";
+    public static final String SYNC_WAKEUPS = "eventconductor.sync.wakeups";
     public static final String SYNC_INLINE_STEPS = "eventconductor.sync.inline.steps";
     public static final String SYNC_INLINE_FALLBACKS = "eventconductor.sync.inline.fallbacks";
     public static final String TAG_REASON = "reason";
@@ -417,6 +418,17 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
         Counter.builder(SYNC_INLINE_FALLBACKS)
                 .description("Inline drives that stopped early or never started, by reason")
                 .tag(TAG_REASON, reason == null ? UNKNOWN : reason)
+                .register(registry)
+                .increment();
+    }
+
+    @Override
+    public void syncWakeup(String via) {
+        var registry = registry();
+        if (registry == null) return;
+        Counter.builder(SYNC_WAKEUPS)
+                .description("Waiting synchronous callers answered, by how the reply reached them")
+                .tag("via", via == null ? UNKNOWN : via)
                 .register(registry)
                 .increment();
     }
