@@ -22,6 +22,7 @@ class CreateTaskUseCaseTest {
 
     @Mock FormExecutionRepository formExecutionRepository;
     @Mock FormsMetrics formsMetrics;
+    @Mock io.mateu.workflow.application.services.HumanTaskEvents humanTaskEvents;
 
     @InjectMocks CreateTaskUseCase useCase;
 
@@ -43,6 +44,15 @@ class CreateTaskUseCaseTest {
         assertThat(saved.status()).isEqualTo(FormExecutionStatus.PENDING);
         assertThat(saved.variables()).hasSize(1);
         assertThat(saved.id()).isNotNull();
+    }
+
+    @Test
+    void anOpenedTaskIsAnnounced() {
+        useCase.handle(new CreateTaskCommand("se-1", "p-1", "wd-1", "s1", "form-1", List.of()));
+
+        ArgumentCaptor<FormExecution> saved = ArgumentCaptor.forClass(FormExecution.class);
+        verify(formExecutionRepository).save(saved.capture());
+        verify(humanTaskEvents).changed(saved.getValue());
     }
 
     @Test
