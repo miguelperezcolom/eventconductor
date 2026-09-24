@@ -92,9 +92,15 @@ public class StepExecutionDBRepository implements StepExecutionRepository {
         // in hand: the relay publishes this row later, from a thread that has neither.
         var traceParent = workflowTracing.currentTraceParent();
         var outbox = stepExecution.popEvents().stream()
-                .map(event -> new OutboxMessageEntity(event, traceParent)).toList();
+                .map(event -> {
+                    var row = new OutboxMessageEntity(event, traceParent);
+                    // Driving this process inline (the synchronous fast path): its own rows are
+                    // written already claimed by this pod, so no relay races the driver for them.
+                    var claim = io.mateu.workflow.infra.out.async.InlineDrive.claimFor(event);
+                    return claim == null ? row : row.claimedBy(claim.processId(), claim.pod(), claim.claimUntil());
+                }).toList();
         outboxMessageEntityRepository.saveAll(outbox);
-        if (!outbox.isEmpty()) {
+        if (outbox.stream().anyMatch(row -> OutboxMessageStatus.Pending.name().equals(row.getStatus()))) {
             // Wake this pod's relay once the transaction commits, rather than leaving the row to
             // be found on the next poll — which is latency added to every step.
             outboxSignal.raise();

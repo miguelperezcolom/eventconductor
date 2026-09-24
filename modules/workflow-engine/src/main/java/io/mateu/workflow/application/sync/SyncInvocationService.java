@@ -58,6 +58,7 @@ public class SyncInvocationService {
     final io.mateu.workflow.application.out.StepExecutionRepository stepExecutionRepository;
     final io.mateu.workflow.application.out.LogMessageRepository logMessageRepository;
     final io.mateu.workflow.application.out.LockService lockService;
+    final org.springframework.beans.factory.ObjectProvider<io.mateu.workflow.application.out.InlineExecution> inlineExecution;
 
     /** Wait when neither the caller nor the definition says how long. */
     @org.springframework.beans.factory.annotation.Value("${workflow.sync.default-deadline-ms:5000}")
@@ -112,14 +113,31 @@ public class SyncInvocationService {
         var invocation = new Invocation(UUID.randomUUID().toString(), definition.id(), request.idempotencyKey(),
                 hash, UUID.randomUUID().toString(), now.plus(wait), now, now.plus(retention),
                 workflowTracing.currentTraceParent());
+        // The fast path: reserve a slot to drive the new process on this pod right after it commits.
+        // None free (or memory mode, or switched off) → it takes the normal path, nothing else changes.
+        var slot = inlineExecution.getIfAvailable(() -> io.mateu.workflow.application.out.InlineExecution.NONE)
+                .reserve(invocation.processId());
         try {
-            invocationRepository.createWith(invocation, () -> create(definition, invocation, request));
+            invocationRepository.createWith(invocation, () -> {
+                if (slot == null) {
+                    create(definition, invocation, request);
+                } else {
+                    slot.claimDuring(() -> create(definition, invocation, request));
+                }
+            });
         } catch (InvocationRepository.DuplicateInvocationException e) {
+            if (slot != null) slot.abandon();
             // Somebody else got the key between the lookup and the insert — a concurrent retry. Their
             // invocation is the one; this request joins it.
             var winner = invocationRepository.findByKey(definition.id(), request.idempotencyKey())
                     .orElseThrow(() -> e);
             return retried(winner, hash, wait);
+        } catch (RuntimeException e) {
+            if (slot != null) slot.abandon();
+            throw e;
+        }
+        if (slot != null) {
+            slot.start();
         }
         workflowMetrics.syncInvocationStarted(definition.id());
         log.info("Synchronous invocation {} of '{}' started process {} (key '{}')",

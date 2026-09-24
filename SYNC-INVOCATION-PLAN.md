@@ -787,10 +787,45 @@ claim).
       `LockService.tryAcquire` (never queues) backs `onLockBusy: FAIL`, taken inside the creation
       transaction. Tests: `SyncInvocationFailureE2eTest` (8), `SyncInvocationFailureJpaE2eTest` (2,
       incl. the lock row rolled back with the refusal), `EngineReplyPolicyTest` (6), `tryAcquire`.
-- [ ] **P4 — Fast path.** Outbox `process_id`/claim columns (V31 part 2 or V32), CAS in
+- [x] **P4 — Fast path.** Outbox `process_id`/claim columns (V31 part 2 or V32), CAS in
       `EmbeddedOutboxRelay`, `InlineOutboxDriver` + lease/heartbeat + sweeper, inline executor +
       budget + saturation fallback, explicit row lock in kafka mode. Inline crash e2e, DIST-27,
-      **benchmark before/after**. Merge only if the benchmark shows the gain.
+      **benchmark before/after**. Merge only if the benchmark shows the gain. — DONE, with two
+      refinements over §3.6 found while building it:
+      1. **Claim at insert instead of CAS after commit.** While a pod drives a process, the rows that
+         process writes on the driving thread are inserted already `InlineClaimed` (thread-scoped
+         `InlineDrive` context read by the two repositories that write the outbox), so no relay ever
+         sees them and there is no race to win — the relays keep claiming only `Pending`, unchanged,
+         and `EmbeddedOutboxRelay` needed no CAS. Unkeyed log rows written on the driving thread are
+         claimed too (so the SSE stream shows logs promptly); `MessageReceived` and
+         `ProcessStatusChanged` never are (they may leave the shard).
+      2. **No explicit row lock in kafka mode.** Handlers take the process lock the way they always
+         do; a conflict with the partition owner fails optimistically (`@Version`) and the drive gives
+         the rest back to the relay — the engine's existing answer to two writers.
+      Pod identity is per engine instance, not per JVM (found by the crash test: two engines in one
+      JVM renewed each other's claims). `InlineOutboxDriver` (slots = `workflow.sync.inline.threads`,
+      budget, lease + renewer), `InlineClaimSweeper`, `V33`. Tests: `InlineFastPathJpaE2eTest` (relay
+      switched OFF — the process can only move inline), `InlineBudgetJpaE2eTest` (rest handed back
+      `Pending`), `InlineCrashRecoveryE2eTest` (pod dies inside an embedded worker with the task row
+      claimed; the other node's sweeper and relay finish it and the reply is there), unit tests on H2.
+
+      **Benchmark** (`SyncLatencyBenchmarkTest`, dist-e2e, `-Dbench.sync=true`; PostgreSQL + Kafka in
+      containers on one developer machine, 200 sequential invocations, poll 200 ms — read the ratios):
+
+      | pods | definition | inline | p50 | p95 | p99 |
+      |---|---|---|---|---|---|
+      | 1 | engine-internal steps only | off | 20.9 ms | 34.1 ms | 39.1 ms |
+      | 1 | engine-internal steps only | **on** | **12.5 ms** | **18.1 ms** | **20.8 ms** |
+      | 1 | two Kafka-worker steps | off | 18.7 ms | 27.8 ms | 32.5 ms |
+      | 1 | two Kafka-worker steps | **on** | **14.0 ms** | **18.8 ms** | **20.7 ms** |
+      | 2 | engine-internal steps only | off | 12.0 ms | 237.3 ms | 251.2 ms |
+      | 2 | engine-internal steps only | **on** | **13.7 ms** | **18.0 ms** | **20.3 ms** |
+      | 2 | two Kafka-worker steps | off | 18.7 ms | 251.1 ms | 251.4 ms |
+      | 2 | two Kafka-worker steps | on | 17.4 ms | 251.1 ms | 251.7 ms |
+
+      The two-pod tail without the fast path is the cross-pod relay poll plus the reply poll. With
+      Kafka workers it remains even inline: the worker's reply lands on the partition owner, and the
+      waiting pod hears only on its 250 ms poll — precisely what P5 (NOTIFY) removes.
 - [ ] **P5 — Cross-pod wake-up.** `LISTEN/NOTIFY` listener (PG dialect), notify in the reply
       transaction, `wakeups` metric. DIST-23/24/25/28.
 - [ ] **P6 — Sharding.** Local placement for sync starts in `IngressRouter`, reply projected to the
