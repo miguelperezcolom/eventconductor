@@ -725,7 +725,7 @@ Graph: REPLY node glyph (§3.2) and a "replied" marker on the step that produced
 - **DIST-26** two shards (DIST-22 harness): invocation placed on the receiving shard; retry with the
   same key on the other shard → 202 + result served from the fleet index.
 - **DIST-27** inline writer vs partition owner collision (parallel branches): exactly-once step
-  execution, `@Version` rejection observed and recovered.
+  execution and every caller answered.
 - **DIST-28** NOTIFY listener connection killed: waiters still complete via the poll fallback.
 
 ### Benchmark (`modules/workflow-benchmark`)
@@ -826,8 +826,30 @@ claim).
       The two-pod tail without the fast path is the cross-pod relay poll plus the reply poll. With
       Kafka workers it remains even inline: the worker's reply lands on the partition owner, and the
       waiting pod hears only on its 250 ms poll — precisely what P5 (NOTIFY) removes.
-- [ ] **P5 — Cross-pod wake-up.** `LISTEN/NOTIFY` listener (PG dialect), notify in the reply
-      transaction, `wakeups` metric. DIST-23/24/25/28.
+- [x] **P5 — Cross-pod wake-up.** `LISTEN/NOTIFY` listener (PG dialect), notify in the reply
+      transaction, `wakeups` metric. DIST-23/24/25/28. — DONE: `PostgresReplyNotification`
+      (`pg_notify` issued by `ProcessDBRepository.save` only on the save that records the reply;
+      one dedicated physical `LISTEN` connection per pod opened from the Hikari settings, reached
+      reflectively so the engine needs no PostgreSQL compile dependency; reconnects with backoff;
+      idle on any other database), `eventconductor.sync.wakeups{via=registration|local|notify|poll}`.
+      Tests (all on real PostgreSQL + Kafka): DIST-23 (reply recorded on the other pod, answered well
+      inside a 10 s poll), DIST-24 (waiting pod dies; retry by key on the survivor gets the one reply,
+      no second process), DIST-25 (broker paused during the invocation → 202 → reply after it
+      returns; no Error or stranded claims), DIST-27 (inline drive vs partition owner on a
+      two-worker FORK: every step exactly once), DIST-28 (listener backends terminated → callers
+      still answered, listeners come back).
+
+      Benchmark re-run with NOTIFY — the two-pod tail is gone:
+
+      | pods | definition | inline | p50 | p95 | p99 |
+      |---|---|---|---|---|---|
+      | 2 | engine-internal steps only | off | 11.6 ms | 16.0 ms | 29.1 ms |
+      | 2 | engine-internal steps only | on | 12.0 ms | 16.6 ms | 19.3 ms |
+      | 2 | two Kafka-worker steps | off | 13.5 ms | 23.1 ms | 24.7 ms |
+      | 2 | two Kafka-worker steps | on | 13.4 ms | 17.0 ms | 22.2 ms |
+
+      (It was 251 ms at p95/p99 before: most of that tail was the reply heard by poll, not the
+      relay's cross-pod handoff.)
 - [ ] **P6 — Sharding.** Local placement for sync starts in `IngressRouter`, reply projected to the
       process index, cross-shard retry/GET. DIST-26.
 - [ ] **P7 — Tracing + UI.** Span links both ways, Synchronous badge, Reply tab details, dashboard

@@ -1,0 +1,15 @@
+{
+  "id": "dist-sync-fork",
+  "name": "Synchronous, two Kafka workers in parallel",
+  "version": 1,
+  "syncInvocation": { "enabled": true },
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "fork", "type": "FORK", "name": "Fork", "preconditionStepId": "start" },
+    { "id": "a", "type": "ACTION", "name": "A", "topic": "work", "preconditionStepId": "fork" },
+    { "id": "b", "type": "ACTION", "name": "B", "topic": "work", "preconditionStepId": "fork" },
+    { "id": "join", "type": "JOIN", "name": "Join", "preconditionStepIds": ["a", "b"] },
+    { "id": "reply", "type": "REPLY", "name": "Reply", "replyVariables": ["orderId"], "preconditionStepId": "join" },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "reply" }
+  ]
+}

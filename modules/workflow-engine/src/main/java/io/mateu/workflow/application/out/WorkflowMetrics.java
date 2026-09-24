@@ -194,4 +194,11 @@ public interface WorkflowMetrics {
      * {@code saturated} (no free slot), {@code budget}, {@code claim_lost} or {@code failure}.
      */
     default void syncInlineFallback(String reason) {}
+
+    /**
+     * A waiting synchronous caller was answered, and how the reply reached it: {@code registration}
+     * (it was already there), {@code local} (recorded on this pod), {@code notify} (announced by
+     * another pod) or {@code poll} (the fallback — a high share means notification is not working).
+     */
+    default void syncWakeup(String via) {}
 }
