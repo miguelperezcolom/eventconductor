@@ -248,4 +248,17 @@ class SpecValidatorTest {
                 """);
         assertThat(validator.validate(SpecValidator.Kind.WORKFLOW, bad)).anyMatch(v -> v.contains("replyExpression"));
     }
+
+    @Test
+    void aReplyTemplateWithABrokenExpressionFailsTheBuild() throws Exception {
+        var doc = json("""
+                {"id": "t", "name": "T", "version": 1, "steps": [
+                  {"id": "start", "type": "START", "name": "Start"},
+                  {"id": "r", "type": "REPLY", "name": "R", "preconditionStepId": "start",
+                   "replyTemplate": {"ok": "${a}", "bad": ["${b +}"], "open": "x ${y"}}
+                ]}
+                """);
+        var violations = validator.validate(SpecValidator.Kind.WORKFLOW, doc);
+        assertThat(violations).anyMatch(v -> v.contains("replyTemplate") && (v.contains("bad") || v.contains("Unterminated")));
+    }
 }

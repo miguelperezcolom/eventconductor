@@ -230,6 +230,7 @@ public class SpecValidator {
             if (isSet(replyExpr)) {
                 checkJexl(replyExpr, "step '" + id + "' replyExpression", violations);
             }
+            checkTemplate(step.get("replyTemplate"), "step '" + id + "' replyTemplate", violations);
         }
         // Cycle detection: DFS (white/grey/black) over the multi-edge precondition graph —
         // revisiting a grey node means a cycle, and none of those steps could ever run.
@@ -251,6 +252,30 @@ public class SpecValidator {
             violations.addAll(replyAnalysis(wf).errors());
         }
     }
+
+    /**
+     * A payload template: its {@code ${…}} must be well formed and every expression must parse — the
+     * same syntax (definition-analysis) the engine renders with.
+     */
+    private void checkTemplate(JsonNode template, String where, List<String> violations) {
+        if (template == null || template.isNull()) {
+            return;
+        }
+        List<java.util.Map.Entry<String, String>> expressions;
+        try {
+            expressions = io.mateu.workflow.analysis.TemplateSyntax.expressions(
+                    TEMPLATE_READER.convertValue(template, Object.class), where);
+        } catch (io.mateu.workflow.analysis.TemplateSyntax.TemplateSyntaxException e) {
+            violations.add(where + ": " + e.getMessage());
+            return;
+        }
+        for (var expression : expressions) {
+            checkJexl(expression.getValue(), expression.getKey(), violations);
+        }
+    }
+
+    private static final com.fasterxml.jackson.databind.ObjectMapper TEMPLATE_READER =
+            new com.fasterxml.jackson.databind.ObjectMapper();
 
     /** The shared REPLY path analysis over this document's steps. */
     private static io.mateu.workflow.analysis.ReplyPathAnalyzer.Report replyAnalysis(JsonNode wf) {

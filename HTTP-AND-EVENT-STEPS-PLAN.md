@@ -1,6 +1,7 @@
 # Plan: `HTTP_CALL` and `PUBLISH_EVENT` steps, with payload templates
 
-> Status: **DRAFT — awaiting review**. Analysis only; no production code yet. One PR per phase;
+> Status: **DECISIONS RESOLVED (2026-09-24)** — recommendations accepted; implementation on
+> `feat/http-and-event-steps`. One PR per phase;
 > each phase compiles and tests green on its own.
 
 ## 1. Goal
@@ -261,23 +262,25 @@ workflow.http:
 ## 5. Phases (one PR each)
 
 - [ ] **P0 — Plan & decisions.** This document reviewed; §6 resolved.
-- [ ] **P1 — Templates.** `modules/shared` template engine + validation (engine and plugin), `replyTemplate` on `REPLY`.
+- [x] **P1 — Templates.** `modules/shared` template engine + validation (engine and plugin), `replyTemplate` on `REPLY`. — DONE:
+      `TemplateSyntax` (JDK-only, in `definition-analysis`, so the Maven plugin parses templates exactly
+      like the engine), `Templates` (in `shared`: structured render with typed leaves and JSON-in-a-variable,
+      text render, `problems()` for validation), engine `TemplateContext`, `replyTemplate` (engine invariant,
+      schema, plugin). Note: RESTRICTED JEXL makes a forbidden call read as `null` (non-strict), exactly as
+      in the guards, rather than throw.
 - [ ] **P2 — `PUBLISH_EVENT`.** DSL, schema, `ExternalEventRequested`, destinations config, kafka routing, `ExternalEventPublisher` port (embedded), CloudEvents, tests incl. dist-e2e.
 - [ ] **P3 — `HTTP_CALL`, engine side.** DSL, schema, validation (incl. secret literals), request rendering in `start()`, `http-call` dispatch.
 - [ ] **P4 — `modules/worker-http`.** Connections, auth profiles (5 types), secrets, SSRF guard, idempotency key, trace propagation, response mapping, metrics; wired into `worker-embedded` apps and `worker-standalone-app`.
 - [ ] **P5 — Tooling & docs.** Graph glyphs and editor fields, IDE plugins, docs (a guide page per step + configuration + AI reference files), CHANGELOG.
 
-## 6. Open questions
+## 6. Decisions — RESOLVED (2026-09-24, owner accepted the recommendations)
 
-1. **`HTTP_CALL` in kafka mode, default topic**: `downstream` (served by the worker standalone app, which
-   gains `worker-http`), or a dedicated `http-calls` topic so HTTP egress can be scaled and
-   network-policed separately? Recommendation: dedicated topic `http-calls`, default consumer in the
-   worker standalone app.
-2. **Non-2xx without retries**: should 4xx fail the step even when `retries > 0` is set (a 400 will
-   not fix itself), with only 5xx/timeouts/IO retried? Recommendation: yes, default `retryOn: [5xx, io]`,
-   overridable per step.
-3. **Response mapping language**: JEXL over `{status, headers, body}` (recommended — one language
-   everywhere) or JSONPath?
-4. **CloudEvents content mode on Kafka**: binary (recommended) or structured by default?
-5. **Embedded default for `PUBLISH_EVENT`**: Spring `ApplicationEvent` only (recommended), or also a
-   Kafka publisher when the app happens to have one configured?
+1. **Kafka topic for `HTTP_CALL`**: a dedicated **`http-calls`** topic, served by default by the worker
+   standalone app, so HTTP egress scales and is network-policed separately. A step's `topic` overrides.
+2. **Retries**: a **4xx is not retried** even with `retries > 0`; 5xx, timeouts and I/O errors are.
+   Default `retryOn: [5xx, io]`, overridable per step.
+3. **Response mapping**: **JEXL** over `{status, headers, body}` — one language everywhere.
+4. **CloudEvents on Kafka**: **binary** content mode by default (`ce_*` headers, data as the value);
+   `structured` and `plain` selectable per destination or step.
+5. **Embedded `PUBLISH_EVENT`**: a Spring **`ApplicationEvent`** only; an application with a broker
+   provides its own `ExternalEventPublisher` bean.

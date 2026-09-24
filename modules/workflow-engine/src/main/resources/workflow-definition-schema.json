@@ -474,7 +474,10 @@
             "string",
             "null"
           ],
-          "description": "REPLY only: a JEXL expression over the process variables whose value is the reply — e.g. {'bookingId': bookingId, 'status': 'CONFIRMED'}. Mutually exclusive with replyVariables."
+          "description": "REPLY only: a JEXL expression over the process variables whose value is the reply — e.g. {'bookingId': bookingId, 'status': 'CONFIRMED'}. Mutually exclusive with replyVariables and replyTemplate."
+        },
+        "replyTemplate": {
+          "description": "REPLY only: the reply as a structured template — JSON/YAML whose string leaves may hold ${...} JEXL expressions. A leaf that is exactly one expression keeps its type; text around expressions makes a string. Mutually exclusive with replyVariables and replyExpression."
         },
         "duration": {
           "type": [
@@ -730,20 +733,20 @@
           },
           "then": {
             "not": {
-              "required": [
-                "replyVariables",
-                "replyExpression"
-              ],
-              "properties": {
-                "replyVariables": {
-                  "type": "array",
-                  "minItems": 1
+              "anyOf": [
+                {
+                  "required": ["replyVariables", "replyExpression"],
+                  "properties": { "replyVariables": { "type": "array", "minItems": 1 }, "replyExpression": { "type": "string", "minLength": 1 } }
                 },
-                "replyExpression": {
-                  "type": "string",
-                  "minLength": 1
+                {
+                  "required": ["replyVariables", "replyTemplate"],
+                  "properties": { "replyVariables": { "type": "array", "minItems": 1 }, "replyTemplate": { "not": { "type": "null" } } }
+                },
+                {
+                  "required": ["replyExpression", "replyTemplate"],
+                  "properties": { "replyExpression": { "type": "string", "minLength": 1 }, "replyTemplate": { "not": { "type": "null" } } }
                 }
-              }
+              ]
             }
           }
         },

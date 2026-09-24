@@ -471,12 +471,16 @@ public record WorkflowDefinition(
                             "Lock step '" + step.id() + "' must define a lockKey.");
                 }
             }
-            if (StepType.REPLY.equals(step.type())
-                    && step.replyVariables() != null && !step.replyVariables().isEmpty()
-                    && step.replyExpression() != null && !step.replyExpression().isBlank()) {
-                throw new IllegalStateException(
-                        "REPLY step '" + step.id() + "' declares both replyVariables and replyExpression;"
-                                + " it must declare one.");
+            if (StepType.REPLY.equals(step.type())) {
+                int sources = (step.replyVariables() != null && !step.replyVariables().isEmpty() ? 1 : 0)
+                        + (step.replyExpression() != null && !step.replyExpression().isBlank() ? 1 : 0)
+                        + (step.replyTemplate() != null ? 1 : 0);
+                if (sources > 1) {
+                    throw new IllegalStateException(
+                            "REPLY step '" + step.id() + "' declares more than one of replyVariables,"
+                                    + " replyExpression and replyTemplate; it must declare one.");
+                }
+                requireValidTemplate(step.replyTemplate(), "REPLY step '" + step.id() + "' replyTemplate");
             }
         }
         for (var step : steps) {
@@ -514,6 +518,17 @@ public record WorkflowDefinition(
         var replyAnalysis = replyAnalysis();
         if (!replyAnalysis.isValid()) {
             throw new IllegalStateException(String.join(" ", replyAnalysis.errors()));
+        }
+    }
+
+    /** A payload template whose expressions do not all parse is a definition error, caught on import. */
+    static void requireValidTemplate(Object template, String where) {
+        if (template == null) {
+            return;
+        }
+        var problems = io.mateu.workflow.template.Templates.problems(template, where);
+        if (!problems.isEmpty()) {
+            throw new IllegalStateException(String.join(" ", problems));
         }
     }
 
