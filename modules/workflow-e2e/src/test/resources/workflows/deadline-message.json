@@ -1,0 +1,18 @@
+{
+  "id": "deadline-message",
+  "name": "Payment due the day before check-in, or the booking is cancelled",
+  "version": 1,
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "wait-payment", "type": "WAIT_FOR_MESSAGE", "name": "Wait for payment", "preconditionStepId": "start",
+      "messageName": "payment-received", "correlationExpression": "businessKey", "retries": 2,
+      "deadline": { "date": "${checkinAt}", "offset": "-P1D" },
+      "onTimeoutStepId": "cancel" },
+    { "id": "confirm", "type": "ACTION", "name": "Confirm", "topic": "work", "preconditionStepId": "wait-payment" },
+    { "id": "cancel", "type": "ACTION", "name": "Cancel booking", "topic": "work",
+      "preconditions": [ { "stepId": "wait-payment", "expression": "false" } ] },
+    { "id": "outcome", "type": "JOIN", "name": "Outcome", "joinType": "XOR",
+      "preconditionStepIds": ["confirm", "cancel"] },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "outcome" }
+  ]
+}

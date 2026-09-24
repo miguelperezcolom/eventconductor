@@ -229,7 +229,16 @@ Wait until an absolute date carried by a process variable (e.g. a check-in date)
 }
 ```
 
-**Required fields:** `duration` or `untilVariable`
+Wait for a moment computed from the process's data — three days before check-in, at 09:00 hotel time — which follows the data if it changes while the timer waits (see [Scheduling and Deadlines](/guides/scheduling-and-deadlines/)):
+
+```json
+{ "id": "wait-balance", "type": "TIMER", "name": "3 days before check-in", "preconditionStepId": "confirm-booking",
+  "until": { "date": "${checkinDate}", "offset": "-P3D", "at": "09:00", "zone": "${hotelZone}", "ifPast": "fire" } }
+```
+
+**Required fields:** one of `duration`, `untilVariable` or `until`
+
+`until` is a moment: `{date, offset, at, zone, ifPast}`, or a date template alone. `ifPast` (`fire` default, or `timeout` — which follows `onTimeoutStepId` or fails) decides what a moment already past does.
 
 `duration` accepts an ISO 8601 duration string (`PT30M`, `PT72H`, `P3D`) or an integer in milliseconds. `untilVariable` names a process variable holding an ISO 8601 date (`2026-08-01`), date-time (`2026-08-01T15:00`) or offset date-time; it takes precedence over `duration`. If the referenced variable is missing or unparseable when the step starts, the step ends `ERROR` through the normal failure pipeline — the process never freezes silently. The `timeout` field is ignored for TIMER steps.
 
@@ -651,4 +660,5 @@ Rendered by the engine and executed by the built-in `http-call@1` task (`worker-
 | `compensable` | boolean | `false` | Trigger compensation step on failure |
 | `compensationStepId` | string | — | Step to run as compensation. **Required when `compensable: true`** (enforced by the JSON schema) |
 | `onTimeoutStepId` | string | — | Step to route to when this step times out (after `retries` are exhausted) instead of failing the process — the step's own on-timeout branch. See [On-timeout routing](/guides/retries-timeouts-compensation/#on-timeout-routing) |
+| `deadline` | moment | — | ACTION, USER_TASK, RULE, WAIT_FOR_MESSAGE, PROCESS, HTTP_CALL: a moment (`{date, offset, at, zone}` from the process's data) by which the step must have finished. Reaching it is a timeout that retries do not extend; with `timeout` too, the earlier wins; it follows the variables. See [Scheduling and Deadlines](/guides/scheduling-and-deadlines/) |
 | `maxSuccessfulExecutions` | integer | `0` | Cap on how many times this step may successfully run within one process instance (backstop against runaway loops). `0` inherits the workflow-level `defaultMaxStepExecutions`; both `0` = unbounded. Validated design metadata today — the engine runs each step once, and the cap will be enforced when step re-execution lands |

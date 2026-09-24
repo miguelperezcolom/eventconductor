@@ -153,7 +153,10 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
      */
     public StepExecution withStartedAt(LocalDateTime startedAt) {
         var shifted = toBuilder().startedAt(startedAt).build();
-        shifted.deadlineAt = shifted.computeDeadline();
+        var step = pojoFromJson(stepJson, Step.class);
+        // A TIMER's until is an absolute moment kept current by rearmedFor: a pause does not move
+        // a check-in date, and recomputing from the start snapshot would undo a moved one.
+        shifted.deadlineAt = step.until() != null && deadlineAt != null ? deadlineAt : shifted.computeDeadline();
         return shifted;
     }
 
@@ -173,7 +176,8 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
             return this;
         }
         var step = pojoFromJson(stepJson, Step.class);
-        var deadline = computeDeadline();
+        var followsProcess = followsProcess(step);
+        var deadline = followsProcess ? deadlineFollowing(process) : computeDeadline();
         var waiting = StepExecutionStatus.PENDING.equals(status)
                 && StepType.WAIT_FOR_MESSAGE.equals(step.type())
                 && step.messageName() != null && !step.messageName().isBlank();
@@ -188,7 +192,69 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
         rearmed.deadlineAt = deadline;
         rearmed.awaitingMessageName = messageName;
         rearmed.awaitingCorrelationKey = correlationKey;
+        if (followsProcess && deadlineAt != null && !Objects.equals(deadline, deadlineAt)) {
+            rearmed.momentMoved(step, deadlineAt, deadline);
+        }
         return rearmed;
+    }
+
+    /** Whether this step's due moment or deadline is computed from the process's data, and follows it. */
+    private static boolean followsProcess(Step step) {
+        return step.until() != null || step.deadline() != null;
+    }
+
+    /**
+     * The deadline recomputed from the process's variables as they are now — a moved check-in moves
+     * the timer. When the moment cannot be resolved any more (its date variable was cleared), the one
+     * already armed is kept: a waiting step is never silently disarmed.
+     */
+    private LocalDateTime deadlineFollowing(Process process) {
+        if (!StepExecutionStatus.PENDING.equals(status) && !StepExecutionStatus.RUNNING.equals(status)) {
+            return deadlineAt;
+        }
+        var current = process.getVariables() == null ? List.<Variable>of() : process.getVariables();
+        try {
+            var recomputed = pojoFromJson(stepJson, Step.class).deadlineAt(startedAt, current);
+            return recomputed == null ? deadlineAt : recomputed;
+        } catch (IllegalArgumentException e) {
+            return deadlineAt;
+        }
+    }
+
+    /**
+     * Records that the moment moved, and applies a TIMER's {@code ifPast: timeout} when it moved into
+     * the past — the same decision {@link #start(Process)} takes when it starts past it. With
+     * {@code fire}, a moment in the past is simply due, and the scheduler fires it on its next tick.
+     */
+    private void momentMoved(Step step, LocalDateTime was, LocalDateTime now) {
+        var what = StepType.TIMER.equals(step.type()) ? "Timer" : "Deadline";
+        send(new TaskLogEmitted(id, MessageType.Info,
+                what + " of step " + step.name() + " moved with the process's data: now due " + now + " (was " + was + ")."));
+        if (StepType.TIMER.equals(step.type()) && step.until() != null && step.until().timesOutIfPast()
+                && StepExecutionStatus.PENDING.equals(status) && !now.isAfter(LocalDateTime.now())) {
+            send(new TaskLogEmitted(id, MessageType.Error,
+                    "Timer " + step.name() + ": its moment (" + step.until().describe() + ") moved into the past ("
+                            + now + ")."));
+            updateStatus(StepExecutionStatus.TIMEOUT, true);
+        }
+    }
+
+    /**
+     * When this started step is due (a TIMER) or times out (any other step), as the engine holds it
+     * now: for a step whose moment follows the process, the materialised deadline — rearm keeps it
+     * current; otherwise recomputed from the start snapshot, as it always was. Null when it has none
+     * or it cannot be resolved.
+     */
+    public LocalDateTime currentDeadline() {
+        var step = pojoFromJson(stepJson, Step.class);
+        if (followsProcess(step) && deadlineAt != null) {
+            return deadlineAt;
+        }
+        try {
+            return step.deadlineAt(startedAt, variables);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
     /**
@@ -348,8 +414,22 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
             // recomputed from persisted state, so the wait survives restarts.
             try {
                 var dueAt = step.timerDueAt(startedAt, variables);
+                if (step.until() != null && !dueAt.isAfter(startedAt) && step.until().timesOutIfPast()) {
+                    // The moment had already passed when the step started (a booking made too late
+                    // for "3 days before check-in"), and the definition asked not to fire it anyway:
+                    // a timeout, which goes down onTimeoutStepId if there is one and fails otherwise.
+                    // Final — a retry would find the same past moment.
+                    send(new TaskLogEmitted(id, MessageType.Error,
+                            "Timer " + step.name() + ": its moment (" + step.until().describe() + ") had already passed ("
+                                    + dueAt + ") when the step started."));
+                    updateStatus(StepExecutionStatus.TIMEOUT, true);
+                    return this;
+                }
                 send(new TaskLogEmitted(id, MessageType.Info,
-                        "Timer armed for step " + step.name() + ", due at " + dueAt + "."));
+                        "Timer armed for step " + step.name() + ", due at " + dueAt
+                                + (step.until() == null ? "" : " (" + step.until().describe() + " → "
+                                        + step.until().resolveZoned(variables).zoned() + ")")
+                                + "."));
             } catch (IllegalArgumentException e) {
                 send(new TaskLogEmitted(id, MessageType.Error,
                         "Step " + step.name() + ": " + e.getMessage()));

@@ -225,6 +225,13 @@ failure contract in both modes, cancellation, silent end, busy lock WAIT/FAIL), 
 `InlineBudgetJpaE2eTest`, `InlineCrashRecoveryE2eTest` (a node dies inside an embedded worker with the
 row claimed; another node finishes it).
 
+Moments (`modules/workflow-e2e`): `MomentE2eTest` — E2E-MOMENT-01 a TIMER fires 3 days before check-in in
+the hotel's zone (Asia/Tokyo); 02 a moment already past fires at once; 03 `ifPast: timeout` takes the
+on-timeout route; 04 without a route fails the process; 05 a `deadline` times a WAIT_FOR_MESSAGE out
+without spending its retries; 06 the check-in moves (a message) and the timer follows. `MomentJpaE2eTest`
+repeats 06 on the durable path (the scheduler finds the moved timer through the indexed `deadlineAt`).
+Units: `MomentRulesTest`, `MomentsTest` (DST both ways), `StepMomentTest`, `SpecValidatorTest`.
+
 HTTP_CALL / PUBLISH_EVENT / templates (`modules/workflow-e2e`): `PublishEventE2eTest` and its JPA twin
 (the event published once, after the step completed; unknown destination → ERROR),
 `HttpCallDispatchE2eTest` (the rendered request reaches `http-call@1`; a `[non-retryable]` failure skips

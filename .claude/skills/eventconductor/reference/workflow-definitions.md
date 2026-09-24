@@ -35,6 +35,8 @@ Add `"$schema"` (JSON) or a `# yaml-language-server: $schema=...` comment (YAML)
 | `ruleId` | RULE | rule to evaluate (rule-engine catalog) |
 | `duration` | TIMER | wait length; ISO-8601 or ms |
 | `untilVariable` | TIMER | variable holding an ISO-8601 date/date-time; wins over `duration` |
+| `until` | TIMER | moment `{date, offset, at, zone, ifPast}` (or date template); follows variable changes; exclusive with duration/untilVariable |
+| `deadline` | ACTION/USER_TASK/RULE/WAIT_FOR_MESSAGE/PROCESS/HTTP_CALL | moment by which to finish; timeout that retries don't extend; earlier of it and `timeout` wins |
 | `messageName` | WAIT_FOR_MESSAGE, SEND_MESSAGE | message to wait for / emit; **required** for both |
 | `correlationExpression` | WAIT_FOR_MESSAGE, SEND_MESSAGE | JEXL producing the correlation key; **required** for both (use `businessKey` for the business key) |
 | `messageVariables` | SEND_MESSAGE | array of process-variable names the message carries; empty/absent = none |
@@ -54,7 +56,12 @@ Add `"$schema"` (JSON) or a `# yaml-language-server: $schema=...` comment (YAML)
 - **USER_TASK** — pause for a human; creates a `FormExecution` for `formId` (needs `forms-engine`).
 - **RULE** — evaluate a business rule (`ruleId`) from the rule catalog; outputs merge into process variables (needs `rule-runtime` on the evaluating side; taskId is `evaluate-rule`).
 - **TIMER** — durable wait, no worker: `duration` (ISO-8601 or ms) or `untilVariable` (variable with an
-  ISO-8601 date/date-time; wins). Survives restarts; a misconfigured timer ends the step `ERROR`.
+  ISO-8601 date/date-time; wins) or `until` — a moment from the process's data: `{date: "${checkinDate}",
+  offset: -P3D, at: "09:00", zone: "${hotelZone}", ifPast: fire|timeout}` (offset days are calendar
+  arithmetic in `zone`; `zone` default `workflow.time.zone`). An `until` moment FOLLOWS variable changes
+  while waiting. `ifPast: timeout` → TIMEOUT → `onTimeoutStepId` or failure. Survives restarts; a
+  misconfigured timer ends the step `ERROR`. Any waiting step may have a `deadline` (same moment, no
+  ifPast): a timeout that retries don't extend; earlier of it and `timeout` wins.
 - **WAIT_FOR_MESSAGE** (previously `MESSAGE`; old name still deserializes) — durable wait for a
   `MessageReceived(messageName, correlationKey, variables)` (via `POST /workflow/api/messages`, Kafka
   `upstream` as `"type":"message-received"`, MCP `sendMessage`, or a SEND_MESSAGE step). Correlates on

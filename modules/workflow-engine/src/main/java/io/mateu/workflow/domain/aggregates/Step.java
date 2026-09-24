@@ -10,11 +10,7 @@ import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import lombok.With;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.OffsetDateTime;
-import java.time.ZoneId;
-import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Objects;
@@ -235,7 +231,21 @@ public record Step(
         PublishEvent event,
         /** HTTP_CALL only: the request to make and how to read its response (see {@link HttpCall}). */
         @Hidden
-        HttpCall http
+        HttpCall http,
+        /**
+         * TIMER only: the moment to wait for, in business terms — "3 days before check-in, at 09:00
+         * hotel time" (see {@link Moment}). Exclusive with {@code duration} and {@code untilVariable};
+         * unlike them it follows the process's variables while the timer waits.
+         */
+        @Hidden
+        Moment until,
+        /**
+         * Any step that can time out: a moment by which it must have finished, computed from the
+         * process's data. Reaching it is a timeout — {@code onTimeoutStepId} or failure — and, unlike
+         * {@code timeout}, it does not restart with a retry. With {@code timeout} too, the earlier wins.
+         */
+        @Hidden
+        Moment deadline
 ) implements Identifiable {
 
     public Step {
@@ -259,7 +269,7 @@ public record Step(
                 null, preconditionExpression, parallel, topic, formId, ruleId, childWorkflowDefinitionId,
                 outputVariables, duration, untilVariable, messageName, correlationExpression,
                 messageVariables, timeout, retries, compensable, compensationStepId, null,
-                maxSuccessfulExecutions, joinType, java.util.List.of(), java.util.List.of(), null, null, null, null, null, null, null, null);
+                maxSuccessfulExecutions, joinType, java.util.List.of(), java.util.List.of(), null, null, null, null, null, null, null, null, null, null);
     }
 
     /**
@@ -279,7 +289,7 @@ public record Step(
                 preconditions, preconditionExpression, parallel, topic, formId, ruleId,
                 childWorkflowDefinitionId, outputVariables, duration, untilVariable, messageName,
                 correlationExpression, messageVariables, timeout, retries, compensable, compensationStepId,
-                onTimeoutStepId, maxSuccessfulExecutions, joinType, requiredScopes, requiredRoles, null, null, null, null, null, null, null, null);
+                onTimeoutStepId, maxSuccessfulExecutions, joinType, requiredScopes, requiredRoles, null, null, null, null, null, null, null, null, null, null);
     }
 
     /**
@@ -300,7 +310,7 @@ public record Step(
                 childWorkflowDefinitionId, outputVariables, duration, untilVariable, messageName,
                 correlationExpression, messageVariables, timeout, retries, compensable, compensationStepId,
                 onTimeoutStepId, maxSuccessfulExecutions, joinType, requiredScopes, requiredRoles,
-                lockName, lockKey, task, null, null, null, null, null);
+                lockName, lockKey, task, null, null, null, null, null, null, null);
     }
 
     /**
@@ -322,7 +332,7 @@ public record Step(
                 childWorkflowDefinitionId, outputVariables, duration, untilVariable, messageName,
                 correlationExpression, messageVariables, timeout, retries, compensable, compensationStepId,
                 onTimeoutStepId, maxSuccessfulExecutions, joinType, requiredScopes, requiredRoles,
-                lockName, lockKey, task, replyVariables, replyExpression, null, null, null);
+                lockName, lockKey, task, replyVariables, replyExpression, null, null, null, null, null);
     }
 
     /** The shape this record had before PUBLISH_EVENT, so every caller of the full constructor keeps compiling. */
@@ -341,7 +351,7 @@ public record Step(
                 childWorkflowDefinitionId, outputVariables, duration, untilVariable, messageName,
                 correlationExpression, messageVariables, timeout, retries, compensable, compensationStepId,
                 onTimeoutStepId, maxSuccessfulExecutions, joinType, requiredScopes, requiredRoles,
-                lockName, lockKey, task, replyVariables, replyExpression, replyTemplate, null, null);
+                lockName, lockKey, task, replyVariables, replyExpression, replyTemplate, null, null, null, null);
     }
 
     /** The shape this record had before HTTP_CALL, so every caller of the full constructor keeps compiling. */
@@ -360,7 +370,26 @@ public record Step(
                 childWorkflowDefinitionId, outputVariables, duration, untilVariable, messageName,
                 correlationExpression, messageVariables, timeout, retries, compensable, compensationStepId,
                 onTimeoutStepId, maxSuccessfulExecutions, joinType, requiredScopes, requiredRoles,
-                lockName, lockKey, task, replyVariables, replyExpression, replyTemplate, event, null);
+                lockName, lockKey, task, replyVariables, replyExpression, replyTemplate, event, null, null, null);
+    }
+
+    /** The shape this record had before moments (until/deadline), so every caller of the full constructor keeps compiling. */
+    public Step(String id, String workflowDefinitionId, StepType type, String name, String description,
+                String preconditionStepId, List<String> preconditionStepIds, List<Precondition> preconditions,
+                String preconditionExpression, boolean parallel, String topic, String formId, String ruleId,
+                String childWorkflowDefinitionId, List<String> outputVariables, long duration,
+                String untilVariable, String messageName, String correlationExpression,
+                List<String> messageVariables, long timeout, int retries, boolean compensable,
+                String compensationStepId, String onTimeoutStepId, int maxSuccessfulExecutions,
+                JoinType joinType, List<String> requiredScopes, List<String> requiredRoles,
+                String lockName, String lockKey, String task, List<String> replyVariables,
+                String replyExpression, Object replyTemplate, PublishEvent event, HttpCall http) {
+        this(id, workflowDefinitionId, type, name, description, preconditionStepId, preconditionStepIds,
+                preconditions, preconditionExpression, parallel, topic, formId, ruleId,
+                childWorkflowDefinitionId, outputVariables, duration, untilVariable, messageName,
+                correlationExpression, messageVariables, timeout, retries, compensable, compensationStepId,
+                onTimeoutStepId, maxSuccessfulExecutions, joinType, requiredScopes, requiredRoles,
+                lockName, lockKey, task, replyVariables, replyExpression, replyTemplate, event, http, null, null);
     }
 
     /**
@@ -464,10 +493,54 @@ public record Step(
         if (StepType.TIMER.equals(type)) {
             return timerDueAt(startedAt, variables);
         }
-        return timeout > 0 ? startedAt.plus(timeout, ChronoUnit.MILLIS) : null;
+        return timeLimitAt(startedAt, variables);
+    }
+
+    /**
+     * Whether this step can time out at all: a {@code timeout}, a {@code deadline}, or both. A TIMER
+     * cannot — its moment is when it completes.
+     */
+    public boolean hasTimeLimit() {
+        return !StepType.TIMER.equals(type) && (timeout > 0 || deadline != null);
+    }
+
+    /**
+     * When a started step times out: the earlier of {@code startedAt + timeout} and its
+     * {@code deadline}, or null when it has neither. A deadline that cannot be resolved (its date
+     * variable is missing) is left out rather than failing here — the step is told at start, and a
+     * {@code timeout} still bounds it.
+     */
+    public LocalDateTime timeLimitAt(LocalDateTime startedAt, List<Variable> variables) {
+        if (startedAt == null) {
+            return null;
+        }
+        LocalDateTime byTimeout = timeout > 0 ? startedAt.plus(timeout, ChronoUnit.MILLIS) : null;
+        LocalDateTime byDeadline = null;
+        if (deadline != null) {
+            try {
+                byDeadline = deadline.resolve(variables);
+            } catch (IllegalArgumentException e) {
+                byDeadline = null;
+            }
+        }
+        if (byTimeout == null) {
+            return byDeadline;
+        }
+        if (byDeadline == null) {
+            return byTimeout;
+        }
+        return byDeadline.isBefore(byTimeout) ? byDeadline : byTimeout;
     }
 
     public LocalDateTime timerDueAt(LocalDateTime startedAt, List<Variable> variables) {
+        if (until != null) {
+            try {
+                return until.resolve(variables);
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("Timer step '" + id + "' cannot resolve its moment ("
+                        + until.describe() + "): " + e.getMessage(), e);
+            }
+        }
         if (untilVariable != null && !untilVariable.isBlank()) {
             var value = variables == null ? null : variables.stream()
                     .filter(variable -> untilVariable.equals(variable.name()))
@@ -485,23 +558,15 @@ public record Step(
             return startedAt.plus(duration, ChronoUnit.MILLIS);
         }
         throw new IllegalArgumentException(
-                "Timer step '" + id + "' defines neither a duration nor an untilVariable.");
+                "Timer step '" + id + "' defines neither a duration, an untilVariable nor an until.");
     }
 
+    /**
+     * An {@code untilVariable}'s value as a moment: read in {@code workflow.time.zone} when it carries
+     * no offset — the JVM's zone unless configured, which is what it has always meant.
+     */
     private static LocalDateTime parseDateOrDateTime(String text) {
-        try {
-            return LocalDateTime.parse(text);
-        } catch (DateTimeParseException ignored) {
-        }
-        try {
-            return OffsetDateTime.parse(text).atZoneSameInstant(ZoneId.systemDefault()).toLocalDateTime();
-        } catch (DateTimeParseException ignored) {
-        }
-        try {
-            return LocalDate.parse(text).atStartOfDay();
-        } catch (DateTimeParseException e) {
-            throw new IllegalArgumentException(
-                    "Cannot parse '" + text + "' as an ISO 8601 date or date-time.", e);
-        }
+        return io.mateu.workflow.time.Moments.resolve(text.replace("${", "$${"), null, null, null, java.util.Map.of())
+                .engineTime();
     }
 }

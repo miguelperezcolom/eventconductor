@@ -1,0 +1,17 @@
+{
+  "id": "timer-moment-past",
+  "name": "Timer: a moment already past times out down its on-timeout route",
+  "version": 1,
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "wait", "type": "TIMER", "name": "Three days before check-in", "preconditionStepId": "start",
+      "until": { "date": "${checkinAt}", "offset": "-P3D", "ifPast": "timeout" },
+      "onTimeoutStepId": "charge-now" },
+    { "id": "charge-later", "type": "ACTION", "name": "Charge on schedule", "topic": "work", "preconditionStepId": "wait" },
+    { "id": "charge-now", "type": "ACTION", "name": "Charge now", "topic": "work",
+      "preconditions": [ { "stepId": "wait", "expression": "false" } ] },
+    { "id": "charged", "type": "JOIN", "name": "Charged", "joinType": "XOR",
+      "preconditionStepIds": ["charge-later", "charge-now"] },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "charged" }
+  ]
+}

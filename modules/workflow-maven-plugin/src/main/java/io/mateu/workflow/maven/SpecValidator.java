@@ -251,6 +251,8 @@ public class SpecValidator {
                     }
                 }
             }
+            checkMoment(step.get("until"), "TIMER step '" + id + "' until", true, violations);
+            checkMoment(step.get("deadline"), "Step '" + id + "' deadline", false, violations);
             JsonNode event = step.get("event");
             if (event != null && event.isObject()) {
                 checkTemplate(event.get("payload"), "step '" + id + "' event.payload", violations);
@@ -283,6 +285,20 @@ public class SpecValidator {
      * A payload template: its {@code ${…}} must be well formed and every expression must parse — the
      * same syntax (definition-analysis) the engine renders with.
      */
+    /** A moment ({@code until} / {@code deadline}): its rules, then the templates in its date and zone. */
+    private void checkMoment(JsonNode moment, String where, boolean allowIfPast, List<String> violations) {
+        if (moment == null || moment.isNull()) {
+            return;
+        }
+        Object generic = TEMPLATE_READER.convertValue(moment, Object.class);
+        var problems = io.mateu.workflow.analysis.MomentRules.problems(generic, where, allowIfPast);
+        violations.addAll(problems);
+        if (problems.isEmpty()) {
+            checkTemplate(moment.isTextual() ? moment : moment.get("date"), where + " date", violations);
+            checkTemplate(moment.get("zone"), where + " zone", violations);
+        }
+    }
+
     private void checkTemplate(JsonNode template, String where, List<String> violations) {
         if (template == null || template.isNull()) {
             return;

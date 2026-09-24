@@ -1,0 +1,16 @@
+{
+  "id": "timer-moment-moved",
+  "name": "Timer follows a check-in date that moves while it waits",
+  "version": 1,
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "fork", "type": "FORK", "name": "Fork", "preconditionStepId": "start" },
+    { "id": "wait", "type": "TIMER", "name": "Three days before check-in", "preconditionStepId": "fork",
+      "until": { "date": "${checkinAt}", "offset": "-P3D" } },
+    { "id": "charge", "type": "ACTION", "name": "Charge", "topic": "work", "preconditionStepId": "wait" },
+    { "id": "modified", "type": "WAIT_FOR_MESSAGE", "name": "Booking modified", "preconditionStepId": "fork",
+      "messageName": "booking-modified", "correlationExpression": "businessKey" },
+    { "id": "join", "type": "JOIN", "name": "Join", "preconditionStepIds": ["charge", "modified"] },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "join" }
+  ]
+}

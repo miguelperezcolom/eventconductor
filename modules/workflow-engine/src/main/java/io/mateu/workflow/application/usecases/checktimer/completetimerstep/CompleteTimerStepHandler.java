@@ -51,14 +51,10 @@ public class CompleteTimerStepHandler {
             return;
         }
 
-        LocalDateTime dueAt;
-        try {
-            dueAt = step.timerDueAt(stepExecution.getStartedAt(), stepExecution.getVariables());
-        } catch (IllegalArgumentException e) {
-            // A misconfigured timer already failed at start(); nothing to fire here.
-            return;
-        }
-        if (LocalDateTime.now().isBefore(dueAt)) {
+        // As the engine holds it now — a moment that followed the process's data included. Null for
+        // a misconfigured timer, which already failed at start(): nothing to fire here.
+        LocalDateTime dueAt = stepExecution.currentDeadline();
+        if (dueAt == null || LocalDateTime.now().isBefore(dueAt)) {
             return;
         }
 

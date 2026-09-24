@@ -450,10 +450,32 @@ public record WorkflowDefinition(
                             "Process step '" + step.id() + "' cannot start this workflow itself as its child.");
                 }
             }
-            if (StepType.TIMER.equals(step.type()) && step.duration() <= 0
-                    && (step.untilVariable() == null || step.untilVariable().isBlank())) {
-                throw new IllegalStateException(
-                        "Timer step '" + step.id() + "' must define a duration or an untilVariable.");
+            if (StepType.TIMER.equals(step.type())) {
+                int sources = (step.duration() > 0 ? 1 : 0)
+                        + (step.untilVariable() != null && !step.untilVariable().isBlank() ? 1 : 0)
+                        + (step.until() != null ? 1 : 0);
+                if (sources == 0) {
+                    throw new IllegalStateException(
+                            "Timer step '" + step.id() + "' must define a duration, an untilVariable or an until.");
+                }
+                if (step.until() != null && sources > 1) {
+                    throw new IllegalStateException(
+                            "Timer step '" + step.id() + "' declares until together with duration or untilVariable;"
+                                    + " it must declare one.");
+                }
+            } else if (step.until() != null) {
+                throw new IllegalStateException("Step '" + step.id() + "' declares until, which only a TIMER has"
+                        + " (a deadline is what bounds any other step).");
+            }
+            if (step.until() != null) {
+                requireValidMoment(step.until(), "TIMER step '" + step.id() + "' until", true);
+            }
+            if (step.deadline() != null) {
+                if (StepType.TIMER.equals(step.type()) || !canTimeOut(step.type())) {
+                    throw new IllegalStateException("Step '" + step.id() + "' declares a deadline, but a "
+                            + step.type() + " step does not wait for anything that could miss it.");
+                }
+                requireValidMoment(step.deadline(), "Step '" + step.id() + "' deadline", false);
             }
             if (StepType.WAIT_FOR_MESSAGE.equals(step.type()) || StepType.SEND_MESSAGE.equals(step.type())) {
                 if (step.messageName() == null || step.messageName().isBlank()) {
@@ -543,6 +565,28 @@ public record WorkflowDefinition(
         var replyAnalysis = replyAnalysis();
         if (!replyAnalysis.isValid()) {
             throw new IllegalStateException(String.join(" ", replyAnalysis.errors()));
+        }
+    }
+
+    /** The steps that wait for something and so can miss a deadline. */
+    private static boolean canTimeOut(StepType type) {
+        return type != null && switch (type) {
+            case ACTION, USER_TASK, RULE, WAIT_FOR_MESSAGE, PROCESS, HTTP_CALL -> true;
+            default -> false;
+        };
+    }
+
+    /** A moment that breaks its rules — or whose templates do not parse — is a definition error. */
+    static void requireValidMoment(Moment moment, String where, boolean allowIfPast) {
+        var problems = new java.util.ArrayList<>(io.mateu.workflow.analysis.MomentRules.problems(moment.asMap(), where, allowIfPast));
+        if (problems.isEmpty()) {
+            problems.addAll(io.mateu.workflow.template.Templates.problems(moment.date(), where + " date"));
+            if (moment.zone() != null) {
+                problems.addAll(io.mateu.workflow.template.Templates.problems(moment.zone(), where + " zone"));
+            }
+        }
+        if (!problems.isEmpty()) {
+            throw new IllegalStateException(String.join(" ", problems));
         }
     }
 

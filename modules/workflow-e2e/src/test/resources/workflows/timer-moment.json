@@ -1,0 +1,12 @@
+{
+  "id": "timer-moment",
+  "name": "Timer: three days before check-in, in the hotel's zone",
+  "version": 1,
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "wait", "type": "TIMER", "name": "Three days before check-in", "preconditionStepId": "start",
+      "until": { "date": "${checkinAt}", "offset": "-P3D", "zone": "${hotelZone}" } },
+    { "id": "charge", "type": "ACTION", "name": "Charge", "topic": "work", "preconditionStepId": "wait" },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "charge" }
+  ]
+}

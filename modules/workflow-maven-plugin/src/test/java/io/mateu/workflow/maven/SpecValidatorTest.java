@@ -314,4 +314,32 @@ class SpecValidatorTest {
         assertThat(violations).anyMatch(v -> v.contains("http.body"));
         assertThat(violations).anyMatch(v -> v.contains("http.output.v"));
     }
+
+    @Test
+    void momentsAreCheckedByTheSharedRules() throws Exception {
+        var good = json("""
+                {"id": "m", "name": "M", "version": 1, "steps": [
+                  {"id": "start", "type": "START", "name": "Start"},
+                  {"id": "wait", "type": "TIMER", "name": "Wait", "preconditionStepId": "start",
+                   "until": {"date": "${checkinDate}", "offset": "-P3D", "at": "09:00", "zone": "${hotelZone}", "ifPast": "timeout"}},
+                  {"id": "pay", "type": "WAIT_FOR_MESSAGE", "name": "Pay", "preconditionStepId": "wait",
+                   "messageName": "paid", "correlationExpression": "bookingId", "deadline": "${checkinDate}"}
+                ]}
+                """);
+        assertThat(validator.validate(SpecValidator.Kind.WORKFLOW, good)).isEmpty();
+        var bad = json("""
+                {"id": "m", "name": "M", "version": 1, "steps": [
+                  {"id": "start", "type": "START", "name": "Start"},
+                  {"id": "wait", "type": "TIMER", "name": "Wait", "preconditionStepId": "start",
+                   "until": {"date": "${checkinDate +}", "offset": "3 days", "zone": "Mars/Olympus"}},
+                  {"id": "pay", "type": "WAIT_FOR_MESSAGE", "name": "Pay", "preconditionStepId": "wait",
+                   "messageName": "paid", "correlationExpression": "bookingId",
+                   "deadline": {"date": "${checkinDate}", "ifPast": "fire"}}
+                ]}
+                """);
+        var violations = validator.validate(SpecValidator.Kind.WORKFLOW, bad);
+        assertThat(violations).anyMatch(v -> v.contains("until offset"));
+        assertThat(violations).anyMatch(v -> v.contains("Mars/Olympus"));
+        assertThat(violations).anyMatch(v -> v.contains("deadline has an unknown field 'ifPast'"));
+    }
 }

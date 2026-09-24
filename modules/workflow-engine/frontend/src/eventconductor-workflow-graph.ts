@@ -89,6 +89,23 @@ interface WorkflowStep {
     event?: { destination?: string; type?: string; key?: string };
     /** HTTP_CALL only: the request to make. */
     http?: { connection?: string; url?: string; method?: string; path?: string };
+    /** TIMER only: wait a duration, until a variable's date, or until a moment. */
+    duration?: number | string;
+    untilVariable?: string;
+    until?: Moment;
+    /** A moment by which a waiting step must have finished. */
+    deadline?: Moment;
+}
+
+/** A moment from the process's data: a date template, or {date, offset, at, zone, ifPast}. */
+type Moment = string | { date?: string; offset?: string; at?: string; zone?: string; ifPast?: string };
+
+/** A moment in words — "${checkinDate} −P3D at 09:00 Europe/Madrid". */
+function describeMoment(moment: Moment | undefined): string {
+    if (!moment) return "";
+    if (typeof moment === "string") return moment;
+    return [moment.date, moment.offset, moment.at ? "at " + moment.at : "", moment.zone]
+        .filter(part => part && part.length > 0).join(" ");
 }
 
 /** The kind of connection being drawn, by drag gesture. */
@@ -365,7 +382,10 @@ function badgeOf(step: WorkflowStep): string {
             ? step.replyVariables.join(", ") : (step.replyExpression ? "expression" : "REPLY"));
         case "PUBLISH_EVENT": return "📣 " + (step.event?.destination || "event");
         case "HTTP_CALL": return (step.http?.method || "GET") + " " + (step.http?.connection || step.http?.url || "http");
-        default: return step.type; // START, TIMER, END
+        case "TIMER": return "⏱ " + (step.until ? describeMoment(step.until)
+            : step.untilVariable ? "until " + step.untilVariable
+            : step.duration ? String(step.duration) : "TIMER");
+        default: return step.type; // START, END
     }
 }
 
@@ -3386,6 +3406,12 @@ export class MateuWorkflowElk extends LitElement {
                         <input class="inp" readonly title="Edit the http block in the YAML"
                                .value="${(step.http?.method || "GET") + " " + (step.http?.connection
                                    ? step.http.connection + (step.http.path || "") : (step.http?.url || ""))}"/>`) : ""}
+                    ${step.type === "TIMER" && step.until ? field("Until", html`
+                        <input class="inp" readonly title="Edit the until block in the YAML"
+                               .value="${describeMoment(step.until)}"/>`) : ""}
+                    ${step.deadline ? field("Deadline", html`
+                        <input class="inp" readonly title="Edit the deadline in the YAML"
+                               .value="${describeMoment(step.deadline)}"/>`) : ""}
                     ${step.type === "PUBLISH_EVENT" ? field("Event", html`
                         <input class="inp" readonly title="Edit the event block in the YAML"
                                .value="${(step.event?.type || "") + " → " + (step.event?.destination || "")}"/>`) : ""}

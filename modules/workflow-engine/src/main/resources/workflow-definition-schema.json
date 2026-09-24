@@ -270,6 +270,24 @@
         }
       }
     },
+    "Moment": {
+      "description": "A moment in business terms, from the process's data — e.g. 3 days before check-in at 09:00 hotel time. A plain string is its date.",
+      "oneOf": [
+        { "type": "string", "minLength": 1, "description": "The date alone: a template rendering to an ISO date, date-time or offset date-time, e.g. ${checkinDate}." },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["date"],
+          "properties": {
+            "date": { "type": "string", "minLength": 1, "description": "A template rendering to an ISO date (2026-08-01), date-time (2026-08-01T15:00) or offset date-time; e.g. ${checkinDate}." },
+            "offset": { "type": "string", "pattern": "^[+-]?P(\\d+Y)?(\\d+M)?(\\d+W)?(\\d+D)?(T(\\d+H)?(\\d+M)?(\\d+(\\.\\d{1,9})?S)?)?$", "description": "ISO-8601 offset added to the date, may be negative: -P3D (three calendar days before), P1DT6H, -PT30M. Days and up are calendar arithmetic in the zone (DST-safe); hours and below are elapsed time." },
+            "at": { "type": "string", "pattern": "^\\d{2}:\\d{2}(:\\d{2})?$", "description": "Time of day set after the offset, in the zone, e.g. 09:00." },
+            "zone": { "type": "string", "description": "IANA time zone (Europe/Madrid) or a template rendering to one (${hotelZone}). Default: workflow.time.zone (the JVM zone unless configured)." },
+            "ifPast": { "type": "string", "enum": ["fire", "timeout"], "description": "TIMER until only — when the moment has already passed as the step starts: fire (default) completes the timer at once; timeout ends it TIMEOUT, which follows onTimeoutStepId if set and fails the process otherwise." }
+          }
+        }
+      ]
+    },
     "Step": {
       "title": "Step",
       "type": "object",
@@ -537,6 +555,10 @@
           ],
           "description": "TIMER only: name of a process variable holding an ISO 8601 date (2026-08-01) or date-time (2026-08-01T15:00); the timer fires when that moment passes. Takes precedence over duration."
         },
+        "until": {
+          "anyOf": [{ "$ref": "#/$defs/Moment" }, { "type": "null" }],
+          "description": "TIMER only: the moment to wait for, from the process's data — {date, offset, at, zone, ifPast} or a date template. Unlike untilVariable it follows the process's variables while the timer waits. Exclusive with duration and untilVariable."
+        },
         "messageName": {
           "type": [
             "string",
@@ -569,6 +591,10 @@
           ],
           "description": "Maximum execution time. Use an ISO 8601 duration string (e.g. PT30S, PT5M, PT1H30M) or an integer in milliseconds. 0 or null means no timeout.",
           "default": 0
+        },
+        "deadline": {
+          "anyOf": [{ "$ref": "#/$defs/Moment" }, { "type": "null" }],
+          "description": "ACTION, USER_TASK, RULE, WAIT_FOR_MESSAGE, PROCESS, HTTP_CALL: a moment by which the step must have finished, from the process's data ({date, offset, at, zone}, no ifPast). Reaching it is a timeout (onTimeoutStepId or failure) that retries do not extend; with timeout too, the earlier wins."
         },
         "retries": {
           "type": [
@@ -704,6 +730,11 @@
               {
                 "required": [
                   "untilVariable"
+                ]
+              },
+              {
+                "required": [
+                  "until"
                 ]
               }
             ]

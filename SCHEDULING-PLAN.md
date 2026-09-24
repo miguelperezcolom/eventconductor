@@ -1,7 +1,17 @@
 # Plan: moments in time — timers and deadlines relative to process dates
 
-> Status: **DRAFT (2026-09-24)** — for review. Open questions in §6, each with a recommendation.
-> One commit per phase; each phase compiles and tests green on its own.
+> Status: **DECISIONS RESOLVED (2026-09-24)** — §6 recommendations accepted; implementation on
+> `feat/scheduling`. One commit per phase; each phase compiles and tests green on its own.
+>
+> **Deviations decided while implementing** (supersede the text below where they differ):
+> - `ifPast` is **`fire | timeout`**. `timeout` ends the timer `TIMEOUT` (no retries), which already
+>   means: follow `onTimeoutStepId` if the step declares one, else fail the process (and compensate).
+>   That is `route` and `fail` of the draft, with no new routing machinery and nothing new for the
+>   REPLY-path analysis; `ifPastStepId` is dropped.
+> - **No engine-wide injectable `Clock`.** The engine calls `LocalDateTime.now()` in many places;
+>   the e2e tests instead use dates relative to now (as the existing TIMER tests do).
+> - Resolution lives in `shared` (`io.mateu.workflow.time.Moments`, next to the templates it renders);
+>   syntax rules and offset parsing in `definition-analysis` (`MomentRules`), shared with the plugin.
 
 ## 1. Goal
 
@@ -60,8 +70,7 @@ until:                        # on a TIMER
   offset: -P3D                # optional: ISO-8601 period/duration, may be negative (P1D, -PT2H, -P1DT6H)
   at: "09:00"                 # optional: local time of day, applied after the offset
   zone: "${hotelZone}"        # optional: IANA zone (template); default workflow.time.zone
-  ifPast: fire                # optional: fire (default) | route | fail
-  ifPastStepId: charge-now    # required iff ifPast = route
+  ifPast: fire                # optional: fire (default) | timeout
 ```
 
 Resolution, in this order:
@@ -161,18 +170,26 @@ handlers; the e2e tests move it instead of sleeping.
 
 ## 5. Phases
 
-- [ ] **P1 — Moment + clock.** `Moment` record and resolver (definition-analysis rules, engine
+- [x] **P1 — Moment + clock.** `Moment` record and resolver (definition-analysis rules, engine
   resolver), `workflow.time.zone`, injectable `Clock`; `untilVariable` re-expressed through it
   (behaviour unchanged). Unit tests.
-- [ ] **P2 — TIMER `until` + `ifPast`.** Step field, schema, invariants, plugin validation; `route`
+- [x] **P2 — TIMER `until` + `ifPast`.** Step field, schema, invariants, plugin validation; `route`
   through the on-timeout route machinery; REPLY-uniqueness aware of it; e2e.
-- [ ] **P3 — `deadline` on any step.** Earlier-wins with `timeout`; no retry past it; USER_TASK due
+- [x] **P3 — `deadline` on any step.** Earlier-wins with `timeout`; no retry past it; USER_TASK due
   date; e2e.
-- [ ] **P4 — Follow the variables.** `rearmedFor` recompute from current variables for
+- [x] **P4 — Follow the variables.** `rearmedFor` recompute from current variables for
   `until`/`deadline`; scheduler/handler read `deadlineAt`; logs + metric; e2e + JPA + dist.
-- [ ] **P5 — UI & tooling & docs.** Process view and graph badge, plugins, guide *"Scheduling and
+- [x] **P5 — UI & tooling & docs.** Process view and graph badge, plugins, guide *"Scheduling and
   deadlines"* (the hotel example end-to-end, including a modified booking), step-types,
   configuration, AI files, skill, TESTING, CHANGELOG.
+*P1–P5 done in one commit (the phases share the Step fields and the checks; splitting them would
+have meant intermediate states nobody runs). No engine-wide Clock (see the deviations above). The
+recompute on variable change reuses the existing rearm path (`MessageSubscriptionService.rearm` →
+`StepExecution.rearmedFor`); the scheduler and the timer/timeout handlers read the materialised
+`deadlineAt` for moment steps (`StepExecution.currentDeadline()`). Not done: a USER_TASK's deadline as
+the form's due date, the metric `eventconductor.timer.rescheduled`, and a dist-e2e (the reschedule
+runs on the rearm path every variable change already takes — covered embedded and JPA).*
+
 - [ ] **P6 (optional) — `notBefore`.**
 
 ## 6. Open questions (recommendation first)

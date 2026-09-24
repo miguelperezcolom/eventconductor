@@ -201,6 +201,8 @@ Dispatches `taskId=evaluate-rule` with a `ruleId` variable; any app embedding `r
 ```
 Pauses the process without a worker: the step stays `PENDING` and the scheduler completes it once the due moment passes; the wait survives restarts. `duration` is ISO-8601 or ms; `untilVariable` names a process variable holding an ISO-8601 date/date-time and takes precedence. A misconfigured timer ends the step `ERROR` through the normal failure pipeline.
 
+`until` waits for a **moment** from the process's data: `{"date": "${checkinDate}", "offset": "-P3D", "at": "09:00", "zone": "${hotelZone}", "ifPast": "fire"}` (or a date template alone). `offset` days are calendar arithmetic in `zone` (DST-safe); `zone` defaults to `workflow.time.zone`. `ifPast`: `fire` (default, complete at once) or `timeout` (end TIMEOUT → `onTimeoutStepId` or failure; no retries). Unlike `untilVariable`, an `until` moment **follows the variables** while the timer waits (recomputed on every variable change; a cleared date keeps the armed moment). Any waiting step (ACTION, USER_TASK, RULE, WAIT_FOR_MESSAGE, PROCESS, HTTP_CALL) can have a `deadline` (same moment, no `ifPast`): reaching it is a timeout that retries do not extend; with `timeout`, the earlier wins.
+
 ### WAIT_FOR_MESSAGE — wait for a message
 ```json
 { "id": "await-payment", "type": "WAIT_FOR_MESSAGE", "name": "Await payment confirmation",
@@ -310,6 +312,8 @@ Exactly one per workflow. Transitions the process to `COMPLETED`. With parallel 
 | `outputVariables` | string[] | — | Child variables copied back to the parent on completion (PROCESS); empty/absent = none |
 | `duration` | duration | `0` | Wait length (TIMER); ISO-8601 or ms |
 | `untilVariable` | string | — | Variable holding an ISO-8601 date/date-time (TIMER); wins over `duration` |
+| `until` | moment | — | TIMER: `{date, offset, at, zone, ifPast}` or a date template; follows the variables; exclusive with `duration`/`untilVariable` |
+| `deadline` | moment | — | Waiting steps: `{date, offset, at, zone}` by which the step must finish; a timeout retries do not extend; earlier of it and `timeout` wins |
 | `messageName` | string | — | Message to wait for / emit (WAIT_FOR_MESSAGE / SEND_MESSAGE; **required** for both) |
 | `correlationExpression` | string | — | JEXL producing the correlation key (WAIT_FOR_MESSAGE / SEND_MESSAGE; **required** for both — use `businessKey` for the business key) |
 | `messageVariables` | string[] | — | Process-variable names the outgoing message carries (SEND_MESSAGE); empty/absent = none |
