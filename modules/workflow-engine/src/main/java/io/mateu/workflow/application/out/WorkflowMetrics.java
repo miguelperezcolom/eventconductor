@@ -167,4 +167,22 @@ public interface WorkflowMetrics {
         var end = process.getFinished() != null ? process.getFinished() : LocalDateTime.now();
         return Duration.between(start, end);
     }
+
+    // ── Synchronous invocation ─────────────────────────────────────────────────────────────────
+
+    /** A synchronous invocation created a process (retries of an existing one are not counted). */
+    default void syncInvocationStarted(String workflowDefinitionId) {}
+
+    /**
+     * A synchronous caller was answered. {@code outcome} is the reply's outcome name, or
+     * {@code DEADLINE} when the wait ran out first (the caller got a 202); {@code latency} is from
+     * the request arriving to the answer being ready.
+     */
+    default void syncInvocationAnswered(String workflowDefinitionId, String outcome, Duration latency) {}
+
+    /** A synchronous invocation was refused before creating anything; {@code reason} says why. */
+    default void syncInvocationRejected(String workflowDefinitionId, String reason) {}
+
+    /** Registers the gauge of callers waiting on this pod. */
+    default void syncWaitingGauge(java.util.function.IntSupplier waiting) {}
 }

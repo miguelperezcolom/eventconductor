@@ -750,10 +750,20 @@ claim).
       rebuilt the definition through a narrow constructor and silently dropped `processLock`, the
       flow-authorization requirements (and now `syncInvocation`) whenever
       `workflow.default-step-timeout-ms` was set. The UI Reply tab moves to P7.
-- [ ] **P2 — Invocation API on the normal (async) path.** `sync_invocation` table, controller,
+- [x] **P2 — Invocation API on the normal (async) path.** `sync_invocation` table, controller,
       idempotency, deadline → 202, GET by id/key + long-poll, `SyncReplyWaiters` with **local signal
       + batched poll only**, admission (`max-waiting`), transactional creation, basic metrics.
       Correct in every mode, today's latency. E2E happy path / early reply / deadline / idempotency.
+      — DONE: `SyncInvocationController` (POST + GET by id + GET by key, `DeferredResult`, 200/202/
+      502/400/404/409/422/429), `SyncInvocationService` (idempotency by (definition, key) + request
+      hash, `createWith` = invocation row and process creation in ONE transaction, insert-first so a
+      concurrent duplicate fails on the unique constraint and joins the winner), `SyncReplyWaiters`
+      (local after-commit signal from the step-over + batched poll via
+      `ProcessRepository.findRepliedAmong`), `InvocationRepository` memory/JPA + `V32`,
+      `InvocationRetention`, `eventconductor.sync.*` metrics. Tests: `SyncInvocationE2eTest` (7,
+      over Spring MVC), `SyncInvocationJpaE2eTest` (2, incl. 6 concurrent same-key requests → one
+      process), unit tests for waiters, repository, hash, status mapping. A process that fails
+      before replying still answers 202 at the deadline until P3.
 - [ ] **P2b — SSE progress stream.** `text/event-stream` on POST and GET (§3.4.2b): cursor over
       steps and log, `Last-Event-ID` resume, `follow`, e2e reading the stream.
 - [ ] **P3 — Error contract + lock policy.** `onFailure` both modes, CANCELLED /
