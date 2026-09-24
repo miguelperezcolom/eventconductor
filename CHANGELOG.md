@@ -7,14 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.20.0] - 2026-09-24
+
 ### Added
-- **The forms engine announces its human tasks.** Every task opened, completed or cancelled is
-  published as a `HumanTaskChanged` (in `shared`: task, form and its name, process, step, status, the
-  roles its form requires, who holds it) on the `humanTasks` binding — topic `human-tasks` in the
-  standalone app, `FORMS_HUMAN_TASKS_TOPIC` to change it. It is for whoever keeps a person's work in
-  one place — an inbox or notification centre that shows a task next to the other things waiting
-  for that person — without polling the forms engine. Best effort, published after the task is
-  saved: a broker that refuses it makes an inbox lag, never a task fail to open or close.
 - **Synchronous invocation of durable processes — a caller starts a process over HTTP, waits up to a
   deadline and receives the reply the process itself emits.** New step type **`REPLY`** (from
   `replyVariables` or a JEXL `replyExpression`; engine-internal, recorded on the process in the
@@ -39,6 +34,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   PostgreSQL + Kafka in containers): two nodes with Kafka workers, p99 request → reply 251 ms → 22 ms.
   See `guides/synchronous-invocation` and `SYNC-INVOCATION-PLAN.md`.
 
+### Fixed
+- **A default step timeout no longer strips the process lock and the flow-authorization
+  requirements from a process's definition snapshot.** `StepTimeoutDefaults` rebuilt the definition
+  through a narrow constructor whenever `workflow.default-step-timeout-ms` was set, silently dropping
+  `processLock`, `requiredScopes` and `requiredRoles`.
+
+## [2.19.0] - 2026-09-24
+
+### Added
+- **The forms engine announces its human tasks.** Every task opened, completed or cancelled is
+  published as a `HumanTaskChanged` (in `shared`: task, form and its name, process, step, status, the
+  roles its form requires, who holds it) on the `humanTasks` binding — topic `human-tasks` in the
+  standalone app, `FORMS_HUMAN_TASKS_TOPIC` to change it. It is for whoever keeps a person's work in
+  one place — an inbox or notification centre that shows a task next to the other things waiting
+  for that person — without polling the forms engine. Best effort, published after the task is
+  saved: a broker that refuses it makes an inbox lag, never a task fail to open or close.
+
+## [2.18.0] - 2026-09-20
+
+### Added
 - **Sharded message routing (phase 1): messages start to reach only the shards that can correlate
   them, instead of every shard.** Behind `workflow.sharding.message-routing.enabled` (default false;
   with it off, or with sharding off, behaviour is exactly as before). A single `MessageRouter` — used
@@ -107,12 +122,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   cross-shard fan-out, the per-shard filter ruling out the keys a shard does not hold, and recovery of
   the message path, shown to survive an outage. `DistInfra` gained per-shard database/topic helpers for
   it. Results in `guides/reliability.md`.
-
-### Fixed
-- **A default step timeout no longer strips the process lock and the flow-authorization
-  requirements from a process's definition snapshot.** `StepTimeoutDefaults` rebuilt the definition
-  through a narrow constructor whenever `workflow.default-step-timeout-ms` was set, silently dropping
-  `processLock`, `requiredScopes` and `requiredRoles`.
 
 ## [2.17.1] - 2026-09-20
 
