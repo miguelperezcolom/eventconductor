@@ -1,0 +1,16 @@
+{
+  "id": "timeout-route-saga",
+  "name": "Routed timeout after a compensable step",
+  "version": 1,
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "charge", "type": "ACTION", "name": "Charge card", "topic": "work",
+      "compensable": true, "compensationStepId": "refund", "preconditionStepId": "start" },
+    { "id": "review", "type": "ACTION", "name": "Review", "topic": "work",
+      "timeout": 500, "retries": 0, "onTimeoutStepId": "ship", "preconditionStepId": "charge" },
+    { "id": "ship", "type": "ACTION", "name": "Ship", "topic": "work",
+      "preconditions": [ { "stepId": "review", "expression": "approved == 'true'" } ] },
+    { "id": "refund", "type": "ACTION", "name": "Refund", "topic": "work" },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "ship" }
+  ]
+}
