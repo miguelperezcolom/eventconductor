@@ -15,6 +15,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   one place — an inbox or notification centre that shows a task next to the other things waiting
   for that person — without polling the forms engine. Best effort, published after the task is
   saved: a broker that refuses it makes an inbox lag, never a task fail to open or close.
+- **Synchronous invocation of durable processes — a caller starts a process over HTTP, waits up to a
+  deadline and receives the reply the process itself emits.** New step type **`REPLY`** (from
+  `replyVariables` or a JEXL `replyExpression`; engine-internal, recorded on the process in the
+  transition that reaches it; before `END` it is the result, earlier the caller is answered while the
+  process continues) and definition-level **`syncInvocation`** `{enabled, onFailure, onLockBusy,
+  defaultDeadlineMs}`. `POST /workflow/api/definitions/{id}/invocations` (`Idempotency-Key` required,
+  `Prefer: wait=N`) answers 200 with the reply, 202 + `Location` when the deadline passes first (the
+  process carries on; `GET /workflow/api/invocations/{id}` serves the reply later), or 502 with a
+  failure outcome — `FAILED` with the rollback `IN_PROGRESS` (default `REPLY_IMMEDIATELY`) or
+  `COMPENSATED` / `COMPENSATION_FAILED` once it ends (`REPLY_AFTER_COMPENSATION`); `CANCELLED`;
+  `COMPLETED_WITHOUT_REPLY` (200). A retry with the same key lands on the same process. `Accept:
+  text/event-stream` streams `status`/`step`/`log` events and ends with `reply` (resumable with
+  `Last-Event-ID`). `onLockBusy: FAIL` refuses 409 without creating an instance when the
+  `processLock` is held. Validation (engine and Maven plugin, same code in the new
+  `definition-analysis` module) guarantees at most one `REPLY` per run. **Fast path:** the receiving
+  node drives the new process inline — every transition still written to the outbox, its rows claimed
+  by that node so no relay races it; a node that dies mid-drive has its claims handed back to the
+  relay. **Cross-node wake-up** via PostgreSQL `LISTEN/NOTIFY` issued in the reply's transaction, with
+  a poll fallback on any database. Sharded: invocations are placed on the receiving shard. Metrics
+  `eventconductor.sync.*`, span links between the caller's and the process's traces, a Synchronous
+  badge and Reply tab in the process view, Grafana panels. Migrations V31–V33. Measured (one machine,
+  PostgreSQL + Kafka in containers): two nodes with Kafka workers, p99 request → reply 251 ms → 22 ms.
+  See `guides/synchronous-invocation` and `SYNC-INVOCATION-PLAN.md`.
+
 - **Sharded message routing (phase 1): messages start to reach only the shards that can correlate
   them, instead of every shard.** Behind `workflow.sharding.message-routing.enabled` (default false;
   with it off, or with sharding off, behaviour is exactly as before). A single `MessageRouter` — used
@@ -83,6 +107,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   cross-shard fan-out, the per-shard filter ruling out the keys a shard does not hold, and recovery of
   the message path, shown to survive an outage. `DistInfra` gained per-shard database/topic helpers for
   it. Results in `guides/reliability.md`.
+
+### Fixed
+- **A default step timeout no longer strips the process lock and the flow-authorization
+  requirements from a process's definition snapshot.** `StepTimeoutDefaults` rebuilt the definition
+  through a narrow constructor whenever `workflow.default-step-timeout-ms` was set, silently dropping
+  `processLock`, `requiredScopes` and `requiredRoles`.
 
 ## [2.17.1] - 2026-09-20
 

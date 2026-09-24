@@ -1,6 +1,7 @@
 # Plan: synchronous invocation of durable processes (REPLY step)
 
-> Status: **DECISIONS RESOLVED (2026-09-24) — ready for P1**. No production code written yet.
+> Status: **IMPLEMENTED (2026-09-24)** on branch `feat/sync-invocation`, one commit per phase. Deviations from the
+> draft are recorded at each phase (notably P4's claim-at-insert, and D8 revised in P6).
 > Execution is phased, one PR per phase; each phase compiles and tests green on its own so this
 > can be paused and resumed. Check items off as they land.
 
@@ -850,14 +851,37 @@ claim).
 
       (It was 251 ms at p95/p99 before: most of that tail was the reply heard by poll, not the
       relay's cross-pod handoff.)
-- [ ] **P6 — Sharding.** Local placement for sync starts in `IngressRouter`, reply projected to the
-      process index, cross-shard retry/GET. DIST-26.
-- [ ] **P7 — Tracing + UI.** Span links both ways, Synchronous badge, Reply tab details, dashboard
-      panel.
-- [ ] **P8 — Docs + demo.** `guides/synchronous-invocation.md` next to `guides/starting-a-process.md`
+- [x] **P6 — Sharding.** Local placement for sync starts in `IngressRouter`, reply projected to the
+      process index, cross-shard retry/GET. DIST-26. — DONE, **with D8 revised**: a retry that lands on
+      another shard is answered **409 `ON_ANOTHER_SHARD`** naming the owning shard (so a gateway can
+      re-route it), instead of 202 served from the fleet index. The index is keyed by process and
+      business key, knows nothing of idempotency keys and carries no reply; projecting both there would
+      have meant a new projection and process-index migration for a rare case that sticky routing by
+      idempotency key avoids altogether. Implemented in `SyncInvocationService`: the idempotency key
+      (`sync:<definition>:<key>`) and the business key are claimed for the receiving shard in the
+      fleet placement store before anything is created; the invocation, process and reply live in that
+      shard's database. Test: DIST-26 (two shards, own databases and topics).
+- [x] **P7 — Tracing + UI.** Span links both ways, Synchronous badge, Reply tab details, dashboard
+      panel. — DONE: `WorkflowTracing.spanLinkedTo` (Micrometer: a span with an OTel-style link parsed
+      from a W3C traceparent); `eventconductor.sync.invoke` in the caller's trace linked to the process
+      anchor, `eventconductor.sync.reply` in the process trace linked back to the caller (via
+      `InvocationRepository.findByProcessId`). Process view: a "Synchronous · …" status badge (hidden
+      for processes nobody invoked synchronously) and a Reply tab (outcome, compensation, time, step,
+      error, payload; hidden until there is a reply). Four Grafana panels in
+      `eventconductor-engine.json` (answers by outcome, latency percentiles, waiting + wake-ups by
+      `via`, fast path). Deferred: a separate "replied" marker on the diagram node — the REPLY node's
+      completed state already shows it.
+- [x] **P8 — Docs + demo.** `guides/synchronous-invocation.md` next to `guides/starting-a-process.md`
       (sidebar `doc/astro.config.mjs:68-80`), REPLY in `reference/step-types.md`, `workflow.sync.*` in
       `reference/configuration.md`, CHANGELOG; a sync booking definition in `ec-definitions` and the
-      `ec-demo1` wiring (cross-repo / deploy steps left to a human release, as LOCK P8).
+      `ec-demo1` wiring (cross-repo / deploy steps left to a human release, as LOCK P8). — DONE in this
+      repository: `guides/synchronous-invocation.md` (+ sidebar, link from "Starting a Process"), REPLY
+      in `reference/step-types.md`, `workflow.sync.*` in `reference/configuration.md`, the metrics and
+      span links in `reference/observability.md`, the AI reference files (`llms.txt`,
+      `eventconductor-ai-compact.md`, `eventconductor-ai-full.md`), the repo's `eventconductor` skill,
+      TESTING.md (DIST-23..28, embedded suite), CHANGELOG. **Left for a human release (cross-repo /
+      deploy):** a sync booking definition in `ec-definitions`, the `ec-demo1` wiring, the engine
+      release to Maven Central and republishing the IDE plugins.
 
 P2 before P4 is deliberate: the API and its guarantees are correct without the fast path, so the
 fast path is a pure latency optimization that can be measured, switched off
@@ -908,8 +932,11 @@ reasoning kept so it can be revisited.
    SEND_MESSAGE after the REPLY; a webhook dispatcher (retries, signing, SSRF) is its own feature.
 7. **Retry after a failure reply (D7).** **First reply wins**, for GETs too. The GET envelope's
    `processStatus` shows the operator's recovery; a later REPLY is logged, not recorded.
-8. **Sharding (D8).** Sync invocations are **placed on the receiving shard**; a retry that lands on
-   another shard gets **202** and the result is served from the fleet process index.
+8. **Sharding (D8).** Sync invocations are **placed on the receiving shard**. ~~A retry that lands on
+   another shard gets 202 and the result is served from the fleet process index.~~ **Revised in P6:**
+   it gets **409 `ON_ANOTHER_SHARD`** with the owning shard — the fleet index knows neither
+   idempotency keys nor replies, and teaching it both was not worth it for a case sticky routing
+   avoids (see P6).
 9. **`modules/definition-analysis` (D9).** **Add it** in P1 with `ReplyPathAnalyzer` only. Moving
    the existing drifted invariants (single START, TIMER/message/`lockKey`) into it is a
    **separate follow-up PR** after P1, to keep P1 reviewable.

@@ -12,7 +12,10 @@ new instances, cron included, are created born-`PAUSED`; in the schema, default 
 only so exports round-trip),
 `draftOfId?`, `limitConcurrentExecutions?`, `maxConcurrentExecutions?`, `enqueueOnLimit?`,
 `cronExpression?` (Spring cron: start a new instance per occurrence, multi-pod safe),
-`defaultMaxStepExecutions?` (validated metadata, not enforced at runtime today), `steps[]`.
+`defaultMaxStepExecutions?` (validated metadata, not enforced at runtime today),
+`processLock?` (`{name?, key}` — serialize instances by a JEXL key),
+`syncInvocation?` (`{enabled, onFailure: REPLY_IMMEDIATELY|REPLY_AFTER_COMPENSATION, onLockBusy: WAIT|FAIL, defaultDeadlineMs}` —
+lets a caller start an instance over HTTP and wait for its REPLY; `enabled` requires a reachable REPLY), `steps[]`.
 
 Add `"$schema"` (JSON) or a `# yaml-language-server: $schema=...` comment (YAML) pointing at
 `modules/workflow-engine/src/main/resources/workflow-definition-schema.json` for autocomplete.
@@ -72,6 +75,14 @@ Add `"$schema"` (JSON) or a `# yaml-language-server: $schema=...` comment (YAML)
 - **FORK / JOIN** — no-worker nodes that complete instantly. FORK is the explicit fan-out
   (every step preconditioned on it starts concurrently); JOIN is the barrier — its
   `preconditionStepIds` must ALL complete.
+- **LOCK / UNLOCK** — no worker: take / release a named per-key lock (`lockName`, JEXL `lockKey`);
+  a busy lock parks the step `WAITING_ON_LOCK`, admitted FIFO.
+- **REPLY** — no worker: records the answer for a synchronous caller from `replyVariables` (a JSON
+  object of those variables) or a JEXL `replyExpression` (neither = `{}`), in the same transition,
+  then the flow carries on (before END = the result; earlier = answer now, keep going). **At most one
+  per run** — two REPLYs must sit on different branches of a CHOICE that dominates both (or a step's
+  normal vs `onTimeoutStepId` route); FORK branches are rejected. Not a compensation step, not
+  injectable by DYNAMIC. Unevaluable or oversized (`workflow.sync.max-reply-bytes`) → step `ERROR`.
 - **END** — exactly one; process → `COMPLETED`. Put a JOIN before it if there are branches.
 
 ## Ordering

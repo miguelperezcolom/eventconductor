@@ -109,6 +109,7 @@ Written in JSON or YAML (`.json`, `.yaml`, `.yml`); version-controlled and PR-re
 | `enqueueOnLimit` | boolean | Queue new instances when the limit is reached |
 | `cronExpression` | string | Spring cron; the engine starts a new instance at each occurrence (deterministic business keys, multi-pod safe) |
 | `defaultMaxStepExecutions` | integer | Default cap on executions per step (validated metadata; not enforced at runtime today) |
+| `syncInvocation` | object | `{enabled, onFailure, onLockBusy, defaultDeadlineMs}` — lets a caller start an instance over HTTP and wait for its `REPLY`. `onFailure`: `REPLY_IMMEDIATELY` (default; answers FAILED with compensation IN_PROGRESS/NONE as soon as the process fails) or `REPLY_AFTER_COMPENSATION` (answers COMPENSATED/COMPENSATION_FAILED when the rollback ends). `onLockBusy`: `WAIT` (default, queue FIFO) or `FAIL` (409, no instance) |
 | `processLock` | object | `{name, key}` — serialize every instance of this definition by a JEXL `key` (e.g. `bookingId`): instances resolving to the same key run one at a time, the rest wait FIFO. The process-level counterpart of a `LOCK`/`UNLOCK` section |
 | `steps` | array | The step definitions |
 
@@ -259,6 +260,13 @@ deprecated and ignored.
 ```
 No worker. `LOCK` takes the named per-key lock — `lockName` (the domain, defaults to the definition id) plus `lockKey` (a **required** JEXL expression over the process variables, e.g. `bookingId`). If it is free the step completes and the flow proceeds; if another process holds it, the step parks in the `WAITING_ON_LOCK` status and is admitted in **arrival order (FIFO)** when the lock frees. A parked step is active work — the process neither completes nor errors around it. `UNLOCK` releases it and admits the next waiter. Everything between them is serialized against every process sharing that key; the lock is not held during work outside the section. Released by `UNLOCK`, on the process reaching a terminal state (all held locks freed), or — the crash backstop — by a lease reaper (`workflow.lock.lease-ms`, default 15 min). For serializing a **whole** instance instead of a section, set the definition-level `processLock` (a Top-level field, §3).
 
+### REPLY — answer a synchronous caller
+```json
+{ "id": "confirm", "type": "REPLY", "name": "Booking confirmed",
+  "replyVariables": ["bookingId", "confirmation"], "preconditionStepId": "charge" }
+```
+No worker. Records the process's reply — `replyVariables` (a JSON object of those variables) or `replyExpression` (a JEXL value, e.g. `{'bookingId': bookingId, 'status': 'CONFIRMED'}`); neither = `{}` — on the process, in the same transaction, and completes; the flow carries on (an early REPLY answers while the saga continues). **At most one per run**: two REPLY steps must be on different branches of a dominating `CHOICE` (or a step's normal vs timeout route); validated on import and by the Maven plugin. Not allowed as a compensation step or injected by DYNAMIC. A reply that cannot be computed, or exceeds `workflow.sync.max-reply-bytes`, fails the step. Used with the definition-level `syncInvocation` (§3) and the invocation API: `POST /workflow/api/definitions/{id}/invocations` (`Idempotency-Key` required, `Prefer: wait=N`) → 200 reply / 202 + `Location` / 502 failure outcome; `Accept: text/event-stream` for progress events. See guides/synchronous-invocation.
+
 ### END — complete the process
 ```json
 { "id": "end", "type": "END", "name": "Done", "preconditionStepId": "last-step" }
@@ -270,7 +278,7 @@ Exactly one per workflow. Transitions the process to `COMPLETED`. With parallel 
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `id` | string | — | Unique within the workflow |
-| `type` | enum | — | `START`/`ACTION`/`USER_TASK`/`RULE`/`TIMER`/`WAIT_FOR_MESSAGE`/`SEND_MESSAGE`/`PROCESS`/`FORK`/`JOIN`/`LOCK`/`UNLOCK`/`END` |
+| `type` | enum | — | `START`/`ACTION`/`USER_TASK`/`RULE`/`TIMER`/`WAIT_FOR_MESSAGE`/`SEND_MESSAGE`/`PROCESS`/`FORK`/`JOIN`/`LOCK`/`UNLOCK`/`REPLY`/`END` |
 | `name` | string | — | Human-readable |
 | `description` | string | — | Optional |
 | `preconditionStepId` | string | — | Single step that must complete first |
@@ -296,6 +304,8 @@ Exactly one per workflow. Transitions the process to `COMPLETED`. With parallel 
 | `maxSuccessfulExecutions` | integer | `0` | Cap on successful executions of this step (validated metadata; not enforced at runtime today) |
 | `lockName` | string | — | Lock domain (LOCK/UNLOCK); defaults to the definition id |
 | `lockKey` | string | — | JEXL expression giving the key to serialize on (LOCK/UNLOCK; **required** on those) |
+| `replyVariables` | string[] | — | REPLY: variables the reply object is made of |
+| `replyExpression` | string | — | REPLY: JEXL expression whose value is the reply (exclusive with `replyVariables`) |
 
 ---
 

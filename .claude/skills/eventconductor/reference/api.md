@@ -96,6 +96,17 @@ Two `Variable` records with that shape exist — import per use:
   `{"messageName": "...", "correlationKey": "...", "variables": {"k": "v"}}`; responds 202.
   `X-Api-Key` header required when `workflow.message-api.api-key` is set.
 - `POST /workflow/webhooks/github` — GitHub webhook; re-imports configured Git repos (202, async).
+- `POST /workflow/api/definitions/{id}/invocations` — synchronous invocation of a definition with
+  `syncInvocation.enabled`. Headers `Idempotency-Key` (required; same key → same process) and
+  `Prefer: wait=N` (seconds, capped by `workflow.sync.max-deadline-ms`). Body
+  `{"businessKey"?: "...", "variables": {...}}`. Answers 200 `{outcome: REPLIED, reply: {...}, processStatus, ...}`;
+  202 + `Location` when the deadline passes first (process continues); 502 when it failed/was
+  cancelled before replying (`outcome` FAILED/COMPENSATED/COMPENSATION_FAILED/CANCELLED, `compensation`
+  NONE/IN_PROGRESS/DONE/FAILED, `error`); 409/422/429 refusals. `Accept: text/event-stream` streams
+  `status`/`step`/`log` events ending in `reply` or `timeout`.
+- `GET /workflow/api/invocations/{id}` (optionally `Prefer: wait=N`) and
+  `GET /workflow/api/definitions/{id}/invocations?idempotencyKey=...` — read the answer later.
+- In code: `SyncInvocationService.start(...)` / `.await(...)`.
 
 ## MCP (workflow tools)
 

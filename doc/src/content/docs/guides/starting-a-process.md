@@ -5,6 +5,8 @@ description: How to start a workflow process instance — via Kafka or programma
 
 A process instance is created by sending a `ProcessCreationRequested` event. Depending on your deployment mode, you can do this via Kafka or programmatically.
 
+To start a process over HTTP and **wait for its answer**, see [Synchronous Invocation](/guides/synchronous-invocation/).
+
 ## Via Kafka (mode: kafka)
 
 Send a `ProcessCreationRequested` event to the `upstream` topic:

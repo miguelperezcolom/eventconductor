@@ -577,6 +577,30 @@ The worker injects with `WorkerReply.inject(...)` / `injectAndComplete(...)` (me
 
 ---
 
+## REPLY
+
+The answer a process gives to whoever invoked it [synchronously](/guides/synchronous-invocation/). No worker: the step completes in the step-over that reaches it, recording the reply on the process in the same transaction, and the flow carries on. Before `END` it answers with the result; earlier, the caller gets its answer while the process continues.
+
+```json
+{
+  "id": "confirm",
+  "type": "REPLY",
+  "name": "Booking confirmed",
+  "replyVariables": ["bookingId", "confirmation"],
+  "preconditionStepId": "charge"
+}
+```
+
+**Optional fields** (at most one of the two): `replyVariables` — the reply is a JSON object with one member per listed variable; `replyExpression` — a JEXL expression whose value is the reply (e.g. `{'bookingId': bookingId, 'status': 'CONFIRMED'}`). Neither → `{}`.
+
+Semantics:
+
+- **At most one per run**, checked on import and by the Maven plugin: two `REPLY` steps must be separated by an exclusive split (different `CHOICE` branches, or a step's normal vs `onTimeoutStepId` route) that every way into both goes through. A `REPLY` cannot be a compensation step or be injected by a `DYNAMIC` step. At runtime the first reply stands.
+- **Fail loud.** A reply that cannot be computed, or is larger than `workflow.sync.max-reply-bytes`, fails the step (`ERROR`), so the failure contract answers the caller instead.
+- A process started asynchronously still records its reply.
+
+---
+
 ## Common fields (all step types)
 
 | Field | Type | Default | Description |

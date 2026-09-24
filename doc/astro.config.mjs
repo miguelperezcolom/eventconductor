@@ -70,6 +70,7 @@ export default defineConfig({
 						{ label: 'Workflow Definitions', slug: 'guides/workflow-definitions' },
 						{ label: 'IDE Plugins (VS Code & IntelliJ)', slug: 'guides/ide-plugins' },
 						{ label: 'Starting a Process', slug: 'guides/starting-a-process' },
+						{ label: 'Synchronous Invocation', slug: 'guides/synchronous-invocation' },
 						{ label: 'Implementing Workers', slug: 'guides/workers' },
 						{ label: 'The Test Worker', slug: 'guides/test-worker' },
 						{ label: 'Dynamic Workflows', slug: 'guides/dynamic-workflows' },
