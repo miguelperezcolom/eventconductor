@@ -225,6 +225,10 @@ failure contract in both modes, cancellation, silent end, busy lock WAIT/FAIL), 
 `InlineBudgetJpaE2eTest`, `InlineCrashRecoveryE2eTest` (a node dies inside an embedded worker with the
 row claimed; another node finishes it).
 
+On-timeout routing and sagas (`modules/workflow-e2e`): `TimeoutRouteSagaE2eTest` (E2E-TIME-02) — a step
+that times out and routes to its `onTimeoutStepId` after a compensable step completed: the flow carries on
+to `END` and nothing is compensated (it used to do both). Unit: `CompensationServiceTest`.
+
 Moments (`modules/workflow-e2e`): `MomentE2eTest` — E2E-MOMENT-01 a TIMER fires 3 days before check-in in
 the hotel's zone (Asia/Tokyo); 02 a moment already past fires at once; 03 `ifPast: timeout` takes the
 on-timeout route; 04 without a route fails the process; 05 a `deadline` times a WAIT_FOR_MESSAGE out
