@@ -9,14 +9,28 @@ package io.mateu.workflow.worker.api;
 public class TaskFailure extends RuntimeException {
 
     private final String code;
+    private final boolean retryable;
 
     public TaskFailure(String code) {
         this(code, code);
     }
 
     public TaskFailure(String code, String reason) {
+        this(code, reason, true);
+    }
+
+    /**
+     * @param retryable false for a failure retrying cannot fix: the engine then fails the step at
+     *                  once instead of spending its {@code retries} (see {@code FailureMarkers})
+     */
+    public TaskFailure(String code, String reason, boolean retryable) {
         super(reason);
         this.code = code;
+        this.retryable = retryable;
+    }
+
+    public boolean retryable() {
+        return retryable;
     }
 
     /** The contract error code (a valid Java identifier), reported as the failure reason. */
@@ -26,6 +40,7 @@ public class TaskFailure extends RuntimeException {
 
     /** The full reason reported to the engine: {@code <code>: <message>} when they differ. */
     public String reason() {
-        return getMessage() == null || getMessage().equals(code) ? code : code + ": " + getMessage();
+        var reason = getMessage() == null || getMessage().equals(code) ? code : code + ": " + getMessage();
+        return retryable ? reason : io.mateu.workflow.worker.FailureMarkers.nonRetryable(reason);
     }
 }

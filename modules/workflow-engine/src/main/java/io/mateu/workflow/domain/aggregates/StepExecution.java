@@ -220,7 +220,12 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
      */
     public String topic() {
         try {
-            return pojoFromJson(stepJson, Step.class).topic();
+            var step = pojoFromJson(stepJson, Step.class);
+            if (StepType.HTTP_CALL.equals(step.type()) && (step.topic() == null || step.topic().isBlank())) {
+                // HTTP egress on a topic of its own, so it can be scaled and network-policed apart.
+                return io.mateu.workflow.domain.services.HttpRequestRenderer.DEFAULT_TOPIC;
+            }
+            return step.topic();
         } catch (RuntimeException e) {
             return null;
         }
@@ -404,6 +409,25 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
             }
             send(new TaskLogEmitted(id, MessageType.Info,
                     step.type() + " step " + step.name() + " on key '" + lockKey + "'."));
+        } else if (StepType.HTTP_CALL.equals(step.type())) {
+            // Rendered here, from the process as it stands, then dispatched to the built-in http-call
+            // worker task like any worker step (timeouts, retries, compensation, cancellation).
+            String request;
+            try {
+                request = io.mateu.workflow.domain.services.HttpRequestRenderer.render(step, process, id);
+            } catch (RuntimeException e) {
+                send(new TaskLogEmitted(id, MessageType.Error,
+                        "Step " + step.name() + ": the HTTP request could not be rendered: " + e.getMessage()));
+                updateStatus(StepExecutionStatus.ERROR);
+                return this;
+            }
+            var taskVariables = new ArrayList<>(variables);
+            taskVariables.add(new Variable(io.mateu.workflow.domain.services.HttpRequestRenderer.REQUEST_VARIABLE, request));
+            this.variables = taskVariables;
+            send(new TaskExecutionRequested(id, processId, workflowDefinitionId, stepId,
+                    io.mateu.workflow.domain.services.HttpRequestRenderer.TASK_ID, taskVariables.stream()
+                    .map(variable -> new io.mateu.workflow.dtos.Variable(variable.name(), variable.value()))
+                    .toList()));
         } else if (StepType.PUBLISH_EVENT.equals(step.type())) {
             // No worker: the step-over renders the event, writes it to the outbox with this step's
             // completion (published if and only if the step completed), and completes it.
@@ -444,13 +468,21 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
     }
 
     public void updateStatus(StepExecutionStatus status) {
+        updateStatus(status, false);
+    }
+
+    /**
+     * @param nonRetryable the failure was declared final by the worker: the engine does not spend
+     *                     the step's retries on it
+     */
+    public void updateStatus(StepExecutionStatus status, boolean nonRetryable) {
         this.status = status;
         if (status.isTerminal()) {
             this.finishedAt = LocalDateTime.now();
         } else {
             this.finishedAt = null;
         }
-        send(new StepExecutionStatusChanged(id, TaskStatus.valueOf(status.name()), List.of(), processId));
+        send(new StepExecutionStatusChanged(id, TaskStatus.valueOf(status.name()), List.of(), processId, nonRetryable));
         // A WAIT_FOR_MESSAGE step that reaches a terminal status is no longer waiting: drop its
         // routing subscription (keyed by this step, so the delete is idempotent).
         if (status.isTerminal() && awaitingMessageName != null) {

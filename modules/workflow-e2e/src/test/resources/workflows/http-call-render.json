@@ -1,0 +1,19 @@
+{
+  "id": "http-call-render",
+  "name": "Charge a card over HTTP",
+  "version": 1,
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "charge", "type": "HTTP_CALL", "name": "Charge", "preconditionStepId": "start", "retries": 2,
+      "http": {
+        "connection": "payments",
+        "method": "POST",
+        "path": "/charges/${bookingId}",
+        "query": { "currency": "${currency}" },
+        "headers": { "X-Tenant": "${tenant}" },
+        "body": { "amount": "${amount * 1}", "reference": "Booking ${bookingId}" },
+        "output": { "chargeId": "body.id" }
+      } },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "charge" }
+  ]
+}

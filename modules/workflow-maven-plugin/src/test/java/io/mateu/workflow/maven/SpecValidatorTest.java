@@ -288,4 +288,30 @@ class SpecValidatorTest {
                 """);
         assertThat(validator.validate(SpecValidator.Kind.WORKFLOW, good)).isEmpty();
     }
+
+    @Test
+    void anHttpCallIsCheckedForStructureSecretsAndTemplates() throws Exception {
+        var good = json("""
+                {"id": "h", "name": "H", "version": 1, "steps": [
+                  {"id": "start", "type": "START", "name": "Start"},
+                  {"id": "call", "type": "HTTP_CALL", "name": "Call", "preconditionStepId": "start",
+                   "http": {"url": "https://api.x.com/o/${id}", "method": "POST",
+                            "auth": {"type": "bearer", "token": "${secret:PARTNER}"},
+                            "body": {"a": "${id}"}, "output": {"v": "body.x"}}}
+                ]}
+                """);
+        assertThat(validator.validate(SpecValidator.Kind.WORKFLOW, good)).isEmpty();
+        var leaky = json("""
+                {"id": "h", "name": "H", "version": 1, "steps": [
+                  {"id": "start", "type": "START", "name": "Start"},
+                  {"id": "call", "type": "HTTP_CALL", "name": "Call", "preconditionStepId": "start",
+                   "http": {"url": "https://api.x.com", "auth": {"type": "bearer", "token": "sk_live_123"},
+                            "body": {"a": "${id +}"}, "output": {"v": "body.("}}}
+                ]}
+                """);
+        var violations = validator.validate(SpecValidator.Kind.WORKFLOW, leaky);
+        assertThat(violations).anyMatch(v -> v.contains("auth.token"));
+        assertThat(violations).anyMatch(v -> v.contains("http.body"));
+        assertThat(violations).anyMatch(v -> v.contains("http.output.v"));
+    }
 }

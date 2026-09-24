@@ -32,7 +32,15 @@ public enum StepType {
      * completed — and relayed to the destination's topic (kafka) or the application's publisher
      * (embedded).
      */
-    PUBLISH_EVENT;
+    PUBLISH_EVENT,
+
+    /**
+     * Call an HTTP endpoint ({@code http}: a named connection or an absolute URL, method, templated
+     * path/query/headers/body, response → variables). The engine renders the request and dispatches it
+     * to the built-in {@code http-call} worker task, so timeouts, retries, compensation and cancellation
+     * work as for any worker step; a 4xx is not retried by default.
+     */
+    HTTP_CALL;
 
     /**
      * Accepts the pre-rename alias {@code MESSAGE} (now {@code WAIT_FOR_MESSAGE}) so that the

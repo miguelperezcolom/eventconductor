@@ -36,6 +36,6 @@ public class TaskStatusChangedEventHandler implements DomainEventHandler<TaskSta
         updateStepExecutionUseCase.handle(new UpdateStepExecutionCommand(e.taskExecutionId(),
                 e.variables().stream()
                         .map(variable -> new Variable(variable.name(), variable.value())).toList(),
-                "", StepExecutionStatus.valueOf(e.status().name())));
+                "", StepExecutionStatus.valueOf(e.status().name()), e.nonRetryable()));
     }
 }

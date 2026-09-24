@@ -10,6 +10,12 @@ public record UpdateStepExecutionCommand(
         String stepId,
         List<Variable> variables,
         String log,
-        StepExecutionStatus status
+        StepExecutionStatus status,
+        /** A failure the worker declared final: the engine does not spend the step's retries on it. */
+        boolean nonRetryable
 ) {
+
+    public UpdateStepExecutionCommand(String stepId, List<Variable> variables, String log, StepExecutionStatus status) {
+        this(stepId, variables, log, status, false);
+    }
 }
