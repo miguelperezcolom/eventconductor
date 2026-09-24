@@ -185,4 +185,13 @@ public interface WorkflowMetrics {
 
     /** Registers the gauge of callers waiting on this pod. */
     default void syncWaitingGauge(java.util.function.IntSupplier waiting) {}
+
+    /** How many outbox messages one inline drive (the synchronous fast path) handled. */
+    default void syncInlineSteps(int handled) {}
+
+    /**
+     * Why an inline drive stopped early or never started, leaving the rest to the relay:
+     * {@code saturated} (no free slot), {@code budget}, {@code claim_lost} or {@code failure}.
+     */
+    default void syncInlineFallback(String reason) {}
 }

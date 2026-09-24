@@ -53,6 +53,8 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
     public static final String SYNC_DEADLINE_EXPIRED = "eventconductor.sync.deadline.expired";
     public static final String SYNC_REJECTED = "eventconductor.sync.rejected";
     public static final String SYNC_WAITING = "eventconductor.sync.waiting";
+    public static final String SYNC_INLINE_STEPS = "eventconductor.sync.inline.steps";
+    public static final String SYNC_INLINE_FALLBACKS = "eventconductor.sync.inline.fallbacks";
     public static final String TAG_REASON = "reason";
 
     public static final String TAG_WORKFLOW_DEFINITION_ID = "workflowDefinitionId";
@@ -396,5 +398,26 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
                     .register(registry);
             syncWaitingRegistered = true;
         }
+    }
+
+    @Override
+    public void syncInlineSteps(int handled) {
+        var registry = registry();
+        if (registry == null) return;
+        io.micrometer.core.instrument.DistributionSummary.builder(SYNC_INLINE_STEPS)
+                .description("Outbox messages handled per inline drive (the synchronous fast path)")
+                .register(registry)
+                .record(handled);
+    }
+
+    @Override
+    public void syncInlineFallback(String reason) {
+        var registry = registry();
+        if (registry == null) return;
+        Counter.builder(SYNC_INLINE_FALLBACKS)
+                .description("Inline drives that stopped early or never started, by reason")
+                .tag(TAG_REASON, reason == null ? UNKNOWN : reason)
+                .register(registry)
+                .increment();
     }
 }

@@ -28,7 +28,10 @@ import static io.mateu.core.infra.JsonSerializer.toJson;
 @Entity
 @Table(name = "outbox_message_entity", indexes = {
         // The relays claim pending messages oldest first, so the ordering has to be covered too.
-        @Index(name = "idx_outbox_status_ts", columnList = "status, timestamp")
+        @Index(name = "idx_outbox_status_ts", columnList = "status, timestamp"),
+        // The fast path finds the rows its process wrote, and the claim sweeper finds expired claims.
+        @Index(name = "idx_outbox_partition_status", columnList = "partition_key, status"),
+        @Index(name = "idx_outbox_claim_until", columnList = "status, claim_until")
 })
 @Getter
 @Setter
@@ -61,6 +64,27 @@ public class OutboxMessageEntity {
     @Column(length = 64)
     private String traceParent;
 
+    /**
+     * The event's partition key — the process id for every process event — so the synchronous fast
+     * path can find the rows one process wrote without reading payloads. Null for unkeyed events.
+     */
+    @Column(name = "partition_key")
+    private String partitionKey;
+
+    /** The pod whose inline drive claimed this row ({@link OutboxMessageStatus#InlineClaimed}); null otherwise. */
+    @Column(name = "claimed_by", length = 64)
+    private String claimedBy;
+
+    /** Until when that claim holds unless renewed; past it, the sweeper hands the row back to the relay. */
+    @Column(name = "claim_until")
+    private LocalDateTime claimUntil;
+
+    /** The shape before rows could be claimed by an inline drive: hand-made rows keep compiling. */
+    public OutboxMessageEntity(String id, LocalDateTime timestamp, String status, String messageType,
+                               String payload, String traceParent) {
+        this(id, timestamp, status, messageType, payload, traceParent, null, null, null);
+    }
+
     /** An event with no trace attached — what happens when tracing is off, which is the default. */
     public OutboxMessageEntity(DomainEvent event) {
         this(event, null);
@@ -73,5 +97,29 @@ public class OutboxMessageEntity {
         this.messageType = event.getClass().getName();
         this.payload = toJson(event);
         this.traceParent = traceParent;
+        this.partitionKey = partitionKeyOf(event);
+    }
+
+    /**
+     * Marks this (not yet saved) row as already claimed by the inline drive of {@code processId}.
+     * An unkeyed event (a log line) takes the driven process's id as its key, so the drive finds it.
+     */
+    public OutboxMessageEntity claimedBy(String processId, String pod, LocalDateTime until) {
+        if (this.partitionKey == null) {
+            this.partitionKey = processId;
+        }
+        this.status = OutboxMessageStatus.InlineClaimed.name();
+        this.claimedBy = pod;
+        this.claimUntil = until;
+        return this;
+    }
+
+    private static String partitionKeyOf(DomainEvent event) {
+        try {
+            var key = event.partitionKey();
+            return key == null || key.length() > 255 ? null : key;
+        } catch (RuntimeException e) {
+            return null;
+        }
     }
 }

@@ -1,0 +1,15 @@
+{
+  "id": "dist-sync-internal",
+  "name": "Synchronous, engine-internal steps only",
+  "version": 1,
+  "syncInvocation": { "enabled": true },
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "fork", "type": "FORK", "name": "Fork", "preconditionStepId": "start" },
+    { "id": "a", "type": "SEND_MESSAGE", "name": "Notify A", "messageName": "bench-a", "correlationExpression": "orderId", "preconditionStepId": "fork" },
+    { "id": "b", "type": "SEND_MESSAGE", "name": "Notify B", "messageName": "bench-b", "correlationExpression": "orderId", "preconditionStepId": "fork" },
+    { "id": "join", "type": "JOIN", "name": "Join", "preconditionStepIds": ["a", "b"] },
+    { "id": "reply", "type": "REPLY", "name": "Reply", "replyVariables": ["orderId"], "preconditionStepId": "join" },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "reply" }
+  ]
+}
