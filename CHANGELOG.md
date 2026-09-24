@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.21.0] - 2026-09-24
+
 ### Added
 - **`HTTP_CALL` step** — call an HTTP endpoint and map the response (`output`: JEXL over status, headers, body) into variables, without writing a worker. Named connections (`workflow.http.connections`) or absolute URLs; auth from the connection, a named profile (`basic`, `bearer`, `api-key`, `oauth2-client-credentials`) or inline with `${secret:NAME}` credentials only; `allowed-hosts` and an always-on block of internal addresses for absolute URLs; `retryOn` (default `[5xx, io]` — a 4xx is final); `Idempotency-Key` = the step execution id. Executed by the built-in task `http-call@1`.
 - **`worker-http`** module (the `http-call@1` task, auto-configured) and **`http-worker-standalone-app`** (image) serving topic `http-calls` in kafka mode. Metric `eventconductor.http.calls`.
