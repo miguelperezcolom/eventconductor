@@ -39,6 +39,31 @@ public class SyncInvocationHttp {
         return finish(mvc.perform(request).andReturn());
     }
 
+    /** POSTs an invocation asking for a progress stream; returns the whole SSE body once it ends. */
+    public String invokeStreaming(String definitionId, String idempotencyKey, String prefer, String body,
+                                  boolean follow) throws Exception {
+        var request = post("/workflow/api/definitions/" + definitionId + "/invocations" + (follow ? "?follow=true" : ""))
+                .contentType("application/json")
+                .accept("text/event-stream")
+                .header("Idempotency-Key", idempotencyKey)
+                .content(body == null ? "{}" : body);
+        if (prefer != null) request = request.header("Prefer", prefer);
+        var first = mvc.perform(request).andReturn();
+        first.getAsyncResult(60_000);
+        return first.getResponse().getContentAsString();
+    }
+
+    /** GETs an invocation's progress stream, resuming after {@code lastEventId} when given. */
+    public String getStreaming(String path, String prefer, String lastEventId) throws Exception {
+        var request = org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(path)
+                .accept("text/event-stream");
+        if (prefer != null) request = request.header("Prefer", prefer);
+        if (lastEventId != null) request = request.header("Last-Event-ID", lastEventId);
+        var first = mvc.perform(request).andReturn();
+        first.getAsyncResult(60_000);
+        return first.getResponse().getContentAsString();
+    }
+
     public MvcResult get(String path, String prefer) throws Exception {
         var request = org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(path);
         if (prefer != null) request = request.header("Prefer", prefer);

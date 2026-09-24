@@ -391,11 +391,15 @@ can show the process moving.
 | `reply` | the envelope of §3.4.2, as soon as the reply is recorded |
 | `timeout` | `{ invocationId, location }` when the deadline expires — the SSE counterpart of 202 |
 
-- **Source: persisted state, not a new bus.** The stream reads `step_execution` and the process log
-  with a cursor (`finished_at`/`started_at` and the log row ids), woken by the same layered signal as
-  the plain wait (§3.7: local signal, NOTIFY, batched poll). So it works across pods and shards
-  exactly like the reply does, adds nothing to the transition's transaction, and is **resumable**:
-  each event carries an `id` (the cursor), and a reconnect with `Last-Event-ID` continues from there.
+- **Source: persisted state, not a new bus.** The stream reads the process, `step_execution` and
+  the process log every `workflow.sync.stream-interval-ms` (200) and sends what changed. So it works
+  across pods and shards exactly like the reply does and adds nothing to the transition's
+  transaction.
+- **Resumable, at-least-once.** Event ids never decrease (the moment the event describes, or the
+  last id sent if that is later). A reconnect with `Last-Event-ID` is sent everything from
+  `RESUME_LOOKBACK_MS` (5 s) before that moment — a row committed late can carry an earlier time
+  than events already sent — and every event's data carries a stable `key`
+  (`status:…`, `step:<execution>:<status>`, `log:<id>`) so the caller drops what it already has.
 - **After the reply**, the stream closes by default; `?follow=true` keeps it open until the process
   reaches a terminal status or the deadline, for callers that want to watch the rest of the saga.
 - Same admission budget as a waiting request (`workflow.sync.max-waiting`), same deadline cap.
@@ -764,8 +768,13 @@ claim).
       over Spring MVC), `SyncInvocationJpaE2eTest` (2, incl. 6 concurrent same-key requests → one
       process), unit tests for waiters, repository, hash, status mapping. A process that fails
       before replying still answers 202 at the deadline until P3.
-- [ ] **P2b — SSE progress stream.** `text/event-stream` on POST and GET (§3.4.2b): cursor over
-      steps and log, `Last-Event-ID` resume, `follow`, e2e reading the stream.
+- [x] **P2b — SSE progress stream.** `text/event-stream` on POST and GET (§3.4.2b): cursor over
+      steps and log, `Last-Event-ID` resume, `follow`, e2e reading the stream. — DONE:
+      `InvocationProgress` (snapshot differ, monotonic ids, dedupe keys, lookback resume),
+      `SyncInvocationService.tick`, `SseEmitter` endpoints on the same POST/GET paths selected by
+      `Accept: text/event-stream`, sharing the admission budget. Tests: `SyncInvocationStreamE2eTest`
+      (4: stream ending in `reply`, `timeout`, `follow` past an early reply, resume),
+      `InvocationProgressTest` (3).
 - [ ] **P3 — Error contract + lock policy.** `onFailure` both modes, CANCELLED /
       COMPLETED_WITHOUT_REPLY, error summary, `onLockBusy: FAIL` with `LockService.tryAcquire` and
       rollback, retry-after-failure behaviour. E2E failure matrix + lock tests.
