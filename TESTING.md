@@ -213,6 +213,7 @@ profile and a dedicated CI job.
 | DIST-26 | **Two shards.** An invocation is placed on the shard that received it (idempotency and business keys claimed in the fleet placement store); a retry on the other shard is refused `ON_ANOTHER_SHARD` naming the owner, and creates nothing. | ✅ `Dist26ShardedSyncInvocationTest` |
 | DIST-27 | **Inline drive vs partition owner.** A two-worker FORK: the receiving pod dispatches inline while a worker reply may land on the owner — two writers for a moment. Every step runs exactly once, every caller is answered. | ✅ `Dist27InlineAgainstPartitionOwnerTest` |
 | DIST-28 | **NOTIFY listener killed.** The listeners' backends are terminated; callers are still answered (poll), and the listeners come back. | ✅ `Dist28ReplyListenerKilledTest` |
+| DIST-29 | **PUBLISH_EVENT over Kafka.** A process publishes a domain event to a configured destination; it lands on the mapped topic once, keyed and with its CloudEvents `ce_*` headers, after the step completed. | ✅ `Dist29PublishEventOverKafkaTest` |
 | BENCH | **Sync latency, fast path on/off, 1 and 2 pods** — opt-in (`-Dbench.sync=true`), prints p50/p95/p99. | `SyncLatencyBenchmarkTest` |
 
 Embedded suite (`modules/workflow-e2e`): `ReplyStepE2eTest`/`ReplyStepJpaE2eTest` (REPLY recorded with
@@ -223,6 +224,15 @@ failure contract in both modes, cancellation, silent end, busy lock WAIT/FAIL), 
 `InlineFastPathJpaE2eTest` (relay switched off: only the inline drive can move the process),
 `InlineBudgetJpaE2eTest`, `InlineCrashRecoveryE2eTest` (a node dies inside an embedded worker with the
 row claimed; another node finishes it).
+
+HTTP_CALL / PUBLISH_EVENT / templates (`modules/workflow-e2e`): `PublishEventE2eTest` and its JPA twin
+(the event published once, after the step completed; unknown destination → ERROR),
+`HttpCallDispatchE2eTest` (the rendered request reaches `http-call@1`; a `[non-retryable]` failure skips
+retries), `HttpCallE2eTest` (the real `worker-http` against a local server: output mapping, 4xx final and
+compensated, 5xx retried), and `ReplyStepE2eTest` (`replyTemplate`). Units: `TemplatesTest`,
+`TemplateSyntaxTest`, `HttpCallRulesTest`, `ExternalEventRendererTest`, `ExternalEventSenderTest`,
+`HttpRequestRendererTest`, and `modules/worker-http` (`HttpCallHandlerTest`, `HostGuardTest`,
+`SecretResolverTest`).
 
 ## 7. The UI, in a browser (`modules/workflow-ui-e2e`)
 

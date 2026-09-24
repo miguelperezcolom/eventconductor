@@ -87,6 +87,12 @@ table — there it means "not measured", not "nothing stalled".
 | `eventconductor.sync.inline.steps` | summary | — | Outbox messages handled per inline drive (the fast path) |
 | `eventconductor.sync.inline.fallbacks` | counter | `reason` | Inline drives that stopped early or never started: `saturated`, `budget`, `claim_lost`, `failure` |
 
+#### HTTP calls (`worker-http`)
+
+| Meter | Type | Tags | Meaning |
+|---|---|---|---|
+| `eventconductor.http.calls` | timer | `target` (connection or host), `status` (code, `timeout`, `io`) | Every HTTP_CALL request and how long it took |
+
 Tracing: the request's span `eventconductor.sync.invoke` carries a **link** to the process's anchored trace, and the `eventconductor.sync.reply` span in the process trace links back to the caller's — so each can be reached from the other without the process becoming a child of one request.
 
 ### Forms engine

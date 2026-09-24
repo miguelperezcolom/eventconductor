@@ -313,6 +313,32 @@ Only relevant to definitions that declare `syncInvocation`; see [Synchronous Inv
 | `workflow.sync.inline.sweep-interval-ms` | `5000` | How often lapsed inline claims are handed back. |
 | `workflow.sync.notify.enabled` | `true` | PostgreSQL `LISTEN/NOTIFY` wake-up across nodes (needs a direct connection, not PgBouncer in transaction mode). |
 
+### Domain events (`workflow.events.*`)
+
+| Property | Default | Description |
+|---|---|---|
+| `workflow.events.destinations.<name>.topic` | — | The topic a `PUBLISH_EVENT` destination is published to (kafka mode). |
+| `workflow.events.destinations.<name>.format` | `binary` | `binary` / `structured` CloudEvents, or `plain`; a step may override. |
+| `workflow.events.max-payload-bytes` | `262144` | Largest event payload; larger fails the step. |
+
+### HTTP calls (`workflow.http.*`, in whatever runs `worker-http`)
+
+| Property | Default | Description |
+|---|---|---|
+| `workflow.http.enabled` | `true` | Register the built-in `http-call@1` task. |
+| `workflow.http.topic` | `http-calls` | The Kafka topic the task is served on. |
+| `workflow.http.connections.<name>.base-url` | — | Base URL of a named connection. |
+| `workflow.http.connections.<name>.auth` | — | Default auth profile for the connection. |
+| `workflow.http.connections.<name>.connect-timeout` / `read-timeout` | `PT5S` / `PT30S` | Timeouts for the connection. |
+| `workflow.http.connections.<name>.headers.*` | — | Headers added to every call on the connection. |
+| `workflow.http.connections.<name>.idempotency-header` | `Idempotency-Key` | Header carrying the step execution id; `none` to omit. |
+| `workflow.http.auth.<name>.type` | `none` | `none`, `basic`, `bearer`, `api-key`, `oauth2-client-credentials`. |
+| `workflow.http.auth.<name>.*` | — | `username`/`password`, `token`, `header`/`value`/`in`, `token-uri`/`client-id`/`client-secret`/`scope`. |
+| `workflow.http.secrets.<NAME>` | — | What `${secret:NAME}` resolves to (else the `NAME` property / env var). |
+| `workflow.http.allowed-hosts` | *(any public host)* | Hosts absolute URLs may target (`api.x.com`, `*.partner.com`). Internal addresses are always refused for absolute URLs. |
+| `workflow.http.connect-timeout` / `read-timeout` | `PT5S` / `PT30S` | Timeouts for absolute URLs. |
+| `workflow.http.max-response-bytes` | `1048576` | Largest response read; larger fails the step. |
+
 ## Kafka (when `workflow.mode=kafka`)
 
 ```properties

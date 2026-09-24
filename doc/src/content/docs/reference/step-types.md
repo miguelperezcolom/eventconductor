@@ -591,13 +591,45 @@ The answer a process gives to whoever invoked it [synchronously](/guides/synchro
 }
 ```
 
-**Optional fields** (at most one of the two): `replyVariables` — the reply is a JSON object with one member per listed variable; `replyExpression` — a JEXL expression whose value is the reply (e.g. `{'bookingId': bookingId, 'status': 'CONFIRMED'}`). Neither → `{}`.
+**Optional fields** (at most one of the three): `replyVariables` — the reply is a JSON object with one member per listed variable; `replyExpression` — a JEXL expression whose value is the reply (e.g. `{'bookingId': bookingId, 'status': 'CONFIRMED'}`); `replyTemplate` — a [payload template](/guides/payload-templates/). Neither → `{}`.
 
 Semantics:
 
 - **At most one per run**, checked on import and by the Maven plugin: two `REPLY` steps must be separated by an exclusive split (different `CHOICE` branches, or a step's normal vs `onTimeoutStepId` route) that every way into both goes through. A `REPLY` cannot be a compensation step or be injected by a `DYNAMIC` step. At runtime the first reply stands.
 - **Fail loud.** A reply that cannot be computed, or is larger than `workflow.sync.max-reply-bytes`, fails the step (`ERROR`), so the failure contract answers the caller instead.
 - A process started asynchronously still records its reply.
+
+---
+
+## PUBLISH_EVENT
+
+Publish a domain event from the process's state, without a worker. See [Publishing Domain Events](/guides/publishing-events/).
+
+```json
+{ "id": "announce", "type": "PUBLISH_EVENT", "name": "Booking confirmed", "preconditionStepId": "confirm",
+  "event": { "destination": "bookings", "type": "com.acme.booking.confirmed", "key": "${bookingId}",
+             "payload": { "bookingId": "${bookingId}" } } }
+```
+
+**Required:** `event.destination` (a logical name mapped to a topic by `workflow.events.destinations`), `event.type`. **Optional:** `event.key` (template; default the business key, else the process id), one of `event.payload` (structured template) / `event.payloadTemplate` (text) / `event.payloadVariables`, `event.format` (`binary` default, `structured`, `plain`).
+
+Written to the outbox with the step's completion — published if and only if the step completed; at-least-once, `id` = the step execution id. An unknown destination, a template that does not render or an oversized payload fails the step.
+
+---
+
+## HTTP_CALL
+
+Call an HTTP endpoint and map the response into variables, without writing a worker. See [HTTP Calls](/guides/http-calls/).
+
+```json
+{ "id": "charge", "type": "HTTP_CALL", "name": "Charge", "preconditionStepId": "book", "retries": 2,
+  "http": { "connection": "payments", "method": "POST", "path": "/charges/${bookingId}",
+            "body": { "amount": "${amount * 1}" }, "output": { "chargeId": "body.id" } } }
+```
+
+**Required:** `http` with exactly one of `connection` (+ optional `path`) and `url`. **Optional:** `method` (default `GET`), `query`, `headers`, `body` / `bodyTemplate`, `successStatus` (default 2xx), `output` (variable ← JEXL over `{status, headers, body}`), `auth` (a profile name, or inline with `${secret:NAME}` credentials only), `retryOn` (default `[5xx, io]` — a 4xx is not retried).
+
+Rendered by the engine and executed by the built-in `http-call@1` task (`worker-http`): embedded in the engine's pod, or on topic `http-calls` in kafka mode. Timeouts, retries, compensation and cancellation work as for `ACTION`.
 
 ---
 

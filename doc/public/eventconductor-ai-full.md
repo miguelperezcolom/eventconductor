@@ -267,6 +267,22 @@ No worker. `LOCK` takes the named per-key lock — `lockName` (the domain, defau
 ```
 No worker. Records the process's reply — `replyVariables` (a JSON object of those variables) or `replyExpression` (a JEXL value, e.g. `{'bookingId': bookingId, 'status': 'CONFIRMED'}`); neither = `{}` — on the process, in the same transaction, and completes; the flow carries on (an early REPLY answers while the saga continues). **At most one per run**: two REPLY steps must be on different branches of a dominating `CHOICE` (or a step's normal vs timeout route); validated on import and by the Maven plugin. Not allowed as a compensation step or injected by DYNAMIC. A reply that cannot be computed, or exceeds `workflow.sync.max-reply-bytes`, fails the step. Used with the definition-level `syncInvocation` (§3) and the invocation API: `POST /workflow/api/definitions/{id}/invocations` (`Idempotency-Key` required, `Prefer: wait=N`) → 200 reply / 202 + `Location` / 502 failure outcome; `Accept: text/event-stream` for progress events. See guides/synchronous-invocation.
 
+### PUBLISH_EVENT — publish a domain event
+```json
+{ "id": "announce", "type": "PUBLISH_EVENT", "name": "Booking confirmed", "preconditionStepId": "confirm",
+  "event": { "destination": "bookings", "type": "com.acme.booking.confirmed", "key": "${bookingId}",
+             "payload": { "bookingId": "${bookingId}", "total": "${total * 1}" } } }
+```
+No worker. The event (payload from a structured `payload` template, a text `payloadTemplate` or `payloadVariables`; key defaults to the business key, else the process id) is written to the outbox with the step's completion — published if and only if the step completed; at-least-once, `id` = the step execution id. Kafka: to the topic of `workflow.events.destinations.<destination>.topic` as a CloudEvent (binary: `ce_*` headers; or structured / plain). Embedded: `ExternalEventPublisher` (default Spring `ExternalEventPublished`). A definition never names a topic.
+
+### HTTP_CALL — call an HTTP endpoint
+```json
+{ "id": "charge", "type": "HTTP_CALL", "name": "Charge", "preconditionStepId": "book", "retries": 2,
+  "http": { "connection": "payments", "method": "POST", "path": "/charges/${bookingId}",
+            "body": { "amount": "${amount * 1}" }, "output": { "chargeId": "body.id" } } }
+```
+The engine renders the request (templates in url/path, query, headers, body) and dispatches the built-in task `http-call@1` (library `worker-http`: embedded in the engine's pod, or topic `http-calls` served by `http-worker-standalone-app`). `successStatus` (default 2xx) completes and maps `output` (JEXL over `{status, headers, body}`) into variables; otherwise `HTTP_<status>` / `HTTP_IO`, retried only if `retryOn` (default `[5xx, io]`) covers it — a 4xx is final and compensation runs. `Idempotency-Key` = step execution id. Auth: named profile (`workflow.http.auth.<name>`) or inline with `${secret:NAME}` credentials only; absolute URLs subject to `workflow.http.allowed-hosts` and never internal addresses.
+
 ### END — complete the process
 ```json
 { "id": "end", "type": "END", "name": "Done", "preconditionStepId": "last-step" }
@@ -278,7 +294,7 @@ Exactly one per workflow. Transitions the process to `COMPLETED`. With parallel 
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `id` | string | — | Unique within the workflow |
-| `type` | enum | — | `START`/`ACTION`/`USER_TASK`/`RULE`/`TIMER`/`WAIT_FOR_MESSAGE`/`SEND_MESSAGE`/`PROCESS`/`FORK`/`JOIN`/`LOCK`/`UNLOCK`/`REPLY`/`END` |
+| `type` | enum | — | `START`/`ACTION`/`USER_TASK`/`RULE`/`TIMER`/`WAIT_FOR_MESSAGE`/`SEND_MESSAGE`/`PROCESS`/`FORK`/`JOIN`/`LOCK`/`UNLOCK`/`REPLY`/`PUBLISH_EVENT`/`HTTP_CALL`/`END` |
 | `name` | string | — | Human-readable |
 | `description` | string | — | Optional |
 | `preconditionStepId` | string | — | Single step that must complete first |
@@ -305,7 +321,10 @@ Exactly one per workflow. Transitions the process to `COMPLETED`. With parallel 
 | `lockName` | string | — | Lock domain (LOCK/UNLOCK); defaults to the definition id |
 | `lockKey` | string | — | JEXL expression giving the key to serialize on (LOCK/UNLOCK; **required** on those) |
 | `replyVariables` | string[] | — | REPLY: variables the reply object is made of |
-| `replyExpression` | string | — | REPLY: JEXL expression whose value is the reply (exclusive with `replyVariables`) |
+| `replyExpression` | string | — | REPLY: JEXL expression whose value is the reply (exclusive with `replyVariables` and `replyTemplate`) |
+| `replyTemplate` | any | — | REPLY: the reply as a payload template (JSON/YAML with `${…}` leaves) |
+| `event` | object | — | PUBLISH_EVENT: `{destination, type, key?, payload \| payloadTemplate \| payloadVariables, format?}` |
+| `http` | object | — | HTTP_CALL: `{connection + path \| url, method, query, headers, body \| bodyTemplate, successStatus, output, auth, retryOn}` |
 
 ---
 

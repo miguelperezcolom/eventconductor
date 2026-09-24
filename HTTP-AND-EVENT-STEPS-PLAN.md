@@ -307,7 +307,7 @@ workflow.http:
       (auth types, token refresh, errors, retry classes, host guard, response cap, through `TaskDispatcher`),
       the app's context test, and `HttpCallE2eTest` through the engine (response → variables → REPLY; a 402
       not retried and the saga compensated; a 503 retried).
-- [ ] **P5 — Tooling & docs.** Graph glyphs and editor fields, IDE plugins, docs (a guide page per step + configuration + AI reference files), CHANGELOG.
+- [x] **P5 — Tooling & docs.** Graph glyphs and editor fields, IDE plugins, docs (a guide page per step + configuration + AI reference files), CHANGELOG. *Done: graph nodes (HTTP_CALL globe, PUBLISH_EVENT broadcast) with read-only HTTP/Event fields; plugins 0.1.22 (IntelliJ) / 0.1.21 (VS Code) with the schema; guides `http-calls`, `publishing-events`, `payload-templates`; step-types, configuration, observability, AI files, skill, TESTING (DIST-29), CHANGELOG.*
 
 ## 6. Decisions — RESOLVED (2026-09-24, owner accepted the recommendations)
 

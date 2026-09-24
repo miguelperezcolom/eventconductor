@@ -20,9 +20,10 @@ The reply is either:
 |---|---|
 | `replyVariables` | a JSON object with one member per listed variable (a variable that is not set is present as `null`) |
 | `replyExpression` | the value of a JEXL expression over the process variables — e.g. `{'bookingId': bookingId, 'status': 'CONFIRMED'}` |
-| neither | `{}` — a plain acknowledgement |
+| `replyTemplate` | a [payload template](/guides/payload-templates/) — JSON with `${…}` leaves, e.g. `{ "bookingId": "${bookingId}", "total": "${total * 1}" }` |
+| none | `{}` — a plain acknowledgement |
 
-Exactly one of the two. A `REPLY` is engine-internal: it completes in the step-over that reaches it, and the flow carries on.
+At most one of the three. A `REPLY` is engine-internal: it completes in the step-over that reaches it, and the flow carries on.
 
 - **Before `END`** it answers with the result.
 - **Earlier**, the caller gets its answer while the process continues durably. An early reply is a commitment: if a later step fails, the process compensates as usual, but the caller's answer does not change (its `processStatus` does — see below).

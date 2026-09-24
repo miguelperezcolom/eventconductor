@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **`HTTP_CALL` step** — call an HTTP endpoint and map the response (`output`: JEXL over status, headers, body) into variables, without writing a worker. Named connections (`workflow.http.connections`) or absolute URLs; auth from the connection, a named profile (`basic`, `bearer`, `api-key`, `oauth2-client-credentials`) or inline with `${secret:NAME}` credentials only; `allowed-hosts` and an always-on block of internal addresses for absolute URLs; `retryOn` (default `[5xx, io]` — a 4xx is final); `Idempotency-Key` = the step execution id. Executed by the built-in task `http-call@1`.
+- **`worker-http`** module (the `http-call@1` task, auto-configured) and **`http-worker-standalone-app`** (image) serving topic `http-calls` in kafka mode. Metric `eventconductor.http.calls`.
+- **`PUBLISH_EVENT` step** — publish a domain event from the process's state through the outbox (published iff the step completed). Destinations are logical names mapped by `workflow.events.destinations`; CloudEvents 1.0 on Kafka (binary by default, structured or plain); embedded mode hands it to an `ExternalEventPublisher` bean (default: a Spring `ExternalEventPublished` application event).
+- **Payload templates** — JSON/YAML with sandboxed `${JEXL}` leaves (typed single-expression leaves) or text; used by `REPLY` (`replyTemplate`), `PUBLISH_EVENT` and `HTTP_CALL`; validated at build time and on import.
+- **Non-retryable failures** — a worker can mark a failure final (`TaskFailure(code, reason, false)`, or the reason prefix `[non-retryable] `); the engine skips the step's remaining retries.
+- The workflow graph shows `HTTP_CALL` and `PUBLISH_EVENT` nodes.
+
 ## [2.20.0] - 2026-09-24
 
 ### Added
