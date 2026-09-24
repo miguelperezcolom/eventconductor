@@ -1,0 +1,41 @@
+server:
+  port: ${SERVER_PORT:8092}
+
+spring:
+  application:
+    name: http-worker
+  cloud:
+    stream:
+      bindingRetryInterval: 10
+      kafka:
+        default:
+          producer:
+            # A reply is only delivered when the broker says so — see PartitionedEvents in the engine.
+            sync: true
+        binder:
+          brokers: ${KAFKA_BROKERS:localhost:9092}
+          auto-create-topics: true
+          configuration:
+            default.api.timeout.ms: 15000
+            request.timeout.ms: 10000
+      bindings:
+        # The rendered requests of HTTP_CALL steps (the engine's default topic for them).
+        consumeWorkerEvent-in-0:
+          destination: ${HTTP_CALLS_TOPIC:http-calls}
+          group: http-worker
+          consumer:
+            start-offset: earliest
+
+workflow:
+  http:
+    # Connections, auth profiles and secrets are deployment configuration, e.g.:
+    #   WORKFLOW_HTTP_CONNECTIONS_PAYMENTS_BASEURL=https://payments.internal
+    #   WORKFLOW_HTTP_SECRETS_PARTNERTOKEN=...   (what ${secret:PARTNER_TOKEN} resolves to — or the
+    #   PARTNER_TOKEN environment variable itself)
+    allowed-hosts: ${WORKFLOW_HTTP_ALLOWED_HOSTS:}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus

@@ -1,0 +1,21 @@
+{
+  "id": "http-call-saga",
+  "name": "Book, then charge over HTTP",
+  "version": 1,
+  "syncInvocation": { "enabled": true },
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "book", "type": "ACTION", "name": "Book", "topic": "book", "preconditionStepId": "start",
+      "compensable": true, "compensationStepId": "unbook" },
+    { "id": "charge", "type": "HTTP_CALL", "name": "Charge", "preconditionStepId": "book", "retries": 2,
+      "http": {
+        "connection": "payments", "method": "POST", "path": "/charges/${bookingId}",
+        "body": { "amount": "${amount * 1}" },
+        "output": { "chargeId": "body.id", "chargedAt": "headers['x-charged-at']" }
+      } },
+    { "id": "reply", "type": "REPLY", "name": "Reply", "preconditionStepId": "charge",
+      "replyTemplate": { "bookingId": "${bookingId}", "chargeId": "${chargeId}" } },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "reply" },
+    { "id": "unbook", "type": "ACTION", "name": "Unbook", "topic": "unbook" }
+  ]
+}
