@@ -291,7 +291,22 @@ workflow.http:
       `UpdateStepExecutionCommand` and `StepExecutionStatusChanged`, and the engine then does not spend the
       step's retries — which is how a 4xx is not retried, and available to any worker. Tests: rules,
       renderer, plugin, `HttpCallDispatchE2eTest` (rendered request; final failure 1 attempt vs 3).
-- [ ] **P4 — `modules/worker-http`.** Connections, auth profiles (5 types), secrets, SSRF guard, idempotency key, trace propagation, response mapping, metrics; wired into `worker-embedded` apps and `worker-standalone-app`.
+- [x] **P4 — `modules/worker-http`.** Connections, auth profiles (5 types), secrets, SSRF guard, idempotency key, trace propagation, response mapping, metrics; wired into `worker-embedded` apps and `worker-standalone-app`. — DONE, with adjustments:
+      `modules/worker-http` (`HttpCallHandler` on the JDK `HttpClient`, `HttpWorkerProperties`, `SecretResolver`,
+      `HostGuard`, `OAuth2TokenCache`, `eventconductor.http.calls` timer, auto-configured `http-call@1`
+      registration). OAuth2 client credentials is implemented directly against the profile's `token-uri`
+      (cached until expiry, refreshed once on a 401) rather than through Spring Security's client
+      registrations — no new dependency. `worker-standalone-app` turned out to be the scenario *test* worker,
+      so HTTP egress got its own app, **`apps/http-worker-standalone-app`** (`worker-kafka` + `worker-http` on
+      topic `http-calls`), with its image built, Trivy-scanned and pushed by the release workflow like the
+      others. Embedded deployments add `worker-http` to their classpath. Found by the e2e: the task carries
+      every process variable, so the handler's input ignores unknown ones. **Deferred:** trace propagation into
+      the called service (the worker has no trace context on the task yet), and a dist-e2e over Kafka (adding
+      `worker-kafka` to that suite's classpath would turn every orchestrator context in it into a worker; the
+      transport is `worker-kafka`'s, already covered). Tests: 13 in the module against a real local server
+      (auth types, token refresh, errors, retry classes, host guard, response cap, through `TaskDispatcher`),
+      the app's context test, and `HttpCallE2eTest` through the engine (response → variables → REPLY; a 402
+      not retried and the saga compensated; a 503 retried).
 - [ ] **P5 — Tooling & docs.** Graph glyphs and editor fields, IDE plugins, docs (a guide page per step + configuration + AI reference files), CHANGELOG.
 
 ## 6. Decisions — RESOLVED (2026-09-24, owner accepted the recommendations)

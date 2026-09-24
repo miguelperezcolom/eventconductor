@@ -1,0 +1,22 @@
+FROM eclipse-temurin:21-jre-alpine
+# Patch OS packages to pick up Alpine security fixes not yet in the base image tag
+# (Trivy gates the release on fixable HIGH/CRITICAL CVEs).
+RUN apk upgrade --no-cache
+RUN addgroup -S app && adduser -S -G app -u 10001 app
+WORKDIR /opt/app
+
+# Jar is pre-built by the CI pipeline (mvn install) before this image is built.
+COPY --chown=app:app target/http-worker-standalone-app-*.jar app.jar
+
+ENV SERVER_PORT=8080
+ENV KAFKA_BROKERS=localhost:9092
+# The topic HTTP_CALL requests arrive on (the engine's default).
+ENV HTTP_CALLS_TOPIC=http-calls
+
+USER app
+EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+  CMD wget -qO- http://127.0.0.1:${SERVER_PORT}/actuator/health || exit 1
+
+ENTRYPOINT ["java", "-jar", "app.jar"]

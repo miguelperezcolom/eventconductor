@@ -46,6 +46,7 @@
       <module>apps/forms-standalone-app</module>
       <module>apps/rule-standalone-app</module>
       <module>apps/worker-standalone-app</module>
+      <module>apps/http-worker-standalone-app</module>
       <module>apps/dev-app</module>
       <module>modules/shared</module>
       <module>modules/worker-api</module>
@@ -53,6 +54,7 @@
       <module>modules/worker-embedded</module>
       <module>modules/worker-codegen</module>
       <module>modules/definition-analysis</module>
+      <module>modules/worker-http</module>
       <module>parents/task-module-parent</module>
       <module>parents/task-service-parent</module>
       <module>examples/greetings-tasks</module>
