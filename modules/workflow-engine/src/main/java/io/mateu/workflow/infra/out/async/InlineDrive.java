@@ -49,13 +49,14 @@ public final class InlineDrive {
      * <p>Only the driven process's own events — keyed by its id, or unkeyed (a step's log line) and
      * written on the driving thread, which is only ever working for that process — and never the
      * two that do not stay on this shard's {@code outbox} (see {@code RelayDestination}): a
-     * {@link MessageReceived} may be for another shard, and a {@link ProcessStatusChanged} may belong
-     * to a remote projector. Those always go through the relay, whatever the mode, so the fast path
+     * {@link MessageReceived} may be for another shard, a {@link ProcessStatusChanged} may belong
+     * to a remote projector, and a PUBLISH_EVENT's event leaves for its destination topic. Those always go through the relay, whatever the mode, so the fast path
      * never decides a destination itself.
      */
     public static Context claimFor(DomainEvent event) {
         var context = CURRENT.get();
-        if (context == null || event instanceof MessageReceived || event instanceof ProcessStatusChanged) {
+        if (context == null || event instanceof MessageReceived || event instanceof ProcessStatusChanged
+                || event instanceof io.mateu.workflow.dtos.events.integration.ExternalEventRequested) {
             return null;
         }
         String key;

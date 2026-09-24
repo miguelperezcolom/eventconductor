@@ -311,7 +311,8 @@
             "DYNAMIC",
             "LOCK",
             "UNLOCK",
-            "REPLY"
+            "REPLY",
+            "PUBLISH_EVENT"
           ]
         },
         "name": {
@@ -475,6 +476,24 @@
             "null"
           ],
           "description": "REPLY only: a JEXL expression over the process variables whose value is the reply — e.g. {'bookingId': bookingId, 'status': 'CONFIRMED'}. Mutually exclusive with replyVariables and replyTemplate."
+        },
+        "event": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "description": "PUBLISH_EVENT only: the domain event to publish. Written to the outbox with the step's completion — published if and only if the step completed.",
+          "required": ["destination", "type"],
+          "properties": {
+            "destination": { "type": "string", "minLength": 1, "description": "A logical destination, mapped to a topic by workflow.events.destinations.<name> — never a topic itself." },
+            "type": { "type": "string", "minLength": 1, "description": "The event type (CloudEvents type), e.g. com.acme.booking.confirmed." },
+            "key": { "type": ["string", "null"], "description": "Template for the message key. Default: the business key, else the process id." },
+            "payload": { "description": "The payload as a structured template (JSON/YAML with ${...} leaves). Exclusive with payloadTemplate and payloadVariables." },
+            "payloadTemplate": { "type": ["string", "null"], "description": "The payload as a text template. Exclusive with payload and payloadVariables." },
+            "payloadVariables": { "type": ["array", "null"], "items": { "type": "string" }, "description": "The payload is an object of these process variables." },
+            "format": { "type": ["string", "null"], "enum": ["binary", "structured", "plain", null], "description": "CloudEvents binary (default: ce_* headers) or structured (JSON envelope), or plain (the payload alone). Null takes the destination's format." }
+          }
         },
         "replyTemplate": {
           "description": "REPLY only: the reply as a structured template — JSON/YAML whose string leaves may hold ${...} JEXL expressions. A leaf that is exactly one expression keeps its type; text around expressions makes a string. Mutually exclusive with replyVariables and replyExpression."
@@ -748,6 +767,23 @@
                 }
               ]
             }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "PUBLISH_EVENT"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "required": [
+              "event"
+            ]
           }
         },
         {

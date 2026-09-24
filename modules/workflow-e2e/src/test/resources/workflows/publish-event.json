@@ -1,0 +1,17 @@
+{
+  "id": "publish-event",
+  "name": "Announce a confirmed booking",
+  "version": 1,
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "confirm", "type": "ACTION", "name": "Confirm", "topic": "confirm", "preconditionStepId": "start" },
+    { "id": "announce", "type": "PUBLISH_EVENT", "name": "Booking confirmed", "preconditionStepId": "confirm",
+      "event": {
+        "destination": "bookings",
+        "type": "com.acme.booking.confirmed",
+        "key": "${bookingId}",
+        "payload": { "bookingId": "${bookingId}", "nights": "${nights * 1}", "note": "Booking ${bookingId} for ${process.businessKey}" }
+      } },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "announce" }
+  ]
+}

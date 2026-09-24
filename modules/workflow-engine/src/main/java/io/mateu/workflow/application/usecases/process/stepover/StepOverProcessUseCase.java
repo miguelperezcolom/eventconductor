@@ -57,6 +57,13 @@ public class StepOverProcessUseCase {
     // A provider: only needed to link a REPLY's span back to its synchronous caller's trace.
     final ObjectProvider<io.mateu.workflow.application.out.InvocationRepository> invocationRepository;
 
+    /** Where PUBLISH_EVENT steps may publish; optional so hand-built instances (tests) still work. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    io.mateu.workflow.infra.config.EventDestinationsProperties eventDestinations;
+
+    @org.springframework.beans.factory.annotation.Value("${workflow.mode:embedded}")
+    String mode = "embedded";
+
     /** The largest reply a REPLY step may record, in bytes of JSON; 0 or less means no limit. */
     @org.springframework.beans.factory.annotation.Value("${workflow.sync.max-reply-bytes:262144}")
     long maxReplyBytes;
@@ -112,6 +119,9 @@ public class StepOverProcessUseCase {
         // stands and recorded on it, in this same transaction, so the reply commits with the
         // transition that produced it.
         boolean replied = resolveReplySteps(result.getUpdatedProcess(), result.getStepsToSave());
+        // And any PUBLISH_EVENT: the event rides this transaction into the outbox with the step's
+        // completion — published if and only if the step completed.
+        resolvePublishSteps(result.getUpdatedProcess(), result.getStepsToSave());
 
         if (result.getUpdatedProcess() != process || replied) {
             processRepository.save(result.getUpdatedProcess());
@@ -266,6 +276,35 @@ public class StepOverProcessUseCase {
         workflowTracing.spanLinkedTo("eventconductor.sync.reply", caller,
                 java.util.Map.of("eventconductor.process.id", process.getId(),
                         "eventconductor.step.id", step.id()), () -> null);
+    }
+
+    /**
+     * Renders and emits each PUBLISH_EVENT step that {@code start()} just moved to PENDING, then
+     * completes it — or fails it (so retries and compensation engage) when the destination is unknown
+     * or the payload cannot be rendered.
+     */
+    private void resolvePublishSteps(Process process, List<StepExecution> stepsToSave) {
+        for (var stepExecution : stepsToSave) {
+            if (!StepExecutionStatus.PENDING.equals(stepExecution.getStatus())) {
+                continue;
+            }
+            var step = pojoFromJson(stepExecution.getStepJson(), Step.class);
+            if (!StepType.PUBLISH_EVENT.equals(step.type())) {
+                continue;
+            }
+            try {
+                var event = io.mateu.workflow.domain.services.ExternalEventRenderer.render(
+                        step, process, stepExecution.id(), eventDestinations, "kafka".equals(mode));
+                stepExecution.publish(event);
+                stepExecution.logInfo("Event '" + event.eventType() + "' published to '" + event.destination()
+                        + "' with key '" + event.key() + "'.");
+                stepExecution.updateStatus(StepExecutionStatus.COMPLETED);
+            } catch (IllegalArgumentException | io.mateu.workflow.template.Templates.TemplateException e) {
+                log.warn("PUBLISH_EVENT step {} of process {} failed: {}", step.id(), process.getId(), e.getMessage());
+                stepExecution.logError(e.getMessage());
+                stepExecution.updateStatus(StepExecutionStatus.ERROR);
+            }
+        }
     }
 
     /** A step-level lock defaults its domain to the definition id, so unrelated definitions do not
