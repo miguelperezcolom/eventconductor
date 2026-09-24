@@ -50,7 +50,7 @@ if (typeof window !== "undefined" && !window.__ecClipboardBridge) {
 type StepType =
     | "START" | "ACTION" | "USER_TASK" | "RULE" | "TIMER"
     | "WAIT_FOR_MESSAGE" | "SEND_MESSAGE" | "FORK" | "JOIN" | "CHOICE" | "PROCESS" | "END" | "DYNAMIC"
-    | "LOCK" | "UNLOCK" | "REPLY";
+    | "LOCK" | "UNLOCK" | "REPLY" | "PUBLISH_EVENT" | "HTTP_CALL";
 /** Whether a workflow is open for business. DRAFT is an older value that meant nothing. */
 type WorkflowStatus = "ACTIVE" | "DISABLED" | "ARCHIVED" | "DRAFT";
 
@@ -85,6 +85,10 @@ interface WorkflowStep {
     replyVariables?: string[];
     /** REPLY only: a JEXL expression whose value is the reply. */
     replyExpression?: string;
+    /** PUBLISH_EVENT only: the event to publish. */
+    event?: { destination?: string; type?: string; key?: string };
+    /** HTTP_CALL only: the request to make. */
+    http?: { connection?: string; url?: string; method?: string; path?: string };
 }
 
 /** The kind of connection being drawn, by drag gesture. */
@@ -202,7 +206,7 @@ const PAD = 60;
 const STEP_TYPES: StepType[] = [
     "START", "ACTION", "USER_TASK", "RULE", "TIMER",
     "WAIT_FOR_MESSAGE", "SEND_MESSAGE", "FORK", "JOIN", "CHOICE", "PROCESS", "END", "DYNAMIC",
-    "LOCK", "UNLOCK", "REPLY",
+    "LOCK", "UNLOCK", "REPLY", "PUBLISH_EVENT", "HTTP_CALL",
 ];
 
 /**
@@ -239,6 +243,9 @@ const NODE_STYLE: Record<StepType, NodeStyle> = {
     // The answer to a synchronous caller: an emerald task node with a "reply" arrow, so where the
     // caller gets its response — at the end, or early while the saga carries on — reads at a glance.
     REPLY:            {fill: "#ecfdf5", stroke: "#059669", symbol: "reply"},
+    // Engine-side integrations: a domain event broadcast out (sky), an HTTP call out (blue).
+    PUBLISH_EVENT:    {fill: "#f0f9ff", stroke: "#0284c7", symbol: "broadcast"},
+    HTTP_CALL:        {fill: "#eff6ff", stroke: "#2563eb", symbol: "globe"},
 };
 /**
  * The paint properties written onto each element when the graph is exported as a standalone SVG.
@@ -273,7 +280,7 @@ function isGatewayType(t: StepType): boolean { return t === "FORK" || t === "JOI
  */
 function isTaskStepType(t: StepType): boolean {
     return t === "ACTION" || t === "USER_TASK" || t === "RULE"
-        || t === "WAIT_FOR_MESSAGE" || t === "PROCESS" || t === "DYNAMIC";
+        || t === "WAIT_FOR_MESSAGE" || t === "PROCESS" || t === "DYNAMIC" || t === "HTTP_CALL";
 }
 /** A timeout in ms as a short human string: 30000 → "30s", 90000 → "1m 30s", 120000 → "2m". */
 function formatTimeout(ms: number): string {
@@ -305,6 +312,10 @@ const SYMBOLS: Record<string, ReturnType<typeof svg>> = {
     unlock:    svg`<rect x="2" y="5.5" width="8" height="6" rx="1"/><path d="M3.5 5.5 V3.6 Q3.5 1.2 6 1.2 Q8.5 1.2 8.5 3.6" />`,
     // A curved "reply" arrow, bending back towards the caller.
     reply:     svg`<path d="M11 10.5 V8 Q11 4.5 7.5 4.5 H1.5"/><path d="M4.5 1.5 L1.5 4.5 L4.5 7.5"/>`,
+    // Waves going out from a point — an event broadcast to whoever listens.
+    broadcast: svg`<circle cx="3" cy="6" r="1.2"/><path d="M5.5 3.5 Q7 6 5.5 8.5"/><path d="M8 1.8 Q10.5 6 8 10.2"/>`,
+    // A globe — a call out over the network.
+    globe:     svg`<circle cx="6" cy="6" r="5"/><path d="M1 6 H11"/><path d="M6 1 Q9 6 6 11 Q3 6 6 1"/>`,
 };
 
 /**
@@ -352,6 +363,8 @@ function badgeOf(step: WorkflowStep): string {
         case "DYNAMIC": return "⚡ " + (step.topic ? "→ " + step.topic : "DYNAMIC");
         case "REPLY": return "↩ " + (step.replyVariables && step.replyVariables.length
             ? step.replyVariables.join(", ") : (step.replyExpression ? "expression" : "REPLY"));
+        case "PUBLISH_EVENT": return "📣 " + (step.event?.destination || "event");
+        case "HTTP_CALL": return (step.http?.method || "GET") + " " + (step.http?.connection || step.http?.url || "http");
         default: return step.type; // START, TIMER, END
     }
 }
@@ -3369,6 +3382,13 @@ export class MateuWorkflowElk extends LitElement {
                     ${step.type === "PROCESS" ? field("Child workflow ID", html`
                         <input class="inp" ?readonly="${ro}" .value="${step.childWorkflowDefinitionId ?? ""}"
                                @change="${ro ? nothing : (e: Event) => this.updateStep(step.id, {childWorkflowDefinitionId: (e.target as HTMLInputElement).value || undefined})}"/>`) : ""}
+                    ${step.type === "HTTP_CALL" ? field("HTTP", html`
+                        <input class="inp" readonly title="Edit the http block in the YAML"
+                               .value="${(step.http?.method || "GET") + " " + (step.http?.connection
+                                   ? step.http.connection + (step.http.path || "") : (step.http?.url || ""))}"/>`) : ""}
+                    ${step.type === "PUBLISH_EVENT" ? field("Event", html`
+                        <input class="inp" readonly title="Edit the event block in the YAML"
+                               .value="${(step.event?.type || "") + " → " + (step.event?.destination || "")}"/>`) : ""}
                     ${step.type === "REPLY" ? field("Reply variables", html`
                         <input class="inp" placeholder="bookingId, status" ?readonly="${ro}"
                                .value="${(step.replyVariables ?? []).join(", ")}"

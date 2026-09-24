@@ -78,11 +78,30 @@ Add `"$schema"` (JSON) or a `# yaml-language-server: $schema=...` comment (YAML)
 - **LOCK / UNLOCK** — no worker: take / release a named per-key lock (`lockName`, JEXL `lockKey`);
   a busy lock parks the step `WAITING_ON_LOCK`, admitted FIFO.
 - **REPLY** — no worker: records the answer for a synchronous caller from `replyVariables` (a JSON
-  object of those variables) or a JEXL `replyExpression` (neither = `{}`), in the same transition,
+  object of those variables), a JEXL `replyExpression` or a `replyTemplate` (none = `{}`), in the same transition,
   then the flow carries on (before END = the result; earlier = answer now, keep going). **At most one
   per run** — two REPLYs must sit on different branches of a CHOICE that dominates both (or a step's
   normal vs `onTimeoutStepId` route); FORK branches are rejected. Not a compensation step, not
   injectable by DYNAMIC. Unevaluable or oversized (`workflow.sync.max-reply-bytes`) → step `ERROR`.
+- **PUBLISH_EVENT** — no worker: `event: {destination, type, key?, payload | payloadTemplate |
+  payloadVariables, format?}`. Written to the outbox with the step's completion (published iff the step
+  completed; at-least-once; id = step execution id). `destination` is a logical name mapped by
+  `workflow.events.destinations.<name>.topic` — never a topic in the definition. Kafka: CloudEvent
+  (binary default / structured / plain), key default business key. Embedded: `ExternalEventPublisher`
+  bean (default: Spring `ExternalEventPublished` event).
+- **HTTP_CALL** — `http: {connection + path | url, method, query, headers, body | bodyTemplate,
+  successStatus, output, auth, retryOn}`. Engine renders the request and dispatches built-in task
+  `http-call@1` (library `worker-http`; kafka topic `http-calls`, app `http-worker-standalone-app`).
+  `output`: variable ← JEXL over `{status, headers, body}`. Default `retryOn: [5xx, io]` — a 4xx is
+  final (no retries, compensation runs). Auth: connection's profile, a named profile
+  (`workflow.http.auth.<name>`) or inline with credentials ONLY as `${secret:NAME}` (literal secrets
+  fail validation). Absolute URLs: `workflow.http.allowed-hosts`, internal addresses always refused.
+  Retries send the same `Idempotency-Key` (step execution id).
+- **Payload templates** (replyTemplate, event payload, http body/url/path/query/headers): JSON/YAML
+  whose string leaves hold `${JEXL}`; a leaf that is exactly one expression keeps its type (a variable
+  holding JSON is parsed); text around makes a string; `$${` escapes. Context: variables, `process`
+  {id, businessKey, workflowDefinitionId, version}, `step` {id, name, executionId}, `now`,
+  `businessKey`. Text form: `payloadTemplate` / `bodyTemplate`.
 - **END** — exactly one; process → `COMPLETED`. Put a JOIN before it if there are branches.
 
 ## Ordering
