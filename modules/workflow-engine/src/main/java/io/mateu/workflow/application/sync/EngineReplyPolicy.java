@@ -46,6 +46,8 @@ import static io.mateu.core.infra.JsonSerializer.pojoFromJson;
 public class EngineReplyPolicy {
 
     private static final int MAX_ERROR_LENGTH = 1_000;
+    private static final java.util.regex.Pattern DECLARES_SYNC_INVOCATION =
+            java.util.regex.Pattern.compile("\"syncInvocation\"\\s*:\\s*\\{");
 
     final StepExecutionRepository stepExecutionRepository;
     final LogMessageRepository logMessageRepository;
@@ -145,7 +147,10 @@ public class EngineReplyPolicy {
     /** The sync configuration the process runs under — from its own definition snapshot. */
     public static SyncInvocation syncInvocationOf(Process process) {
         var json = process.getWorkflowDefinitionJson();
-        if (json == null || json.isBlank() || !json.contains("syncInvocation")) {
+        // A cheap textual test before the parse, which runs on every terminal save: a snapshot that
+        // serializes the field as null — every definition that is not sync-invocable — must not pay
+        // for parsing a whole definition.
+        if (json == null || json.isBlank() || !DECLARES_SYNC_INVOCATION.matcher(json).find()) {
             return null;
         }
         try {
