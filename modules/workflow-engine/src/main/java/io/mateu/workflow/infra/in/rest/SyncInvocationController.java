@@ -409,12 +409,15 @@ public class SyncInvocationController {
     @ExceptionHandler(SyncInvocationRejectedException.class)
     ResponseEntity<ProblemDetail> onRejected(SyncInvocationRejectedException e) {
         var status = switch (e.reason()) {
-            case NOT_SYNC_INVOCABLE, NOT_ACCEPTING, BUSINESS_KEY_TAKEN, LOCK_BUSY -> HttpStatus.CONFLICT;
+            case NOT_SYNC_INVOCABLE, NOT_ACCEPTING, BUSINESS_KEY_TAKEN, LOCK_BUSY, ON_ANOTHER_SHARD -> HttpStatus.CONFLICT;
             case IDEMPOTENCY_KEY_REUSED -> HttpStatus.UNPROCESSABLE_CONTENT;
             case OVERLOADED -> HttpStatus.TOO_MANY_REQUESTS;
         };
         var problem = ProblemDetail.forStatusAndDetail(status, e.getMessage());
         problem.setProperty("reason", e.reason().name());
+        if (e.shard() != null) {
+            problem.setProperty("shard", e.shard());
+        }
         var response = ResponseEntity.status(status);
         if (status == HttpStatus.TOO_MANY_REQUESTS || e.reason() == SyncInvocationRejectedException.Reason.LOCK_BUSY) {
             response = response.header("Retry-After", "1");

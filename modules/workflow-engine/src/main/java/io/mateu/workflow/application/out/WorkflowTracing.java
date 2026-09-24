@@ -87,4 +87,15 @@ public interface WorkflowTracing {
             return null;
         });
     }
+
+    /**
+     * {@link #span} with a <em>link</em> to another trace — a synchronous caller's, or the process's
+     * own anchor. A link, not a parent: the process keeps its one trace per process on every pod, the
+     * caller keeps its own, and each can be navigated to from the other.
+     *
+     * @param linkedTraceParent the W3C {@code traceparent} to link to; null means no link
+     */
+    default <T> T spanLinkedTo(String name, String linkedTraceParent, Map<String, String> tags, Supplier<T> work) {
+        return span(name, tags, work);
+    }
 }

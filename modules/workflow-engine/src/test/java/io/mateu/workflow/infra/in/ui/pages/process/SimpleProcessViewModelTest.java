@@ -419,4 +419,35 @@ class SimpleProcessViewModelTest {
         assertThat(view.processGraph).contains("\"id\"");
         assertThat(view.processGraphOverlay).contains("COMPLETED");
     }
+
+    // --- synchronous invocation: badge and Reply tab ------------------------------------------
+
+    @Test
+    void aSynchronouslyInvokedProcessShowsItsBadgeAndReply() {
+        var view = new SimpleProcessViewModel(null, null, null, null, null, null, null, null, null, null);
+        var invocations = mock(io.mateu.workflow.application.out.InvocationRepository.class);
+        org.mockito.Mockito.when(invocations.findByProcessId("p-1")).thenReturn(java.util.Optional.of(
+                new io.mateu.workflow.application.sync.Invocation("i", "wd", "k", "h", "p-1", null, null, null, null)));
+        view.invocationRepository = invocations;
+        var process = io.mateu.workflow.domain.aggregates.Process.builder().id("p-1").variables(java.util.List.of()).build();
+
+        view.loadReply(process);
+        assertThat(view.invocation.message()).contains("waiting");
+        assertThat(view.isHidden("replyPayload", null)).isTrue();
+
+        process.recordReply(io.mateu.workflow.domain.aggregates.ProcessReply.replied("reply", "{\"ok\":true}"));
+        view.loadReply(process);
+        assertThat(view.invocation.message()).contains("Replied");
+        assertThat(view.replyPayload).isEqualTo("{\"ok\":true}");
+        assertThat(view.isHidden("replyPayload", null)).isFalse();
+        assertThat(view.isHidden("invocation", null)).isFalse();
+    }
+
+    @Test
+    void aProcessNobodyInvokedSynchronouslyHasNoBadge() {
+        var view = new SimpleProcessViewModel(null, null, null, null, null, null, null, null, null, null);
+        view.loadReply(io.mateu.workflow.domain.aggregates.Process.builder().id("p-2").variables(java.util.List.of()).build());
+        assertThat(view.isHidden("invocation", null)).isTrue();
+        assertThat(view.isHidden("replyOutcome", null)).isTrue();
+    }
 }

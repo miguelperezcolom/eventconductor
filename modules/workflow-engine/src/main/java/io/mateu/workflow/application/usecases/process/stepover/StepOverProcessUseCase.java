@@ -54,6 +54,8 @@ public class StepOverProcessUseCase {
     // Self, via a provider: waking a process-level waiter steps IT over, and a bean cannot inject
     // itself directly.
     final ObjectProvider<StepOverProcessUseCase> self;
+    // A provider: only needed to link a REPLY's span back to its synchronous caller's trace.
+    final ObjectProvider<io.mateu.workflow.application.out.InvocationRepository> invocationRepository;
 
     /** The largest reply a REPLY step may record, in bytes of JSON; 0 or less means no limit. */
     @org.springframework.beans.factory.annotation.Value("${workflow.sync.max-reply-bytes:262144}")
@@ -242,6 +244,7 @@ public class StepOverProcessUseCase {
             }
             if (process.recordReply(io.mateu.workflow.domain.aggregates.ProcessReply.replied(step.id(), payload.json()))) {
                 recorded = true;
+                traceReply(process, step);
             } else {
                 log.warn("Process {} already replied; REPLY step {} completes without replacing the first answer",
                         process.getId(), step.id());
@@ -249,6 +252,20 @@ public class StepOverProcessUseCase {
             stepExecution.updateStatus(StepExecutionStatus.COMPLETED);
         }
         return recorded;
+    }
+
+    /**
+     * A span for the answer, in the process's trace (this step-over runs in it), linked to the trace
+     * of the caller that is waiting for it — so the request can be followed to its reply even when
+     * the reply is given on another pod.
+     */
+    private void traceReply(Process process, Step step) {
+        var repository = invocationRepository.getIfAvailable();
+        var caller = repository == null ? null : repository.findByProcessId(process.getId())
+                .map(io.mateu.workflow.application.sync.Invocation::callerTraceParent).orElse(null);
+        workflowTracing.spanLinkedTo("eventconductor.sync.reply", caller,
+                java.util.Map.of("eventconductor.process.id", process.getId(),
+                        "eventconductor.step.id", step.id()), () -> null);
     }
 
     /** A step-level lock defaults its domain to the definition id, so unrelated definitions do not

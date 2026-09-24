@@ -37,6 +37,11 @@ public class JpaInvocationRepository implements InvocationRepository {
     }
 
     @Override
+    public Optional<Invocation> findByProcessId(String processId) {
+        return repository.findFirstByProcessId(processId).map(JpaInvocationRepository::map);
+    }
+
+    @Override
     public void createWith(Invocation invocation, Runnable creation) {
         try {
             transactionTemplate.executeWithoutResult(status -> {

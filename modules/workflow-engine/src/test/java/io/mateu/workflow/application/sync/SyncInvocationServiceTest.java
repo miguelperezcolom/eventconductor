@@ -28,6 +28,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -56,14 +57,20 @@ class SyncInvocationServiceTest {
                 .withSyncInvocation(sync);
     }
 
+    io.mateu.workflow.application.out.ProcessPlacementRepository placementStore =
+            mock(io.mateu.workflow.application.out.ProcessPlacementRepository.class);
+
     @BeforeEach
     void setUp() {
         var providers = new StaticListableBeanFactory();
         providers.addBean("inline", inline);
+        providers.addBean("placement", placementStore);
         service = new SyncInvocationService(definitions, invocations, processes, create,
                 new SyncReplyWaiters(processes), WorkflowMetrics.NOOP, WorkflowTracing.NOOP,
                 mock(StepExecutionRepository.class), mock(LogMessageRepository.class), locks,
-                providers.getBeanProvider(InlineExecution.class));
+                providers.getBeanProvider(InlineExecution.class),
+                providers.getBeanProvider(io.mateu.workflow.application.out.ProcessPlacementRepository.class),
+                providers.getBeanProvider(io.mateu.workflow.application.services.ProcessTrace.class));
         service.defaultDeadlineMs = 5000;
         service.maxDeadlineMs = 30000;
         service.retention = Duration.ofHours(1);
@@ -158,5 +165,24 @@ class SyncInvocationServiceTest {
         assertThat(service.tick(ghost, new InvocationProgress(null)).events()).isEmpty();
         assertThat(service.find(started.invocation().id())).isPresent();
         assertThat(service.findByKey("wd", "k")).isPresent();
+    }
+
+    @Test
+    void shardedAnInvocationIsPlacedHereOrRefusedWithTheOwningShard() {
+        service.sharding = true;
+        service.shardId = "0";
+        when(placementStore.claim(anyString(), eq("0"))).thenAnswer(i ->
+                ((String) i.getArgument(0)).contains("elsewhere") ? "1" : "0");
+
+        assertThat(service.start(new SyncInvocationService.StartRequest("wd", "here", "bk-here", Map.of(), null, null))
+                .created()).isTrue();
+
+        assertThatThrownBy(() -> service.start(request("elsewhere", Map.of(), null)))
+                .isInstanceOfSatisfying(SyncInvocationRejectedException.class, e -> {
+                    assertThat(e.reason()).isEqualTo(SyncInvocationRejectedException.Reason.ON_ANOTHER_SHARD);
+                    assertThat(e.shard()).isEqualTo("1");
+                });
+        assertThatThrownBy(() -> service.start(new SyncInvocationService.StartRequest("wd", "k3", "bk-elsewhere", Map.of(), null, null)))
+                .isInstanceOfSatisfying(SyncInvocationRejectedException.class, e -> assertThat(e.shard()).isEqualTo("1"));
     }
 }

@@ -33,6 +33,11 @@ public class InMemoryInvocationRepository implements InvocationRepository {
     }
 
     @Override
+    public Optional<Invocation> findByProcessId(String processId) {
+        return byId.values().stream().filter(invocation -> processId.equals(invocation.processId())).findFirst();
+    }
+
+    @Override
     public synchronized void createWith(Invocation invocation, Runnable creation) {
         var key = key(invocation.workflowDefinitionId(), invocation.idempotencyKey());
         if (idByKey.containsKey(key)) {
