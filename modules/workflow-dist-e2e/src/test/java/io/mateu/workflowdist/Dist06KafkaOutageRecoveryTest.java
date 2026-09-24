@@ -5,6 +5,7 @@ import io.mateu.workflow.dtos.events.integration.TaskExecutionRequested;
 import io.mateu.workflowdist.support.AbstractDistTest;
 import io.mateu.workflowdist.support.DistInfra;
 import io.mateu.workflowdist.support.WorkerStub;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -38,6 +39,14 @@ class Dist06KafkaOutageRecoveryTest extends AbstractDistTest {
     static void startPods() {
         DistInfra.ensureWorkerStarted();            // worker up, Kafka up → consumer bound
         orchestrator = DistInfra.startOrchestrator(Map.of()); // orchestrator up, Kafka up → consumers bound
+    }
+
+    @AfterAll
+    static void stopPods() {
+        // Left running, this pod stays in the orchestrator consumer groups for the rest of the
+        // suite and takes a share of every later test's partitions — with its own configuration,
+        // not theirs (DIST-29's event destination, for one).
+        orchestrator.close();
     }
 
     @AfterEach
