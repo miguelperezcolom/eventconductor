@@ -23,7 +23,16 @@ public enum StepType {
      * it, and the flow carries on. A process replies at most once; placed before END it answers
      * with the result, placed earlier the caller gets its answer while the process continues.
      */
-    REPLY;
+    REPLY,
+
+    /**
+     * Publish a domain event for the outside world from the process's state ({@code event}: a
+     * logical destination, a type, a key and a payload template). Engine-internal: written to the
+     * outbox in the transaction that completes the step — published if and only if the step
+     * completed — and relayed to the destination's topic (kafka) or the application's publisher
+     * (embedded).
+     */
+    PUBLISH_EVENT;
 
     /**
      * Accepts the pre-rename alias {@code MESSAGE} (now {@code WAIT_FOR_MESSAGE}) so that the

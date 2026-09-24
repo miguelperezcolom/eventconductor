@@ -1,0 +1,12 @@
+{
+  "id": "dist-publish-event",
+  "name": "Distributed: publish a domain event",
+  "version": 1,
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "announce", "type": "PUBLISH_EVENT", "name": "Order placed", "preconditionStepId": "start",
+      "event": { "destination": "orders", "type": "com.acme.order.placed", "key": "${orderId}",
+                 "payload": { "orderId": "${orderId}", "amount": "${amount * 1}" } } },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "announce" }
+  ]
+}

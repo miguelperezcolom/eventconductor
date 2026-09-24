@@ -231,6 +231,12 @@ public class SpecValidator {
                 checkJexl(replyExpr, "step '" + id + "' replyExpression", violations);
             }
             checkTemplate(step.get("replyTemplate"), "step '" + id + "' replyTemplate", violations);
+            JsonNode event = step.get("event");
+            if (event != null && event.isObject()) {
+                checkTemplate(event.get("payload"), "step '" + id + "' event.payload", violations);
+                checkTemplate(event.get("payloadTemplate"), "step '" + id + "' event.payloadTemplate", violations);
+                checkTemplate(event.get("key"), "step '" + id + "' event.key", violations);
+            }
         }
         // Cycle detection: DFS (white/grey/black) over the multi-edge precondition graph —
         // revisiting a grey node means a cycle, and none of those steps could ever run.

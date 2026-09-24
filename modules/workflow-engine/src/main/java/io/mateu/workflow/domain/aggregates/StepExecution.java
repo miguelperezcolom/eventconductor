@@ -404,6 +404,10 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
             }
             send(new TaskLogEmitted(id, MessageType.Info,
                     step.type() + " step " + step.name() + " on key '" + lockKey + "'."));
+        } else if (StepType.PUBLISH_EVENT.equals(step.type())) {
+            // No worker: the step-over renders the event, writes it to the outbox with this step's
+            // completion (published if and only if the step completed), and completes it.
+            send(new TaskLogEmitted(id, MessageType.Info, "PUBLISH_EVENT step " + step.name() + " reached."));
         } else if (StepType.REPLY.equals(step.type())) {
             // A reply involves no worker: the step stays PENDING and the step-over use case, which
             // holds the process as well as the step, computes the payload, records it on the
@@ -422,6 +426,16 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
         }
         status = StepExecutionStatus.PENDING;
         return this;
+    }
+
+    /** Queues an event for the outside world on this step, to be written to the outbox with it. */
+    public void publish(io.mateu.workflow.dtos.events.integration.ExternalEventRequested event) {
+        send(event);
+    }
+
+    /** Records an info line in this step's log. */
+    public void logInfo(String message) {
+        send(new TaskLogEmitted(id, MessageType.Info, message));
     }
 
     /** Records an error line in this step's log — for failures decided outside {@link #start}. */

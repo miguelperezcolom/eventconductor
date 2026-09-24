@@ -20,6 +20,11 @@ public class E2eConfig {
     }
 
     @Bean
+    public PublishedEvents publishedEvents() {
+        return new PublishedEvents();
+    }
+
+    @Bean
     public MeterRegistry meterRegistry() {
         return new SimpleMeterRegistry();
     }

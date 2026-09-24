@@ -261,4 +261,31 @@ class SpecValidatorTest {
         var violations = validator.validate(SpecValidator.Kind.WORKFLOW, doc);
         assertThat(violations).anyMatch(v -> v.contains("replyTemplate") && (v.contains("bad") || v.contains("Unterminated")));
     }
+
+    @Test
+    void aPublishEventNeedsItsEventBlockAndValidTemplates() throws Exception {
+        var missing = json("""
+                {"id": "p", "name": "P", "version": 1, "steps": [
+                  {"id": "start", "type": "START", "name": "Start"},
+                  {"id": "pub", "type": "PUBLISH_EVENT", "name": "Pub", "preconditionStepId": "start"}
+                ]}
+                """);
+        assertThat(validator.validate(SpecValidator.Kind.WORKFLOW, missing)).isNotEmpty();
+        var bad = json("""
+                {"id": "p", "name": "P", "version": 1, "steps": [
+                  {"id": "start", "type": "START", "name": "Start"},
+                  {"id": "pub", "type": "PUBLISH_EVENT", "name": "Pub", "preconditionStepId": "start",
+                   "event": {"destination": "d", "type": "t", "payload": {"x": "${a +}"}}}
+                ]}
+                """);
+        assertThat(validator.validate(SpecValidator.Kind.WORKFLOW, bad)).anyMatch(v -> v.contains("event.payload"));
+        var good = json("""
+                {"id": "p", "name": "P", "version": 1, "steps": [
+                  {"id": "start", "type": "START", "name": "Start"},
+                  {"id": "pub", "type": "PUBLISH_EVENT", "name": "Pub", "preconditionStepId": "start",
+                   "event": {"destination": "d", "type": "t", "key": "${k}", "payload": {"x": "${a}"}}}
+                ]}
+                """);
+        assertThat(validator.validate(SpecValidator.Kind.WORKFLOW, good)).isEmpty();
+    }
 }

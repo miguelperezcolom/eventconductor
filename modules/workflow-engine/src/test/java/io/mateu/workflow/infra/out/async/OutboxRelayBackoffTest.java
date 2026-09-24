@@ -61,7 +61,8 @@ class OutboxRelayBackoffTest {
 
         var relay = new OutboxRelay(drain, signal, metrics, mock(StreamBridge.class),
                 jdbcTemplate, dbLockDialect,
-                mock(io.mateu.workflow.application.services.messagerouting.MessageRouter.class));
+                mock(io.mateu.workflow.application.services.messagerouting.MessageRouter.class),
+                new io.mateu.workflow.infra.config.EventDestinationsProperties());
         relay.pollIntervalMs = 50;
         relay.batchSize = 500;
         // Milliseconds rather than the shipped hundreds, so the test measures the shape and not

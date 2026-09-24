@@ -268,7 +268,18 @@ workflow.http:
       text render, `problems()` for validation), engine `TemplateContext`, `replyTemplate` (engine invariant,
       schema, plugin). Note: RESTRICTED JEXL makes a forbidden call read as `null` (non-strict), exactly as
       in the guards, rather than throw.
-- [ ] **P2 — `PUBLISH_EVENT`.** DSL, schema, `ExternalEventRequested`, destinations config, kafka routing, `ExternalEventPublisher` port (embedded), CloudEvents, tests incl. dist-e2e.
+- [x] **P2 — `PUBLISH_EVENT`.** DSL, schema, `ExternalEventRequested`, destinations config, kafka routing, `ExternalEventPublisher` port (embedded), CloudEvents, tests incl. dist-e2e. — DONE.
+      **DSL deviation:** the step's configuration is one nested `event:` block (`destination`, `type`, `key`,
+      `payload` | `payloadTemplate` | `payloadVariables`, `format`) instead of flat fields — the YAML reads the
+      same and the `Step` model and schema stay legible; `HTTP_CALL` gets an `http:` block likewise.
+      Resolved in the step-over (like REPLY): `ExternalEventRenderer` checks the destination, renders payload
+      and key, and the `ExternalEventRequested` is written to the outbox with the step's completion. Kafka:
+      `OutboxRelay` → `ExternalEventSender` (binary / structured / plain, keyed, synchronous; an unconfigured
+      destination at relay time is a poison message). Embedded: `ExternalEventRequestedHandler` →
+      `ExternalEventPublisher` port, default `ApplicationEventExternalPublisher` (`ExternalEventPublished`).
+      Never claimed by the inline drive. Tests: renderer, sender, DSL/invariants, plugin, `PublishEventE2eTest`
+      + JPA twin, DIST-29 (CloudEvents binary on the real topic; events of processes created while the broker
+      was paused delivered exactly once after it returns).
 - [ ] **P3 — `HTTP_CALL`, engine side.** DSL, schema, validation (incl. secret literals), request rendering in `start()`, `http-call` dispatch.
 - [ ] **P4 — `modules/worker-http`.** Connections, auth profiles (5 types), secrets, SSRF guard, idempotency key, trace propagation, response mapping, metrics; wired into `worker-embedded` apps and `worker-standalone-app`.
 - [ ] **P5 — Tooling & docs.** Graph glyphs and editor fields, IDE plugins, docs (a guide page per step + configuration + AI reference files), CHANGELOG.

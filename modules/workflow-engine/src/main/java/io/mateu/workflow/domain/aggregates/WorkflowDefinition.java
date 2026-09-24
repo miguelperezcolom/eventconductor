@@ -482,6 +482,25 @@ public record WorkflowDefinition(
                 }
                 requireValidTemplate(step.replyTemplate(), "REPLY step '" + step.id() + "' replyTemplate");
             }
+            if (StepType.PUBLISH_EVENT.equals(step.type())) {
+                var event = step.event();
+                if (event == null || event.destination() == null || event.destination().isBlank()
+                        || event.type() == null || event.type().isBlank()) {
+                    throw new IllegalStateException("PUBLISH_EVENT step '" + step.id()
+                            + "' must define an event with a destination and a type.");
+                }
+                if (event.payloadSources() > 1) {
+                    throw new IllegalStateException("PUBLISH_EVENT step '" + step.id() + "' declares more than one"
+                            + " of payload, payloadTemplate and payloadVariables; it must declare one.");
+                }
+                if (event.format() != null && !java.util.Set.of("binary", "structured", "plain").contains(event.format())) {
+                    throw new IllegalStateException("PUBLISH_EVENT step '" + step.id() + "' format must be binary,"
+                            + " structured or plain.");
+                }
+                requireValidTemplate(event.payload(), "PUBLISH_EVENT step '" + step.id() + "' event.payload");
+                requireValidTemplate(event.payloadTemplate(), "PUBLISH_EVENT step '" + step.id() + "' event.payloadTemplate");
+                requireValidTemplate(event.key(), "PUBLISH_EVENT step '" + step.id() + "' event.key");
+            }
         }
         for (var step : steps) {
             if (step.id() == null) continue;

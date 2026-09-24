@@ -50,6 +50,7 @@ public class OutboxRelay {
     final JdbcTemplate jdbcTemplate;
     final DbLockDialect dbLockDialect;
     final io.mateu.workflow.application.services.messagerouting.MessageRouter messageRouter;
+    final io.mateu.workflow.infra.config.EventDestinationsProperties eventDestinations;
 
     @org.springframework.beans.factory.annotation.Value("${workflow.outbox-poll-interval-ms:500}")
     long pollIntervalMs;
@@ -177,6 +178,11 @@ public class OutboxRelay {
      * Everything else (and every message with routing off) goes to its {@link RelayDestination}.
      */
     private void relay(io.mateu.workflow.ddd.DomainEvent event) {
+        if (event instanceof io.mateu.workflow.dtos.events.integration.ExternalEventRequested external) {
+            // A PUBLISH_EVENT: out to its destination's topic, never to the engine's own.
+            ExternalEventSender.send(streamBridge, eventDestinations, external);
+            return;
+        }
         if (sharedMessages && messageRouter.isEnabled()
                 && event instanceof io.mateu.workflow.dtos.events.integration.MessageReceived message) {
             messageRouter.route(message);
