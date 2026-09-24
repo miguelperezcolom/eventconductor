@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Non-retryable failures** — a worker can mark a failure final (`TaskFailure(code, reason, false)`, or the reason prefix `[non-retryable] `); the engine skips the step's remaining retries.
 - The workflow graph shows `HTTP_CALL` and `PUBLISH_EVENT` nodes.
 
+### Fixed
+- A step that times out and routes to its `onTimeoutStepId` no longer rolls the saga back: the process used to both follow the on-timeout route to its end **and** compensate the completed steps, ending `COMPENSATED` with its `END` cancelled.
+
 ## [2.20.0] - 2026-09-24
 
 ### Added
