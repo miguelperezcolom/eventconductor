@@ -111,7 +111,14 @@ public record WorkflowDefinition(
          * see {@link ProcessLock}.
          */
         @Colspan(2)
-        ProcessLock processLock
+        ProcessLock processLock,
+        /**
+         * Whether — and how — instances of this definition can be invoked synchronously over HTTP
+         * and answered by a REPLY step. Null, the default, means the definition is not
+         * sync-invocable (its REPLY steps still record a reply; see {@link SyncInvocation}).
+         */
+        @Colspan(2)
+        SyncInvocation syncInvocation
 ) implements Identifiable, SearchableText, LookupOptionsSupplier, VisibilitySupplier {
 
     /**
@@ -147,7 +154,23 @@ public record WorkflowDefinition(
                               List<String> requiredRoles, int maxSteps, Map<String, NodePosition> layout) {
         this(id, name, version, description, limitConcurrentExecutions, maxConcurrentExecutions,
                 enqueueOnLimit, cronExpression, defaultMaxStepExecutions, steps, paused, declaredStatus,
-                runtimeStatus, requiredScopes, requiredRoles, maxSteps, layout, null);
+                runtimeStatus, requiredScopes, requiredRoles, maxSteps, layout, null, null);
+    }
+
+    /**
+     * The canonical shape before synchronous invocation existed, so callers that build a
+     * definition with a process-level lock keep compiling and the definition is not sync-invocable.
+     */
+    public WorkflowDefinition(String id, String name, int version, String description,
+                              boolean limitConcurrentExecutions, int maxConcurrentExecutions,
+                              boolean enqueueOnLimit, String cronExpression, int defaultMaxStepExecutions,
+                              List<Step> steps, boolean paused, WorkflowStatus declaredStatus,
+                              WorkflowStatus runtimeStatus, List<String> requiredScopes,
+                              List<String> requiredRoles, int maxSteps, Map<String, NodePosition> layout,
+                              ProcessLock processLock) {
+        this(id, name, version, description, limitConcurrentExecutions, maxConcurrentExecutions,
+                enqueueOnLimit, cronExpression, defaultMaxStepExecutions, steps, paused, declaredStatus,
+                runtimeStatus, requiredScopes, requiredRoles, maxSteps, layout, processLock, null);
     }
 
     /** Creation without any lifecycle state: definitions start unpaused and active. */
@@ -226,21 +249,21 @@ public record WorkflowDefinition(
     public WorkflowDefinition withPaused(boolean newPaused) {
         return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
-                steps, newPaused, declaredStatus, runtimeStatus, requiredScopes, requiredRoles, maxSteps, layout, processLock);
+                steps, newPaused, declaredStatus, runtimeStatus, requiredScopes, requiredRoles, maxSteps, layout, processLock, syncInvocation);
     }
 
     /** Returns a copy with a different runtime status — what an operator decided. */
     public WorkflowDefinition withRuntimeStatus(WorkflowStatus newStatus) {
         return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
-                steps, paused, declaredStatus, newStatus, requiredScopes, requiredRoles, maxSteps, layout, processLock);
+                steps, paused, declaredStatus, newStatus, requiredScopes, requiredRoles, maxSteps, layout, processLock, syncInvocation);
     }
 
     /** Returns a copy with a different declared status — what the definition file says. */
     public WorkflowDefinition withDeclaredStatus(WorkflowStatus newStatus) {
         return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
-                steps, paused, newStatus, runtimeStatus, requiredScopes, requiredRoles, maxSteps, layout, processLock);
+                steps, paused, newStatus, runtimeStatus, requiredScopes, requiredRoles, maxSteps, layout, processLock, syncInvocation);
     }
 
     /** Kept for callers written against the boolean API. */
@@ -257,21 +280,21 @@ public record WorkflowDefinition(
     public WorkflowDefinition withRuntimeStateOf(WorkflowDefinition existing) {
         return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
-                steps, existing.paused(), declaredStatus, existing.runtimeStatus(), requiredScopes, requiredRoles, maxSteps, layout, processLock);
+                steps, existing.paused(), declaredStatus, existing.runtimeStatus(), requiredScopes, requiredRoles, maxSteps, layout, processLock, syncInvocation);
     }
 
     /** Returns a copy carrying a different step list, every other field unchanged. */
     public WorkflowDefinition withSteps(List<Step> newSteps) {
         return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
-                newSteps, paused, declaredStatus, runtimeStatus, requiredScopes, requiredRoles, maxSteps, layout, processLock);
+                newSteps, paused, declaredStatus, runtimeStatus, requiredScopes, requiredRoles, maxSteps, layout, processLock, syncInvocation);
     }
 
     /** Returns a copy carrying the given per-process step cap ({@code maxSteps}). */
     public WorkflowDefinition withMaxSteps(int newMaxSteps) {
         return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
-                steps, paused, declaredStatus, runtimeStatus, requiredScopes, requiredRoles, newMaxSteps, layout, processLock);
+                steps, paused, declaredStatus, runtimeStatus, requiredScopes, requiredRoles, newMaxSteps, layout, processLock, syncInvocation);
     }
 
     /**
@@ -285,7 +308,7 @@ public record WorkflowDefinition(
         return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
                 steps, paused, declaredStatus, runtimeStatus, requiredScopes, requiredRoles, maxSteps,
-                newLayout, processLock);
+                newLayout, processLock, syncInvocation);
     }
 
     /**
@@ -299,14 +322,25 @@ public record WorkflowDefinition(
         return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
                 steps, paused, declaredStatus, runtimeStatus, requiredScopes, requiredRoles, maxSteps,
-                layout, newProcessLock);
+                layout, newProcessLock, syncInvocation);
+    }
+
+    /**
+     * Returns a copy carrying a different synchronous-invocation configuration — chained wherever a
+     * definition is rebuilt through a narrower constructor, exactly like {@link #withProcessLock}.
+     */
+    public WorkflowDefinition withSyncInvocation(SyncInvocation newSyncInvocation) {
+        return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
+                maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
+                steps, paused, declaredStatus, runtimeStatus, requiredScopes, requiredRoles, maxSteps,
+                layout, processLock, newSyncInvocation);
     }
 
     /** Returns a copy carrying the given (engine-assigned) version number. */
     public WorkflowDefinition withVersion(int newVersion) {
         return new WorkflowDefinition(id, name, newVersion, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
-                steps, paused, declaredStatus(), runtimeStatus(), requiredScopes, requiredRoles, maxSteps, layout, processLock);
+                steps, paused, declaredStatus(), runtimeStatus(), requiredScopes, requiredRoles, maxSteps, layout, processLock, syncInvocation);
     }
 
     // ── Detail-view lifecycle buttons (conditional on state via VisibilitySupplier) ──
@@ -437,6 +471,13 @@ public record WorkflowDefinition(
                             "Lock step '" + step.id() + "' must define a lockKey.");
                 }
             }
+            if (StepType.REPLY.equals(step.type())
+                    && step.replyVariables() != null && !step.replyVariables().isEmpty()
+                    && step.replyExpression() != null && !step.replyExpression().isBlank()) {
+                throw new IllegalStateException(
+                        "REPLY step '" + step.id() + "' declares both replyVariables and replyExpression;"
+                                + " it must declare one.");
+            }
         }
         for (var step : steps) {
             if (step.id() == null) continue;
@@ -468,6 +509,32 @@ public record WorkflowDefinition(
         for (var start : preconditions.keySet()) {
             checkNoPreconditionCycle(start, preconditions, new java.util.LinkedHashSet<>(), acyclic);
         }
+        // At most one REPLY per run, and a sync-invocable definition must be able to reply at all.
+        // Checked after the cycle check: the analysis assumes the graph is acyclic.
+        var replyAnalysis = replyAnalysis();
+        if (!replyAnalysis.isValid()) {
+            throw new IllegalStateException(String.join(" ", replyAnalysis.errors()));
+        }
+    }
+
+    /** Whether this definition declares itself invocable synchronously. */
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    public boolean isSyncInvocable() {
+        return syncInvocation != null && syncInvocation.enabled();
+    }
+
+    /**
+     * The REPLY path analysis — shared, as code, with the Maven plugin's build-time validation, so
+     * the rule a definition is imported under and the rule it was built under cannot drift apart.
+     */
+    private io.mateu.workflow.analysis.ReplyPathAnalyzer.Report replyAnalysis() {
+        var nodes = steps.stream()
+                .filter(step -> step.id() != null)
+                .map(step -> new io.mateu.workflow.analysis.ReplyPathAnalyzer.Node(
+                        step.id(), step.type() == null ? null : step.type().name(), step.preconditionIds(),
+                        step.onTimeoutStepId(), step.compensationStepId()))
+                .toList();
+        return io.mateu.workflow.analysis.ReplyPathAnalyzer.analyze(nodes, isSyncInvocable());
     }
 
     /** The steps some other step names as its {@code compensationStepId}. */
@@ -516,6 +583,7 @@ public record WorkflowDefinition(
             }
         }
         warnings.addAll(choiceWithoutDefaultWarnings());
+        warnings.addAll(replyAnalysis().warnings());
         return warnings;
     }
 

@@ -71,7 +71,8 @@ public class ClasspathWorkflowDefinitionRepository implements WorkflowDefinition
                                 def.cronExpression(), def.defaultMaxStepExecutions(), stepsWithId)
                                 .withMaxSteps(def.maxSteps())
                                 .withLayout(def.layout())
-                                .withProcessLock(def.processLock());
+                                .withProcessLock(def.processLock())
+                                .withSyncInvocation(def.syncInvocation());
                     }
                     def = taskReferenceResolver.resolve(def);
                     definitions.put(def.id(), def);

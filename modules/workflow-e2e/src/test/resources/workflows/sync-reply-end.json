@@ -1,0 +1,14 @@
+{
+  "id": "sync-reply-end",
+  "name": "Synchronous booking — reply with the result",
+  "version": 1,
+  "syncInvocation": {
+    "enabled": true
+  },
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "book", "type": "ACTION", "name": "Book", "topic": "book", "preconditionStepId": "start" },
+    { "id": "reply", "type": "REPLY", "name": "Reply", "replyVariables": ["bookingId", "confirmation"], "preconditionStepId": "book" },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "reply" }
+  ]
+}

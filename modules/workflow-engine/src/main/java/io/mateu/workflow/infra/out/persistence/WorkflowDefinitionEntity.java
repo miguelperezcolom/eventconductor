@@ -82,4 +82,12 @@ public class WorkflowDefinitionEntity {
     @Column(columnDefinition = "TEXT")
     String processLockJson;
 
+    /**
+     * The synchronous-invocation configuration as the {@code .ec} file carries it under
+     * {@code syncInvocation}, or null when the definition is not sync-invocable. JSON, like
+     * {@code processLockJson}.
+     */
+    @Column(columnDefinition = "TEXT")
+    String syncInvocationJson;
+
 }

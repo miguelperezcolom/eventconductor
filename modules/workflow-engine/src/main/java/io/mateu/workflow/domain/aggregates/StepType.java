@@ -15,7 +15,15 @@ public enum StepType {
     LOCK,
 
     /** Release a lock taken by a {@link #LOCK} step, admitting the next waiter for that key. */
-    UNLOCK;
+    UNLOCK,
+
+    /**
+     * Emit the process's reply — from {@code replyVariables} or a {@code replyExpression} — to
+     * whoever invoked it synchronously. Engine-internal: it completes in the step-over that starts
+     * it, and the flow carries on. A process replies at most once; placed before END it answers
+     * with the result, placed earlier the caller gets its answer while the process continues.
+     */
+    REPLY;
 
     /**
      * Accepts the pre-rename alias {@code MESSAGE} (now {@code WAIT_FOR_MESSAGE}) so that the

@@ -50,7 +50,8 @@ public class WorkflowDefinitionDBRepository implements WorkflowDefinitionReposit
                 WorkflowStatus.of(entity.getRuntimeStatus(), false, false)
         ).withMaxSteps(entity.getMaxSteps())
                 .withLayout(layoutFromJson(entity.getLayoutJson()))
-                .withProcessLock(processLockFromJson(entity.getProcessLockJson()));
+                .withProcessLock(processLockFromJson(entity.getProcessLockJson()))
+                .withSyncInvocation(syncInvocationFromJson(entity.getSyncInvocationJson()));
     }
 
     /** The stored process-level lock, or null when the definition declares none (read leniently). */
@@ -60,6 +61,18 @@ public class WorkflowDefinitionDBRepository implements WorkflowDefinitionReposit
         }
         try {
             return LAYOUT_MAPPER.readValue(json, ProcessLock.class);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /** The stored synchronous-invocation configuration, or null when there is none (read leniently). */
+    private static io.mateu.workflow.domain.aggregates.SyncInvocation syncInvocationFromJson(String json) {
+        if (json == null || json.isBlank()) {
+            return null;
+        }
+        try {
+            return LAYOUT_MAPPER.readValue(json, io.mateu.workflow.domain.aggregates.SyncInvocation.class);
         } catch (Exception e) {
             return null;
         }
@@ -115,7 +128,8 @@ public class WorkflowDefinitionDBRepository implements WorkflowDefinitionReposit
                 workflowDefinition.declaredStatus().name(),
                 workflowDefinition.runtimeStatus().name(),
                 layoutToJson(workflowDefinition.layout()),
-                processLockToJson(workflowDefinition.processLock())
+                processLockToJson(workflowDefinition.processLock()),
+                workflowDefinition.syncInvocation() == null ? null : toJson(workflowDefinition.syncInvocation())
         ));
         return workflowDefinition.id();
     }

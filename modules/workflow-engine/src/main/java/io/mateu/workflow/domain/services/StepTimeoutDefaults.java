@@ -54,15 +54,14 @@ public final class StepTimeoutDefaults {
                 && (StepType.ACTION.equals(step.type()) || StepType.RULE.equals(step.type()));
     }
 
+    /**
+     * The same definition with new steps and every other component kept. It used to rebuild
+     * through a narrower constructor, which silently dropped whatever that constructor did not
+     * take — the process-level lock, the flow-authorization requirements, the sync-invocation
+     * configuration — from the snapshot every process of the definition runs on.
+     */
     private static WorkflowDefinition withSteps(WorkflowDefinition definition, List<Step> steps) {
-        return new WorkflowDefinition(
-                definition.id(), definition.name(), definition.version(), definition.description(),
-                definition.limitConcurrentExecutions(), definition.maxConcurrentExecutions(),
-                definition.enqueueOnLimit(), definition.cronExpression(),
-                definition.defaultMaxStepExecutions(), steps,
-                definition.paused(), definition.declaredStatus(), definition.runtimeStatus())
-                .withMaxSteps(definition.maxSteps())
-                .withLayout(definition.layout());
+        return definition.withSteps(steps);
     }
 
     private StepTimeoutDefaults() {

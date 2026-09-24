@@ -79,7 +79,8 @@ public class ClasspathWorkflowDefinitionImporter implements ApplicationRunner {
                                 def.cronExpression(), def.defaultMaxStepExecutions(), stepsWithId)
                                 .withMaxSteps(def.maxSteps())
                                 .withLayout(def.layout())
-                                .withProcessLock(def.processLock());
+                                .withProcessLock(def.processLock())
+                                .withSyncInvocation(def.syncInvocation());
                     }
                     workflowDefinitionRepository.save(taskReferenceResolver.resolve(def));
                     log.info("Imported workflow definition '{}' from classpath:{}", def.id(), filename);

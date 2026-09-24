@@ -54,4 +54,27 @@ public class ProcessEntity {
      */
     @jakarta.persistence.Version
     private Integer version;
+
+    /** The shape before a process could reply: callers that build rows by hand keep compiling. */
+    public ProcessEntity(String id, String businessKey, String name, String variables, String status,
+                         int completionPercentage, String log, String workflowDefinitionId,
+                         int workflowDefinitionVersion, String workflowDefinitionJson,
+                         LocalDateTime created, LocalDateTime started, LocalDateTime finished,
+                         LocalDateTime pausedAt, String parentStepExecutionId, Integer version) {
+        this(id, businessKey, name, variables, status, completionPercentage, log, workflowDefinitionId,
+                workflowDefinitionVersion, workflowDefinitionJson, created, started, finished, pausedAt,
+                parentStepExecutionId, version, null, null, null, null, null, null);
+    }
+
+    /** The reply given to a synchronous caller (see {@code ProcessReply}); all null until then. */
+    private String replyStepId;
+    @Column(columnDefinition = "TEXT")
+    private String replyJson;
+    @Column(length = 40)
+    private String replyOutcome;
+    @Column(length = 40)
+    private String replyCompensation;
+    @Column(columnDefinition = "TEXT")
+    private String replyError;
+    private LocalDateTime repliedAt;
 }

@@ -52,6 +52,7 @@
       <module>modules/worker-kafka</module>
       <module>modules/worker-embedded</module>
       <module>modules/worker-codegen</module>
+      <module>modules/definition-analysis</module>
       <module>parents/task-module-parent</module>
       <module>parents/task-service-parent</module>
       <module>examples/greetings-tasks</module>

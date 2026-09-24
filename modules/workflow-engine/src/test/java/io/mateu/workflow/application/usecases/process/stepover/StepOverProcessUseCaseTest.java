@@ -312,4 +312,71 @@ class StepOverProcessUseCaseTest {
         verify(stepExecutionRepository).save(captor.capture());
         assertThat(captor.getValue().getStepId()).isEqualTo("prereq");
     }
+
+    @Test
+    void aReplyStepRecordsItsPayloadOnTheProcessAndCompletes() {
+        var process = Process.builder().id("p-1").status(ProcessStatus.RUNNING)
+                .variables(List.of(new Variable("bookingId", "B-1"))).build();
+        Step replyStep = new Step("reply", "wd-1", StepType.REPLY, "reply", null, "start", null, null, false,
+                null, null, null, null, null, 0, null, null, null, null, 0, 0, false, null, 0, null)
+                .withReplyVariables(List.of("bookingId"));
+        var reply = StepExecution.builder()
+                .id("se-reply").processId("p-1").workflowDefinitionId("wd-1")
+                .stepId("reply").stepJson(JsonSerializer.toJson(replyStep))
+                .status(StepExecutionStatus.CREATED).order(0).variables(List.of()).build();
+
+        when(processRepository.findById("p-1")).thenReturn(Optional.of(process));
+        when(stepExecutionRepository.findByProcessId("p-1")).thenReturn(List.of(startedFlow(), reply));
+
+        useCase.handle(new StepOverProcessCommand("p-1"));
+
+        ArgumentCaptor<Process> saved = ArgumentCaptor.forClass(Process.class);
+        verify(processRepository).save(saved.capture());
+        assertThat(saved.getValue().getReply()).isNotNull();
+        assertThat(saved.getValue().getReply().outcome()).isEqualTo(ProcessReply.Outcome.REPLIED);
+        assertThat(saved.getValue().getReply().payload()).isEqualTo("{\"bookingId\":\"B-1\"}");
+        ArgumentCaptor<StepExecution> steps = ArgumentCaptor.forClass(StepExecution.class);
+        verify(stepExecutionRepository).save(steps.capture());
+        assertThat(steps.getValue().getStatus()).isEqualTo(StepExecutionStatus.COMPLETED);
+    }
+
+    @Test
+    void aSecondReplyCompletesWithoutReplacingTheFirst() {
+        var process = Process.builder().id("p-1").status(ProcessStatus.RUNNING).variables(List.of()).build();
+        process.recordReply(ProcessReply.replied("first", "{}"));
+        var reply = se("se-reply", "second", StepType.REPLY, StepExecutionStatus.CREATED, 0, "start");
+
+        when(processRepository.findById("p-1")).thenReturn(Optional.of(process));
+        when(stepExecutionRepository.findByProcessId("p-1")).thenReturn(List.of(startedFlow(), reply));
+
+        useCase.handle(new StepOverProcessCommand("p-1"));
+
+        verify(processRepository, never()).save(any());
+        assertThat(process.getReply().stepId()).isEqualTo("first");
+        ArgumentCaptor<StepExecution> steps = ArgumentCaptor.forClass(StepExecution.class);
+        verify(stepExecutionRepository).save(steps.capture());
+        assertThat(steps.getValue().getStatus()).isEqualTo(StepExecutionStatus.COMPLETED);
+    }
+
+    @Test
+    void aReplyThatCannotBeComputedFailsTheStep() {
+        var process = process("p-1");
+        Step replyStep = new Step("reply", "wd-1", StepType.REPLY, "reply", null, "start", null, null, false,
+                null, null, null, null, null, 0, null, null, null, null, 0, 0, false, null, 0, null)
+                .withReplyExpression("{{{");
+        var reply = StepExecution.builder()
+                .id("se-reply").processId("p-1").workflowDefinitionId("wd-1")
+                .stepId("reply").stepJson(JsonSerializer.toJson(replyStep))
+                .status(StepExecutionStatus.CREATED).order(0).variables(List.of()).build();
+
+        when(processRepository.findById("p-1")).thenReturn(Optional.of(process));
+        when(stepExecutionRepository.findByProcessId("p-1")).thenReturn(List.of(startedFlow(), reply));
+
+        useCase.handle(new StepOverProcessCommand("p-1"));
+
+        assertThat(process.getReply()).isNull();
+        ArgumentCaptor<StepExecution> steps = ArgumentCaptor.forClass(StepExecution.class);
+        verify(stepExecutionRepository).save(steps.capture());
+        assertThat(steps.getValue().getStatus()).isEqualTo(StepExecutionStatus.ERROR);
+    }
 }

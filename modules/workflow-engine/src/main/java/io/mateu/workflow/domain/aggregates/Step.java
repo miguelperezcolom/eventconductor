@@ -205,7 +205,24 @@ public record Step(
          */
         @HiddenInList
         @Hidden("state['type'] != 'ACTION'")
-        String task
+        String task,
+        /**
+         * REPLY only: the process variables the reply is made of — the reply is a JSON object with
+         * one member per listed variable (the counterpart of a PROCESS step's
+         * {@code outputVariables}). Mutually exclusive with {@link #replyExpression}; neither means
+         * an empty object, a plain acknowledgement. Ignored on any other step type.
+         */
+        @HiddenInList
+        @Hidden("state['type'] != 'REPLY'")
+        List<String> replyVariables,
+        /**
+         * REPLY only: a JEXL expression over the process variables whose value is the reply — e.g.
+         * {@code {'bookingId': bookingId, 'status': 'CONFIRMED'}}. Mutually exclusive with
+         * {@link #replyVariables}. Ignored on any other step type.
+         */
+        @HiddenInList
+        @Hidden("state['type'] != 'REPLY'")
+        String replyExpression
 ) implements Identifiable {
 
     public Step {
@@ -229,7 +246,7 @@ public record Step(
                 null, preconditionExpression, parallel, topic, formId, ruleId, childWorkflowDefinitionId,
                 outputVariables, duration, untilVariable, messageName, correlationExpression,
                 messageVariables, timeout, retries, compensable, compensationStepId, null,
-                maxSuccessfulExecutions, joinType, java.util.List.of(), java.util.List.of(), null, null, null);
+                maxSuccessfulExecutions, joinType, java.util.List.of(), java.util.List.of(), null, null, null, null, null);
     }
 
     /**
@@ -249,7 +266,28 @@ public record Step(
                 preconditions, preconditionExpression, parallel, topic, formId, ruleId,
                 childWorkflowDefinitionId, outputVariables, duration, untilVariable, messageName,
                 correlationExpression, messageVariables, timeout, retries, compensable, compensationStepId,
-                onTimeoutStepId, maxSuccessfulExecutions, joinType, requiredScopes, requiredRoles, null, null, null);
+                onTimeoutStepId, maxSuccessfulExecutions, joinType, requiredScopes, requiredRoles, null, null, null, null, null);
+    }
+
+    /**
+     * The shape this record had before REPLY steps existed, so every caller of the full
+     * constructor keeps compiling and the reply fields default to absent.
+     */
+    public Step(String id, String workflowDefinitionId, StepType type, String name, String description,
+                String preconditionStepId, List<String> preconditionStepIds, List<Precondition> preconditions,
+                String preconditionExpression, boolean parallel, String topic, String formId, String ruleId,
+                String childWorkflowDefinitionId, List<String> outputVariables, long duration,
+                String untilVariable, String messageName, String correlationExpression,
+                List<String> messageVariables, long timeout, int retries, boolean compensable,
+                String compensationStepId, String onTimeoutStepId, int maxSuccessfulExecutions,
+                JoinType joinType, List<String> requiredScopes, List<String> requiredRoles,
+                String lockName, String lockKey, String task) {
+        this(id, workflowDefinitionId, type, name, description, preconditionStepId, preconditionStepIds,
+                preconditions, preconditionExpression, parallel, topic, formId, ruleId,
+                childWorkflowDefinitionId, outputVariables, duration, untilVariable, messageName,
+                correlationExpression, messageVariables, timeout, retries, compensable, compensationStepId,
+                onTimeoutStepId, maxSuccessfulExecutions, joinType, requiredScopes, requiredRoles,
+                lockName, lockKey, task, null, null);
     }
 
     /**
