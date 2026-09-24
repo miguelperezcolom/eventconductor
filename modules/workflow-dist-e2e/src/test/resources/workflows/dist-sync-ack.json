@@ -1,0 +1,11 @@
+{
+  "id": "dist-sync-ack",
+  "name": "Synchronous acknowledgement",
+  "version": 1,
+  "syncInvocation": { "enabled": true },
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "reply", "type": "REPLY", "name": "Ack", "replyVariables": ["orderId"], "preconditionStepId": "start" },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "reply" }
+  ]
+}

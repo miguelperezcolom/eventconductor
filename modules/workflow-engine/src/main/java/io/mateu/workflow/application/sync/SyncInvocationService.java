@@ -59,6 +59,14 @@ public class SyncInvocationService {
     final io.mateu.workflow.application.out.LogMessageRepository logMessageRepository;
     final io.mateu.workflow.application.out.LockService lockService;
     final org.springframework.beans.factory.ObjectProvider<io.mateu.workflow.application.out.InlineExecution> inlineExecution;
+    final org.springframework.beans.factory.ObjectProvider<io.mateu.workflow.application.out.ProcessPlacementRepository> placement;
+    final org.springframework.beans.factory.ObjectProvider<io.mateu.workflow.application.services.ProcessTrace> processTrace;
+
+    @org.springframework.beans.factory.annotation.Value("${workflow.sharding.enabled:false}")
+    boolean sharding;
+
+    @org.springframework.beans.factory.annotation.Value("${workflow.sharding.shard-id:}")
+    String shardId;
 
     /** Wait when neither the caller nor the definition says how long. */
     @org.springframework.beans.factory.annotation.Value("${workflow.sync.default-deadline-ms:5000}")
@@ -109,6 +117,8 @@ public class SyncInvocationService {
             return retried(existing.get(), hash, wait);
         }
 
+        placeOnThisShardOrRefuse(definition.id(), request);
+
         var now = LocalDateTime.now();
         var invocation = new Invocation(UUID.randomUUID().toString(), definition.id(), request.idempotencyKey(),
                 hash, UUID.randomUUID().toString(), now.plus(wait), now, now.plus(retention),
@@ -118,12 +128,21 @@ public class SyncInvocationService {
         var slot = inlineExecution.getIfAvailable(() -> io.mateu.workflow.application.out.InlineExecution.NONE)
                 .reserve(invocation.processId());
         try {
-            invocationRepository.createWith(invocation, () -> {
-                if (slot == null) {
-                    create(definition, invocation, request);
-                } else {
-                    slot.claimDuring(() -> create(definition, invocation, request));
-                }
+            // In the caller's trace, linked to the process's own (anchored) trace — so each can be
+            // reached from the other without making the process a child of any one request.
+            var anchor = processTrace.getIfAvailable() == null ? null
+                    : processTrace.getIfAvailable().anchorFor(invocation.processId());
+            workflowTracing.spanLinkedTo("eventconductor.sync.invoke", anchor,
+                    Map.of("eventconductor.process.id", invocation.processId(),
+                            "eventconductor.workflow.definition.id", definition.id()), () -> {
+                invocationRepository.createWith(invocation, () -> {
+                    if (slot == null) {
+                        create(definition, invocation, request);
+                    } else {
+                        slot.claimDuring(() -> create(definition, invocation, request));
+                    }
+                });
+                return null;
             });
         } catch (InvocationRepository.DuplicateInvocationException e) {
             if (slot != null) slot.abandon();
@@ -280,6 +299,36 @@ public class SyncInvocationService {
                     "Another instance holds the lock '" + name + "' on '" + key + "'; retry later.");
         }
         return true;
+    }
+
+    /**
+     * Sharded: a synchronous invocation is placed on the shard that received it (its database holds
+     * the invocation, the process and the reply, and its waiters hold the caller). The idempotency
+     * key — and the business key, if any, so message routing finds the process — are claimed for
+     * this shard in the fleet's placement store. A retry that lands on another shard finds the key
+     * already placed there and is told where ({@code ON_ANOTHER_SHARD}), so a gateway can re-route
+     * it; without a placement store (or unsharded) there is nothing to claim.
+     */
+    private void placeOnThisShardOrRefuse(String definitionId, StartRequest request) {
+        var store = placement.getIfAvailable();
+        if (!sharding || store == null || shardId == null || shardId.isBlank()) {
+            return;
+        }
+        var owner = store.claim("sync:" + definitionId + ":" + request.idempotencyKey(), shardId);
+        if (!shardId.equals(owner)) {
+            workflowMetrics.syncInvocationRejected(definitionId, SyncInvocationRejectedException.Reason.ON_ANOTHER_SHARD.name());
+            throw new SyncInvocationRejectedException(SyncInvocationRejectedException.Reason.ON_ANOTHER_SHARD,
+                    "Invocation key '" + request.idempotencyKey() + "' belongs to shard " + owner + ".", owner);
+        }
+        var businessKey = request.businessKey();
+        if (businessKey != null && !businessKey.isBlank()) {
+            var keyOwner = store.claim(businessKey, shardId);
+            if (!shardId.equals(keyOwner)) {
+                workflowMetrics.syncInvocationRejected(definitionId, SyncInvocationRejectedException.Reason.ON_ANOTHER_SHARD.name());
+                throw new SyncInvocationRejectedException(SyncInvocationRejectedException.Reason.ON_ANOTHER_SHARD,
+                        "Business key '" + businessKey + "' belongs to shard " + keyOwner + ".", keyOwner);
+            }
+        }
     }
 
     private SyncInvocationRejectedException reject(String definitionId, SyncInvocationRejectedException.Reason reason,

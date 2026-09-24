@@ -230,4 +230,59 @@ public class MicrometerWorkflowTracing implements WorkflowTracing {
             span.end();
         }
     }
+
+    @Override
+    public <T> T spanLinkedTo(String name, String linkedTraceParent, Map<String, String> tags, Supplier<T> work) {
+        var tracer = tracer();
+        var linked = contextOf(tracer, linkedTraceParent);
+        if (tracer == null || linked == null) {
+            return span(name, tags, work);
+        }
+        Span span = null;
+        try {
+            var builder = tracer.spanBuilder().name(name).addLink(new io.micrometer.tracing.Link(linked));
+            var current = tracer.currentSpan();
+            if (current != null) {
+                builder = builder.setParent(current.context());
+            }
+            for (var tag : tags.entrySet()) {
+                builder = builder.tag(tag.getKey(), tag.getValue());
+            }
+            span = builder.start();
+        } catch (RuntimeException e) {
+            log.debug("Could not start the linked span '{}'", name, e);
+            span = null;
+        }
+        if (span == null) {
+            return work.get();
+        }
+        try (var ignored = tracer.withSpan(span)) {
+            return work.get();
+        } catch (RuntimeException e) {
+            span.error(e);
+            throw e;
+        } finally {
+            span.end();
+        }
+    }
+
+    /** A W3C {@code traceparent} ({@code 00-<trace>-<span>-<flags>}) as a context to link to, or null. */
+    private static io.micrometer.tracing.TraceContext contextOf(Tracer tracer, String traceParent) {
+        if (tracer == null || traceParent == null) {
+            return null;
+        }
+        var parts = traceParent.split("-");
+        if (parts.length != 4 || parts[1].length() != 32 || parts[2].length() != 16) {
+            return null;
+        }
+        try {
+            return tracer.traceContextBuilder()
+                    .traceId(parts[1])
+                    .spanId(parts[2])
+                    .sampled("01".equals(parts[3]))
+                    .build();
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
 }

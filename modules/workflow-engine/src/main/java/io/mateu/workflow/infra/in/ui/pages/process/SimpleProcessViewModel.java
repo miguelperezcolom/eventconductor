@@ -96,12 +96,23 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
     final PauseProcessUseCase pauseProcessUseCase;
     final ResumeProcessUseCase resumeProcessUseCase;
 
+    /** Field-injected and optional, so the constructor (and whoever builds this by hand) is unchanged. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    @Hidden
+    io.mateu.workflow.application.out.InvocationRepository invocationRepository;
+
 
     String id;
 
     String name;
 
     Status status;
+
+    /**
+     * Whether this process was invoked synchronously and whether it has answered its caller — a
+     * badge next to the status. Hidden for a process nobody is waiting on.
+     */
+    Status invocation;
 
     /** Raw domain status, kept for the pause/resume toolbar visibility rules (the badge shows {@link #status}). */
     @Hidden
@@ -169,6 +180,33 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
     @Label("")
     List<Variable> variables;
 
+    // What the process answered (a REPLY step, or the engine on its behalf) — see ProcessReply.
+    // Hidden entirely for a process that has not replied.
+    @Tab("Reply")
+    @Label("Outcome")
+    String replyOutcome;
+
+    @Tab("Reply")
+    @Label("Compensation")
+    String replyCompensation;
+
+    @Tab("Reply")
+    @Label("Replied at")
+    LocalDateTime repliedAt;
+
+    @Tab("Reply")
+    @Label("REPLY step")
+    String replyStep;
+
+    @Tab("Reply")
+    @Label("Error")
+    String replyError;
+
+    @Tab("Reply")
+    @Label("Payload")
+    @Stereotype(FieldStereotype.textarea)
+    String replyPayload;
+
     public Object load(String id, HttpRequest httpRequest) {
         this.id = id;
         Process process = processRepository.findById(id).orElse(processRepository.findByBusinessKey(id).orElse(null));
@@ -198,6 +236,7 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
                 .map(r -> new Resource(id, r.id(), r.getName(), r.getUrl()))
                 .toList();
         this.variables = process.getVariables().stream().map(variable -> new Variable(variable.name(), variable.value())).toList();
+        loadReply(process);
         this.returnTo = httpRequest.getParameterValue("returnTo");
 
         if (ProcessStatus.COMPLETED.equals(process.getStatus())) {
@@ -212,6 +251,26 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
             }
         }
         return this;
+    }
+
+    /** Fills the invocation badge and the Reply tab from the process's reply and its invocation. */
+    void loadReply(Process process) {
+        var reply = process.getReply();
+        var invoked = invocationRepository != null && invocationRepository.findByProcessId(process.getId()).isPresent();
+        if (invoked) {
+            this.invocation = reply == null
+                    ? new Status(StatusType.INFO, "Synchronous · waiting to reply")
+                    : new Status(reply.isFailure() ? StatusType.DANGER : StatusType.SUCCESS,
+                            "Synchronous · " + toUpperCaseFirst(reply.outcome().name().toLowerCase().replace('_', ' ')));
+        }
+        if (reply != null) {
+            this.replyOutcome = reply.outcome().name();
+            this.replyCompensation = reply.compensation().name();
+            this.repliedAt = reply.repliedAt();
+            this.replyStep = reply.stepId();
+            this.replyError = reply.error();
+            this.replyPayload = reply.payload();
+        }
     }
 
     /**
@@ -667,6 +726,13 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
 
     @Override
     public boolean isHidden(String memberName, HttpRequest httpRequest) {
+        if ("invocation".equals(memberName)) {
+            return invocation == null;
+        }
+        if (memberName != null && memberName.startsWith("repl")) {
+            // The whole Reply tab: nothing to show until the process has answered.
+            return replyOutcome == null;
+        }
         if ("cancelProcess".equals(memberName)) {
             return StatusType.SUCCESS.equals(status.type()) || StatusType.DANGER.equals(status.type());
         }

@@ -12,6 +12,9 @@ public interface InvocationRepository {
 
     Optional<Invocation> findByKey(String workflowDefinitionId, String idempotencyKey);
 
+    /** The invocation that started this process, if it was started synchronously. */
+    Optional<Invocation> findByProcessId(String processId);
+
     /**
      * Records the invocation and runs {@code creation} — the process creation — in the same
      * transaction, so either both exist or neither does: an invocation never points at a process
