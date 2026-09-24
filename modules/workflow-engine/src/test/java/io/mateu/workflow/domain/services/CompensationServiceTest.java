@@ -49,6 +49,34 @@ class CompensationServiceTest {
     }
 
     @Test
+    void aTimeoutRoutedToItsOnTimeoutStepDoesNotRollBack() {
+        // review timed out and routes to ship: the flow carries on, so nothing is compensated —
+        // compensating here as well is what let a process both roll back and run to its END.
+        var routed = "{\"id\":\"review\",\"type\":\"USER_TASK\",\"timeout\":600000,\"onTimeoutStepId\":\"ship\"}";
+        var review = StepExecution.builder()
+                .id("se-review").processId("p").workflowDefinitionId("wd").stepId("review")
+                .stepJson(routed)
+                .status(StepExecutionStatus.TIMEOUT).order(2).finishedAt(t0.plusSeconds(2))
+                .variables(List.of()).build();
+        var decision = service.decide(List.of(
+                exec("charge", StepExecutionStatus.COMPLETED, true, "refund", 1, t0.plusSeconds(1)),
+                review,
+                comp("refund", StepExecutionStatus.CREATED)));
+
+        assertThat(decision.outcome()).isEqualTo(Outcome.NONE);
+    }
+
+    @Test
+    void anUnroutedTimeoutStillRollsBack() {
+        var decision = service.decide(List.of(
+                exec("charge", StepExecutionStatus.COMPLETED, true, "refund", 1, t0.plusSeconds(1)),
+                exec("ship", StepExecutionStatus.TIMEOUT, false, null, 2, t0.plusSeconds(2)),
+                comp("refund", StepExecutionStatus.CREATED)));
+
+        assertThat(decision.outcome()).isEqualTo(Outcome.RUN);
+    }
+
+    @Test
     void noneWhenNoStepFailed() {
         var decision = service.decide(List.of(
                 exec("a", StepExecutionStatus.COMPLETED, true, "ca", 1, t0.plusSeconds(1)),

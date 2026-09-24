@@ -54,7 +54,7 @@ public class CompensationService {
      * @return what to do next to advance (or finish) the compensation of that process
      */
     public Decision decide(List<StepExecution> executions) {
-        boolean failed = executions.stream().anyMatch(e -> isFailure(e.getStatus()));
+        boolean failed = executions.stream().anyMatch(CompensationService::failsTheProcess);
         if (!failed) {
             return Decision.of(Outcome.NONE);
         }
@@ -116,6 +116,27 @@ public class CompensationService {
 
     private static boolean isFailure(StepExecutionStatus status) {
         return status == StepExecutionStatus.ERROR || status == StepExecutionStatus.TIMEOUT;
+    }
+
+    /**
+     * A final failure that fails the process. A TIMEOUT the step routes to its
+     * {@code onTimeoutStepId} is not one: the flow carries on down that route, so rolling the saga
+     * back as well would both compensate and finish the process (the orchestrator and the process
+     * status already treat a routed timeout as handled — this must agree with them).
+     */
+    private static boolean failsTheProcess(StepExecution execution) {
+        if (!isFailure(execution.getStatus())) {
+            return false;
+        }
+        if (execution.getStatus() == StepExecutionStatus.TIMEOUT) {
+            try {
+                var onTimeout = step(execution).onTimeoutStepId();
+                return onTimeout == null || onTimeout.isBlank();
+            } catch (RuntimeException e) {
+                return true;
+            }
+        }
+        return true;
     }
 
     private static boolean succeeded(StepExecutionStatus status) {
