@@ -482,6 +482,12 @@ public record WorkflowDefinition(
                 }
                 requireValidTemplate(step.replyTemplate(), "REPLY step '" + step.id() + "' replyTemplate");
             }
+            if (StepType.HTTP_CALL.equals(step.type())) {
+                var problems = io.mateu.workflow.domain.services.HttpRequestRenderer.problems(step);
+                if (!problems.isEmpty()) {
+                    throw new IllegalStateException(String.join(" ", problems));
+                }
+            }
             if (StepType.PUBLISH_EVENT.equals(step.type())) {
                 var event = step.event();
                 if (event == null || event.destination() == null || event.destination().isBlank()

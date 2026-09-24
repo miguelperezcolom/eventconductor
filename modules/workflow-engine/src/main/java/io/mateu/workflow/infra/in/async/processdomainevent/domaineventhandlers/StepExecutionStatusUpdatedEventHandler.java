@@ -76,7 +76,9 @@ public class StepExecutionStatusUpdatedEventHandler implements DomainEventHandle
             // the whole retry budget in milliseconds against a worker that fails fast (bad config,
             // downstream 500) — a hot loop that hammers the failing dependency and defeats retries,
             // whose point is to wait out a transient fault.
-            if (stepExecution.getAttemptCount() < step.retries()) {
+            // A failure the worker declared final (a 4xx, a business error marked non-retryable) is
+            // not retried: waiting it out cannot change the answer.
+            if (!e.nonRetryable() && stepExecution.getAttemptCount() < step.retries()) {
                 var backoff = backoffPolicy.nextDelay(stepExecution.getAttemptCount() + 1);
                 stepExecution.scheduleRetry(backoff);
                 stepExecutionRepository.save(stepExecution);

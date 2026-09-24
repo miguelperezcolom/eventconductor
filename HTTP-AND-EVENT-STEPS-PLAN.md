@@ -280,7 +280,17 @@ workflow.http:
       Never claimed by the inline drive. Tests: renderer, sender, DSL/invariants, plugin, `PublishEventE2eTest`
       + JPA twin, DIST-29 (CloudEvents binary on the real topic; events of processes created while the broker
       was paused delivered exactly once after it returns).
-- [ ] **P3 — `HTTP_CALL`, engine side.** DSL, schema, validation (incl. secret literals), request rendering in `start()`, `http-call` dispatch.
+- [x] **P3 — `HTTP_CALL`, engine side.** DSL, schema, validation (incl. secret literals), request rendering in `start()`, `http-call` dispatch. — DONE: the `http:` block (`HttpCall`),
+      structural rules shared with the plugin (`HttpCallRules` in `definition-analysis`: connection xor url,
+      method, retryOn, credentials only as `${secret:NAME}` and only in inline auth), templates checked on
+      both sides, request rendered in `start()` into the `__http` task variable, dispatched as
+      `http-call@1` on topic `http-calls` (default timeout and the stalled-step watch include it).
+      **Addition — a generic "final failure" signal:** a worker's failure reason prefixed
+      `FailureMarkers.NON_RETRYABLE` (or `TaskFailure(code, reason, retryable=false)`) marks the failure
+      final; it travels as `nonRetryable` on `TaskStatusChanged` (kafka) / in the reason (embedded), through
+      `UpdateStepExecutionCommand` and `StepExecutionStatusChanged`, and the engine then does not spend the
+      step's retries — which is how a 4xx is not retried, and available to any worker. Tests: rules,
+      renderer, plugin, `HttpCallDispatchE2eTest` (rendered request; final failure 1 attempt vs 3).
 - [ ] **P4 — `modules/worker-http`.** Connections, auth profiles (5 types), secrets, SSRF guard, idempotency key, trace propagation, response mapping, metrics; wired into `worker-embedded` apps and `worker-standalone-app`.
 - [ ] **P5 — Tooling & docs.** Graph glyphs and editor fields, IDE plugins, docs (a guide page per step + configuration + AI reference files), CHANGELOG.
 

@@ -36,6 +36,8 @@ public class TestWorker implements EmbeddedTaskExecutor {
         void complete(List<Variable> variables);
         void complete();
         void fail();
+        /** Fail with a reason — e.g. one marked final with {@code FailureMarkers.NON_RETRYABLE}. */
+        void fail(String reason);
     }
 
     private final UpdateStepExecutionUseCase updateStepExecution;
@@ -71,6 +73,11 @@ public class TestWorker implements EmbeddedTaskExecutor {
     /** Behavior: report ERROR every time (drives retries / failure). */
     public static Behavior fail() {
         return (req, cb, invocation) -> cb.fail();
+    }
+
+    /** Behavior: report ERROR with this reason every time. */
+    public static Behavior failWith(String reason) {
+        return (req, cb, invocation) -> cb.fail(reason);
     }
 
     /** Behavior: fail the first {@code failures} invocations, then succeed. */
@@ -121,8 +128,13 @@ public class TestWorker implements EmbeddedTaskExecutor {
 
             @Override
             public void fail() {
+                fail("boom");
+            }
+
+            @Override
+            public void fail(String reason) {
                 updateStepExecution.handle(new UpdateStepExecutionCommand(
-                        request.taskExecutionId(), List.of(), "boom", StepExecutionStatus.ERROR));
+                        request.taskExecutionId(), List.of(), reason, StepExecutionStatus.ERROR));
             }
         };
     }

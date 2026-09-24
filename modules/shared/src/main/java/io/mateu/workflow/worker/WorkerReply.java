@@ -105,7 +105,10 @@ public final class WorkerReply {
             send(streamBridge, new TaskLogEmitted(
                     task.taskExecutionId(), MessageType.Error, reason));
         }
-        failed(streamBridge, task, variables);
+        // A reason marked final (FailureMarkers.NON_RETRYABLE) travels as a flag on the reply too: the
+        // log line and the status are separate events, and the retry decision reads the status.
+        send(streamBridge, new TaskStatusChanged(task.taskExecutionId(), TaskStatus.ERROR, variables,
+                task.processId(), FailureMarkers.isNonRetryable(reason)));
     }
 
     /**

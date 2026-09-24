@@ -15,7 +15,17 @@ import java.util.List;
  *                  deserialize.
  */
 public record TaskStatusChanged(String taskExecutionId, TaskStatus status, List<Variable> variables,
-                                String processId) implements DomainEvent {
+                                String processId, boolean nonRetryable) implements DomainEvent {
+
+    /**
+     * The shape before a worker could declare a failure final ({@code nonRetryable}: the engine does
+     * not spend the step's retries on it — see {@code FailureMarkers}). Older workers' replies read
+     * as retryable.
+     */
+    public TaskStatusChanged(String taskExecutionId, TaskStatus status, List<Variable> variables,
+                             String processId) {
+        this(taskExecutionId, status, variables, processId, false);
+    }
 
     /**
      * For workers that do not know the process — a third-party worker built against an older
@@ -23,7 +33,7 @@ public record TaskStatusChanged(String taskExecutionId, TaskStatus status, List<
      * handled by whichever pod receives it, exactly as before ownership existed.
      */
     public TaskStatusChanged(String taskExecutionId, TaskStatus status, List<Variable> variables) {
-        this(taskExecutionId, status, variables, null);
+        this(taskExecutionId, status, variables, null, false);
     }
 
     @Override

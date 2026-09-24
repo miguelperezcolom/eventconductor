@@ -312,7 +312,8 @@
             "LOCK",
             "UNLOCK",
             "REPLY",
-            "PUBLISH_EVENT"
+            "PUBLISH_EVENT",
+            "HTTP_CALL"
           ]
         },
         "name": {
@@ -476,6 +477,28 @@
             "null"
           ],
           "description": "REPLY only: a JEXL expression over the process variables whose value is the reply — e.g. {'bookingId': bookingId, 'status': 'CONFIRMED'}. Mutually exclusive with replyVariables and replyTemplate."
+        },
+        "http": {
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "description": "HTTP_CALL only: the request, rendered from the process state by the engine and made by the built-in http-call worker task. Exactly one of connection and url.",
+          "properties": {
+            "connection": { "type": ["string", "null"], "description": "A named connection (workflow.http.connections.<name>): base URL, auth, timeouts, common headers." },
+            "method": { "type": ["string", "null"], "enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", null], "default": "GET" },
+            "url": { "type": ["string", "null"], "description": "An absolute URL (template), instead of a connection. Subject to workflow.http.allowed-hosts; internal addresses are refused." },
+            "path": { "type": ["string", "null"], "description": "With a connection: the path (template) under its base URL." },
+            "query": { "type": ["object", "null"], "additionalProperties": { "type": "string" }, "description": "Query parameters; values are templates." },
+            "headers": { "type": ["object", "null"], "additionalProperties": { "type": "string" }, "description": "Request headers; values are templates. Never secrets — use auth." },
+            "body": { "description": "A structured body template, sent as JSON. Exclusive with bodyTemplate." },
+            "bodyTemplate": { "type": ["string", "null"], "description": "A text body template, sent as is (set Content-Type in headers)." },
+            "successStatus": { "type": ["array", "null"], "items": { "type": "integer" }, "description": "Statuses that complete the step. Default: any 2xx." },
+            "output": { "type": ["object", "null"], "additionalProperties": { "type": "string" }, "description": "Process variable → JEXL over {status, headers, body} (body parsed when JSON)." },
+            "auth": {
+              "description": "A named auth profile (workflow.http.auth.<name>), or an inline block {type: basic|bearer|api-key|oauth2-client-credentials|none, ...} whose credential fields (token, password, value, clientSecret) must be ${secret:NAME} references.",
+              "type": ["string", "object", "null"]
+            },
+            "retryOn": { "type": ["array", "null"], "items": { "type": "string" }, "description": "Failures the step's retries apply to: 5xx, 4xx, io or specific codes. Default [5xx, io] — a 4xx is not retried." }
+          }
         },
         "event": {
           "type": [
@@ -768,6 +791,10 @@
               ]
             }
           }
+        },
+        {
+          "if": { "properties": { "type": { "const": "HTTP_CALL" } }, "required": ["type"] },
+          "then": { "required": ["http"] }
         },
         {
           "if": {

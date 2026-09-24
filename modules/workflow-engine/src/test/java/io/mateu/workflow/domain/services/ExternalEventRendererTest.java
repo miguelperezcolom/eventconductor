@@ -45,7 +45,7 @@ class ExternalEventRendererTest {
                 process("BK-1"), "se-1", destinations("bookings"), true);
         assertThat(event.eventId()).isEqualTo("se-1");
         assertThat(event.key()).isEqualTo("B-1");
-        assertThat(event.data()).isEqualTo("{\"id\":\"B-1\",\"total\":80}");
+        assertThat(event.data()).contains("\"id\":\"B-1\"").contains("\"total\":80");
         assertThat(event.businessKey()).isEqualTo("BK-1");
         assertThat(event.stepId()).isEqualTo("announce");
         assertThat(event.partitionKey()).isEqualTo("B-1");

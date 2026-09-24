@@ -78,7 +78,9 @@ public class UpdateStepExecutionUseCase {
         process.updateVariables(command.variables());
         processRepository.save(process);
 
-        execution.updateStatus(command.status());
+        // A worker that says its failure is final (FailureMarkers) spares the step its retries.
+        execution.updateStatus(command.status(), StepExecutionStatus.ERROR.equals(command.status())
+                && (command.nonRetryable() || io.mateu.workflow.worker.FailureMarkers.isNonRetryable(command.log())));
         repository.save(execution);
 
         // The variables just written may be the ones a sibling WAIT_FOR_MESSAGE correlates

@@ -231,6 +231,26 @@ public class SpecValidator {
                 checkJexl(replyExpr, "step '" + id + "' replyExpression", violations);
             }
             checkTemplate(step.get("replyTemplate"), "step '" + id + "' replyTemplate", violations);
+            if ("HTTP_CALL".equals(type)) {
+                JsonNode http = step.get("http");
+                @SuppressWarnings("unchecked")
+                var httpMap = http == null || !http.isObject() ? null
+                        : (java.util.Map<String, Object>) TEMPLATE_READER.convertValue(http, java.util.Map.class);
+                violations.addAll(io.mateu.workflow.analysis.HttpCallRules.problems(httpMap, "HTTP_CALL step '" + id + "'"));
+                if (httpMap != null) {
+                    for (var field : List.of("url", "path", "query", "headers", "body", "bodyTemplate")) {
+                        var value = http.get(field);
+                        if (value != null && !value.toString().contains("${secret:")) {
+                            checkTemplate(value, "step '" + id + "' http." + field, violations);
+                        }
+                    }
+                    JsonNode output = http.get("output");
+                    if (output != null && output.isObject()) {
+                        output.properties().forEach(entry -> checkJexl(entry.getValue().asText(),
+                                "step '" + id + "' http.output." + entry.getKey(), violations));
+                    }
+                }
+            }
             JsonNode event = step.get("event");
             if (event != null && event.isObject()) {
                 checkTemplate(event.get("payload"), "step '" + id + "' event.payload", violations);

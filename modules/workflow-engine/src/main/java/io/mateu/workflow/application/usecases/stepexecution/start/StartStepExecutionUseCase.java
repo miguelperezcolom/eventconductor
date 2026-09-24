@@ -78,6 +78,9 @@ public class StartStepExecutionUseCase {
         if (StepType.RULE.equals(step.type())) {
             taskId = "evaluate-rule";
         }
+        if (StepType.HTTP_CALL.equals(step.type())) {
+            taskId = io.mateu.workflow.domain.services.HttpRequestRenderer.TASK_ID;
+        }
         // An ACTION that references a task contract dispatches its pinned `<id>@<version>` as the
         // taskId, so a worker resolves its handler by contract rather than by stepId. Pinned at
         // import; empty for an ACTION with no contract, unchanged from before task contracts.
