@@ -38,7 +38,7 @@ public class MyApplication {
 
 **Characteristics:**
 - Domain events dispatched synchronously on each repository `save()`
-- State held in `ConcurrentHashMap` — lost on restart
+- State held in `ConcurrentHashMap` — lost on restart (with `jpa`, processes carry on where they were: see [Restarting the engine](/guides/reliability/#restarting-the-engine))
 - Workflow definitions loaded from `classpath:/workflows/` at startup (`.json`, `.yaml`, `.yml`)
 - No external dependencies
 

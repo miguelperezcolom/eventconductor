@@ -186,6 +186,45 @@ waiting but whose subscription has not projected yet is not yet visible to that 
 covered by the business-key and broadcast layers, and a `WAIT_FOR_MESSAGE` that cannot tolerate the
 window can opt out of routing to force broadcast.
 
+## Restarting the engine
+
+Restart an orchestrator — a redeploy, a crashed pod, a drained node, the whole tier at once — and
+every process carries on from where it was. Nothing is replayed from the beginning and nothing is
+lost, because the engine keeps no state that matters in memory:
+
+- **Every transition is in the database**, committed together with the events it produces (the
+  outbox). A pod that dies between the two leaves the events `Pending`, and the relay sends them
+  when a pod comes back — at-least-once, as always.
+- **Waits are rows, not threads.** A TIMER's due moment, a step's timeout or deadline, and a
+  WAIT_FOR_MESSAGE's subscription are stored on the step, and the scheduler finds them with an
+  indexed query. A timer set for three days fires on time whichever pod is up then, and a message
+  that arrives after the restart still finds the step waiting for it. (A step that started under an
+  engine version older than those columns is armed once at startup by `InFlightStepRearmRunner`,
+  which retries in the background until the database answers.)
+- **Kafka remembers where each consumer was.** Worker replies sent while the engine was down are
+  consumed when it returns; with several orchestrators, the survivors take over the dead pod's
+  partitions at once.
+- **The database may come back after the pod.** With a lazy connection pool, `ddl-auto: none` and
+  an explicit Hibernate dialect, an orchestrator starts with PostgreSQL unavailable and picks up its
+  work when the database returns — the recipe is DIST-08 in `TESTING.md`. Without them it fails to
+  start, and Kubernetes restarts it until the database answers.
+
+Three things to know:
+
+- **A task running inside the pod that died** — an embedded worker, in `embedded` mode — is not
+  redelivered: the step stays `RUNNING` until its `timeout`, and then retries or takes its
+  `onTimeoutStepId`. Give ACTION steps a `timeout`, or set `workflow.default-step-timeout-ms`.
+  Tasks on Kafka workers are unaffected: the task is still on its topic, or still being worked on.
+- **`workflow.persistence=memory` keeps nothing** across a restart. It is for tests and demos.
+- **The database has to be durable.** Everything above is only as good as the storage under
+  PostgreSQL: on an ephemeral volume (a Kubernetes `emptyDir`, a container without a volume),
+  restarting the *database* pod loses every process, however durable the engine is.
+
+These are the scenarios the [distributed suite](https://github.com/miguelperezcolom/eventconductor/blob/main/TESTING.md)
+breaks the engine with on every build: a pod killed mid-process (DIST-02), the broker stopped
+mid-process (DIST-06), a pod started without PostgreSQL (DIST-08), and a node dying inside an
+embedded worker (`InlineCrashRecoveryE2eTest`).
+
 ## What to watch in production
 
 | | |
