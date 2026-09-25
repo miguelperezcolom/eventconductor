@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.22.1] - 2026-09-25
+
+### Security
+- freemarker 2.3.34 → 2.3.35 in the orchestrator, forms, rules, worker and dev apps (CVE-2026-84939, critical: path traversal via a malformed locale identifier). It arrives through Mateu's annotation processor; the 2.22.0 images were stopped by the release's Trivy gate and never published — 2.22.1 is the same release with the fix.
+
 ## [2.22.0] - 2026-09-25
 
 ### Added
