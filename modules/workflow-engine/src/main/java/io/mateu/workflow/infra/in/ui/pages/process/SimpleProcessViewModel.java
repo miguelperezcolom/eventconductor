@@ -437,7 +437,13 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
         var step = safeStep(se.getStepJson());
         var status = se.getStatus();
         var entry = new HashMap<String, Object>();
-        entry.put("state", overlayState(status));
+        // A step the run has not reached — CREATED, never attempted — has no state on the graph:
+        // drawn as pending it took the marching "waiting" border, and every step downstream of the
+        // current one looked as if the process were waiting on it. Only work that is really waiting
+        // (started, or queued for a retry) marches; the rest is dimmed as not visited yet.
+        if (status != StepExecutionStatus.CREATED || se.getAttemptCount() > 0) {
+            entry.put("state", overlayState(status));
+        }
         entry.put("reason", reasonFor(se, step, error));
         // A step a DYNAMIC step added at runtime, not one the definition declared. The graph badges
         // these so an operator can tell what the running process grew from what its author wrote;
