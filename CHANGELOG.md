@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `until` timers and `deadline`s **follow the process's variables**: a moved check-in moves them (logged); a cleared date keeps the armed moment.
 - The workflow graph shows a TIMER's moment, and a step's deadline.
 
+### Fixed
+- The process graph drew every step the run had not reached yet with the marching "waiting" border, as if the process were waiting on all of them; only steps that are really waiting (started, or queued for a retry) march now, and the rest are dimmed as not visited.
+
 ## [2.21.0] - 2026-09-24
 
 ### Added

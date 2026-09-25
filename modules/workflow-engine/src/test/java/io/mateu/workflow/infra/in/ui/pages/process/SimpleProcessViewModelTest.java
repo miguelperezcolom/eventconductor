@@ -172,6 +172,22 @@ class SimpleProcessViewModelTest {
     }
 
     @Test
+    void aStepTheRunHasNotReachedHasNoStateOnTheGraph() {
+        // CREATED and never attempted: not waiting on anything yet. With a state it was drawn with
+        // the marching "pending" border, and every step after the current one looked in progress.
+        var notReached = mock(StepExecution.class);
+        when(notReached.getStatus()).thenReturn(StepExecutionStatus.CREATED);
+        when(notReached.getAttemptCount()).thenReturn(0);
+        assertThat(SimpleProcessViewModel.overlayEntry(notReached, null)).doesNotContainKey("state");
+
+        // Queued for a retry is waiting work: it keeps its pending state.
+        var queuedRetry = mock(StepExecution.class);
+        when(queuedRetry.getStatus()).thenReturn(StepExecutionStatus.CREATED);
+        when(queuedRetry.getAttemptCount()).thenReturn(1);
+        assertThat(SimpleProcessViewModel.overlayEntry(queuedRetry, null).get("state")).isEqualTo("PENDING");
+    }
+
+    @Test
     void overlayEntrySurfacesTheStepErrorAndRetryCount() {
         var se = mock(StepExecution.class);
         when(se.getStatus()).thenReturn(StepExecutionStatus.ERROR);
