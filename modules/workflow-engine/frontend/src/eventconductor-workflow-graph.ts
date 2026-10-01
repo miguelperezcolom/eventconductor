@@ -232,6 +232,24 @@ const STEP_TYPES: StepType[] = [
  * text and edges use the themeable `--ec-*` custom properties instead so the component dresses
  * like its host (light / Lumo dark).
  */
+/**
+ * The theme the page around `el` declares: true = dark, false = light, null = none declared.
+ * The nearest `theme` attribute up the tree (crossing shadow roots) with a `dark` or `light`
+ * token wins; `light-dark` and other tokens do not count as a declaration.
+ */
+export function hostThemeOf(el: Element): boolean | null {
+    let node: Node | null = el.parentNode ?? null;
+    while (node) {
+        if (node instanceof Element) {
+            const tokens = (node.getAttribute("theme") ?? "").split(/\s+/);
+            if (tokens.includes("dark")) return true;
+            if (tokens.includes("light")) return false;
+        }
+        node = node.parentNode ?? ((node as ShadowRoot).host ?? null);
+    }
+    return null;
+}
+
 interface NodeStyle { fill: string; stroke: string; symbol: string; dashed?: boolean; }
 const NODE_STYLE: Record<StepType, NodeStyle> = {
     // BPMN events: start = thin green circle, end = thick red circle.
@@ -1164,8 +1182,31 @@ export class MateuWorkflowElk extends LitElement {
         svg.addEventListener("wheel", this.onWheel, {passive: false});
     }
 
+    /**
+     * Follows the HOST's theme. Nobody set `dark` on the graph inside a Mateu console, so under a
+     * dark console it stayed a white board with white cards. The theme a page declares is a
+     * `theme` attribute — Lumo's `<html theme="dark">`, which Mateu's theme toggle flips, or a
+     * scoped one on an ancestor (Mateu's `mateu-ui[theme]`) — so the nearest such attribute up the
+     * tree, across shadow roots, decides. A page that declares none (a renderer without a dark
+     * mode, an IDE plugin that sets `dark` itself) is left exactly as it was.
+     */
+    private themeObs?: MutationObserver;
+
+    connectedCallback() {
+        super.connectedCallback();
+        this.syncThemeFromHost();
+        this.themeObs = new MutationObserver(() => this.syncThemeFromHost());
+        this.themeObs.observe(document.documentElement, {attributes: true, attributeFilter: ["theme", "class"]});
+    }
+
+    private syncThemeFromHost() {
+        const declared = hostThemeOf(this);
+        if (declared != null && declared !== this.dark) this.dark = declared;
+    }
+
     disconnectedCallback() {
         super.disconnectedCallback();
+        this.themeObs?.disconnect();
         this.stopFlow();
         this.cancelHoverHide();
         this.resizeObs?.disconnect();
@@ -2539,8 +2580,8 @@ export class MateuWorkflowElk extends LitElement {
                         const p = this.positions[s.id];
                         if (!p) return nothing;
                         const sz = sizeOf(s.type), st = styleOf(s.type);
-                        return svg`<rect x="${p.x - b.minX}" y="${p.y - b.minY}" width="${sz.w}" height="${sz.h}"
-                                         rx="4" fill="${st.fill}" stroke="${st.stroke}" stroke-width="2"/>`;
+                        return svg`<rect class="mini-node" x="${p.x - b.minX}" y="${p.y - b.minY}" width="${sz.w}" height="${sz.h}"
+                                         rx="4" fill="${st.fill}" stroke="${st.stroke}" stroke-width="2" style="--ec-tint: ${st.stroke}"/>`;
                     })}
                     <rect class="mini-view" x="${vx - b.minX}" y="${vy - b.minY}" width="${vw}" height="${vh}"/>
                 </svg>
@@ -3109,7 +3150,7 @@ export class MateuWorkflowElk extends LitElement {
             const kind = step.type === "END" ? "ev-end" : "ev-start";
             shape = svg`
                 <circle class="node-shape ${kind}" cx="${w / 2}" cy="${h / 2}" r="${w / 2 - 3}"
-                        fill="${st.fill}" stroke="${st.stroke}"/>
+                        fill="${st.fill}" stroke="${st.stroke}" style="--ec-tint: ${st.stroke}"/>
                 <text class="node-caption" x="${w / 2}" y="${h + 15}" text-anchor="middle">${label}</text>`;
         } else if (isGatewayType(step.type)) {
             // BPMN gateway diamond. Parallel (FORK / AND-JOIN) shows "+", exclusive (XOR-JOIN and
@@ -3118,10 +3159,10 @@ export class MateuWorkflowElk extends LitElement {
             const pts = `${cx},2 ${w - 2},${cy} ${cx},${h - 2} 2,${cy}`;
             const exclusive = (step.type === "JOIN" && step.joinType === "XOR") || step.type === "CHOICE";
             const glyph = exclusive
-                ? svg`<path class="gw-plus" d="M${cx - 8},${cy - 8} L${cx + 8},${cy + 8} M${cx + 8},${cy - 8} L${cx - 8},${cy + 8}" stroke="${st.stroke}"/>`
-                : svg`<path class="gw-plus" d="M${cx - 9},${cy} H${cx + 9} M${cx},${cy - 9} V${cy + 9}" stroke="${st.stroke}"/>`;
+                ? svg`<path class="gw-plus" d="M${cx - 8},${cy - 8} L${cx + 8},${cy + 8} M${cx + 8},${cy - 8} L${cx - 8},${cy + 8}" stroke="${st.stroke}" style="--ec-tint: ${st.stroke}"/>`
+                : svg`<path class="gw-plus" d="M${cx - 9},${cy} H${cx + 9} M${cx},${cy - 9} V${cy + 9}" stroke="${st.stroke}" style="--ec-tint: ${st.stroke}"/>`;
             shape = svg`
-                <polygon class="node-shape gateway" points="${pts}" fill="${st.fill}" stroke="${st.stroke}"/>
+                <polygon class="node-shape gateway" points="${pts}" fill="${st.fill}" stroke="${st.stroke}" style="--ec-tint: ${st.stroke}"/>
                 ${glyph}
                 <text class="node-caption" x="${w / 2}" y="${h + 15}" text-anchor="middle">${label}</text>`;
         } else {
@@ -3132,9 +3173,9 @@ export class MateuWorkflowElk extends LitElement {
                 <text class="node-badge" x="2" y="-7">${badgeText}</text>
                 <rect class="node-shape" width="${w}" height="${h}" rx="10"
                       fill="${st.fill}" stroke="${st.stroke}" stroke-width="1.4"
-                      stroke-dasharray="${st.dashed ? "6 4" : "0"}"/>
+                      stroke-dasharray="${st.dashed ? "6 4" : "0"}" style="--ec-tint: ${st.stroke}"/>
                 <g class="node-symbol" transform="translate(${w - 23}, 9)"
-                   fill="none" stroke="${st.stroke}" stroke-width="1.1"
+                   fill="none" stroke="${st.stroke}" stroke-width="1.1" style="--ec-tint: ${st.stroke}"
                    stroke-linejoin="round">${SYMBOLS[st.symbol] ?? svg``}</g>
                 <text class="node-title" x="14" y="${h / 2 - 2}">${label}</text>
                 <text class="node-id" x="14" y="${h / 2 + 14}">${step.id}</text>`;
@@ -3647,9 +3688,22 @@ export class MateuWorkflowElk extends LitElement {
         .node-badge {font-size: 9.5px; fill: var(--ec-text-dim); text-transform: uppercase; letter-spacing: .05em; font-weight: 600;}
         .node-caption {font-size: 11px; font-weight: 600; fill: var(--ec-text);}
         .node-symbol {opacity: .9;}
-        /* title + id sit INSIDE the always-light node card, so they stay dark in either theme */
+        /* title + id sit INSIDE the node card: dark ink on the light card, theme ink on the dark one */
         .node-title {font-size: 13px; font-weight: 600; fill: #1e293b;}
         .node-id {font-size: 9.5px; fill: #64748b;}
+        /* DARK: the cards take the theme's surface with a wash of their type colour, and the type
+           strokes are lifted toward white so violet/indigo/slate outlines stay visible on a dark
+           ground. CSS beats the SVG fill/stroke attributes, and the overlay rules below are
+           !important, so state colours (running, error, completed...) still win over the type. */
+        :host([dark]) .node-shape, :host([dark]) .mini-node {
+            fill: color-mix(in srgb, var(--ec-tint, #94a3b8) 16%, var(--ec-surface));
+            stroke: color-mix(in srgb, var(--ec-tint, #94a3b8) 72%, #ffffff);
+        }
+        :host([dark]) .node-symbol, :host([dark]) .gw-plus {
+            stroke: color-mix(in srgb, var(--ec-tint, #94a3b8) 65%, #ffffff);
+        }
+        :host([dark]) .node-title {fill: var(--ec-text);}
+        :host([dark]) .node-id {fill: var(--ec-text-dim);}
         /* radar-ping shown as a flow token passes through a node */
         .flow-pulse {fill: var(--ec-primary); pointer-events: none;}
 
@@ -3681,6 +3735,11 @@ export class MateuWorkflowElk extends LitElement {
            COMPLETED like any other step, and drawn green it made a rolled-back process read as a
            successful one with extra boxes. Last here so it wins over the state colours above. */
         .node.ov-undone .node-shape {stroke: #f59e0b !important; stroke-width: 2.4 !important; fill: #fffbeb !important;}
+        :host([dark]) .node.ov-undone .node-shape {fill: color-mix(in srgb, #f59e0b 20%, var(--ec-surface)) !important;}
+        /* slate state strokes are lifted on dark so pending/locked/cancelled stay readable */
+        :host([dark]) .node.ov-pending .node-shape {stroke: #94a3b8 !important;}
+        :host([dark]) .node.ov-waiting_on_lock .node-shape {stroke: #a5b4c8 !important;}
+        :host([dark]) .node.ov-cancelled .node-shape {stroke: #cbd5e1 !important;}
         .node.ov-undone.ov-error .node-shape {stroke: #dc2626 !important; stroke-dasharray: 5 4 !important;}
         .node.ov-undone .ov-done circle {fill: #f59e0b;}
         /* Where the process is now. The marching border is inherited from ov-running (the two
