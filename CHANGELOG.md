@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.23.6] - 2026-10-03
+
+### Security
+- **jackson CVE-2026-89407, CVE-2026-91776, CVE-2026-91777** (high: denial of service in jackson-core/databind): the apps pin jackson 3.1.7 (3.1.6 before), and the projector jackson 2.22.3 (2.22.2 before). 2.23.5's release stopped at the Trivy gate on these: its Maven artifacts are on Central, its images were never pushed — 2.23.6 carries 2.23.5's change with its images.
+
+## [2.23.5] - 2026-10-03
+
+### Fixed
+- **Process diagrams in dark mode.** The workflow graph follows the host page's theme; in a dark console its nodes, edges and labels were drawn for a light background. (#447) Maven artifacts only — see 2.23.6.
+
 ## [2.23.4] - 2026-09-30
 
 ### Fixed
