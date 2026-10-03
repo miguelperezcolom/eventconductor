@@ -15,7 +15,7 @@
     <description>Browser end-to-end tests for the workflow engine's UI</description>
 
     <properties>
-        <playwright.version>1.62.0</playwright.version>
+        <playwright.version>1.63.0</playwright.version>
         <!-- No production code lives here; the module is tests. -->
         <jacoco.skip>true</jacoco.skip>
     </properties>
