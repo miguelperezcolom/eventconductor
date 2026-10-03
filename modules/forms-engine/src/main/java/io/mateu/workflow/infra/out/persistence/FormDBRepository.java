@@ -58,7 +58,30 @@ public class FormDBRepository implements FormRepository {
                                 fieldEntity.getDescription(),
                                 readOptions(fieldEntity.getOptions()),
                                 readOptionsSource(fieldEntity.getOptionsSource())
-                        )).toList());
+                        )).toList(),
+                readStrings(formEntity.getRequiredScopes()),
+                readStrings(formEntity.getRequiredRoles()));
+    }
+
+    /**
+     * The form's requirements back. Before they were stored a JPA deployment dropped them on save, so
+     * a form declaring {@code requiredRoles} was anyone's: authorization saw no requirement, and the
+     * human-task announcements carried none.
+     */
+    private List<String> readStrings(String json) {
+        if (json == null || json.isBlank()) {
+            return List.of();
+        }
+        try {
+            return JsonSerializer.listFromJson(json, String.class);
+        } catch (Exception e) {
+            log.error("A form's requirements could not be read from '{}' — it will require nothing", json, e);
+            return List.of();
+        }
+    }
+
+    private String writeStrings(List<String> values) {
+        return values == null || values.isEmpty() ? null : JsonSerializer.toJson(values);
     }
 
     /** The stored JSON array back as options; absent, empty or unreadable reads as no options. */
@@ -119,7 +142,8 @@ public class FormDBRepository implements FormRepository {
             ));
         }
         formEntityRepository.save(new FormEntity(
-                form.id(), form.name(), form.description()
+                form.id(), form.name(), form.description(),
+                writeStrings(form.requiredScopes()), writeStrings(form.requiredRoles())
         ));
         return form.id();
     }

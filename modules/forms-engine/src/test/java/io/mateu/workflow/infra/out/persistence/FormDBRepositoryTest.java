@@ -54,6 +54,20 @@ class FormDBRepositoryTest {
     }
 
     @Test
+    void roundTripsWhoMayWorkOnTheFormsTasks() {
+        repository.save(new Form("f1", "Approval", "d", List.of(field("ok", "OK")), List.of("approvals:write"),
+                List.of("admin", "auditor")));
+        repository.save(form("f2", "Open", field("ok", "OK")));
+
+        var restricted = repository.findById("f1").orElseThrow();
+        assertThat(restricted.requiredScopes()).containsExactly("approvals:write");
+        assertThat(restricted.requiredRoles()).containsExactly("admin", "auditor");
+        var open = repository.findById("f2").orElseThrow();
+        assertThat(open.requiredScopes()).isEmpty();
+        assertThat(open.requiredRoles()).isEmpty();
+    }
+
+    @Test
     void keepsFieldsOfDifferentFormsApartWhenTheyShareAnId() {
         repository.save(form("f1", "Approval A", field("comment", "Comment on A")));
         repository.save(form("f2", "Approval B", field("comment", "Comment on B")));
