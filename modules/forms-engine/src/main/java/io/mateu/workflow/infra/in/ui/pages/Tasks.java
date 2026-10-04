@@ -151,7 +151,7 @@ public class Tasks extends Crud<TaskRow, TaskRow, TaskRow, NoFilters, TaskRow, S
                 .data(new DispatchEventData(
                         "navigation-requested",
                         NavigationRequestedPayload.builder()
-                                .route("/forms/task/" + selectedRow.id())
+                                .route(io.mateu.workflow.infra.in.ui.FormsRoutes.task(selectedRow.id()))
                                 .consumedRoute("")
                                 .baseUrl(httpRequest.getBaseUrl())
                                 .uriPrefix("")
