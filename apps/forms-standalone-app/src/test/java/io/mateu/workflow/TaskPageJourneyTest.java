@@ -131,6 +131,34 @@ class TaskPageJourneyTest {
     }
 
     @Test
+    void onceClaimedClaimMakesWayForReleaseAndReleaseHandsTheTaskBack() throws Exception {
+        var claimed = action("/_forms", "claim", "ana", "{\"_taskId\":\"" + taskId + "\"}");
+
+        // To the one who claimed it: no Claim any more, a Release instead.
+        assertThat(claimed).contains("\"actionId\":\"release\"").doesNotContain("\"actionId\":\"claim\"");
+        assertThat(navigate("/_forms", "/forms/task/" + taskId, "ana"))
+                .contains("Release").doesNotContain("\"actionId\":\"claim\"");
+        // To anybody else: neither — it is ana's to hand back, not theirs to take.
+        assertThat(navigate("/_forms", "/forms/task/" + taskId, "bob"))
+                .doesNotContain("\"actionId\":\"release\"").doesNotContain("\"actionId\":\"claim\"");
+
+        // Somebody else's release does not take it away from ana.
+        action("/_forms", "release", "bob", "{\"_taskId\":\"" + taskId + "\"}");
+        assertThat(executions.findById(taskId).orElseThrow().userId()).isEqualTo("ana");
+
+        var released = action("/_forms", "release", "ana", "{\"_taskId\":\"" + taskId + "\"}");
+
+        var task = executions.findById(taskId).orElseThrow();
+        assertThat(task.userId()).isNull();
+        assertThat(task.status()).isEqualTo(FormExecutionStatus.PENDING);
+        assertThat(released).contains("\"actionId\":\"claim\"").doesNotContain("\"actionId\":\"release\"");
+
+        // Anybody may claim it now.
+        action("/_forms", "claim", "bob", "{\"_taskId\":\"" + taskId + "\"}");
+        assertThat(executions.findById(taskId).orElseThrow().userId()).isEqualTo("bob");
+    }
+
+    @Test
     void completingThroughTheAdministrationFrontDoorReturnsThroughIt() throws Exception {
         action("/_forms-admin", "claim", "ana", "{\"_taskId\":\"" + taskId + "\"}");
         var answer = action("/_forms-admin", "complete", "ana",
@@ -142,7 +170,12 @@ class TaskPageJourneyTest {
 
     /** What a shell asks when it navigates to a route of this remote. */
     String navigate(String baseUrl, String route) throws Exception {
-        return post(baseUrl, route, null, """
+        return navigate(baseUrl, route, null);
+    }
+
+    /** The same, signed in as somebody. */
+    String navigate(String baseUrl, String route, String user) throws Exception {
+        return post(baseUrl, route, user, """
                 {"serverSideType":"%s","appState":{},"componentState":{},"parameters":{},
                  "initiatorComponentId":"root","consumedRoute":"","route":"%s","actionId":""}
                 """.formatted(FORMS_HOME, route));

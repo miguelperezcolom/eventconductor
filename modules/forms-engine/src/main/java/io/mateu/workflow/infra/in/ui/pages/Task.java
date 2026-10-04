@@ -47,6 +47,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 @Action(id = "complete", validationRequired = true)
 @Action(id = "claim")
+@Action(id = "release")
 @Action(id = "back")
 public class Task implements ComponentTreeSupplier, ValidationSupplier, ActionHandler, StateSupplier,
         RestSourceSupplier, Hydratable {
@@ -174,7 +175,7 @@ public class Task implements ComponentTreeSupplier, ValidationSupplier, ActionHa
                             .build());
         });
 
-        return Form.builder()
+        var page = Form.builder()
                 .title(form.name() == null || form.name().isBlank() ? "Task " + _taskId : form.name())
                 .style(StyleConstants.CONTAINER)
                 .subtitle(subtitle(execution, open, unassigned, mine))
@@ -182,13 +183,23 @@ public class Task implements ComponentTreeSupplier, ValidationSupplier, ActionHa
                 .button(Button.builder()
                         .label("Back to list")
                         .actionId("back")
-                        .build())
-                .button(Button.builder()
-                        .label("Claim")
-                        .actionId("claim")
-                        .disabled(!open || !unassigned)
-                        .build())
-                .button(Button.builder()
+                        .build());
+        // Only the buttons that do something for this person, now: a disabled Claim next to a task
+        // already claimed read as "claim it again" (a renderer may not even draw it as disabled),
+        // and there was no way to hand a claimed task back.
+        if (open && unassigned) {
+            page.button(Button.builder()
+                    .label("Claim")
+                    .actionId("claim")
+                    .build());
+        }
+        if (mine) {
+            page.button(Button.builder()
+                    .label("Release")
+                    .actionId("release")
+                    .build());
+        }
+        return page.button(Button.builder()
                         .label("Complete")
                         .actionId("complete")
                         .disabled(!mine)
@@ -265,6 +276,23 @@ public class Task implements ComponentTreeSupplier, ValidationSupplier, ActionHa
                     execution.stepExecutionId(),
                     MessageType.Info,
                     "form " + execution.formId() + " claimed by " + execution.userId()));
+        }
+        if ("release".equals(actionId)) {
+            var execution = formExecutionRepository.findById(_taskId).orElseThrow();
+            var username = JwtExtractor.getUsername(httpRequest).orElse(null);
+            // Handed back by whoever holds it, and only by them: releasing does not take work away
+            // from somebody else, any more than claiming does.
+            if (!isOpen(execution) || username == null || !username.equals(execution.userId())) {
+                log.info("task {} not releasable by {} (status {}, assigned to {})",
+                        _taskId, username, execution.status(), execution.userId());
+                return this;
+            }
+            execution = execution.withUserId(null).withStatus(FormExecutionStatus.PENDING);
+            formExecutionRepository.save(execution);
+            streamBridge.send("upstream", new TaskLogEmitted(
+                    execution.stepExecutionId(),
+                    MessageType.Info,
+                    "form " + execution.formId() + " released by " + username));
         }
         if ("back".equals(actionId)) {
             return toTasks(httpRequest);
