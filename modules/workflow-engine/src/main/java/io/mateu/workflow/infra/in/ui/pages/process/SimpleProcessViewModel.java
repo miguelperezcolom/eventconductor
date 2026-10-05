@@ -129,37 +129,6 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
     // Explicit tab names: since mateu 379440d83 consecutive @Tab annotations with the SAME
     // value (and bare @Tab means value "") are merged into one tab, which stacked these four
     // lists vertically. Distinct values keep one tab per list.
-    @Tab("Diagram")
-    @Label("")
-    Element diagram;
-
-    /**
-     * What the diagram draws, as a <em>value</em> rather than as component metadata.
-     *
-     * <p>An {@link Element}'s attributes belong to the component tree, and a {@code State} update
-     * deliberately does not resend that tree — it carries values. So a diagram whose attributes were
-     * written as literals was frozen as of the render that built it: an operator watching a running
-     * process saw the picture the tab opened with, for the life of the tab, while the process ran to
-     * completion behind it. Nothing looked broken, which is why it went unnoticed for months; only
-     * the colours were a lie.
-     *
-     * <p>These two fields are the fix, and they are plain {@code String}s on purpose: that is what
-     * makes them data. The element's attributes now say {@code ${state.processGraph}} and
-     * {@code ${state.processGraphOverlay}} — where to read it — and mateu interpolates them against
-     * the state on every render, applying the result with {@code setAttribute} on the element that
-     * is already there. The custom element turns that into a property change and repaints, keeping
-     * the zoom, the selection and the ELK layout it computed; it is not rebuilt.
-     *
-     * <p>Hidden because they are not for reading: this is a JSON payload for the component, and the
-     * tab shows the diagram, not its source.
-     */
-    @Hidden
-    String processGraph;
-
-    /** Each step's live state, by step id. See {@link #processGraph}. */
-    @Hidden
-    String processGraphOverlay;
-
     @Tab("Steps")
     @Label("")
     List<Step> steps;
@@ -206,6 +175,39 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
     @Label("Payload")
     @Stereotype(FieldStereotype.textarea)
     String replyPayload;
+
+    // Last: what an operator opens a process for is what ran and what failed — the steps, first.
+    // The diagram is the wide canvas to look at the shape when that is the question.
+    @Tab("Diagram")
+    @Label("")
+    Element diagram;
+
+    /**
+     * What the diagram draws, as a <em>value</em> rather than as component metadata.
+     *
+     * <p>An {@link Element}'s attributes belong to the component tree, and a {@code State} update
+     * deliberately does not resend that tree — it carries values. So a diagram whose attributes were
+     * written as literals was frozen as of the render that built it: an operator watching a running
+     * process saw the picture the tab opened with, for the life of the tab, while the process ran to
+     * completion behind it. Nothing looked broken, which is why it went unnoticed for months; only
+     * the colours were a lie.
+     *
+     * <p>These two fields are the fix, and they are plain {@code String}s on purpose: that is what
+     * makes them data. The element's attributes now say {@code ${state.processGraph}} and
+     * {@code ${state.processGraphOverlay}} — where to read it — and mateu interpolates them against
+     * the state on every render, applying the result with {@code setAttribute} on the element that
+     * is already there. The custom element turns that into a property change and repaints, keeping
+     * the zoom, the selection and the ELK layout it computed; it is not rebuilt.
+     *
+     * <p>Hidden because they are not for reading: this is a JSON payload for the component, and the
+     * tab shows the diagram, not its source.
+     */
+    @Hidden
+    String processGraph;
+
+    /** Each step's live state, by step id. See {@link #processGraph}. */
+    @Hidden
+    String processGraphOverlay;
 
     public Object load(String id, HttpRequest httpRequest) {
         this.id = id;
