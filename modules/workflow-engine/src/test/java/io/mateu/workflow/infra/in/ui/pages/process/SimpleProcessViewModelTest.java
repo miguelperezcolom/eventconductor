@@ -172,6 +172,20 @@ class SimpleProcessViewModelTest {
     }
 
     @Test
+    void aListedStepNotYetDispatchedReadsAsNextOrPendingNeverCreated() {
+        var view = view(null);
+        var ahead = se("charge", StepExecutionStatus.CREATED);
+        assertThat(view.stepRowStatus(new StepHistory.Entry(ahead, true)).message()).isEqualTo("Next");
+
+        var queuedRetry = se("charge", StepExecutionStatus.CREATED);
+        when(queuedRetry.getAttemptCount()).thenReturn(1);
+        assertThat(view.stepRowStatus(new StepHistory.Entry(queuedRetry, false)).message()).isEqualTo("Pending");
+
+        var done = se("charge", StepExecutionStatus.COMPLETED);
+        assertThat(view.stepRowStatus(new StepHistory.Entry(done, false)).message()).isEqualTo("Completed");
+    }
+
+    @Test
     void aStepTheRunHasNotReachedHasNoStateOnTheGraph() {
         // CREATED and never attempted: not waiting on anything yet. With a state it was drawn with
         // the marching "pending" border, and every step after the current one looked in progress.

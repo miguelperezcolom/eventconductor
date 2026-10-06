@@ -216,9 +216,13 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
         this.processStatus = process.getStatus();
         this.status = mapProcessStatus(process.getStatus(), process.getCompletionPercentage());
         var stepExecutions = stepExecutionRepository.findByProcess(process);
-        this.steps = stepExecutions.stream()
-                .map(se -> new Step(id, se.id(), se.getStepId(), mapStepStatus(se.getStatus().name()),
-                        Step.format(se.getStartedAt()), Step.format(se.getFinishedAt())))
+        // What ran and the certain path ahead, not every step the process was created with — see StepHistory.
+        this.steps = StepHistory.visible(stepExecutions, process.getStatus()).stream()
+                .map(entry -> {
+                    var se = entry.execution();
+                    return new Step(id, se.id(), se.getStepId(), stepRowStatus(entry),
+                            Step.format(se.getStartedAt()), Step.format(se.getFinishedAt()));
+                })
                 .toList();
         var logs = logMessageRepository.findByProcessId(id);
         this.diagram = buildDiagram(process, stepExecutions, logs);
@@ -719,6 +723,21 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
         return new State(this);
     }
 
+
+    /**
+     * A listed step's badge. A CREATED step is either the next thing the run will certainly do
+     * («Next») or one queued again for a retry, which is waiting work («Pending») — never «Created»,
+     * which only ever said that the engine had materialised the row.
+     */
+    Status stepRowStatus(StepHistory.Entry entry) {
+        var se = entry.execution();
+        if (se.getStatus() == StepExecutionStatus.CREATED) {
+            return entry.ahead()
+                    ? new Status(StatusType.NONE, "Next")
+                    : new Status(StatusType.INFO, "Pending");
+        }
+        return mapStepStatus(se.getStatus().name());
+    }
 
     Status mapStepStatus(String rawStatus) {
         StepExecutionStatus status = StepExecutionStatus.valueOf(rawStatus);
