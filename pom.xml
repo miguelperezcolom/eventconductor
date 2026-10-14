@@ -106,7 +106,7 @@
       <dependency>
         <groupId>org.postgresql</groupId>
         <artifactId>postgresql</artifactId>
-        <version>42.7.13</version>
+        <version>42.7.14</version>
       </dependency>
       <!-- CVE-2026-106451 (insecure temp file → code execution), via kafka-clients 4.2.1. -->
       <dependency>
