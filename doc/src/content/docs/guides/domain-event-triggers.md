@@ -20,7 +20,7 @@ triggers:
     destination: bookings                # → workflow.events.destinations.bookings.topic
     type: com.acme.booking.created       # CloudEvents type; '*' is a wildcard: com.acme.booking.*
     filter: "data.channel == 'web'"      # optional JEXL over the event, must be true
-    businessKey: "booking-${data.bookingId}"   # optional; default derived from the event
+    businessKey: "booking-onboarding-${data.bookingId}"   # optional; default derived from the event
     variables:                           # optional; default: data's top-level members
       bookingId: "${data.bookingId}"
       nights: "${data.nights}"
@@ -37,7 +37,7 @@ steps:
 | `destination` | yes | A logical destination. |
 | `type` | yes | The CloudEvents type to match, exactly or with `*` wildcards. A lone `*` matches every event on the destination, including plain records without a type. |
 | `filter` | no | A JEXL boolean over the event, without `${}`. Only `true` lets the event through; an expression that fails counts as false and is recorded as an error. |
-| `businessKey` | no | A text template over the event. Absent: `<definition>-evt-<trigger>-<16 hex of SHA-256(source, id)>`, the same for every delivery of one event. |
+| `businessKey` | no | A text template over the event. Absent: `<definition>-evt-<trigger>-<16 hex of SHA-256(source, id)>`, the same for every delivery of one event. A business key is **unique across workflows**, so put the workflow in it (`booking-onboarding-${data.bookingId}`) — see [below](#each-event-is-used-once). |
 | `variables` | no | The started process's initial variables, each a [payload template](/guides/payload-templates/) over the event. Absent: every top-level member of `data` (when it is a JSON object). `{}`: none. A non-string value becomes its JSON text, as process variables are strings. |
 
 A trigger starts a process **as the engine itself** (like cron: the definition's `requiredScopes`/`requiredRoles` do not apply), through the same door as cron, so sharding places it like any creation. Lifecycle, as for schedules:
@@ -56,13 +56,13 @@ The same trigger, naming the workflow it starts, can live in an `events.yaml` (o
   type: "*"                            # a CDC topic carries plain records: no type to match
   workflow: sync-customer              # the definition a matching event starts
   filter: "data.op == 'u'"
-  businessKey: "customer-${data.after.id}"
+  businessKey: "sync-customer-${data.after.id}"
   variables:
     customerId: "${data.after.id}"
     email: "${data.after.email}"
 ```
 
-`events.yaml` is never imported as a definition. Each import of a source replaces that source's entries (a removed entry stops firing; a deleted file clears them); an entry naming an unknown workflow, with an invalid destination, type or id, an unknown key, or an id declared twice for one workflow is logged and skipped, and the rest of the file applies. A file that cannot be read at all leaves the source's previous entries in place. Entries live in memory with `workflow.persistence=memory` and in the `event_trigger` table with `jpa` (migration V40), so every pod matches events against the same set. The engine and the Maven plugin validate the file against `events-schema.json`, and both IDE plugins do too.
+`events.yaml` is never imported as a definition. Each import of a source replaces that source's entries (a removed entry stops firing; a deleted file clears them); an entry with an invalid destination, type or id, an unknown key, or an id declared twice for one workflow is logged and skipped, and the rest of the file applies. An entry naming a workflow the engine does not know **yet** is kept, with a warning (`workflow 'x' not known yet — the trigger applies once it is imported`): sources are imported one after another — the classpath first, then directories and git repositories — so a classpath `events.yaml` may name a workflow a git import brings later. Until that workflow exists the entry matches nothing and is not listed; once it is imported, the trigger applies. A file that cannot be read at all leaves the source's previous entries in place. Entries live in memory with `workflow.persistence=memory` and in the `event_trigger` table with `jpa` (migration V40), so every pod matches events against the same set. The engine and the Maven plugin validate the file against `events-schema.json`, and both IDE plugins do too.
 
 A trigger declared in a file is the same kind of thing as one declared in the definition: same matching, same receipts, same receiver `trigger:<workflow>/<trigger>`, same pause by `<workflow>/<trigger>`, same business key default. Its `id` is unique within the workflow across both places — absent, it is derived from the type as in a definition (`-2` on a repeat). An entry whose id the definition already declares is a **duplicate**: listed with that status, never fires. The definition's own triggers come first, then its file entries by source and position; **Workflow → Event triggers** and the definition's **Triggers** tab show a **Source** column (`Definition`, `events.yaml (classpath|directory|git)`), and the REST and MCP views carry `origin`, `source`, `sourceLabel` and `declaredIn`. The ⚡ on the graph's START node marks only the triggers the definition itself declares.
 
@@ -121,12 +121,13 @@ The same event — the same CloudEvents `source` and `id` — **never starts two
 - After a trigger started a process or a wait got its message, the engine records a **receipt** for that receiver and event (`inbound_event_receipt` with `workflow.persistence=jpa`, in memory otherwise). A redelivery finds it and does nothing — it is reported as a duplicate.
 - The receipt is written after the start or the message was handed over, so a failure to hand over is retried. The short window in between (a crash, two copies at once) is closed by the **default business key**, derived from the event: the second creation collapses into the first.
 - An author-given `businessKey` is honoured as given — so two *different* events that render the same key start one process.
+- A business key is **unique across workflows**, not per workflow: a creation whose key any process already has — of whichever workflow — is ignored. Two triggers of *different* workflows that render the same key (`booking-${data.bookingId}` in both) start one process between them: the first wins. So put the workflow in the template — `booking-onboarding-${data.bookingId}`. The engine logs a WARN when triggers of different workflows share a `businessKey` template (on every import and when a trigger is created or edited), and a trigger whose rendered key another workflow's process already holds records an **error** receipt saying so instead of `STARTED` (best effort: a process created at the same moment, or on another shard, is not seen).
 - Receipts are kept for `workflow.events.receipts.retention` (7 days); past it, a redelivery is a new event.
 - An event whose filter or templates fail records an **error** receipt and that receiver does nothing; a later delivery is tried again.
 
 ## How events arrive
 
-**Kafka mode.** The engine consumes the topics of the destinations that some trigger — in a definition or an `events.yaml` — or `onEvent` names, in one consumer group (`workflow.events.consumer.group`), so each event is used by one pod. The set is recomputed every `workflow.events.consumer.refresh-interval` — a git import that adds a trigger, in a definition or in `events.yaml`, is listened to without a restart. A new group starts at `latest`: turning a trigger on does not replay the topic's history. Records are read as CloudEvents in **binary** mode (`ce_*` headers — what `PUBLISH_EVENT` writes by default), **structured** mode (`application/cloudevents+json`), or as **plain** records (id `<topic>-<partition>-<offset>`, source `kafka://<topic>`, no type — only a `type: '*'` trigger matches them). A destination named by a definition but configured without a topic is logged and not consumed.
+**Kafka mode.** The engine consumes the topics of the destinations that some trigger — in a definition or an `events.yaml` — or `onEvent` names, in one consumer group (`workflow.events.consumer.group`), so each event is used by one pod. The set is recomputed every `workflow.events.consumer.refresh-interval` — a git import that adds a trigger, in a definition or in `events.yaml`, is listened to without a restart. A new group starts at `latest`: turning a trigger on does not replay the topic's history. Records are read as CloudEvents in **binary** mode (`ce_*` headers — what `PUBLISH_EVENT` writes by default), **structured** mode (`application/cloudevents+json`), or as **plain** records (id `<topic>-<partition>-<offset>`, source `kafka://<topic>`, no type — only a `type: '*'` trigger matches them). In binary mode the data's content type is `ce_datacontenttype`, else the record's `contentType` or standard `content-type` header (any case). A destination named by a definition but configured without a topic is logged and not consumed. A record that can never be used — unreadable, without an id or source (blank counts), or failing the same way every time — is logged and skipped; only a failure to hand an event over (a broker down) is retried, after `workflow.events.consumer.retry-backoff`, until it goes through.
 
 The consumer lives in its own module, `io.mateu.workflow:inbound-events-kafka`, outside the engine: the engine only matches CloudEvents on destinations and knows nothing of how they arrive. `orchestrator-standalone-app` includes it; an application of your own that runs the engine with `workflow.mode=kafka` adds the dependency to listen.
 

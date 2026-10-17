@@ -39,10 +39,14 @@ import java.util.Set;
  *     customerId: "${data.after.id}"
  * </pre>
  *
- * <p>An entry that is malformed, breaks the trigger rules, or names a workflow the engine does not know
- * is reported and left out; the rest of the file still applies, and so does an id declared twice for
- * one workflow — the second entry is left out. A file that cannot be read at all leaves the source's
- * previous triggers in place rather than silently clearing them.
+ * <p>An entry that is malformed or breaks the trigger rules is reported and left out; the rest of the
+ * file still applies, and so does an id declared twice for one workflow — the second entry is left out.
+ * An entry naming a workflow the engine does not know <em>yet</em> is kept, with a warning: the sources
+ * are imported one after another (the classpath first, then directories and git clones), so an
+ * {@code events.yaml} may name a workflow another source brings later. Until that workflow exists the
+ * entry matches nothing and is not listed ({@link EventTriggerCatalog} drops it); once it is imported,
+ * the trigger applies. A file that cannot be read at all leaves the source's previous triggers in place
+ * rather than silently clearing them.
  *
  * <p><b>Files own what they declare.</b> An import replaces its own source and never the triggers
  * created through the engine (UI, REST API, MCP) — except that one whose {@code <workflow>/<trigger>}
@@ -78,19 +82,29 @@ public class EventTriggerImporter {
     public record Parsed(List<Entry> entries, List<String> errors, boolean unreadable) {
     }
 
-    /** What an import of one source did. */
-    public record Result(List<EventFileTrigger> triggers, List<String> errors) {
+    /**
+     * What an import of one source did.
+     *
+     * @param errors   entries left out, or a file that could not be read
+     * @param warnings entries kept that cannot apply yet: they name a workflow the engine does not know
+     */
+    public record Result(List<EventFileTrigger> triggers, List<String> errors, List<String> warnings) {
+
+        public Result(List<EventFileTrigger> triggers, List<String> errors) {
+            this(triggers, errors, List.of());
+        }
     }
 
     /**
      * Replaces the triggers of {@code source} with the entries of {@code files} (empty clears it).
-     * Entries naming an unknown workflow are reported and skipped.
+     * Entries naming a workflow not known yet are kept and reported as warnings.
      */
     public Result importSource(String source, List<EventFile> files) {
         if (EventFileTrigger.API_SOURCE.equals(source)) {
             throw new IllegalArgumentException("'" + source + "' holds the triggers created through the engine; no file is imported into it");
         }
         var errors = new ArrayList<String>();
+        var warnings = new ArrayList<String>();
         var triggers = new ArrayList<EventFileTrigger>();
         var ids = new HashSet<String>();
         for (var file : files) {
@@ -110,20 +124,22 @@ public class EventTriggerImporter {
                     continue;
                 }
                 if (workflowDefinitionRepository.findById(entry.workflow()).isEmpty()) {
-                    errors.add(file.name() + ": trigger on '" + entry.trigger().destination() + "' for type '"
-                            + entry.trigger().type() + "' targets unknown workflow '" + entry.workflow() + "' — skipped");
-                    continue;
+                    // Kept: another source (a directory, a git clone) may import it after this one.
+                    warnings.add(file.name() + ": trigger on '" + entry.trigger().destination() + "' for type '"
+                            + entry.trigger().type() + "': workflow '" + entry.workflow()
+                            + "' not known yet — the trigger applies once it is imported");
                 }
                 triggers.add(new EventFileTrigger(source, triggers.size(), entry.workflow(), entry.trigger()));
             }
         }
         errors.forEach(e -> log.error("{}", e));
+        warnings.forEach(w -> log.warn("{}", w));
         eventTriggerRepository.replace(source, triggers);
         if (!triggers.isEmpty()) {
             log.info("Loaded {} event trigger(s) from {}", triggers.size(), source);
         }
         reconcile();
-        return new Result(List.copyOf(triggers), errors);
+        return new Result(List.copyOf(triggers), errors, List.copyOf(warnings));
     }
 
     /**
@@ -145,6 +161,7 @@ public class EventTriggerImporter {
         var paused = triggerPauseRepository == null ? Set.<String>of() : triggerPauseRepository.findAll().keySet();
         var stored = eventTriggerRepository.findAll();
         var catalog = EventTriggerCatalog.of(workflowDefinitionRepository.findAll(), stored);
+        warnOfSharedBusinessKeys(catalog);
         var fileOwned = EventTriggerCatalog.fileOwnedKeys(catalog);
         var takenOver = stored.stream()
                 .filter(t -> EventFileTrigger.API_SOURCE.equals(t.source()) && fileOwned.contains(t.key()))
@@ -163,6 +180,18 @@ public class EventTriggerImporter {
             orphans.forEach(triggerPauseRepository::delete);
             log.info("Pause(s) of event trigger(s) {} removed: the triggers no longer exist", orphans);
         }
+    }
+
+    /**
+     * Logs a WARN for every {@code businessKey} template that triggers of different workflows share: a
+     * business key is unique across workflows, so for one rendered key only the first of them starts a
+     * process and the others start nothing.
+     */
+    static void warnOfSharedBusinessKeys(List<EventTriggerCatalog.Entry> catalog) {
+        EventTriggerCatalog.sharedBusinessKeys(catalog).forEach((template, workflows) -> log.warn(
+                "Event triggers of workflows {} share the businessKey template '{}': a business key is unique across"
+                        + " workflows, so for an event rendering one key only the first of them starts a process."
+                        + " Put the workflow in the template (e.g. '<workflow>-${data.id}').", workflows, template));
     }
 
     /** Parses one events file into its valid entries and the errors of the others. Pure. */

@@ -120,4 +120,18 @@ class EventTriggerCatalogTest {
             assertThat(entry.key()).isEqualTo("sync/any");
         });
     }
+
+    @Test
+    void sharedBusinessKeysAreTheTemplatesTriggersOfDifferentWorkflowsHaveInCommon() {
+        var keyed = new EventTrigger("a", "bookings", "t", null, "booking-${data.id}", null);
+        var catalog = EventTriggerCatalog.of(List.of(
+                definition("onboarding", keyed, new EventTrigger("c", "bookings", "v", null, "solo-${data.id}", null)),
+                definition("billing", keyed.withId("x")),
+                definition("audit", new EventTrigger("b", "bookings", "u", null, null, null))), List.of(
+                new EventFileTrigger("/dir", 0, "audit", new EventTrigger("d", "bookings", "t", null, " booking-${data.id} ", null))));
+
+        assertThat(EventTriggerCatalog.sharedBusinessKeys(catalog)).containsOnlyKeys("booking-${data.id}");
+        assertThat(EventTriggerCatalog.sharedBusinessKeys(catalog).get("booking-${data.id}"))
+                .containsExactly("audit", "billing", "onboarding");
+    }
 }

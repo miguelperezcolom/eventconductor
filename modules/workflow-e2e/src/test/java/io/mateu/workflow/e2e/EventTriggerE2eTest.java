@@ -217,4 +217,25 @@ class EventTriggerE2eTest extends AbstractE2eTest {
         triggers.delete("event-file-trigger", "api-cdc");
         assertThat(inbound.receive(cdc("api-2", "c", "C-22", "c22@acme.com")).started()).isZero();
     }
+
+    @Test
+    void aBusinessKeyAnotherWorkflowAlreadyHoldsIsAnErrorReceiptNotAStart() {
+        // Another workflow's trigger rendering the same key as events.yaml's 'customer-${data.after.id}':
+        // a business key is unique across workflows, so its creation would be silently ignored.
+        triggers.create(new EventTriggerService.TriggerDraft("same-key", "event-trigger", "e2e-customers-cdc",
+                "*", "data.op == 'u'", "customer-${data.after.id}", Map.of()));
+        try {
+            var result = inbound.receive(cdc("shared-1", "u", "C-31", "c31@acme.com"));
+
+            assertThat(result.started()).isEqualTo(1);
+            assertThat(process("customer-C-31").getWorkflowDefinitionId()).isEqualTo("event-file-trigger");
+            assertThat(result.receipts()).filteredOn(r -> "event-trigger".equals(r.workflowId())).singleElement()
+                    .satisfies(receipt -> {
+                        assertThat(receipt.outcome()).isEqualTo(EventReceipt.Outcome.ERROR);
+                        assertThat(receipt.detail()).contains("already used by a process of workflow 'event-file-trigger'");
+                    });
+        } finally {
+            triggers.delete("event-trigger", "same-key");
+        }
+    }
 }

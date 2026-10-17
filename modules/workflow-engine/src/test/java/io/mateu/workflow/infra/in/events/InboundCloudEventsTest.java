@@ -30,6 +30,26 @@ class InboundCloudEventsTest {
     }
 
     @Test
+    void binaryModeWithoutCeDatacontenttypeFallsBackToTheStandardContentTypeHeaderInAnyCase() {
+        // The CloudEvents Kafka binding writes datacontenttype as the plain content-type header.
+        var lower = InboundCloudEvents.fromRecord("bookings", "booking-events", 0, 1, null, bytes("<a/>"),
+                Map.of("ce_id", "e-1", "ce_source", "pms", "content-type", "application/xml"));
+        assertThat(lower.dataContentType()).isEqualTo("application/xml");
+        var mixed = InboundCloudEvents.fromRecord("bookings", "booking-events", 0, 2, null, bytes("<a/>"),
+                Map.of("ce_id", "e-2", "ce_source", "pms", "Content-Type", "application/xml"));
+        assertThat(mixed.dataContentType()).isEqualTo("application/xml");
+        // ce_datacontenttype, when present, wins.
+        var explicit = InboundCloudEvents.fromRecord("bookings", "booking-events", 0, 3, null, bytes("{}"),
+                Map.of("ce_id", "e-3", "ce_source", "pms", "ce_datacontenttype", "application/json",
+                        "content-type", "application/xml"));
+        assertThat(explicit.dataContentType()).isEqualTo("application/json");
+        // And a plain record reads it in any case too.
+        var plain = InboundCloudEvents.fromRecord("bookings", "booking-events", 0, 4, null, bytes("x"),
+                Map.of("Content-Type", "text/plain"));
+        assertThat(plain.dataContentType()).isEqualTo("text/plain");
+    }
+
+    @Test
     void readsStructuredContentMode() {
         var value = "{\"specversion\":\"1.0\",\"id\":\"e-2\",\"source\":\"pms\",\"type\":\"t\",\"tenant\":\"acme\","
                 + "\"data\":{\"bookingId\":\"B-2\"}}";

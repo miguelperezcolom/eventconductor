@@ -3,6 +3,7 @@ package io.mateu.workflow.application.services;
 import io.mateu.workflow.analysis.EventTriggerRules;
 import io.mateu.workflow.application.out.EventReceiptRepository;
 import io.mateu.workflow.application.out.EventTriggerRepository;
+import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.TriggerPauseRepository;
 import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
 import io.mateu.workflow.domain.aggregates.EventReceipt;
@@ -73,6 +74,7 @@ public class InboundEventService {
     private final IngressRouter ingressRouter;
     private final MessageDispatcher messageDispatcher;
     private final ObjectProvider<MeterRegistry> meterRegistry;
+    private final ProcessRepository processes;
 
     public InboundEventService(WorkflowDefinitionRepository workflowDefinitionRepository,
                                EventTriggerRepository fileTriggers,
@@ -80,7 +82,8 @@ public class InboundEventService {
                                TriggerPauseRepository pauses,
                                IngressRouter ingressRouter,
                                MessageDispatcher messageDispatcher,
-                               ObjectProvider<MeterRegistry> meterRegistry) {
+                               ObjectProvider<MeterRegistry> meterRegistry,
+                               ProcessRepository processes) {
         this.workflowDefinitionRepository = workflowDefinitionRepository;
         this.fileTriggers = fileTriggers;
         this.receipts = receipts;
@@ -88,6 +91,7 @@ public class InboundEventService {
         this.ingressRouter = ingressRouter;
         this.messageDispatcher = messageDispatcher;
         this.meterRegistry = meterRegistry;
+        this.processes = processes;
     }
 
     /**
@@ -187,6 +191,21 @@ public class InboundEventService {
             acted.add(receipt);
             return;
         }
+        var taken = takenByAnotherWorkflow(businessKey, definition.id());
+        if (taken != null) {
+            // The creation would be ignored (a business key is unique across workflows): say so instead of
+            // recording a start that never happens. Under the error key, so a later delivery is tried again.
+            var detail = "business key '" + businessKey + "' is already used by a process of workflow '" + taken
+                    + "': nothing started (a business key is unique across workflows — put the workflow in the"
+                    + " trigger's businessKey template)";
+            log.warn("Trigger '{}' of workflow '{}' did not start a process for event {}: {}", trigger.id(),
+                    definition.id(), event.id(), detail);
+            var receipt = receipt(receiver + "#error", receiver, EventReceipt.Kind.TRIGGER, event, EventReceipt.Outcome.ERROR,
+                    definition.id(), trigger.id(), businessKey, null, null, detail);
+            receipts.save(receipt);
+            acted.add(receipt);
+            return;
+        }
         log.info("Event {} ({}) on '{}' starts workflow '{}' through trigger '{}' (business key {})",
                 event.id(), event.type(), event.destination(), definition.id(), trigger.id(), businessKey);
         // The engine acting for itself, as for cron: SYSTEM, so flow-authorization requirements do not
@@ -197,6 +216,23 @@ public class InboundEventService {
                 definition.id(), trigger.id(), businessKey, null, null, null);
         receipts.save(receipt);
         acted.add(receipt);
+    }
+
+    /**
+     * The workflow of the process that already holds {@code businessKey}, when it is not
+     * {@code workflowId}; null otherwise. Creation is asynchronous (the ingress only hands the request
+     * over), so this is the check the receipt can make: a key held by the same workflow is the idempotent
+     * collapse of a redelivery, one held by another workflow means nothing will start. Best effort — a
+     * process created concurrently, or on another shard, is not seen.
+     */
+    private String takenByAnotherWorkflow(String businessKey, String workflowId) {
+        if (processes == null || businessKey == null || businessKey.isBlank()) {
+            return null;
+        }
+        return processes.findByBusinessKey(businessKey)
+                .map(io.mateu.workflow.domain.aggregates.Process::getWorkflowDefinitionId)
+                .filter(other -> other != null && !other.equals(workflowId))
+                .orElse(null);
     }
 
     /** One message to dispatch: the step's message name, the key and variables the event rendered. */

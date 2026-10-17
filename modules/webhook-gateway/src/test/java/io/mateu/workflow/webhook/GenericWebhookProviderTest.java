@@ -70,4 +70,25 @@ class GenericWebhookProviderTest {
         assertThatThrownBy(() -> provider.read("partner", endpoint, Map.of(), body))
                 .satisfies(e -> assertThat(((WebhookRejectedException) e).status()).isEqualTo(401));
     }
+
+    @Test
+    void aSignedEndpointWithAFixedTypeIgnoresTheTypeHeader() {
+        // Only the body is signed: a captured request replayed with another CE-Type must not become another event.
+        var endpoint = endpoint();
+        endpoint.setSecret("s3cret");
+        endpoint.setType("com.partner.order.changed");
+        var headers = new HashMap<String, String>();
+        headers.put("x-signature-256", Signatures.hmacSha256Hex("s3cret", body));
+        headers.put("ce-type", "com.partner.order.cancelled");
+
+        assertThat(provider.read("partner", endpoint, headers, body).type()).isEqualTo("com.partner.order.changed");
+
+        // Unsigned, or signed without a fixed type, the header still says the type.
+        var unsigned = endpoint();
+        unsigned.setType("com.partner.order.changed");
+        assertThat(provider.read("partner", unsigned, headers, body).type()).isEqualTo("com.partner.order.cancelled");
+        var noFixedType = endpoint();
+        noFixedType.setSecret("s3cret");
+        assertThat(provider.read("partner", noFixedType, headers, body).type()).isEqualTo("com.partner.order.cancelled");
+    }
 }

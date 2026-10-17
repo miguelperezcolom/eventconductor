@@ -7,7 +7,7 @@ A webhook is a domain event that arrives over HTTP, signed by its sender. The **
 
 ```
 GitHub ──POST /webhooks/github──▶ webhook-gateway ──CloudEvent──▶ topic github-events ──▶ engine: triggers, onEvent
-                                  (signature, mapping)             (or POST /workflow/api/events/github-events)
+                                  (signature, mapping)             (or POST /workflow/api/events/github)
 ```
 
 ## The gateway
@@ -21,20 +21,20 @@ workflow:
     endpoints:
       github:                                # POST /webhooks/github
         provider: github
-        destination: github-events
+        destination: github                  # a logical destination, mapped to its topic below
         secret: ${GITHUB_WEBHOOK_SECRET}     # the secret given to GitHub
       partner:                               # POST /webhooks/partner
         provider: generic
         destination: partner-events
         secret: ${PARTNER_WEBHOOK_SECRET}    # optional: HMAC-SHA256 of the body, hex, in X-Signature-256
-        type: com.partner.order.changed      # when the sender puts no type in a CE-Type header
+        type: com.partner.order.changed      # fixed type; with a secret, a CE-Type header cannot override it
   events:
     destinations:
-      github-events: { topic: github-events } # the same keys the engine uses
+      github: { topic: github-events }       # the same keys the engine uses
       partner-events: { topic: partner-events }
 ```
 
-As environment variables: `WORKFLOW_WEBHOOKS_ENDPOINTS_GITHUB_PROVIDER=github`, `WORKFLOW_WEBHOOKS_ENDPOINTS_GITHUB_DESTINATION=github-events`, `WORKFLOW_WEBHOOKS_ENDPOINTS_GITHUB_SECRET=…`, `WORKFLOW_EVENTS_DESTINATIONS_GITHUB-EVENTS_TOPIC=github-events`.
+As environment variables: `WORKFLOW_WEBHOOKS_ENDPOINTS_GITHUB_PROVIDER=github`, `WORKFLOW_WEBHOOKS_ENDPOINTS_GITHUB_DESTINATION=github`, `WORKFLOW_WEBHOOKS_ENDPOINTS_GITHUB_SECRET=…`, `WORKFLOW_EVENTS_DESTINATIONS_GITHUB_TOPIC=github-events`. An environment variable name cannot hold a `-`, so a destination or endpoint configured this way is named without one (`github`, `partnerorders`); a hyphenated name (`partner-events`) goes in YAML or `SPRING_APPLICATION_JSON`.
 
 The answer is **202** with the event's id, type and destination once the event is on the topic (or accepted by the engine); **401** for a missing or bad signature; **404** for an endpoint that does not exist; **400** for a delivery the provider cannot read; **5xx** when it could not be published — the sender may redeliver, and because the delivery id becomes the CloudEvents id, a redelivery is the same event to the engine and is used once.
 
@@ -59,12 +59,19 @@ The `generic` provider reads the attributes from headers the endpoint names — 
 |---|---|---|
 | `secret` | — | When set, `signatureHeader` must carry the hex HMAC-SHA256 of the body (`sha256=` prefix tolerated); without one, the endpoint accepts what it is sent — keep it behind something that checks |
 | `signatureHeader` | `X-Signature-256` | |
-| `typeHeader` / `type` | `CE-Type` / — | The type from the header, else the fixed one; one of the two is needed |
+| `typeHeader` / `type` | `CE-Type` / — | The type from the header, else the fixed one; one of the two is needed. On an endpoint with a `secret`, a fixed `type` always wins: the header is ignored |
 | `idHeader` | `CE-Id` | The id from the header, else a random UUID — then every delivery is a new event |
 | `subjectHeader` | `CE-Subject` | The subject, also the record key |
 | `source` | the endpoint's name | |
 
 The body is the payload as it came, with its `Content-Type`.
+
+### What the signature covers
+
+**Only the body is signed** — for GitHub that is GitHub's own scheme, and the generic provider does the same. Headers are not: whoever holds one signed delivery can resend its body with other headers. So:
+
+- On a **generic** endpoint with a `secret`, prefer a fixed `type`: then the event's type comes from the configuration, never from a header, and a replayed body cannot be relabelled as another kind of event (a fixed `type` on a signed endpoint ignores `CE-Type`). Without a fixed type, the type header is trusted as sent.
+- The **id** comes from an unsigned header (`X-GitHub-Delivery`, `CE-Id`): a replay that keeps it is the same event and is used once, but one that changes it is a new event to the engine. Where that matters, put what identifies the business fact in the trigger's `businessKey` (taken from the signed body), which collapses a second start for the same key.
 
 ## Transport
 
@@ -78,11 +85,11 @@ Nothing new on the engine's side: a trigger on the destination, in the definitio
 ```yaml
 # events.yaml
 - id: on-pull-request
-  destination: github-events
+  destination: github
   type: com.github.pull_request.*
   workflow: review-pull-request
   filter: "data.pull_request.draft == false"
-  businessKey: "pr-${data.repository.full_name}-${data.number}"
+  businessKey: "review-pull-request-${data.repository.full_name}-${data.number}"   # unique across workflows: name the workflow
   variables:
     repository: "${data.repository.full_name}"
     number: "${data.number}"

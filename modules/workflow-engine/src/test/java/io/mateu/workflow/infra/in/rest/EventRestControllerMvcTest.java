@@ -64,7 +64,7 @@ class EventRestControllerMvcTest {
         var receipts = new InMemoryEventReceiptRepository();
         var pauses = new InMemoryTriggerPauseRepository();
         var inbound = new InboundEventService(definitions, new io.mateu.workflow.infra.out.memory.InMemoryEventTriggerRepository(), receipts, pauses, ingressRouter, messageDispatcher,
-                mock(ObjectProvider.class));
+                mock(ObjectProvider.class), null);
         var beans = new StaticListableBeanFactory();
         beans.addBean("caller", (CallerResolver) () -> new AuthorizationContext("alice", List.of(), List.of()));
         var controller = new EventRestController(inbound,

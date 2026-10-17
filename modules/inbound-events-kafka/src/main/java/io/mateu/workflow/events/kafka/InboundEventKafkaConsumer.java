@@ -4,6 +4,8 @@ import io.mateu.workflow.application.services.EventTriggerService;
 import io.mateu.workflow.application.services.InboundEventService;
 import io.mateu.workflow.infra.config.EventDestinationsProperties;
 import io.mateu.workflow.infra.in.events.InboundCloudEvents;
+import io.mateu.workflow.template.Templates;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -45,7 +47,8 @@ import java.util.concurrent.TimeUnit;
  *
  * <p>An event the engine could not hand over (a broker down under the starts or messages it produces)
  * is retried after {@code workflow.events.consumer.retry-backoff}, indefinitely: its offset is committed
- * only once it was handed over. A record that cannot be read is logged and skipped.
+ * only once it was handed over. A record that cannot be read, or that has a blank id or source, is
+ * logged and skipped; so is one that fails deterministically ({@link #errorHandler()}).
  *
  * <p>Lives in its own module, {@code inbound-events-kafka}, outside the engine: the engine matches
  * CloudEvents on destinations ({@link InboundEventService}) and knows nothing of how they arrive. An
@@ -143,10 +146,23 @@ public class InboundEventKafkaConsumer {
         container = new ConcurrentMessageListenerContainer<>(new DefaultKafkaConsumerFactory<>(consumerConfig()),
                 containerProperties);
         container.setConcurrency(Math.max(1, properties.getConsumer().getConcurrency()));
-        container.setCommonErrorHandler(new DefaultErrorHandler(
-                new FixedBackOff(properties.getConsumer().getRetryBackoff().toMillis(), FixedBackOff.UNLIMITED_ATTEMPTS)));
+        container.setCommonErrorHandler(errorHandler());
         container.setBeanName("inboundEventContainer");
         container.start();
+    }
+
+    /**
+     * Retries a record whose hand-over failed (a broker down), indefinitely — but not one that fails the
+     * same way every time: an event the engine rejects ({@link IllegalArgumentException}: no id or
+     * source), or a template that cannot be rendered. Retrying those would only block their partition
+     * for good; they are logged and skipped.
+     */
+    DefaultErrorHandler errorHandler() {
+        var handler = new DefaultErrorHandler(
+                new FixedBackOff(properties.getConsumer().getRetryBackoff().toMillis(), FixedBackOff.UNLIMITED_ATTEMPTS));
+        handler.addNotRetryableExceptions(IllegalArgumentException.class, Templates.TemplateException.class,
+                JsonProcessingException.class);
+        return handler;
     }
 
     private void stopContainer() {
@@ -172,7 +188,7 @@ public class InboundEventKafkaConsumer {
             try {
                 event = InboundCloudEvents.fromRecord(destination, record.topic(), record.partition(), record.offset(),
                         record.key(), record.value(), headers);
-                if (event.id() == null || event.source() == null) {
+                if (blank(event.id()) || blank(event.source())) {
                     log.warn("Skipping a record on {}-{}@{}: a CloudEvent without id or source", record.topic(),
                             record.partition(), record.offset());
                     continue;
@@ -186,6 +202,10 @@ public class InboundEventKafkaConsumer {
             // it are skipped by their receipts.
             inboundEventService.receive(event);
         }
+    }
+
+    private static boolean blank(String s) {
+        return s == null || s.isBlank();
     }
 
     private Map<String, Object> consumerConfig() {

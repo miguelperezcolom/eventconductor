@@ -82,6 +82,37 @@ class InboundEventKafkaConsumerTest {
     }
 
     @Test
+    void aRecordWithABlankIdOrSourceIsSkippedNotHandedOver() throws Exception {
+        // receive() rejects a blank id or source with an IllegalArgumentException: handing it over would
+        // only make the error handler retry the record — and block its partition — for good.
+        var field = InboundEventKafkaConsumer.class.getDeclaredField("destinationsByTopic");
+        field.setAccessible(true);
+        field.set(consumer, java.util.Map.of("booking-events", java.util.List.of("bookings")));
+
+        var blankId = new ConsumerRecord<>("booking-events", 0, 7L, utf8("B-1"), utf8("{}"));
+        blankId.headers().add(new RecordHeader("ce_id", utf8("  ")));
+        blankId.headers().add(new RecordHeader("ce_source", utf8("pms")));
+        consumer.onRecord(blankId);
+        var blankSource = new ConsumerRecord<>("booking-events", 0, 8L, utf8("B-1"), utf8("{}"));
+        blankSource.headers().add(new RecordHeader("ce_id", utf8("e-1")));
+        blankSource.headers().add(new RecordHeader("ce_source", utf8("")));
+        consumer.onRecord(blankSource);
+
+        verify(inbound, never()).receive(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void deterministicFailuresAreNotRetried() {
+        var handler = consumer.errorHandler();
+        // removeClassification returns the classification it removes: FALSE = registered as not retryable.
+        assertThat(handler.removeClassification(IllegalArgumentException.class)).isFalse();
+        assertThat(handler.removeClassification(io.mateu.workflow.template.Templates.TemplateException.class)).isFalse();
+        assertThat(handler.removeClassification(com.fasterxml.jackson.core.JsonProcessingException.class)).isFalse();
+        // A failure to hand over (a broker down) stays retryable.
+        assertThat(handler.removeClassification(IllegalStateException.class)).isNull();
+    }
+
+    @Test
     void theBrokersAreTheConsumersOwnElseTheBindersElseSpringKafkas() {
         assertThat(consumer.bootstrapServers()).isEqualTo("localhost:9092");
         environment.setProperty("spring.kafka.bootstrap-servers", "k:1");

@@ -131,7 +131,7 @@ class EventTriggerImporterTest {
     }
 
     @Test
-    void importReplacesTheSourceSkippingUnknownWorkflowsAndRepeatedIds() {
+    void importReplacesTheSourceSkippingRepeatedIdsAndKeepingWorkflowsNotKnownYet() {
         known("booking");
         var files = List.of(new EventTriggerImporter.EventFile("events.yaml", yaml("""
                 - id: web
@@ -152,12 +152,14 @@ class EventTriggerImporterTest {
 
         var result = importer.importSource("/dir", files);
 
-        assertThat(result.errors()).hasSize(2)
-                .anySatisfy(e -> assertThat(e).contains("trigger id 'web' is declared more than once"))
-                .anySatisfy(e -> assertThat(e).contains("unknown workflow 'ghost'"));
+        assertThat(result.errors()).singleElement().asString().contains("trigger id 'web' is declared more than once");
+        // A workflow not known yet — another source may import it later — is a warning, and the entry is kept.
+        assertThat(result.warnings()).singleElement().asString()
+                .contains("workflow 'ghost' not known yet — the trigger applies once it is imported");
         assertThat(result.triggers()).containsExactly(
                 new EventFileTrigger("/dir", 0, "booking", new EventTrigger("web", "bookings", "com.acme.booking.created", null, null, null)),
-                new EventFileTrigger("/dir", 1, "booking", new EventTrigger(null, "payments", "com.acme.payment.*", null, null, null)));
+                new EventFileTrigger("/dir", 1, "ghost", new EventTrigger(null, "bookings", "com.acme.booking.created", null, null, null)),
+                new EventFileTrigger("/dir", 2, "booking", new EventTrigger(null, "payments", "com.acme.payment.*", null, null, null)));
         assertThat(repository.findAll()).isEqualTo(result.triggers());
 
         // A re-import replaces what the source said; an empty import clears it.
@@ -201,5 +203,23 @@ class EventTriggerImporterTest {
                 """))));
 
         assertThat(pauses.findAll().keySet()).containsExactly("booking/web");
+    }
+
+    @Test
+    void anEntryForAWorkflowImportedLaterAppliesOnceItIs() {
+        // The classpath events.yaml is imported first; the workflow it names comes from a git clone after.
+        known("booking");
+        importer.importSource("classpath:/workflows/events.yaml", List.of(new EventTriggerImporter.EventFile("events.yaml", yaml("""
+                - id: on-signup
+                  destination: signups
+                  type: com.acme.signup
+                  workflow: onboarding
+                """))));
+        assertThat(io.mateu.workflow.domain.services.EventTriggerCatalog.of(definitions.findAll(), repository.findAll())).isEmpty();
+
+        known("booking", "onboarding");
+
+        assertThat(io.mateu.workflow.domain.services.EventTriggerCatalog.of(definitions.findAll(), repository.findAll()))
+                .singleElement().satisfies(e -> assertThat(e.key()).isEqualTo("onboarding/on-signup"));
     }
 }

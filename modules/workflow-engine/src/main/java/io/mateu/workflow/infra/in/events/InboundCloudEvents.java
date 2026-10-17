@@ -42,11 +42,14 @@ public final class InboundCloudEvents {
                     extensions.put(name.substring(3), header);
                 }
             });
-            var contentType = headers.getOrDefault("ce_datacontenttype", headers.get("contentType"));
+            // Binary mode: ce_datacontenttype, else the record's own content type — the CloudEvents Kafka
+            // binding maps datacontenttype to the standard content-type header.
+            var contentType = headers.containsKey("ce_datacontenttype") ? headers.get("ce_datacontenttype")
+                    : contentType(headers);
             return new InboundEvent(destination, headers.get("ce_id"), headers.get("ce_source"), headers.get("ce_type"),
                     headers.get("ce_subject"), headers.get("ce_time"), keyText, contentType, valueText, extensions);
         }
-        var contentType = headers.getOrDefault("contentType", headers.get("content-type"));
+        var contentType = contentType(headers);
         if (valueText != null && (contentType != null && contentType.contains("cloudevents")
                 || looksStructured(valueText))) {
             try {
@@ -80,6 +83,27 @@ public final class InboundCloudEvents {
         return new InboundEvent(destination, text(envelope.get("id")), text(envelope.get("source")),
                 text(envelope.get("type")), text(envelope.get("subject")), text(envelope.get("time")), effectiveKey,
                 text(envelope.get("datacontenttype")), dataText, extensions);
+    }
+
+    /**
+     * The record's content type: Spring's {@code contentType} header, else the standard
+     * {@code content-type} (what the CloudEvents Kafka binding and most producers write) — header names
+     * matched in any case.
+     */
+    static String contentType(Map<String, String> headers) {
+        String standard = null;
+        for (var header : headers.entrySet()) {
+            if (header.getKey() == null || header.getValue() == null) {
+                continue;
+            }
+            if (header.getKey().equalsIgnoreCase("contentType")) {
+                return header.getValue();
+            }
+            if (header.getKey().equalsIgnoreCase("content-type")) {
+                standard = header.getValue();
+            }
+        }
+        return standard;
     }
 
     private static boolean looksStructured(String value) {

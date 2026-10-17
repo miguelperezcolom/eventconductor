@@ -12,20 +12,28 @@ import java.util.UUID;
  * endpoint's configuration, and the body is the payload as it came. With a {@code secret}, the
  * {@code signatureHeader} must carry the hex HMAC-SHA256 of the body ({@code sha256=} prefix tolerated);
  * without one, the endpoint accepts what it is sent — keep it behind something that checks.
+ *
+ * <p>The signature covers the body only, never the headers. So a signed endpoint with a configured
+ * {@code type} always uses that type and ignores the type header (a replayed body cannot be relabelled);
+ * the id still comes from an unsigned header, so de-duplication of a replay relies on the sender's id.
  */
 public class GenericWebhookProvider implements WebhookProvider {
 
     @Override
     public WebhookEvent read(String endpointName, WebhookGatewayProperties.Endpoint endpoint, Map<String, String> headers,
                              byte[] body) {
-        if (endpoint.getSecret() != null && !endpoint.getSecret().isBlank()) {
+        var signed = endpoint.getSecret() != null && !endpoint.getSecret().isBlank();
+        if (signed) {
             var header = endpoint.getSignatureHeader() == null ? "x-signature-256"
                     : endpoint.getSignatureHeader().toLowerCase(Locale.ROOT);
             if (!Signatures.matches(endpoint.getSecret(), body, headers.get(header))) {
                 throw new WebhookRejectedException(401, "Missing or invalid " + endpoint.getSignatureHeader() + ".");
             }
         }
-        var type = header(headers, endpoint.getTypeHeader());
+        // Only the body is signed: on a signed endpoint with a fixed type, a header must not change what
+        // the event is — a captured request replayed with another CE-Type would otherwise be accepted.
+        var fixedType = endpoint.getType() != null && !endpoint.getType().isBlank();
+        var type = signed && fixedType ? null : header(headers, endpoint.getTypeHeader());
         if (type == null) {
             type = endpoint.getType();
         }

@@ -34,13 +34,17 @@ class ClasspathEventTriggerLoaderTest {
     }
 
     @Test
-    void loadsABareListSkippingEntriesForUnknownWorkflows() {
+    void loadsABareListKeepingEntriesForWorkflowsNotKnownYet() {
         var result = loader.load("classpath:/events-fixtures/listed/");
 
-        assertThat(result.errors()).singleElement().asString().contains("unknown workflow 'unknown-workflow'");
+        // The classpath loads first: a workflow a git or directory import brings later is a warning, not a loss.
+        assertThat(result.errors()).isEmpty();
+        assertThat(result.warnings()).singleElement().asString().contains("workflow 'unknown-workflow' not known yet");
         assertThat(triggers.findAll()).containsExactly(new EventFileTrigger(ClasspathEventTriggerLoader.SOURCE, 0,
                 "sync-customer", new EventTrigger("on-customer-changed", "customers-cdc", "*", "data.op == 'u'",
-                        "customer-${data.after.id}", Map.of("customerId", "${data.after.id}", "email", "${data.after.email}"))));
+                        "customer-${data.after.id}", Map.of("customerId", "${data.after.id}", "email", "${data.after.email}"))),
+                new EventFileTrigger(ClasspathEventTriggerLoader.SOURCE, 1, "unknown-workflow",
+                        new EventTrigger(null, "bookings", "com.acme.booking.created", null, null, null)));
     }
 
     @Test

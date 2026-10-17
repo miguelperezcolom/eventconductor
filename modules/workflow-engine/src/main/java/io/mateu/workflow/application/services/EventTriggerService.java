@@ -174,6 +174,7 @@ public class EventTriggerService {
         var trigger = validated(id, draft, violations);
         fileTriggers.save(new EventFileTrigger(EventFileTrigger.API_SOURCE, 0, workflowId, trigger));
         log.info("Event trigger '{}' created for workflow '{}' ({} on {})", id, workflowId, trigger.type(), trigger.destination());
+        EventTriggerImporter.warnOfSharedBusinessKeys(catalog());
         return get(workflowId, id);
     }
 
@@ -193,6 +194,7 @@ public class EventTriggerService {
                 draft.filter(), draft.businessKey(), draft.variables()), violations);
         fileTriggers.save(new EventFileTrigger(EventFileTrigger.API_SOURCE, 0, workflowId, trigger));
         log.info("Event trigger '{}' of workflow '{}' updated ({} on {})", triggerId, workflowId, trigger.type(), trigger.destination());
+        EventTriggerImporter.warnOfSharedBusinessKeys(catalog());
         return get(workflowId, triggerId);
     }
 

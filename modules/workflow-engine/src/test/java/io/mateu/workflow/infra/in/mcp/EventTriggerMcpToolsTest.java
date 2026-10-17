@@ -62,7 +62,7 @@ class EventTriggerMcpToolsTest {
         var receipts = new InMemoryEventReceiptRepository();
         var pauses = new InMemoryTriggerPauseRepository();
         var inbound = new InboundEventService(definitions, new io.mateu.workflow.infra.out.memory.InMemoryEventTriggerRepository(), receipts, pauses, ingressRouter, mock(MessageDispatcher.class),
-                mock(ObjectProvider.class));
+                mock(ObjectProvider.class), null);
         tools = new EventTriggerMcpTools(new EventTriggerService(definitions, pauses, receipts, properties, new io.mateu.workflow.infra.out.memory.InMemoryEventTriggerRepository()), inbound);
     }
 
@@ -72,6 +72,19 @@ class EventTriggerMcpToolsTest {
                 .filter(m -> m.isAnnotationPresent(Tool.class))
                 .map(Method::getName))
                 .containsExactlyInAnyOrder(PUBLISHED_TOOLS);
+    }
+
+    @Test
+    void theVariablesParameterSaysWhatNullAndAnEmptyObjectMean() {
+        // The service: null = data's top-level members, {} = none. An agent must be told exactly that.
+        for (var name : List.of("createEventTrigger", "updateEventTrigger")) {
+            var method = Arrays.stream(EventTriggerMcpTools.class.getDeclaredMethods())
+                    .filter(m -> m.getName().equals(name)).findFirst().orElseThrow();
+            var variables = Arrays.stream(method.getParameters()).filter(p -> p.getName().equals("variables"))
+                    .findFirst().orElseThrow();
+            var description = variables.getAnnotation(org.springframework.ai.tool.annotation.ToolParam.class).description();
+            assertThat(description).contains("null: every top-level member of data").contains("{}: the process gets no variables");
+        }
     }
 
     @Test

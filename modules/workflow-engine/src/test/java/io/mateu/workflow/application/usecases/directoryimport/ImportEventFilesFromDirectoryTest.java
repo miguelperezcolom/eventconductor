@@ -84,9 +84,13 @@ class ImportEventFilesFromDirectoryTest {
         assertThat(definitions.findAll()).extracting(d -> d.id()).containsExactly("sync-customer");
         assertThat(definitions.findById("sync-customer").orElseThrow().triggers()).containsExactly(
                 new EventTrigger(null, "bookings", "com.acme.booking.created", null, null, null));
+        // An entry naming a workflow not imported (yet) is kept — it applies once that workflow arrives —
+        // and is a warning in the log, not an import error.
         assertThat(triggers.findAll()).containsExactly(new EventFileTrigger(dir.toString(), 0, "sync-customer",
-                new EventTrigger(null, "customers-cdc", "*", "data.op == 'u'", null, Map.of("customerId", "${data.after.id}"))));
-        assertThat(result.errors()).singleElement().asString().contains("unknown workflow 'does-not-exist'");
+                new EventTrigger(null, "customers-cdc", "*", "data.op == 'u'", null, Map.of("customerId", "${data.after.id}"))),
+                new EventFileTrigger(dir.toString(), 1, "does-not-exist",
+                        new EventTrigger(null, "bookings", "com.acme.booking.created", null, null, null)));
+        assertThat(result.errors()).isEmpty();
     }
 
     @Test

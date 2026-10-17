@@ -73,12 +73,12 @@ public class EventTriggerMcpTools implements McpTools, McpSystemContext {
             + " '-'), unique within the workflow; workflowId: an existing workflow; destination: a logical name under"
             + " workflow.events.destinations; type: the CloudEvents type, '*' wildcards allowed ('*' alone matches every"
             + " event, including plain records); filter: optional JEXL over the event (data.op == 'u'); businessKey:"
-            + " optional template (customer-${data.after.id}); variables: templates by name, default data's members."
+            + " optional template (customer-${data.after.id}); variables: templates by name — omitted/null maps data's top-level members, {} maps none."
             + " Returns the trigger with its state.")
     public TriggerView createEventTrigger(String id, String workflowId, String destination, String type,
                                           @ToolParam(required = false, description = "JEXL filter over the event; empty for none") String filter,
                                           @ToolParam(required = false, description = "Business key template; empty for the default") String businessKey,
-                                          @ToolParam(required = false, description = "Variable templates by name; empty for data's members") Map<String, Object> variables) {
+                                          @ToolParam(required = false, description = "Variable templates by name (name -> template over the event, e.g. {\"customerId\": \"${data.after.id}\"}). Omitted or null: every top-level member of data becomes a variable. An empty object {}: the process gets no variables.") Map<String, Object> variables) {
         log.info("Creating event trigger {} for {}", id, workflowId);
         return eventTriggerService.create(new EventTriggerService.TriggerDraft(id, workflowId, destination, type, filter,
                 businessKey, variables));
@@ -90,7 +90,7 @@ public class EventTriggerMcpTools implements McpTools, McpSystemContext {
     public TriggerView updateEventTrigger(String workflowId, String triggerId, String destination, String type,
                                           @ToolParam(required = false, description = "JEXL filter over the event; empty for none") String filter,
                                           @ToolParam(required = false, description = "Business key template; empty for the default") String businessKey,
-                                          @ToolParam(required = false, description = "Variable templates by name; empty for data's members") Map<String, Object> variables) {
+                                          @ToolParam(required = false, description = "Variable templates by name (name -> template over the event, e.g. {\"customerId\": \"${data.after.id}\"}). Omitted or null: every top-level member of data becomes a variable. An empty object {}: the process gets no variables.") Map<String, Object> variables) {
         log.info("Updating event trigger {}/{}", workflowId, triggerId);
         return eventTriggerService.update(workflowId, triggerId, new EventTriggerService.TriggerDraft(triggerId, workflowId,
                 destination, type, filter, businessKey, variables));

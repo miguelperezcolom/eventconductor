@@ -107,4 +107,41 @@ class EventTriggersTest {
         assertThat(EventTriggerRow.workflowOf("a.b~c-d")).isEqualTo("a.b");
         assertThat(EventTriggerRow.triggerOf("a.b~c-d")).isEqualTo("c-d");
     }
+
+    @Test
+    void theFormKeepsNoVariablesApartFromDataMembers() {
+        // null: data's top-level members. {}: none. The form must not turn one into the other.
+        service.create(new TriggerDraft("none", "sync-customer", "customers-cdc", "*", null, null, java.util.Map.of()));
+        service.create(new TriggerDraft("members", "sync-customer", "customers-cdc", "*", null, null, null));
+
+        var none = page.edit("sync-customer~none", null);
+        assertThat(none.dataMembers).isFalse();
+        assertThat(none.draft().variables()).isNotNull().isEmpty();
+
+        var members = page.edit("sync-customer~members", null);
+        assertThat(members.dataMembers).isTrue();
+        assertThat(members.draft().variables()).isNull();
+
+        var fresh = new EventTriggerForm();
+        fresh.dataMembers = false;
+        assertThat(fresh.draft().variables()).isNotNull().isEmpty();
+    }
+
+    @Test
+    void theFormRoundTripsNonTextTemplatesAsJson() {
+        var nested = new java.util.LinkedHashMap<String, Object>();
+        nested.put("id", "${data.id}");
+        nested.put("tags", List.of("a", "b"));
+        var variables = new java.util.LinkedHashMap<String, Object>();
+        variables.put("customer", nested);
+        variables.put("retries", 3);
+        service.create(new TriggerDraft("nested", "sync-customer", "customers-cdc", "*", null, null, variables));
+
+        var form = page.edit("sync-customer~nested", null);
+        assertThat(form.variables).containsExactly(
+                new Variable("customer", "{\"id\":\"${data.id}\",\"tags\":[\"a\",\"b\"]}"),
+                new Variable("retries", "3"));
+        // Saved back unchanged: the nested map is a map again, not its toString().
+        assertThat(form.draft().variables()).containsEntry("customer", nested);
+    }
 }

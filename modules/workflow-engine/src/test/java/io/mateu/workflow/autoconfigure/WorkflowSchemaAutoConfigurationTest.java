@@ -65,6 +65,9 @@ class WorkflowSchemaAutoConfigurationTest {
             assertThat(tableExists(dataSource, "inbound_event_receipt")).isTrue();
             assertThat(indexExists(dataSource, "idx_inbound_event_receipt_received_at")).isTrue();
             assertThat(tableExists(dataSource, "event_trigger_pause")).isTrue();
+
+            // The received events of one workflow (V42): filtered by workflow, newest first.
+            assertThat(indexExists(dataSource, "idx_inbound_event_receipt_workflow_received")).isTrue();
         });
     }
 

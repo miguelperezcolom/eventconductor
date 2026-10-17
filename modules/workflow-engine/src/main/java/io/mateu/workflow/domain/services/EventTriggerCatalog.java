@@ -175,6 +175,23 @@ public final class EventTriggerCatalog {
         return catalog.stream().map(Entry::key).collect(Collectors.toSet());
     }
 
+    /**
+     * The {@code businessKey} templates that triggers of more than one workflow share, each with those
+     * workflows (sorted). A business key is unique across workflows — creation is ignored when any
+     * process already has it — so whichever of them starts first for a rendered key takes it, and the
+     * others start nothing for that event. Usually a mistake: put the workflow in the template
+     * ({@code "booking-onboarding-${data.bookingId}"}).
+     */
+    public static Map<String, java.util.SortedSet<String>> sharedBusinessKeys(List<Entry> catalog) {
+        var byTemplate = new java.util.TreeMap<String, java.util.SortedSet<String>>();
+        catalog.stream()
+                .filter(e -> e.fires() && e.trigger().businessKey() != null && !e.trigger().businessKey().isBlank())
+                .forEach(e -> byTemplate.computeIfAbsent(e.trigger().businessKey().strip(), k -> new java.util.TreeSet<>())
+                        .add(e.definition().id()));
+        byTemplate.values().removeIf(workflows -> workflows.size() < 2);
+        return byTemplate;
+    }
+
     /** The derived id, with {@code -2}, {@code -3}… while {@code taken} holds it. */
     private static String uniqueDerived(String type, Set<String> taken) {
         var base = EventTriggerRules.derivedId(type);

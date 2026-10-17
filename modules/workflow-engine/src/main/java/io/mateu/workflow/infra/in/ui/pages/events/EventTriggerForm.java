@@ -1,5 +1,7 @@
 package io.mateu.workflow.infra.in.ui.pages.events;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.mateu.uidl.annotations.EditableOnlyWhenCreating;
 import io.mateu.uidl.annotations.FormLayout;
 import io.mateu.uidl.annotations.Help;
@@ -33,6 +35,8 @@ import java.util.List;
 @Scope("prototype")
 @FormLayout(columns = 1)
 public class EventTriggerForm {
+
+    private static final ObjectMapper JSON = new ObjectMapper();
 
     @NotNull
     @EditableOnlyWhenCreating
@@ -70,9 +74,14 @@ public class EventTriggerForm {
 
     @MasterDetail(minHeightWhenDetailVisible = "16rem;")
     @Label("Variables")
-    @Help("Templates over the event, by name: bookingId = ${data.bookingId}. None: every top-level member"
-            + " of data becomes a variable.")
+    @Help("Templates over the event, by name: bookingId = ${data.bookingId}. A value that is JSON (an object"
+            + " or a list) is kept as such: {\"id\": \"${data.id}\"}. With none listed, see the switch below.")
     List<Variable> variables;
+
+    @Label("Map data's top-level members")
+    @Help("Only when no variables are listed: on, every top-level member of data becomes a variable; off, the"
+            + " started process gets no variables at all.")
+    boolean dataMembers = true;
 
     /** The form for editing {@code view}. */
     static EventTriggerForm of(TriggerView view) {
@@ -83,21 +92,56 @@ public class EventTriggerForm {
         form.type = view.type();
         form.filter = view.filter();
         form.businessKey = view.businessKey();
+        // null is "data's top-level members", {} is "none": two different triggers.
+        form.dataMembers = view.variables() == null;
         form.variables = view.variables() == null ? new ArrayList<>() : new ArrayList<>(view.variables().entrySet().stream()
-                .map(e -> new Variable(e.getKey(), e.getValue() == null ? null : String.valueOf(e.getValue())))
+                .map(e -> new Variable(e.getKey(), text(e.getValue())))
                 .toList());
         return form;
     }
 
-    /** What the form says, for the service: no variables means "data's top-level members". */
+    /**
+     * What the form says, for the service: the listed variables; with none, null ("data's top-level
+     * members") when {@link #dataMembers} is on, else an empty map ("none").
+     */
     TriggerDraft draft() {
-        LinkedHashMap<String, Object> map = null;
+        LinkedHashMap<String, Object> map;
         if (variables != null && !variables.isEmpty()) {
             map = new LinkedHashMap<>();
             for (var v : variables) {
-                map.put(v.name(), v.value());
+                map.put(v.name(), template(v.value()));
             }
+        } else {
+            map = dataMembers ? null : new LinkedHashMap<>();
         }
         return new TriggerDraft(id, workflowId, destination, type, filter, businessKey, map);
+    }
+
+    /** A template as the form shows it: text as it is, anything else (a nested map, a list, a number) as JSON. */
+    static String text(Object template) {
+        if (template == null || template instanceof String) {
+            return (String) template;
+        }
+        try {
+            return JSON.writeValueAsString(template);
+        } catch (JsonProcessingException e) {
+            return String.valueOf(template);
+        }
+    }
+
+    /** The template a form value stands for: an object or a list written as JSON is that structure again. */
+    static Object template(String value) {
+        if (value == null) {
+            return null;
+        }
+        var trimmed = value.strip();
+        if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+            try {
+                return JSON.readValue(trimmed, Object.class);
+            } catch (JsonProcessingException notJson) {
+                return value;
+            }
+        }
+        return value;
     }
 }

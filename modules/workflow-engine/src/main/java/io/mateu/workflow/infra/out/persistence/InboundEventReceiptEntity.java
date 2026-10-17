@@ -14,11 +14,15 @@ import java.time.LocalDateTime;
 
 /**
  * One receipt of an inbound domain event (see {@code EventReceiptRepository}). Declared here as well
- * as in {@code V39__domain_event_triggers.sql}, for the schemas {@code ddl-auto} creates.
+ * as in {@code V39__domain_event_triggers.sql} (and its workflow index in
+ * {@code V42__inbound_event_receipt_workflow_index.sql}), for the schemas {@code ddl-auto} creates.
  */
 @Entity
 @Table(name = "inbound_event_receipt",
-        indexes = @Index(name = "idx_inbound_event_receipt_received_at", columnList = "received_at"))
+        indexes = {
+                @Index(name = "idx_inbound_event_receipt_received_at", columnList = "received_at"),
+                @Index(name = "idx_inbound_event_receipt_workflow_received", columnList = "workflow_id, received_at")
+        })
 @Getter
 @Setter
 @NoArgsConstructor
