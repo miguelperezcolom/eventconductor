@@ -790,7 +790,6 @@ The same triggers, naming the workflow they start, can live in an `events.yaml` 
 events to a workflow is not a change to the workflow — or be created from **Workflow → Event triggers**,
 `POST /workflow/api/triggers` or the MCP tool `createEventTrigger`, and promoted to `events.yaml` from
 their page. See the guide *Starting on and waiting for domain events*.
-events to a workflow is not a change to the workflow. See the guide *Starting on and waiting for domain events*.
 Webhooks — GitHub, or any HMAC-signed sender — come in through `webhook-gateway-standalone-app`, which
 verifies each delivery and publishes it as a CloudEvent on a destination (guide *Starting a workflow from a webhook*).
 
