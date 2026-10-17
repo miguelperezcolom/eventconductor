@@ -65,6 +65,22 @@ class WorkflowDefinitionDBRepositoryTest {
                         org.assertj.core.api.Assertions.entry("start", new NodePosition(60, 160))));
     }
 
+    @Test
+    void tagsSurviveTheRoundTripAndAbsentTagsLeaveTheColumnEmpty() {
+        var tagged = definition().withTags(List.of("billing", "team:payments"));
+
+        var entity = savedEntity(tagged);
+        assertThat(entity.getTagsJson()).contains("billing").contains("team:payments");
+        when(entities.findById("wf-1")).thenReturn(Optional.of(entity));
+        assertThat(repository.findById("wf-1")).hasValueSatisfying(loaded ->
+                assertThat(loaded.tags()).containsExactly("billing", "team:payments"));
+    }
+
+    @Test
+    void absentTagsLeaveTheColumnEmpty() {
+        assertThat(savedEntity(definition()).getTagsJson()).isNull();
+    }
+
     /** A workflow nobody arranged leaves the column null, which is what old rows already read as. */
     @Test
     void anUnarrangedDefinitionLeavesTheColumnEmpty() {

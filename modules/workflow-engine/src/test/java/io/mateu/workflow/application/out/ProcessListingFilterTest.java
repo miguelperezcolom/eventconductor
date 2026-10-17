@@ -76,6 +76,23 @@ class ProcessListingFilterTest {
         }
 
         @Test
+        void byDefinitionSet() {
+            // How a tag reaches the store: the definitions that carry it. Empty narrows nothing.
+            assertThat(ids(new ProcessListingFilter(null, false, null, null, null, null, null, Set.of("refunds"))))
+                    .containsExactly("c");
+            assertThat(ids(new ProcessListingFilter(null, false, null, null, null, null, null, Set.of("orders", "refunds"))))
+                    .containsExactly("a", "b", "c");
+            assertThat(ids(new ProcessListingFilter(null, false, null, null, null, null, null, Set.of())))
+                    .containsExactly("a", "b", "c");
+            assertThat(ids(new ProcessListingFilter(null, false, null, null, null, null, null, Set.of("nobody"))))
+                    .isEmpty();
+            assertThat(new ProcessListingFilter(null, false, null, null, null, null, null, Set.of("x")).hasNarrowingBeyondText())
+                    .isTrue();
+            assertThat(new ProcessListingFilter(null, false, null, null, null, null, null, Set.of()).hasNarrowingBeyondText())
+                    .isFalse();
+        }
+
+        @Test
         void byStatus() {
             assertThat(ids(new ProcessListingFilter(null, false, null, Set.of(ProcessStatus.RUNNING), null, null)))
                     .containsExactly("c");

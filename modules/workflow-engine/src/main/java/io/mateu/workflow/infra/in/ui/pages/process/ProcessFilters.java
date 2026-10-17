@@ -7,6 +7,7 @@ import io.mateu.uidl.annotations.MainFilter;
 import io.mateu.workflow.domain.aggregates.ProcessStatus;
 import io.mateu.workflow.infra.in.ui.suppliers.WorkflowDefinitionIdLabelSupplier;
 import io.mateu.workflow.infra.in.ui.suppliers.WorkflowDefinitionIdOptionsSupplier;
+import io.mateu.workflow.infra.in.ui.suppliers.WorkflowDefinitionTagOptionsSupplier;
 
 import java.time.LocalDateTime;
 import java.util.Set;
@@ -35,6 +36,10 @@ public record ProcessFilters(
         @Lookup(search = WorkflowDefinitionIdOptionsSupplier.class,
                 label = WorkflowDefinitionIdLabelSupplier.class)
         String workflowDefinitionId,
+        @MainFilter @Label("Tag")
+        @Lookup(search = WorkflowDefinitionTagOptionsSupplier.class)
+        @Help("Processes of every definition that carries this tag (see the definition's tags).")
+        String tag,
         @MainFilter @Label("Status") Set<ProcessStatus> status,
         @MainFilter @Label("Business key")
         @Help("Matches the business key alone — an order number, a booking reference — as a "

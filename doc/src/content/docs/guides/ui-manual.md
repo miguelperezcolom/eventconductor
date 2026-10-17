@@ -117,6 +117,9 @@ The processes list shows all process instances with their ID, workflow name, sta
 | **Search** | Filter by ID or name |
 | **View** | Open the process detail |
 
+**Filters**: **Only errors**, **Definition**, **Tag** (the processes of every definition carrying the
+tag — see the definition's `tags`), **Status**, **Business key** and the creation date range.
+
 Both re-run buttons apply to whatever is ticked, and the engine decides: a process that is not
 `ERROR` or `CANCELLED` is left alone and says so in the log, rather than the list guessing which
 rows qualify from a page that may already be out of date.

@@ -59,7 +59,32 @@ class SimpleProcessCrudAdapterTest {
                         .created(LocalDateTime.of(2026, 1, 1, 0, 0).plusMinutes(i))
                         .build())
                 .toList());
-        return new SimpleProcessCrudAdapter(null, repository, index, readModel, null);
+        return new SimpleProcessCrudAdapter(null, repository, index, readModel, null, null);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void aTagFilterResolvesToTheDefinitionsCarryingItAndAnUnknownTagListsNothing() {
+        var definitions = mock(io.mateu.workflow.application.out.WorkflowDefinitionRepository.class);
+        when(definitions.findAll()).thenReturn(List.of(
+                new io.mateu.workflow.domain.aggregates.WorkflowDefinition("orders", "Orders", 1, null, false, 0, false, null, 0, List.of())
+                        .withTags(List.of("Billing", "eu")),
+                new io.mateu.workflow.domain.aggregates.WorkflowDefinition("refunds", "Refunds", 1, null, false, 0, false, null, 0, List.of())
+                        .withTags(List.of("billing")),
+                new io.mateu.workflow.domain.aggregates.WorkflowDefinition("hr", "HR", 1, null, false, 0, false, null, 0, List.of())));
+        org.springframework.beans.factory.ObjectProvider<io.mateu.workflow.application.out.WorkflowDefinitionRepository> provider =
+                mock(org.springframework.beans.factory.ObjectProvider.class);
+        when(provider.getIfAvailable()).thenReturn(definitions);
+        var adapter = new SimpleProcessCrudAdapter(null, mock(ProcessRepository.class), mock(ObjectProvider.class),
+                new ProcessStatusAnnouncer(false, ""), null, provider);
+
+        assertThat(adapter.definitionsTagged("billing")).containsExactly("orders", "refunds");
+        assertThat(adapter.definitionsTagged("EU")).containsExactly("orders");
+        assertThat(adapter.definitionsTagged("nobody")).containsExactly(SimpleProcessCrudAdapter.NO_DEFINITION);
+        assertThat(adapter.definitionsTagged(null)).isNull();
+
+        var filters = new io.mateu.workflow.infra.in.ui.pages.process.ProcessFilters(null, null, "billing", null, null, null, null);
+        assertThat(adapter.listingFilter(null, filters, null).workflowDefinitionIds()).containsExactly("orders", "refunds");
     }
 
     private io.mateu.uidl.data.Page<?> page(int processes, int pageNumber, int size) {
@@ -138,7 +163,7 @@ class SimpleProcessCrudAdapterTest {
     @Test
     void withTheReadModelOnTheListingComesFromTheIndex() {
         var on = new SimpleProcessCrudAdapter(null, repository, index,
-                new ProcessStatusAnnouncer(true, ""), null);
+                new ProcessStatusAnnouncer(true, ""), null, null);
         var indexStore = mock(ProcessIndexRepository.class);
         when(index.getIfAvailable()).thenReturn(indexStore);
         when(indexStore.search(null, false, 0, 10)).thenReturn(java.util.Optional.of(

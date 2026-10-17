@@ -38,6 +38,8 @@ public class SimpleProcessCrudAdapter  {
     final ObjectProvider<io.mateu.workflow.application.out.ProcessIndexRepository> processIndex;
     final ProcessStatusAnnouncer readModel;
     final ObjectProvider<CreateProcessForm> createProcessFormProvider;
+    /** Resolves a tag filter to the definitions that carry it. */
+    final ObjectProvider<io.mateu.workflow.application.out.WorkflowDefinitionRepository> definitions;
     final DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     public ListingData<ProcessRow> search(String searchText, ProcessFilters filters, Pageable pageable, HttpRequest httpRequest) {
@@ -131,7 +133,8 @@ public class SimpleProcessCrudAdapter  {
                     filters.status(),
                     filters.createdFrom(),
                     filters.createdTo(),
-                    blankToNull(filters.businessKey()));
+                    blankToNull(filters.businessKey()),
+                    definitionsTagged(blankToNull(filters.tag())));
         }
         return new io.mateu.workflow.application.out.ProcessListingFilter(
                 searchText,
@@ -140,7 +143,24 @@ public class SimpleProcessCrudAdapter  {
                 stateStatus(httpRequest),
                 stateDateTime(httpRequest, "createdFrom"),
                 stateDateTime(httpRequest, "createdTo"),
-                blankToNull(stateString(httpRequest, "businessKey")));
+                blankToNull(stateString(httpRequest, "businessKey")),
+                definitionsTagged(blankToNull(stateString(httpRequest, "tag"))));
+    }
+
+    /** A tag that no definition carries must list nothing: a set no process can match, never "no filter". */
+    static final String NO_DEFINITION = "\u0000no-definition-carries-this-tag";
+
+    /** The ids of the definitions carrying {@code tag}; null for no tag. */
+    java.util.Set<String> definitionsTagged(String tag) {
+        if (tag == null) {
+            return null;
+        }
+        var repository = definitions == null ? null : definitions.getIfAvailable();
+        var ids = repository == null ? java.util.Set.<String>of() : repository.findAll().stream()
+                .filter(wd -> wd.hasTag(tag))
+                .map(io.mateu.workflow.domain.aggregates.WorkflowDefinition::id)
+                .collect(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new));
+        return ids.isEmpty() ? java.util.Set.of(NO_DEFINITION) : ids;
     }
 
     private static String blankToNull(String value) {

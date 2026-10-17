@@ -60,6 +60,7 @@ public interface ProcessEntityRepository extends JpaRepository<ProcessEntity, St
                    or lower(concat(coalesce(p.name, ''), ' ', coalesce(p.businessKey, ''))) like :pattern)
               and (:businessKey is null or lower(coalesce(p.businessKey, '')) like :businessKey)
               and (:definitionId is null or p.workflowDefinitionId = :definitionId)
+              and (:definitionIds is null or p.workflowDefinitionId in :definitionIds)
               and (:statuses is null or p.status in :statuses)
               and (cast(:createdFrom as LocalDateTime) is null or p.created >= :createdFrom)
               and (cast(:createdTo as LocalDateTime) is null or p.created <= :createdTo)
@@ -69,6 +70,7 @@ public interface ProcessEntityRepository extends JpaRepository<ProcessEntity, St
                                              @Param("pattern") String pattern,
                                              @Param("businessKey") String businessKey,
                                              @Param("definitionId") String definitionId,
+                                             @Param("definitionIds") Collection<String> definitionIds,
                                              @Param("statuses") Collection<String> statuses,
                                              @Param("createdFrom") LocalDateTime createdFrom,
                                              @Param("createdTo") LocalDateTime createdTo,
@@ -88,6 +90,7 @@ public interface ProcessEntityRepository extends JpaRepository<ProcessEntity, St
                    or lower(concat(coalesce(p.name, ''), ' ', coalesce(p.businessKey, ''))) like :pattern)
               and (:businessKey is null or lower(coalesce(p.businessKey, '')) like :businessKey)
               and (:definitionId is null or p.workflowDefinitionId = :definitionId)
+              and (:definitionIds is null or p.workflowDefinitionId in :definitionIds)
               and (:statuses is null or p.status in :statuses)
               and (cast(:createdFrom as LocalDateTime) is null or p.created >= :createdFrom)
               and (cast(:createdTo as LocalDateTime) is null or p.created <= :createdTo)
@@ -96,6 +99,7 @@ public interface ProcessEntityRepository extends JpaRepository<ProcessEntity, St
                         @Param("pattern") String pattern,
                         @Param("businessKey") String businessKey,
                         @Param("definitionId") String definitionId,
+                        @Param("definitionIds") Collection<String> definitionIds,
                         @Param("statuses") Collection<String> statuses,
                         @Param("createdFrom") LocalDateTime createdFrom,
                         @Param("createdTo") LocalDateTime createdTo);

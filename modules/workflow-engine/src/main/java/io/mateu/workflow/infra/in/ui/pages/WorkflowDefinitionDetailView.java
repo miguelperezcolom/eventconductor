@@ -119,6 +119,10 @@ public class WorkflowDefinitionDetailView implements VisibilitySupplier {
     String description;
 
     @Tab("Summary")
+    @Label("Tags")
+    String tags;
+
+    @Tab("Summary")
     @Label("Concurrency")
     String concurrency;
 
@@ -177,6 +181,7 @@ public class WorkflowDefinitionDetailView implements VisibilitySupplier {
         this.status = runtimeStatus(def.disabled(), def.archived(), def.paused());
         this.version = "v" + def.version();
         this.description = def.description() == null || def.description().isBlank() ? "—" : def.description();
+        this.tags = WorkflowDefinitionRow.tagsOf(def);
         this.concurrency = def.limitConcurrentExecutions()
                 ? "limited to " + def.maxConcurrentExecutions()
                         + (def.enqueueOnLimit() ? " (enqueue on limit)" : " (reject on limit)")

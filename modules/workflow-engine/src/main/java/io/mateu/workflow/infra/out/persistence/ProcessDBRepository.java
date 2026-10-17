@@ -269,12 +269,13 @@ public class ProcessDBRepository implements ProcessRepository {
                 ? null : filter.normalisedStatuses().stream().map(Enum::name).toList();
         // Counted first, because which page can be served depends on how many there are — see
         // ServedPage. Two queries either way: a Spring Data Page would have run this same count.
+        var definitionIds = filter.normalisedDefinitionIds();
         var total = processEntityRepository.countSummaries(filter.onlyErrors(), pattern, businessKeyPattern,
-                filter.workflowDefinitionId(), statuses, filter.createdFrom(), filter.createdTo());
+                filter.workflowDefinitionId(), definitionIds, statuses, filter.createdFrom(), filter.createdTo());
         var served = ServedPage.of(page, size, total);
         var content = processEntityRepository
                 .searchSummaries(filter.onlyErrors(), pattern, businessKeyPattern,
-                        filter.workflowDefinitionId(), statuses, filter.createdFrom(), filter.createdTo(),
+                        filter.workflowDefinitionId(), definitionIds, statuses, filter.createdFrom(), filter.createdTo(),
                         PageRequest.of(served.number(), served.size()))
                 .stream()
                 .map(view -> new ProcessSummary(

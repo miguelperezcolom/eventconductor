@@ -36,11 +36,24 @@ public record ProcessListingFilter(
         Set<ProcessStatus> status,
         LocalDateTime createdFrom,
         LocalDateTime createdTo,
-        String businessKey) {
+        String businessKey,
+        /**
+         * Only processes of these definitions — how a tag filter reaches the store: the console
+         * resolves the tag to the definitions that carry it. Null or empty narrows nothing; a non-empty
+         * set that matches no definition yields an empty listing (the caller passes a sentinel).
+         */
+        Set<String> workflowDefinitionIds) {
 
     /** The listing with nothing but a text box and the errors toggle — what every caller had. */
     public static ProcessListingFilter of(String searchText, boolean onlyErrors) {
-        return new ProcessListingFilter(searchText, onlyErrors, null, null, null, null, null);
+        return new ProcessListingFilter(searchText, onlyErrors, null, null, null, null, null, null);
+    }
+
+    /** The shape every caller had before a definition-set (tag) filter existed; null narrows nothing. */
+    public ProcessListingFilter(String searchText, boolean onlyErrors, String workflowDefinitionId,
+                                Set<ProcessStatus> status, LocalDateTime createdFrom, LocalDateTime createdTo,
+                                String businessKey) {
+        this(searchText, onlyErrors, workflowDefinitionId, status, createdFrom, createdTo, businessKey, null);
     }
 
     /**
@@ -49,7 +62,7 @@ public record ProcessListingFilter(
      */
     public ProcessListingFilter(String searchText, boolean onlyErrors, String workflowDefinitionId,
                                 Set<ProcessStatus> status, LocalDateTime createdFrom, LocalDateTime createdTo) {
-        this(searchText, onlyErrors, workflowDefinitionId, status, createdFrom, createdTo, null);
+        this(searchText, onlyErrors, workflowDefinitionId, status, createdFrom, createdTo, null, null);
     }
 
     /**
@@ -63,7 +76,8 @@ public record ProcessListingFilter(
      */
     public boolean hasNarrowingBeyondText() {
         return workflowDefinitionId != null || (status != null && !status.isEmpty())
-                || createdFrom != null || createdTo != null || normalisedBusinessKey() != null;
+                || createdFrom != null || createdTo != null || normalisedBusinessKey() != null
+                || normalisedDefinitionIds() != null;
     }
 
     /** Null and blank both mean "no text filter"; normalised here so no store has to decide. */
@@ -74,6 +88,11 @@ public record ProcessListingFilter(
     /** Null and blank both mean "no business-key filter"; normalised here so no store has to decide. */
     public String normalisedBusinessKey() {
         return businessKey == null || businessKey.isBlank() ? null : businessKey;
+    }
+
+    /** Null and empty both mean "no definition-set filter"; normalised here so no store has to decide. */
+    public Set<String> normalisedDefinitionIds() {
+        return workflowDefinitionIds == null || workflowDefinitionIds.isEmpty() ? null : workflowDefinitionIds;
     }
 
     /** Null and empty both mean "no status filter"; normalised here so no store has to decide. */

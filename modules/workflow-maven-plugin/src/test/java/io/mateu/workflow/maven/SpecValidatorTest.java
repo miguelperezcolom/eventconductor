@@ -126,6 +126,30 @@ class SpecValidatorTest {
     }
 
     @Test
+    void definitionTagsFollowTheEnginesRules() throws Exception {
+        var mapper = new com.fasterxml.jackson.dataformat.yaml.YAMLMapper();
+        var good = mapper.readTree("""
+                id: tagged
+                name: Tagged
+                tags: [billing, team:payments]
+                steps:
+                  - {id: start, type: START, name: Start}
+                """);
+        assertThat(validator.validate(SpecValidator.Kind.WORKFLOW, good)).isEmpty();
+
+        var bad = mapper.readTree("""
+                id: tagged
+                name: Tagged
+                tags: [billing, Billing, "bad tag"]
+                steps:
+                  - {id: start, type: START, name: Start}
+                """);
+        assertThat(validator.validate(SpecValidator.Kind.WORKFLOW, bad))
+                .anySatisfy(v -> assertThat(v).contains("tag 'Billing' is declared more than once"))
+                .anySatisfy(v -> assertThat(v).contains("bad tag"));
+    }
+
+    @Test
     void cronFilesValidateInBothForms() throws Exception {
         assertThat(validate(SpecValidator.Kind.CRON, "/valid/workflows/cron.yaml")).isEmpty();
         var keyed = new YAMLMapper().readTree("""

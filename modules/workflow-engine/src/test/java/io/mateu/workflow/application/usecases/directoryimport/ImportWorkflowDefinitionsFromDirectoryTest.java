@@ -60,6 +60,39 @@ class ImportWorkflowDefinitionsFromDirectoryTest {
     }
 
     @Test
+    void tagsAreImportedAndABadTagRefusesTheFile(@TempDir Path dir) throws Exception {
+        Files.writeString(dir.resolve("tagged.yaml"), """
+                id: tagged
+                name: Tagged
+                version: 1
+                tags: [billing, team:payments]
+                steps:
+                  - id: start
+                    type: START
+                    name: Start
+                """);
+        Files.writeString(dir.resolve("bad.yaml"), """
+                id: bad
+                name: Bad
+                version: 1
+                tags: ["bad tag"]
+                steps:
+                  - id: start
+                    type: START
+                    name: Start
+                """);
+
+        var result = useCase.handle(List.of(dir.toString()));
+
+        assertThat(saved()).extracting(WorkflowDefinition::id).containsExactly("tagged");
+        assertThat(saved().get(0).tags()).containsExactly("billing", "team:payments");
+        assertThat(saved().get(0).hasTag("TEAM:PAYMENTS")).isTrue();
+        assertThat(saved().get(0).searchableText()).contains("billing");
+        // Refused by the schema before the record's own rules run: the message names the offending entry.
+        assertThat(result.errors()).singleElement().asString().contains("bad.yaml").contains("/tags/0");
+    }
+
+    @Test
     void importsEveryDefinitionUnderTheDirectory(@TempDir Path dir) throws Exception {
         write(dir, "one.yml.ec", "one");
         Files.createDirectories(dir.resolve("nested"));

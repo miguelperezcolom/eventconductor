@@ -172,6 +172,8 @@ public interface ProcessRepository extends CrudStore<Process> {
                         || filter.status().contains(process.getStatus()))
                 .filter(process -> filter.workflowDefinitionId() == null
                         || filter.workflowDefinitionId().equals(process.getWorkflowDefinitionId()))
+                .filter(process -> filter.normalisedDefinitionIds() == null
+                        || filter.normalisedDefinitionIds().contains(process.getWorkflowDefinitionId()))
                 .filter(process -> businessKeyNeedle == null
                         || (process.getBusinessKey() != null
                                 && process.getBusinessKey().toLowerCase().contains(businessKeyNeedle)))

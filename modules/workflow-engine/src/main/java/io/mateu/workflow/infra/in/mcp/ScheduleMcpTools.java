@@ -46,7 +46,7 @@ public class ScheduleMcpTools implements McpTools, McpSystemContext {
     }
 
     public record WorkflowDefinitionSummary(String id, String name, String status, boolean acceptsNewInstances,
-                                            String description) {}
+                                            String description, java.util.List<String> tags) {}
 
     @Tool(description = "List every schedule (one per id) with its workflow, cron, zone, variables, source (Definition,"
             + " cron.yaml (git|directory|classpath) or UI/API), whether it is editable here, whether it is paused, its"
@@ -129,7 +129,7 @@ public class ScheduleMcpTools implements McpTools, McpSystemContext {
                 .filter(d -> d.id() != null)
                 .sorted(Comparator.comparing(d -> d.id()))
                 .map(d -> new WorkflowDefinitionSummary(d.id(), d.name(), d.status().name(),
-                        d.status().accceptsNewInstances(), d.description()))
+                        d.status().accceptsNewInstances(), d.description(), d.tagsOrEmpty()))
                 .toList();
     }
 }

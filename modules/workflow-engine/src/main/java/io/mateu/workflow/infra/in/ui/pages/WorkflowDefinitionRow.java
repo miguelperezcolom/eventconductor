@@ -23,7 +23,7 @@ import io.mateu.workflow.domain.aggregates.WorkflowStatus;
  * @param description the description on one line, cut at a word with "…" when it is longer.
  * @param fullDescription the description as written — the row detail.
  */
-public record WorkflowDefinitionRow(String id, String name, String description, Status status,
+public record WorkflowDefinitionRow(String id, String name, String description, String tags, Status status,
                                     @Details String fullDescription)
         implements Identifiable {
 
@@ -38,7 +38,12 @@ public record WorkflowDefinitionRow(String id, String name, String description, 
      */
     public static WorkflowDefinitionRow of(WorkflowDefinition definition) {
         return new WorkflowDefinitionRow(definition.id(), definition.name(),
-                OneLine.of(definition.description()), statusOf(definition), definition.description());
+                OneLine.of(definition.description()), tagsOf(definition), statusOf(definition), definition.description());
+    }
+
+    /** The tags, comma-separated; "—" when there are none. */
+    static String tagsOf(WorkflowDefinition definition) {
+        return definition.tagsOrEmpty().isEmpty() ? "—" : String.join(", ", definition.tagsOrEmpty());
     }
 
     private static Status statusOf(WorkflowDefinition definition) {

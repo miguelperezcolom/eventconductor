@@ -109,7 +109,7 @@ class ScheduleMcpToolsTest {
     @Test
     void listsTheWorkflowsASchedulesCanStart() {
         assertThat(tools.listWorkflowDefinitions()).containsExactly(
-                new ScheduleMcpTools.WorkflowDefinitionSummary("old", "Old", "DISABLED", false, null),
-                new ScheduleMcpTools.WorkflowDefinitionSummary("report", "Report", "ACTIVE", true, "Daily report"));
+                new ScheduleMcpTools.WorkflowDefinitionSummary("old", "Old", "DISABLED", false, null, java.util.List.of()),
+                new ScheduleMcpTools.WorkflowDefinitionSummary("report", "Report", "ACTIVE", true, "Daily report", java.util.List.of()));
     }
 }

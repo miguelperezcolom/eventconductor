@@ -69,6 +69,7 @@ steps: [...]
 | `name` | string | Human-readable name |
 | `version` | integer | **Ignored for numbering.** The engine assigns versions itself on each content change (see [Versioning](#versioning)); any value here is not authoritative and is overwritten |
 | `description` | string | Optional description |
+| `tags` | array | Optional tags, short labels for finding and grouping definitions and their processes in the console (`[billing, team:payments]`; letters, digits, `.`, `_`, `:`, `/`, `-`). Metadata: changing them mints no version. The Definitions page lists and searches them; the Processes page filters by **Tag** |
 | `paused` | boolean | Runtime flag — **not authored in the `.ec`**. Toggled at runtime (UI, `PauseWorkflowUseCase`/`ResumeWorkflowUseCase`, MCP). While `true`, all the definition's processes are held and new instances (cron included) are created born-`PAUSED`. Kept in the schema (default `false`) only so exported definitions round-trip |
 | `status` | string | `ACTIVE` (default), `DISABLED` or `ARCHIVED`. **Authored in the `.ec`**, and a floor: an operator can take a workflow out of service at runtime, but cannot put one into service that its own definition closes. This is how a definition lives in the repository without being live |
 | `disabled`, `archived` | boolean | The older way of saying the same thing, still read: `disabled: true` means `status: DISABLED`, `archived: true` means `status: ARCHIVED` |

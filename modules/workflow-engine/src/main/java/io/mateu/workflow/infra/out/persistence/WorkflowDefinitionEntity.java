@@ -104,4 +104,8 @@ public class WorkflowDefinitionEntity {
     @Column(columnDefinition = "TEXT")
     String triggersJson;
 
+    /** The definition's {@code tags} as a JSON array, or null when it declares none (V41). */
+    @Column(columnDefinition = "TEXT")
+    String tagsJson;
+
 }

@@ -219,6 +219,12 @@ public class SpecValidator {
     // --- Workflow semantics: mirror WorkflowDefinition.checkInvariants() + cron validation. ---
 
     private void addWorkflowSemantics(JsonNode wf, List<String> violations) {
+        JsonNode tags = wf.get("tags");
+        if (tags != null && tags.isArray()) {
+            List<String> values = new ArrayList<>();
+            tags.forEach(t -> values.add(t.isTextual() ? t.asText() : t.toString()));
+            violations.addAll(io.mateu.workflow.analysis.TagRules.violations(values, "tags"));
+        }
         JsonNode cron = wf.get("cronExpression");
         if (cron != null && cron.isTextual() && !cron.asText().isBlank()
                 && !CronExpression.isValidExpression(cron.asText().trim())) {

@@ -15,7 +15,7 @@
         "string",
         "null"
       ],
-      "description": "The schema this file is written against, as an editor reads it for completion and inline validation \u2014 the README and the guides tell authors to put it here. It says nothing about the workflow itself and is ignored when the file is read; it is declared only because additionalProperties is false, and refusing the one key whose purpose is to help someone write the file correctly would be an odd way to validate it."
+      "description": "The schema this file is written against, as an editor reads it for completion and inline validation — the README and the guides tell authors to put it here. It says nothing about the workflow itself and is ignored when the file is read; it is declared only because additionalProperties is false, and refusing the one key whose purpose is to help someone write the file correctly would be an odd way to validate it."
     },
     "id": {
       "type": [
@@ -45,6 +45,18 @@
         "null"
       ],
       "description": "Optional free-text description of the workflow."
+    },
+    "tags": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]*$",
+        "maxLength": 50
+      },
+      "description": "Tags: short labels for finding and grouping definitions — and the processes of those definitions — in the console (billing, team:payments, eu). Letters, digits, '.', '_', ':', '/' and '-', starting with a letter or digit, at most 50 characters, each once. Metadata: changing them mints no version. The Definitions page shows and searches them; the Processes page filters by Tag."
     },
     "limitConcurrentExecutions": {
       "type": [
@@ -239,7 +251,9 @@
         "array",
         "null"
       ],
-      "items": { "type": "string" },
+      "items": {
+        "type": "string"
+      },
       "description": "Flow authorization: the scopes a caller must ALL hold to create a process of this definition. Evaluated against the caller's snapshot at creation. Empty or absent means open. Enforced only when workflow.security.flow-authorization.enabled."
     },
     "requiredRoles": {
@@ -247,7 +261,9 @@
         "array",
         "null"
       ],
-      "items": { "type": "string" },
+      "items": {
+        "type": "string"
+      },
       "description": "Flow authorization: the roles a caller must ALL hold to create a process of this definition. See requiredScopes."
     },
     "steps": {
@@ -263,7 +279,7 @@
         "object",
         "null"
       ],
-      "description": "Where each step's node sits on the diagram, keyed by step id \u2014 the arrangement whoever authored this workflow made by hand in the graph editor. The only key here that says nothing about what the workflow does, and the only one written by a tool rather than by a person: the editor rewrites it as nodes are dragged. Absent means the graph is laid out automatically, which is what happens to any step with no entry here (including the steps a DYNAMIC step injects at runtime). An entry naming a step that does not exist is ignored rather than refused \u2014 it is a stale coordinate, not a broken workflow.",
+      "description": "Where each step's node sits on the diagram, keyed by step id — the arrangement whoever authored this workflow made by hand in the graph editor. The only key here that says nothing about what the workflow does, and the only one written by a tool rather than by a person: the editor rewrites it as nodes are dragged. Absent means the graph is laid out automatically, which is what happens to any step with no entry here (including the steps a DYNAMIC step injects at runtime). An entry naming a step that does not exist is ignored rather than refused — it is a stale coordinate, not a broken workflow.",
       "additionalProperties": {
         "$ref": "#/$defs/NodePosition"
       }
@@ -441,17 +457,45 @@
     "Moment": {
       "description": "A moment in business terms, from the process's data — e.g. 3 days before check-in at 09:00 hotel time. A plain string is its date.",
       "oneOf": [
-        { "type": "string", "minLength": 1, "description": "The date alone: a template rendering to an ISO date, date-time or offset date-time, e.g. ${checkinDate}." },
+        {
+          "type": "string",
+          "minLength": 1,
+          "description": "The date alone: a template rendering to an ISO date, date-time or offset date-time, e.g. ${checkinDate}."
+        },
         {
           "type": "object",
           "additionalProperties": false,
-          "required": ["date"],
+          "required": [
+            "date"
+          ],
           "properties": {
-            "date": { "type": "string", "minLength": 1, "description": "A template rendering to an ISO date (2026-08-01), date-time (2026-08-01T15:00) or offset date-time; e.g. ${checkinDate}." },
-            "offset": { "type": "string", "pattern": "^[+-]?P(\\d+Y)?(\\d+M)?(\\d+W)?(\\d+D)?(T(\\d+H)?(\\d+M)?(\\d+(\\.\\d{1,9})?S)?)?$", "description": "ISO-8601 offset added to the date, may be negative: -P3D (three calendar days before), P1DT6H, -PT30M. Days and up are calendar arithmetic in the zone (DST-safe); hours and below are elapsed time." },
-            "at": { "type": "string", "pattern": "^\\d{2}:\\d{2}(:\\d{2})?$", "description": "Time of day set after the offset, in the zone, e.g. 09:00." },
-            "zone": { "type": "string", "description": "IANA time zone (Europe/Madrid) or a template rendering to one (${hotelZone}). Default: workflow.time.zone (the JVM zone unless configured)." },
-            "ifPast": { "type": "string", "enum": ["fire", "timeout"], "description": "TIMER until only — when the moment has already passed as the step starts: fire (default) completes the timer at once; timeout ends it TIMEOUT, which follows onTimeoutStepId if set and fails the process otherwise." }
+            "date": {
+              "type": "string",
+              "minLength": 1,
+              "description": "A template rendering to an ISO date (2026-08-01), date-time (2026-08-01T15:00) or offset date-time; e.g. ${checkinDate}."
+            },
+            "offset": {
+              "type": "string",
+              "pattern": "^[+-]?P(\\d+Y)?(\\d+M)?(\\d+W)?(\\d+D)?(T(\\d+H)?(\\d+M)?(\\d+(\\.\\d{1,9})?S)?)?$",
+              "description": "ISO-8601 offset added to the date, may be negative: -P3D (three calendar days before), P1DT6H, -PT30M. Days and up are calendar arithmetic in the zone (DST-safe); hours and below are elapsed time."
+            },
+            "at": {
+              "type": "string",
+              "pattern": "^\\d{2}:\\d{2}(:\\d{2})?$",
+              "description": "Time of day set after the offset, in the zone, e.g. 09:00."
+            },
+            "zone": {
+              "type": "string",
+              "description": "IANA time zone (Europe/Madrid) or a template rendering to one (${hotelZone}). Default: workflow.time.zone (the JVM zone unless configured)."
+            },
+            "ifPast": {
+              "type": "string",
+              "enum": [
+                "fire",
+                "timeout"
+              ],
+              "description": "TIMER until only — when the moment has already passed as the step starts: fire (default) completes the timer at once; timeout ends it TIMEOUT, which follows onTimeoutStepId if set and fails the process otherwise."
+            }
           }
         }
       ]
@@ -666,44 +710,205 @@
           "description": "REPLY only: a JEXL expression over the process variables whose value is the reply — e.g. {'bookingId': bookingId, 'status': 'CONFIRMED'}. Mutually exclusive with replyVariables and replyTemplate."
         },
         "http": {
-          "type": ["object", "null"],
+          "type": [
+            "object",
+            "null"
+          ],
           "additionalProperties": false,
           "description": "HTTP_CALL only: the request, rendered from the process state by the engine and made by the built-in http-call worker task. Exactly one of connection and url.",
           "properties": {
-            "connection": { "type": ["string", "null"], "description": "A named connection (workflow.http.connections.<name>): base URL, auth, timeouts, common headers." },
-            "method": { "type": ["string", "null"], "enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", null], "default": "GET" },
-            "url": { "type": ["string", "null"], "description": "An absolute URL (template), instead of a connection. Subject to workflow.http.allowed-hosts; internal addresses are refused." },
-            "path": { "type": ["string", "null"], "description": "With a connection: the path (template) under its base URL." },
-            "query": { "type": ["object", "null"], "additionalProperties": { "type": "string" }, "description": "Query parameters; values are templates." },
-            "headers": { "type": ["object", "null"], "additionalProperties": { "type": "string" }, "description": "Request headers; values are templates. Never secrets — use auth." },
-            "body": { "description": "A structured body template, sent as JSON. Exclusive with bodyTemplate." },
-            "bodyTemplate": { "type": ["string", "null"], "description": "A text body template, sent as is (set Content-Type in headers)." },
-            "successStatus": { "type": ["array", "null"], "items": { "type": "integer" }, "description": "Statuses that complete the step. Default: any 2xx." },
-            "output": { "type": ["object", "null"], "additionalProperties": { "type": "string" }, "description": "Process variable → JEXL over {status, headers, body} (body parsed when JSON)." },
+            "connection": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "A named connection (workflow.http.connections.<name>): base URL, auth, timeouts, common headers."
+            },
+            "method": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "enum": [
+                "GET",
+                "POST",
+                "PUT",
+                "PATCH",
+                "DELETE",
+                "HEAD",
+                null
+              ],
+              "default": "GET"
+            },
+            "url": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "An absolute URL (template), instead of a connection. Subject to workflow.http.allowed-hosts; internal addresses are refused."
+            },
+            "path": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "With a connection: the path (template) under its base URL."
+            },
+            "query": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "additionalProperties": {
+                "type": "string"
+              },
+              "description": "Query parameters; values are templates."
+            },
+            "headers": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "additionalProperties": {
+                "type": "string"
+              },
+              "description": "Request headers; values are templates. Never secrets — use auth."
+            },
+            "body": {
+              "description": "A structured body template, sent as JSON. Exclusive with bodyTemplate."
+            },
+            "bodyTemplate": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "A text body template, sent as is (set Content-Type in headers)."
+            },
+            "successStatus": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "integer"
+              },
+              "description": "Statuses that complete the step. Default: any 2xx."
+            },
+            "output": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "additionalProperties": {
+                "type": "string"
+              },
+              "description": "Process variable → JEXL over {status, headers, body} (body parsed when JSON)."
+            },
             "auth": {
               "description": "A named auth profile (workflow.http.auth.<name>), or an inline block {type: basic|bearer|api-key|oauth2-client-credentials|none, ...} whose credential fields (token, password, value, clientSecret) must be ${secret:NAME} references.",
-              "type": ["string", "object", "null"]
+              "type": [
+                "string",
+                "object",
+                "null"
+              ]
             },
-            "retryOn": { "type": ["array", "null"], "items": { "type": "string" }, "description": "Failures the step's retries apply to: 5xx, 4xx, io or specific codes. Default [5xx, io] — a 4xx is not retried." }
+            "retryOn": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "string"
+              },
+              "description": "Failures the step's retries apply to: 5xx, 4xx, io or specific codes. Default [5xx, io] — a 4xx is not retried."
+            }
           }
         },
         "llm": {
-          "type": ["object", "null"],
+          "type": [
+            "object",
+            "null"
+          ],
           "additionalProperties": false,
           "description": "LLM_CALL only: what to ask a language model. The engine renders system and prompt from the process state; the built-in llm-call worker task calls the model on a named connection (provider, model and API key are configuration, never the definition's).",
           "properties": {
-            "connection": { "type": "string", "minLength": 1, "description": "A named connection (workflow.llm.connections.<name>): provider (anthropic, openai), model, base URL, API key, defaults." },
-            "model": { "type": ["string", "null"], "description": "Overrides the connection's model, e.g. claude-sonnet-5-5." },
-            "system": { "type": ["string", "null"], "description": "The system prompt (text template over the process variables)." },
-            "prompt": { "type": "string", "minLength": 1, "description": "The user message (text template over the process variables)." },
-            "temperature": { "type": ["number", "null"], "minimum": 0, "maximum": 2, "description": "Sampling temperature. Omitted unless set — current Claude models accept only the default." },
-            "maxTokens": { "type": ["integer", "null"], "minimum": 1, "description": "The most output tokens. Default the connection's (4096)." },
-            "responseSchema": { "type": ["object", "null"], "description": "A JSON Schema: the answer must be one JSON document valid against it. Parsed and validated; an invalid answer fails the step (LLM_INVALID_OUTPUT, retried per retries)." },
-            "output": { "type": ["object", "null"], "additionalProperties": { "type": "string" }, "description": "Process variable → JEXL over {text, json, usage, model, finishReason} (json: the parsed answer, with responseSchema)." },
-            "outputVariable": { "type": ["string", "null"], "description": "The variable that receives the answer's text (with responseSchema, the JSON document)." },
-            "usageVariable": { "type": ["string", "null"], "description": "The variable that receives the token usage: {model, inputTokens, outputTokens, totalTokens}." }
+            "connection": {
+              "type": "string",
+              "minLength": 1,
+              "description": "A named connection (workflow.llm.connections.<name>): provider (anthropic, openai), model, base URL, API key, defaults."
+            },
+            "model": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "Overrides the connection's model, e.g. claude-sonnet-5-5."
+            },
+            "system": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "The system prompt (text template over the process variables)."
+            },
+            "prompt": {
+              "type": "string",
+              "minLength": 1,
+              "description": "The user message (text template over the process variables)."
+            },
+            "temperature": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 0,
+              "maximum": 2,
+              "description": "Sampling temperature. Omitted unless set — current Claude models accept only the default."
+            },
+            "maxTokens": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1,
+              "description": "The most output tokens. Default the connection's (4096)."
+            },
+            "responseSchema": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "description": "A JSON Schema: the answer must be one JSON document valid against it. Parsed and validated; an invalid answer fails the step (LLM_INVALID_OUTPUT, retried per retries)."
+            },
+            "output": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "additionalProperties": {
+                "type": "string"
+              },
+              "description": "Process variable → JEXL over {text, json, usage, model, finishReason} (json: the parsed answer, with responseSchema)."
+            },
+            "outputVariable": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "The variable that receives the answer's text (with responseSchema, the JSON document)."
+            },
+            "usageVariable": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "The variable that receives the token usage: {model, inputTokens, outputTokens, totalTokens}."
+            }
           },
-          "required": ["connection", "prompt"]
+          "required": [
+            "connection",
+            "prompt"
+          ]
         },
         "event": {
           "type": [
@@ -712,15 +917,61 @@
           ],
           "additionalProperties": false,
           "description": "PUBLISH_EVENT only: the domain event to publish. Written to the outbox with the step's completion — published if and only if the step completed.",
-          "required": ["destination", "type"],
+          "required": [
+            "destination",
+            "type"
+          ],
           "properties": {
-            "destination": { "type": "string", "minLength": 1, "description": "A logical destination, mapped to a topic by workflow.events.destinations.<name> — never a topic itself." },
-            "type": { "type": "string", "minLength": 1, "description": "The event type (CloudEvents type), e.g. com.acme.booking.confirmed." },
-            "key": { "type": ["string", "null"], "description": "Template for the message key. Default: the business key, else the process id." },
-            "payload": { "description": "The payload as a structured template (JSON/YAML with ${...} leaves). Exclusive with payloadTemplate and payloadVariables." },
-            "payloadTemplate": { "type": ["string", "null"], "description": "The payload as a text template. Exclusive with payload and payloadVariables." },
-            "payloadVariables": { "type": ["array", "null"], "items": { "type": "string" }, "description": "The payload is an object of these process variables." },
-            "format": { "type": ["string", "null"], "enum": ["binary", "structured", "plain", null], "description": "CloudEvents binary (default: ce_* headers) or structured (JSON envelope), or plain (the payload alone). Null takes the destination's format." }
+            "destination": {
+              "type": "string",
+              "minLength": 1,
+              "description": "A logical destination, mapped to a topic by workflow.events.destinations.<name> — never a topic itself."
+            },
+            "type": {
+              "type": "string",
+              "minLength": 1,
+              "description": "The event type (CloudEvents type), e.g. com.acme.booking.confirmed."
+            },
+            "key": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "Template for the message key. Default: the business key, else the process id."
+            },
+            "payload": {
+              "description": "The payload as a structured template (JSON/YAML with ${...} leaves). Exclusive with payloadTemplate and payloadVariables."
+            },
+            "payloadTemplate": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "The payload as a text template. Exclusive with payload and payloadVariables."
+            },
+            "payloadVariables": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "string"
+              },
+              "description": "The payload is an object of these process variables."
+            },
+            "format": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "enum": [
+                "binary",
+                "structured",
+                "plain",
+                null
+              ],
+              "description": "CloudEvents binary (default: ce_* headers) or structured (JSON envelope), or plain (the payload alone). Null takes the destination's format."
+            }
           }
         },
         "onEvent": {
@@ -746,7 +997,14 @@
           "description": "TIMER only: name of a process variable holding an ISO 8601 date (2026-08-01) or date-time (2026-08-01T15:00); the timer fires when that moment passes. Takes precedence over duration."
         },
         "until": {
-          "anyOf": [{ "$ref": "#/$defs/Moment" }, { "type": "null" }],
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Moment"
+            },
+            {
+              "type": "null"
+            }
+          ],
           "description": "TIMER only: the moment to wait for, from the process's data — {date, offset, at, zone, ifPast} or a date template. Unlike untilVariable it follows the process's variables while the timer waits. Exclusive with duration and untilVariable."
         },
         "messageName": {
@@ -783,7 +1041,14 @@
           "default": 0
         },
         "deadline": {
-          "anyOf": [{ "$ref": "#/$defs/Moment" }, { "type": "null" }],
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Moment"
+            },
+            {
+              "type": "null"
+            }
+          ],
           "description": "ACTION, USER_TASK, RULE, WAIT_FOR_MESSAGE, PROCESS, HTTP_CALL, LLM_CALL: a moment by which the step must have finished, from the process's data ({date, offset, at, zone}, no ifPast). Reaching it is a timeout (onTimeoutStepId or failure) that retries do not extend; with timeout too, the earlier wins."
         },
         "retries": {
@@ -852,7 +1117,9 @@
             "array",
             "null"
           ],
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "description": "Flow authorization: the scopes the caller must ALL hold for this step to run, on top of the definition-level requirement. Evaluated against the process's creation snapshot. Empty/absent = no step-level restriction. Enforced only when workflow.security.flow-authorization.enabled."
         },
         "requiredRoles": {
@@ -860,7 +1127,9 @@
             "array",
             "null"
           ],
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "description": "Flow authorization: the roles the caller must ALL hold for this step to run. See requiredScopes."
         }
       },
@@ -998,28 +1267,92 @@
             "not": {
               "anyOf": [
                 {
-                  "required": ["replyVariables", "replyExpression"],
-                  "properties": { "replyVariables": { "type": "array", "minItems": 1 }, "replyExpression": { "type": "string", "minLength": 1 } }
+                  "required": [
+                    "replyVariables",
+                    "replyExpression"
+                  ],
+                  "properties": {
+                    "replyVariables": {
+                      "type": "array",
+                      "minItems": 1
+                    },
+                    "replyExpression": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  }
                 },
                 {
-                  "required": ["replyVariables", "replyTemplate"],
-                  "properties": { "replyVariables": { "type": "array", "minItems": 1 }, "replyTemplate": { "not": { "type": "null" } } }
+                  "required": [
+                    "replyVariables",
+                    "replyTemplate"
+                  ],
+                  "properties": {
+                    "replyVariables": {
+                      "type": "array",
+                      "minItems": 1
+                    },
+                    "replyTemplate": {
+                      "not": {
+                        "type": "null"
+                      }
+                    }
+                  }
                 },
                 {
-                  "required": ["replyExpression", "replyTemplate"],
-                  "properties": { "replyExpression": { "type": "string", "minLength": 1 }, "replyTemplate": { "not": { "type": "null" } } }
+                  "required": [
+                    "replyExpression",
+                    "replyTemplate"
+                  ],
+                  "properties": {
+                    "replyExpression": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "replyTemplate": {
+                      "not": {
+                        "type": "null"
+                      }
+                    }
+                  }
                 }
               ]
             }
           }
         },
         {
-          "if": { "properties": { "type": { "const": "HTTP_CALL" } }, "required": ["type"] },
-          "then": { "required": ["http"] }
+          "if": {
+            "properties": {
+              "type": {
+                "const": "HTTP_CALL"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "required": [
+              "http"
+            ]
+          }
         },
         {
-          "if": { "properties": { "type": { "const": "LLM_CALL" } }, "required": ["type"] },
-          "then": { "required": ["llm"] }
+          "if": {
+            "properties": {
+              "type": {
+                "const": "LLM_CALL"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "required": [
+              "llm"
+            ]
+          }
         },
         {
           "if": {

@@ -135,7 +135,16 @@ public record WorkflowDefinition(
          */
         @Hidden
         @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
-        List<EventTrigger> triggers
+        List<EventTrigger> triggers,
+        /**
+         * Tags: short labels for finding and grouping definitions — and the processes of those
+         * definitions — in the console ({@code billing}, {@code team:payments}; see {@code TagRules}).
+         * Null — the default — means none. Metadata: changing them mints no version. Rendered by the
+         * detail view, not by the generic form.
+         */
+        @Hidden
+        @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+        List<String> tags
 ) implements Identifiable, SearchableText, LookupOptionsSupplier, VisibilitySupplier {
 
     /**
@@ -159,6 +168,26 @@ public record WorkflowDefinition(
         // Null kept apart from empty for the same reason as the layout: only null is omitted on export.
         schedules = schedules == null ? null : List.copyOf(schedules);
         triggers = triggers == null ? null : List.copyOf(triggers);
+        // Trimmed, as written: the author's case is kept, matching is case-insensitive (TagRules).
+        tags = tags == null ? null : tags.stream().map(t -> t == null ? null : t.trim()).toList();
+    }
+
+    /**
+     * The canonical shape before tags existed, so every caller of the full constructor keeps
+     * compiling and the definition declares no {@code tags}.
+     */
+    public WorkflowDefinition(String id, String name, int version, String description,
+                              boolean limitConcurrentExecutions, int maxConcurrentExecutions,
+                              boolean enqueueOnLimit, String cronExpression, int defaultMaxStepExecutions,
+                              List<Step> steps, boolean paused, WorkflowStatus declaredStatus,
+                              WorkflowStatus runtimeStatus, List<String> requiredScopes,
+                              List<String> requiredRoles, int maxSteps, Map<String, NodePosition> layout,
+                              ProcessLock processLock, SyncInvocation syncInvocation, List<CronSchedule> schedules,
+                              List<EventTrigger> triggers) {
+        this(id, name, version, description, limitConcurrentExecutions, maxConcurrentExecutions,
+                enqueueOnLimit, cronExpression, defaultMaxStepExecutions, steps, paused, declaredStatus,
+                runtimeStatus, requiredScopes, requiredRoles, maxSteps, layout, processLock, syncInvocation,
+                schedules, triggers, null);
     }
 
     /**
@@ -408,7 +437,25 @@ public record WorkflowDefinition(
         return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
                 steps, paused, declaredStatus, runtimeStatus, requiredScopes, requiredRoles, maxSteps,
-                layout, processLock, syncInvocation, schedules, newTriggers);
+                layout, processLock, syncInvocation, schedules, newTriggers, tags);
+    }
+
+    /** Returns a copy carrying different tags — chained wherever a definition is rebuilt, like {@link #withTriggers}. */
+    public WorkflowDefinition withTags(List<String> newTags) {
+        return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
+                maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
+                steps, paused, declaredStatus, runtimeStatus, requiredScopes, requiredRoles, maxSteps,
+                layout, processLock, syncInvocation, schedules, triggers, newTags);
+    }
+
+    /** The tags, never null. */
+    public List<String> tagsOrEmpty() {
+        return tags == null ? List.of() : tags;
+    }
+
+    /** Whether this definition carries {@code tag} (case-insensitively). */
+    public boolean hasTag(String tag) {
+        return tag != null && tagsOrEmpty().stream().anyMatch(t -> t != null && t.equalsIgnoreCase(tag.trim()));
     }
 
     /**
@@ -488,7 +535,7 @@ public record WorkflowDefinition(
 
     @Override
     public String searchableText() {
-        return name + " " + description;
+        return name + " " + description + (tags == null || tags.isEmpty() ? "" : " " + String.join(" ", tags));
     }
 
     /**
@@ -517,6 +564,14 @@ public record WorkflowDefinition(
      * ({@code EventTriggerRules}). Whether the destination is configured is not judged here: the
      * engine can be configured after a definition is imported.
      */
+    /** Each tag must be one ({@code TagRules}), and declared once. */
+    private void checkTags() {
+        var violations = io.mateu.workflow.analysis.TagRules.violations(tags, "tags");
+        if (!violations.isEmpty()) {
+            throw new IllegalStateException(String.join("; ", violations) + ".");
+        }
+    }
+
     private void checkTriggers() {
         if (triggers == null) return;
         var violations = new java.util.ArrayList<String>();
@@ -557,6 +612,7 @@ public record WorkflowDefinition(
     public void checkInvariants() {
         checkSchedules();
         checkTriggers();
+        checkTags();
         if (steps == null) return;
         // Reachability below is judged against these: a compensation is declared on the step it
         // undoes and started by the rollback pipeline, so it needs no way in of its own.

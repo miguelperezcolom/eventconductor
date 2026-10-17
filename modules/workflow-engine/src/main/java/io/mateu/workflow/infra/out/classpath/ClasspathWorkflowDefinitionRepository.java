@@ -83,6 +83,7 @@ public class ClasspathWorkflowDefinitionRepository implements WorkflowDefinition
                                 .withSyncInvocation(def.syncInvocation())
                                 .withSchedules(def.schedules())
                                 .withTriggers(def.triggers())
+                                .withTags(def.tags())
                                 // The narrower constructor above declares ACTIVE: keep what the file says.
                                 .withDeclaredStatus(def.declaredStatus());
                     }
