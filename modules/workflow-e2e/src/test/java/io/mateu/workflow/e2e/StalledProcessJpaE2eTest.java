@@ -79,11 +79,16 @@ class StalledProcessJpaE2eTest extends AbstractJpaE2eTest {
                 .doesNotContain(process("ok-1").getId());
     }
 
-    /** Waits for the process to have nothing left running — the definition of stopped here. */
+    /**
+     * Waits for the process to have stopped: it moved (it is RUNNING and {@code decide} came back)
+     * and has nothing left running — the definition of stopped here. "Nothing running" alone is
+     * also true of a process the relay has not started yet, whose steps are all still CREATED; the
+     * assertions made after this would then race the start.
+     */
     private void awaitStalled(String businessKey) {
         await().atMost(TIMEOUT).untilAsserted(() -> {
-            assertThat(processOpt(businessKey)).isPresent();
-            assertThat(steps(businessKey)).isNotEmpty();
+            assertThat(processOpt(businessKey).map(p -> p.getStatus())).contains(ProcessStatus.RUNNING);
+            assertThat(step(businessKey, "decide").getStatus()).isEqualTo(StepExecutionStatus.COMPLETED);
             assertThat(steps(businessKey)).noneMatch(step ->
                     step.getStatus() == StepExecutionStatus.PENDING
                             || step.getStatus() == StepExecutionStatus.RUNNING);

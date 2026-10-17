@@ -36,6 +36,7 @@ class UpdateStepExecutionUseCaseTest {
     @Mock WorkflowMetrics workflowMetrics;
 
     @Mock MessageSubscriptionService messageSubscriptionService;
+    @Mock io.mateu.workflow.application.services.AutoRetryService autoRetryService;
 
 
     @InjectMocks UpdateStepExecutionUseCase useCase;
@@ -170,5 +171,90 @@ class UpdateStepExecutionUseCaseTest {
         verify(processRepository).save(any(Process.class));
         // RUNNING is not a final outcome — no step-execution metric yet.
         verify(workflowMetrics, never()).stepExecutionFinished(any(), any(), any());
+    }
+
+    // --- A failure with retries left is parked in the same locked update that records it ---
+
+    private UpdateStepExecutionUseCase withRealRetries() {
+        return new UpdateStepExecutionUseCase(repository, logMessageRepository, processRepository, processLockService,
+                messageSubscriptionService, workflowMetrics, new io.mateu.workflow.application.services.AutoRetryService(
+                        new io.mateu.workflow.application.services.BackoffPolicy(1000, 2.0, 60000, 0), workflowMetrics));
+    }
+
+    private StepExecution runningWithRetries(int attemptCount, int retries) {
+        Step step = new Step("s1", "wd-1", StepType.ACTION, "Step", null, null, null, null, false, "t", null, null,
+                null, null, 0, null, null, null, null, 0, retries, false, null, 0, null);
+        return StepExecution.builder()
+                .id("se-1").processId("p-1").workflowDefinitionId("wd-1")
+                .stepJson(io.mateu.core.infra.JsonSerializer.toJson(step))
+                .attemptCount(attemptCount)
+                .status(StepExecutionStatus.RUNNING).build();
+    }
+
+    @Test
+    void anErrorWithRetriesLeftIsNeverPersistedAsAFinalError() {
+        // Before, the ERROR was committed here and parked later by the status-change handler; a
+        // sibling branch completing in between read it as final, errored the process and started
+        // compensating while the retry was still coming.
+        var se = runningWithRetries(0, 2);
+        when(repository.findById("se-1")).thenReturn(Optional.of(se));
+        when(processRepository.findById("p-1")).thenReturn(Optional.of(process("p-1")));
+        when(processLockService.runExclusively(eq("p-1"), any())).thenAnswer(RunsTheAction.granted());
+        var saved = new java.util.ArrayList<StepExecutionStatus>();
+        when(repository.save(any())).thenAnswer(invocation -> {
+            saved.add(invocation.getArgument(0, StepExecution.class).getStatus());
+            return "se-1";
+        });
+
+        withRealRetries().handle(new UpdateStepExecutionCommand("se-1", List.of(), "boom", StepExecutionStatus.ERROR));
+
+        assertThat(saved).containsExactly(StepExecutionStatus.AWAITING_RETRY);
+        assertThat(se.getAttemptCount()).isEqualTo(1);
+        verify(workflowMetrics).retryPerformed("wd-1", WorkflowMetrics.RetryTrigger.AUTO);
+        // Still metered and logged as the failure it was.
+        verify(workflowMetrics).stepExecutionFinished(any(), eq(StepExecutionStatus.ERROR), any());
+    }
+
+    @Test
+    void anErrorWithNoRetriesLeftIsFinal() {
+        var se = runningWithRetries(2, 2);
+        when(repository.findById("se-1")).thenReturn(Optional.of(se));
+        when(processRepository.findById("p-1")).thenReturn(Optional.of(process("p-1")));
+        when(processLockService.runExclusively(eq("p-1"), any())).thenAnswer(RunsTheAction.granted());
+
+        withRealRetries().handle(new UpdateStepExecutionCommand("se-1", List.of(), "boom", StepExecutionStatus.ERROR));
+
+        assertThat(se.getStatus()).isEqualTo(StepExecutionStatus.ERROR);
+        verify(workflowMetrics, never()).retryPerformed(any(), any());
+    }
+
+    @Test
+    void aNonRetryableErrorIsFinalEvenWithRetriesLeft() {
+        var se = runningWithRetries(0, 2);
+        when(repository.findById("se-1")).thenReturn(Optional.of(se));
+        when(processRepository.findById("p-1")).thenReturn(Optional.of(process("p-1")));
+        when(processLockService.runExclusively(eq("p-1"), any())).thenAnswer(RunsTheAction.granted());
+
+        withRealRetries().handle(new UpdateStepExecutionCommand("se-1", List.of(), "bad request",
+                StepExecutionStatus.ERROR, true));
+
+        assertThat(se.getStatus()).isEqualTo(StepExecutionStatus.ERROR);
+        verify(workflowMetrics, never()).retryPerformed(any(), any());
+    }
+
+    @Test
+    void aReportForAStepAwaitingItsRetryIsIgnored() {
+        // No attempt is running while the step waits out its backoff: a report now is the failure
+        // that parked it, redelivered, and applying it would burn a second attempt.
+        var se = runningWithRetries(0, 3);
+        se.scheduleRetry(java.time.Duration.ofSeconds(1));
+        when(repository.findById("se-1")).thenReturn(Optional.of(se));
+        when(processLockService.runExclusively(eq("p-1"), any())).thenAnswer(RunsTheAction.granted());
+
+        withRealRetries().handle(new UpdateStepExecutionCommand("se-1", List.of(), "boom", StepExecutionStatus.ERROR));
+
+        assertThat(se.getStatus()).isEqualTo(StepExecutionStatus.AWAITING_RETRY);
+        assertThat(se.getAttemptCount()).isEqualTo(1);
+        verify(repository, never()).save(any());
     }
 }

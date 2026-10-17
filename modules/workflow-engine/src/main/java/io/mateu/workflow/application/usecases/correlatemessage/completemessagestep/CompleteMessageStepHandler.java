@@ -1,5 +1,6 @@
 package io.mateu.workflow.application.usecases.correlatemessage.completemessagestep;
 
+import io.mateu.workflow.application.out.ConcurrentProcessAccessException;
 import io.mateu.workflow.application.out.LogMessageRepository;
 import io.mateu.workflow.application.out.ProcessLockService;
 import io.mateu.workflow.application.out.ProcessRepository;
@@ -38,7 +39,10 @@ public class CompleteMessageStepHandler {
                 .orElseThrow().getProcessId();
 
         if (!processLockService.runExclusively(processId, () -> doHandle(command))) {
-            log.debug("Could not acquire lock for process {}, skipping message correlation", processId);
+            // Not skipped: nothing re-scans for a message the way the scheduler re-scans timers, so
+            // dropping it here would lose the message for good and leave the step waiting forever.
+            // Failing makes the delivery come round again; doHandle is idempotent under redelivery.
+            throw new ConcurrentProcessAccessException(processId, null);
         }
     }
 

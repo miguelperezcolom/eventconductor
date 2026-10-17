@@ -94,6 +94,19 @@ class StepOverProcessUseCaseTest {
     }
 
     @Test
+    void aStepOverThatCannotTakeTheProcessLockFailsSoTheEventIsRedelivered() {
+        // Returning normally here let the relay acknowledge the event that asked for the step-over,
+        // and the process sat still until something else happened to nudge it.
+        reset(lockService);
+        doReturn(false).when(lockService).runExclusively(any(), any());
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> useCase.handle(new StepOverProcessCommand("p-1")))
+                .isInstanceOf(io.mateu.workflow.application.out.ConcurrentProcessAccessException.class);
+
+        verify(stepExecutionRepository, never()).save(any());
+    }
+
+    @Test
     void completedStepsAreSkipped() {
         var process = process("p-1");
         var completed = se("se-1", "step-1", StepType.ACTION, StepExecutionStatus.COMPLETED, 0);

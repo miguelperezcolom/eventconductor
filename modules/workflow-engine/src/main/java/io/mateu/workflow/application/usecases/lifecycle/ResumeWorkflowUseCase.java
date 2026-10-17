@@ -33,6 +33,15 @@ public class ResumeWorkflowUseCase {
         processRepository.findAll().stream()
                 .filter(process -> workflowDefinitionId.equals(process.getWorkflowDefinitionId()))
                 .filter(process -> ProcessStatus.PAUSED.equals(process.getStatus()))
-                .forEach(process -> resumeProcessUseCase.handle(new ResumeProcessCommand(process.getId())));
+                .forEach(process -> {
+                    // Each process on its own: one that cannot be resumed right now (its lock is
+                    // busy, its state is broken) must not leave every process after it PAUSED.
+                    try {
+                        resumeProcessUseCase.handle(new ResumeProcessCommand(process.getId()));
+                    } catch (RuntimeException e) {
+                        log.error("Could not resume process {} of definition {}; it stays PAUSED",
+                                process.getId(), workflowDefinitionId, e);
+                    }
+                });
     }
 }

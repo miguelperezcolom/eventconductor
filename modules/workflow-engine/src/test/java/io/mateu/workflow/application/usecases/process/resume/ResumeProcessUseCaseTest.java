@@ -40,6 +40,7 @@ class ResumeProcessUseCaseTest {
     @Mock LogMessageRepository logMessageRepository;
     @Mock StepOverProcessUseCase stepOverProcessUseCase;
     @Mock ProcessUpdateStepExecutionUpdateUseCase processUpdateStepExecutionUpdateUseCase;
+    @Mock io.mateu.workflow.application.out.ProcessLockService processLockService;
 
     // The real no-op, not a mock: a mocked span() would swallow the work it is meant to wrap.
     @org.mockito.Spy
@@ -47,6 +48,12 @@ class ResumeProcessUseCaseTest {
             io.mateu.workflow.application.out.WorkflowTracing.NOOP;
 
     @InjectMocks ResumeProcessUseCase useCase;
+
+    @org.junit.jupiter.api.BeforeEach
+    void lockIsGranted() {
+        org.mockito.Mockito.lenient().when(processLockService.runExclusively(org.mockito.ArgumentMatchers.eq("p-1"), any()))
+                .thenAnswer(io.mateu.workflow.support.RunsTheAction.granted());
+    }
 
     private Process pausedProcess(LocalDateTime pausedAt) {
         return Process.builder().id("p-1").status(ProcessStatus.PAUSED).pausedAt(pausedAt).build();
@@ -124,5 +131,52 @@ class ResumeProcessUseCaseTest {
         verify(processRepository, never()).save(any());
         verify(stepOverProcessUseCase, never()).handle(any());
         verify(processUpdateStepExecutionUpdateUseCase, never()).handle(any());
+    }
+
+    @Test
+    void resumesUnderTheProcessLock() {
+        // Everything — the PAUSED check, the clock shift, the status change and the step-over —
+        // runs inside the lock: nothing is read or written before it is held.
+        org.mockito.Mockito.reset(processLockService);
+        var process = pausedProcess(LocalDateTime.now().minusMinutes(1));
+        var inLock = new java.util.concurrent.atomic.AtomicBoolean();
+        when(processLockService.runExclusively(org.mockito.ArgumentMatchers.eq("p-1"), any())).thenAnswer(invocation -> {
+            inLock.set(true);
+            try {
+                invocation.getArgument(1, Runnable.class).run();
+            } finally {
+                inLock.set(false);
+            }
+            return true;
+        });
+        when(processRepository.findById("p-1")).thenAnswer(invocation -> {
+            assertThat(inLock).as("the process is read only while its lock is held").isTrue();
+            return Optional.of(process);
+        });
+        when(processRepository.save(any())).thenAnswer(invocation -> {
+            assertThat(inLock).as("the process is written only while its lock is held").isTrue();
+            return "p-1";
+        });
+        org.mockito.Mockito.doAnswer(invocation -> {
+            assertThat(inLock).as("the flow is driven forward inside the same lock").isTrue();
+            return null;
+        }).when(stepOverProcessUseCase).handle(any());
+
+        useCase.handle(new ResumeProcessCommand("p-1"));
+
+        verify(processRepository).save(any());
+        verify(stepOverProcessUseCase).handle(new StepOverProcessCommand("p-1"));
+    }
+
+    @Test
+    void aResumeThatCannotTakeTheLockFailsInsteadOfDoingNothingSilently() {
+        org.mockito.Mockito.reset(processLockService);
+        when(processLockService.runExclusively(org.mockito.ArgumentMatchers.eq("p-1"), any())).thenReturn(false);
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> useCase.handle(new ResumeProcessCommand("p-1")))
+                .isInstanceOf(io.mateu.workflow.application.out.ConcurrentProcessAccessException.class);
+
+        verify(processRepository, never()).save(any());
+        verify(stepExecutionRepository, never()).save(any());
     }
 }

@@ -4,6 +4,7 @@ import io.mateu.workflow.application.out.LogMessageRepository;
 import io.mateu.workflow.application.out.ProcessLockService;
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.out.WorkflowMetrics;
+import io.mateu.workflow.application.services.AutoRetryService;
 import io.mateu.workflow.domain.aggregates.LogMessage;
 import io.mateu.workflow.domain.aggregates.Step;
 import io.mateu.workflow.domain.aggregates.StepExecutionStatus;
@@ -28,6 +29,7 @@ public class CheckStepTimeoutHandler {
     final LogMessageRepository logMessageRepository;
     final ProcessLockService processLockService;
     final WorkflowMetrics workflowMetrics;
+    final AutoRetryService autoRetryService;
 
     public void handle(CheckStepTimeoutCommand command) {
         var processId = stepExecutionRepository.findById(command.stepExecutionId())
@@ -64,6 +66,9 @@ public class CheckStepTimeoutHandler {
         // A deadline is a business moment, not a per-attempt budget: once reached, a retry would
         // start past it, so the step's retries are not spent on it.
         stepExecution.updateStatus(StepExecutionStatus.TIMEOUT, !byTimeout);
+        // Parked for its retry in this same transaction when attempts remain, so the TIMEOUT is
+        // never read as final in between (see AutoRetryService).
+        autoRetryService.parkForRetryIfAttemptsLeft(stepExecution, !byTimeout);
         stepExecutionRepository.save(stepExecution);
 
         workflowMetrics.stepExecutionFinished(stepExecution.getWorkflowDefinitionId(),
@@ -80,8 +85,8 @@ public class CheckStepTimeoutHandler {
                         : "Step reached its deadline (" + step.deadline().describe() + ", due " + timeoutAt + ")",
                 "system"
         ));
-        // Compensation (and retry) is handled centrally by StepExecutionStatusUpdatedEventHandler
-        // when it receives the TIMEOUT status change event.
+        // Compensation (and the worker's cancellation) is handled centrally by
+        // StepExecutionStatusUpdatedEventHandler when it receives the TIMEOUT status change event.
     }
 
 }

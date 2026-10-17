@@ -1,6 +1,8 @@
 package io.mateu.workflow.application.usecases.process.resume;
 
+import io.mateu.workflow.application.out.ConcurrentProcessAccessException;
 import io.mateu.workflow.application.out.LogMessageRepository;
+import io.mateu.workflow.application.out.ProcessLockService;
 import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.usecases.process.stepover.StepOverProcessCommand;
@@ -36,8 +38,22 @@ public class ResumeProcessUseCase {
     final LogMessageRepository logMessageRepository;
     final StepOverProcessUseCase stepOverProcessUseCase;
     final ProcessUpdateStepExecutionUpdateUseCase processUpdateStepExecutionUpdateUseCase;
+    final ProcessLockService processLockService;
 
     public void handle(ResumeProcessCommand command) {
+        // Under the process lock, like every other writer of a running process. Unlocked, the
+        // resume raced the relay delivering that process's events (a step completing during the
+        // pause, the step-over it triggers) and lost on the optimistic version. It also makes the
+        // PAUSED check, the clock shift and the status change one atomic unit: two resumes of the
+        // same process can no longer both see PAUSED and shift every timer twice.
+        if (!processLockService.runExclusively(command.processId(), () -> doHandle(command))) {
+            // Not dropped: the caller (an operator, the resume-requested event) must learn that
+            // nothing happened, and an event must be redelivered.
+            throw new ConcurrentProcessAccessException(command.processId(), null);
+        }
+    }
+
+    private void doHandle(ResumeProcessCommand command) {
         var process = processRepository.findById(command.processId()).orElseThrow();
         if (!ProcessStatus.PAUSED.equals(process.getStatus())) {
             log.warn("Process {} cannot be resumed from status {} — ignoring",

@@ -18,7 +18,6 @@ import io.mateu.workflow.dtos.events.integration.TaskStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -45,17 +44,18 @@ class StepExecutionStatusUpdatedEventHandlerTest {
     // it for real and only stub the repositories that feed it.
     @Spy CompensationService compensationService = new CompensationService();
 
-    // The real no-op, not a mock: a mocked span() would swallow the work it is meant to wrap.
-    @org.mockito.Spy
-    io.mateu.workflow.application.out.WorkflowTracing workflowTracing =
-            io.mateu.workflow.application.out.WorkflowTracing.NOOP;
-
-    @InjectMocks StepExecutionStatusUpdatedEventHandler handler;
+    StepExecutionStatusUpdatedEventHandler handler;
 
     private Process proc;
 
     @BeforeEach
     void setUp() {
+        // Built by hand: the retry decision is a real AutoRetryService over the mocked backoff and
+        // metrics, so the tests see the step actually parked and the retry actually counted.
+        handler = new StepExecutionStatusUpdatedEventHandler(processUpdateUseCase, stepOverProcessUseCase,
+                stepExecutionRepository, processRepository, downstreamEventPublisher, workflowMetrics,
+                cancelChildProcessService, compensationService,
+                new io.mateu.workflow.application.services.AutoRetryService(backoffPolicy, workflowMetrics));
         proc = Process.builder().id("p-1").workflowDefinitionId("wd-1")
                 .variables(List.of()).status(ProcessStatus.RUNNING).build();
         // advanceCompensation loads the process on every terminal event; default it so the
@@ -133,7 +133,7 @@ class StepExecutionStatusUpdatedEventHandlerTest {
 
     @Test
     void cancelsWorkerOnTimeout() {
-        var se = se(3, 3, false, null);
+        var se = se(3, 3, false, null).withStatus(StepExecutionStatus.TIMEOUT);
         when(stepExecutionRepository.findById("se-1")).thenReturn(Optional.of(se));
 
         handler.handle(new StepExecutionStatusChanged("se-1", TaskStatus.TIMEOUT, List.of()));
@@ -298,5 +298,81 @@ class StepExecutionStatusUpdatedEventHandlerTest {
 
         verify(processUpdateUseCase).handle(any(), any());
         verify(stepOverProcessUseCase).handle(any());
+    }
+
+    // --- Stale (redelivered) failure events: the step's current status decides, not the event's ---
+
+    private StepExecution withStatus(StepExecution se, StepExecutionStatus status) {
+        se.updateStatus(status);
+        return se;
+    }
+
+    @Test
+    void aRedeliveredErrorForAStepWhoseRetryAlreadyCompletedIsNotRetriedAgain() {
+        // The retry ran and the step COMPLETED; the original ERROR event is delivered again.
+        var se = withStatus(se(1, 2, false, null), StepExecutionStatus.COMPLETED);
+        when(stepExecutionRepository.findById("se-1")).thenReturn(Optional.of(se));
+
+        handler.handle(new StepExecutionStatusChanged("se-1", TaskStatus.ERROR, List.of()));
+
+        assertThat(se.getStatus()).isEqualTo(StepExecutionStatus.COMPLETED);
+        assertThat(se.getAttemptCount()).isEqualTo(1);
+        verify(workflowMetrics, never()).retryPerformed(any(), any());
+        verify(cancelChildProcessService, never()).stepReachedTerminalStatus(any());
+        verify(stepExecutionRepository, never()).save(se);
+    }
+
+    @Test
+    void aRedeliveredErrorForAStepWhoseRetryIsRunningIsNotRetriedAgain() {
+        var se = withStatus(se(1, 3, false, null), StepExecutionStatus.RUNNING);
+        when(stepExecutionRepository.findById("se-1")).thenReturn(Optional.of(se));
+
+        handler.handle(new StepExecutionStatusChanged("se-1", TaskStatus.ERROR, List.of()));
+
+        assertThat(se.getStatus()).isEqualTo(StepExecutionStatus.RUNNING);
+        assertThat(se.getAttemptCount()).isEqualTo(1);
+        verify(workflowMetrics, never()).retryPerformed(any(), any());
+    }
+
+    @Test
+    void aRedeliveredTimeoutDoesNotCancelTheRetrysWorker() {
+        // The cancellation is keyed by the step execution: on a stale TIMEOUT it would reach the
+        // worker now running the retry, not the one that timed out.
+        var se = withStatus(se(1, 3, false, null), StepExecutionStatus.RUNNING);
+        when(stepExecutionRepository.findById("se-1")).thenReturn(Optional.of(se));
+
+        handler.handle(new StepExecutionStatusChanged("se-1", TaskStatus.TIMEOUT, List.of()));
+
+        verify(downstreamEventPublisher, never()).publish(any(TaskCancellationRequested.class), any());
+        verify(workflowMetrics, never()).retryPerformed(any(), any());
+    }
+
+    @Test
+    void aFailureAlreadyParkedForItsRetryIsLeftAlone() {
+        // Parked where the failure was applied (or by an earlier delivery of this event): the
+        // event must neither park it again nor read it as a final failure.
+        var se = se(1, 3, false, null);
+        se.scheduleRetry(java.time.Duration.ofSeconds(1));
+        when(stepExecutionRepository.findById("se-1")).thenReturn(Optional.of(se));
+
+        handler.handle(new StepExecutionStatusChanged("se-1", TaskStatus.ERROR, List.of()));
+
+        assertThat(se.getAttemptCount()).isEqualTo(2);
+        verify(workflowMetrics, never()).retryPerformed(any(), any());
+        verify(processUpdateUseCase, never()).handle(any(), any());
+        verify(stepOverProcessUseCase, never()).handle(any());
+        verify(cancelChildProcessService, never()).stepReachedTerminalStatus(any());
+    }
+
+    @Test
+    void aTimeoutAlreadyParkedForItsRetryStillCancelsTheWorkerThatTimedOut() {
+        var se = se(0, 3, false, null);
+        se.scheduleRetry(java.time.Duration.ofSeconds(1));
+        when(stepExecutionRepository.findById("se-1")).thenReturn(Optional.of(se));
+
+        handler.handle(new StepExecutionStatusChanged("se-1", TaskStatus.TIMEOUT, List.of()));
+
+        verify(downstreamEventPublisher).publish(eq(new TaskCancellationRequested("se-1")), any());
+        verify(workflowMetrics, never()).retryPerformed(any(), any());
     }
 }

@@ -1,5 +1,6 @@
 package io.mateu.workflow.application.usecases.process.stepover;
 
+import io.mateu.workflow.application.out.ConcurrentProcessAccessException;
 import io.mateu.workflow.application.out.LockService;
 import io.mateu.workflow.application.out.ProcessLockService;
 import io.mateu.workflow.application.out.ProcessRepository;
@@ -85,8 +86,12 @@ public class StepOverProcessUseCase {
                         "eventconductor.step-over",
                         java.util.Map.of("eventconductor.process.id", command.processId()),
                         () -> doHandle(command)))) {
-            log.error("Could not acquire lock for process {}, skipping step-over (another node is working on it)",
-                    command.processId());
+            // Not skipped: the lock coming back unacquired (a timeout waiting for the row, a
+            // deadlock, a lost optimistic write) means this step-over did nothing, and whatever
+            // asked for it — usually a status-change event the relay is delivering — would be
+            // acknowledged and gone, leaving the process stuck until someone nudged it. Failing
+            // makes the event come round again, exactly as UpdateStepExecutionUseCase does.
+            throw new ConcurrentProcessAccessException(command.processId(), null);
         }
     }
 

@@ -83,12 +83,15 @@ class CompleteMessageStepHandlerTest {
     }
 
     @Test
-    void skipsWhenLockNotAcquired() {
+    void failsWhenLockNotAcquiredSoTheMessageIsRedeliveredRatherThanLost() {
+        // Nothing re-scans for a message: skipping here acknowledged it and the step waited forever.
         var se = pendingMessageSe("payment-received");
         when(stepExecutionRepository.findById("se-1")).thenReturn(Optional.of(se));
         when(processLockService.runExclusively(eq("p-1"), any())).thenReturn(false);
 
-        handler.handle(new CompleteMessageStepCommand("se-1", "payment-received", "bk-1", List.of()));
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> handler.handle(
+                        new CompleteMessageStepCommand("se-1", "payment-received", "bk-1", List.of())))
+                .isInstanceOf(io.mateu.workflow.application.out.ConcurrentProcessAccessException.class);
 
         verify(stepExecutionRepository, never()).save(any());
     }

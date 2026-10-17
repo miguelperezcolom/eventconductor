@@ -151,4 +151,87 @@ class ProcessUpdateStepExecutionUpdateUseCaseTest {
         verify(repository).save(captor.capture());
         assertThat(captor.getValue().getFinished()).isNotNull();
     }
+
+    private List<StepExecution> completedPlus(int completed, StepExecutionStatus... others) {
+        var executions = new java.util.ArrayList<StepExecution>();
+        for (int i = 0; i < completed; i++) {
+            executions.add(StepExecution.builder().id("se-" + i).processId("p-1")
+                    .status(StepExecutionStatus.COMPLETED).build());
+        }
+        for (int i = 0; i < others.length; i++) {
+            executions.add(StepExecution.builder().id("se-other-" + i).processId("p-1")
+                    .status(others[i]).build());
+        }
+        return executions;
+    }
+
+    @Test
+    void aProcessWithAStepStillRunningIsNotCompletedEvenWhenTheRestRoundsUpToAHundred() {
+        // 199 of 200: Math.round made that 100%, and 100% alone meant COMPLETED — with a step
+        // still RUNNING, the parent notified and the completion counted.
+        var proc = process("p-1", ProcessStatus.RUNNING);
+        when(repository.findById("p-1")).thenReturn(Optional.of(proc));
+        when(stepExecutionRepository.findByProcessId("p-1"))
+                .thenReturn(completedPlus(199, StepExecutionStatus.RUNNING));
+
+        useCase.handle(new ProcessStepExecutionUpdateCommand("p-1"));
+
+        ArgumentCaptor<Process> captor = ArgumentCaptor.forClass(Process.class);
+        verify(repository).save(captor.capture());
+        assertThat(captor.getValue().getStatus()).isEqualTo(ProcessStatus.RUNNING);
+        assertThat(captor.getValue().getCompletionPercentage()).isEqualTo(99);
+        assertThat(captor.getValue().getFinished()).isNull();
+        verify(workflowMetrics, never()).processCompleted(any(), any());
+        verify(notifyParentStepService, never()).processReachedTerminalStatus(any());
+    }
+
+    @Test
+    void aProcessWithStepsNotYetStartedIsNotCompleted() {
+        // START completed, the rest still CREATED waiting for the step-over to dispatch them.
+        var proc = process("p-1", ProcessStatus.RUNNING);
+        when(repository.findById("p-1")).thenReturn(Optional.of(proc));
+        when(stepExecutionRepository.findByProcessId("p-1"))
+                .thenReturn(completedPlus(1, StepExecutionStatus.CREATED, StepExecutionStatus.CREATED));
+
+        useCase.handle(new ProcessStepExecutionUpdateCommand("p-1"));
+
+        ArgumentCaptor<Process> captor = ArgumentCaptor.forClass(Process.class);
+        verify(repository).save(captor.capture());
+        assertThat(captor.getValue().getStatus()).isEqualTo(ProcessStatus.RUNNING);
+        assertThat(captor.getValue().getCompletionPercentage()).isEqualTo(33);
+    }
+
+    @Test
+    void keepsCOMPLETEDStatusWhenALateEventArrives() {
+        // An END transition completed the process and CANCELLED the branches it did not take, so
+        // the steps alone no longer add up to 100%. A late or redelivered status event must not
+        // reopen it as RUNNING.
+        var proc = process("p-1", ProcessStatus.COMPLETED).withCompletionPercentage(100);
+        when(repository.findById("p-1")).thenReturn(Optional.of(proc));
+        when(stepExecutionRepository.findByProcessId("p-1"))
+                .thenReturn(completedPlus(3, StepExecutionStatus.CANCELLED));
+
+        useCase.handle(new ProcessStepExecutionUpdateCommand("p-1"));
+
+        ArgumentCaptor<Process> captor = ArgumentCaptor.forClass(Process.class);
+        verify(repository).save(captor.capture());
+        assertThat(captor.getValue().getStatus()).isEqualTo(ProcessStatus.COMPLETED);
+        assertThat(captor.getValue().getCompletionPercentage()).isEqualTo(100);
+        verify(workflowMetrics, never()).processCompleted(any(), any());
+        verify(notifyParentStepService, never()).processReachedTerminalStatus(any());
+    }
+
+    @Test
+    void aStepQueuedOnALockKeepsTheProcessRunning() {
+        var proc = process("p-1", ProcessStatus.RUNNING);
+        when(repository.findById("p-1")).thenReturn(Optional.of(proc));
+        when(stepExecutionRepository.findByProcessId("p-1"))
+                .thenReturn(completedPlus(0, StepExecutionStatus.WAITING_ON_LOCK));
+
+        useCase.handle(new ProcessStepExecutionUpdateCommand("p-1"));
+
+        ArgumentCaptor<Process> captor = ArgumentCaptor.forClass(Process.class);
+        verify(repository).save(captor.capture());
+        assertThat(captor.getValue().getStatus()).isEqualTo(ProcessStatus.RUNNING);
+    }
 }

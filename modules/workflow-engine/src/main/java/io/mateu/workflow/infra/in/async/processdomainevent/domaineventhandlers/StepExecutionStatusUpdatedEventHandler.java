@@ -3,7 +3,7 @@ package io.mateu.workflow.infra.in.async.processdomainevent.domaineventhandlers;
 import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.out.WorkflowMetrics;
-import io.mateu.workflow.application.services.BackoffPolicy;
+import io.mateu.workflow.application.services.AutoRetryService;
 import io.mateu.workflow.application.usecases.process.childcancel.CancelChildProcessService;
 import io.mateu.workflow.application.usecases.process.stepover.StepOverProcessCommand;
 import io.mateu.workflow.application.usecases.process.stepover.StepOverProcessUseCase;
@@ -14,7 +14,6 @@ import io.mateu.workflow.application.out.DownstreamEventPublisher;
 import io.mateu.workflow.ddd.DomainEventHandler;
 import io.mateu.workflow.domain.aggregates.Process;
 import io.mateu.workflow.domain.aggregates.ProcessStatus;
-import io.mateu.workflow.domain.aggregates.Step;
 import io.mateu.workflow.domain.aggregates.StepExecution;
 import io.mateu.workflow.domain.aggregates.StepExecutionStatus;
 import io.mateu.workflow.domain.services.CompensationService;
@@ -27,8 +26,6 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.List;
-
-import static io.mateu.core.infra.JsonSerializer.pojoFromJson;
 
 @Service
 @RequiredArgsConstructor
@@ -43,7 +40,7 @@ public class StepExecutionStatusUpdatedEventHandler implements DomainEventHandle
     final WorkflowMetrics workflowMetrics;
     final CancelChildProcessService cancelChildProcessService;
     final CompensationService compensationService;
-    final BackoffPolicy backoffPolicy;
+    final AutoRetryService autoRetryService;
 
     /** What a terminal process still holds that can never run now. */
     private static final java.util.Set<StepExecutionStatus> CANCELLABLE_AT_THE_END = java.util.Set.of(
@@ -62,36 +59,44 @@ public class StepExecutionStatusUpdatedEventHandler implements DomainEventHandle
         var stepExecution = stepExecutionRepository.findById(e.stepExecutionId()).orElseThrow();
 
         if (TaskStatus.ERROR.equals(e.status()) || TaskStatus.TIMEOUT.equals(e.status())) {
-            // Cancel the worker for timed-out tasks regardless of whether we retry.
-            if (TaskStatus.TIMEOUT.equals(e.status())) {
+            // The event says what the step was when it was emitted; only the step's status NOW says
+            // whether the failure still stands. Events are delivered at least once, so a redelivered
+            // ERROR/TIMEOUT can arrive after its retry already ran — the step is RUNNING again, or
+            // COMPLETED — and acting on the event's status re-parked it and burned an attempt.
+            var current = stepExecution.getStatus();
+            boolean stillFailed = current.name().equals(e.status().name());
+            // Already parked: the retry was decided where the failure was applied (AutoRetryService)
+            // or by an earlier delivery of this same event.
+            boolean awaitingRetry = StepExecutionStatus.AWAITING_RETRY.equals(current);
+
+            // Cancel the worker for timed-out tasks regardless of whether we retry — but not once
+            // the step has moved on: the cancellation is keyed by the step execution, so on a stale
+            // event it would reach the retry's worker, not the one that timed out.
+            if (TaskStatus.TIMEOUT.equals(e.status()) && (stillFailed || awaitingRetry)) {
                 downstreamEventPublisher.publish(new TaskCancellationRequested(e.stepExecutionId()),
                         stepExecution.topic());
             }
-
-            var step = pojoFromJson(stepExecution.getStepJson(), Step.class);
-
-            // Auto-retry: attempts remaining → park the step in AWAITING_RETRY for a backoff delay.
-            // The timeout scheduler wakes it and CheckRetryUseCase re-dispatches it once the delay
-            // has elapsed. Deliberately NOT re-dispatched here: an immediate step-over would burn
-            // the whole retry budget in milliseconds against a worker that fails fast (bad config,
-            // downstream 500) — a hot loop that hammers the failing dependency and defeats retries,
-            // whose point is to wait out a transient fault.
-            // A failure the worker declared final (a 4xx, a business error marked non-retryable) is
-            // not retried: waiting it out cannot change the answer.
-            if (!e.nonRetryable() && stepExecution.getAttemptCount() < step.retries()) {
-                var backoff = backoffPolicy.nextDelay(stepExecution.getAttemptCount() + 1);
-                stepExecution.scheduleRetry(backoff);
-                stepExecutionRepository.save(stepExecution);
-                workflowMetrics.retryPerformed(stepExecution.getWorkflowDefinitionId(),
-                        WorkflowMetrics.RetryTrigger.AUTO);
+            if (awaitingRetry) {
                 return;
             }
 
-            // Retries exhausted on a PROCESS step (ERROR from the worker pipeline or TIMEOUT
-            // from the timeout scheduler — both saved before this event): its still-running
-            // child process must be cancelled. Not done while retries remain, because a
-            // retried PROCESS step re-attaches to the same running child.
-            cancelChildProcessService.stepReachedTerminalStatus(stepExecution);
+            if (stillFailed) {
+                // Auto-retry for a failure applied outside the locked update/timeout paths (a step
+                // that failed to start, a REPLY/PUBLISH_EVENT that could not be resolved, …): attempts
+                // remaining → park the step in AWAITING_RETRY for a backoff delay.
+                if (autoRetryService.parkForRetryIfAttemptsLeft(stepExecution, e.nonRetryable())) {
+                    stepExecutionRepository.save(stepExecution);
+                    return;
+                }
+
+                // Retries exhausted on a PROCESS step (ERROR from the worker pipeline or TIMEOUT
+                // from the timeout scheduler — both saved before this event): its still-running
+                // child process must be cancelled. Not done while retries remain, because a
+                // retried PROCESS step re-attaches to the same running child.
+                cancelChildProcessService.stepReachedTerminalStatus(stepExecution);
+            }
+            // Otherwise the event is stale: the recompute, rollback and step-over below derive
+            // everything from persisted state, so running them again is harmless.
         }
 
         // Load the process's steps once and reuse them for the status recompute and the saga

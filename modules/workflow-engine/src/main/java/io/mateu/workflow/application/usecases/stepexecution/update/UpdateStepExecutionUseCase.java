@@ -8,6 +8,7 @@ import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.out.UnknownProcessException;
 import io.mateu.workflow.application.out.UnknownStepExecutionException;
 import io.mateu.workflow.application.out.WorkflowMetrics;
+import io.mateu.workflow.application.services.AutoRetryService;
 import io.mateu.workflow.application.services.MessageSubscriptionService;
 import io.mateu.workflow.domain.aggregates.LogMessage;
 import io.mateu.workflow.domain.aggregates.StepExecution;
@@ -45,6 +46,7 @@ public class UpdateStepExecutionUseCase {
     final ProcessLockService processLockService;
     final MessageSubscriptionService messageSubscriptionService;
     final WorkflowMetrics workflowMetrics;
+    final AutoRetryService autoRetryService;
 
     public void handle(UpdateStepExecutionCommand command) {
         var processId = repository.findById(command.stepId())
@@ -73,14 +75,26 @@ public class UpdateStepExecutionUseCase {
                     command.status(), execution.id(), execution.getStatus());
             return;
         }
+        if (StepExecutionStatus.AWAITING_RETRY.equals(execution.getStatus())) {
+            // Parked waiting out its backoff: no attempt is running, so whatever this reports is
+            // about the attempt that already failed — typically the same failure redelivered.
+            // Applying it again would park the step a second time and burn another attempt.
+            log.warn("Ignoring status update {} for step execution {} awaiting its retry",
+                    command.status(), execution.id());
+            return;
+        }
         var process = processRepository.findById(execution.getProcessId())
                 .orElseThrow(() -> new UnknownProcessException(execution.getProcessId()));
         process.updateVariables(command.variables());
         processRepository.save(process);
 
         // A worker that says its failure is final (FailureMarkers) spares the step its retries.
-        execution.updateStatus(command.status(), StepExecutionStatus.ERROR.equals(command.status())
-                && (command.nonRetryable() || io.mateu.workflow.worker.FailureMarkers.isNonRetryable(command.log())));
+        var nonRetryable = StepExecutionStatus.ERROR.equals(command.status())
+                && (command.nonRetryable() || io.mateu.workflow.worker.FailureMarkers.isNonRetryable(command.log()));
+        execution.updateStatus(command.status(), nonRetryable);
+        // A failure with retries left is parked for its retry here, in the same transaction that
+        // records it, so no reader ever sees it as a final ERROR in between (see AutoRetryService).
+        autoRetryService.parkForRetryIfAttemptsLeft(execution, nonRetryable);
         repository.save(execution);
 
         // The variables just written may be the ones a sibling WAIT_FOR_MESSAGE correlates

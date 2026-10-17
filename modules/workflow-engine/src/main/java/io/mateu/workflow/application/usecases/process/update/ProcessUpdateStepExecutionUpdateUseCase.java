@@ -64,7 +64,9 @@ public class ProcessUpdateStepExecutionUpdateUseCase {
                 // AWAITING_RETRY is a step waiting out its backoff before running again: the process
                 // is still in flight, not finished — without this it falls through to the default and
                 // a lone retrying step would read as a completed process.
-                case PENDING, RUNNING, AWAITING_RETRY -> anyLive = true;
+                // WAITING_ON_LOCK is a step queued behind a lock holder: it will run once the lock
+                // frees, so it keeps the process in flight just the same.
+                case PENDING, RUNNING, AWAITING_RETRY, WAITING_ON_LOCK -> anyLive = true;
                 // A step in a final failure state (retries already exhausted — a step with retries
                 // left is parked in AWAITING_RETRY, counted as live above) means the process failed.
                 case ERROR -> anyFailed = true;
@@ -79,24 +81,29 @@ public class ProcessUpdateStepExecutionUpdateUseCase {
                 default -> { /* CREATED / CANCELLED do not move the process status */ }
             }
         }
-        var status = executions.isEmpty() ? ProcessStatus.PENDING : ProcessStatus.COMPLETED;
-        if (anyLive) {
-            status = ProcessStatus.RUNNING;
-        }
-        var percent = executions.isEmpty() ? 0
-                : Math.round(100d * completed / (double) executions.size());
-        if (percent > 0) {
-            status = ProcessStatus.RUNNING;
-        }
-        if (percent == 100) {
-            status = ProcessStatus.COMPLETED;
-        }
+        // Floored, not rounded: rounding turned 199 of 200 steps into 100%, and 100% alone used
+        // to mean COMPLETED — a process with a step still RUNNING reported as finished.
+        var percent = executions.isEmpty() ? 0 : (100L * completed) / executions.size();
+        // COMPLETED only when every step completed and nothing is live. A finished flow whose
+        // untaken branches were CANCELLED reaches COMPLETED through the END/implicit-completion
+        // transition in step-over, not through this count; anything short of that is in flight.
+        var status = executions.isEmpty() ? ProcessStatus.PENDING
+                : !anyLive && completed == executions.size() ? ProcessStatus.COMPLETED
+                : anyLive || completed > 0 ? ProcessStatus.RUNNING
+                // Nothing completed, live or failed (all CREATED/CANCELLED): the steps say nothing
+                // about where the process is, so it stays where it is. This used to fall through to
+                // COMPLETED, which now that COMPLETED is sticky would finish a process for good.
+                : java.util.Objects.requireNonNullElse(process.getStatus(), ProcessStatus.PENDING);
         if (anyFailed) {
             status = ProcessStatus.ERROR;
         }
         if (process.getStatus() != status) {
             if (process.getStatus() == ProcessStatus.CANCELLED
                     || process.getStatus() == ProcessStatus.ERROR
+                    // COMPLETED is terminal too: a late or redelivered status event, recomputed
+                    // over steps an END transition left CANCELLED, must not reopen a finished
+                    // process as RUNNING (and notify a parent, or count it, twice).
+                    || process.getStatus() == ProcessStatus.COMPLETED
                     // COMPENSATED is a terminal saga-rollback state: once reached it must not
                     // fall back to ERROR (its failed step is still ERROR) or any other status.
                     || process.getStatus() == ProcessStatus.COMPENSATED

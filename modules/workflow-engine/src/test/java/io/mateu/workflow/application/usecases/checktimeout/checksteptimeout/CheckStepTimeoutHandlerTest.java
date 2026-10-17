@@ -29,6 +29,7 @@ class CheckStepTimeoutHandlerTest {
     @Mock LogMessageRepository logMessageRepository;
     @Mock ProcessLockService processLockService;
     @Mock WorkflowMetrics workflowMetrics;
+    @Mock io.mateu.workflow.application.services.AutoRetryService autoRetryService;
 
     @InjectMocks CheckStepTimeoutHandler handler;
 
@@ -104,5 +105,33 @@ class CheckStepTimeoutHandlerTest {
 
         verify(stepExecutionRepository, never()).save(any());
         verify(processLockService).runExclusively(eq("p-1"), any());
+    }
+
+    @Test
+    void aTimeoutWithRetriesLeftIsParkedForItsRetryInTheSameUpdate() {
+        // Parked here, with the TIMEOUT, rather than later by the status-change handler: in between,
+        // a sibling completing would have read the TIMEOUT as final and errored the process.
+        var real = new CheckStepTimeoutHandler(stepExecutionRepository, logMessageRepository, processLockService,
+                workflowMetrics, new io.mateu.workflow.application.services.AutoRetryService(
+                        new io.mateu.workflow.application.services.BackoffPolicy(1000, 2.0, 60000, 0), workflowMetrics));
+        Step step = new Step("s1", "wd-1", StepType.ACTION, "Step", null, null, null, null, false, "t", null, null, null, null, 0, null, null, null, null, 100, 2, false, null, 0, null);
+        var se = StepExecution.builder()
+                .id("se-1").processId("p-1").workflowDefinitionId("wd-1")
+                .stepJson(JsonSerializer.toJson(step))
+                .status(StepExecutionStatus.RUNNING)
+                .startedAt(LocalDateTime.now().minusSeconds(60))
+                .build();
+        when(stepExecutionRepository.findById("se-1")).thenReturn(Optional.of(se));
+        when(processLockService.runExclusively(eq("p-1"), any())).thenAnswer(RunsTheAction.granted());
+
+        real.handle(new CheckStepTimeoutCommand("se-1"));
+
+        ArgumentCaptor<StepExecution> captor = ArgumentCaptor.forClass(StepExecution.class);
+        verify(stepExecutionRepository).save(captor.capture());
+        assertThat(captor.getValue().getStatus()).isEqualTo(StepExecutionStatus.AWAITING_RETRY);
+        assertThat(captor.getValue().getAttemptCount()).isEqualTo(1);
+        verify(workflowMetrics).retryPerformed("wd-1", io.mateu.workflow.application.out.WorkflowMetrics.RetryTrigger.AUTO);
+        // Still metered as the timeout it was.
+        verify(workflowMetrics).stepExecutionFinished(any(), eq(StepExecutionStatus.TIMEOUT), any());
     }
 }
