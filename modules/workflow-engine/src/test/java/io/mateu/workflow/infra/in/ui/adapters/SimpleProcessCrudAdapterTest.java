@@ -85,6 +85,12 @@ class SimpleProcessCrudAdapterTest {
 
         var filters = new io.mateu.workflow.infra.in.ui.pages.process.ProcessFilters(null, null, "billing", null, null, null, null);
         assertThat(adapter.listingFilter(null, filters, null).workflowDefinitionIds()).containsExactly("orders", "refunds");
+
+        // A tag nobody carries lists nothing, without the store being asked to match an empty set.
+        var nobody = new io.mateu.workflow.infra.in.ui.pages.process.ProcessFilters(null, null, "nobody", null, null, null, null);
+        var page = adapter.search(null, nobody, new io.mateu.uidl.data.Pageable(0, 10, List.of()), null);
+        assertThat(page.page().totalElements()).isZero();
+        assertThat(page.page().content()).isEmpty();
     }
 
     private io.mateu.uidl.data.Page<?> page(int processes, int pageNumber, int size) {

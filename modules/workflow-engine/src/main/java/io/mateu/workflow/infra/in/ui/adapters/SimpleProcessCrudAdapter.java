@@ -44,6 +44,12 @@ public class SimpleProcessCrudAdapter  {
 
     public ListingData<ProcessRow> search(String searchText, ProcessFilters filters, Pageable pageable, HttpRequest httpRequest) {
         var filter = listingFilter(searchText, filters, httpRequest);
+        // A tag no definition carries lists nothing. Answered here, not by the store: the set it would
+        // be asked to match by has no member, and an empty IN list is not portable SQL.
+        if (filter.workflowDefinitionIds() != null && filter.workflowDefinitionIds().contains(NO_DEFINITION)) {
+            int size = pageable == null || pageable.size() <= 0 ? 1 : pageable.size();
+            return new ListingData<>(new Page<>(searchText, size, 0, 0, List.of()));
+        }
         // Filtering, ordering and paging all happen in the store. Doing them here meant loading
         // every process — and with it every process's workflow definition JSON — to paint ten rows.
         //
@@ -148,7 +154,7 @@ public class SimpleProcessCrudAdapter  {
     }
 
     /** A tag that no definition carries must list nothing: a set no process can match, never "no filter". */
-    static final String NO_DEFINITION = "\u0000no-definition-carries-this-tag";
+    static final String NO_DEFINITION = "~no-definition-carries-this-tag~";
 
     /** The ids of the definitions carrying {@code tag}; null for no tag. */
     java.util.Set<String> definitionsTagged(String tag) {
