@@ -1,0 +1,54 @@
+package io.mateu.workflow.infra.out.persistence;
+
+import io.mateu.workflow.infra.out.persistence.AnalyticsRollupRepositories.ProcessCreationSourceView;
+import io.mateu.workflow.infra.out.persistence.AnalyticsRollupRepositories.ProcessFinishSourceView;
+import io.mateu.workflow.infra.out.persistence.AnalyticsRollupRepositories.StepFinishSourceView;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.Repository;
+import org.springframework.data.repository.query.Param;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+interface AnalyticsSourceRepository extends Repository<ProcessEntity, String> {
+
+    @Query("""
+            select p.id as id, p.workflowDefinitionId as workflowDefinitionId, p.created as created
+            from ProcessEntity p
+            where p.created is not null and p.created <= :ceiling
+              and (p.created > :cursorTs or (p.created = :cursorTs and p.id > :cursorId))
+            order by p.created, p.id
+            """)
+    List<ProcessCreationSourceView> processCreationsAfter(@Param("cursorTs") LocalDateTime cursorTs,
+                                                          @Param("cursorId") String cursorId,
+                                                          @Param("ceiling") LocalDateTime ceiling,
+                                                          Pageable page);
+
+    @Query("""
+            select p.id as id, p.workflowDefinitionId as workflowDefinitionId, p.status as status,
+                   p.name as name, p.created as created, p.started as started, p.finished as finished
+            from ProcessEntity p
+            where p.finished is not null and p.finished <= :ceiling
+              and (p.finished > :cursorTs or (p.finished = :cursorTs and p.id > :cursorId))
+            order by p.finished, p.id
+            """)
+    List<ProcessFinishSourceView> processFinishesAfter(@Param("cursorTs") LocalDateTime cursorTs,
+                                                       @Param("cursorId") String cursorId,
+                                                       @Param("ceiling") LocalDateTime ceiling,
+                                                       Pageable page);
+
+    @Query("""
+            select s.id as id, s.workflowDefinitionId as workflowDefinitionId, s.stepId as stepId,
+                   s.status as status, s.order as stepOrder, s.startedAt as startedAt,
+                   s.finishedAt as finishedAt, p.created as processCreated
+            from StepExecutionEntity s join ProcessEntity p on p.id = s.processId
+            where s.finishedAt is not null and s.finishedAt <= :ceiling
+              and (s.finishedAt > :cursorTs or (s.finishedAt = :cursorTs and s.id > :cursorId))
+            order by s.finishedAt, s.id
+            """)
+    List<StepFinishSourceView> stepFinishesAfter(@Param("cursorTs") LocalDateTime cursorTs,
+                                                 @Param("cursorId") String cursorId,
+                                                 @Param("ceiling") LocalDateTime ceiling,
+                                                 Pageable page);
+}

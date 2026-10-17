@@ -20,13 +20,17 @@ import java.time.LocalDateTime;
  * {@code AnalyticsRollupProjector} and read only by {@code RollupAnalyticsReader}, and nothing
  * outside this package has any business holding one. The {@code @Table} names match V27 exactly so a
  * ddl-auto deployment and a migrated one land on the same schema.
+ *
+ * <p>Each carries an explicit {@code @Entity(name)}: left to the default, Hibernate names a nested
+ * entity after its binary name ({@code AnalyticsRollupEntities$ProcessCreatedDailyEntity}), and the
+ * repositories' JPQL, which calls them by their simple names, fails validation at startup.
  */
 final class AnalyticsRollupEntities {
 
     private AnalyticsRollupEntities() {
     }
 
-    @Entity
+    @Entity(name = "ProcessCreatedDailyEntity")
     @Table(name = "process_created_daily")
     @Getter @Setter @NoArgsConstructor @AllArgsConstructor
     static class ProcessCreatedDailyEntity {
@@ -37,7 +41,7 @@ final class AnalyticsRollupEntities {
         private long cnt;
     }
 
-    @Entity
+    @Entity(name = "ProcessFinishedDailyEntity")
     @Table(name = "process_finished_daily")
     @Getter @Setter @NoArgsConstructor @AllArgsConstructor
     static class ProcessFinishedDailyEntity {
@@ -48,7 +52,7 @@ final class AnalyticsRollupEntities {
         private long cnt;
     }
 
-    @Entity
+    @Entity(name = "ProcessStatusDailyEntity")
     @Table(name = "process_status_daily")
     @Getter @Setter @NoArgsConstructor @AllArgsConstructor
     static class ProcessStatusDailyEntity {
@@ -60,7 +64,7 @@ final class AnalyticsRollupEntities {
         private String anyName;
     }
 
-    @Entity
+    @Entity(name = "ProcessDurationDailyEntity")
     @Table(name = "process_duration_daily")
     @Getter @Setter @NoArgsConstructor @AllArgsConstructor
     static class ProcessDurationDailyEntity {
@@ -72,7 +76,7 @@ final class AnalyticsRollupEntities {
         @Column(columnDefinition = "TEXT") private String histogram;
     }
 
-    @Entity
+    @Entity(name = "StepStatusDailyEntity")
     @Table(name = "step_status_daily")
     @Getter @Setter @NoArgsConstructor @AllArgsConstructor
     static class StepStatusDailyEntity {
@@ -85,7 +89,7 @@ final class AnalyticsRollupEntities {
         private long firstOrder;
     }
 
-    @Entity
+    @Entity(name = "StepDurationDailyEntity")
     @Table(name = "step_duration_daily")
     @Getter @Setter @NoArgsConstructor @AllArgsConstructor
     static class StepDurationDailyEntity {
@@ -98,7 +102,7 @@ final class AnalyticsRollupEntities {
         @Column(columnDefinition = "TEXT") private String histogram;
     }
 
-    @Entity
+    @Entity(name = "AnalyticsProjectionStateEntity")
     @Table(name = "analytics_projection_state")
     @Getter @Setter @NoArgsConstructor @AllArgsConstructor
     static class AnalyticsProjectionStateEntity {

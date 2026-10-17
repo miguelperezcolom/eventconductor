@@ -96,6 +96,29 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- The PostgreSQL-only paths (advisory locks, SKIP LOCKED claims, LISTEN/NOTIFY, the
+             analytics read model on the production database) run against a real PostgreSQL in a
+             Testcontainer. Those tests skip themselves when Docker is unavailable, so a plain
+             `mvn verify` never needs Docker; where it is present (CI runners) they run and their
+             coverage lands in this module's report. Testcontainers pinned to 1.x like
+             workflow-dist-e2e (the Spring Boot 4 BOM ships 2.0, whose coordinates changed). -->
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>postgresql</artifactId>
+            <version>1.21.4</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <!-- Flyway 10+ ships each database's support as its own module. -->
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
 
         <dependency>
             <groupId>org.projectlombok</groupId>
@@ -186,6 +209,67 @@
 
     </dependencies>
 
+    <profiles>
+        <!--
+          Coverage of this module as every suite that runs it sees it, not only its own tests.
+          workflow-e2e and workflow-dist-e2e boot the engine inside their own test JVMs, so the
+          JaCoCo agent the parent pom attaches there records this module's classes into
+          modules/<suite>/target/jacoco.exec — data the per-module report below never reads.
+          This merges whichever of those files exist with this module's own and reports the
+          result to target/site/jacoco-merged. It is bound to no phase, so a plain `mvn verify`
+          neither needs Docker nor changes; run the suites first (dist-e2e WITHOUT
+          -Djacoco.skip=true, or its file is never written), then:
+
+            mvn -Pmerged-coverage -pl modules/workflow-engine \
+                jacoco:merge@merge-suites jacoco:report@report-merged
+
+          The coverage gate is not affected: check-coverage still reads this module's own data.
+        -->
+        <profile>
+            <id>merged-coverage</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.jacoco</groupId>
+                        <artifactId>jacoco-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>merge-suites</id>
+                                <phase>none</phase>
+                                <goals>
+                                    <goal>merge</goal>
+                                </goals>
+                                <configuration>
+                                    <fileSets>
+                                        <fileSet>
+                                            <directory>${project.basedir}/..</directory>
+                                            <includes>
+                                                <include>workflow-engine/target/jacoco.exec</include>
+                                                <include>workflow-e2e/target/jacoco.exec</include>
+                                                <include>workflow-dist-e2e/target/jacoco.exec</include>
+                                            </includes>
+                                        </fileSet>
+                                    </fileSets>
+                                    <destFile>${project.build.directory}/jacoco-merged.exec</destFile>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>report-merged</id>
+                                <phase>none</phase>
+                                <goals>
+                                    <goal>report</goal>
+                                </goals>
+                                <configuration>
+                                    <dataFile>${project.build.directory}/jacoco-merged.exec</dataFile>
+                                    <outputDirectory>${project.reporting.outputDirectory}/jacoco-merged</outputDirectory>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
     <build>
         <plugins>
             <plugin>

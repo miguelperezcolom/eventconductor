@@ -36,7 +36,7 @@ workflow:
 
 ## How it stays current
 
-`AnalyticsRollupProjector` runs on a daemon thread under one advisory lock (id `111222333`), the same
+`AnalyticsRollupProjector` runs on a daemon thread under one advisory lock (id `333444555`), the same
 shape as the engine's timeout scheduler. It folds three streams of **immutable facts**, each behind a
 `(timestamp, id)` cursor it advances in the same transaction that applies the batch:
 
@@ -76,4 +76,12 @@ Eventual consistency: a just-created or just-finished process shows up on the ne
 `RollupFolder` and `RollupReducer` are pure. `RollupEquivalenceTest` folds a fixture into rollup rows
 and a live overlay, reduces it back, and asserts it equals the shipped in-memory aggregate to the
 number on everything additive, and within a bucket on p95. `DurationHistogramTest` covers the
-histogram itself. The JPA glue follows the engine's existing adapter and scheduler patterns.
+histogram itself. The JPA glue — the cursored source queries, the upserts, the cursor state, the
+window queries — is pinned by `AnalyticsReadModelH2Test` and `AnalyticsReadModelPostgresTest` (the
+same contract on H2 and, when Docker is available, PostgreSQL), and `AnalyticsRollupJpaE2eTest`
+boots the engine with the flag on and reads a report back from the rollups.
+
+**Known limitation:** a finished process is treated as an immutable fact, but retrying or
+restarting one (`RetryProcessUseCase`, `RestartProcessUseCase`) reopens it. Its first finish stays
+folded, so it is counted again in the live overlay while it runs and once more when it finishes
+again. Until that is fixed, counts for definitions with operator retries/restarts overstate.

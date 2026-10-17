@@ -20,15 +20,8 @@ import io.mateu.workflow.infra.out.persistence.AnalyticsRollupEntities.ProcessFi
 import io.mateu.workflow.infra.out.persistence.AnalyticsRollupEntities.ProcessStatusDailyEntity;
 import io.mateu.workflow.infra.out.persistence.AnalyticsRollupEntities.StepDurationDailyEntity;
 import io.mateu.workflow.infra.out.persistence.AnalyticsRollupEntities.StepStatusDailyEntity;
-import io.mateu.workflow.infra.out.persistence.AnalyticsRollupRepositories.AnalyticsProjectionStateRepository;
-import io.mateu.workflow.infra.out.persistence.AnalyticsRollupRepositories.AnalyticsSourceRepository;
-import io.mateu.workflow.infra.out.persistence.AnalyticsRollupRepositories.ProcessCreatedDailyRepository;
-import io.mateu.workflow.infra.out.persistence.AnalyticsRollupRepositories.ProcessDurationDailyRepository;
-import io.mateu.workflow.infra.out.persistence.AnalyticsRollupRepositories.ProcessFinishedDailyRepository;
-import io.mateu.workflow.infra.out.persistence.AnalyticsRollupRepositories.ProcessStatusDailyRepository;
-import io.mateu.workflow.infra.out.persistence.AnalyticsRollupRepositories.StepDurationDailyRepository;
-import io.mateu.workflow.infra.out.persistence.AnalyticsRollupRepositories.StepStatusDailyRepository;
 import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -67,8 +60,11 @@ import java.util.List;
 @Slf4j
 public class AnalyticsRollupProjector {
 
-    // Advisory lock ids in use: 222333444, 444555666, 777888999, and 111222333 here. Keep distinct.
-    private static final long LOCK_ID = 111222333L;
+    // Advisory lock ids in use: 111222333 (the outbox relay gate, held shared by every relay while it
+    // drains), 222333444 (cron), 444555666 (embedded relay), 777888999 (timeouts), 888999111 (lock
+    // lease reaper), and 333444555 here. Keep distinct: this lock used to be 111222333, so while any
+    // relay drained the projector could not fold, and while the projector folded no relay published.
+    static final long LOCK_ID = 333444555L;
 
     /** The cursor start: before any real timestamp, so the first pass reads everything. */
     private static final LocalDateTime EPOCH = LocalDateTime.of(1970, 1, 1, 0, 0);
@@ -104,13 +100,15 @@ public class AnalyticsRollupProjector {
     int maxBatchesPerCycle;
 
     private TransactionTemplate tx;
+    private volatile boolean running = true;
+    private Thread thread;
 
     @PostConstruct
     public void start() {
         this.tx = new TransactionTemplate(transactionManager);
         var thread = new Thread(() -> {
             try {
-                while (true) {
+                while (running) {
                     try {
                         jdbcTemplate.execute((ConnectionCallback<Void>) con -> {
                             if (!dbLockDialect.tryLock(con, LOCK_ID)) {
@@ -133,7 +131,20 @@ public class AnalyticsRollupProjector {
             }
         }, "workflow-analytics-rollup");
         thread.setDaemon(true);
+        this.thread = thread;
         thread.start();
+    }
+
+    /**
+     * Ends the loop with its context. Without it the thread outlived a closed context and kept
+     * borrowing from a closed pool, logging a failure every interval for the rest of the JVM's life.
+     */
+    @PreDestroy
+    public void stop() {
+        running = false;
+        if (thread != null) {
+            thread.interrupt();
+        }
     }
 
     void projectOnce() {
@@ -328,7 +339,22 @@ public class AnalyticsRollupProjector {
         return java.time.Duration.between(startedAt, finishedAt).toNanos();
     }
 
-    private static String key(String... parts) {
-        return String.join(" ", parts);
+    /**
+     * The surrogate primary key of a rollup row, from its natural key: every part but the last
+     * length-prefixed ({@code <length>:<part>:}), the last as it is — the {@link LockRowId} scheme,
+     * generalised. The length says exactly where each part ends, so nothing inside a part needs
+     * escaping and no two distinct keys collide; and every character is printable. The previous
+     * encoding joined the parts with a NUL, which PostgreSQL refuses in any text value: every upsert
+     * failed there, so the read model never folded a single fact on the database it was built for.
+     * (Rows an H2 deployment wrote under the old keys stay valid — the reader sums rows by their
+     * columns, never by key — and new deltas simply land in rows under the new ones.)
+     */
+    static String key(String... parts) {
+        var key = new StringBuilder();
+        for (int i = 0; i < parts.length - 1; i++) {
+            var part = String.valueOf(parts[i]);
+            key.append(part.length()).append(':').append(part).append(':');
+        }
+        return key.append(parts[parts.length - 1]).toString();
     }
 }
