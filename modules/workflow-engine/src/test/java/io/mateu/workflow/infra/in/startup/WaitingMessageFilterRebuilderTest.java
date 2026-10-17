@@ -69,4 +69,53 @@ class WaitingMessageFilterRebuilderTest {
         // Disabled: rebuild is a no-op, so it never becomes ready and always answers "maybe".
         assertThat(filter.isReady()).isFalse();
     }
+
+    private static void stopRebuildThreads() {
+        Thread.getAllStackTraces().keySet().stream()
+                .filter(t -> t.getName().equals("waiting-message-filter-rebuild"))
+                .forEach(Thread::interrupt);
+    }
+
+    @Test
+    void onStartupAnEnabledFilterIsPopulatedInTheBackground() {
+        var filter = new WaitingMessageFilter(true, 10_000, 0.01);
+        when(repository.findPendingOrRunning()).thenReturn(List.of(
+                started(waitStep("payment", "orderId"), process("bk", new Variable("orderId", "O-1")))));
+        try {
+            new WaitingMessageFilterRebuilder(repository, filter).run(null);
+
+            org.awaitility.Awaitility.await().atMost(java.time.Duration.ofSeconds(3)).until(filter::isReady);
+            assertThat(filter.mightBeWaitingFor("payment", "O-1")).isTrue();
+        } finally {
+            stopRebuildThreads();
+        }
+    }
+
+    @Test
+    void aDatabaseThatIsNotThereYetDoesNotHoldUpTheBootAndTheFirstPassIsRetried() {
+        var filter = new WaitingMessageFilter(true, 10_000, 0.01);
+        when(repository.findPendingOrRunning())
+                .thenThrow(new IllegalStateException("database unavailable"))
+                .thenReturn(List.of(started(waitStep("payment", "orderId"), process("bk", new Variable("orderId", "O-1")))));
+        try {
+            // Returns at once: the pass that fails is on its own thread.
+            new WaitingMessageFilterRebuilder(repository, filter).run(null);
+            assertThat(filter.isReady()).isFalse();
+
+            org.awaitility.Awaitility.await().atMost(java.time.Duration.ofSeconds(10)).until(filter::isReady);
+            assertThat(filter.mightBeWaitingFor("payment", "O-1")).isTrue();
+        } finally {
+            stopRebuildThreads();
+        }
+    }
+
+    @Test
+    void aDisabledFilterStartsNoBackgroundRebuild() throws Exception {
+        var filter = new WaitingMessageFilter(false, 10_000, 0.01);
+
+        new WaitingMessageFilterRebuilder(repository, filter).run(null);
+        Thread.sleep(100);
+
+        org.mockito.Mockito.verifyNoInteractions(repository);
+    }
 }

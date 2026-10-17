@@ -43,9 +43,12 @@ public class ImportTasksFromGitUseCase {
             try {
                 importFromRepository(repo, imported, errors);
             } catch (Exception e) {
+                // Sanitized like the URL: JGit's message names the URL with its user name, often a token.
+                var message = UrlSanitizer.sanitize(e.getMessage());
                 log.error("Failed to import task contracts from repository {}: {}",
-                        UrlSanitizer.sanitize(repo.getUrl()), e.getMessage(), e);
-                errors.add("Repository " + UrlSanitizer.sanitize(repo.getUrl()) + ": " + e.getMessage());
+                        UrlSanitizer.sanitize(repo.getUrl()), message);
+                log.debug("Import failure detail", e);
+                errors.add("Repository " + UrlSanitizer.sanitize(repo.getUrl()) + ": " + message);
             }
         }
         return new ImportTasksFromDirectoryUseCase.ImportTasksResult(imported, errors);

@@ -44,8 +44,13 @@ public class ImportWorkflowDefinitionsFromGitUseCase {
             try {
                 importFromRepository(repo, imported, errors, pruned);
             } catch (Exception e) {
-                log.error("Failed to import from repository {}: {}", UrlSanitizer.sanitize(repo.getUrl()), e.getMessage(), e);
-                errors.add("Repository " + UrlSanitizer.sanitize(repo.getUrl()) + ": " + e.getMessage());
+                // JGit puts the URL it failed on in the message, user name included — and a token is
+                // often passed as the user name — so the message is sanitized as the URL is, and the
+                // exception itself (which carries it unsanitized) only reaches the debug log.
+                var message = UrlSanitizer.sanitize(e.getMessage());
+                log.error("Failed to import from repository {}: {}", UrlSanitizer.sanitize(repo.getUrl()), message);
+                log.debug("Import failure detail", e);
+                errors.add("Repository " + UrlSanitizer.sanitize(repo.getUrl()) + ": " + message);
             }
         }
 

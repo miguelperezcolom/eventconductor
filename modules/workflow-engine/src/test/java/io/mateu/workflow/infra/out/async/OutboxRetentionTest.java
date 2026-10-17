@@ -165,4 +165,37 @@ class OutboxRetentionTest {
         assertThat(retention.purge()).isEqualTo(2);
         assertThat(remainingIds()).hasSize(8);
     }
+
+    @Test
+    void onceStartedItPurgesOnItsIntervalAndAFailingPassDoesNotCancelTheSchedule() throws Exception {
+        // A table that is not there yet: the first passes fail, the schedule must survive them.
+        jdbcTemplate.execute("ALTER TABLE outbox_message_entity RENAME TO outbox_later");
+        retention.purgeInterval = Duration.ofMillis(20);
+        retention.start();
+        try {
+            Thread.sleep(150);
+            jdbcTemplate.execute("ALTER TABLE outbox_later RENAME TO outbox_message_entity");
+            row("old-sent", "Sent", Duration.ofHours(5));
+            row("old-pending", "Pending", Duration.ofHours(5));
+            row("recent-sent", "Sent", Duration.ofMinutes(5));
+
+            org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(3))
+                    .untilAsserted(() -> assertThat(remainingIds()).containsExactly("old-pending", "recent-sent"));
+        } finally {
+            retention.stop();
+        }
+    }
+
+    @Test
+    void stoppingEndsThePurges() throws Exception {
+        retention.purgeInterval = Duration.ofMillis(20);
+        retention.start();
+        retention.stop();
+        Thread.sleep(50);
+        row("old-sent", "Sent", Duration.ofHours(5));
+
+        Thread.sleep(150);
+
+        assertThat(remainingIds()).containsExactly("old-sent");
+    }
 }
