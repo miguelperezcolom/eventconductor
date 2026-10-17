@@ -128,6 +128,8 @@ The same event — the same CloudEvents `source` and `id` — **never starts two
 
 **Kafka mode.** The engine consumes the topics of the destinations that some trigger — in a definition or an `events.yaml` — or `onEvent` names, in one consumer group (`workflow.events.consumer.group`), so each event is used by one pod. The set is recomputed every `workflow.events.consumer.refresh-interval` — a git import that adds a trigger, in a definition or in `events.yaml`, is listened to without a restart. A new group starts at `latest`: turning a trigger on does not replay the topic's history. Records are read as CloudEvents in **binary** mode (`ce_*` headers — what `PUBLISH_EVENT` writes by default), **structured** mode (`application/cloudevents+json`), or as **plain** records (id `<topic>-<partition>-<offset>`, source `kafka://<topic>`, no type — only a `type: '*'` trigger matches them). A destination named by a definition but configured without a topic is logged and not consumed.
 
+The consumer lives in its own module, `io.mateu.workflow:inbound-events-kafka`, outside the engine: the engine only matches CloudEvents on destinations and knows nothing of how they arrive. `orchestrator-standalone-app` includes it; an application of your own that runs the engine with `workflow.mode=kafka` adds the dependency to listen.
+
 ```yaml
 workflow:
   events:

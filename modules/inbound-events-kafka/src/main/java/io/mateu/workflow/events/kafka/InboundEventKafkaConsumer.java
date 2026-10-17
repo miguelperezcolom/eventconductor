@@ -1,14 +1,14 @@
-package io.mateu.workflow.infra.in.events;
+package io.mateu.workflow.events.kafka;
 
 import io.mateu.workflow.application.services.EventTriggerService;
 import io.mateu.workflow.application.services.InboundEventService;
 import io.mateu.workflow.infra.config.EventDestinationsProperties;
+import io.mateu.workflow.infra.in.events.InboundCloudEvents;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.serialization.ByteArrayDeserializer;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.core.env.Environment;
@@ -17,7 +17,6 @@ import org.springframework.kafka.listener.ConcurrentMessageListenerContainer;
 import org.springframework.kafka.listener.ContainerProperties;
 import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.kafka.listener.MessageListener;
-import org.springframework.stereotype.Component;
 import org.springframework.util.backoff.FixedBackOff;
 
 import java.nio.charset.StandardCharsets;
@@ -47,9 +46,12 @@ import java.util.concurrent.TimeUnit;
  * <p>An event the engine could not hand over (a broker down under the starts or messages it produces)
  * is retried after {@code workflow.events.consumer.retry-backoff}, indefinitely: its offset is committed
  * only once it was handed over. A record that cannot be read is logged and skipped.
+ *
+ * <p>Lives in its own module, {@code inbound-events-kafka}, outside the engine: the engine matches
+ * CloudEvents on destinations ({@link InboundEventService}) and knows nothing of how they arrive. An
+ * application running the engine in kafka mode adds this module; {@code InboundEventKafkaAutoConfiguration}
+ * wires it.
  */
-@Component
-@ConditionalOnProperty(name = "workflow.mode", havingValue = "kafka")
 @Slf4j
 public class InboundEventKafkaConsumer {
 

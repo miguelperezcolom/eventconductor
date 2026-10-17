@@ -59,6 +59,7 @@
       <module>modules/worker-http</module>
       <module>modules/worker-llm</module>
         <module>modules/webhook-gateway</module>
+        <module>modules/inbound-events-kafka</module>
       <module>parents/task-module-parent</module>
       <module>parents/task-service-parent</module>
       <module>examples/greetings-tasks</module>

@@ -34,6 +34,11 @@
             <artifactId>workflow-engine</artifactId>
             <version>1.0-SNAPSHOT</version>
         </dependency>
+        <dependency>
+            <groupId>io.mateu.workflow</groupId>
+            <artifactId>inbound-events-kafka</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
 
         <!-- The real test worker, so DIST-13 drives scenarios through the worker an actual test
              would use rather than through a stub programmed from inside this JVM. -->
