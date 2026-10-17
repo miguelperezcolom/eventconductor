@@ -188,8 +188,18 @@ public class SyncInvocationController {
             if (done.get()) {
                 return;
             }
+            SyncInvocationService.Tick look;
             try {
-                var look = service.tick(invocation, progress);
+                look = service.tick(invocation, progress);
+            } catch (RuntimeException e) {
+                // Looked at outside the hang-up catch below: an IllegalStateException from the
+                // service is a failure to report, not a caller who went away.
+                log.warn("Progress stream of invocation {} failed: {}", invocation.id(), e.getMessage());
+                emitter.completeWithError(e);
+                finish.run();
+                return;
+            }
+            try {
                 for (var event : look.events()) {
                     send(emitter, event);
                 }

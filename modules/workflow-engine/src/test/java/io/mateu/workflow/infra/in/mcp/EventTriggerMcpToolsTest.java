@@ -136,4 +136,64 @@ class EventTriggerMcpToolsTest {
         assertThat(tools.deleteEventTrigger("onboarding", "cdc")).isEqualTo("Trigger onboarding/cdc deleted");
         assertThat(tools.listEventTriggers("onboarding")).extracting(v -> v.triggerId()).containsExactly("on-created");
     }
+
+    private EventTriggerMcpTools guardedTools(io.mateu.workflow.security.AuthorizationContext caller) {
+        var payout = new WorkflowDefinition("payout", "Payout", 1, "", false, 0, false, null, 0, List.of(), false,
+                io.mateu.workflow.domain.aggregates.WorkflowStatus.ACTIVE,
+                io.mateu.workflow.domain.aggregates.WorkflowStatus.ACTIVE, List.of("payments:write"), List.of(), 0, null);
+        when(definitions.findAll()).thenReturn(List.of(payout));
+        when(definitions.findById("payout")).thenReturn(java.util.Optional.of(payout));
+        var receipts = new InMemoryEventReceiptRepository();
+        var pauses = new InMemoryTriggerPauseRepository();
+        var service = new EventTriggerService(definitions, pauses, receipts, new EventDestinationsProperties(),
+                new io.mateu.workflow.infra.out.memory.InMemoryEventTriggerRepository()).withFlowAuthorization(true);
+        var guarded = new EventTriggerMcpTools(service, mock(InboundEventService.class));
+        var beans = new org.springframework.beans.factory.support.StaticListableBeanFactory();
+        if (caller != null) {
+            beans.addBean("caller", (io.mateu.workflow.security.CallerResolver) () -> caller);
+        }
+        guarded.callerResolver = beans.getBeanProvider(io.mateu.workflow.security.CallerResolver.class);
+        return guarded;
+    }
+
+    /** With flow authorization on, a trigger starts its workflow as the engine — so its author is judged now. */
+    @Test
+    void aCallerWhoMayNotStartTheWorkflowCannotCreateOrEditItsTrigger() {
+        var allowed = guardedTools(new io.mateu.workflow.security.AuthorizationContext("alice",
+                List.of("payments:write"), List.of()));
+        assertThat(allowed.createEventTrigger("cdc", "payout", "payments", "*", null, null, null).origin())
+                .isEqualTo("API");
+
+        var refused = guardedTools(new io.mateu.workflow.security.AuthorizationContext("bob", List.of(), List.of()));
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                        refused.createEventTrigger("other", "payout", "payments", "*", null, null, null))
+                .isInstanceOf(io.mateu.workflow.security.FlowAuthorizationDeniedException.class)
+                .hasMessageContaining("payments:write");
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> guardedTools(null)
+                        .createEventTrigger("other", "payout", "payments", "*", null, null, null))
+                .isInstanceOf(io.mateu.workflow.security.FlowAuthorizationDeniedException.class);
+    }
+
+    @Test
+    void anInjectedEventGetsARandomIdAndTheMcpSourceWhenTheAgentGivesNone() {
+        var inbound = mock(InboundEventService.class);
+        var injecting = new EventTriggerMcpTools(mock(EventTriggerService.class), inbound);
+
+        injecting.publishInboundEvent("bookings", "com.acme.booking.created", "{}", " ", null, "s", "k");
+
+        var event = org.mockito.ArgumentCaptor.forClass(io.mateu.workflow.domain.aggregates.InboundEvent.class);
+        verify(inbound).receive(event.capture());
+        assertThat(event.getValue().id()).isNotBlank().isNotEqualTo(" ");
+        assertThat(event.getValue().source()).isEqualTo("mcp");
+        assertThat(event.getValue().subject()).isEqualTo("s");
+        assertThat(event.getValue().key()).isEqualTo("k");
+        assertThat(injecting.getSystemContext()).contains("createEventTrigger", "publishInboundEvent");
+    }
+
+    @Test
+    void theReceivedEventsDefaultTo50() {
+        var service = mock(EventTriggerService.class);
+        new EventTriggerMcpTools(service, mock(InboundEventService.class)).listReceivedEvents(null, null);
+        verify(service).received(50, null);
+    }
 }

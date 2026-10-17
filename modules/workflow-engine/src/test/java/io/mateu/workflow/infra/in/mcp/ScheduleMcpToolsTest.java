@@ -112,4 +112,68 @@ class ScheduleMcpToolsTest {
                 new ScheduleMcpTools.WorkflowDefinitionSummary("old", "Old", "DISABLED", false, null, java.util.List.of()),
                 new ScheduleMcpTools.WorkflowDefinitionSummary("report", "Report", "ACTIVE", true, "Daily report", java.util.List.of()));
     }
+
+    private ScheduleMcpTools guardedTools(io.mateu.workflow.security.AuthorizationContext caller) {
+        when(definitions.findAll()).thenReturn(List.of(new WorkflowDefinition("payout", "Payout", 1, "", false, 0, false,
+                null, 0, List.of(), false, WorkflowStatus.ACTIVE, WorkflowStatus.ACTIVE, List.of("payments:write"),
+                List.of(), 0, null).withSchedules(List.of(new CronSchedule("eom", "0 0 23 L * ?", null, null)))));
+        var service = new ScheduleService(definitions, new InMemoryCronScheduleRepository(),
+                new InMemorySchedulePauseRepository(), started::add).withFlowAuthorization(true);
+        var guarded = new ScheduleMcpTools(service, definitions);
+        var beans = new org.springframework.beans.factory.support.StaticListableBeanFactory();
+        if (caller != null) {
+            beans.addBean("caller", (io.mateu.workflow.security.CallerResolver) () -> caller);
+        }
+        guarded.callerResolver = beans.getBeanProvider(io.mateu.workflow.security.CallerResolver.class);
+        return guarded;
+    }
+
+    /** With flow authorization on, the caller the MCP door resolves must be allowed to start the workflow. */
+    @Test
+    void aCallerWhoMayNotStartTheWorkflowIsRefusedOnCreateEditAndRunNow() {
+        var tools = guardedTools(new io.mateu.workflow.security.AuthorizationContext("bob", List.of(), List.of()));
+
+        assertThatThrownBy(() -> tools.createSchedule("p", "payout", "0 0 9 * * *", null, null))
+                .isInstanceOf(io.mateu.workflow.security.FlowAuthorizationDeniedException.class)
+                .hasMessageContaining("payments:write");
+        assertThatThrownBy(() -> tools.runScheduleNow("eom"))
+                .isInstanceOf(io.mateu.workflow.security.FlowAuthorizationDeniedException.class);
+        assertThat(tools.listSchedules(null)).extracting(ScheduleService.ScheduleView::id).containsExactly("eom");
+        // Operating is not starting: pause and resume are not judged.
+        assertThat(tools.pauseSchedule("eom").paused()).isTrue();
+        assertThat(started).isEmpty();
+    }
+
+    /** No resolver at all is no caller, and no caller holds no scope: refused, not waved through. */
+    @Test
+    void withoutAResolvedCallerAGuardedWorkflowIsRefused() {
+        var tools = guardedTools(null);
+
+        assertThatThrownBy(() -> tools.runScheduleNow("eom"))
+                .isInstanceOf(io.mateu.workflow.security.FlowAuthorizationDeniedException.class);
+        assertThat(started).isEmpty();
+    }
+
+    @Test
+    void aCallerHoldingTheScopeCreatesEditsAndRunsTheSchedule() {
+        var tools = guardedTools(new io.mateu.workflow.security.AuthorizationContext("alice",
+                List.of("payments:write"), List.of()));
+
+        assertThat(tools.createSchedule("p", "payout", "0 0 9 * * *", null, null).id()).isEqualTo("p");
+        assertThat(tools.updateSchedule("p", "payout", "@daily", null, null).cron()).isEqualTo("@daily");
+        assertThat(tools.runScheduleNow("p").workflowId()).isEqualTo("payout");
+        // The start itself is the engine's, as an occurrence's would be.
+        assertThat(started).singleElement().satisfies(start ->
+                assertThat(io.mateu.workflow.security.AuthorizationContext.isSystem(start.caller())).isTrue());
+    }
+
+    @Test
+    void anUnknownScheduleIsRefusedByTheTools() {
+        assertThatThrownBy(() -> tools.getSchedule("ghost"))
+                .isInstanceOf(ScheduleService.UnknownScheduleException.class);
+        assertThatThrownBy(() -> tools.createSchedule("x", "ghost", "nope", null, null))
+                .isInstanceOf(ScheduleService.InvalidScheduleException.class)
+                .hasMessageContaining("workflow 'ghost' is unknown");
+        assertThat(tools.getSystemContext()).contains("createSchedule", "exportScheduleYaml");
+    }
 }

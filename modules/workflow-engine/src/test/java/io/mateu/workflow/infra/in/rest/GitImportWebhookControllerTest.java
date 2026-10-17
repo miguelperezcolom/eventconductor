@@ -167,4 +167,70 @@ class GitImportWebhookControllerTest {
         verify(taskImportUseCase, timeout(2000)).handle(List.of(tasksMaster));
         verify(importUseCase, after(400).never()).handle(any());
     }
+
+    @Test
+    void withNoRepositoryConfiguredThereIsNothingToImport() {
+        when(properties.getRepositories()).thenReturn(List.of());
+
+        var response = controller.webhook("github", new HttpHeaders(), githubPush("master", "https://github.com/org/defs.git"));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
+        assertThat(response.getBody()).isEqualTo("no repositories configured");
+        verifyNoInteractions(importUseCase, taskImportUseCase);
+    }
+
+    /** With no workflow secret, the task-contract one guards the endpoint: an unsigned push is refused. */
+    @Test
+    void theTaskContractSecretGuardsTheEndpointWhenTheWorkflowOneIsUnset() {
+        when(properties.getWebhookSecret()).thenReturn(" ");
+        when(taskProperties.getWebhookSecret()).thenReturn("s3cret");
+
+        assertThatThrownBy(() -> controller.webhook("github", new HttpHeaders(),
+                githubPush("master", "https://github.com/org/defs.git")))
+                .isInstanceOf(ResponseStatusException.class)
+                .extracting(e -> ((ResponseStatusException) e).getStatusCode())
+                .isEqualTo(HttpStatus.UNAUTHORIZED);
+        verifyNoInteractions(importUseCase, taskImportUseCase);
+    }
+
+    /** A push that names a branch but no repository reloads every repository on that branch. */
+    @Test
+    void aPushNamingOnlyABranchReloadsTheRepositoriesOnThatBranch() {
+        var other = repo("https://github.com/org/other.git", "develop");
+        when(properties.getRepositories()).thenReturn(List.of(master, other));
+
+        var response = controller.webhook("github", new HttpHeaders(),
+                "{\"ref\":\"refs/heads/master\"}".getBytes(StandardCharsets.UTF_8));
+
+        assertThat(response.getBody()).isEqualTo("import scheduled for 1 repository/ies");
+        verify(importUseCase, timeout(2000)).handle(List.of(master));
+    }
+
+    /** The import runs after the 202: a failing task-contract import is logged and the workflows still load. */
+    @Test
+    void aFailingTaskContractImportDoesNotStopTheWorkflowImport() {
+        when(taskProperties.getRepositories()).thenReturn(List.of(tasksMaster));
+        when(taskImportUseCase.handle(anyList())).thenThrow(new IllegalStateException("clone failed"));
+        when(importUseCase.handle(anyList())).thenReturn(new ImportWorkflowDefinitionsResult(
+                List.of("booking"), List.of("bad.json: unreadable"), List.of("retired")));
+
+        var response = controller.webhook("github", new HttpHeaders(),
+                githubPush("master", "https://github.com/org/defs.git"));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
+        verify(importUseCase, timeout(2000)).handle(List.of(master));
+    }
+
+    @Test
+    void aFailingWorkflowImportIsLoggedNotThrown() {
+        when(taskProperties.getRepositories()).thenReturn(List.of(tasksMaster));
+        when(taskImportUseCase.handle(anyList())).thenReturn(new ImportTasksResult(List.of("reserve"), List.of("x: bad")));
+        when(importUseCase.handle(anyList())).thenThrow(new IllegalStateException("clone failed"));
+
+        var response = controller.webhook("github", new HttpHeaders(),
+                githubPush("master", "https://github.com/org/defs.git"));
+
+        assertThat(response.getBody()).isEqualTo("import scheduled for 2 repository/ies");
+        verify(importUseCase, timeout(2000)).handle(anyList());
+    }
 }

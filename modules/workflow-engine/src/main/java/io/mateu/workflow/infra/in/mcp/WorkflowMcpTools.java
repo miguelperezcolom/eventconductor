@@ -162,8 +162,9 @@ public class WorkflowMcpTools implements McpTools, McpSystemContext {
     @Tool(description = "Get log messages for a workflow process")
     public List<LogEntry> getProcessLogs(String processId) {
         log.info("Getting logs for process " + processId);
-        return logMessageRepository.findAll().stream()
-                .filter(log -> processId.equals(log.getProcessId()))
+        // By process: the log table holds every process's lines, and reading all of it to keep one
+        // process's is a full scan per call.
+        return logMessageRepository.findByProcessId(processId).stream()
                 .map(log -> new LogEntry(
                         log.getTimestamp() != null ? log.getTimestamp().toString() : null,
                         log.getStepExecutionId(), log.getMessageType(),

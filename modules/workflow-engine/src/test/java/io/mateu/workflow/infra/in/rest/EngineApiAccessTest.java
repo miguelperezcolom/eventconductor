@@ -73,4 +73,45 @@ class EngineApiAccessTest {
         assertThat(EngineApiAccess.engineApiPresent(beans)).isTrue();
         assertThat(EngineApiAccess.engineApiPresent(new StaticListableBeanFactory())).isFalse();
     }
+
+    private static java.util.List<String> startupLog(MessageApiProperties properties, StaticListableBeanFactory beans) {
+        var logger = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(EngineApiAccess.class);
+        var appender = new ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            new EngineApiAccess(properties, beans).afterSingletonsInstantiated();
+        } finally {
+            logger.detachAppender(appender);
+        }
+        return appender.list.stream().map(e -> e.getLevel() + " " + e.getFormattedMessage()).toList();
+    }
+
+    private static StaticListableBeanFactory withControllers() {
+        var beans = new StaticListableBeanFactory();
+        beans.addBean("messages", mock(MessageRestController.class));
+        return beans;
+    }
+
+    /** At startup the engine says which rule applies, naming the setting that changes it. */
+    @Test
+    void atStartupTheLogSaysHowTheApiIsProtected() {
+        assertThat(startupLog(properties(null, false, false), withControllers())).singleElement().asString()
+                .startsWith("WARN").contains("refuses every request", "workflow.message-api.api-key", "allow-anonymous");
+        assertThat(startupLog(properties(null, true, false), withControllers())).singleElement().asString()
+                .startsWith("WARN").contains("is OPEN");
+        assertThat(startupLog(properties("k3y", false, false), withControllers())).isEmpty();
+        assertThat(startupLog(properties(null, false, false), new StaticListableBeanFactory()))
+                .as("no engine API, nothing to say").isEmpty();
+    }
+
+    @Test
+    void anyOfTheEnginesControllersCountsAsTheApi() {
+        for (var controller : java.util.List.<Class<?>>of(EventRestController.class, ScheduleRestController.class,
+                SyncInvocationController.class, MessageRestController.class)) {
+            var beans = new StaticListableBeanFactory();
+            beans.addBean("controller", mock(controller));
+            assertThat(EngineApiAccess.engineApiPresent(beans)).as(controller.getSimpleName()).isTrue();
+        }
+    }
 }

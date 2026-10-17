@@ -160,4 +160,90 @@ class ScheduleRestControllerMvcTest {
         mvc.perform(get("/workflow/api/schedules").header("X-Api-Key", "secret")).andExpect(status().isOk());
         assertThat(started).isEmpty();
     }
+
+    @Test
+    void readsOneScheduleById() throws Exception {
+        mvc.perform(get("/workflow/api/schedules/eom"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value("eom"))
+                .andExpect(jsonPath("$.workflowId").value("report"))
+                .andExpect(jsonPath("$.editable").value(false));
+        mvc.perform(get("/workflow/api/schedules").param("q", "nothing-matches"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
+    }
+
+    /** A JSON {@code null} binds to no body at all: refused as a bad request, not a 500. */
+    @Test
+    void aNullBodyIsABadRequest() throws Exception {
+        mvc.perform(post("/workflow/api/schedules").contentType("application/json").content("null"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(put("/workflow/api/schedules/eom").contentType("application/json").content("null"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(post("/workflow/api/schedules").contentType("application/json").content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.violations[0]").value("a schedule created here needs an id (e.g. nightly-report)"));
+    }
+
+    @Test
+    void anEditToAWorkflowTheCallerMayNotStartIsRefusedWith403() throws Exception {
+        var payout = new WorkflowDefinition("payout", "Payout", 1, "", false, 0, false, null, 0, List.of(), false,
+                io.mateu.workflow.domain.aggregates.WorkflowStatus.ACTIVE,
+                io.mateu.workflow.domain.aggregates.WorkflowStatus.ACTIVE, List.of("payments:write"), List.of(), 0, null);
+        var report = new WorkflowDefinition("report", "Report", 1, null, false, 0, false, null, 0, List.of());
+        when(definitions.findAll()).thenReturn(List.of(report, payout));
+        var service = new ScheduleService(definitions, new InMemoryCronScheduleRepository(),
+                new InMemorySchedulePauseRepository(), started::add).withFlowAuthorization(true);
+        var beans = new StaticListableBeanFactory();
+        beans.addBean("caller", (CallerResolver) () -> new AuthorizationContext("alice", List.of(), List.of()));
+        mvc = MockMvcBuilders.standaloneSetup(new ScheduleRestController(service, apiProperties,
+                beans.getBeanProvider(CallerResolver.class))).build();
+        mvc.perform(post("/workflow/api/schedules").contentType("application/json").content(NIGHTLY))
+                .andExpect(status().isCreated());
+
+        // Moving a schedule onto a guarded workflow is starting it: judged like a creation.
+        mvc.perform(put("/workflow/api/schedules/nightly").contentType("application/json")
+                        .content("{\"workflowId\": \"payout\", \"cron\": \"@hourly\"}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.detail", containsString("payments:write")));
+        mvc.perform(get("/workflow/api/schedules/nightly")).andExpect(jsonPath("$.workflowId").value("report"));
+    }
+
+    /** No resolver (no security on the classpath): the pause is recorded as the API's. */
+    @Test
+    void withoutACallerResolverThePauseIsTheApis() throws Exception {
+        var service = new ScheduleService(definitions, new InMemoryCronScheduleRepository(),
+                new InMemorySchedulePauseRepository(), started::add);
+        mvc = MockMvcBuilders.standaloneSetup(new ScheduleRestController(service, apiProperties,
+                new StaticListableBeanFactory().getBeanProvider(CallerResolver.class))).build();
+
+        mvc.perform(post("/workflow/api/schedules/eom/pause"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.pausedBy").value("api"));
+        mvc.perform(post("/workflow/api/schedules/eom/run-now")).andExpect(status().isAccepted());
+    }
+
+    @Test
+    void aWrongApiKeyIsRefusedLikeAMissingOne() throws Exception {
+        apiProperties.setApiKey("secret");
+
+        mvc.perform(get("/workflow/api/schedules/eom").header("X-Api-Key", "secreT")).andExpect(status().isUnauthorized());
+        mvc.perform(post("/workflow/api/schedules").header("X-Api-Key", "wrong").contentType("application/json")
+                .content(NIGHTLY)).andExpect(status().isUnauthorized());
+        mvc.perform(put("/workflow/api/schedules/eom").contentType("application/json").content("{}"))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(delete("/workflow/api/schedules/eom")).andExpect(status().isUnauthorized());
+        mvc.perform(post("/workflow/api/schedules/eom/pause")).andExpect(status().isUnauthorized());
+        mvc.perform(post("/workflow/api/schedules/eom/resume")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/workflow/api/schedules/eom/yaml")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/workflow/api/schedules").header("X-Api-Key", " ")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/workflow/api/schedules/eom").header("X-Api-Key", "secret")).andExpect(status().isOk());
+    }
+
+    /** A blank configured key is no key: the API is open, as when it is unset. */
+    @Test
+    void aBlankConfiguredKeyLeavesTheApiOpen() throws Exception {
+        apiProperties.setApiKey("  ");
+        mvc.perform(get("/workflow/api/schedules")).andExpect(status().isOk());
+    }
 }

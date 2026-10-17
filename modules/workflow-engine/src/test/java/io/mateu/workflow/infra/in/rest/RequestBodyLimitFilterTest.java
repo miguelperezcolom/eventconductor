@@ -101,4 +101,109 @@ class RequestBodyLimitFilterTest {
 
         verify(messageDispatcher).dispatch(any(MessageReceived.class));
     }
+
+    private static MockHttpServletRequest chunked(int bytes) {
+        var request = new MockHttpServletRequest("POST", "/workflow/api/messages") {
+            @Override
+            public long getContentLengthLong() {
+                return -1;
+            }
+
+            @Override
+            public int getContentLength() {
+                return -1;
+            }
+        };
+        request.setContentType("application/json");
+        request.setContent(bodyOf(bytes).getBytes(StandardCharsets.UTF_8));
+        return request;
+    }
+
+    /** Read a byte at a time, or through the reader a form parser uses: still counted, still cut off. */
+    @Test
+    void everyReadPathIsCounted() throws Exception {
+        FilterChain byteAtATime = (req, res) -> {
+            var in = ((HttpServletRequest) req).getInputStream();
+            while (in.read() != -1) {
+                // read on
+            }
+        };
+        var response = new MockHttpServletResponse();
+        new RequestBodyLimitFilter(LIMIT).doFilter(chunked(LIMIT * 10), response, byteAtATime);
+        assertThat(response.getStatus()).isEqualTo(413);
+
+        FilterChain throughTheReader = (req, res) -> {
+            var reader = ((HttpServletRequest) req).getReader();
+            assertThat(((HttpServletRequest) req).getReader()).isSameAs(reader);
+            while (reader.read() != -1) {
+                // read on
+            }
+        };
+        response = new MockHttpServletResponse();
+        new RequestBodyLimitFilter(LIMIT).doFilter(chunked(LIMIT * 10), response, throughTheReader);
+        assertThat(response.getStatus()).isEqualTo(413);
+    }
+
+    /** The reader decodes with the request's charset, UTF-8 when it names none. */
+    @Test
+    void aBodyUnderTheLimitReadsTheSameThroughEveryPath() throws Exception {
+        var seen = new StringBuilder();
+        FilterChain chain = (req, res) -> {
+            var in = ((HttpServletRequest) req).getInputStream();
+            assertThat(in.isFinished()).isFalse();
+            assertThat(in.isReady()).isTrue();
+            assertThat(in.available()).isPositive();
+            assertThat(((HttpServletRequest) req).getInputStream()).isSameAs(in);
+            seen.append(new String(in.readAllBytes(), StandardCharsets.UTF_8));
+            assertThat(in.isFinished()).isTrue();
+            in.close();
+        };
+        var request = chunked(10);
+        var response = new MockHttpServletResponse();
+        new RequestBodyLimitFilter(LIMIT).doFilter(request, response, chain);
+        assertThat(response.getStatus()).isEqualTo(200);
+        assertThat(seen.toString()).isEqualTo(bodyOf(10));
+
+        var latin = chunked(0);
+        latin.setCharacterEncoding("ISO-8859-1");
+        latin.setContent(new byte[]{(byte) 0xE9});
+        var text = new StringBuilder();
+        new RequestBodyLimitFilter(LIMIT).doFilter(latin, new MockHttpServletResponse(),
+                (req, res) -> text.append(((HttpServletRequest) req).getReader().readLine()));
+        assertThat(text.toString()).isEqualTo("\u00e9");
+    }
+
+    /** Whoever read the body may wrap the refusal: the cause chain is walked, the 413 still answered. */
+    @Test
+    void aWrappedRefusalIsStillA413_andAnyOtherFailurePropagates() throws Exception {
+        FilterChain wrapping = (req, res) -> {
+            try {
+                ((HttpServletRequest) req).getInputStream().readAllBytes();
+            } catch (java.io.IOException e) {
+                throw new IllegalStateException("could not parse", new RuntimeException("reading", e));
+            }
+        };
+        var response = new MockHttpServletResponse();
+        new RequestBodyLimitFilter(LIMIT).doFilter(chunked(LIMIT * 10), response, wrapping);
+        assertThat(response.getStatus()).isEqualTo(413);
+
+        FilterChain failing = (req, res) -> {
+            throw new IllegalStateException("unrelated");
+        };
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                        new RequestBodyLimitFilter(LIMIT).doFilter(chunked(10), new MockHttpServletResponse(), failing))
+                .isInstanceOf(IllegalStateException.class).hasMessage("unrelated");
+    }
+
+    /** Registered for the engine's own doors only, ahead of anything that reads the body. */
+    @Test
+    void theFilterIsRegisteredOnTheEnginesPathsOnly() {
+        var registration = new RequestBodyLimitConfiguration().requestBodyLimitFilter(1024);
+
+        assertThat(registration.getUrlPatterns()).containsExactlyInAnyOrder(
+                "/workflow/api/*", "/workflow/webhooks/*", "/forms/webhooks/*", "/rules/webhooks/*");
+        assertThat(registration.getOrder()).isEqualTo(org.springframework.core.Ordered.HIGHEST_PRECEDENCE + 100);
+        assertThat(registration.getFilterName()).isEqualTo("workflowRequestBodyLimitFilter");
+        assertThat(registration.getFilter()).isInstanceOf(RequestBodyLimitFilter.class);
+    }
 }

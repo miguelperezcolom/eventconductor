@@ -167,4 +167,39 @@ class MessageRestControllerTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
         verify(messageDispatcher).dispatch(new MessageReceived("payment-received", "res-123", List.of()));
     }
+
+    /** A status decided deeper down is passed on as it is, not rewritten as a broker outage. */
+    @Test
+    void aStatusDecidedDeeperDownIsPassedOnUnchanged() {
+        controller.mode = "kafka";
+        org.mockito.Mockito.doThrow(new ResponseStatusException(HttpStatus.CONFLICT, "not now"))
+                .when(messageDispatcher).dispatch(org.mockito.ArgumentMatchers.any());
+
+        assertThatThrownBy(() -> controller.sendMessage(null,
+                new SendMessageRequest("payment-received", "res-123", null)))
+                .isInstanceOf(ResponseStatusException.class)
+                .extracting(e -> ((ResponseStatusException) e).getStatusCode())
+                .isEqualTo(HttpStatus.CONFLICT);
+    }
+
+    /** Refused here, naming the field: answered 202 it would be dead-lettered beyond the broker, unseen. */
+    @Test
+    void anOversizedFieldIsABadRequestThatSaysWhich() throws Exception {
+        var huge = "x".repeat(io.mateu.workflow.input.InputLimits.MAX_IDENTIFIER_LENGTH + 1);
+
+        mockMvc().perform(post("/workflow/api/messages").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"messageName\": \"paid\", \"correlationKey\": \"" + huge + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(status().reason(org.hamcrest.Matchers.containsString("correlationKey")));
+        verifyNoInteractions(messageDispatcher);
+    }
+
+    @Test
+    void throughTheDispatcherAnAcceptedMessageIs202() throws Exception {
+        mockMvc().perform(post("/workflow/api/messages").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"messageName\": \"paid\", \"correlationKey\": \"bk-1\", \"variables\": {\"a\": \"1\"}}"))
+                .andExpect(status().isAccepted())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string("message published"));
+        verify(messageDispatcher).dispatch(new MessageReceived("paid", "bk-1", List.of(new Variable("a", "1"))));
+    }
 }

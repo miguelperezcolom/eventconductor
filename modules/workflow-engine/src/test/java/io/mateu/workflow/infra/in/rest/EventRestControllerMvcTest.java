@@ -187,4 +187,123 @@ class EventRestControllerMvcTest {
         mvc.perform(get("/workflow/api/triggers")).andExpect(status().isUnauthorized());
         mvc.perform(get("/workflow/api/triggers").header("X-Api-Key", "secret")).andExpect(status().isOk());
     }
+
+    @Test
+    void readsOneTriggerAndTheLatestReceiptsOfOneWorkflow() throws Exception {
+        mvc.perform(get("/workflow/api/triggers/onboarding/com.acme.booking.any"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.workflowId").value("onboarding"))
+                .andExpect(jsonPath("$.editable").value(false));
+        mvc.perform(post("/workflow/api/events/bookings").contentType("application/json").content(CREATED));
+
+        mvc.perform(get("/workflow/api/events/received").param("workflowId", "onboarding").param("limit", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1));
+        mvc.perform(get("/workflow/api/events/received").param("workflowId", "someone-else"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
+    }
+
+    @Test
+    void aNullBodyIsABadRequest() throws Exception {
+        mvc.perform(post("/workflow/api/triggers").contentType("application/json").content("null"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(put("/workflow/api/triggers/onboarding/cdc").contentType("application/json").content("null"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(post("/workflow/api/events/bookings").contentType("application/json").content("null"))
+                .andExpect(status().isBadRequest());
+    }
+
+    /** The path names the workflow; a body naming another one is refused, not a silent move. */
+    @Test
+    void anEditCannotMoveATriggerToAnotherWorkflow() throws Exception {
+        var onboarding = definitions.findAll().get(0);
+        when(definitions.findById("onboarding")).thenReturn(java.util.Optional.of(onboarding));
+        mvc.perform(post("/workflow/api/triggers").contentType("application/json").content("""
+                        {"id": "cdc", "workflowId": "onboarding", "destination": "customers-cdc", "type": "*"}
+                        """))
+                .andExpect(status().isCreated());
+
+        mvc.perform(put("/workflow/api/triggers/onboarding/cdc").contentType("application/json").content("""
+                        {"workflowId": "billing", "destination": "customers-cdc", "type": "*"}
+                        """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.violations[0]", org.hamcrest.Matchers.containsString("never changes")));
+        mvc.perform(put("/workflow/api/triggers/onboarding/ghost").contentType("application/json")
+                        .content("{\"destination\": \"customers-cdc\", \"type\": \"*\"}"))
+                .andExpect(status().isNotFound());
+        mvc.perform(delete("/workflow/api/triggers/onboarding/com.acme.booking.any")).andExpect(status().isConflict());
+    }
+
+    /** An identifier over the engine's limit is refused here, naming the field, before anything is received. */
+    @Test
+    void anOversizedIdentifierIsABadRequestThatSaysWhich() throws Exception {
+        var huge = "x".repeat(io.mateu.workflow.input.InputLimits.MAX_IDENTIFIER_LENGTH + 1);
+        mvc.perform(post("/workflow/api/events/bookings").contentType("application/json")
+                        .content("{\"id\": \"" + huge + "\", \"source\": \"pms\", \"type\": \"t\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(status().reason(org.hamcrest.Matchers.containsString("id")));
+        mvc.perform(post("/workflow/api/events/" + huge).contentType("application/json").content(CREATED))
+                .andExpect(status().isBadRequest())
+                .andExpect(status().reason(org.hamcrest.Matchers.containsString("destination")));
+        org.mockito.Mockito.verifyNoInteractions(ingressRouter);
+    }
+
+    @Test
+    void aCallerWhoMayNotStartTheWorkflowCannotCreateItsTrigger_403() throws Exception {
+        var payout = new WorkflowDefinition("payout", "Payout", 1, "", false, 0, false, null, 0, List.of(), false,
+                io.mateu.workflow.domain.aggregates.WorkflowStatus.ACTIVE,
+                io.mateu.workflow.domain.aggregates.WorkflowStatus.ACTIVE, List.of("payments:write"), List.of(), 0, null);
+        when(definitions.findAll()).thenReturn(List.of(payout));
+        when(definitions.findById("payout")).thenReturn(java.util.Optional.of(payout));
+        var receipts = new InMemoryEventReceiptRepository();
+        var pauses = new InMemoryTriggerPauseRepository();
+        var triggers = new EventTriggerService(definitions, pauses, receipts, new EventDestinationsProperties(),
+                new io.mateu.workflow.infra.out.memory.InMemoryEventTriggerRepository()).withFlowAuthorization(true);
+        var beans = new StaticListableBeanFactory();
+        beans.addBean("caller", (CallerResolver) () -> new AuthorizationContext("bob", List.of(), List.of()));
+        mvc = MockMvcBuilders.standaloneSetup(new EventRestController(mock(InboundEventService.class), triggers,
+                apiProperties, beans.getBeanProvider(CallerResolver.class))).build();
+
+        mvc.perform(post("/workflow/api/triggers").contentType("application/json").content("""
+                        {"id": "cdc", "workflowId": "payout", "destination": "payments", "type": "*"}
+                        """))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.detail", org.hamcrest.Matchers.containsString("payments:write")));
+        mvc.perform(get("/workflow/api/triggers").param("workflowId", "payout"))
+                .andExpect(jsonPath("$.length()").value(0));
+    }
+
+    @Test
+    void withoutACallerResolverThePauseIsTheApis() throws Exception {
+        var receipts = new InMemoryEventReceiptRepository();
+        var triggers = new EventTriggerService(definitions, new InMemoryTriggerPauseRepository(), receipts,
+                new EventDestinationsProperties(), new io.mateu.workflow.infra.out.memory.InMemoryEventTriggerRepository());
+        mvc = MockMvcBuilders.standaloneSetup(new EventRestController(mock(InboundEventService.class), triggers,
+                apiProperties, new StaticListableBeanFactory().getBeanProvider(CallerResolver.class))).build();
+
+        mvc.perform(post("/workflow/api/triggers/onboarding/com.acme.booking.any/pause"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.pausedBy").value("api"));
+    }
+
+    @Test
+    void aWrongApiKeyIsRefusedOnEveryEndpoint() throws Exception {
+        apiProperties.setApiKey("secret");
+        var wrong = "Secret";
+
+        mvc.perform(post("/workflow/api/events/bookings").header("X-Api-Key", wrong).contentType("application/json")
+                .content(CREATED)).andExpect(status().isUnauthorized());
+        mvc.perform(get("/workflow/api/events/received").header("X-Api-Key", wrong)).andExpect(status().isUnauthorized());
+        mvc.perform(get("/workflow/api/triggers/onboarding/com.acme.booking.any")).andExpect(status().isUnauthorized());
+        mvc.perform(post("/workflow/api/triggers").contentType("application/json").content("{}"))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(put("/workflow/api/triggers/onboarding/x").contentType("application/json").content("{}"))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(delete("/workflow/api/triggers/onboarding/x")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/workflow/api/triggers/onboarding/x/yaml")).andExpect(status().isUnauthorized());
+        mvc.perform(post("/workflow/api/triggers/onboarding/com.acme.booking.any/pause")).andExpect(status().isUnauthorized());
+        mvc.perform(post("/workflow/api/triggers/onboarding/com.acme.booking.any/resume")).andExpect(status().isUnauthorized());
+        org.mockito.Mockito.verifyNoInteractions(ingressRouter);
+    }
 }
