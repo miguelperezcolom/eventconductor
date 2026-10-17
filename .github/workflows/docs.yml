@@ -1,0 +1,76 @@
+# Builds the documentation site (doc/, Astro + Starlight) and publishes it to Netlify.
+#
+# - On every pull request that touches doc/: build it, so a broken page fails the PR.
+# - On main and on every engine release: build and deploy to Netlify (production).
+#
+# Why this exists: the docs site is hosted on Netlify with auto-publishing locked, so the deploys
+# Netlify builds for main are never published and the site fell behind the released engine (as of
+# 2026-10-17 it still lacked the HTTP Calls guide from September). Deploying from here makes the
+# published site a function of main and of the releases again, independent of the Netlify UI —
+# the same arrangement mateu uses (mateu/.github/workflows/docs.yml).
+#
+# Required repository secrets for the deploy step (PR builds need none):
+#   NETLIFY_AUTH_TOKEN  personal access token of the Netlify account that owns the site
+#   NETLIFY_SITE_ID     the site's API id (Site configuration → General → Site details)
+# Without them the deploy step is skipped with a notice, never failed.
+name: Docs
+
+on:
+  pull_request:
+    paths:
+      - 'doc/**'
+      - '.github/workflows/docs.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'doc/**'
+      - '.github/workflows/docs.yml'
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    # Engine releases only (tag v*): the IDE plugins are released from this repository as plugins-v*.
+    if: github.event_name != 'release' || startsWith(github.event.release.tag_name, 'v')
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: doc
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          # The version doc/netlify.toml pins for the Netlify builds.
+          node-version: 22
+          cache: npm
+          cache-dependency-path: doc/package-lock.json
+      - name: Install
+        run: npm ci
+      - name: Build
+        run: npm run build
+      - name: Deploy to Netlify (production)
+        if: github.event_name != 'pull_request'
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+        run: |
+          if [ -z "$NETLIFY_AUTH_TOKEN" ] || [ -z "$NETLIFY_SITE_ID" ]; then
+            echo "::notice::NETLIFY_AUTH_TOKEN / NETLIFY_SITE_ID not configured — skipping the deploy."
+            exit 0
+          fi
+          # At an exact version, without install hooks, outside the project — not `npx --yes …@latest`.
+          npm install --prefix "$RUNNER_TEMP/netlify" --no-save --ignore-scripts netlify-cli@27.12.0
+          "$RUNNER_TEMP/netlify/node_modules/.bin/netlify" deploy --dir=dist --prod --no-build \
+            --site "$NETLIFY_SITE_ID" --auth "$NETLIFY_AUTH_TOKEN" \
+            --message "${GITHUB_SHA::9} ${GITHUB_EVENT_NAME}"

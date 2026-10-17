@@ -1,8 +1,10 @@
 # EventConductor documentation site
 
 The EventConductor docs site, built with [Astro Starlight](https://starlight.astro.build)
-and deployed to Netlify (see `netlify.toml`, which pins the Node version — build settings
-live in the Netlify UI).
+and deployed to Netlify. Production is published by `.github/workflows/docs.yml` — on every push
+to `main` that touches `doc/`, on every engine release and on demand — with `netlify deploy --prod`
+(secrets `NETLIFY_AUTH_TOKEN` and `NETLIFY_SITE_ID`); the Netlify GitHub integration only builds
+the deploy previews of pull requests. `netlify.toml` pins the Node version those previews use.
 
 ## Content
 
