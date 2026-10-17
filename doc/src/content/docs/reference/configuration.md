@@ -283,7 +283,7 @@ These locks are held only for the length of one scan and are session-scoped, so 
 
 ### Serialization locks (`workflow.lock.*`)
 
-A definition can serialize processes by a key — [`LOCK`/`UNLOCK`](/reference/step-types/#action) steps around a critical section, or a process-level `processLock`. The held lock is a row keyed by `(name, key)`; whoever cannot take it waits its turn (FIFO). A **lease** bounds how long a hold survives if the process that took it dies without releasing — the crash backstop — and a reaper frees expired holds and admits the next waiter.
+A definition can serialize processes by a key — [`LOCK`/`UNLOCK`](/reference/step-types/#lock) steps around a critical section, or a process-level `processLock`. The held lock is a row keyed by `(name, key)`; whoever cannot take it waits its turn (FIFO). A **lease** bounds how long a hold survives if the process that took it dies without releasing — the crash backstop — and a reaper frees expired holds and admits the next waiter.
 
 | Property | Default | Description |
 |---|---|---|
@@ -291,7 +291,7 @@ A definition can serialize processes by a key — [`LOCK`/`UNLOCK`](/reference/s
 | `workflow.lock.lease-scan-interval-ms` | `60000` | How often (ms) the lease reaper scans for expired holds (jpa mode; one pod at a time via an advisory lock). |
 | `workflow.lock.wait-timeout-seconds` | `10` | How long an acquire/release waits for the per-key row lock before giving up (jpa mode). |
 
-Only relevant to definitions that declare locks; one that uses none pays nothing. See [Step types — LOCK / UNLOCK](/reference/step-types/).
+Only relevant to definitions that declare locks; one that uses none pays nothing. See [Step types — LOCK / UNLOCK](/reference/step-types/#lock).
 
 ### Synchronous invocation (`workflow.sync.*`)
 
@@ -322,7 +322,7 @@ Only relevant to definitions that declare `syncInvocation`; see [Synchronous Inv
 | `workflow.events.destinations.<name>.format` | `binary` | `binary` / `structured` CloudEvents, or `plain`; a step may override. |
 | `workflow.events.max-payload-bytes` | `262144` | Largest event payload; larger fails the step. |
 | `workflow.events.loopback` | `true` | Embedded mode: a `PUBLISH_EVENT` of this engine is also received by its own event triggers and `onEvent` waits. |
-| `workflow.events.consumer.enabled` | `true` | Kafka mode: consume the topics of the destinations event triggers and `onEvent` waits name. |
+| `workflow.events.consumer.enabled` | `true` | Kafka mode, with `inbound-events-kafka` on the classpath: consume the topics of the destinations event triggers and `onEvent` waits name. |
 | `workflow.events.consumer.group` | `eventconductor-inbound-events` | Their consumer group — one per deployment, so each event is used by one pod. |
 | `workflow.events.consumer.bootstrap-servers` | — | Brokers; empty means `spring.cloud.stream.kafka.binder.brokers`, else `spring.kafka.bootstrap-servers`. |
 | `workflow.events.consumer.auto-offset-reset` | `latest` | Where a new group starts; `latest` does not replay a topic's history when a trigger is turned on. |
@@ -332,7 +332,36 @@ Only relevant to definitions that declare `syncInvocation`; see [Synchronous Inv
 | `workflow.events.receipts.retention` | `P7D` | How long an event's receipts — the protection against a redelivery — are kept. |
 | `workflow.events.receipts.purge-interval` | `PT10M` | How often old receipts are purged. |
 
+The `workflow.events.consumer.*` properties take effect only with the `io.mateu.workflow:inbound-events-kafka` module on the classpath — it holds the Kafka consumer of domain events. `orchestrator-standalone-app` includes it; an application embedding the engine in kafka mode adds it to receive domain events over Kafka.
+
 See [Starting on and waiting for domain events](/guides/domain-event-triggers/).
+
+### Webhook gateway (`workflow.webhooks.*`)
+
+Read by the `webhook-gateway` module (`webhook-gateway-standalone-app`, or any application embedding it). See [Webhooks](/guides/webhooks/).
+
+| Property | Default | Description |
+|---|---|---|
+| `workflow.webhooks.enabled` | `true` | `false` leaves the endpoints unmapped. |
+| `workflow.webhooks.path` | `/webhooks` | The path the endpoints hang from: `POST <path>/<endpoint>`. |
+| `workflow.webhooks.transport` | `kafka` | `kafka`: binary CloudEvents on the destination's topic (`workflow.events.destinations.<name>.topic`); `rest`: the engine's `POST /workflow/api/events/{destination}`. |
+| `workflow.webhooks.engine.url` | — | The engine's base URL, for the `rest` transport (e.g. `http://orchestrator:8080`). |
+| `workflow.webhooks.engine.api-key` | — | Its `X-Api-Key`, when the message API requires one. |
+| `workflow.webhooks.engine.timeout` | `PT10S` | How long a hand-over to the engine may take. |
+| `workflow.webhooks.kafka.bootstrap-servers` | — | Brokers, for the `kafka` transport; empty means `spring.kafka.bootstrap-servers`. |
+| `workflow.webhooks.kafka.send-timeout` | `PT10S` | How long a send may take before the webhook is answered with an error. |
+| `workflow.webhooks.endpoints.<name>.provider` | `generic` | `github` or `generic`. `<name>` is the last path segment of the endpoint's URL. |
+| `workflow.webhooks.endpoints.<name>.destination` | — | The logical destination the event is published on (never a topic). |
+| `workflow.webhooks.endpoints.<name>.secret` | — | The shared secret the sender signs with. Required for GitHub; optional for a generic sender. |
+| `workflow.webhooks.endpoints.<name>.source` | the endpoint's name | The CloudEvents `source`. |
+| `workflow.webhooks.endpoints.<name>.type-prefix` | `com.github.` | GitHub: the type prefix (`com.github.push`, `com.github.pull_request.opened`). |
+| `workflow.webhooks.endpoints.<name>.signature-header` | `X-Signature-256` | Generic: the header carrying the signature (hex HMAC-SHA256 of the body, `sha256=` prefix tolerated). |
+| `workflow.webhooks.endpoints.<name>.type-header` | `CE-Type` | Generic: the header carrying the CloudEvents type; absent or empty, `type`. |
+| `workflow.webhooks.endpoints.<name>.type` | — | Generic: the type when no header carries one. |
+| `workflow.webhooks.endpoints.<name>.id-header` | `CE-Id` | Generic: the header carrying the event id; absent, a random UUID (every delivery is a new event). |
+| `workflow.webhooks.endpoints.<name>.subject-header` | `CE-Subject` | Generic: the header carrying the subject (also the record key); optional. |
+
+The gateway reads the destinations' topics from the same `workflow.events.destinations.<name>.topic` keys as the engine, so one set of environment variables names the topics for every component.
 
 ### HTTP calls (`workflow.http.*`, in whatever runs `worker-http`)
 

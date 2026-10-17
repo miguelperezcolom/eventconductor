@@ -134,7 +134,7 @@ A *business* "no" is not a failure: model it as a `REPLY` on its own `CHOICE` br
 
 ## 6. Locks
 
-With a [process-level lock](/reference/step-types/), `onLockBusy: WAIT` (default) queues the instance FIFO like any other — a long wait becomes a 202 through the deadline, and **the instance will run** when admitted, even if the caller gave up. `onLockBusy: FAIL` refuses the invocation 409 + `Retry-After` when the key is held: no instance, no place in the queue, and the idempotency key stays free for the retry. Step-level `LOCK` steps always wait.
+With a [process-level lock](/reference/step-types/#lock), `onLockBusy: WAIT` (default) queues the instance FIFO like any other — a long wait becomes a 202 through the deadline, and **the instance will run** when admitted, even if the caller gave up. `onLockBusy: FAIL` refuses the invocation 409 + `Retry-After` when the key is held: no instance, no place in the queue, and the idempotency key stays free for the retry. Step-level `LOCK` steps always wait.
 
 ## 7. How fast, and across how many nodes
 

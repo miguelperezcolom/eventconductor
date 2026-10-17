@@ -316,20 +316,41 @@ eventconductor/
 ├── modules/                   Reusable library modules + test suites
 │   ├── shared/                DTOs, domain events, DDD base classes
 │   ├── workflow-engine/       Core orchestration engine (embeddable Spring Boot library)
+│   ├── process-index/         CQRS process-index read model (usable by an out-of-process projector)
+│   ├── definition-analysis/   Structural rules of definitions, shared by the engine and the Maven plugin
+│   ├── inbound-events-kafka/  Kafka consumer of inbound domain events (event triggers, onEvent waits)
+│   ├── webhook-gateway/       Webhooks (GitHub, HMAC-signed) in, as CloudEvents on a destination
 │   ├── forms-engine/          Form definition and rendering engine
 │   ├── rule-engine/           Business rule catalog (REST + gRPC read APIs, UI, MCP)
 │   ├── rule-runtime/          Lightweight embeddable rule evaluator (JEXL)
+│   ├── worker-api/            Worker SDK: task handlers and the transport-neutral dispatcher
+│   ├── worker-kafka/          Worker transport over Kafka
+│   ├── worker-embedded/       Worker transport in the engine's JVM (embedded mode)
+│   ├── worker-codegen/        Generates worker project skeletons from task contracts
+│   ├── worker-http/           Built-in http-call task (HTTP_CALL steps)
+│   ├── worker-llm/            Built-in llm-call task (LLM_CALL steps, Spring AI)
 │   ├── workflow-maven-plugin/ Build-time validator for workflow/form/rule definitions
 │   ├── workflow-e2e/          End-to-end test suite (embedded + JPA/H2 modes)
-│   ├── workflow-dist-e2e/     Distributed test suite (Testcontainers: Postgres + Kafka)
+│   ├── workflow-dist-e2e/     Distributed test suite (Testcontainers: Postgres + Kafka; -Pdist-e2e)
+│   ├── workflow-ui-e2e/       Browser end-to-end tests of the engine's UI (-Pui-e2e)
+│   ├── workflow-benchmark/    Benchmark harness (-Pbenchmark)
 │   ├── sample-worker/         Hello-world worker example
 │   └── test-worker/           Scenario-driven worker for testing workflows
 ├── apps/                      Runnable standalone apps + docker-compose.yml
 │   ├── orchestrator-standalone-app/  Workflow engine (UI, REST, MCP)
+│   ├── projector-standalone-app/     Standalone CQRS projector for the fleet-wide process index
 │   ├── forms-standalone-app/  Forms engine
 │   ├── rule-standalone-app/   Rule catalog (REST + gRPC + UI + MCP)
 │   ├── worker-standalone-app/ Test worker (scenario playback + UI)
+│   ├── http-worker-standalone-app/   Kafka worker serving HTTP_CALL steps
+│   ├── llm-worker-standalone-app/    Kafka worker serving LLM_CALL steps
+│   ├── webhook-gateway-standalone-app/  Webhook gateway (signatures → CloudEvents → topic or engine)
 │   └── dev-app/               All engines in one JVM for development
+├── parents/                   Maven parents for generated workers
+│   ├── task-module-parent/    A task library added to any Spring Boot service
+│   └── task-service-parent/   A runnable standalone Kafka task service
+├── examples/
+│   └── greetings-tasks/       Example task module built on task-module-parent
 ├── testbench/                 Minimal single-purpose apps (embedded workflow/forms/rules)
 ├── demo/                      Example multi-service system (own Maven reactor,
 │   │                          not built by the root build)
@@ -341,8 +362,10 @@ eventconductor/
 │   ├── shell/                 Web shell / front-end host
 │   ├── sdks/                  gRPC client SDK examples
 │   ├── ia-agent-service/      AI agent (Claude) with MCP tool integration
+│   ├── local-stack/           docker-compose stack running the booking-saga demo locally
 │   ├── static/                Screenshot PNG assets
 │   └── static-content-server/ Static asset server (own pom, outside the demo reactor)
+├── plugins/                   IDE plugins (IntelliJ, VS Code) for definitions
 ├── charts/                    Helm chart for Kubernetes deployment
 └── doc/                       Astro Starlight documentation site
 ```
@@ -443,6 +466,9 @@ public class MyApplication {
 | `outbox` | internal | Domain events relayed from the outbox table |
 | `upstream` | inbound | Integration events from external services (process creation, timeouts) |
 | `downstream` | outbound | Task execution requests sent to workers |
+| `http-calls` | outbound | `HTTP_CALL` requests, served by `http-worker-standalone-app` |
+| `llm-calls` | outbound | `LLM_CALL` prompts, served by `llm-worker-standalone-app` |
+| `dead-letter` | outbound | Events the engine can never process, parked for inspection and replay |
 
 ### Kafka configuration (application.properties)
 
@@ -573,6 +599,14 @@ because nothing would ever start it.
 | `SEND_MESSAGE` | Emits a message (fire-and-forget) and completes immediately — resumes processes waiting on it | `messageName`, `correlationExpression` |
 | `FORK` | Fans out: completes instantly, starting all its successors concurrently (explicit fan-out marker) | — |
 | `JOIN` | Barrier: waits until **all** the steps in its `preconditionStepIds` have completed, then completes instantly | `preconditionStepIds` |
+| `CHOICE` | Exclusive split: takes exactly one successor — the first whose link guard holds (longest guard first; an unguarded link is the default) | — |
+| `DYNAMIC` | Dispatches a task like `ACTION`, but the worker's reply may inject new steps into the running process | — |
+| `LOCK` | Acquires a named per-key lock (FIFO), serializing processes or critical sections on the same key | `lockKey` |
+| `UNLOCK` | Releases a lock taken by a `LOCK` step, admitting the next waiter | `lockKey` |
+| `REPLY` | Records the process's reply for a synchronous caller (no worker; the flow carries on) | — |
+| `PUBLISH_EVENT` | Publishes a domain event (CloudEvent) from the process's state, via the outbox | `event` |
+| `HTTP_CALL` | Calls an HTTP endpoint and maps the response into variables (built-in `http-call` task) | `http` |
+| `LLM_CALL` | Asks a language model and maps its answer into variables (built-in `llm-call` task) | `llm` |
 | `END` | Marks the workflow as complete | — |
 
 Steps run as a **pure dataflow**: a step starts as soon as all its preconditions have

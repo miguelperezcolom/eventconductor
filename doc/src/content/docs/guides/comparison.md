@@ -336,7 +336,7 @@ A detailed capability-by-capability view. ✅ built-in · 🟡 possible with ext
 | Multi-tenancy | ❌ | ✅ | ✅ namespaces | ✅ Orkes (❌ OSS) |
 | GitOps import of definitions | ✅ built-in Git import | 🟡 Web Modeler / pipelines | n/a (code deploys) | 🟡 metadata API / CLI |
 | Audit trail / history per instance | ✅ logs + step history | ✅ Operate + history data | ✅ full event history | ✅ execution history + search |
-| Engine metrics (Prometheus etc.) | ✅ engine counters/timers/gauges via Micrometer ([reference](/reference/configuration/#metrics)) | ✅ extensive | ✅ extensive | ✅ Prometheus / metrics |
+| Engine metrics (Prometheus etc.) | ✅ engine counters/timers/gauges via Micrometer ([reference](/reference/observability/#metrics)) | ✅ extensive | ✅ extensive | ✅ Prometheus / metrics |
 | Process analytics & reporting | ✅ built-in per-definition analytics ([guide](/guides/analytics/)) — not a BI suite like Optimize | ✅ Optimize | 🟡 visibility/search attributes | ✅ Orkes dashboards (🟡 OSS) |
 | Workflow & form visual editors | ✅ included, output is JSON | ✅ Modeler (best-in-class) | ❌ | 🟡 visualizer · ✅ Orkes editor |
 | AI agent / MCP integration | ✅ native, engine + your services | ✅ connectors (8.8+) | ✅ SDK integrations + MCP server | ✅ in-workflow LLM / A2A |

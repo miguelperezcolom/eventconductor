@@ -15,7 +15,7 @@ Per workflow definition and time window, the engine aggregates:
 
 ## Scope (an honest note)
 
-This is a pragmatic, built-in analytics layer — per-definition operational metrics computed live from the process and step-execution stores — not a BI suite like Camunda Optimize. There are no custom reports, no dashboards builder, and no long-term data warehouse: history lives as long as your process instances do. For fleet-level dashboards and alerting, combine it with the [Prometheus engine metrics](/reference/configuration/#metrics).
+This is a pragmatic, built-in analytics layer — per-definition operational metrics computed live from the process and step-execution stores — not a BI suite like Camunda Optimize. There are no custom reports, no dashboards builder, and no long-term data warehouse: history lives as long as your process instances do. For fleet-level dashboards and alerting, combine it with the [Prometheus engine metrics](/reference/observability/#metrics).
 
 ## The Analytics page
 

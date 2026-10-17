@@ -135,6 +135,52 @@ services:
     networks:
       - backend
 
+  # ── HTTP worker ───────────────────────────────────────────────────────────────
+  # Serves HTTP_CALL steps from the http-calls topic. Connections, auth profiles and secrets are
+  # deployment configuration (WORKFLOW_HTTP_CONNECTIONS_<NAME>_BASEURL=..., see the configuration
+  # reference); absolute URLs may only target the hosts in WORKFLOW_HTTP_ALLOWED_HOSTS.
+  http-worker:
+    image: miguelperezcolom/http-worker-standalone-app:latest
+    container_name: http-worker
+    restart: on-failure
+    environment:
+      SERVER_PORT: 8080
+      KAFKA_BROKERS: redpanda:19092
+      HTTP_CALLS_TOPIC: http-calls
+      WORKFLOW_HTTP_ALLOWED_HOSTS: ""
+    ports:
+      - "8108:8080"
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    networks:
+      - backend
+
+  # ── Webhook gateway ───────────────────────────────────────────────────────────
+  # POST /webhooks/<endpoint>: verifies the sender's signature and publishes the delivery as a
+  # CloudEvent on the destination's topic, where the orchestrator's event triggers read it. No
+  # endpoint is configured by default; declare one per sender, with the destination's topic, e.g.:
+  #   WORKFLOW_WEBHOOKS_ENDPOINTS_GITHUB_PROVIDER: github
+  #   WORKFLOW_WEBHOOKS_ENDPOINTS_GITHUB_DESTINATION: github-events
+  #   WORKFLOW_WEBHOOKS_ENDPOINTS_GITHUB_SECRET: <the secret given to GitHub>
+  #   WORKFLOW_EVENTS_DESTINATIONS_GITHUB-EVENTS_TOPIC: github-events
+  # (the orchestrator needs the same WORKFLOW_EVENTS_DESTINATIONS_..._TOPIC).
+  webhook-gateway:
+    image: miguelperezcolom/webhook-gateway-standalone-app:latest
+    container_name: webhook-gateway
+    restart: on-failure
+    environment:
+      SERVER_PORT: 8080
+      KAFKA_BROKERS: redpanda:19092
+      WEBHOOKS_TRANSPORT: kafka
+    ports:
+      - "8109:8080"
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    networks:
+      - backend
+
 networks:
   backend:
     driver: bridge

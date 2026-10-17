@@ -16,6 +16,11 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <!-- A test suite, not a library: nothing downstream depends on it, so it is not published to
+             Maven Central (and needs no javadoc or sources jar), like workflow-dist-e2e. -->
+        <maven.deploy.skip>true</maven.deploy.skip>
+        <maven.javadoc.skip>true</maven.javadoc.skip>
+        <maven.source.skip>true</maven.source.skip>
     </properties>
 
     <dependencies>

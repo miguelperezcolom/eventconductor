@@ -604,6 +604,54 @@ The worker injects with `WorkerReply.inject(...)` / `injectAndComplete(...)` (me
 
 ---
 
+## LOCK
+
+Acquire a named per-key lock, serializing every process — or every critical section — that targets the same key: for example, all the processes touching one reservation. No worker is involved. The step completes the moment the process holds the lock; if another process holds it, this one parks the step in `WAITING_ON_LOCK` and is admitted **FIFO**, in arrival order, when the lock frees.
+
+```json
+{
+  "id": "lock-booking",
+  "type": "LOCK",
+  "name": "Lock the booking",
+  "lockName": "booking",
+  "lockKey": "bookingId",
+  "preconditionStepId": "start"
+}
+```
+
+**Required fields:** `lockKey` — a JEXL expression over the process variables giving the key that is locked (e.g. `bookingId`); a definition with a `LOCK` or `UNLOCK` step without one is rejected at load. It is evaluated with the same context as `correlationExpression` (the variables, plus `businessKey` and `process`); a key that cannot be evaluated fails the step (`ERROR`).
+
+**Optional fields:** `lockName` — the lock domain (e.g. `"booking"`). Together with the key it names the lock: every step and process sharing the `(lockName, key)` pair is serialized against each other. Defaults to the definition's id, so give one name to steps of different definitions that must serialize together.
+
+Semantics:
+
+- **Reentrant.** A process taking a lock it already holds gets it again at once.
+- **Released** by a matching [`UNLOCK`](#unlock) step, or — whatever happened in between — when the process reaches a terminal state (completed or errored), so a process that fails inside its critical section does not wedge the key. A lease (`workflow.lock.lease-ms`) is the backstop for a pod that dies while holding one; see [Serialization locks](/reference/configuration/#serialization-locks-workflowlock).
+- **Always waits.** A `LOCK` step never refuses; to refuse a synchronous caller when the key is busy, use a process-level lock with `onLockBusy: FAIL` (below).
+
+**Process-level lock.** To serialize *whole instances* of a definition rather than a section of them, declare `processLock` on the definition instead of steps: `"processLock": { "name": "booking", "key": "bookingId" }` (`key` required, `name` defaulting to the definition id). An instance that cannot take it makes no progress at all until it is admitted, and holds it until it ends. See [Synchronous Invocation — Locks](/guides/synchronous-invocation/#6-locks) for `onLockBusy`.
+
+---
+
+## UNLOCK
+
+Release a lock taken by a [`LOCK`](#lock) step, admitting the next waiter for that key. No worker; completes immediately.
+
+```json
+{
+  "id": "unlock-booking",
+  "type": "UNLOCK",
+  "name": "Release the booking",
+  "lockName": "booking",
+  "lockKey": "bookingId",
+  "preconditionStepId": "update-booking"
+}
+```
+
+**Required fields:** `lockKey`, as for `LOCK`. **Optional fields:** `lockName` (default: the definition's id). Name the same pair as the `LOCK` it closes. Releasing a lock this process does not hold is a no-op. An `UNLOCK` is not required for correctness — the process releases everything it holds when it ends — but without one the key stays locked for the rest of the process.
+
+---
+
 ## REPLY
 
 The answer a process gives to whoever invoked it [synchronously](/guides/synchronous-invocation/). No worker: the step completes in the step-over that reaches it, recording the reply on the process in the same transaction, and the flow carries on. Before `END` it answers with the result; earlier, the caller gets its answer while the process continues.
