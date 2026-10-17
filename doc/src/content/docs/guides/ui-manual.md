@@ -244,12 +244,18 @@ Every event trigger of every workflow — the domain events that start it (see
 [Starting on and waiting for domain events](/guides/domain-event-triggers/)). Columns: **Id**
 (`<workflow>/<trigger>`), **Workflow**, **Trigger**, **Destination → topic** (saying so when the
 destination has no topic configured), **Type**, **Filter**, **Business key**, **Variables**, **Source**
-(`Definition`, or `events.yaml (classpath)`, `events.yaml (directory)`, `events.yaml (git)`), **Paused by**
-and **Status** (**Active**, **Paused**, **Workflow inactive**, **Duplicate id** — an `events.yaml` entry
-whose id the definition already declares, which never fires). Filters narrow by workflow and status;
-**Pause** and **Resume** act on the selected rows. A paused trigger starts nothing, and resuming it does
-not replay what arrived meanwhile. Triggers are declared in their definitions or in an `events.yaml` next
-to them, and changed there.
+(`Definition`, `events.yaml (classpath)`, `events.yaml (directory)`, `events.yaml (git)` or `UI/API`),
+**Paused by** and **Status** (**Active**, **Paused**, **Workflow inactive**, **Duplicate id** — an
+`events.yaml` entry whose id the definition already declares, which never fires). Filters narrow by
+workflow, where the trigger is declared and status; **Pause** and **Resume** act on the selected rows. A
+paused trigger starts nothing, and resuming it does not replay what arrived meanwhile.
+
+**New** creates a trigger here (source `UI/API`): id and workflow (fixed once created), destination, type,
+filter, business key and variables. A trigger's own page shows everything about it, with **Pause** or
+**Resume**, and — only for one created here — **Edit** and **Delete**; a trigger declared in a definition
+or an `events.yaml` is changed in that file, and the page says which. **Promote to git** on that page is
+the trigger's `events.yaml` entry: committed next to the definitions, the file owns the trigger from the
+next import on and the copy created here is deleted.
 
 **Workflow → Received events** lists the latest receipts, newest first: **Received**, **Destination**,
 **Type**, **Event id**, **Source**, **Workflow**, **Receiver** (`trigger:<workflow>/<trigger>` or

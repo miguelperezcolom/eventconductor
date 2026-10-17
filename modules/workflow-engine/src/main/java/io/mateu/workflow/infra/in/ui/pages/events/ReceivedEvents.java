@@ -56,7 +56,7 @@ public class ReceivedEvents extends FilteredAutoCrud<ReceivedEventFilters, Recei
                         .anyMatch(s -> s != null && s.toLowerCase(Locale.ROOT).contains(needle)))
                 .map(ReceivedEventRow::of)
                 .toList();
-        return EventTriggers.page(rows, searchText, pageable);
+        return EventFormats.page(rows, searchText, pageable);
     }
 
     @Override

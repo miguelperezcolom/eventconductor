@@ -89,4 +89,23 @@ class EventTriggerJpaE2eTest extends AbstractJpaE2eTest {
         assertThat(result.started()).isEqualTo(1);
         assertThat(triggers.get("event-file-trigger", "on-customer-updated").sourceLabel()).isEqualTo("events.yaml (classpath)");
     }
+
+    @Test
+    void aTriggerCreatedThroughTheEngineIsStoredUnderTheApiSourceUntilAFileTakesItOver() {
+        triggers.create(new EventTriggerService.TriggerDraft("api-cdc", "event-file-trigger", "e2e-customers-cdc", "*",
+                null, null, Map.of()));
+
+        assertThat(fileTriggers.findAll()).extracting(t -> t.source() + " " + t.key()).containsExactlyInAnyOrder(
+                "classpath:/workflows/events.yaml event-file-trigger/on-customer-updated",
+                "ui event-file-trigger/api-cdc");
+        assertThat(triggers.get("event-file-trigger", "api-cdc").sourceLabel()).isEqualTo("UI/API");
+
+        triggers.update("event-file-trigger", "api-cdc", new EventTriggerService.TriggerDraft(null, null, "e2e-customers-cdc",
+                "io.debezium.*", null, null, null));
+        assertThat(triggers.get("event-file-trigger", "api-cdc").type()).isEqualTo("io.debezium.*");
+        assertThat(fileTriggers.findAll()).hasSize(2);
+
+        triggers.delete("event-file-trigger", "api-cdc");
+        assertThat(fileTriggers.findAll()).hasSize(1);
+    }
 }

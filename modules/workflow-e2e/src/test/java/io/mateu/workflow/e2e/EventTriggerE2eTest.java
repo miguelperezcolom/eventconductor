@@ -200,4 +200,21 @@ class EventTriggerE2eTest extends AbstractE2eTest {
         triggers.resume("event-file-trigger", "on-customer-updated");
         assertThat(inbound.receive(cdc("cdc-4", "u", "C-4", "c4@acme.com")).started()).isEqualTo(1);
     }
+
+    @Test
+    void aTriggerCreatedThroughTheEngineStartsAProcessAndIsPromotedToYaml() {
+        var created = triggers.create(new EventTriggerService.TriggerDraft("api-cdc", "event-file-trigger", "e2e-customers-cdc",
+                "*", "data.op == 'c'", "created-${data.after.id}", Map.of("customerId", "${data.after.id}")));
+        assertThat(created.origin()).isEqualTo("API");
+        assertThat(created.editable()).isTrue();
+
+        var result = inbound.receive(cdc("api-1", "c", "C-21", "c21@acme.com"));
+
+        assertThat(result.started()).isEqualTo(1);
+        assertThat(process("created-C-21").getVariables()).contains(new Variable("customerId", "C-21"));
+        assertThat(triggers.exportYaml("event-file-trigger", "api-cdc")).contains("- id: api-cdc", "workflow: event-file-trigger");
+
+        triggers.delete("event-file-trigger", "api-cdc");
+        assertThat(inbound.receive(cdc("api-2", "c", "C-22", "c22@acme.com")).started()).isZero();
+    }
 }

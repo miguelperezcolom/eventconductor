@@ -83,6 +83,26 @@ class EventTriggerCatalogTest {
     }
 
     @Test
+    void engineCreatedTriggersComeLastAndAreHiddenOnceAFileDeclaresTheirKey() {
+        var booking = definition("booking", trigger("web", "com.acme.booking.created"));
+        var stored = List.of(
+                new EventFileTrigger(EventFileTrigger.API_SOURCE, 0, "booking", trigger("web", "x")),      // taken over
+                new EventFileTrigger(EventFileTrigger.API_SOURCE, 0, "booking", trigger("ui-only", "y")),
+                new EventFileTrigger(EventFileTrigger.API_SOURCE, 0, "booking", trigger("api", "z")),      // taken over
+                new EventFileTrigger("/dir", 0, "booking", trigger("api", "com.acme.booking.*")));
+
+        var catalog = EventTriggerCatalog.of(List.of(booking), stored);
+
+        assertThat(catalog).extracting(e -> e.trigger().id() + " " + e.origin() + " " + e.editable()).containsExactly(
+                "web DEFINITION false", "api EVENTS_FILE false", "ui-only API true");
+        assertThat(catalog.get(2).sourceLabel()).isEqualTo("UI/API");
+        assertThat(catalog.get(2).declaredIn()).isEqualTo("UI/API");
+        assertThat(EventTriggerCatalog.fileOwnedKeys(catalog)).containsExactlyInAnyOrder("booking/web", "booking/api");
+        assertThat(EventTriggerCatalog.owner(catalog, "booking", "ui-only")).isPresent();
+        assertThat(EventTriggerCatalog.owner(catalog, "booking", "nope")).isEmpty();
+    }
+
+    @Test
     void aFileEntryNamingAWorkflowTheEngineDoesNotHaveIsDropped() {
         var stored = List.of(new EventFileTrigger("/dir", 0, "ghost", trigger(null, "t")));
 

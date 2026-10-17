@@ -112,6 +112,57 @@ public class EventRestController {
         return eventTriggerService.get(workflowId, triggerId);
     }
 
+    /** The body of a create or an edit. {@code id} and {@code workflowId} are only read on create. */
+    public record TriggerBody(String id, String workflowId, String destination, String type, String filter,
+                              String businessKey, Map<String, Object> variables) {
+    }
+
+    @PostMapping("/triggers")
+    public org.springframework.http.ResponseEntity<TriggerView> createTrigger(
+            @RequestHeader(value = "X-Api-Key", required = false) String apiKey, @RequestBody TriggerBody body) {
+        verifyApiKey(apiKey);
+        if (body == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A JSON body is required.");
+        }
+        var created = eventTriggerService.create(new EventTriggerService.TriggerDraft(body.id(), body.workflowId(),
+                body.destination(), body.type(), body.filter(), body.businessKey(), body.variables()));
+        return org.springframework.http.ResponseEntity
+                .created(java.net.URI.create("/workflow/api/triggers/" + created.workflowId() + "/" + created.triggerId()))
+                .body(created);
+    }
+
+    @org.springframework.web.bind.annotation.PutMapping("/triggers/{workflowId}/{triggerId}")
+    public TriggerView updateTrigger(@RequestHeader(value = "X-Api-Key", required = false) String apiKey,
+                                     @PathVariable("workflowId") String workflowId, @PathVariable("triggerId") String triggerId,
+                                     @RequestBody TriggerBody body) {
+        verifyApiKey(apiKey);
+        if (body == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A JSON body is required.");
+        }
+        return eventTriggerService.update(workflowId, triggerId, new EventTriggerService.TriggerDraft(triggerId,
+                body.workflowId() == null ? workflowId : body.workflowId(), body.destination(), body.type(), body.filter(),
+                body.businessKey(), body.variables()));
+    }
+
+    @org.springframework.web.bind.annotation.DeleteMapping("/triggers/{workflowId}/{triggerId}")
+    public org.springframework.http.ResponseEntity<Void> deleteTrigger(
+            @RequestHeader(value = "X-Api-Key", required = false) String apiKey,
+            @PathVariable("workflowId") String workflowId, @PathVariable("triggerId") String triggerId) {
+        verifyApiKey(apiKey);
+        eventTriggerService.delete(workflowId, triggerId);
+        return org.springframework.http.ResponseEntity.noContent().build();
+    }
+
+    @GetMapping(value = "/triggers/{workflowId}/{triggerId}/yaml", produces = "application/yaml")
+    public org.springframework.http.ResponseEntity<String> triggerYaml(
+            @RequestHeader(value = "X-Api-Key", required = false) String apiKey,
+            @PathVariable("workflowId") String workflowId, @PathVariable("triggerId") String triggerId) {
+        verifyApiKey(apiKey);
+        return org.springframework.http.ResponseEntity.ok()
+                .contentType(new org.springframework.http.MediaType("application", "yaml", java.nio.charset.StandardCharsets.UTF_8))
+                .body(eventTriggerService.exportYaml(workflowId, triggerId));
+    }
+
     @PostMapping("/triggers/{workflowId}/{triggerId}/pause")
     public TriggerView pause(@RequestHeader(value = "X-Api-Key", required = false) String apiKey,
                              @PathVariable("workflowId") String workflowId, @PathVariable("triggerId") String triggerId) {
@@ -134,6 +185,18 @@ public class EventRestController {
     @ExceptionHandler(IllegalArgumentException.class)
     ProblemDetail onInvalid(IllegalArgumentException e) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, e.getMessage());
+    }
+
+    @ExceptionHandler(EventTriggerService.TriggerNotEditableException.class)
+    ProblemDetail onNotEditable(EventTriggerService.TriggerNotEditableException e) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, e.getMessage());
+    }
+
+    @ExceptionHandler(EventTriggerService.InvalidTriggerException.class)
+    ProblemDetail onInvalidTrigger(EventTriggerService.InvalidTriggerException e) {
+        var problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, e.getMessage());
+        problem.setProperty("violations", e.violations());
+        return problem;
     }
 
     private String caller() {

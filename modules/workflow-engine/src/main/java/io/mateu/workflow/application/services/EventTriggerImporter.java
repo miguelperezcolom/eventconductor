@@ -44,9 +44,13 @@ import java.util.Set;
  * one workflow — the second entry is left out. A file that cannot be read at all leaves the source's
  * previous triggers in place rather than silently clearing them.
  *
- * <p><b>Files own what they declare.</b> An import replaces its own source only. After every import the
- * pauses are brought in line: a pause whose trigger no longer exists — removed from its file or its
- * definition — is deleted, and gone means gone: declaring it again later starts it unpaused.
+ * <p><b>Files own what they declare.</b> An import replaces its own source and never the triggers
+ * created through the engine (UI, REST API, MCP) — except that one whose {@code <workflow>/<trigger>}
+ * a file now declares (in an {@code events.yaml}, or in a definition's {@code triggers}) is deleted:
+ * the file's entry is that trigger from now on, and its pause, kept by key, carries over. After every
+ * import the pauses are brought in line too: a pause whose trigger no longer exists — removed from its
+ * file or its definition — is deleted, and gone means gone: declaring it again later starts it
+ * unpaused. See {@link #reconcile()}.
  */
 @Service
 @RequiredArgsConstructor
@@ -83,6 +87,9 @@ public class EventTriggerImporter {
      * Entries naming an unknown workflow are reported and skipped.
      */
     public Result importSource(String source, List<EventFile> files) {
+        if (EventFileTrigger.API_SOURCE.equals(source)) {
+            throw new IllegalArgumentException("'" + source + "' holds the triggers created through the engine; no file is imported into it");
+        }
         var errors = new ArrayList<String>();
         var triggers = new ArrayList<EventFileTrigger>();
         var ids = new HashSet<String>();
@@ -120,20 +127,37 @@ public class EventTriggerImporter {
     }
 
     /**
-     * Deletes the pauses of triggers that no longer exist, wherever they were declared. Runs after every
-     * import, which is when that changes. Pauses are read before the catalog, so a trigger declared and
-     * paused meanwhile (on another pod) is in both reads or in neither, never taken for an orphan.
+     * Brings the engine-created triggers and the pauses in line with what the files now declare. Runs
+     * after every import, which is when that changes.
+     *
+     * <ul>
+     *   <li>A trigger created through the engine whose {@code <workflow>/<trigger>} a file declares is
+     *       deleted: the file's entry replaces it. Until this runs it is already ignored
+     *       ({@code EventTriggerCatalog}), so the two never both fire.</li>
+     *   <li>A pause whose trigger no longer exists is deleted — the trigger was removed from its file,
+     *       and gone means gone: declaring it again later starts it unpaused.</li>
+     * </ul>
+     *
+     * <p>Pauses are read before the catalog, so a trigger declared and paused meanwhile (on another pod)
+     * is in both reads or in neither, never taken for an orphan.
      */
     public void reconcile() {
-        if (triggerPauseRepository == null) {
-            return;
+        var paused = triggerPauseRepository == null ? Set.<String>of() : triggerPauseRepository.findAll().keySet();
+        var stored = eventTriggerRepository.findAll();
+        var catalog = EventTriggerCatalog.of(workflowDefinitionRepository.findAll(), stored);
+        var fileOwned = EventTriggerCatalog.fileOwnedKeys(catalog);
+        var takenOver = stored.stream()
+                .filter(t -> EventFileTrigger.API_SOURCE.equals(t.source()) && fileOwned.contains(t.key()))
+                .map(EventFileTrigger::key)
+                .toList();
+        if (!takenOver.isEmpty()) {
+            eventTriggerRepository.deleteApiTriggers(takenOver);
+            log.info("Event trigger(s) {} now declared in files: the copies created through the engine were replaced", takenOver);
         }
-        var paused = triggerPauseRepository.findAll().keySet();
         if (paused.isEmpty()) {
             return;
         }
-        var known = EventTriggerCatalog.keys(
-                EventTriggerCatalog.of(workflowDefinitionRepository.findAll(), eventTriggerRepository.findAll()));
+        var known = EventTriggerCatalog.keys(catalog);
         var orphans = paused.stream().filter(key -> !known.contains(key)).toList();
         if (!orphans.isEmpty()) {
             orphans.forEach(triggerPauseRepository::delete);

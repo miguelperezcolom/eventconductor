@@ -6,6 +6,10 @@ import io.mateu.workflow.application.services.EventTriggerService.TriggerState;
 import io.mateu.workflow.application.services.EventTriggerService.TriggerView;
 import io.mateu.workflow.domain.aggregates.EventReceipt;
 
+import io.mateu.uidl.data.ListingData;
+import io.mateu.uidl.data.Page;
+import io.mateu.uidl.data.Pageable;
+
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.stream.Collectors;
@@ -64,5 +68,14 @@ public final class EventFormats {
 
     public static String received(EventReceipt receipt) {
         return RECEIVED.format(receipt.receivedAt());
+    }
+
+    /** One page of an in-memory listing, the size the one asked for. */
+    public static <T> ListingData<T> page(java.util.List<T> all, String searchText, Pageable pageable) {
+        int size = pageable != null && pageable.size() > 0 ? pageable.size() : Math.max(1, all.size());
+        int lastPage = Math.max(0, (all.size() - 1) / size);
+        int pageNumber = pageable == null ? 0 : Math.min(Math.max(pageable.page(), 0), lastPage);
+        var content = all.stream().skip((long) pageNumber * size).limit(size).toList();
+        return new ListingData<>(new Page<>(searchText, size, pageNumber, all.size(), content));
     }
 }

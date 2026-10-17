@@ -38,6 +38,10 @@ class EventTriggerMcpToolsTest {
             "resumeEventTrigger",
             "listReceivedEvents",
             "publishInboundEvent",
+            "createEventTrigger",
+            "updateEventTrigger",
+            "deleteEventTrigger",
+            "exportEventTriggerYaml",
     };
 
     final WorkflowDefinitionRepository definitions = mock(WorkflowDefinitionRepository.class);
@@ -102,5 +106,21 @@ class EventTriggerMcpToolsTest {
 
         assertThat(tools.listReceivedEvents("onboarding", null)).extracting(EventReceipt::outcome)
                 .containsExactly(EventReceipt.Outcome.STARTED);
+    }
+
+    @Test
+    void aTriggerIsCreatedEditedExportedAndDeletedThroughTheTools() {
+        var onboarding = definitions.findAll().get(0);
+        when(definitions.findById("onboarding")).thenReturn(java.util.Optional.of(onboarding));
+
+        var created = tools.createEventTrigger("cdc", "onboarding", "customers-cdc", "*", "data.op == 'u'", null,
+                java.util.Map.of("customerId", "${data.after.id}"));
+        assertThat(created.origin()).isEqualTo("API");
+        assertThat(created.editable()).isTrue();
+        assertThat(tools.updateEventTrigger("onboarding", "cdc", "customers-cdc", "io.debezium.*", null, null, null).type())
+                .isEqualTo("io.debezium.*");
+        assertThat(tools.exportEventTriggerYaml("onboarding", "cdc")).contains("- id: cdc", "workflow: onboarding");
+        assertThat(tools.deleteEventTrigger("onboarding", "cdc")).isEqualTo("Trigger onboarding/cdc deleted");
+        assertThat(tools.listEventTriggers("onboarding")).extracting(v -> v.triggerId()).containsExactly("on-created");
     }
 }

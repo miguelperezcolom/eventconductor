@@ -34,7 +34,11 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -67,6 +71,45 @@ class EventRestControllerMvcTest {
                 new EventTriggerService(definitions, pauses, receipts, new EventDestinationsProperties(), new io.mateu.workflow.infra.out.memory.InMemoryEventTriggerRepository()), apiProperties,
                 beans.getBeanProvider(CallerResolver.class));
         mvc = MockMvcBuilders.standaloneSetup(controller).build();
+    }
+
+    @Test
+    void aTriggerIsCreatedEditedExportedAndDeletedThroughTheApi() throws Exception {
+        var onboarding = definitions.findAll().get(0);
+        when(definitions.findById("onboarding")).thenReturn(java.util.Optional.of(onboarding));
+        mvc.perform(post("/workflow/api/triggers").contentType("application/json").content("""
+                        {"id": "cdc", "workflowId": "onboarding", "destination": "customers-cdc", "type": "*",
+                         "filter": "data.op == 'u'", "variables": {"customerId": "${data.after.id}"}}
+                        """))
+                .andExpect(status().isCreated())
+                .andExpect(header().string("Location", "/workflow/api/triggers/onboarding/cdc"))
+                .andExpect(jsonPath("$.origin").value("API"))
+                .andExpect(jsonPath("$.editable").value(true))
+                .andExpect(jsonPath("$.sourceLabel").value("UI/API"));
+
+        mvc.perform(put("/workflow/api/triggers/onboarding/cdc").contentType("application/json").content("""
+                        {"destination": "customers-cdc", "type": "io.debezium.*"}
+                        """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.type").value("io.debezium.*"))
+                .andExpect(jsonPath("$.filter").doesNotExist());
+
+        mvc.perform(get("/workflow/api/triggers/onboarding/cdc/yaml"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith("application/yaml"))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("- id: cdc")));
+
+        // A file-owned trigger is not edited here: 409. A bad draft: 400 with the violations.
+        mvc.perform(put("/workflow/api/triggers/onboarding/com.acme.booking.any").contentType("application/json")
+                        .content("{\"destination\": \"bookings\", \"type\": \"t\"}"))
+                .andExpect(status().isConflict());
+        mvc.perform(post("/workflow/api/triggers").contentType("application/json")
+                        .content("{\"workflowId\": \"ghost\", \"destination\": \"bad name\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.violations.length()").value(4));
+
+        mvc.perform(delete("/workflow/api/triggers/onboarding/cdc")).andExpect(status().isNoContent());
+        mvc.perform(get("/workflow/api/triggers/onboarding/cdc")).andExpect(status().isNotFound());
     }
 
     private static final String CREATED = """

@@ -40,7 +40,8 @@ public class EventTriggerMcpTools implements McpTools, McpSystemContext {
                 - Una definición puede declarar triggers: cuando llega un evento de dominio (CloudEvents) de cierto type a un destination (nombre lógico mapeado a un topic con workflow.events.destinations.<name>.topic), el motor arranca un proceso, con filter (JEXL sobre el evento), businessKey y variables (plantillas sobre el evento: data.x, id, subject, key…).
                 - Un paso WAIT_FOR_MESSAGE con onEvent espera un evento de dominio: el evento se convierte en su mensaje (messageName) con la clave de correlación que renderiza (correlationKey, por defecto la key del registro o el subject).
                 - Cada evento (source + id) se usa una sola vez por trigger y por mensaje/clave, aunque llegue varias veces.
-                - listEventTriggers lista los triggers con su estado; pauseEventTrigger / resumeEventTrigger los operan (un trigger pausado no arranca nada y no recupera lo perdido); listReceivedEvents enseña qué hizo cada evento recibido; publishInboundEvent inyecta un evento (para pruebas o sistemas sin Kafka).
+                - Un trigger se declara en la definición, en un events.yaml junto a las definiciones (la misma entrada más workflow: <id>), o se crea desde aquí (origen UI/API) con createEventTrigger; updateEventTrigger / deleteEventTrigger solo valen para los creados aquí (los de fichero se cambian en su fichero); exportEventTriggerYaml devuelve la entrada de events.yaml para promoverlo a git (al importarse, el fichero se queda con el trigger y la copia creada aquí se borra).
+                - listEventTriggers lista los triggers con su origen (DEFINITION, EVENTS_FILE, API) y estado; pauseEventTrigger / resumeEventTrigger los operan (un trigger pausado no arranca nada y no recupera lo perdido); listReceivedEvents enseña qué hizo cada evento recibido; publishInboundEvent inyecta un evento (para pruebas o sistemas sin Kafka).
                 """;
     }
 
@@ -65,6 +66,50 @@ public class EventTriggerMcpTools implements McpTools, McpSystemContext {
     public TriggerView resumeEventTrigger(String workflowId, String triggerId) {
         log.info("Resuming trigger {}/{}", workflowId, triggerId);
         return eventTriggerService.resume(workflowId, triggerId);
+    }
+
+    @Tool(description = "Create an event trigger (source UI/API): a domain event of the given CloudEvents type arriving on"
+            + " the destination starts the workflow. id: a free name such as on-booking-created (letters, digits, '.', '_',"
+            + " '-'), unique within the workflow; workflowId: an existing workflow; destination: a logical name under"
+            + " workflow.events.destinations; type: the CloudEvents type, '*' wildcards allowed ('*' alone matches every"
+            + " event, including plain records); filter: optional JEXL over the event (data.op == 'u'); businessKey:"
+            + " optional template (customer-${data.after.id}); variables: templates by name, default data's members."
+            + " Returns the trigger with its state.")
+    public TriggerView createEventTrigger(String id, String workflowId, String destination, String type,
+                                          @ToolParam(required = false, description = "JEXL filter over the event; empty for none") String filter,
+                                          @ToolParam(required = false, description = "Business key template; empty for the default") String businessKey,
+                                          @ToolParam(required = false, description = "Variable templates by name; empty for data's members") Map<String, Object> variables) {
+        log.info("Creating event trigger {} for {}", id, workflowId);
+        return eventTriggerService.create(new EventTriggerService.TriggerDraft(id, workflowId, destination, type, filter,
+                businessKey, variables));
+    }
+
+    @Tool(description = "Edit a UI/API event trigger: destination, type, filter, business key and variables are replaced;"
+            + " the workflow and the id never change. Fails for a trigger declared in a definition or an events.yaml: those"
+            + " are edited in their file.")
+    public TriggerView updateEventTrigger(String workflowId, String triggerId, String destination, String type,
+                                          @ToolParam(required = false, description = "JEXL filter over the event; empty for none") String filter,
+                                          @ToolParam(required = false, description = "Business key template; empty for the default") String businessKey,
+                                          @ToolParam(required = false, description = "Variable templates by name; empty for data's members") Map<String, Object> variables) {
+        log.info("Updating event trigger {}/{}", workflowId, triggerId);
+        return eventTriggerService.update(workflowId, triggerId, new EventTriggerService.TriggerDraft(triggerId, workflowId,
+                destination, type, filter, businessKey, variables));
+    }
+
+    @Tool(description = "Delete a UI/API event trigger (and its pause). Fails for a trigger declared in a definition or an"
+            + " events.yaml: remove it from its file instead.")
+    public String deleteEventTrigger(String workflowId, String triggerId) {
+        log.info("Deleting event trigger {}/{}", workflowId, triggerId);
+        eventTriggerService.delete(workflowId, triggerId);
+        return "Trigger " + workflowId + "/" + triggerId + " deleted";
+    }
+
+    @Tool(description = "Promote an event trigger to git: returns its events.yaml entry (id and workflow included), ready"
+            + " to paste into the events.yaml next to the workflow definitions. Once that file is imported, the file owns"
+            + " the trigger: it replaces the UI/API one with the same workflow and id (keeping its pause), and removing it"
+            + " from the file deletes it.")
+    public String exportEventTriggerYaml(String workflowId, String triggerId) {
+        return eventTriggerService.exportYaml(workflowId, triggerId);
     }
 
     @Tool(description = "The latest received domain events and what each did, newest first: destination, type, id,"

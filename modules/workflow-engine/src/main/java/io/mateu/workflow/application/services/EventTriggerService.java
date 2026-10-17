@@ -4,7 +4,10 @@ import io.mateu.workflow.application.out.EventReceiptRepository;
 import io.mateu.workflow.application.out.EventTriggerRepository;
 import io.mateu.workflow.application.out.TriggerPauseRepository;
 import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
+import io.mateu.workflow.analysis.EventTriggerRules;
+import io.mateu.workflow.domain.aggregates.EventFileTrigger;
 import io.mateu.workflow.domain.aggregates.EventReceipt;
+import io.mateu.workflow.domain.aggregates.EventTrigger;
 import io.mateu.workflow.domain.aggregates.EventTriggerOrigin;
 import io.mateu.workflow.domain.aggregates.StepType;
 import io.mateu.workflow.domain.aggregates.TriggerPause;
@@ -12,6 +15,7 @@ import io.mateu.workflow.domain.aggregates.WorkflowDefinition;
 import io.mateu.workflow.domain.services.EventTriggerCatalog;
 import io.mateu.workflow.infra.config.EventDestinationsProperties;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -27,12 +31,18 @@ import java.util.Set;
 
 /**
  * The event triggers as the admin UI, the REST API and the MCP tools see them: consult them, pause and
- * resume them, and read what the received events did. Triggers are declared in definitions
- * ({@code triggers}) and in {@code events.yaml} files next to them, and changed there; this only
- * operates them. {@link EventTriggerCatalog} is what makes the two sources one list.
+ * resume them, create, edit and delete the ones created there, and read what the received events did.
+ *
+ * <p>A trigger is declared in a definition ({@code triggers}), in an {@code events.yaml} next to the
+ * definitions, or created here (source {@link EventFileTrigger#API_SOURCE}): {@link EventTriggerCatalog}
+ * makes the three one list, keyed by {@code <workflow>/<trigger>}. File-owned triggers are changed in
+ * their file and only operated here; one created here is editable and deletable until a file declares
+ * the same key — then the file's entry takes it over on import ({@code EventTriggerImporter#reconcile}),
+ * its pause carrying over.
  */
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class EventTriggerService {
 
     final WorkflowDefinitionRepository workflowDefinitionRepository;
@@ -48,6 +58,43 @@ public class EventTriggerService {
     public enum TriggerState { ACTIVE, PAUSED, INACTIVE, DUPLICATE }
 
     /**
+     * What a create or an edit says. {@code id} is only read on create (an edit keeps the trigger's);
+     * {@code variables} null means "data's top-level members", empty means none.
+     */
+    public record TriggerDraft(String id, String workflowId, String destination, String type, String filter,
+                               String businessKey, Map<String, Object> variables) {
+    }
+
+    /** No trigger has that key. */
+    public static class UnknownTriggerException extends NoSuchElementException {
+        public UnknownTriggerException(String workflowId, String triggerId) {
+            super("No trigger '" + triggerId + "' on workflow '" + workflowId + "'");
+        }
+    }
+
+    /** The trigger is declared in a file: changed there, not here. */
+    public static class TriggerNotEditableException extends RuntimeException {
+        public TriggerNotEditableException(EventTriggerCatalog.Entry entry) {
+            super("Trigger '" + entry.trigger().id() + "' of workflow '" + entry.definition().id() + "' is declared in "
+                    + entry.declaredIn() + ": change it there. Here it can only be paused or resumed.");
+        }
+    }
+
+    /** What is wrong with a draft. */
+    public static class InvalidTriggerException extends RuntimeException {
+        private final List<String> violations;
+
+        public InvalidTriggerException(List<String> violations) {
+            super(String.join("; ", violations));
+            this.violations = List.copyOf(violations);
+        }
+
+        public List<String> violations() {
+            return violations;
+        }
+    }
+
+    /**
      * One trigger, for display.
      *
      * @param topic        the destination's topic, or null when the destination is not configured with one
@@ -58,12 +105,14 @@ public class EventTriggerService {
      * @param sourceLabel  "Definition", "events.yaml (git)", "events.yaml (directory)", "events.yaml (classpath)"
      * @param declaredIn   exactly where
      * @param duplicateOf  where the owner of its id is declared, for a file entry that never fires; null otherwise
+     * @param editable     whether it can be edited and deleted here (only what was created here)
      */
     public record TriggerView(String workflowId, String workflowName, String triggerId, String destination,
                               String topic, String type, String filter, String businessKey,
                               Map<String, Object> variables, String workflowStatus, boolean workflowPaused,
                               boolean paused, Instant pausedAt, String pausedBy, TriggerState state,
-                              String origin, String source, String sourceLabel, String declaredIn, String duplicateOf) {
+                              String origin, String source, String sourceLabel, String declaredIn, String duplicateOf,
+                              boolean editable) {
 
         /** The key the trigger's pause is kept under: {@code <workflow>/<trigger>}. */
         public String key() {
@@ -103,7 +152,131 @@ public class EventTriggerService {
     /** One trigger. */
     public TriggerView get(String workflowId, String triggerId) {
         return list(workflowId, null).stream().filter(v -> v.triggerId().equals(triggerId)).findFirst()
-                .orElseThrow(() -> new NoSuchElementException("No trigger '" + triggerId + "' on workflow '" + workflowId + "'"));
+                .orElseThrow(() -> new UnknownTriggerException(workflowId, triggerId));
+    }
+
+    /**
+     * Creates a trigger owned by the engine (source UI/API). It needs an id — a file entry may have one
+     * derived, a trigger created here is named — unique within its workflow across every declaration.
+     *
+     * @throws InvalidTriggerException when the draft breaks a rule
+     */
+    public TriggerView create(TriggerDraft draft) {
+        var violations = new ArrayList<String>();
+        var id = draft.id() == null ? null : draft.id().trim();
+        var workflowId = draft.workflowId() == null ? null : draft.workflowId().trim();
+        if (id == null || id.isEmpty()) {
+            violations.add("a trigger created here needs an id (e.g. on-booking-created)");
+        } else if (workflowId != null && !workflowId.isEmpty()) {
+            EventTriggerCatalog.owner(catalog(), workflowId, id).ifPresent(owner -> violations.add(
+                    "id '" + id + "' is already used by the trigger declared in " + owner.declaredIn()));
+        }
+        var trigger = validated(id, draft, violations);
+        fileTriggers.save(new EventFileTrigger(EventFileTrigger.API_SOURCE, 0, workflowId, trigger));
+        log.info("Event trigger '{}' created for workflow '{}' ({} on {})", id, workflowId, trigger.type(), trigger.destination());
+        return get(workflowId, id);
+    }
+
+    /**
+     * Edits a trigger created here: destination, type, filter, business key and variables are replaced;
+     * the key never changes (the workflow of the draft must be the trigger's).
+     *
+     * @throws TriggerNotEditableException for a trigger declared in a file
+     */
+    public TriggerView update(String workflowId, String triggerId, TriggerDraft draft) {
+        var entry = editableOwner(workflowId, triggerId);
+        var violations = new ArrayList<String>();
+        if (draft.workflowId() != null && !draft.workflowId().isBlank() && !draft.workflowId().trim().equals(workflowId)) {
+            violations.add("a trigger's workflow never changes: delete it and create one for '" + draft.workflowId() + "'");
+        }
+        var trigger = validated(entry.trigger().id(), new TriggerDraft(triggerId, workflowId, draft.destination(), draft.type(),
+                draft.filter(), draft.businessKey(), draft.variables()), violations);
+        fileTriggers.save(new EventFileTrigger(EventFileTrigger.API_SOURCE, 0, workflowId, trigger));
+        log.info("Event trigger '{}' of workflow '{}' updated ({} on {})", triggerId, workflowId, trigger.type(), trigger.destination());
+        return get(workflowId, triggerId);
+    }
+
+    /** Deletes a trigger created here, with its pause. */
+    public void delete(String workflowId, String triggerId) {
+        var entry = editableOwner(workflowId, triggerId);
+        fileTriggers.deleteApiTriggers(List.of(entry.key()));
+        pauses.delete(entry.key());
+        log.info("Event trigger '{}' of workflow '{}' deleted", triggerId, workflowId);
+    }
+
+    /**
+     * The trigger as an {@code events.yaml} entry, id included: committed next to the definitions, the
+     * file owns the trigger from the next import on.
+     */
+    public String exportYaml(String workflowId, String triggerId) {
+        var entry = EventTriggerCatalog.owner(catalog(), workflowId, triggerId)
+                .orElseThrow(() -> new UnknownTriggerException(workflowId, triggerId));
+        var trigger = entry.trigger();
+        var yaml = new StringBuilder()
+                .append("# events.yaml next to the workflow definitions. Once imported, this entry owns trigger '")
+                .append(trigger.id()).append("' of workflow '").append(workflowId).append("'.\n")
+                .append("- id: ").append(ScheduleService.scalar(trigger.id())).append('\n')
+                .append("  destination: ").append(ScheduleService.scalar(trigger.destination())).append('\n')
+                .append("  type: ").append(ScheduleService.quoted(trigger.type())).append('\n')
+                .append("  workflow: ").append(ScheduleService.scalar(workflowId)).append('\n');
+        if (trigger.filter() != null) {
+            yaml.append("  filter: ").append(ScheduleService.quoted(trigger.filter())).append('\n');
+        }
+        if (trigger.businessKey() != null) {
+            yaml.append("  businessKey: ").append(ScheduleService.quoted(trigger.businessKey())).append('\n');
+        }
+        if (trigger.variables() != null) {
+            if (trigger.variables().isEmpty()) {
+                yaml.append("  variables: {}\n");
+            } else {
+                yaml.append("  variables:\n");
+                trigger.variables().forEach((name, value) -> yaml.append("    ").append(ScheduleService.scalar(name))
+                        .append(": ").append(yamlValue(value)).append('\n'));
+            }
+        }
+        return yaml.toString();
+    }
+
+    /** A template value as YAML: text quoted when needed, numbers and booleans as they are, structures as JSON. */
+    private static String yamlValue(Object value) {
+        if (value == null) {
+            return "null";
+        }
+        if (value instanceof String s) {
+            return ScheduleService.scalar(s);
+        }
+        if (value instanceof Number || value instanceof Boolean) {
+            return value.toString();
+        }
+        try {
+            return new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(value);
+        } catch (Exception e) {
+            return ScheduleService.quoted(String.valueOf(value));
+        }
+    }
+
+    private EventTriggerCatalog.Entry editableOwner(String workflowId, String triggerId) {
+        var entry = EventTriggerCatalog.owner(catalog(), workflowId, triggerId)
+                .orElseThrow(() -> new UnknownTriggerException(workflowId, triggerId));
+        if (!entry.editable()) {
+            throw new TriggerNotEditableException(entry);
+        }
+        return entry;
+    }
+
+    /** The trigger a draft describes, once every rule holds; throws with every violation otherwise. */
+    private EventTrigger validated(String id, TriggerDraft draft, List<String> violations) {
+        var workflowId = draft.workflowId() == null ? null : draft.workflowId().trim();
+        if (workflowId == null || workflowId.isEmpty()) {
+            violations.add("a trigger needs the id of the workflow it starts ('workflowId')");
+        } else if (workflowDefinitionRepository.findById(workflowId).isEmpty()) {
+            violations.add("unknown workflow '" + workflowId + "'");
+        }
+        violations.addAll(EventTriggerRules.triggerViolations(id, draft.destination(), draft.type(), null));
+        if (!violations.isEmpty()) {
+            throw new InvalidTriggerException(violations);
+        }
+        return new EventTrigger(id, draft.destination(), draft.type(), draft.filter(), draft.businessKey(), draft.variables());
     }
 
     /** Pauses a trigger: events that arrive while it is paused start nothing, and are not replayed on resume. */
@@ -166,7 +339,8 @@ public class EventTriggerService {
                 trigger.variables() == null ? null : new LinkedHashMap<>(trigger.variables()),
                 definition.status().name(), definition.paused(), pause != null,
                 pause == null ? null : pause.pausedAt(), pause == null ? null : pause.pausedBy(), state,
-                entry.origin().name(), entry.source(), entry.sourceLabel(), entry.declaredIn(), entry.duplicateOf());
+                entry.origin().name(), entry.source(), entry.sourceLabel(), entry.declaredIn(), entry.duplicateOf(),
+                entry.editable());
     }
 
     private List<WorkflowDefinition> definitions() {

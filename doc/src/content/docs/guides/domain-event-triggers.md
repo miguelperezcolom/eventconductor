@@ -68,6 +68,14 @@ A trigger declared in a file is the same kind of thing as one declared in the de
 
 Which to use: the definition, when the author of the workflow is the one who knows which event starts it — the trigger travels with the workflow. `events.yaml`, when the workflow is generic and the binding is a deployment or integration decision — a CDC stream, a partner's events — or when the people wiring events to workflows are not the ones writing the workflows.
 
+### Triggers created from the UI, the REST API and MCP
+
+A file is the optional, durable home of a trigger, not a precondition for having one. **Workflow → Event triggers** creates triggers (source `UI/API`): id, workflow, destination, type, filter, business key and variables — the same fields as an `events.yaml` entry, the id required. The same through `POST /workflow/api/triggers` (`{id, workflowId, destination, type, filter?, businessKey?, variables?}`), `PUT`/`DELETE /workflow/api/triggers/{workflowId}/{triggerId}` and `GET …/yaml`, and the MCP tools `createEventTrigger`, `updateEventTrigger`, `deleteEventTrigger`, `exportEventTriggerYaml`.
+
+- **Any trigger** can be paused and resumed. **Only triggers created here** are edited and deleted here: one declared in a definition or an `events.yaml` is changed in its file — its page says where.
+- A trigger created here is matched, receipted and keyed exactly like a declared one, and listed after the file-declared triggers of its workflow. Its id must be free within the workflow.
+- **Promote it to git**: its page shows its `events.yaml` entry, id and workflow included (also `GET …/yaml`, `exportEventTriggerYaml`). Commit it next to the definitions: on the next import the file owns the trigger — the stored copy is deleted, the file's values take over, and its pause carries over. An entry removed from its file later is deleted with its pause, including one that started life in the UI. Imports never touch the triggers created here otherwise.
+
 ### What a filter and a template see
 
 | Name | Value |
@@ -154,14 +162,14 @@ The answer says what the event did: `receipts` (each `STARTED` with its business
 
 ## Operating triggers
 
-- **Workflow → Event triggers** lists every trigger — workflow, destination and its topic, type, filter, business key, variables, source (`Definition` or the `events.yaml` it comes from), status — and pauses or resumes the selected ones. **Workflow → Received events** shows the latest receipts: what each event started, delivered, or why it could not be used. A definition's detail page has a **Triggers** tab.
-- REST: `GET /workflow/api/triggers[?workflowId=]`, `GET /workflow/api/triggers/{workflowId}/{triggerId}`, `POST …/pause`, `POST …/resume`, `GET /workflow/api/events/received[?workflowId=&limit=]`.
-- MCP: `listEventTriggers`, `pauseEventTrigger`, `resumeEventTrigger`, `listReceivedEvents`, `publishInboundEvent`.
-- Metrics: `eventconductor.events.received{destination, outcome}` (`STARTED`, `DELIVERED`, `ERROR`, `DUPLICATE`), and the gauge `eventconductor.events.triggers{origin}` (`definition`, `events_file`): how many triggers can fire — a drop after an import means an entry was skipped or removed.
+- **Workflow → Event triggers** lists every trigger — workflow, destination and its topic, type, filter, business key, variables, source (`Definition`, the `events.yaml` it comes from, or `UI/API`), status — pauses or resumes the selected ones, and creates new ones; each trigger has its own page with its `events.yaml` entry. **Workflow → Received events** shows the latest receipts: what each event started, delivered, or why it could not be used. A definition's detail page has a **Triggers** tab.
+- REST: `GET /workflow/api/triggers[?workflowId=]`, `GET /workflow/api/triggers/{workflowId}/{triggerId}`, `POST /workflow/api/triggers`, `PUT`/`DELETE …/{workflowId}/{triggerId}`, `GET …/yaml`, `POST …/pause`, `POST …/resume`, `GET /workflow/api/events/received[?workflowId=&limit=]`. Same optional `X-Api-Key` as the message API.
+- MCP: `listEventTriggers`, `createEventTrigger`, `updateEventTrigger`, `deleteEventTrigger`, `exportEventTriggerYaml`, `pauseEventTrigger`, `resumeEventTrigger`, `listReceivedEvents`, `publishInboundEvent`.
+- Metrics: `eventconductor.events.received{destination, outcome}` (`STARTED`, `DELIVERED`, `ERROR`, `DUPLICATE`), and the gauge `eventconductor.events.triggers{origin}` (`definition`, `events_file`, `api`): how many triggers can fire — a drop after an import means an entry was skipped, removed or taken over.
 - The graph shows a ⚡ on the START node of a triggered workflow, and `⚡ <type> ← <destination>` above a wait fed by an event.
 
 ## Limits
 
 - An event that matches nothing leaves no receipt (a busy topic would fill the table with noise); the REST/MCP inject says what happened.
 - Waits are matched against each definition's **current** declaration. A process still running an older version whose `onEvent` changed since is completed through its `messageName` by the message API.
-- A trigger is declared in its definition or in an `events.yaml`; there is no trigger created from the UI, the REST API or MCP yet — they pause and resume what the files declare.
+- A trigger created from the UI, the REST API or MCP lives in the engine's store until a file declares its key; the graph's ⚡ never shows it (nor an `events.yaml` entry).

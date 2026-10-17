@@ -13,13 +13,14 @@ import org.springframework.transaction.annotation.Transactional;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** {@code events.yaml} triggers in the database, so every pod matches inbound events against the same set. */
+/** {@code events.yaml} and engine-created triggers in the database, so every pod matches inbound events against the same set. */
 @Service
 @ConditionalOnProperty(name = "workflow.persistence", havingValue = "jpa")
 @RequiredArgsConstructor
@@ -43,6 +44,9 @@ public class JpaEventTriggerRepository implements EventTriggerRepository {
     @Override
     @Transactional
     public void replace(String source, List<EventFileTrigger> triggers) {
+        if (EventFileTrigger.API_SOURCE.equals(source)) {
+            throw new IllegalArgumentException("'" + source + "' holds the triggers created through the engine; no import replaces it");
+        }
         repository.deleteBySourceKey(source);
         repository.flush();
         if (triggers == null || triggers.isEmpty()) {
@@ -54,6 +58,25 @@ public class JpaEventTriggerRepository implements EventTriggerRepository {
                 variablesToJson(t.trigger().variables()))).toList());
     }
 
+    /** Keyed by {@code <workflow>/<trigger>}, so saving it again (an edit) overwrites the row. */
+    @Override
+    @Transactional
+    public void save(EventFileTrigger trigger) {
+        var t = trigger.trigger();
+        repository.save(new EventTriggerEntity(id(EventFileTrigger.API_SOURCE, trigger.key()), EventFileTrigger.API_SOURCE,
+                0, trigger.workflowId(), t.id(), t.destination(), t.type(), t.filter(), t.businessKey(),
+                variablesToJson(t.variables())));
+    }
+
+    @Override
+    @Transactional
+    public void deleteApiTriggers(Collection<String> keys) {
+        if (keys == null || keys.isEmpty()) {
+            return;
+        }
+        repository.deleteAllById(keys.stream().map(key -> id(EventFileTrigger.API_SOURCE, key)).toList());
+    }
+
     private static EventFileTrigger map(EventTriggerEntity row) {
         return new EventFileTrigger(row.getSourceKey(), row.getEntryIndex(), row.getWorkflowId(),
                 new EventTrigger(row.getTriggerId(), row.getDestination(), row.getEventType(), row.getFilterExpression(),
@@ -61,9 +84,14 @@ public class JpaEventTriggerRepository implements EventTriggerRepository {
     }
 
     static String id(String source, int index) {
+        return id(source, String.valueOf(index));
+    }
+
+    /** A file row is keyed by its position in its source, an engine-created one by {@code <workflow>/<trigger>}. */
+    static String id(String source, String key) {
         try {
             var digest = MessageDigest.getInstance("SHA-256")
-                    .digest((source + "#" + index).getBytes(StandardCharsets.UTF_8));
+                    .digest((source + "#" + key).getBytes(StandardCharsets.UTF_8));
             return HexFormat.of().formatHex(digest);
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException(e);

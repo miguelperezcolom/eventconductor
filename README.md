@@ -787,7 +787,9 @@ the engine's own `PUBLISH_EVENT`s. Triggers are listed, paused and resumed on **
 triggers**, `/workflow/api/triggers` and MCP; **Workflow → Received events** shows what each event did.
 The same triggers, naming the workflow they start, can live in an `events.yaml` next to the definitions
 (classpath, directory or git), as schedules can in `cron.yaml` — so wiring a CDC stream or a partner's
-events to a workflow is not a change to the workflow. See the guide *Starting on and waiting for domain events*.
+events to a workflow is not a change to the workflow — or be created from **Workflow → Event triggers**,
+`POST /workflow/api/triggers` or the MCP tool `createEventTrigger`, and promoted to `events.yaml` from
+their page. See the guide *Starting on and waiting for domain events*.
 
 ### Workflow definition status
 

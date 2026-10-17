@@ -26,10 +26,13 @@ import java.util.stream.Collectors;
  * <p>Order, which is also precedence when two declarations carry one id in one workflow: the
  * definition's own {@code triggers} (their ids as {@link WorkflowDefinition#identifiedTriggers()} gives
  * them — never changed by what a file declares), then the {@code events.yaml} entries naming that
- * workflow (by source, then entry). A file entry without an id gets one derived from its type, as a
- * definition's trigger does ({@code com.acme.booking.created}, {@code -2} on a repeat within the
- * workflow). A file entry whose declared id the workflow already has is listed with
- * {@link Entry#duplicateOf()} set and never fires: the first declaration owns the id.
+ * workflow (by source, then entry), then the triggers created through the engine (by id). A file entry
+ * without an id gets one derived from its type, as a definition's trigger does
+ * ({@code com.acme.booking.created}, {@code -2} on a repeat within the workflow). A file entry whose
+ * declared id the workflow already has is listed with {@link Entry#duplicateOf()} set and never fires:
+ * the first declaration owns the id. A trigger created through the engine whose id a file now declares
+ * is not listed at all: the file's entry has replaced it (the import that brought it deletes the stored
+ * one; until then it is ignored).
  *
  * <p>Every definition is listed, whatever its status — whether a trigger starts anything also depends on
  * its workflow accepting instances and on its pause, which is the receiver's and the UI's business. A
@@ -46,7 +49,8 @@ public final class EventTriggerCatalog {
      * @param definition  the workflow it starts
      * @param trigger     the trigger, its id always set (declared or derived)
      * @param origin      where it is declared
-     * @param source      the definition id, or the import source key of its {@code events.yaml}
+     * @param source      the definition id, the import source key of its {@code events.yaml}, or
+     *                    {@link EventFileTrigger#API_SOURCE}
      * @param position    its index in the definition's {@code triggers} or in its source
      * @param duplicateOf where the owner of its id is declared, when another declaration took the id
      *                    first — such an entry never fires; null otherwise
@@ -64,9 +68,14 @@ public final class EventTriggerCatalog {
             return duplicateOf == null;
         }
 
-        /** "Definition", "events.yaml (git)"… */
+        /** "Definition", "events.yaml (git)", "UI/API"… */
         public String sourceLabel() {
             return origin.label(source);
+        }
+
+        /** Whether it can be edited and deleted through the engine: only what was created there. */
+        public boolean editable() {
+            return origin == EventTriggerOrigin.API;
         }
 
         /** Exactly where it is declared. */
@@ -74,6 +83,7 @@ public final class EventTriggerCatalog {
             return switch (origin) {
                 case DEFINITION -> "definition " + definition.id() + " triggers[" + position + "]";
                 case EVENTS_FILE -> sourceLabel() + " " + source + " entry " + position;
+                case API -> "UI/API";
             };
         }
     }
@@ -86,8 +96,13 @@ public final class EventTriggerCatalog {
                 .sorted(Comparator.comparing(WorkflowDefinition::id))
                 .toList();
         var filesByWorkflow = stored.stream()
-                .filter(t -> t.workflowId() != null && t.trigger() != null)
+                .filter(t -> t.workflowId() != null && t.trigger() != null && !EventFileTrigger.API_SOURCE.equals(t.source()))
                 .sorted(Comparator.comparing(EventFileTrigger::source).thenComparingInt(EventFileTrigger::index))
+                .collect(Collectors.groupingBy(EventFileTrigger::workflowId));
+        var apiByWorkflow = stored.stream()
+                .filter(t -> t.workflowId() != null && t.trigger() != null && t.trigger().id() != null
+                        && EventFileTrigger.API_SOURCE.equals(t.source()))
+                .sorted(Comparator.comparing(t -> t.trigger().id()))
                 .collect(Collectors.groupingBy(EventFileTrigger::workflowId));
         for (var definition : sorted) {
             var owners = new HashMap<String, Entry>();
@@ -126,8 +141,33 @@ public final class EventTriggerCatalog {
                 }
                 entries.add(entry);
             }
+            for (var api : apiByWorkflow.getOrDefault(definition.id(), List.of())) {
+                if (owners.containsKey(api.trigger().id())) {
+                    continue;   // a file declares this id now: its entry is the trigger
+                }
+                var entry = new Entry(definition, api.trigger(), EventTriggerOrigin.API, EventFileTrigger.API_SOURCE,
+                        api.index(), null);
+                owners.put(api.trigger().id(), entry);
+                entries.add(entry);
+            }
         }
         return entries;
+    }
+
+    /**
+     * The keys ({@code <workflow>/<trigger>}) files declare (definitions and {@code events.yaml}, firing
+     * or duplicate): a trigger created through the engine with one of them has been taken over.
+     */
+    public static Set<String> fileOwnedKeys(List<Entry> catalog) {
+        return catalog.stream().filter(e -> e.origin() != EventTriggerOrigin.API).map(Entry::key)
+                .collect(Collectors.toSet());
+    }
+
+    /** The entry owning {@code <workflowId>/<triggerId>}, if any (never a duplicate). */
+    public static java.util.Optional<Entry> owner(List<Entry> catalog, String workflowId, String triggerId) {
+        return catalog.stream()
+                .filter(e -> e.fires() && e.definition().id().equals(workflowId) && e.trigger().id().equals(triggerId))
+                .findFirst();
     }
 
     /** The keys ({@code <workflow>/<trigger>}) of every trigger in the catalog, duplicates included. */

@@ -5,7 +5,11 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
+
 public interface EventTriggerEntityRepository extends JpaRepository<EventTriggerEntity, String> {
+
+    List<EventTriggerEntity> findBySourceKey(String sourceKey);
 
     @Modifying
     @Query("delete from EventTriggerEntity t where t.sourceKey = :sourceKey")
