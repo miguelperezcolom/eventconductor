@@ -28,6 +28,13 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '21'
+          cache: maven
+      # build.gradle.kts resolves io.mateu.workflow:worker-codegen:1.0-SNAPSHOT from mavenLocal():
+      # the task-worker generator is built from this repo's Maven reactor, never published as a
+      # SNAPSHOT. Install it (and the reactor poms it needs) before Gradle looks for it.
+      - name: Install worker-codegen into the local Maven repository
+        working-directory: .
+        run: mvn -B -q -pl modules/worker-codegen -am install -DskipTests -Djacoco.skip=true
       - uses: gradle/actions/setup-gradle@v6
       - name: Sign & publish to the JetBrains Marketplace
         run: ./gradlew publishPlugin
