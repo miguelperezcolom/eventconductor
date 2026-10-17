@@ -33,6 +33,18 @@ public class EventTriggerMcpTools implements McpTools, McpSystemContext {
     private final EventTriggerService eventTriggerService;
     private final InboundEventService inboundEventService;
 
+    /**
+     * Who is calling, for the flow-authorization check on create/edit/run-now. Field-injected and
+     * optional: an MCP endpoint behind Spring Security resolves its caller like any other door.
+     */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    org.springframework.beans.factory.ObjectProvider<io.mateu.workflow.security.CallerResolver> callerResolver;
+
+    private io.mateu.workflow.security.AuthorizationContext callerContext() {
+        var resolver = callerResolver == null ? null : callerResolver.getIfAvailable();
+        return resolver == null ? null : resolver.current();
+    }
+
     @Override
     public String getSystemContext() {
         return """
@@ -81,7 +93,7 @@ public class EventTriggerMcpTools implements McpTools, McpSystemContext {
                                           @ToolParam(required = false, description = "Variable templates by name (name -> template over the event, e.g. {\"customerId\": \"${data.after.id}\"}). Omitted or null: every top-level member of data becomes a variable. An empty object {}: the process gets no variables.") Map<String, Object> variables) {
         log.info("Creating event trigger {} for {}", id, workflowId);
         return eventTriggerService.create(new EventTriggerService.TriggerDraft(id, workflowId, destination, type, filter,
-                businessKey, variables));
+                businessKey, variables), callerContext());
     }
 
     @Tool(description = "Edit a UI/API event trigger: destination, type, filter, business key and variables are replaced;"
@@ -93,7 +105,7 @@ public class EventTriggerMcpTools implements McpTools, McpSystemContext {
                                           @ToolParam(required = false, description = "Variable templates by name (name -> template over the event, e.g. {\"customerId\": \"${data.after.id}\"}). Omitted or null: every top-level member of data becomes a variable. An empty object {}: the process gets no variables.") Map<String, Object> variables) {
         log.info("Updating event trigger {}/{}", workflowId, triggerId);
         return eventTriggerService.update(workflowId, triggerId, new EventTriggerService.TriggerDraft(triggerId, workflowId,
-                destination, type, filter, businessKey, variables));
+                destination, type, filter, businessKey, variables), callerContext());
     }
 
     @Tool(description = "Delete a UI/API event trigger (and its pause). Fails for a trigger declared in a definition or an"

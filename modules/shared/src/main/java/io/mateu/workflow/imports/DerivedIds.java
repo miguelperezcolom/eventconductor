@@ -3,7 +3,6 @@ package io.mateu.workflow.imports;
 import com.fasterxml.jackson.databind.JsonNode;
 
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -100,7 +99,7 @@ public final class DerivedIds {
     public static Set<String> declaredUnder(Path scanRoot, Predicate<Path> isDefinitionFile,
                                             FileReader reader) throws IOException {
         var declared = new LinkedHashSet<String>();
-        try (var stream = Files.walk(scanRoot)) {
+        try (var stream = ImportFiles.walk(scanRoot)) {
             stream.filter(isDefinitionFile).forEach(file -> {
                 try {
                     var node = reader.read(file);

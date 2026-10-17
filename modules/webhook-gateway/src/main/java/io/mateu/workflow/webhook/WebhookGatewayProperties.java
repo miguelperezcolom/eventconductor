@@ -38,6 +38,13 @@ public class WebhookGatewayProperties {
     /** The path the endpoints hang from: {@code POST <path>/<endpoint>}. */
     private String path = "/webhooks";
 
+    /**
+     * The largest webhook body accepted, in bytes; a larger one is refused with 413 before it is read
+     * whole. 25 MB by default: GitHub's own payload cap, so no legitimate push is refused; lower it
+     * for senders known to post small bodies.
+     */
+    private long maxBodyBytes = 25L * 1024 * 1024;
+
     /** {@code kafka}: the destination's topic, binary CloudEvents; {@code rest}: the engine's inject endpoint. */
     private Transport transport = Transport.KAFKA;
 

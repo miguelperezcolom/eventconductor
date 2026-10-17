@@ -26,8 +26,11 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Extract release version
+        env:
+          # Through the environment, not interpolated into the script: a tag name is attacker-shaped input.
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
-          VERSION=${{ github.event.release.tag_name }}
+          VERSION="$RELEASE_TAG"
           # strip leading "v" if present
           echo "RELEASE_VERSION=${VERSION#v}" >> "$GITHUB_ENV"
 
@@ -61,7 +64,7 @@ jobs:
         run: mvn -v
 
       - name: Import GPG Key
-        uses: crazy-max/ghaction-import-gpg@v6
+        uses: crazy-max/ghaction-import-gpg@e89d40939c28e39f97cf32126055eeae86ba74ec # v6.3.0
         with:
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
           passphrase: ${{ secrets.GPG_PASSPHRASE }}
@@ -89,16 +92,16 @@ jobs:
           MAVEN_PASSWORD: ${{ secrets.CENTRAL_TOKEN_PASSWORD }}
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       - name: Log in to Docker Hub
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build orchestrator image
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: apps/orchestrator-standalone-app
           file: apps/orchestrator-standalone-app/Dockerfile.ci
@@ -110,7 +113,7 @@ jobs:
             ${{ secrets.DOCKERHUB_USERNAME }}/orchestrator-standalone-app:latest
 
       - name: Build forms image
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: apps/forms-standalone-app
           file: apps/forms-standalone-app/Dockerfile.ci
@@ -122,7 +125,7 @@ jobs:
             ${{ secrets.DOCKERHUB_USERNAME }}/forms-standalone-app:latest
 
       - name: Build rules image
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: apps/rule-standalone-app
           file: apps/rule-standalone-app/Dockerfile.ci
@@ -134,7 +137,7 @@ jobs:
             ${{ secrets.DOCKERHUB_USERNAME }}/rule-standalone-app:latest
 
       - name: Build projector image
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: apps/projector-standalone-app
           file: apps/projector-standalone-app/Dockerfile.ci
@@ -150,7 +153,7 @@ jobs:
       # project's own SNAPSHOT modules and whose COPY named a jar that is not the artifact. Nothing
       # recorded which commit any published image came from.
       - name: Build worker image
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: apps/worker-standalone-app
           file: apps/worker-standalone-app/Dockerfile.ci
@@ -163,7 +166,7 @@ jobs:
 
       # The HTTP egress worker: serves HTTP_CALL steps from the http-calls topic.
       - name: Build http-worker image
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: apps/http-worker-standalone-app
           file: apps/http-worker-standalone-app/Dockerfile.ci
@@ -174,7 +177,7 @@ jobs:
 
       # The model egress worker: serves LLM_CALL steps from the llm-calls topic.
       - name: Build llm-worker image
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: apps/llm-worker-standalone-app
           file: apps/llm-worker-standalone-app/Dockerfile.ci
@@ -185,7 +188,7 @@ jobs:
 
       # Webhooks in: verifies each sender's signature and publishes the delivery as a CloudEvent.
       - name: Build webhook-gateway image
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: apps/webhook-gateway-standalone-app
           file: apps/webhook-gateway-standalone-app/Dockerfile.ci
@@ -195,7 +198,7 @@ jobs:
             ${{ secrets.DOCKERHUB_USERNAME }}/webhook-gateway-standalone-app:latest
 
       - name: Scan orchestrator image with Trivy
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: ${{ secrets.DOCKERHUB_USERNAME }}/orchestrator-standalone-app:${{ env.RELEASE_VERSION }}
           severity: CRITICAL,HIGH
@@ -203,7 +206,7 @@ jobs:
           ignore-unfixed: true
 
       - name: Scan forms image with Trivy
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: ${{ secrets.DOCKERHUB_USERNAME }}/forms-standalone-app:${{ env.RELEASE_VERSION }}
           severity: CRITICAL,HIGH
@@ -211,7 +214,7 @@ jobs:
           ignore-unfixed: true
 
       - name: Scan rules image with Trivy
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: ${{ secrets.DOCKERHUB_USERNAME }}/rule-standalone-app:${{ env.RELEASE_VERSION }}
           severity: CRITICAL,HIGH
@@ -219,7 +222,7 @@ jobs:
           ignore-unfixed: true
 
       - name: Scan worker image with Trivy
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: ${{ secrets.DOCKERHUB_USERNAME }}/worker-standalone-app:${{ env.RELEASE_VERSION }}
           severity: CRITICAL,HIGH
@@ -227,7 +230,7 @@ jobs:
           ignore-unfixed: true
 
       - name: Scan http-worker image with Trivy
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: ${{ secrets.DOCKERHUB_USERNAME }}/http-worker-standalone-app:${{ env.RELEASE_VERSION }}
           severity: CRITICAL,HIGH
@@ -235,7 +238,7 @@ jobs:
           ignore-unfixed: true
 
       - name: Scan llm-worker image with Trivy
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: ${{ secrets.DOCKERHUB_USERNAME }}/llm-worker-standalone-app:${{ env.RELEASE_VERSION }}
           severity: CRITICAL,HIGH
@@ -243,7 +246,7 @@ jobs:
           ignore-unfixed: true
 
       - name: Scan webhook-gateway image with Trivy
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: ${{ secrets.DOCKERHUB_USERNAME }}/webhook-gateway-standalone-app:${{ env.RELEASE_VERSION }}
           severity: CRITICAL,HIGH
@@ -251,7 +254,7 @@ jobs:
           ignore-unfixed: true
 
       - name: Scan projector image with Trivy
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: ${{ secrets.DOCKERHUB_USERNAME }}/projector-standalone-app:${{ env.RELEASE_VERSION }}
           severity: CRITICAL,HIGH

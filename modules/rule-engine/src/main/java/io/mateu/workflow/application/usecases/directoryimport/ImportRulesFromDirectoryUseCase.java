@@ -93,6 +93,17 @@ public class ImportRulesFromDirectoryUseCase {
      * longer has. {@code pruneKey} identifies the source in the provenance registry — a repository
      * url for a clone, the directory itself for a directory.
      */
+    /**
+     * {@link #importFrom(Path, String, List, List, List)} for a source formerly recorded under
+     * {@code formerKey} (a git URL before credentials were stripped from the key): its record moves to
+     * {@code pruneKey} first, so what was removed meanwhile is still pruned.
+     */
+    public void importFrom(Path root, String pruneKey, String formerKey, List<String> imported, List<String> errors,
+                           List<String> pruned) throws IOException {
+        importedDefinitionsRegistry.moveSource(NAMESPACE, formerKey, pruneKey);
+        importFrom(root, pruneKey, imported, errors, pruned);
+    }
+
     public void importFrom(Path root, String pruneKey, List<String> imported, List<String> errors,
                            List<String> pruned) throws IOException {
         var importedIds = new LinkedHashSet<String>();
@@ -118,7 +129,7 @@ public class ImportRulesFromDirectoryUseCase {
                               Set<String> importedIds) throws IOException {
         var declaredIds = DerivedIds.declaredUnder(repoRoot,
                 ImportRulesFromDirectoryUseCase::isDefinitionFile, this::readTree);
-        try (var stream = Files.walk(repoRoot)) {
+        try (var stream = io.mateu.workflow.imports.ImportFiles.walk(repoRoot)) {
             stream.filter(ImportRulesFromDirectoryUseCase::isDefinitionFile)
                     .forEach(file -> {
                         try {
@@ -134,8 +145,8 @@ public class ImportRulesFromDirectoryUseCase {
     /** Everything but {@code .json} goes to the YAML parser, which reads JSON too. */
     private JsonNode readTree(Path file) throws IOException {
         return file.toString().toLowerCase().endsWith(".json")
-                ? OBJECT_MAPPER.readTree(file.toFile())
-                : YAML_MAPPER.readTree(file.toFile());
+                ? OBJECT_MAPPER.readTree(io.mateu.workflow.imports.ImportFiles.read(file))
+                : YAML_MAPPER.readTree(io.mateu.workflow.imports.ImportFiles.read(file));
     }
 
     private void importDefinitionFile(Path file, Path repoRoot, List<String> imported,

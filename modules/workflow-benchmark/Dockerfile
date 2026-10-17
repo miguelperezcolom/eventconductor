@@ -12,8 +12,11 @@
 #   docker buildx build --platform linux/amd64 -f modules/workflow-benchmark/Dockerfile \
 #     -t <user>/eventconductor-bench:<tag> --push .
 FROM eclipse-temurin:21-jre
+# Not root, like the other images (same uid). The base is Ubuntu, hence groupadd/useradd.
+RUN groupadd --system app && useradd --system --gid app --uid 10001 --no-create-home app
 WORKDIR /app
-COPY modules/workflow-benchmark/target/workflow-benchmark-*-runnable.jar app.jar
+COPY --chown=app:app modules/workflow-benchmark/target/workflow-benchmark-*-runnable.jar app.jar
 # Every knob is a -Dbench.* property; pass them through BENCH_OPTS.
 ENV BENCH_OPTS=""
+USER app
 ENTRYPOINT ["sh", "-c", "exec java $BENCH_OPTS -jar app.jar"]

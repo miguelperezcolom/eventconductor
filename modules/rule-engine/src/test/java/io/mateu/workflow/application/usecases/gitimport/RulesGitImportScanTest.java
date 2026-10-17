@@ -141,4 +141,13 @@ class RulesGitImportScanTest {
                     .setAuthor("test", "test@example.com").call();
         }
     }
+
+    /** The key is persisted and shown: credentials embedded in the URL stay out of it. */
+    @org.junit.jupiter.api.Test
+    void theSourceKeyCarriesNoCredentials() {
+        var withToken = new RuleGitImportProperties.GitRepository();
+        withToken.setUrl("https://ci-bot:fake-test-token@github.com/org/defs.git");
+        assertThat(ImportRulesFromGitUseCase.pruneKey(withToken)).isEqualTo("https://******@github.com/org/defs.git");
+        assertThat(ImportRulesFromGitUseCase.formerPruneKey(withToken)).isEqualTo("https://ci-bot:fake-test-token@github.com/org/defs.git");
+    }
 }

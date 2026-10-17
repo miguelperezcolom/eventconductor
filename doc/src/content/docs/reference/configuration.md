@@ -376,8 +376,9 @@ The gateway reads the destinations' topics from the same `workflow.events.destin
 | `workflow.http.connections.<name>.idempotency-header` | `Idempotency-Key` | Header carrying the step execution id; `none` to omit. |
 | `workflow.http.auth.<name>.type` | `none` | `none`, `basic`, `bearer`, `api-key`, `oauth2-client-credentials`. |
 | `workflow.http.auth.<name>.*` | — | `username`/`password`, `token`, `header`/`value`/`in`, `token-uri`/`client-id`/`client-secret`/`scope`. |
-| `workflow.http.secrets.<NAME>` | — | What `${secret:NAME}` resolves to (else the `NAME` property / env var). |
-| `workflow.http.allowed-hosts` | *(any public host)* | Hosts absolute URLs may target (`api.x.com`, `*.partner.com`). Internal addresses are always refused for absolute URLs. |
+| `workflow.http.secrets.<NAME>` | — | What `${secret:NAME}` resolves to (else, with `secrets-from-environment`, the `NAME` property / env var). |
+| `workflow.http.secrets-from-environment` | `true` | Whether a `${secret:NAME}` not listed under `workflow.http.secrets` falls back to **any** environment variable or Spring property named `NAME`. `false` resolves only from `workflow.http.secrets`, so a definition author cannot reach other values of the process (database passwords, cloud credentials). While `true` and `allowed-hosts` is empty, a WARN at startup says so. |
+| `workflow.http.allowed-hosts` | *(any public host)* | Hosts absolute URLs — and the `token-uri` of an inline OAuth2 block — may target (`api.x.com`, `*.partner.com`). Internal addresses are always refused for them; a host that does not resolve is refused too (a retryable `HTTP_IO`). |
 | `workflow.http.connect-timeout` / `read-timeout` | `PT5S` / `PT30S` | Timeouts for absolute URLs. |
 | `workflow.http.max-response-bytes` | `1048576` | Largest response read; larger fails the step. |
 

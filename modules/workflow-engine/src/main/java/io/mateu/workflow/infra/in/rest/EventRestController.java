@@ -125,7 +125,7 @@ public class EventRestController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A JSON body is required.");
         }
         var created = eventTriggerService.create(new EventTriggerService.TriggerDraft(body.id(), body.workflowId(),
-                body.destination(), body.type(), body.filter(), body.businessKey(), body.variables()));
+                body.destination(), body.type(), body.filter(), body.businessKey(), body.variables()), callerContext());
         return org.springframework.http.ResponseEntity
                 .created(java.net.URI.create("/workflow/api/triggers/" + created.workflowId() + "/" + created.triggerId()))
                 .body(created);
@@ -141,7 +141,7 @@ public class EventRestController {
         }
         return eventTriggerService.update(workflowId, triggerId, new EventTriggerService.TriggerDraft(triggerId,
                 body.workflowId() == null ? workflowId : body.workflowId(), body.destination(), body.type(), body.filter(),
-                body.businessKey(), body.variables()));
+                body.businessKey(), body.variables()), callerContext());
     }
 
     @org.springframework.web.bind.annotation.DeleteMapping("/triggers/{workflowId}/{triggerId}")
@@ -197,6 +197,18 @@ public class EventRestController {
         var problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, e.getMessage());
         problem.setProperty("violations", e.violations());
         return problem;
+    }
+
+    /** The caller as resolved at this request, for the flow-authorization check. */
+    private io.mateu.workflow.security.AuthorizationContext callerContext() {
+        var resolver = callerResolver.getIfAvailable();
+        return resolver == null ? null : resolver.current();
+    }
+
+    /** A caller who may not start the workflow: 403, as a refused process creation. */
+    @ExceptionHandler(io.mateu.workflow.security.FlowAuthorizationDeniedException.class)
+    ProblemDetail onDenied(io.mateu.workflow.security.FlowAuthorizationDeniedException e) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, e.getMessage());
     }
 
     private String caller() {

@@ -94,7 +94,7 @@ public class ScheduleRestController {
     public ResponseEntity<ScheduleView> create(@RequestHeader(value = "X-Api-Key", required = false) String apiKey,
                                                @RequestBody ScheduleBody body) {
         verifyApiKey(apiKey);
-        var created = scheduleService.create(draft(body == null ? null : body.id(), body));
+        var created = scheduleService.create(draft(body == null ? null : body.id(), body), callerContext());
         return ResponseEntity.created(URI.create("/workflow/api/schedules/" + created.id())).body(created);
     }
 
@@ -102,7 +102,7 @@ public class ScheduleRestController {
     public ScheduleView update(@RequestHeader(value = "X-Api-Key", required = false) String apiKey,
                                @PathVariable("id") String id, @RequestBody ScheduleBody body) {
         verifyApiKey(apiKey);
-        return scheduleService.update(id, draft(id, body));
+        return scheduleService.update(id, draft(id, body), callerContext());
     }
 
     @DeleteMapping("/{id}")
@@ -132,7 +132,7 @@ public class ScheduleRestController {
     public ResponseEntity<RunNowResult> runNow(@RequestHeader(value = "X-Api-Key", required = false) String apiKey,
                                                @PathVariable("id") String id) {
         verifyApiKey(apiKey);
-        return ResponseEntity.accepted().body(scheduleService.runNow(id, caller()));
+        return ResponseEntity.accepted().body(scheduleService.runNow(id, caller(), callerContext()));
     }
 
     @GetMapping(value = "/{id}/yaml", produces = "application/yaml")
@@ -166,6 +166,18 @@ public class ScheduleRestController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A JSON body is required.");
         }
         return new ScheduleDraft(id, body.workflowId(), body.cron(), body.zone(), body.variables());
+    }
+
+    /** The caller as resolved at this request, for the flow-authorization check. */
+    private io.mateu.workflow.security.AuthorizationContext callerContext() {
+        var resolver = callerResolver.getIfAvailable();
+        return resolver == null ? null : resolver.current();
+    }
+
+    /** A caller who may not start the workflow: 403, as a refused process creation. */
+    @ExceptionHandler(io.mateu.workflow.security.FlowAuthorizationDeniedException.class)
+    ProblemDetail onDenied(io.mateu.workflow.security.FlowAuthorizationDeniedException e) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, e.getMessage());
     }
 
     private String caller() {

@@ -75,7 +75,9 @@ class PublishersTest {
             exchange.close();
         });
         server.createContext("/workflow/api/events/broken", exchange -> {
-            exchange.sendResponseHeaders(500, -1);
+            var internal = "{\"detail\":\"stack trace from orchestrator-0.internal\"}".getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(500, internal.length);
+            exchange.getResponseBody().write(internal);
             exchange.close();
         });
         server.start();
@@ -89,11 +91,15 @@ class PublishersTest {
 
             assertThat(seen.get()).startsWith("POST /workflow/api/events/github-events?key=acme%2Fshop k ")
                     .contains("\"type\":\"com.github.push\"");
+            // The sender is told to redeliver, not where the engine lives nor what it answered.
             assertThatThrownBy(() -> publisher.publish("broken", EVENT))
-                    .satisfies(e -> assertThat(((WebhookRejectedException) e).status()).isEqualTo(502));
+                    .satisfies(e -> assertThat(((WebhookRejectedException) e).status()).isEqualTo(502))
+                    .satisfies(e -> assertThat(e.getMessage()).doesNotContain("127.0.0.1").doesNotContain("orchestrator-0")
+                            .doesNotContain("/workflow/api"));
             engine.setUrl("http://127.0.0.1:1/");
             assertThatThrownBy(() -> publisher.publish("github-events", EVENT))
-                    .satisfies(e -> assertThat(((WebhookRejectedException) e).status()).isEqualTo(502));
+                    .satisfies(e -> assertThat(((WebhookRejectedException) e).status()).isEqualTo(502))
+                    .satisfies(e -> assertThat(e.getMessage()).doesNotContain("127.0.0.1"));
             engine.setUrl(null);
             assertThatThrownBy(() -> publisher.publish("github-events", EVENT))
                     .satisfies(e -> assertThat(((WebhookRejectedException) e).status()).isEqualTo(500));

@@ -106,6 +106,27 @@ class ScheduleRestControllerMvcTest {
     }
 
     @Test
+    void aCallerWhoMayNotStartTheWorkflowIsRefusedWith403LikeARefusedCreation() throws Exception {
+        when(definitions.findAll()).thenReturn(List.of(new WorkflowDefinition("payout", "Payout", 1, "", false, 0, false,
+                null, 0, List.of(), false, io.mateu.workflow.domain.aggregates.WorkflowStatus.ACTIVE,
+                io.mateu.workflow.domain.aggregates.WorkflowStatus.ACTIVE, List.of("payments:write"), List.of(), 0, null)
+                .withSchedules(List.of(new CronSchedule("eom", "0 0 23 L * ?", null, null)))));
+        var service = new ScheduleService(definitions, new InMemoryCronScheduleRepository(),
+                new InMemorySchedulePauseRepository(), started::add).withFlowAuthorization(true);
+        var beans = new StaticListableBeanFactory();
+        beans.addBean("caller", (CallerResolver) () -> new AuthorizationContext("alice", List.of(), List.of()));
+        mvc = MockMvcBuilders.standaloneSetup(new ScheduleRestController(service, apiProperties,
+                beans.getBeanProvider(CallerResolver.class))).build();
+
+        mvc.perform(post("/workflow/api/schedules").contentType("application/json")
+                        .content("{\"id\": \"p\", \"workflowId\": \"payout\", \"cron\": \"0 0 9 * * *\"}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.detail", containsString("payments:write")));
+        mvc.perform(post("/workflow/api/schedules/eom/run-now")).andExpect(status().isForbidden());
+        assertThat(started).isEmpty();
+    }
+
+    @Test
     void refusalsSayWhy() throws Exception {
         mvc.perform(post("/workflow/api/schedules").contentType("application/json")
                         .content("{\"id\": \"x\", \"workflowId\": \"ghost\", \"cron\": \"9 * *\"}"))

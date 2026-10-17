@@ -70,6 +70,20 @@ public class ScheduleService {
     /** The clock; replaceable by tests ({@link #withClock}). */
     private Supplier<Instant> clock = Instant::now;
 
+    /**
+     * {@code workflow.security.flow-authorization.enabled}: on, whoever creates, edits or runs a
+     * schedule now must be allowed to start its workflow — the schedule then starts it as
+     * {@link AuthorizationContext#SYSTEM}, which is not judged, so this is the moment that counts.
+     */
+    @org.springframework.beans.factory.annotation.Value("${workflow.security.flow-authorization.enabled:false}")
+    boolean flowAuthorizationEnabled;
+
+    /** The same service judging callers as {@code enabled} says — for tests. */
+    public ScheduleService withFlowAuthorization(boolean enabled) {
+        this.flowAuthorizationEnabled = enabled;
+        return this;
+    }
+
     @org.springframework.beans.factory.annotation.Autowired
     public ScheduleService(WorkflowDefinitionRepository workflowDefinitionRepository,
                            CronScheduleRepository cronScheduleRepository,
@@ -212,8 +226,17 @@ public class ScheduleService {
 
     // ── Create, edit, delete — only what was created here ────────────────────────────────────────
 
-    /** Creates a schedule owned by the engine. Its id must be free: one schedule per id. */
+    /** Creates a schedule owned by the engine, for an unidentified caller. See {@link #create(ScheduleDraft, AuthorizationContext)}. */
     public ScheduleView create(ScheduleDraft draft) {
+        return create(draft, null);
+    }
+
+    /**
+     * Creates a schedule owned by the engine. Its id must be free: one schedule per id.
+     *
+     * @param caller who asks; with flow authorization on they must be allowed to start the workflow
+     */
+    public ScheduleView create(ScheduleDraft draft, AuthorizationContext caller) {
         var definitions = definitionsById();
         var catalog = catalog(definitions);
         var violations = new ArrayList<String>();
@@ -228,16 +251,29 @@ public class ScheduleService {
                             + s.declaredIn()));
         }
         var schedule = validated(id, draft, definitions, violations);
+        authorize(definitions.get(draft.workflowId().trim()), caller, "schedule '" + id + "'");
         cronScheduleRepository.save(new CronFileSchedule(Schedule.API_SOURCE, 0, draft.workflowId().trim(), schedule));
         log.info("Schedule '{}' created for workflow '{}' ({})", id, draft.workflowId(), schedule.cron());
         return get(id);
     }
 
-    /** Changes a schedule created here: workflow, cron, zone, variables. Its id stays. */
+    /** Changes a schedule, for an unidentified caller. See {@link #update(String, ScheduleDraft, AuthorizationContext)}. */
     public ScheduleView update(String id, ScheduleDraft draft) {
+        return update(id, draft, null);
+    }
+
+    /**
+     * Changes a schedule created here: workflow, cron, zone, variables. Its id stays.
+     *
+     * @param caller who asks; with flow authorization on they must be allowed to start both the
+     *               workflow the schedule starts now and the one it is changed to
+     */
+    public ScheduleView update(String id, ScheduleDraft draft, AuthorizationContext caller) {
         var definitions = definitionsById();
         var schedule = editableOwner(catalog(definitions), id);
         var updated = validated(schedule.id(), draft, definitions, new ArrayList<>());
+        authorize(definitions.get(schedule.workflowId()), caller, "schedule '" + id + "'");
+        authorize(definitions.get(draft.workflowId().trim()), caller, "schedule '" + id + "'");
         cronScheduleRepository.save(new CronFileSchedule(Schedule.API_SOURCE, 0, draft.workflowId().trim(), updated));
         log.info("Schedule '{}' updated: workflow '{}' ({})", id, draft.workflowId(), updated.cron());
         return get(id);
@@ -278,6 +314,14 @@ public class ScheduleService {
      * business key {@code <workflow>-cron-manual-<id>-<instant>}, which no occurrence ever has.
      */
     public RunNowResult runNow(String id, String by) {
+        return runNow(id, by, null);
+    }
+
+    /**
+     * {@link #runNow(String, String)}, the start still made as {@link AuthorizationContext#SYSTEM} but
+     * only once {@code caller} is shown to be allowed to start the workflow (flow authorization on).
+     */
+    public RunNowResult runNow(String id, String by, AuthorizationContext caller) {
         var definitions = definitionsById();
         var schedule = owner(catalog(definitions), id);
         var definition = definitions.get(schedule.workflowId());
@@ -285,6 +329,7 @@ public class ScheduleService {
             throw new InvalidScheduleException(List.of("workflow '" + schedule.workflowId()
                     + "' is unknown or does not accept new instances"));
         }
+        authorize(definition, caller, "run-now of schedule '" + id + "'");
         var businessKey = schedule.manualBusinessKey(clock.get());
         var variables = schedule.schedule().variablesOrEmpty().entrySet().stream()
                 .map(e -> new Variable(e.getKey(), e.getValue()))
@@ -322,6 +367,13 @@ public class ScheduleService {
     }
 
     // ── Internals ────────────────────────────────────────────────────────────────────────────────
+
+    private void authorize(WorkflowDefinition definition, AuthorizationContext caller, String context) {
+        if (flowAuthorizationEnabled && definition != null) {
+            io.mateu.workflow.application.usecases.process.create.CreateProcessUseCase
+                    .refuseIfCallerMayNotStart(definition, caller, context);
+        }
+    }
 
     private Map<String, WorkflowDefinition> definitionsById() {
         return workflowDefinitionRepository.findAll().stream()

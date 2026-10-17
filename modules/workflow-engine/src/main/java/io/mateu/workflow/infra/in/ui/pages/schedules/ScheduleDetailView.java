@@ -158,7 +158,7 @@ public class ScheduleDetailView implements VisibilitySupplier {
             confirmationText = "Run now", confirmationDenialText = "Cancel")
     public Message runNow(HttpRequest httpRequest) {
         // Nothing on this page changes, so it stays as it is and only says what was started.
-        var started = scheduleService.runNow(id, caller());
+        var started = scheduleService.runNow(id, caller(), callerContext());
         return Message.builder()
                 .variant(NotificationVariant.success)
                 .text("Started " + started.workflowId() + " — business key " + started.businessKey())
@@ -189,6 +189,12 @@ public class ScheduleDetailView implements VisibilitySupplier {
             case "resume" -> !paused;
             default -> false;
         };
+    }
+
+    /** The caller as resolved at this request, for the flow-authorization check. */
+    private io.mateu.workflow.security.AuthorizationContext callerContext() {
+        var resolver = callerResolver == null ? null : callerResolver.getIfAvailable();
+        return resolver == null ? null : resolver.current();
     }
 
     private String caller() {

@@ -107,7 +107,7 @@ public class EventTriggers extends Crud<Object, EventTriggerForm, EventTriggerFo
     @Override
     public String save(HttpRequest httpRequest) {
         var form = httpRequest.getComponentState(EventTriggerForm.class);
-        return EventTriggerRow.rowId(eventTriggerService.update(form.workflowId, form.id, form.draft()));
+        return EventTriggerRow.rowId(eventTriggerService.update(form.workflowId, form.id, form.draft(), callerContext()));
     }
 
     @Override
@@ -124,7 +124,7 @@ public class EventTriggers extends Crud<Object, EventTriggerForm, EventTriggerFo
     @Override
     public String create(HttpRequest httpRequest) {
         var form = httpRequest.getComponentState(EventTriggerForm.class);
-        return EventTriggerRow.rowId(eventTriggerService.create(form.draft()));
+        return EventTriggerRow.rowId(eventTriggerService.create(form.draft(), callerContext()));
     }
 
     /** Deleting is done from a trigger's page, where it is only offered for the ones created here. */
@@ -156,6 +156,12 @@ public class EventTriggers extends Crud<Object, EventTriggerForm, EventTriggerFo
     @Label("Resume")
     public void resumeSelected(List<EventTriggerRow> selectedRows) {
         selectedRows.forEach(row -> eventTriggerService.resume(row.workflow(), row.trigger()));
+    }
+
+    /** The caller as resolved at this request, for the flow-authorization check. */
+    private io.mateu.workflow.security.AuthorizationContext callerContext() {
+        var resolver = callerResolver == null ? null : callerResolver.getIfAvailable();
+        return resolver == null ? null : resolver.current();
     }
 
     private String caller() {

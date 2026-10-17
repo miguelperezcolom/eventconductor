@@ -165,4 +165,20 @@ class CreateProcessFlowAuthorizationTest {
         when(stepExecutionRepository.findById("se-1")).thenReturn(Optional.empty());
         assertThatCode(() -> useCase.handle(child)).doesNotThrowAnyException();
     }
+
+    /**
+     * SYSTEM is the engine's own instance, not a value: a resolved caller whose subject happens to be
+     * "system" (a login, a token's sub) is an ordinary caller and is judged like any other.
+     */
+    @Test
+    void aCallerNamedSystemIsNotTheSystemIdentity() {
+        enforce(true);
+        definitionIs(definitionRequiring(List.of("payments:write"), List.of()));
+
+        assertThatThrownBy(() -> useCase.handle(startedBy(new AuthorizationContext("system", List.of(), List.of()))))
+                .isInstanceOf(FlowAuthorizationDeniedException.class);
+        verify(processRepository, never()).save(any());
+
+        assertThatCode(() -> useCase.handle(startedBy(AuthorizationContext.SYSTEM))).doesNotThrowAnyException();
+    }
 }

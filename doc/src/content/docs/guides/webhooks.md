@@ -72,11 +72,12 @@ The body is the payload as it came, with its `Content-Type`.
 
 - On a **generic** endpoint with a `secret`, prefer a fixed `type`: then the event's type comes from the configuration, never from a header, and a replayed body cannot be relabelled as another kind of event (a fixed `type` on a signed endpoint ignores `CE-Type`). Without a fixed type, the type header is trusted as sent.
 - The **id** comes from an unsigned header (`X-GitHub-Delivery`, `CE-Id`): a replay that keeps it is the same event and is used once, but one that changes it is a new event to the engine. Where that matters, put what identifies the business fact in the trigger's `businessKey` (taken from the signed body), which collapses a second start for the same key.
+**Body size.** A body over `workflow.webhooks.max-body-bytes` (default `26214400`, 25 MB — GitHub's own payload cap) is refused with `413` before it is read whole, whether the sender declares its length or streams it chunked. Lower it for senders known to post small bodies.
 
 ## Transport
 
 - **`kafka`** (default): the event is written on the destination's topic in binary mode — `ce_*` headers, the payload as the value, the subject as the key — exactly what `PUBLISH_EVENT` writes and the engine's inbound consumer reads. Brokers: `workflow.webhooks.kafka.bootstrap-servers`, else `spring.kafka.bootstrap-servers`. The send is awaited (`acks=all`), so the 202 means the broker has it.
-- **`rest`**: the event is handed to the engine's `POST /workflow/api/events/{destination}` as a structured CloudEvent (`workflow.webhooks.engine.url`, `api-key`), for embedded-mode deployments without a broker, or when the gateway should hold no broker credentials.
+- **`rest`**: the event is handed to the engine's `POST /workflow/api/events/{destination}` as a structured CloudEvent (`workflow.webhooks.engine.url`, `api-key`), for embedded-mode deployments without a broker, or when the gateway should hold no broker credentials. When the engine cannot be reached or refuses the event, the sender gets a generic `502` to redeliver; the engine's address and its answer are only logged.
 
 ## Starting a workflow on it
 

@@ -52,6 +52,20 @@ public class EventTriggerService {
     final EventTriggerRepository fileTriggers;
 
     /**
+     * {@code workflow.security.flow-authorization.enabled}: on, whoever creates or edits a trigger must
+     * be allowed to start its workflow — the trigger then starts it as {@code SYSTEM} for every matching
+     * event, which is not judged, so this is the moment that counts.
+     */
+    @org.springframework.beans.factory.annotation.Value("${workflow.security.flow-authorization.enabled:false}")
+    boolean flowAuthorizationEnabled;
+
+    /** The same service judging callers as {@code enabled} says — for tests. */
+    public EventTriggerService withFlowAuthorization(boolean enabled) {
+        this.flowAuthorizationEnabled = enabled;
+        return this;
+    }
+
+    /**
      * Whether a trigger starts processes now. {@code DUPLICATE}: an {@code events.yaml} entry whose id
      * the workflow already has — listed, never fires.
      */
@@ -162,6 +176,14 @@ public class EventTriggerService {
      * @throws InvalidTriggerException when the draft breaks a rule
      */
     public TriggerView create(TriggerDraft draft) {
+        return create(draft, null);
+    }
+
+    /**
+     * {@link #create(TriggerDraft)} on behalf of {@code caller}, who — with flow authorization on —
+     * must be allowed to start the trigger's workflow.
+     */
+    public TriggerView create(TriggerDraft draft, io.mateu.workflow.security.AuthorizationContext caller) {
         var violations = new ArrayList<String>();
         var id = draft.id() == null ? null : draft.id().trim();
         var workflowId = draft.workflowId() == null ? null : draft.workflowId().trim();
@@ -172,6 +194,7 @@ public class EventTriggerService {
                     "id '" + id + "' is already used by the trigger declared in " + owner.declaredIn()));
         }
         var trigger = validated(id, draft, violations);
+        authorize(workflowId, caller, "event trigger '" + id + "'");
         fileTriggers.save(new EventFileTrigger(EventFileTrigger.API_SOURCE, 0, workflowId, trigger));
         log.info("Event trigger '{}' created for workflow '{}' ({} on {})", id, workflowId, trigger.type(), trigger.destination());
         EventTriggerImporter.warnOfSharedBusinessKeys(catalog());
@@ -185,6 +208,15 @@ public class EventTriggerService {
      * @throws TriggerNotEditableException for a trigger declared in a file
      */
     public TriggerView update(String workflowId, String triggerId, TriggerDraft draft) {
+        return update(workflowId, triggerId, draft, null);
+    }
+
+    /**
+     * {@link #update(String, String, TriggerDraft)} on behalf of {@code caller}, who — with flow
+     * authorization on — must be allowed to start the trigger's workflow.
+     */
+    public TriggerView update(String workflowId, String triggerId, TriggerDraft draft,
+                              io.mateu.workflow.security.AuthorizationContext caller) {
         var entry = editableOwner(workflowId, triggerId);
         var violations = new ArrayList<String>();
         if (draft.workflowId() != null && !draft.workflowId().isBlank() && !draft.workflowId().trim().equals(workflowId)) {
@@ -192,6 +224,7 @@ public class EventTriggerService {
         }
         var trigger = validated(entry.trigger().id(), new TriggerDraft(triggerId, workflowId, draft.destination(), draft.type(),
                 draft.filter(), draft.businessKey(), draft.variables()), violations);
+        authorize(workflowId, caller, "event trigger '" + triggerId + "'");
         fileTriggers.save(new EventFileTrigger(EventFileTrigger.API_SOURCE, 0, workflowId, trigger));
         log.info("Event trigger '{}' of workflow '{}' updated ({} on {})", triggerId, workflowId, trigger.type(), trigger.destination());
         EventTriggerImporter.warnOfSharedBusinessKeys(catalog());
@@ -255,6 +288,15 @@ public class EventTriggerService {
         } catch (Exception e) {
             return ScheduleService.quoted(String.valueOf(value));
         }
+    }
+
+    private void authorize(String workflowId, io.mateu.workflow.security.AuthorizationContext caller, String context) {
+        if (!flowAuthorizationEnabled || workflowId == null) {
+            return;
+        }
+        workflowDefinitionRepository.findById(workflowId).ifPresent(definition ->
+                io.mateu.workflow.application.usecases.process.create.CreateProcessUseCase
+                        .refuseIfCallerMayNotStart(definition, caller, context));
     }
 
     private EventTriggerCatalog.Entry editableOwner(String workflowId, String triggerId) {

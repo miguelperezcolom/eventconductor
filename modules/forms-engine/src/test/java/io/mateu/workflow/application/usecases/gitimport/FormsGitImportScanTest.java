@@ -105,6 +105,16 @@ class FormsGitImportScanTest {
         verify(directoryImport).importFrom(
                 org.mockito.ArgumentMatchers.eq(forms),
                 org.mockito.ArgumentMatchers.eq("https://github.com/org/defs.git#forms"),
+                org.mockito.ArgumentMatchers.eq("https://github.com/org/defs.git#forms"),
                 any(), any(), any());
+    }
+
+    /** The key is persisted and shown: credentials embedded in the URL stay out of it. */
+    @org.junit.jupiter.api.Test
+    void theSourceKeyCarriesNoCredentials() {
+        var withToken = new GitImportProperties.GitRepository();
+        withToken.setUrl("https://ci-bot:fake-test-token@github.com/org/defs.git");
+        assertThat(ImportFormsFromGitUseCase.pruneKey(withToken)).isEqualTo("https://******@github.com/org/defs.git");
+        assertThat(ImportFormsFromGitUseCase.formerPruneKey(withToken)).isEqualTo("https://ci-bot:fake-test-token@github.com/org/defs.git");
     }
 }

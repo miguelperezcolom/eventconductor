@@ -32,12 +32,39 @@ import java.util.Set;
  */
 public record AuthorizationContext(String subject, List<String> scopes, List<String> roles) {
 
-    /** A system identity — a process with no human caller (cron, timer, an internal spawn). */
+    /**
+     * A system identity — a process with no human caller (cron, timer, an internal spawn).
+     *
+     * <p>Recognised by <em>identity</em> ({@link #isSystem}), never by value: a caller resolver that
+     * builds {@code new AuthorizationContext("system", [], [])} — a login or a token whose subject
+     * happens to be "system" — is an ordinary caller and is judged like any other. Only the engine's own
+     * code holds this instance. The one way back to it from outside the JVM is deserialization
+     * ({@link #fromJson}) of a creation request on the engine's own upstream/ingress topics, which are
+     * trusted transport: a producer on them already chooses the caller's scopes outright.
+     */
     public static final AuthorizationContext SYSTEM = new AuthorizationContext("system", List.of(), List.of());
 
     public AuthorizationContext {
         scopes = scopes == null ? List.of() : List.copyOf(scopes);
         roles = roles == null ? List.of() : List.copyOf(roles);
+    }
+
+    /** Whether {@code caller} is the engine acting for itself — the {@link #SYSTEM} instance, not a look-alike. */
+    public static boolean isSystem(AuthorizationContext caller) {
+        return caller == SYSTEM;
+    }
+
+    /**
+     * How a context is read back from JSON (a {@code ProcessCreationRequested} on the engine's own
+     * topics): the system identity a cron start or an inbound event was published with comes back as
+     * {@link #SYSTEM} itself, so it keeps meaning "the engine" across the Kafka hop.
+     */
+    @com.fasterxml.jackson.annotation.JsonCreator
+    public static AuthorizationContext fromJson(@com.fasterxml.jackson.annotation.JsonProperty("subject") String subject,
+                                                @com.fasterxml.jackson.annotation.JsonProperty("scopes") List<String> scopes,
+                                                @com.fasterxml.jackson.annotation.JsonProperty("roles") List<String> roles) {
+        var context = new AuthorizationContext(subject, scopes, roles);
+        return SYSTEM.equals(context) ? SYSTEM : context;
     }
 
     public Set<String> scopeSet() {

@@ -208,21 +208,35 @@ public class CreateProcessUseCase {
             return;
         }
         var engineOriginated = (command.parentStepExecutionId() != null && !command.parentStepExecutionId().isBlank())
-                || AuthorizationContext.SYSTEM.equals(command.caller());
+                // By identity: a resolved caller whose subject is "system" is not the engine.
+                || AuthorizationContext.isSystem(command.caller());
         if (engineOriginated) {
             return;
         }
+        refuseIfCallerMayNotStart(definition, command.caller(), command.businessKey());
+    }
+
+    /**
+     * The check itself, shared with every door that sets up a start the engine will later make on its
+     * own behalf — a schedule, an event trigger, a schedule's run-now: whoever creates or edits one must
+     * be allowed to start its workflow, or SYSTEM would start it for them.
+     *
+     * @param context what is being judged, for the log (a business key, a schedule id…)
+     * @throws FlowAuthorizationDeniedException if the caller is missing anything the definition requires
+     */
+    public static void refuseIfCallerMayNotStart(io.mateu.workflow.domain.aggregates.WorkflowDefinition definition,
+                                                 AuthorizationContext caller, String context) {
         var decision = FlowAuthorizationService.authorize(
-                command.caller(), definition.requiredScopes(), definition.requiredRoles());
+                caller, definition.requiredScopes(), definition.requiredRoles());
         if (!decision.allowed()) {
-            log.warn("Refused to start workflow definition '{}' for business key '{}': caller '{}' is"
+            log.warn("Refused to start workflow definition '{}' ({}): caller '{}' is"
                             + " missing scopes {} and roles {}",
-                    definition.id(), command.businessKey(),
-                    command.caller() == null ? null : command.caller().subject(),
+                    definition.id(), context,
+                    caller == null ? null : caller.subject(),
                     decision.missingScopes(), decision.missingRoles());
             throw FlowAuthorizationDeniedException.of(
                     "start workflow '" + definition.id() + "'",
-                    command.caller() == null ? null : command.caller().subject(),
+                    caller == null ? null : caller.subject(),
                     decision.missingScopes(), decision.missingRoles());
         }
     }

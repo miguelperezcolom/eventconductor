@@ -65,7 +65,7 @@ public class ImportTasksFromDirectoryUseCase {
 
     /** Imports every task contract under {@code root}. */
     public void importFrom(Path root, List<String> imported, List<String> errors) throws IOException {
-        try (var stream = Files.walk(root)) {
+        try (var stream = io.mateu.workflow.imports.ImportFiles.walk(root)) {
             stream.filter(ImportTasksFromDirectoryUseCase::isDefinitionFile)
                     .forEach(file -> {
                         try {
@@ -86,8 +86,8 @@ public class ImportTasksFromDirectoryUseCase {
 
     private JsonNode readTree(Path file) throws IOException {
         return file.toString().toLowerCase().endsWith(".json")
-                ? OBJECT_MAPPER.readTree(file.toFile())
-                : YAML_MAPPER.readTree(file.toFile());
+                ? OBJECT_MAPPER.readTree(io.mateu.workflow.imports.ImportFiles.read(file))
+                : YAML_MAPPER.readTree(io.mateu.workflow.imports.ImportFiles.read(file));
     }
 
     private void importFile(Path file, Path root, List<String> imported) throws IOException {

@@ -130,6 +130,31 @@ public class ImportWorkflowDefinitionsFromDirectoryUseCase {
     }
 
     /**
+     * {@link #importFrom} for a source that used to be recorded under another key — a git source keyed
+     * by its raw URL, credentials included, before the key was sanitized. What the old key recorded is
+     * carried over to the new one, so a definition removed meanwhile is still pruned and a pause still
+     * applies, and the old key's rows are then emptied, so nothing is recorded (or fires) twice and the
+     * credentials stop being stored. Idempotent: once the old key holds nothing, it is a no-op lookup.
+     */
+    public void importFrom(Path root, String pruneKey, String formerKey, List<String> imported, List<String> errors,
+                           List<String> pruned) throws IOException {
+        if (formerKey == null || formerKey.equals(pruneKey)) {
+            importFrom(root, pruneKey, imported, errors, pruned);
+            return;
+        }
+        importedDefinitionsRegistry.moveSource(NAMESPACE, formerKey, pruneKey);
+        importFrom(root, pruneKey, imported, errors, pruned);
+        // After the import, so the schedules and triggers already exist under the new key when the
+        // old key's copies go: their pauses are kept rather than reconciled away as orphans.
+        if (cronScheduleImporter != null) {
+            cronScheduleImporter.importSource(formerKey, List.of());
+        }
+        if (eventTriggerImporter != null) {
+            eventTriggerImporter.importSource(formerKey, List.of());
+        }
+    }
+
+    /**
      * Makes the {@code events.yaml} files under {@code root} the event triggers of this source, replacing
      * what its previous import recorded — none found clears them, so deleting the file stops them.
      */
@@ -138,12 +163,16 @@ public class ImportWorkflowDefinitionsFromDirectoryUseCase {
             return;
         }
         var files = new ArrayList<io.mateu.workflow.application.services.EventTriggerImporter.EventFile>();
-        try (var stream = Files.walk(root)) {
-            for (var file : stream.filter(Files::isRegularFile)
+        try (var stream = io.mateu.workflow.imports.ImportFiles.walk(root)) {
+            for (var file : stream
                     .filter(f -> io.mateu.workflow.analysis.EventTriggerRules.isEventFileName(f.toString()))
                     .sorted().toList()) {
-                files.add(new io.mateu.workflow.application.services.EventTriggerImporter.EventFile(
-                        root.relativize(file).toString(), Files.readAllBytes(file)));
+                try {
+                    files.add(new io.mateu.workflow.application.services.EventTriggerImporter.EventFile(
+                            root.relativize(file).toString(), io.mateu.workflow.imports.ImportFiles.read(file)));
+                } catch (IOException e) {
+                    errors.add("File " + root.relativize(file) + ": " + e.getMessage());
+                }
             }
         }
         errors.addAll(eventTriggerImporter.importSource(sourceKey, files).errors());
@@ -158,12 +187,16 @@ public class ImportWorkflowDefinitionsFromDirectoryUseCase {
             return;
         }
         var files = new ArrayList<io.mateu.workflow.application.services.CronScheduleImporter.CronFile>();
-        try (var stream = Files.walk(root)) {
-            for (var file : stream.filter(Files::isRegularFile)
+        try (var stream = io.mateu.workflow.imports.ImportFiles.walk(root)) {
+            for (var file : stream
                     .filter(f -> io.mateu.workflow.analysis.ScheduleRules.isCronFileName(f.toString()))
                     .sorted().toList()) {
-                files.add(new io.mateu.workflow.application.services.CronScheduleImporter.CronFile(
-                        root.relativize(file).toString(), Files.readAllBytes(file)));
+                try {
+                    files.add(new io.mateu.workflow.application.services.CronScheduleImporter.CronFile(
+                            root.relativize(file).toString(), io.mateu.workflow.imports.ImportFiles.read(file)));
+                } catch (IOException e) {
+                    errors.add("File " + root.relativize(file) + ": " + e.getMessage());
+                }
             }
         }
         errors.addAll(cronScheduleImporter.importSource(sourceKey, files).errors());
@@ -177,7 +210,7 @@ public class ImportWorkflowDefinitionsFromDirectoryUseCase {
                                Set<String> importedIds) throws IOException {
         var declaredIds = DerivedIds.declaredUnder(repoRoot,
                 ImportWorkflowDefinitionsFromDirectoryUseCase::isDefinitionFile, this::readTree);
-        try (var stream = Files.walk(repoRoot)) {
+        try (var stream = io.mateu.workflow.imports.ImportFiles.walk(repoRoot)) {
             stream.filter(ImportWorkflowDefinitionsFromDirectoryUseCase::isDefinitionFile)
                     .forEach(file -> {
                         try {
@@ -192,7 +225,7 @@ public class ImportWorkflowDefinitionsFromDirectoryUseCase {
 
     /** .ec content may be JSON or YAML; sniff to pick the parser (.json/.yaml decide by extension). */
     private JsonNode readTree(Path file) throws IOException {
-        var bytes = Files.readAllBytes(file);
+        var bytes = io.mateu.workflow.imports.ImportFiles.read(file);
         return DefinitionFileFormat.isYaml(file.toString(), bytes)
                 ? YAML_MAPPER.readTree(bytes)
                 : objectMapper.readTree(bytes);

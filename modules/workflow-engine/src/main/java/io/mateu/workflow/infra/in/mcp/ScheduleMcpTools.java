@@ -33,6 +33,18 @@ public class ScheduleMcpTools implements McpTools, McpSystemContext {
     private final ScheduleService scheduleService;
     private final WorkflowDefinitionRepository workflowDefinitionRepository;
 
+    /**
+     * Who is calling, for the flow-authorization check on create/edit/run-now. Field-injected and
+     * optional: an MCP endpoint behind Spring Security resolves its caller like any other door.
+     */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    org.springframework.beans.factory.ObjectProvider<io.mateu.workflow.security.CallerResolver> callerResolver;
+
+    private io.mateu.workflow.security.AuthorizationContext callerContext() {
+        var resolver = callerResolver == null ? null : callerResolver.getIfAvailable();
+        return resolver == null ? null : resolver.current();
+    }
+
     @Override
     public String getSystemContext() {
         return """
@@ -74,7 +86,7 @@ public class ScheduleMcpTools implements McpTools, McpSystemContext {
                                        @ToolParam(required = false, description = "IANA zone; empty for the default") String zone,
                                        @ToolParam(required = false, description = "Initial process variables by name") Map<String, String> variables) {
         log.info("Creating schedule {} for {}", id, workflowId);
-        return scheduleService.create(new ScheduleDraft(id, workflowId, cron, zone, variables));
+        return scheduleService.create(new ScheduleDraft(id, workflowId, cron, zone, variables), callerContext());
     }
 
     @Tool(description = "Edit a UI/API schedule: its workflow, cron, zone and variables (all replaced; the id never"
@@ -83,7 +95,7 @@ public class ScheduleMcpTools implements McpTools, McpSystemContext {
                                        @ToolParam(required = false, description = "IANA zone; empty for the default") String zone,
                                        @ToolParam(required = false, description = "Initial process variables by name") Map<String, String> variables) {
         log.info("Updating schedule {}", scheduleId);
-        return scheduleService.update(scheduleId, new ScheduleDraft(scheduleId, workflowId, cron, zone, variables));
+        return scheduleService.update(scheduleId, new ScheduleDraft(scheduleId, workflowId, cron, zone, variables), callerContext());
     }
 
     @Tool(description = "Delete a UI/API schedule (and its pause). Fails for a schedule declared in a definition or a"
@@ -112,7 +124,7 @@ public class ScheduleMcpTools implements McpTools, McpSystemContext {
             + " is paused. Returns the business key of the process it starts (<workflow>-cron-manual-<id>-<instant>).")
     public RunNowResult runScheduleNow(String scheduleId) {
         log.info("Running schedule {} now", scheduleId);
-        return scheduleService.runNow(scheduleId, CALLER);
+        return scheduleService.runNow(scheduleId, CALLER, callerContext());
     }
 
     @Tool(description = "Promote a schedule to git: returns its cron.yaml entry (id included), ready to paste into the"

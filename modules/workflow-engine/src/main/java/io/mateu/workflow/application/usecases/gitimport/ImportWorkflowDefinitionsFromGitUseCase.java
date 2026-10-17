@@ -60,7 +60,7 @@ public class ImportWorkflowDefinitionsFromGitUseCase {
         try {
             cloneRepository(repo, tempDir);
             // A clone is a directory, so from here on it is the same import.
-            directoryImport.importFrom(resolveScanRoot(repo, tempDir), pruneKey(repo),
+            directoryImport.importFrom(resolveScanRoot(repo, tempDir), pruneKey(repo), formerPruneKey(repo),
                     imported, errors, pruned);
         } finally {
             deleteDirectory(tempDir.toFile());
@@ -94,11 +94,24 @@ public class ImportWorkflowDefinitionsFromGitUseCase {
      * — and therefore pruning — independent.
      */
     static String pruneKey(GitImportProperties.GitRepository repo) {
-        String directory = repo.getDirectory();
+        // Sanitized: the key is persisted (provenance, schedule and trigger sources) and shown in the
+        // UI, REST and MCP, so credentials embedded in the URL (https://user:token@host/…) must not be in it.
+        return keyOf(UrlSanitizer.sanitize(repo.getUrl()), repo.getDirectory());
+    }
+
+    /**
+     * The key this source had before it was sanitized — the raw URL — whose rows the next import moves
+     * over and empties. Equal to {@link #pruneKey} for a URL without credentials.
+     */
+    static String formerPruneKey(GitImportProperties.GitRepository repo) {
+        return keyOf(repo.getUrl(), repo.getDirectory());
+    }
+
+    private static String keyOf(String url, String directory) {
         if (directory == null || directory.isBlank()) {
-            return repo.getUrl();
+            return url;
         }
-        return repo.getUrl() + "#" + directory;
+        return url + "#" + directory;
     }
 
     private void cloneRepository(GitImportProperties.GitRepository repo, Path targetDir)

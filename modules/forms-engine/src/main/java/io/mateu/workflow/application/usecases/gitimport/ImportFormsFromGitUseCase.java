@@ -80,7 +80,7 @@ public class ImportFormsFromGitUseCase {
     void importFromClone(GitImportProperties.GitRepository repo, Path cloneRoot,
                          List<String> imported, List<String> errors, List<String> pruned)
             throws IOException {
-        directoryImport.importFrom(resolveScanRoot(repo, cloneRoot), pruneKey(repo),
+        directoryImport.importFrom(resolveScanRoot(repo, cloneRoot), pruneKey(repo), formerPruneKey(repo),
                 imported, errors, pruned);
     }
 
@@ -111,11 +111,20 @@ public class ImportFormsFromGitUseCase {
      * — and therefore pruning — independent.
      */
     static String pruneKey(GitImportProperties.GitRepository repo) {
-        String directory = repo.getDirectory();
+        // Sanitized: the key is persisted and shown, so URL-embedded credentials must not be in it.
+        return keyOf(UrlSanitizer.sanitize(repo.getUrl()), repo.getDirectory());
+    }
+
+    /** The key before it was sanitized (the raw URL), whose record the next import moves over. */
+    static String formerPruneKey(GitImportProperties.GitRepository repo) {
+        return keyOf(repo.getUrl(), repo.getDirectory());
+    }
+
+    private static String keyOf(String url, String directory) {
         if (directory == null || directory.isBlank()) {
-            return repo.getUrl();
+            return url;
         }
-        return repo.getUrl() + "#" + directory;
+        return url + "#" + directory;
     }
 
     private void cloneRepository(GitImportProperties.GitRepository repo, Path targetDir)

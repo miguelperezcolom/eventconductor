@@ -58,6 +58,13 @@ public class WebhookGatewayAutoConfiguration {
         return new WebhookController(properties, providers, publisher, metrics);
     }
 
+    /** Caps the body of a webhook request before it is read whole ({@code workflow.webhooks.max-body-bytes}). */
+    @Bean
+    @ConditionalOnMissingBean
+    public WebhookBodyLimitFilter webhookBodyLimitFilter(WebhookGatewayProperties properties) {
+        return new WebhookBodyLimitFilter(properties);
+    }
+
     /** The REST transport: the engine's inject endpoint, over the JDK's HttpClient. */
     @Bean
     @ConditionalOnMissingBean(WebhookPublisher.class)

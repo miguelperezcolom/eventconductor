@@ -67,7 +67,8 @@ public class HttpCallHandler implements TaskHandler<HttpCallHandler.Input, Map<S
         this.secrets = secrets;
         this.hostGuard = hostGuard;
         this.metrics = metrics == null ? HttpCallMetrics.NONE : metrics;
-        this.tokens = new OAuth2TokenCache(HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build());
+        this.tokens = new OAuth2TokenCache(HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5))
+                .followRedirects(HttpClient.Redirect.NEVER).build(), properties::getMaxResponseBytes);
     }
 
     @Override
@@ -89,9 +90,13 @@ public class HttpCallHandler implements TaskHandler<HttpCallHandler.Input, Map<S
         }
         URI uri = uriOf(request, connection);
         if (connection == null) {
-            var refusal = hostGuard.refusal(uri);
+            var refusal = hostGuard.check(uri);
+            if (refusal != null && refusal.unresolved()) {
+                // Not a policy decision: DNS may answer next time, so this is an I/O failure.
+                throw failure("HTTP_IO", refusal.reason(), retryOn.contains("io"));
+            }
             if (refusal != null) {
-                throw new TaskFailure("HTTP_FORBIDDEN_HOST", refusal, false);
+                throw new TaskFailure("HTTP_FORBIDDEN_HOST", refusal.reason(), false);
             }
         }
         var method = text(request, "method") == null ? "GET" : text(request, "method");
@@ -203,7 +208,7 @@ public class HttpCallHandler implements TaskHandler<HttpCallHandler.Input, Map<S
         }
         if (node.isObject()) {
             var inline = JSON.convertValue(node, HttpWorkerProperties.AuthProfile.class);
-            return new ResolvedAuth("inline:" + node.hashCode(), inline);
+            return new ResolvedAuth("inline:" + node, inline, true);
         }
         if (connection != null && connection.getAuth() != null && !connection.getAuth().isBlank()) {
             return profile(connection.getAuth());
@@ -217,17 +222,20 @@ public class HttpCallHandler implements TaskHandler<HttpCallHandler.Input, Map<S
             throw new TaskFailure("HTTP_CONFIG", "auth profile '" + name + "' is not configured (workflow.http.auth."
                     + name + ")", false);
         }
-        return new ResolvedAuth(name, profile);
+        return new ResolvedAuth(name, profile, false);
     }
 
     /** An auth profile, applied with its secrets resolved at the moment of the call. */
     private final class ResolvedAuth {
         private final String name;
         private final HttpWorkerProperties.AuthProfile profile;
+        /** An inline block from the definition: its token endpoint is untrusted, like a URL. */
+        private final boolean fromDefinition;
 
-        ResolvedAuth(String name, HttpWorkerProperties.AuthProfile profile) {
+        ResolvedAuth(String name, HttpWorkerProperties.AuthProfile profile, boolean fromDefinition) {
             this.name = name;
             this.profile = profile;
+            this.fromDefinition = fromDefinition;
         }
 
         String name() {
@@ -257,7 +265,8 @@ public class HttpCallHandler implements TaskHandler<HttpCallHandler.Input, Map<S
                     }
                     case "oauth2-client-credentials" -> headers.put("Authorization", "Bearer " + tokens.token(name,
                             profile.getTokenUri(), secrets.resolve(profile.getClientId()),
-                            secrets.resolve(profile.getClientSecret()), profile.getScope()));
+                            secrets.resolve(profile.getClientSecret()), profile.getScope(),
+                            fromDefinition ? hostGuard : null));
                     default -> throw new TaskFailure("HTTP_CONFIG", "unknown auth type '" + profile.getType() + "'", false);
                 }
             } catch (SecretResolver.MissingSecretException e) {

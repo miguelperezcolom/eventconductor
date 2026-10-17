@@ -19,6 +19,8 @@ import java.util.LinkedHashMap;
 public class RestWebhookPublisher implements WebhookPublisher {
 
     private static final ObjectMapper JSON = new ObjectMapper();
+    private static final org.apache.commons.logging.Log log =
+            org.apache.commons.logging.LogFactory.getLog(RestWebhookPublisher.class);
 
     private final HttpClient client;
     private final WebhookGatewayProperties.Engine engine;
@@ -46,11 +48,15 @@ public class RestWebhookPublisher implements WebhookPublisher {
         try {
             response = client.send(request.build(), HttpResponse.BodyHandlers.ofString());
         } catch (Exception e) {
-            throw new WebhookRejectedException(502, "Could not reach the engine at " + url + ": " + e.getMessage());
+            // The sender learns only that it may redeliver: the engine's address and its answer are
+            // internal, and stay in this log.
+            log.error("Could not hand webhook event " + event.id() + " to the engine at " + redacted(url) + ": " + e);
+            throw new WebhookRejectedException(502, "The event could not be delivered; it may be redelivered.");
         }
         if (response.statusCode() / 100 != 2) {
-            throw new WebhookRejectedException(502, "The engine answered " + response.statusCode() + " to " + url
-                    + ": " + abbreviate(response.body()));
+            log.error("The engine answered " + response.statusCode() + " to " + redacted(url) + " for webhook event "
+                    + event.id() + ": " + abbreviate(response.body()));
+            throw new WebhookRejectedException(502, "The event could not be delivered; it may be redelivered.");
         }
     }
 
@@ -85,6 +91,12 @@ public class RestWebhookPublisher implements WebhookPublisher {
         } catch (Exception e) {
             throw new IllegalStateException("Could not write the CloudEvent", e);
         }
+    }
+
+    /** The URL without its query (the event's key). */
+    private static String redacted(String url) {
+        var q = url.indexOf('?');
+        return q < 0 ? url : url.substring(0, q);
     }
 
     private static String abbreviate(String body) {

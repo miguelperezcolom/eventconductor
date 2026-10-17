@@ -44,6 +44,13 @@ public class HttpWorkerProperties {
     private Map<String, String> secrets = new LinkedHashMap<>();
 
     /**
+     * Whether a {@code ${secret:NAME}} that is not in {@code secrets} falls back to the environment
+     * variable / Spring property {@code NAME}. True — the default — keeps the documented lookup; false
+     * resolves only from {@code secrets}, so a definition can reach no value the operator did not list.
+     */
+    private boolean secretsFromEnvironment = true;
+
+    /**
      * Hosts an absolute URL may target: exact names or {@code *.suffix} patterns. Empty — the default —
      * allows any public host. Internal addresses (loopback, private, link-local, the cloud metadata
      * endpoint) are refused for absolute URLs regardless; reach internal services through a connection.

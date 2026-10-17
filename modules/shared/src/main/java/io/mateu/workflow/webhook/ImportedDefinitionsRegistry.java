@@ -18,4 +18,23 @@ public interface ImportedDefinitionsRegistry {
 
     /** Replaces the recorded id set for this repository with the ids of the latest import. */
     void replace(String namespace, String repositoryUrl, Set<String> ids);
+
+    /**
+     * Moves what {@code formerKey} recorded onto {@code key} (merged with what {@code key} already has)
+     * and empties {@code formerKey} — for a source whose key changed, so its next import still prunes
+     * what was removed meanwhile. A no-op when {@code formerKey} records nothing or is {@code key}.
+     */
+    default void moveSource(String namespace, String formerKey, String key) {
+        if (formerKey == null || formerKey.equals(key)) {
+            return;
+        }
+        var former = idsFor(namespace, formerKey);
+        if (former.isEmpty()) {
+            return;
+        }
+        var merged = new java.util.LinkedHashSet<>(idsFor(namespace, key));
+        merged.addAll(former);
+        replace(namespace, key, merged);
+        replace(namespace, formerKey, Set.of());
+    }
 }

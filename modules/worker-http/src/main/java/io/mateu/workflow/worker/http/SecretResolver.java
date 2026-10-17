@@ -6,7 +6,8 @@ import java.util.regex.Pattern;
 /**
  * Resolves {@code ${secret:NAME}} references — the only form a credential may take in a definition —
  * at call time, in the worker. The value never enters a task variable, the outbox, a log or the process.
- * Lookup order: {@code workflow.http.secrets.NAME}, then the environment / Spring property {@code NAME}.
+ * Lookup order: {@code workflow.http.secrets.NAME}, then — unless
+ * {@code workflow.http.secrets-from-environment=false} — the environment / Spring property {@code NAME}.
  */
 public final class SecretResolver {
 

@@ -227,6 +227,64 @@ class HttpCallHandlerTest {
     }
 
     @Test
+    void anInlineTokenUriOnAnInternalHostIsRefusedBeforeTheSecretIsSent() {
+        routes.put("/token", (e, b) -> {
+            tokenCalls.incrementAndGet();
+            reply(e, 200, "{\"access_token\":\"t\",\"expires_in\":3600}");
+        });
+        routes.put("/api/x", (e, b) -> reply(e, 200, "{}"));
+        assertThatThrownBy(() -> call("{\"connection\":\"local\",\"path\":\"/x\",\"auth\":{\"type\":\"oauth2-client-credentials\","
+                + "\"tokenUri\":\"" + base + "/token\",\"clientId\":\"ec\",\"clientSecret\":\"${secret:PASS}\"}}"))
+                .isInstanceOfSatisfying(TaskFailure.class, f -> {
+                    assertThat(f.code()).isEqualTo("HTTP_FORBIDDEN_HOST");
+                    assertThat(f.reason()).contains("token endpoint").contains("internal address");
+                });
+        assertThat(tokenCalls.get()).as("the client secret never left").isZero();
+    }
+
+    @Test
+    void anInlineTokenUriOutsideTheAllowedHostsIsRefused() {
+        handler = handler(List.of("api.partner.com"));
+        routes.put("/api/x", (e, b) -> reply(e, 200, "{}"));
+        assertThatThrownBy(() -> call("{\"connection\":\"local\",\"path\":\"/x\",\"auth\":{\"type\":\"oauth2-client-credentials\","
+                + "\"tokenUri\":\"https://idp.elsewhere.example/token\",\"clientId\":\"ec\",\"clientSecret\":\"${secret:PASS}\"}}"))
+                .isInstanceOfSatisfying(TaskFailure.class, f -> {
+                    assertThat(f.code()).isEqualTo("HTTP_FORBIDDEN_HOST");
+                    assertThat(f.reason()).contains("allowed-hosts");
+                });
+    }
+
+    @Test
+    void anOversizedTokenResponseFailsTheStep() {
+        routes.put("/token", (e, b) -> reply(e, 200, "{\"access_token\":\"" + "x".repeat(200) + "\",\"expires_in\":3600}"));
+        routes.put("/api/x", (e, b) -> reply(e, 200, "{}"));
+        var oauth = new HttpWorkerProperties.AuthProfile();
+        oauth.setType("oauth2-client-credentials");
+        oauth.setTokenUri(base + "/token");
+        oauth.setClientId("ec");
+        oauth.setClientSecret("${secret:PASS}");
+        properties.getAuth().put("idp", oauth);
+        properties.setMaxResponseBytes(100);
+        assertThatThrownBy(() -> call("{\"connection\":\"local\",\"path\":\"/x\",\"auth\":\"idp\"}"))
+                .isInstanceOfSatisfying(TaskFailure.class, f -> {
+                    assertThat(f.code()).isEqualTo("HTTP_RESPONSE_TOO_LARGE");
+                    assertThat(f.reason()).contains("token endpoint");
+                });
+    }
+
+    @Test
+    void anAbsoluteUrlWhoseHostDoesNotResolveIsARetryableIoFailureNotACall() {
+        handler = new HttpCallHandler(properties, new SecretResolver(properties.getSecrets()::get),
+                new HostGuard(List.of(), host -> { throw new java.net.UnknownHostException(host); }), null);
+        assertThatThrownBy(() -> call("{\"url\":\"https://nowhere.invalid/x\"}"))
+                .isInstanceOfSatisfying(TaskFailure.class, f -> {
+                    assertThat(f.code()).isEqualTo("HTTP_IO");
+                    assertThat(f.reason()).contains("could not be resolved");
+                    assertThat(f.retryable()).isTrue();
+                });
+    }
+
+    @Test
     void anAbsoluteUrlToAnInternalAddressIsRefusedAndAnUnknownConnectionIsAConfigError() {
         assertThatThrownBy(() -> call("{\"url\":\"" + base + "/api/x\"}"))
                 .isInstanceOfSatisfying(TaskFailure.class, f -> {

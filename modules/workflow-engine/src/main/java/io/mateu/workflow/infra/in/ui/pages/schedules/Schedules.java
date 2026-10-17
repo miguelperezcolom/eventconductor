@@ -107,7 +107,7 @@ public class Schedules extends Crud<Object, ScheduleForm, ScheduleForm, Schedule
     @Override
     public String save(HttpRequest httpRequest) {
         var form = httpRequest.getComponentState(ScheduleForm.class);
-        return scheduleService.update(form.id, form.draft()).id();
+        return scheduleService.update(form.id, form.draft(), callerContext()).id();
     }
 
     @Override
@@ -124,7 +124,7 @@ public class Schedules extends Crud<Object, ScheduleForm, ScheduleForm, Schedule
     @Override
     public String create(HttpRequest httpRequest) {
         var form = httpRequest.getComponentState(ScheduleForm.class);
-        return scheduleService.create(form.draft()).id();
+        return scheduleService.create(form.draft(), callerContext()).id();
     }
 
     /** Deleting is done from a schedule's page, where it is only offered for the ones created here. */
@@ -156,6 +156,12 @@ public class Schedules extends Crud<Object, ScheduleForm, ScheduleForm, Schedule
     @Label("Resume")
     public void resumeSelected(List<ScheduleListRow> selectedRows) {
         selectedRows.forEach(row -> scheduleService.resume(row.id()));
+    }
+
+    /** The caller as resolved at this request, for the flow-authorization check. */
+    private io.mateu.workflow.security.AuthorizationContext callerContext() {
+        var resolver = callerResolver == null ? null : callerResolver.getIfAvailable();
+        return resolver == null ? null : resolver.current();
     }
 
     private String caller() {
