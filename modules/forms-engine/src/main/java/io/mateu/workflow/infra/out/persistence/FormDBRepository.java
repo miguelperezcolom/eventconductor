@@ -75,10 +75,16 @@ public class FormDBRepository implements FormRepository {
         try {
             return JsonSerializer.listFromJson(json, String.class);
         } catch (Exception e) {
-            log.error("A form's requirements could not be read from '{}' — it will require nothing", json, e);
-            return List.of();
+            // Fail closed: a requirement that cannot be read is one nobody meets. Reading it as "none"
+            // would open a restricted form's tasks to everyone because a column got corrupted.
+            log.error("A form's requirements could not be read from '{}' — its tasks are refused to everyone until"
+                    + " the form is imported again", json, e);
+            return List.of(UNREADABLE_REQUIREMENT);
         }
     }
+
+    /** What an unreadable requirement reads as: a scope or role no caller holds. */
+    static final String UNREADABLE_REQUIREMENT = "eventconductor:unreadable-requirement";
 
     private String writeStrings(List<String> values) {
         return values == null || values.isEmpty() ? null : JsonSerializer.toJson(values);

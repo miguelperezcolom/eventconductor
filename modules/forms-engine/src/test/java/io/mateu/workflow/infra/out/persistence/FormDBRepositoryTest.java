@@ -53,6 +53,24 @@ class FormDBRepositoryTest {
         assertThat(found.fields()).extracting(Field::id).containsExactly("name");
     }
 
+    @Autowired
+    FormEntityRepository formEntityRepository;
+
+    @Test
+    void anUnreadableRequirementIsOneNobodyMeetsNotNone() {
+        repository.save(new Form("f1", "Approval", "d", List.of(field("ok", "OK")), List.of("approvals:write"),
+                List.of("admin")));
+        var entity = formEntityRepository.findById("f1").orElseThrow();
+        entity.setRequiredRoles("{not json");
+        entity.setRequiredScopes("[\"approvals:write\"");
+        formEntityRepository.save(entity);
+
+        var form = repository.findById("f1").orElseThrow();
+
+        assertThat(form.requiredRoles()).containsExactly(FormDBRepository.UNREADABLE_REQUIREMENT);
+        assertThat(form.requiredScopes()).containsExactly(FormDBRepository.UNREADABLE_REQUIREMENT);
+    }
+
     @Test
     void roundTripsWhoMayWorkOnTheFormsTasks() {
         repository.save(new Form("f1", "Approval", "d", List.of(field("ok", "OK")), List.of("approvals:write"),
