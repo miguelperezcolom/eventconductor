@@ -185,4 +185,31 @@ class FormDBRepositoryTest {
         assertThat(fieldEntityRepository.findByFormIdOrderByFieldOrderAsc("f1").get(0).getOptionsSource()).isNull();
         assertThat(repository.findById("f1").orElseThrow().fields().get(0).optionsSource()).isNull();
     }
+
+    @Test
+    void listsEveryFormWithItsFields() {
+        repository.save(form("f1", "Contact", field("name", "Name")));
+        repository.save(form("f2", "Approval", field("ok", "OK"), field("why", "Why")));
+
+        assertThat(repository.findAll()).extracting(Form::id).contains("f1", "f2");
+        assertThat(repository.findAll().stream().filter(f -> f.id().equals("f2")).findFirst().orElseThrow()
+                .fields()).extracting(Field::id).containsExactly("ok", "why");
+    }
+
+    @Test
+    void deletingNothingDeletesNothing() {
+        repository.save(form("f1", "Contact", field("name", "Name")));
+        repository.deleteAllById(List.of());
+        assertThat(repository.findById("f1")).isPresent();
+    }
+
+    @Test
+    void anUnreadableStoredOptionsSourceLeavesTheFieldWithNone() {
+        repository.save(form("f1", "Contact", field("name", "Name")));
+        var stored = fieldEntityRepository.findByFormIdOrderByFieldOrderAsc("f1").get(0);
+        stored.setOptionsSource("not json");
+        fieldEntityRepository.save(stored);
+
+        assertThat(repository.findById("f1").orElseThrow().fields().get(0).optionsSource()).isNull();
+    }
 }

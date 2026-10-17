@@ -78,4 +78,56 @@ class WebhookBodyLimitFilterTest {
         assertThat(response.getStatus()).isEqualTo(200);
         assertThat(chain.getRequest()).isSameAs(request);
     }
+
+    @Test
+    void theBodyIsHandedOnReadableAsStreamOrReaderUnderAContextPath() throws Exception {
+        var request = new MockHttpServletRequest("POST", "/app/webhooks/partner");
+        request.setContextPath("/app");
+        request.setCharacterEncoding("ISO-8859-1");
+        request.setContent("caf\u00e9".getBytes(StandardCharsets.ISO_8859_1));
+        var seen = new ArrayList<String>();
+        jakarta.servlet.FilterChain chain = (req, res) -> {
+            var wrapped = (jakarta.servlet.http.HttpServletRequest) req;
+            seen.add(String.valueOf(wrapped.getContentLength()));
+            seen.add(String.valueOf(wrapped.getContentLengthLong()));
+            seen.add(wrapped.getReader().readLine());
+            var in = wrapped.getInputStream();
+            assertThat(in.isReady()).isTrue();
+            assertThat(in.isFinished()).isFalse();
+            seen.add(new String(in.readAllBytes(), StandardCharsets.ISO_8859_1));
+            assertThat(in.isFinished()).isTrue();
+            org.assertj.core.api.Assertions.assertThatThrownBy(() -> in.setReadListener(null))
+                    .isInstanceOf(UnsupportedOperationException.class);
+        };
+
+        new WebhookBodyLimitFilter(properties).doFilter(request, new MockHttpServletResponse(), chain);
+
+        assertThat(seen).containsExactly("4", "4", "caf\u00e9", "caf\u00e9");
+    }
+
+    @Test
+    void aBodyWithoutDeclaredEncodingIsReadAsUtf8AndACustomPathIsFiltered() throws Exception {
+        properties.setPath("/hooks/");
+        var request = new MockHttpServletRequest("POST", "/hooks/partner");
+        request.setContent("\u00f1".getBytes(StandardCharsets.UTF_8));
+        var seen = new ArrayList<String>();
+        jakarta.servlet.FilterChain chain = (req, res) -> seen.add(req.getReader().readLine());
+
+        new WebhookBodyLimitFilter(properties).doFilter(request, new MockHttpServletResponse(), chain);
+
+        assertThat(seen).containsExactly("\u00f1");
+        // The default prefix no longer applies.
+        var other = new MockHttpServletRequest("POST", "/webhooks/partner");
+        other.setContent(new byte[1000]);
+        var passed = new MockFilterChain();
+        new WebhookBodyLimitFilter(properties).doFilter(other, new MockHttpServletResponse(), passed);
+        assertThat(passed.getRequest()).isSameAs(other);
+    }
+
+    @Test
+    void runsBeforeTheRestOfTheChain() {
+        assertThat(new WebhookBodyLimitFilter(properties).getOrder())
+                .isLessThan(org.springframework.core.Ordered.LOWEST_PRECEDENCE)
+                .isEqualTo(org.springframework.core.Ordered.HIGHEST_PRECEDENCE + 100);
+    }
 }

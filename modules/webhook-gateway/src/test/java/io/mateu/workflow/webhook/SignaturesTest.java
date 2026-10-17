@@ -22,4 +22,9 @@ class SignaturesTest {
         assertThat(Signatures.matches("It's a Secret to Everybody", body, " ")).isFalse();
         assertThat(Signatures.matches("other", body, "sha256=" + hex)).isFalse();
     }
+
+    @Test
+    void anAbsentBodyIsSignedAsAnEmptyOne() {
+        assertThat(Signatures.hmacSha256Hex("k", null)).isEqualTo(Signatures.hmacSha256Hex("k", new byte[0]));
+    }
 }

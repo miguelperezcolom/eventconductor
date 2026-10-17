@@ -91,4 +91,47 @@ class GenericWebhookProviderTest {
         noFixedType.setSecret("s3cret");
         assertThat(provider.read("partner", noFixedType, headers, body).type()).isEqualTo("com.partner.order.cancelled");
     }
+
+    @Test
+    void aSignedEndpointWithoutASignatureHeaderNameChecksTheDefaultOneAndSaysWhich() {
+        var endpoint = endpoint();
+        endpoint.setSecret("s3cret");
+        endpoint.setSignatureHeader(null);
+        endpoint.setType("t");
+
+        var signed = new HashMap<String, String>();
+        signed.put("x-signature-256", Signatures.hmacSha256Hex("s3cret", body));
+        assertThat(provider.read("partner", endpoint, signed, body).type()).isEqualTo("t");
+
+        // The refusal names the header the sender has to set, not "null".
+        assertThatThrownBy(() -> provider.read("partner", endpoint, Map.of(), body))
+                .isInstanceOfSatisfying(WebhookRejectedException.class, e -> {
+                    assertThat(e.status()).isEqualTo(401);
+                    assertThat(e.getMessage()).containsIgnoringCase("x-signature-256").doesNotContain("null");
+                });
+    }
+
+    @Test
+    void withoutHeaderNamesOrBodyTheConfiguredTypeAndAFreshIdAreUsed() {
+        var endpoint = endpoint();
+        endpoint.setTypeHeader(null);
+        endpoint.setIdHeader(" ");
+        endpoint.setType("com.partner.ping");
+
+        var event = provider.read("partner", endpoint, Map.of("ce-type", "ignored", "ce-id", "ignored"), null);
+
+        assertThat(event.type()).isEqualTo("com.partner.ping");
+        assertThat(event.id()).isNotEqualTo("ignored");
+        assertThat(event.data()).isEmpty();
+        assertThat(event.dataContentType()).isEqualTo("application/json");
+    }
+
+    @Test
+    void aBlankHeaderValueIsNoValue() {
+        var endpoint = endpoint();
+        endpoint.setType("com.partner.ping");
+        var event = provider.read("partner", endpoint, Map.of("ce-type", "  ", "ce-subject", " "), body);
+        assertThat(event.type()).isEqualTo("com.partner.ping");
+        assertThat(event.subject()).isNull();
+    }
 }

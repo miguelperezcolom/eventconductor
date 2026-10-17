@@ -54,6 +54,7 @@ class RulesMcpToolsTest {
     private RuleJsonMapper mapper;
     private SaveRuleUseCase saveRule;
     private DeleteRuleUseCase deleteRule;
+    private ImportRulesFromGitUseCase gitImport;
     private RulesMcpTools tools;
 
     @BeforeEach
@@ -64,8 +65,8 @@ class RulesMcpToolsTest {
         mapper = mock(RuleJsonMapper.class);
         saveRule = mock(SaveRuleUseCase.class);
         deleteRule = mock(DeleteRuleUseCase.class);
-        tools = new RulesMcpTools(rules, validator, evaluator, mapper, saveRule, deleteRule,
-                mock(ImportRulesFromGitUseCase.class));
+        gitImport = mock(ImportRulesFromGitUseCase.class);
+        tools = new RulesMcpTools(rules, validator, evaluator, mapper, saveRule, deleteRule, gitImport);
     }
 
     @Test
@@ -170,5 +171,25 @@ class RulesMcpToolsTest {
     private static Rule rule(String id, RuleType type, List<String> tags) {
         return new Rule(id, "Rule " + id, "", type, 1, 0, tags,
                 "true", List.of(), null, null, null, null);
+    }
+
+    @Test
+    void the_git_import_reports_what_it_imported_and_what_failed() {
+        when(gitImport.handle()).thenReturn(new io.mateu.workflow.application.usecases.directoryimport
+                .ImportRulesFromDirectoryUseCase.ImportRulesResult(List.of("Discount [discount]"),
+                List.of("broken.json: not JSON"), List.of()));
+
+        var answer = tools.importRulesFromGit();
+
+        assertThat(answer).contains("Imported 1 rule(s):").contains("  - Discount [discount]")
+                .contains("Errors (1):").contains("  - broken.json: not JSON");
+    }
+
+    @Test
+    void a_git_import_that_found_nothing_says_so_rather_than_answering_blank() {
+        when(gitImport.handle()).thenReturn(new io.mateu.workflow.application.usecases.directoryimport
+                .ImportRulesFromDirectoryUseCase.ImportRulesResult(List.of(), List.of(), List.of()));
+
+        assertThat(tools.importRulesFromGit()).isEqualTo("No new rule definitions found.\n");
     }
 }

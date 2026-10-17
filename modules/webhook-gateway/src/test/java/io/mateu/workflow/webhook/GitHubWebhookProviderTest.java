@@ -92,4 +92,35 @@ class GitHubWebhookProviderTest {
         assertThatThrownBy(() -> provider.read("github", endpoint(SECRET), headers(notJson, "push", "d", SECRET), notJson))
                 .satisfies(e -> assertThat(((WebhookRejectedException) e).status()).isEqualTo(400));
     }
+
+    @Test
+    void aDeliveryWithoutIdOrBodyStillBecomesAnEventWithAFreshId() {
+        var empty = new byte[0];
+        var event = provider.read("github", endpoint(SECRET), headers(empty, "ping", null, SECRET), empty);
+
+        assertThat(event.id()).isNotBlank();
+        assertThat(event.type()).isEqualTo("com.github.ping");
+        assertThat(event.subject()).isNull();
+        assertThat(event.extensions()).containsOnlyKeys("githubevent");
+    }
+
+    @Test
+    void aRepositoryOrSenderThatIsNotAnObjectIsIgnored() {
+        var body = """
+                {"repository": "acme/shop", "sender": {"login": {"nested": true}}, "action": null}
+                """.getBytes(StandardCharsets.UTF_8);
+        var event = provider.read("github", endpoint(SECRET), headers(body, "push", "d-9", SECRET), body);
+
+        assertThat(event.type()).isEqualTo("com.github.push");
+        assertThat(event.subject()).isNull();
+        assertThat(event.extensions()).containsOnlyKeys("githubevent");
+    }
+
+    @Test
+    void withoutATypePrefixTheTypeIsTheBareEventName() {
+        var endpoint = endpoint(SECRET);
+        endpoint.setTypePrefix(null);
+        var event = provider.read("github", endpoint, headers(PR, "pull_request", "d-1", SECRET), PR);
+        assertThat(event.type()).isEqualTo("pull_request.opened");
+    }
 }

@@ -60,4 +60,45 @@ class HumanTaskEventsTest {
         assertThatCode(() -> new HumanTaskEvents(streamBridge, formRepository).changed(task(FormExecutionStatus.COMPLETED)))
                 .doesNotThrowAnyException();
     }
+
+    @Test
+    void aBrokerThatDeclinesTheEventIsLoggedNotThrown() {
+        when(formRepository.findById("approve")).thenReturn(Optional.empty());
+        when(streamBridge.send(eq(HumanTaskEvents.BINDING), any())).thenReturn(false);
+
+        assertThatCode(() -> new HumanTaskEvents(streamBridge, formRepository).changed(task(FormExecutionStatus.CANCELLED)))
+                .doesNotThrowAnyException();
+        verify(streamBridge).send(eq(HumanTaskEvents.BINDING), any());
+    }
+
+    @Test
+    void aTaskWhoseFormIsUnknownIsAnnouncedUnderItsFormIdAndRequiresNoRole() {
+        when(formRepository.findById("approve")).thenReturn(Optional.empty());
+        when(streamBridge.send(eq(HumanTaskEvents.BINDING), any())).thenReturn(true);
+
+        new HumanTaskEvents(streamBridge, formRepository).changed(task(FormExecutionStatus.PENDING));
+
+        var sent = ArgumentCaptor.forClass(Object.class);
+        verify(streamBridge).send(eq(HumanTaskEvents.BINDING), sent.capture());
+        var event = (HumanTaskChanged) sent.getValue();
+        assertThat(event.formName()).isEqualTo("approve");
+        assertThat(event.requiredRoles()).isEmpty();
+    }
+
+    @Test
+    void aTaskWithoutFormOrStatusIsStillAnnounced() {
+        when(streamBridge.send(eq(HumanTaskEvents.BINDING), any())).thenReturn(true);
+        var bare = FormExecution.builder().id("t-2").processId("p-1").stepId("s1")
+                .variables(List.of()).values(List.of()).build();
+
+        new HumanTaskEvents(streamBridge, formRepository).changed(bare);
+
+        var sent = ArgumentCaptor.forClass(Object.class);
+        verify(streamBridge).send(eq(HumanTaskEvents.BINDING), sent.capture());
+        var event = (HumanTaskChanged) sent.getValue();
+        assertThat(event.taskId()).isEqualTo("t-2");
+        assertThat(event.formId()).isNull();
+        assertThat(event.status()).isNull();
+        org.mockito.Mockito.verifyNoInteractions(formRepository);
+    }
 }

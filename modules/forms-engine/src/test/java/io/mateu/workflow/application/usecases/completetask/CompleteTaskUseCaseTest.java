@@ -221,4 +221,31 @@ class CompleteTaskUseCaseTest {
         verify(streamBridge, never()).send(eq("upstream"), argThat(
                 message -> message instanceof io.mateu.workflow.dtos.events.integration.TaskStatusChanged));
     }
+
+    /** A task someone picked up (ASSIGNED) is still open: its completion goes through like a pending one. */
+    @Test
+    void anAssignedTaskIsCompleted() {
+        when(formExecutionRepository.findById("fe-1")).thenReturn(Optional.of(
+                formExecution("fe-1").withStatus(FormExecutionStatus.ASSIGNED)));
+        formDeclares("name");
+        brokerAccepts();
+
+        useCase.handle(new CompleteTaskCommand("fe-1", List.of(new Value("name", "John"))));
+
+        ArgumentCaptor<FormExecution> captor = ArgumentCaptor.forClass(FormExecution.class);
+        verify(formExecutionRepository).save(captor.capture());
+        assertThat(captor.getValue().status()).isEqualTo(FormExecutionStatus.COMPLETED);
+    }
+
+    /** A cancelled task is closed too: completing it afterwards changes nothing and tells the engine nothing. */
+    @Test
+    void aCancelledTaskIsNotCompleted() {
+        when(formExecutionRepository.findById("fe-1")).thenReturn(Optional.of(
+                formExecution("fe-1").withStatus(FormExecutionStatus.CANCELLED)));
+
+        useCase.handle(new CompleteTaskCommand("fe-1", List.of(new Value("name", "John"))));
+
+        verify(formExecutionRepository, never()).save(any());
+        verify(streamBridge, never()).send(anyString(), any());
+    }
 }

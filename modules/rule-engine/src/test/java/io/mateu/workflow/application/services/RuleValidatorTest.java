@@ -90,4 +90,37 @@ class RuleValidatorTest {
         assertThatThrownBy(() -> validator.validate(rule))
                 .isInstanceOf(RuleValidator.RuleValidationException.class);
     }
+
+    @Test
+    void thenArityMismatchFails() {
+        var rule = new Rule("r8", "Bad outputs", null, RuleType.DECISION_TABLE, 1, 0, null, null, null,
+                List.of("a"), List.of("x", "y"),
+                List.of(new DecisionRow(List.of("*"), List.of("1"))), HitPolicy.COLLECT);
+
+        assertThatThrownBy(() -> validator.validate(rule))
+                .isInstanceOf(RuleValidator.RuleValidationException.class)
+                .hasMessageContaining("'then' must have 2 cells");
+    }
+
+    @Test
+    void aMisspelledKeyInTheFileIsCaughtBeforeBinding() throws Exception {
+        var document = new com.fasterxml.jackson.databind.ObjectMapper().readTree("""
+                {"id": "t", "name": "T", "type": "decision-table", "hitpolicy": "COLLECT",
+                 "inputs": ["a"], "outputs": ["b"], "rows": [{"when": ["*"], "then": ["1"]}]}
+                """);
+
+        assertThatThrownBy(() -> validator.validateSource(document, "rules/t.json"))
+                .isInstanceOf(RuleValidator.RuleValidationException.class)
+                .hasMessageContaining("rules/t.json");
+    }
+
+    @Test
+    void aValidFileAndNoDocumentAtAllPassTheSourceCheck() throws Exception {
+        var document = new com.fasterxml.jackson.databind.ObjectMapper().readTree("""
+                {"id": "t", "name": "T", "type": "expression", "when": "true",
+                 "then": [{"name": "ok", "expression": "true"}]}
+                """);
+        assertThatCode(() -> validator.validateSource(document, "t.json")).doesNotThrowAnyException();
+        assertThatCode(() -> validator.validateSource(null, "t.json")).doesNotThrowAnyException();
+    }
 }

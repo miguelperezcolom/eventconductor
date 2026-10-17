@@ -154,6 +154,63 @@ class ImportRulesFromGitUseCaseTest {
         assertThat(result.imported()).containsExactly("Discount [discount]");
     }
 
+    @Test
+    void without_arguments_every_configured_repository_is_imported(@TempDir Path repo) throws Exception {
+        write(repo, "discount.json", rule("discount", "Discount"));
+        commit(repo);
+        var properties = new RuleGitImportProperties();
+        // Credentials are handed to the clone; a file: remote ignores them, a hosted one needs them.
+        var configured = repository(repo);
+        configured.setUsername("ci");
+        configured.setPassword("token");
+        properties.setRepositories(List.of(configured));
+        var configuredUseCase = new ImportRulesFromGitUseCase(properties, metrics,
+                new ImportRulesFromDirectoryUseCase(new RuleDirectoryImportProperties(), saveRule,
+                        new io.mateu.workflow.application.services.RuleValidator(), rules, metrics, registry));
+
+        var result = configuredUseCase.handle();
+
+        assertThat(result.imported()).containsExactly("Discount [discount]");
+        assertThat(result.errors()).isEmpty();
+    }
+
+    @Test
+    void only_the_configured_directory_of_the_repository_is_imported(@TempDir Path repo) throws Exception {
+        write(repo, "rules/discount.json", rule("discount", "Discount"));
+        write(repo, "elsewhere/shipping.json", rule("shipping", "Shipping"));
+        commit(repo);
+        var configured = repository(repo);
+        configured.setDirectory("rules");
+
+        var result = useCase.handle(List.of(configured));
+
+        assertThat(result.imported()).containsExactly("Discount [discount]");
+    }
+
+    @Test
+    void a_directory_that_does_not_exist_is_an_error_naming_it(@TempDir Path nowhere) {
+        var directoryImport = new ImportRulesFromDirectoryUseCase(new RuleDirectoryImportProperties(), saveRule,
+                new io.mateu.workflow.application.services.RuleValidator(), rules, metrics, registry);
+        var missing = nowhere.resolve("no-such-dir").toString();
+
+        var result = directoryImport.handle(List.of(missing));
+
+        assertThat(result.imported()).isEmpty();
+        assertThat(result.errors()).containsExactly("Directory " + missing + ": not a directory");
+        verify(metrics).rulesImported(0);
+    }
+
+    @Test
+    void without_arguments_every_configured_directory_is_imported(@TempDir Path dir) throws Exception {
+        write(dir, "discount.json", rule("discount", "Discount"));
+        var properties = new RuleDirectoryImportProperties();
+        properties.setDirectories(List.of(dir.toString()));
+        var directoryImport = new ImportRulesFromDirectoryUseCase(properties, saveRule,
+                new io.mateu.workflow.application.services.RuleValidator(), rules, metrics, registry);
+
+        assertThat(directoryImport.handle().imported()).containsExactly("Discount [discount]");
+    }
+
     // ── the repository under test ─────────────────────────────────────────────────────────────
 
     private static RuleGitImportProperties.GitRepository repository(Path repo) {

@@ -24,10 +24,9 @@ public class GenericWebhookProvider implements WebhookProvider {
                              byte[] body) {
         var signed = endpoint.getSecret() != null && !endpoint.getSecret().isBlank();
         if (signed) {
-            var header = endpoint.getSignatureHeader() == null ? "x-signature-256"
-                    : endpoint.getSignatureHeader().toLowerCase(Locale.ROOT);
-            if (!Signatures.matches(endpoint.getSecret(), body, headers.get(header))) {
-                throw new WebhookRejectedException(401, "Missing or invalid " + endpoint.getSignatureHeader() + ".");
+            var header = endpoint.getSignatureHeader() == null ? "X-Signature-256" : endpoint.getSignatureHeader();
+            if (!Signatures.matches(endpoint.getSecret(), body, headers.get(header.toLowerCase(Locale.ROOT)))) {
+                throw new WebhookRejectedException(401, "Missing or invalid " + header + ".");
             }
         }
         // Only the body is signed: on a signed endpoint with a fixed type, a header must not change what

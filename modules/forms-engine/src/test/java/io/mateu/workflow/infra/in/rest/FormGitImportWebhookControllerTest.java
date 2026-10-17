@@ -80,4 +80,74 @@ class FormGitImportWebhookControllerTest {
                 .isInstanceOf(ResponseStatusException.class)
                 .hasFieldOrPropertyWithValue("statusCode", HttpStatus.UNAUTHORIZED);
     }
+
+    @Test
+    void withNoRepositoriesConfiguredThePushIsAcknowledgedAndNothingImported() {
+        when(properties.getRepositories()).thenReturn(List.of());
+        var response = controller.webhook("github", new HttpHeaders(),
+                githubPush("master", "https://github.com/org/forms.git"));
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
+        assertThat(response.getBody()).isEqualTo("no repositories configured");
+        verify(importUseCase, after(300).never()).handle(anyList());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void aPushWithoutAReadablePayloadReloadsEveryConfiguredRepository() {
+        var other = repo("https://github.com/org/other.git", "main");
+        when(properties.getRepositories()).thenReturn(List.of(master, other));
+
+        var response = controller.webhook("github", new HttpHeaders(), null);
+
+        assertThat(response.getBody()).isEqualTo("import scheduled for 2 repository/ies");
+        ArgumentCaptor<List<GitImportProperties.GitRepository>> captor = ArgumentCaptor.forClass(List.class);
+        verify(importUseCase, timeout(2000)).handle(captor.capture());
+        assertThat(captor.getValue()).containsExactly(master, other);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void aGenericPushNamingOnlyTheBranchReloadsTheRepositoriesOnIt() {
+        var dev = repo("https://github.com/org/other.git", "dev");
+        when(properties.getRepositories()).thenReturn(List.of(master, dev));
+
+        controller.webhook("generic", new HttpHeaders(), "{\"branch\":\"dev\"}".getBytes(StandardCharsets.UTF_8));
+
+        ArgumentCaptor<List<GitImportProperties.GitRepository>> captor = ArgumentCaptor.forClass(List.class);
+        verify(importUseCase, timeout(2000)).handle(captor.capture());
+        assertThat(captor.getValue()).containsExactly(dev);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void aGenericPushNamingOnlyTheRepositoryReloadsItOnAnyBranch() {
+        var other = repo("https://github.com/org/other.git", "main");
+        when(properties.getRepositories()).thenReturn(List.of(master, other));
+
+        controller.webhook("generic", new HttpHeaders(),
+                "{\"repository\":\"https://github.com/org/other.git\"}".getBytes(StandardCharsets.UTF_8));
+
+        ArgumentCaptor<List<GitImportProperties.GitRepository>> captor = ArgumentCaptor.forClass(List.class);
+        verify(importUseCase, timeout(2000)).handle(captor.capture());
+        assertThat(captor.getValue()).containsExactly(other);
+    }
+
+    @Test
+    void aFailingImportIsLoggedAndTheWebhookStillAcknowledged() {
+        when(importUseCase.handle(anyList())).thenThrow(new IllegalStateException("clone failed"));
+        var response = controller.webhook("github", new HttpHeaders(),
+                githubPush("master", "https://github.com/org/forms.git"));
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
+        verify(importUseCase, timeout(2000)).handle(anyList());
+    }
+
+    @Test
+    void anImportResultWithChangesIsAcknowledged() {
+        when(importUseCase.handle(anyList())).thenReturn(new ImportFormsResult(List.of("A [a]"),
+                List.of("bad.json: x"), List.of("Old [old]")));
+        var response = controller.webhook("github", new HttpHeaders(),
+                githubPush("master", "https://github.com/org/forms.git"));
+        assertThat(response.getBody()).isEqualTo("import scheduled for 1 repository/ies");
+        verify(importUseCase, timeout(2000)).handle(anyList());
+    }
 }

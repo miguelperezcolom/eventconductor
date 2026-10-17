@@ -17,7 +17,7 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 
 /**
- * The ceiling on a webhook body ({@code workflow.webhooks.max-body-bytes}, 1 MB by default), applied
+ * The ceiling on a webhook body ({@code workflow.webhooks.max-body-bytes}, 25 MB by default), applied
  * on the gateway's path before the controller binds the body into a {@code byte[]}: a sender — or
  * anybody who can reach the endpoint, since the signature can only be checked once the body is read —
  * cannot make the gateway hold more than that in memory.

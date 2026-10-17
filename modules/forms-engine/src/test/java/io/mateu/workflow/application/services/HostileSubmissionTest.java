@@ -149,4 +149,25 @@ class HostileSubmissionTest {
     void nothingIsAcceptedWhenTheFormIsNotInTheCatalogue() {
         assertThat(FormSubmission.accepted(null, List.of(new Value("amount", "100")), "task-1")).isEmpty();
     }
+
+    /** No values at all is an empty submission: fine for a form that requires nothing. */
+    @Test
+    void aSubmissionWithNoValuesIsAcceptedWhenNothingIsRequired() {
+        assertThat(FormSubmission.accepted(form(field("note", false)), null, "task-1")).isEmpty();
+    }
+
+    /** And refused when the form requires a field — a null value is as missing as an absent one. */
+    @Test
+    void aNullRequiredValueIsRefused() {
+        assertThatThrownBy(() -> accepted(form(field("amount", true)), new Value("amount", null)))
+                .isInstanceOf(IncompleteSubmissionException.class)
+                .hasMessageContaining("amount");
+    }
+
+    /** A form that declares no fields accepts no values, rather than every value. */
+    @Test
+    void aFormWithoutFieldsAcceptsNothing() {
+        var bare = new Form("f-1", "Ack", "", null);
+        assertThat(FormSubmission.accepted(bare, List.of(new Value("anything", "x")), "task-1")).isEmpty();
+    }
 }

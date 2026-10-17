@@ -100,4 +100,29 @@ class WebhookControllerMvcTest {
         assertThat(WebhookController.lowerCase(headers)).containsExactly(Map.entry("x-github-event", "push"));
         assertThat(WebhookController.lowerCase(null)).isEmpty();
     }
+
+    @Test
+    void eachOutcomeIsCountedSoRefusalsAreVisible() throws Exception {
+        // Signed, but no X-GitHub-Event: the provider cannot read it — a 400, counted as rejected.
+        mvc.perform(post("/webhooks/github").content(PUSH).contentType("application/json")
+                        .header("X-Hub-Signature-256", "sha256=" + Signatures.hmacSha256Hex(SECRET, PUSH)))
+                .andExpect(status().isBadRequest());
+        // A bad signature: 401, counted as unauthorized.
+        mvc.perform(post("/webhooks/github").content(PUSH).contentType("application/json")
+                        .header("X-GitHub-Event", "push").header("X-Hub-Signature-256", "sha256=00"))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(post("/webhooks/nope").content(PUSH)).andExpect(status().isNotFound());
+
+        assertThat(counted).containsExactly("github:rejected", "github:unauthorized", "nope:unknown");
+        assertThat(published).isEmpty();
+    }
+
+    @Test
+    void headersWithoutValuesAreLeftOut() {
+        var headers = new org.springframework.http.HttpHeaders();
+        headers.put("X-Empty", List.of());
+        headers.add("X-Full", "v");
+        assertThat(WebhookController.lowerCase(headers)).containsOnlyKeys("x-full");
+        assertThat(WebhookController.lowerCase(null)).isEmpty();
+    }
 }

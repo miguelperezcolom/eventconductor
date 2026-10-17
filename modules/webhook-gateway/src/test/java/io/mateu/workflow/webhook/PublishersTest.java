@@ -107,4 +107,40 @@ class PublishersTest {
             server.stop(0);
         }
     }
+
+    @Test
+    void aBareEventIsPostedWithoutKeyOrApiKeyAndWithNullData() throws Exception {
+        var seen = new AtomicReference<String>();
+        var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/workflow/api/events/partner", exchange -> {
+            seen.set(exchange.getRequestURI() + " " + exchange.getRequestHeaders().getFirst("X-Api-Key") + " "
+                    + new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            // A long error body: logged abbreviated, never handed to the sender.
+            var answer = "x".repeat(1000).getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(seen.get().contains("fail") ? 503 : 202, answer.length);
+            exchange.getResponseBody().write(answer);
+            exchange.close();
+        });
+        server.start();
+        try {
+            var engine = new WebhookGatewayProperties.Engine();
+            engine.setUrl("http://127.0.0.1:" + server.getAddress().getPort());
+            engine.setApiKey(" ");
+            var publisher = new RestWebhookPublisher(HttpClient.newHttpClient(), engine);
+
+            publisher.publish("partner", new WebhookEvent("i-1", "s", "t", null, null, null, null, null, null));
+
+            assertThat(seen.get()).startsWith("/workflow/api/events/partner null ");
+            @SuppressWarnings("unchecked")
+            Map<String, Object> envelope = new ObjectMapper().readValue(seen.get().substring(seen.get().indexOf('{')), Map.class);
+            assertThat(envelope).containsEntry("datacontenttype", "application/json").containsEntry("data", null)
+                    .doesNotContainKeys("subject", "time");
+
+            assertThatThrownBy(() -> publisher.publish("partner",
+                    new WebhookEvent("fail", "s", "t", null, null, null, null, "", null)))
+                    .isInstanceOfSatisfying(WebhookRejectedException.class, e -> assertThat(e.status()).isEqualTo(502));
+        } finally {
+            server.stop(0);
+        }
+    }
 }
