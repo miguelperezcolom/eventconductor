@@ -87,7 +87,7 @@ jobs:
       # test-worker too: DIST-13 drives a saga through the real worker, so the module has to be in
       # the local repository before the suite resolves its dependencies.
       - name: Build engine and test worker (unit tests already run in the build job)
-        run: mvn -B -ntp -pl modules/workflow-engine,modules/test-worker -am -DskipTests -Djacoco.skip=true install
+        run: mvn -B -ntp -pl modules/workflow-engine,modules/test-worker,modules/inbound-events-kafka -am -DskipTests -Djacoco.skip=true install
 
       - name: Run distributed tests (DIST-01…DIST-05)
         run: mvn -B -ntp -Pdist-e2e -pl modules/workflow-dist-e2e -Djacoco.skip=true verify
