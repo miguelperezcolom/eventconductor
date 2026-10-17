@@ -148,6 +148,8 @@ applicationEventPublisher.publishEvent(new InboundEvent(
 
 A `PUBLISH_EVENT` of this engine is **looped back** too (`workflow.events.loopback`, default `true`): one workflow's event can start or wake another, as it would through Kafka.
 
+**Webhooks.** A sender that posts over HTTP — GitHub, or anything that signs with HMAC-SHA256 — goes through the [webhook gateway](/guides/webhooks/), which verifies the delivery and publishes it as a CloudEvent on a destination; the engine sees a domain event like any other.
+
 **REST** (both modes) — for tests and for systems that cannot publish to Kafka:
 
 ```http

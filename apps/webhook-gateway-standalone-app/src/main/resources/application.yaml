@@ -1,0 +1,32 @@
+server:
+  port: ${SERVER_PORT:8094}
+
+spring:
+  application:
+    name: webhook-gateway
+  kafka:
+    bootstrap-servers: ${KAFKA_BROKERS:localhost:9092}
+
+workflow:
+  webhooks:
+    # kafka: publish on the destination's topic (the engine's inbound consumer reads it);
+    # rest: hand it to the engine's POST /workflow/api/events/{destination} (embedded mode, no broker).
+    transport: ${WEBHOOKS_TRANSPORT:kafka}
+    engine:
+      url: ${ENGINE_URL:http://localhost:8080}
+      api-key: ${ENGINE_API_KEY:}
+    # The endpoints are deployment configuration, e.g. for POST /webhooks/github:
+    #   WORKFLOW_WEBHOOKS_ENDPOINTS_GITHUB_PROVIDER=github
+    #   WORKFLOW_WEBHOOKS_ENDPOINTS_GITHUB_DESTINATION=github-events
+    #   WORKFLOW_WEBHOOKS_ENDPOINTS_GITHUB_SECRET=<the secret given to GitHub>
+    # and the destination's topic, the same key the engine uses:
+    #   WORKFLOW_EVENTS_DESTINATIONS_GITHUB-EVENTS_TOPIC=github-events
+    endpoints: {}
+  events:
+    destinations: {}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus

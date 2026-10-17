@@ -1,0 +1,96 @@
+package io.mateu.workflow.webhook;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import java.net.URI;
+import java.net.URLEncoder;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.util.LinkedHashMap;
+
+/**
+ * Hands the event to the engine's {@code POST /workflow/api/events/{destination}} as a structured
+ * CloudEvent — for deployments without Kafka (embedded mode), or when the gateway should not hold
+ * broker credentials. The engine answers what the event did; anything but a 2xx is an error the
+ * sender sees, so it may redeliver.
+ */
+public class RestWebhookPublisher implements WebhookPublisher {
+
+    private static final ObjectMapper JSON = new ObjectMapper();
+
+    private final HttpClient client;
+    private final WebhookGatewayProperties.Engine engine;
+
+    public RestWebhookPublisher(HttpClient client, WebhookGatewayProperties.Engine engine) {
+        this.client = client;
+        this.engine = engine;
+    }
+
+    @Override
+    public void publish(String destination, WebhookEvent event) {
+        if (engine.getUrl() == null || engine.getUrl().isBlank()) {
+            throw new WebhookRejectedException(500, "workflow.webhooks.engine.url is not configured.");
+        }
+        var url = engine.getUrl().replaceAll("/+$", "") + "/workflow/api/events/" + destination
+                + (event.key() == null ? "" : "?key=" + URLEncoder.encode(event.key(), StandardCharsets.UTF_8));
+        var request = HttpRequest.newBuilder(URI.create(url))
+                .timeout(engine.getTimeout())
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(envelope(event), StandardCharsets.UTF_8));
+        if (engine.getApiKey() != null && !engine.getApiKey().isBlank()) {
+            request.header("X-Api-Key", engine.getApiKey());
+        }
+        HttpResponse<String> response;
+        try {
+            response = client.send(request.build(), HttpResponse.BodyHandlers.ofString());
+        } catch (Exception e) {
+            throw new WebhookRejectedException(502, "Could not reach the engine at " + url + ": " + e.getMessage());
+        }
+        if (response.statusCode() / 100 != 2) {
+            throw new WebhookRejectedException(502, "The engine answered " + response.statusCode() + " to " + url
+                    + ": " + abbreviate(response.body()));
+        }
+    }
+
+    /** The structured CloudEvent the engine's inject endpoint reads; {@code data} as parsed JSON when it is JSON. */
+    static String envelope(WebhookEvent event) {
+        var envelope = new LinkedHashMap<String, Object>();
+        envelope.put("specversion", "1.0");
+        envelope.put("id", event.id());
+        envelope.put("source", event.source());
+        envelope.put("type", event.type());
+        if (event.subject() != null) {
+            envelope.put("subject", event.subject());
+        }
+        if (event.time() != null) {
+            envelope.put("time", event.time());
+        }
+        envelope.put("datacontenttype", event.dataContentType() == null ? "application/json" : event.dataContentType());
+        if (event.extensions() != null) {
+            envelope.putAll(event.extensions());
+        }
+        Object data = event.data();
+        if (event.data() != null && !event.data().isBlank()) {
+            try {
+                data = JSON.readTree(event.data());
+            } catch (Exception notJson) {
+                data = event.data();
+            }
+        }
+        envelope.put("data", data);
+        try {
+            return JSON.writeValueAsString(envelope);
+        } catch (Exception e) {
+            throw new IllegalStateException("Could not write the CloudEvent", e);
+        }
+    }
+
+    private static String abbreviate(String body) {
+        if (body == null) {
+            return "";
+        }
+        return body.length() > 300 ? body.substring(0, 300) + "…" : body;
+    }
+}

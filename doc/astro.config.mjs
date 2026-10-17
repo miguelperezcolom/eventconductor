@@ -75,6 +75,7 @@ export default defineConfig({
 						{ label: 'LLM Calls', slug: 'guides/llm-calls' },
 						{ label: 'Publishing Domain Events', slug: 'guides/publishing-events' },
 						{ label: 'Starting on and Waiting for Domain Events', slug: 'guides/domain-event-triggers' },
+						{ label: 'Starting a Workflow from a Webhook', slug: 'guides/webhooks' },
 						{ label: 'Payload Templates', slug: 'guides/payload-templates' },
 						{ label: 'Scheduling and Deadlines', slug: 'guides/scheduling-and-deadlines' },
 						{ label: 'Implementing Workers', slug: 'guides/workers' },

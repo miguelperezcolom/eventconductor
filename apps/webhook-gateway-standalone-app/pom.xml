@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>4.1.1</version>
+        <relativePath/> <!-- lookup parent from repository -->
+    </parent>
+    <groupId>io.mateu.workflow</groupId>
+    <artifactId>webhook-gateway-standalone-app</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+    <name>webhook-gateway-standalone-app</name>
+    <description>Webhooks in: verifies each sender's signature, turns the delivery into a CloudEvent and publishes it on the destination's topic (or hands it to the engine's REST inject). Runs no engine of its own.</description>
+
+    <properties>
+        <!-- CVE-2026-68497 (high, CPU DoS via unbounded numeric parsing): jackson-databind 3.1.5 comes from
+             Boot 4.1.1's BOM; 3.1.6 fixes it. Drop when Boot's BOM catches up. -->
+        <jackson-bom.version>3.1.7</jackson-bom.version>
+        <java.version>21</java.version>
+        <maven.deploy.skip>true</maven.deploy.skip>
+    </properties>
+
+    <!--
+      The deployment shape of webhooks in: webhook-gateway (the endpoints, the signature checks, the
+      CloudEvents mapping) + spring-kafka (the destination's topic, binary CloudEvents) — or, with
+      workflow.webhooks.transport=rest, the engine's POST /workflow/api/events. On its own so the pods
+      exposed to the internet hold neither the engine nor its database, and can be scaled and
+      network-policed apart. Same release train and security overrides as the other standalone apps;
+      bump them together.
+    -->
+    <dependencyManagement>
+        <dependencies>
+            <!-- CVE-2026-106451 (insecure temp file → code execution): lz4-java 1.10.1 arrives through
+                 kafka-clients 4.2.1. Drop when Kafka depends on 1.11.4 or later. -->
+            <dependency>
+                <groupId>at.yawk.lz4</groupId>
+                <artifactId>lz4-java</artifactId>
+                <version>1.11.4</version>
+            </dependency>
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-dependencies</artifactId>
+                <version>2025.1.3</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>com.fasterxml.jackson.core</groupId>
+                <artifactId>jackson-databind</artifactId>
+                <version>2.22.3</version>
+            </dependency>
+            <dependency>
+                <groupId>com.fasterxml.jackson.core</groupId>
+                <artifactId>jackson-core</artifactId>
+                <version>2.22.3</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.tomcat.embed</groupId>
+                <artifactId>tomcat-embed-core</artifactId>
+                <version>11.0.26</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.tomcat.embed</groupId>
+                <artifactId>tomcat-embed-el</artifactId>
+                <version>11.0.27</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.tomcat.embed</groupId>
+                <artifactId>tomcat-embed-websocket</artifactId>
+                <version>11.0.26</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <dependencies>
+        <dependency>
+            <groupId>io.mateu.workflow</groupId>
+            <artifactId>webhook-gateway</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webmvc</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+</project>

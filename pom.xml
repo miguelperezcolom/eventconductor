@@ -48,6 +48,7 @@
       <module>apps/worker-standalone-app</module>
       <module>apps/http-worker-standalone-app</module>
       <module>apps/llm-worker-standalone-app</module>
+        <module>apps/webhook-gateway-standalone-app</module>
       <module>apps/dev-app</module>
       <module>modules/shared</module>
       <module>modules/worker-api</module>
@@ -57,6 +58,7 @@
       <module>modules/definition-analysis</module>
       <module>modules/worker-http</module>
       <module>modules/worker-llm</module>
+        <module>modules/webhook-gateway</module>
       <module>parents/task-module-parent</module>
       <module>parents/task-service-parent</module>
       <module>examples/greetings-tasks</module>

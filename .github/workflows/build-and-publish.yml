@@ -178,6 +178,17 @@ jobs:
             ${{ secrets.DOCKERHUB_USERNAME }}/llm-worker-standalone-app:${{ env.RELEASE_VERSION }}
             ${{ secrets.DOCKERHUB_USERNAME }}/llm-worker-standalone-app:latest
 
+      # Webhooks in: verifies each sender's signature and publishes the delivery as a CloudEvent.
+      - name: Build webhook-gateway image
+        uses: docker/build-push-action@v7
+        with:
+          context: apps/webhook-gateway-standalone-app
+          file: apps/webhook-gateway-standalone-app/Dockerfile.ci
+          load: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/webhook-gateway-standalone-app:${{ env.RELEASE_VERSION }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/webhook-gateway-standalone-app:latest
+
       - name: Scan orchestrator image with Trivy
         uses: aquasecurity/trivy-action@master
         with:
@@ -226,6 +237,14 @@ jobs:
           exit-code: '1'
           ignore-unfixed: true
 
+      - name: Scan webhook-gateway image with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ secrets.DOCKERHUB_USERNAME }}/webhook-gateway-standalone-app:${{ env.RELEASE_VERSION }}
+          severity: CRITICAL,HIGH
+          exit-code: '1'
+          ignore-unfixed: true
+
       - name: Scan projector image with Trivy
         uses: aquasecurity/trivy-action@master
         with:
@@ -246,7 +265,7 @@ jobs:
       # moving for some images and not others is worse than it not moving at all.
       - name: Push the images, now that every one of them is clean
         run: |
-          for app in orchestrator forms rule projector worker http-worker llm-worker; do
+          for app in orchestrator forms rule projector worker http-worker llm-worker webhook-gateway; do
             image="${{ secrets.DOCKERHUB_USERNAME }}/${app}-standalone-app"
             docker push "${image}:${{ env.RELEASE_VERSION }}"
             docker push "${image}:latest"
