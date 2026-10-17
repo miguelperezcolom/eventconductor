@@ -44,12 +44,13 @@ class WebhookGatewayApplicationTest {
     }
 
     @Test
-    void aValidDeliveryReachesThePublisherWhichReportsTheUnreachableEngine() throws Exception {
+    void aValidDeliveryReachesThePublisherAndAnUnreachableEngineIsA502ThatLeaksNothing() throws Exception {
         var body = "{\"zen\": \"hi\"}".getBytes(StandardCharsets.UTF_8);
         var response = post("github", body, "X-GitHub-Event", "ping", "X-GitHub-Delivery", "d-1",
                 "X-Hub-Signature-256", "sha256=" + Signatures.hmacSha256Hex("s3cret", body));
 
+        // 502 so the sender redelivers, and nothing about the engine leaks to it: its URL stays in the log.
         assertThat(response.statusCode()).isEqualTo(502);
-        assertThat(response.body()).contains("Could not reach the engine");
+        assertThat(response.body()).doesNotContain("127.0.0.1:1").doesNotContain("/workflow/api/events");
     }
 }
