@@ -150,4 +150,16 @@ class RulesGitImportScanTest {
         assertThat(ImportRulesFromGitUseCase.pruneKey(withToken)).isEqualTo("https://******@github.com/org/defs.git");
         assertThat(ImportRulesFromGitUseCase.formerPruneKey(withToken)).isEqualTo("https://ci-bot:fake-test-token@github.com/org/defs.git");
     }
+
+    /** A clone that fails names the URL in its message; the credentials in it never reach the errors. */
+    @org.junit.jupiter.api.Test
+    void aFailedCloneReportsNoCredentials() {
+        var unreachable = new RuleGitImportProperties.GitRepository();
+        // The token as the user name, as GitHub accepts it; a closed loopback port fails the clone at once.
+        unreachable.setUrl("http://fake-test-token@127.0.0.1:1/org/defs.git");
+
+        var result = useCase.handle(java.util.List.of(unreachable));
+
+        assertThat(result.errors()).isNotEmpty().noneMatch(e -> e.contains("fake-test-token"));
+    }
 }

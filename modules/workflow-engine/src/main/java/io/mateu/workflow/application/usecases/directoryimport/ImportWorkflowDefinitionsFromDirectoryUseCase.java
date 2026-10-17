@@ -122,8 +122,23 @@ public class ImportWorkflowDefinitionsFromDirectoryUseCase {
         // Every id this import produced. All of them are stable now — declared in the file, or
         // derived from its path — so all of them participate in pruning.
         var importedIds = new LinkedHashSet<String>();
+        int errorsBefore = errors.size();
         scanAndImport(root, imported, errors, importedIds);
-        pruneRemovedDefinitions(pruneKey, importedIds, pruned);
+        int failed = errors.size() - errorsBefore;
+        var wouldArchive = new LinkedHashSet<>(importedDefinitionsRegistry.idsFor(NAMESPACE, pruneKey));
+        wouldArchive.removeAll(importedIds);
+        if (failed > 0 && !wouldArchive.isEmpty()) {
+            // A file that failed to import says nothing about which definition it holds, so its id is
+            // missing from importedIds and pruning would archive a definition that is still in the
+            // source — a typo pushed to git taking a running workflow out of service. Nothing is
+            // archived while the source has files that failed; the next clean import prunes as usual.
+            keepPreviouslyImported(pruneKey, importedIds);
+            errors.add("Pruning skipped for " + io.mateu.workflow.webhook.UrlSanitizer.sanitize(pruneKey) + ": "
+                    + failed + " file(s) could not be imported, so no definition was archived (" + wouldArchive.size()
+                    + " would have been). Fix them and import again.");
+        } else {
+            pruneRemovedDefinitions(pruneKey, importedIds, pruned);
+        }
         // After the definitions, so the schedules and triggers can be checked against what this import just added.
         importCronFiles(root, pruneKey, errors);
         importEventFiles(root, pruneKey, errors);
@@ -382,6 +397,13 @@ public class ImportWorkflowDefinitionsFromDirectoryUseCase {
             });
         }
         importedDefinitionsRegistry.replace(NAMESPACE, repositoryUrl, importedIds);
+    }
+
+    /** Records what this import added on top of what the source already had, archiving nothing. */
+    void keepPreviouslyImported(String repositoryUrl, Set<String> importedIds) {
+        var kept = new LinkedHashSet<>(importedDefinitionsRegistry.idsFor(NAMESPACE, repositoryUrl));
+        kept.addAll(importedIds);
+        importedDefinitionsRegistry.replace(NAMESPACE, repositoryUrl, kept);
     }
 
     public record ImportWorkflowDefinitionsResult(List<String> imported, List<String> errors, List<String> pruned) {}

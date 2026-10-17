@@ -214,6 +214,37 @@ class ImportWorkflowDefinitionsFromDirectoryTest {
         assertThat(saved()).extracting(WorkflowDefinition::id).containsExactly("good");
     }
 
+    @Test
+    void aFileThatBreaksDoesNotArchiveItsDefinitionAndTheNextCleanImportPrunesAsUsual(@TempDir Path dir) throws Exception {
+        write(dir, "order.yml.ec", "order");
+        write(dir, "invoice.yml.ec", "invoice");
+        useCase.handle(List.of(dir.toString()));
+        var order = new WorkflowDefinition("order", "order", 1, null, false, 0, false, null, 0, List.of());
+        var invoice = new WorkflowDefinition("invoice", "invoice", 1, null, false, 0, false, null, 0, List.of());
+        when(repository.findById("order")).thenReturn(Optional.of(order));
+        when(repository.findById("invoice")).thenReturn(Optional.of(invoice));
+
+        // A typo pushed to the source: order.yml.ec no longer parses.
+        Files.writeString(dir.resolve("order.yml.ec"), "{ this is not json");
+        var broken = useCase.handle(List.of(dir.toString()));
+
+        assertThat(broken.pruned()).isEmpty();
+        verify(repository, never()).save(argThat(WorkflowDefinition::archived));
+        assertThat(broken.errors()).anySatisfy(e -> assertThat(e).contains("order.yml.ec"))
+                .anySatisfy(e -> assertThat(e).contains("Pruning skipped").contains("no definition was archived"));
+        assertThat(registry.idsFor("workflow", dir.toAbsolutePath().normalize().toString()))
+                .containsExactlyInAnyOrder("order", "invoice");
+
+        // Fixed, and invoice removed: a clean import prunes invoice and only invoice.
+        write(dir, "order.yml.ec", "order");
+        Files.delete(dir.resolve("invoice.yml.ec"));
+        var clean = useCase.handle(List.of(dir.toString()));
+
+        assertThat(clean.pruned()).singleElement().satisfies(pr -> assertThat(pr).contains("invoice"));
+        verify(repository).save(argThat(d -> "invoice".equals(d.id()) && d.archived()));
+        verify(repository, never()).save(argThat(d -> "order".equals(d.id()) && d.archived()));
+    }
+
     private void writeWithoutId(Path dir, String name, String workflowName) throws IOException {
         Files.writeString(dir.resolve(name), """
                 name: %s
