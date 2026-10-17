@@ -120,6 +120,7 @@
                                     <includes>
                                         <include>workflow-definition-schema.json</include>
                                         <include>cron-schema.json</include>
+                                        <include>events-schema.json</include>
                                     </includes>
                                 </resource>
                                 <resource>

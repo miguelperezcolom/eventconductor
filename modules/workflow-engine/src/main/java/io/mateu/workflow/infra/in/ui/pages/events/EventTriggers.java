@@ -22,8 +22,9 @@ import java.util.Optional;
 
 /**
  * The Events page: every event trigger the engine knows — which domain events start which workflow —
- * with pause and resume. Triggers are declared in their definitions ({@code triggers}); a pause is the
- * engine's, kept by {@code <workflow>/<trigger>} across re-imports. What the received events did is on
+ * with pause and resume. Triggers are declared in their definitions ({@code triggers}) or in an
+ * {@code events.yaml} next to them (the Source column says which); a pause is the engine's, kept by
+ * {@code <workflow>/<trigger>} across re-imports. What the received events did is on
  * the Received events page.
  */
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)

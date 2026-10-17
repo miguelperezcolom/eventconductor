@@ -83,6 +83,49 @@ class SpecValidatorTest {
     }
 
     @Test
+    void eventFilesValidateInBothFormsWithTheEnginesTriggerRules() throws Exception {
+        assertThat(validate(SpecValidator.Kind.EVENTS, "/valid/workflows/events.yaml")).isEmpty();
+        var keyed = new com.fasterxml.jackson.dataformat.yaml.YAMLMapper().readTree("""
+                triggers:
+                  - destination: bookings
+                    type: com.acme.booking.*
+                    workflow: booking
+                """);
+        assertThat(validator.validate(SpecValidator.Kind.EVENTS, keyed)).isEmpty();
+        assertThat(SpecValidator.eventEntries(keyed)).hasSize(1);
+
+        var bad = new com.fasterxml.jackson.dataformat.yaml.YAMLMapper().readTree("""
+                - destination: bookings
+                  type: com.acme.booking.created
+                - id: web
+                  destination: "book ings"
+                  type: t
+                  workflow: booking
+                - id: web
+                  destination: bookings
+                  type: t
+                  workflow: booking
+                - id: web
+                  destination: bookings
+                  type: t
+                  workflow: other
+                - id: "-bad"
+                  destination: bookings
+                  type: t
+                  workflow: booking
+                  extra: 1
+                """);
+        var violations = validator.validate(SpecValidator.Kind.EVENTS, bad);
+        assertThat(violations)
+                .anySatisfy(v -> assertThat(v).contains("workflow"))
+                .anySatisfy(v -> assertThat(v).contains("entry 1").contains("not a valid destination"))
+                .anySatisfy(v -> assertThat(v).contains("workflow 'booking'").contains("trigger id 'web' is declared more than once"))
+                .noneSatisfy(v -> assertThat(v).contains("workflow 'other'"))
+                .anySatisfy(v -> assertThat(v).contains("entry 4").contains("not a valid trigger id"))
+                .anySatisfy(v -> assertThat(v).contains("extra"));
+    }
+
+    @Test
     void cronFilesValidateInBothForms() throws Exception {
         assertThat(validate(SpecValidator.Kind.CRON, "/valid/workflows/cron.yaml")).isEmpty();
         var keyed = new YAMLMapper().readTree("""

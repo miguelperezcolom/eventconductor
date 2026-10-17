@@ -1,6 +1,7 @@
 package io.mateu.workflow.e2e;
 
 import io.mateu.workflow.application.out.EventReceiptRepository;
+import io.mateu.workflow.application.out.EventTriggerRepository;
 import io.mateu.workflow.application.out.TriggerPauseRepository;
 import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
 import io.mateu.workflow.application.services.EventTriggerService;
@@ -31,6 +32,7 @@ class EventTriggerJpaE2eTest extends AbstractJpaE2eTest {
     @Autowired WorkflowDefinitionRepository workflowDefinitionRepository;
     @Autowired EventReceiptRepository receipts;
     @Autowired TriggerPauseRepository pauses;
+    @Autowired EventTriggerRepository fileTriggers;
     @Autowired InboundEventService inbound;
     @Autowired EventTriggerService triggers;
 
@@ -68,5 +70,23 @@ class EventTriggerJpaE2eTest extends AbstractJpaE2eTest {
         assertThat(inbound.receive(booking("jpa-2", "J-2")).started()).isEqualTo(1);
         triggers.resume("event-trigger", "web");
         assertThat(pauses.findAll()).isEmpty();
+    }
+
+    @Test
+    void theClasspathEventsYamlIsStoredInEventTriggerAndItsTriggerStartsAProcess() {
+        assertThat(fileTriggers).isInstanceOf(io.mateu.workflow.infra.out.persistence.JpaEventTriggerRepository.class);
+        assertThat(fileTriggers.findAll()).singleElement().satisfies(stored -> {
+            assertThat(stored.source()).isEqualTo("classpath:/workflows/events.yaml");
+            assertThat(stored.workflowId()).isEqualTo("event-file-trigger");
+            assertThat(stored.trigger().id()).isEqualTo("on-customer-updated");
+            assertThat(stored.trigger().variables()).containsEntry("customerId", "${data.after.id}");
+        });
+
+        var result = inbound.receive(new InboundEvent("e2e-customers-cdc", "cdc-jpa-1", "kafka://e2e.public.customers",
+                null, null, null, "C-9", "application/json",
+                "{\"op\":\"u\",\"after\":{\"id\":\"C-9\",\"email\":\"c9@acme.com\"}}", Map.of()));
+
+        assertThat(result.started()).isEqualTo(1);
+        assertThat(triggers.get("event-file-trigger", "on-customer-updated").sourceLabel()).isEqualTo("events.yaml (classpath)");
     }
 }

@@ -121,6 +121,13 @@
           "cron.yml"
         ],
         "url": "./schema/cron.schema.json"
+      },
+      {
+        "fileMatch": [
+          "events.yaml",
+          "events.yml"
+        ],
+        "url": "./schema/events.schema.json"
       }
     ],
     "commands": [

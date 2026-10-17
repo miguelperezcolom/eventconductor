@@ -57,9 +57,9 @@ class EventTriggerMcpToolsTest {
         properties.getDestinations().put("bookings", destination);
         var receipts = new InMemoryEventReceiptRepository();
         var pauses = new InMemoryTriggerPauseRepository();
-        var inbound = new InboundEventService(definitions, receipts, pauses, ingressRouter, mock(MessageDispatcher.class),
+        var inbound = new InboundEventService(definitions, new io.mateu.workflow.infra.out.memory.InMemoryEventTriggerRepository(), receipts, pauses, ingressRouter, mock(MessageDispatcher.class),
                 mock(ObjectProvider.class));
-        tools = new EventTriggerMcpTools(new EventTriggerService(definitions, pauses, receipts, properties), inbound);
+        tools = new EventTriggerMcpTools(new EventTriggerService(definitions, pauses, receipts, properties, new io.mateu.workflow.infra.out.memory.InMemoryEventTriggerRepository()), inbound);
     }
 
     @Test

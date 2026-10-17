@@ -1,0 +1,12 @@
+# Event triggers next to the definitions: each names the workflow it starts.
+- id: on-booking-created
+  destination: bookings
+  type: com.acme.booking.created
+  workflow: booking-events
+  filter: "data.channel == 'web'"
+  businessKey: "booking-${data.bookingId}"
+  variables:
+    bookingId: "${data.bookingId}"
+- destination: customers-cdc
+  type: "*"
+  workflow: nightly

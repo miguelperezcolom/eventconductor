@@ -96,7 +96,8 @@ class WorkflowDefinitionDetailViewTest {
         var pauses = new io.mateu.workflow.infra.out.memory.InMemoryTriggerPauseRepository();
         pauses.save(new io.mateu.workflow.domain.aggregates.TriggerPause("onboarding/legacy", java.time.Instant.EPOCH, "ops"));
         var service = new io.mateu.workflow.application.services.EventTriggerService(definitions, pauses,
-                new io.mateu.workflow.infra.out.memory.InMemoryEventReceiptRepository(), properties);
+                new io.mateu.workflow.infra.out.memory.InMemoryEventReceiptRepository(), properties,
+                new io.mateu.workflow.infra.out.memory.InMemoryEventTriggerRepository());
         org.springframework.beans.factory.ObjectProvider<io.mateu.workflow.application.services.EventTriggerService> provider =
                 mock(org.springframework.beans.factory.ObjectProvider.class);
         when(provider.getIfAvailable()).thenReturn(service);

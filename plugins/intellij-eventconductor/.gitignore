@@ -7,6 +7,7 @@ src/main/resources/webview/workflow-graph.js
 src/main/resources/webview/form-editor.js
 src/main/resources/schema/ec.schema.json
 src/main/resources/schema/cron.schema.json
+src/main/resources/schema/events.schema.json
 src/main/resources/schema/form.schema.json
 src/main/resources/schema/rule.schema.json
 src/main/resources/schema/task.schema.json

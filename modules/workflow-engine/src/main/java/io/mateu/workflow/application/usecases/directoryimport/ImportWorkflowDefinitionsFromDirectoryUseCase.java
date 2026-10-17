@@ -56,7 +56,9 @@ public class ImportWorkflowDefinitionsFromDirectoryUseCase {
      */
     private io.mateu.workflow.application.services.CronScheduleImporter cronScheduleImporter;
 
-    @org.springframework.beans.factory.annotation.Autowired
+    /** Imports the {@code events.yaml} files found beside the definitions; null as for the cron importer. */
+    private io.mateu.workflow.application.services.EventTriggerImporter eventTriggerImporter;
+
     public ImportWorkflowDefinitionsFromDirectoryUseCase(DirectoryImportProperties directoryImportProperties,
                                                          WorkflowDefinitionRepository workflowDefinitionRepository,
                                                          ImportedDefinitionsRegistry importedDefinitionsRegistry,
@@ -66,6 +68,19 @@ public class ImportWorkflowDefinitionsFromDirectoryUseCase {
         this(directoryImportProperties, workflowDefinitionRepository, importedDefinitionsRegistry,
                 workflowDefinitionValidator, taskReferenceResolver);
         this.cronScheduleImporter = cronScheduleImporter;
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public ImportWorkflowDefinitionsFromDirectoryUseCase(DirectoryImportProperties directoryImportProperties,
+                                                         WorkflowDefinitionRepository workflowDefinitionRepository,
+                                                         ImportedDefinitionsRegistry importedDefinitionsRegistry,
+                                                         WorkflowDefinitionValidator workflowDefinitionValidator,
+                                                         io.mateu.workflow.application.services.TaskReferenceResolver taskReferenceResolver,
+                                                         io.mateu.workflow.application.services.CronScheduleImporter cronScheduleImporter,
+                                                         io.mateu.workflow.application.services.EventTriggerImporter eventTriggerImporter) {
+        this(directoryImportProperties, workflowDefinitionRepository, importedDefinitionsRegistry,
+                workflowDefinitionValidator, taskReferenceResolver, cronScheduleImporter);
+        this.eventTriggerImporter = eventTriggerImporter;
     }
 
     /** Re-imports every configured directory. */
@@ -109,8 +124,29 @@ public class ImportWorkflowDefinitionsFromDirectoryUseCase {
         var importedIds = new LinkedHashSet<String>();
         scanAndImport(root, imported, errors, importedIds);
         pruneRemovedDefinitions(pruneKey, importedIds, pruned);
-        // After the definitions, so the schedules can be checked against what this import just added.
+        // After the definitions, so the schedules and triggers can be checked against what this import just added.
         importCronFiles(root, pruneKey, errors);
+        importEventFiles(root, pruneKey, errors);
+    }
+
+    /**
+     * Makes the {@code events.yaml} files under {@code root} the event triggers of this source, replacing
+     * what its previous import recorded — none found clears them, so deleting the file stops them.
+     */
+    void importEventFiles(Path root, String sourceKey, List<String> errors) throws IOException {
+        if (eventTriggerImporter == null) {
+            return;
+        }
+        var files = new ArrayList<io.mateu.workflow.application.services.EventTriggerImporter.EventFile>();
+        try (var stream = Files.walk(root)) {
+            for (var file : stream.filter(Files::isRegularFile)
+                    .filter(f -> io.mateu.workflow.analysis.EventTriggerRules.isEventFileName(f.toString()))
+                    .sorted().toList()) {
+                files.add(new io.mateu.workflow.application.services.EventTriggerImporter.EventFile(
+                        root.relativize(file).toString(), Files.readAllBytes(file)));
+            }
+        }
+        errors.addAll(eventTriggerImporter.importSource(sourceKey, files).errors());
     }
 
     /**

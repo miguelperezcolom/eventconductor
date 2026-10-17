@@ -42,12 +42,14 @@ public final class DefinitionFileFormat {
     /**
      * Whether a file name is a recognised workflow-definition file (.ec, .json, .yaml, .yml — which
      * includes the compound {@code .workflow.yaml} / {@code .ec.yaml} forms). A schedule file
-     * ({@code cron.yaml} / {@code cron.yml}, see {@code ScheduleRules}) never is, even though its
-     * extension says YAML.
+     * ({@code cron.yaml} / {@code cron.yml}, see {@code ScheduleRules}) and an event-trigger file
+     * ({@code events.yaml} / {@code events.yml}, see {@code EventTriggerRules}) never are, even though
+     * their extension says YAML.
      */
     public static boolean isDefinitionFileName(String name) {
         if (name == null) return false;
         if (io.mateu.workflow.analysis.ScheduleRules.isCronFileName(name)) return false;
+        if (io.mateu.workflow.analysis.EventTriggerRules.isEventFileName(name)) return false;
         var n = name.toLowerCase();
         return n.endsWith(EC_EXTENSION) || n.endsWith(".json") || n.endsWith(".yaml") || n.endsWith(".yml");
     }

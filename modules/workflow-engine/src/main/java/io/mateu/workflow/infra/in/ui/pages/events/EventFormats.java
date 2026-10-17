@@ -25,6 +25,7 @@ public final class EventFormats {
             case ACTIVE -> new Status(StatusType.SUCCESS, "Active");
             case PAUSED -> new Status(StatusType.WARNING, "Paused");
             case INACTIVE -> new Status(StatusType.NONE, "Workflow inactive");
+            case DUPLICATE -> new Status(StatusType.DANGER, "Duplicate id");
         };
     }
 

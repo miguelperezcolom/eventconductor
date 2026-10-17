@@ -243,10 +243,13 @@ Navigate via **Workflow → Event triggers** (admin console).
 Every event trigger of every workflow — the domain events that start it (see
 [Starting on and waiting for domain events](/guides/domain-event-triggers/)). Columns: **Id**
 (`<workflow>/<trigger>`), **Workflow**, **Trigger**, **Destination → topic** (saying so when the
-destination has no topic configured), **Type**, **Filter**, **Business key**, **Variables**, **Paused by**
-and **Status** (**Active**, **Paused**, **Workflow inactive**). Filters narrow by workflow and status;
+destination has no topic configured), **Type**, **Filter**, **Business key**, **Variables**, **Source**
+(`Definition`, or `events.yaml (classpath)`, `events.yaml (directory)`, `events.yaml (git)`), **Paused by**
+and **Status** (**Active**, **Paused**, **Workflow inactive**, **Duplicate id** — an `events.yaml` entry
+whose id the definition already declares, which never fires). Filters narrow by workflow and status;
 **Pause** and **Resume** act on the selected rows. A paused trigger starts nothing, and resuming it does
-not replay what arrived meanwhile. Triggers are declared in their definitions and changed there.
+not replay what arrived meanwhile. Triggers are declared in their definitions or in an `events.yaml` next
+to them, and changed there.
 
 **Workflow → Received events** lists the latest receipts, newest first: **Received**, **Destination**,
 **Type**, **Event id**, **Source**, **Workflow**, **Receiver** (`trigger:<workflow>/<trigger>` or

@@ -110,7 +110,7 @@ Cron scanning can be tuned or disabled with `workflow.cron-scan-interval-ms` and
 
 ## On a domain event
 
-A definition can declare `triggers`: a CloudEvent of a given type arriving on a destination (a topic in kafka mode; the REST/MCP inject or the embedded API otherwise) starts a process, with a business key and initial variables mapped from the event — at most once per event and trigger.
+A definition can declare `triggers`: a CloudEvent of a given type arriving on a destination (a topic in kafka mode; the REST/MCP inject or the embedded API otherwise) starts a process, with a business key and initial variables mapped from the event — at most once per event and trigger. The same trigger, naming the workflow it starts, can live in an `events.yaml` next to the definitions, as a schedule can live in `cron.yaml`.
 
 ```yaml
 triggers:
@@ -118,6 +118,15 @@ triggers:
     type: com.acme.booking.created
     businessKey: "booking-${data.bookingId}"
     variables: { bookingId: "${data.bookingId}" }
+```
+
+```yaml
+# events.yaml, next to the definitions
+- destination: customers-cdc
+  type: "*"
+  workflow: sync-customer
+  filter: "data.op == 'u'"
+  variables: { customerId: "${data.after.id}" }
 ```
 
 See [Starting on and waiting for domain events](/guides/domain-event-triggers/).

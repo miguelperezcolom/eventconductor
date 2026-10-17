@@ -4,6 +4,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
@@ -20,11 +22,20 @@ import java.util.regex.Pattern;
  *   <li>{@code id} — optional, unique in the definition, the schedule id syntax. Absent, it is derived
  *       from the type ({@link #effectiveIds}).</li>
  * </ul>
+ *
+ * <p>The same triggers, each naming the workflow it starts, can live in an {@code events.yaml} next to
+ * the definitions ({@link #isEventFileName}) — the counterpart of {@code cron.yaml} for schedules.
  */
 public final class EventTriggerRules {
 
     /** The longest trigger id accepted (the schedule limit). */
     public static final int MAX_ID_LENGTH = ScheduleRules.MAX_ID_LENGTH;
+
+    /**
+     * The names of the file that declares event triggers outside the definitions, next to them: never
+     * a workflow definition, whatever its extension says.
+     */
+    public static final Set<String> EVENT_FILE_NAMES = Set.of("events.yaml", "events.yml");
 
     private static final Pattern NAME = Pattern.compile("[A-Za-z0-9][A-Za-z0-9._-]*");
 
@@ -34,6 +45,17 @@ public final class EventTriggerRules {
     /** Whether this is a trigger id; null or blank means "none declared" and is fine. */
     public static boolean isValidId(String id) {
         return ScheduleRules.isValidId(id);
+    }
+
+    /** Whether a file name (or path; only the last segment counts) is an event-trigger file. */
+    public static boolean isEventFileName(String name) {
+        if (name == null) {
+            return false;
+        }
+        var normalized = name.replace('\\', '/');
+        var slash = normalized.lastIndexOf('/');
+        var last = slash >= 0 ? normalized.substring(slash + 1) : normalized;
+        return EVENT_FILE_NAMES.contains(last.toLowerCase(Locale.ROOT));
     }
 
     /** Whether this names a destination (the same syntax as a destination key in configuration). */
@@ -127,6 +149,14 @@ public final class EventTriggerRules {
             ids.add(candidate);
         }
         return ids;
+    }
+
+    /**
+     * The id derived from a type for a trigger that declares none, before any {@code -2} suffix: what
+     * {@link #effectiveIds} gives a lone trigger of that type.
+     */
+    public static String derivedId(String type) {
+        return derivedBase(type);
     }
 
     private static String derivedBase(String type) {

@@ -39,6 +39,8 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
     public static final String STALLED_PROCESSES = "eventconductor.processes.stalled";
     public static final String PROCESSES_RUNNING = "eventconductor.process.running";
     public static final String OUTBOX_PENDING = "eventconductor.outbox.pending";
+    /** Event triggers that can fire, by {@code origin} (definition, events_file). */
+    public static final String EVENT_TRIGGERS = "eventconductor.events.triggers";
 
     public static final String OUTBOX_PICKUP_LATENCY = "eventconductor.outbox.pickup.latency";
     public static final String OUTBOX_BATCH_DELIVER = "eventconductor.outbox.batch.deliver";

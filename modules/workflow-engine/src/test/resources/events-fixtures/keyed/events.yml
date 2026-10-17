@@ -1,0 +1,4 @@
+triggers:
+  - destination: bookings
+    type: com.acme.booking.*
+    workflow: sync-customer

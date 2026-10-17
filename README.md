@@ -785,7 +785,9 @@ any mode `POST /workflow/api/events/{destination}` and the MCP tool `publishInbo
 and in embedded mode `InboundEventService` (or a Spring `InboundEvent` application event) does, as do
 the engine's own `PUBLISH_EVENT`s. Triggers are listed, paused and resumed on **Workflow → Event
 triggers**, `/workflow/api/triggers` and MCP; **Workflow → Received events** shows what each event did.
-See the guide *Starting on and waiting for domain events*.
+The same triggers, naming the workflow they start, can live in an `events.yaml` next to the definitions
+(classpath, directory or git), as schedules can in `cron.yaml` — so wiring a CDC stream or a partner's
+events to a workflow is not a change to the workflow. See the guide *Starting on and waiting for domain events*.
 
 ### Workflow definition status
 

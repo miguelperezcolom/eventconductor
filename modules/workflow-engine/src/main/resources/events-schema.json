@@ -1,0 +1,89 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:eventconductor:events-schema:1",
+  "title": "EventConductor events.yaml",
+  "description": "Event triggers declared outside the workflow definitions, in a file named events.yaml (or events.yml) next to them. Either a list of triggers, or an object whose only key is triggers holding that list. Each entry is a definition's trigger plus the workflow it starts: a domain event (CloudEvents) of the given type arriving on the destination, for which the filter holds, starts a process of that workflow with the business key and variables mapped from the event — while the workflow is ACTIVE and the trigger is not paused. The counterpart of cron.yaml for schedules.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/TriggerList"
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "triggers"
+      ],
+      "properties": {
+        "triggers": {
+          "$ref": "#/$defs/TriggerList"
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "TriggerList": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Trigger"
+      }
+    },
+    "Trigger": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "destination",
+        "type",
+        "workflow"
+      ],
+      "properties": {
+        "id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+          "maxLength": 100,
+          "description": "Optional name of the trigger (letters, digits, '.', '_', '-'), unique within the workflow it starts — across the definition's own triggers and every events.yaml. A pause is kept under <workflow>/<id> and the default business key carries it. Absent means derived from the type (com.acme.booking.created; a second trigger of the same type in the workflow gets -2). An id the definition already declares makes the entry a duplicate: listed, never fires."
+        },
+        "destination": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+          "description": "A logical destination, mapped to a topic by workflow.events.destinations.<name>.topic — the same names PUBLISH_EVENT publishes to, never a topic itself. In kafka mode the engine consumes the topics of the destinations that some trigger or onEvent names; events also arrive through POST /workflow/api/events/{destination}, the publishInboundEvent MCP tool and the embedded InboundEventService."
+        },
+        "type": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The CloudEvents type to match (ce_type), e.g. com.acme.booking.created. '*' matches any run of characters (com.acme.booking.*); a lone '*' matches every event on the destination, including plain records that carry no type (a CDC topic, for instance)."
+        },
+        "workflow": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The id of the workflow definition a matching event starts. An entry naming an unknown workflow is reported and skipped."
+        },
+        "filter": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Optional JEXL boolean expression over the event, without ${...} (e.g. data.op == 'u' && data.after.active). The event is used only when it evaluates to true; an expression that cannot be evaluated counts as false and is recorded as an ERROR receipt. Evaluated over the event context: id, source, type, subject, time, key, destination, datacontenttype, data (the payload parsed as JSON — objects are maps, so data.after.id — or its raw text) and extensions."
+        },
+        "businessKey": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Optional text template over the event for the started process's business key (e.g. \"customer-${data.after.id}\"). Absent means <workflow>-evt-<trigger>-<16 hex of a SHA-256 of the event's source and id>, so a redelivered event collapses into the process it already started. A given key is honoured as given: two different events that render the same key start one process."
+        },
+        "variables": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "description": "The started process's initial variables, by name, each a payload template over the event (\"${data.after.id}\"; a non-string value becomes its JSON text, as process variables are strings). Absent means every top-level member of data when data is a JSON object; {} means none.",
+          "additionalProperties": true
+        }
+      }
+    }
+  }
+}

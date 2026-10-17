@@ -1,11 +1,11 @@
 ---
 title: Starting on and Waiting for Domain Events
-description: Event triggers start a workflow when a domain event arrives; a WAIT_FOR_MESSAGE with onEvent waits for one. CloudEvents, the same destinations PUBLISH_EVENT publishes to, each event used once.
+description: Event triggers start a workflow when a domain event arrives — declared in the definition or in an events.yaml next to it; a WAIT_FOR_MESSAGE with onEvent waits for one. CloudEvents, the same destinations PUBLISH_EVENT publishes to, each event used once.
 ---
 
 [`PUBLISH_EVENT`](/guides/publishing-events/) lets a process speak to other systems. This is the other direction: a definition can **listen** to the domain events of other systems — or of its own.
 
-- An **event trigger** starts a process when an event arrives — like a [schedule](/guides/starting-a-process/#schedules-with-parameters), but on an event instead of a clock.
+- An **event trigger** starts a process when an event arrives — like a [schedule](/guides/starting-a-process/#schedules-with-parameters), but on an event instead of a clock. It is declared in the definition, or in an [`events.yaml`](#eventsyaml-triggers-outside-the-definition) next to the definitions, as a schedule can live in `cron.yaml`.
 - A **`WAIT_FOR_MESSAGE` with `onEvent`** waits until an event for *this* process arrives.
 
 Events are **CloudEvents 1.0** and arrive on a **destination** — the logical name `workflow.events.destinations.<name>.topic` maps to a topic, the same names `PUBLISH_EVENT` uses. A definition never names a topic.
@@ -45,6 +45,28 @@ A trigger starts a process **as the engine itself** (like cron: the definition's
 - the definition must be **ACTIVE** — a DISABLED or ARCHIVED definition starts nothing;
 - a **paused definition** still creates the process, already PAUSED;
 - a **paused trigger** starts nothing, and resuming it does not replay what arrived meanwhile.
+
+### `events.yaml`: triggers outside the definition
+
+The same trigger, naming the workflow it starts, can live in an `events.yaml` (or `events.yml`) next to the definitions — `classpath:/workflows/events.yaml`, an imported directory or a git repository — so that *linking* an event to a workflow is not a change to the workflow. A bare list, or the list under a single `triggers:` key:
+
+```yaml
+- id: on-customer-updated              # optional, as in a definition
+  destination: customers-cdc           # → workflow.events.destinations.customers-cdc.topic
+  type: "*"                            # a CDC topic carries plain records: no type to match
+  workflow: sync-customer              # the definition a matching event starts
+  filter: "data.op == 'u'"
+  businessKey: "customer-${data.after.id}"
+  variables:
+    customerId: "${data.after.id}"
+    email: "${data.after.email}"
+```
+
+`events.yaml` is never imported as a definition. Each import of a source replaces that source's entries (a removed entry stops firing; a deleted file clears them); an entry naming an unknown workflow, with an invalid destination, type or id, an unknown key, or an id declared twice for one workflow is logged and skipped, and the rest of the file applies. A file that cannot be read at all leaves the source's previous entries in place. Entries live in memory with `workflow.persistence=memory` and in the `event_trigger` table with `jpa` (migration V40), so every pod matches events against the same set. The engine and the Maven plugin validate the file against `events-schema.json`, and both IDE plugins do too.
+
+A trigger declared in a file is the same kind of thing as one declared in the definition: same matching, same receipts, same receiver `trigger:<workflow>/<trigger>`, same pause by `<workflow>/<trigger>`, same business key default. Its `id` is unique within the workflow across both places — absent, it is derived from the type as in a definition (`-2` on a repeat). An entry whose id the definition already declares is a **duplicate**: listed with that status, never fires. The definition's own triggers come first, then its file entries by source and position; **Workflow → Event triggers** and the definition's **Triggers** tab show a **Source** column (`Definition`, `events.yaml (classpath|directory|git)`), and the REST and MCP views carry `origin`, `source`, `sourceLabel` and `declaredIn`. The ⚡ on the graph's START node marks only the triggers the definition itself declares.
+
+Which to use: the definition, when the author of the workflow is the one who knows which event starts it — the trigger travels with the workflow. `events.yaml`, when the workflow is generic and the binding is a deployment or integration decision — a CDC stream, a partner's events — or when the people wiring events to workflows are not the ones writing the workflows.
 
 ### What a filter and a template see
 
@@ -96,7 +118,7 @@ The same event — the same CloudEvents `source` and `id` — **never starts two
 
 ## How events arrive
 
-**Kafka mode.** The engine consumes the topics of the destinations that some trigger or `onEvent` names, in one consumer group (`workflow.events.consumer.group`), so each event is used by one pod. The set is recomputed every `workflow.events.consumer.refresh-interval` — a git import that adds a trigger is listened to without a restart. A new group starts at `latest`: turning a trigger on does not replay the topic's history. Records are read as CloudEvents in **binary** mode (`ce_*` headers — what `PUBLISH_EVENT` writes by default), **structured** mode (`application/cloudevents+json`), or as **plain** records (id `<topic>-<partition>-<offset>`, source `kafka://<topic>`, no type — only a `type: '*'` trigger matches them). A destination named by a definition but configured without a topic is logged and not consumed.
+**Kafka mode.** The engine consumes the topics of the destinations that some trigger — in a definition or an `events.yaml` — or `onEvent` names, in one consumer group (`workflow.events.consumer.group`), so each event is used by one pod. The set is recomputed every `workflow.events.consumer.refresh-interval` — a git import that adds a trigger, in a definition or in `events.yaml`, is listened to without a restart. A new group starts at `latest`: turning a trigger on does not replay the topic's history. Records are read as CloudEvents in **binary** mode (`ce_*` headers — what `PUBLISH_EVENT` writes by default), **structured** mode (`application/cloudevents+json`), or as **plain** records (id `<topic>-<partition>-<offset>`, source `kafka://<topic>`, no type — only a `type: '*'` trigger matches them). A destination named by a definition but configured without a topic is logged and not consumed.
 
 ```yaml
 workflow:
@@ -132,14 +154,14 @@ The answer says what the event did: `receipts` (each `STARTED` with its business
 
 ## Operating triggers
 
-- **Workflow → Event triggers** lists every trigger — workflow, destination and its topic, type, filter, business key, variables, status — and pauses or resumes the selected ones. **Workflow → Received events** shows the latest receipts: what each event started, delivered, or why it could not be used. A definition's detail page has a **Triggers** tab.
+- **Workflow → Event triggers** lists every trigger — workflow, destination and its topic, type, filter, business key, variables, source (`Definition` or the `events.yaml` it comes from), status — and pauses or resumes the selected ones. **Workflow → Received events** shows the latest receipts: what each event started, delivered, or why it could not be used. A definition's detail page has a **Triggers** tab.
 - REST: `GET /workflow/api/triggers[?workflowId=]`, `GET /workflow/api/triggers/{workflowId}/{triggerId}`, `POST …/pause`, `POST …/resume`, `GET /workflow/api/events/received[?workflowId=&limit=]`.
 - MCP: `listEventTriggers`, `pauseEventTrigger`, `resumeEventTrigger`, `listReceivedEvents`, `publishInboundEvent`.
-- Metric: `eventconductor.events.received{destination, outcome}` (`STARTED`, `DELIVERED`, `ERROR`, `DUPLICATE`).
+- Metrics: `eventconductor.events.received{destination, outcome}` (`STARTED`, `DELIVERED`, `ERROR`, `DUPLICATE`), and the gauge `eventconductor.events.triggers{origin}` (`definition`, `events_file`): how many triggers can fire — a drop after an import means an entry was skipped or removed.
 - The graph shows a ⚡ on the START node of a triggered workflow, and `⚡ <type> ← <destination>` above a wait fed by an event.
 
 ## Limits
 
 - An event that matches nothing leaves no receipt (a busy topic would fill the table with noise); the REST/MCP inject says what happened.
 - Waits are matched against each definition's **current** declaration. A process still running an older version whose `onEvent` changed since is completed through its `messageName` by the message API.
-- A trigger is declared in its definition; there is no `events.yaml` and no trigger created from the UI.
+- A trigger is declared in its definition or in an `events.yaml`; there is no trigger created from the UI, the REST API or MCP yet — they pause and resume what the files declare.

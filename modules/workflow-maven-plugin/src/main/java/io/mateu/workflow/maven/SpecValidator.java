@@ -37,7 +37,9 @@ public class SpecValidator {
         RULE("schemas/rule-schema.json"),
         TASK("schemas/task-contract-schema.json"),
         /** A {@code cron.yaml} / {@code cron.yml} schedule file next to the workflow definitions. */
-        CRON("schemas/cron-schema.json");
+        CRON("schemas/cron-schema.json"),
+        /** An {@code events.yaml} / {@code events.yml} event-trigger file next to the workflow definitions. */
+        EVENTS("schemas/events-schema.json");
 
         final String schemaResource;
 
@@ -51,6 +53,7 @@ public class SpecValidator {
     private final Schema ruleSchema;
     private final Schema taskSchema;
     private final Schema cronSchema;
+    private final Schema eventsSchema;
     // parse-only engine; expressions are never evaluated during validation.
     private final JexlEngine jexl = new JexlBuilder().create();
 
@@ -60,6 +63,7 @@ public class SpecValidator {
         this.ruleSchema = loadSchema(Kind.RULE.schemaResource);
         this.taskSchema = loadSchema(Kind.TASK.schemaResource);
         this.cronSchema = loadSchema(Kind.CRON.schemaResource);
+        this.eventsSchema = loadSchema(Kind.EVENTS.schemaResource);
     }
 
     private static Schema loadSchema(String resource) {
@@ -90,6 +94,10 @@ public class SpecValidator {
             case CRON -> {
                 addSchemaViolations(cronSchema, document, violations);
                 addCronSemantics(document, violations);
+            }
+            case EVENTS -> {
+                addSchemaViolations(eventsSchema, document, violations);
+                addEventSemantics(document, violations);
             }
         }
         return violations;
@@ -161,6 +169,36 @@ public class SpecValidator {
             list.forEach(entries::add);
         }
         return entries;
+    }
+
+    /** The entries of an events file: a bare list, or the list under {@code triggers}. */
+    public static List<JsonNode> eventEntries(JsonNode document) {
+        JsonNode list = document != null && document.isObject() ? document.get("triggers") : document;
+        List<JsonNode> entries = new ArrayList<>();
+        if (list != null && list.isArray()) {
+            list.forEach(entries::add);
+        }
+        return entries;
+    }
+
+    /** The engine's trigger rules per entry, and an id declared twice for one workflow. */
+    private void addEventSemantics(JsonNode document, List<String> violations) {
+        List<JsonNode> entries = eventEntries(document);
+        java.util.Map<String, List<String>> idsByWorkflow = new java.util.LinkedHashMap<>();
+        for (int i = 0; i < entries.size(); i++) {
+            JsonNode entry = entries.get(i);
+            if (text(entry, "destination") == null || text(entry, "type") == null) {
+                continue; // the schema already reports a missing or non-string destination or type
+            }
+            violations.addAll(io.mateu.workflow.analysis.EventTriggerRules.triggerViolations(
+                    text(entry, "id"), text(entry, "destination"), text(entry, "type"), "entry " + i));
+            String workflow = text(entry, "workflow");
+            if (workflow != null) {
+                idsByWorkflow.computeIfAbsent(workflow.trim(), w -> new ArrayList<>()).add(text(entry, "id"));
+            }
+        }
+        idsByWorkflow.forEach((workflow, ids) -> violations.addAll(
+                io.mateu.workflow.analysis.EventTriggerRules.duplicateIdViolations(ids, "workflow '" + workflow + "'")));
     }
 
     private void addCronSemantics(JsonNode document, List<String> violations) {

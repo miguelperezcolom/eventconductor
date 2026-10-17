@@ -27,8 +27,9 @@ import java.util.stream.Stream;
  * {@code *.yaml} and {@code *.yml} files — the same six the engine imports, and the same layout
  * it loads from the classpath. Each directory is validated against the matching specification.
  *
- * <p>A {@code cron.yaml} (or {@code cron.yml}) under the workflows directory is a schedule file, not
- * a definition: it is validated against its own schema, with the engine's cron and zone rules, and
+ * <p>A {@code cron.yaml} (or {@code cron.yml}) under the workflows directory is a schedule file, and an
+ * {@code events.yaml} (or {@code events.yml}) an event-trigger file, not a definition: each is validated
+ * against its own schema, with the engine's rules (cron and zone; destination, type and id), and
  * every entry must name a workflow defined in that directory.
  */
 @Mojo(name = "validate", defaultPhase = LifecyclePhase.PROCESS_RESOURCES, threadSafe = true)
@@ -95,6 +96,7 @@ public class ValidateMojo extends AbstractMojo {
         if (validateWorkflows) {
             validated += validateDirectory(validator, SpecValidator.Kind.WORKFLOW, workflowsDirectory, failures);
             validated += validateCronFiles(validator, failures);
+            validated += validateEventFiles(validator, failures);
         }
         if (validateForms) {
             validated += validateDirectory(validator, SpecValidator.Kind.FORM, formsDirectory, failures);
@@ -192,7 +194,73 @@ public class ValidateMojo extends AbstractMojo {
     private static boolean isDefinitionFile(Path path) {
         String name = path.getFileName().toString().toLowerCase();
         return DEFINITION_EXTENSIONS.stream().anyMatch(name::endsWith)
-                && !io.mateu.workflow.analysis.ScheduleRules.isCronFileName(name);
+                && !io.mateu.workflow.analysis.ScheduleRules.isCronFileName(name)
+                && !io.mateu.workflow.analysis.EventTriggerRules.isEventFileName(name);
+    }
+
+    /**
+     * Validates the event-trigger files under the workflows directory and checks that each entry names
+     * a workflow defined there — what the engine would otherwise only log, and skip, at import.
+     */
+    private int validateEventFiles(SpecValidator validator, List<String> failures) throws MojoExecutionException {
+        if (workflowsDirectory == null || !workflowsDirectory.isDirectory()) {
+            return 0;
+        }
+        Path root = workflowsDirectory.toPath();
+        List<Path> eventFiles;
+        try (Stream<Path> walk = Files.walk(root)) {
+            eventFiles = walk.filter(Files::isRegularFile)
+                    .filter(p -> io.mateu.workflow.analysis.EventTriggerRules.isEventFileName(p.toString()))
+                    .sorted()
+                    .toList();
+        } catch (IOException e) {
+            throw new MojoExecutionException("Could not scan " + root, e);
+        }
+        if (eventFiles.isEmpty()) {
+            return 0;
+        }
+        java.util.Set<String> workflowIds = definitionIds(root);
+        for (Path file : eventFiles) {
+            JsonNode document;
+            try {
+                document = parse(file);
+            } catch (IOException e) {
+                failures.add(file + ": could not parse (" + e.getMessage() + ")");
+                continue;
+            }
+            List<String> violations = new ArrayList<>(document == null || document.isMissingNode()
+                    ? List.of() : validator.validate(SpecValidator.Kind.EVENTS, document));
+            List<JsonNode> entries = SpecValidator.eventEntries(document);
+            for (int i = 0; i < entries.size(); i++) {
+                JsonNode workflow = entries.get(i).get("workflow");
+                if (workflow != null && workflow.isTextual() && !workflow.asText().isBlank()
+                        && !workflowIds.contains(workflow.asText().trim())) {
+                    violations.add("entry " + i + ": unknown workflow '" + workflow.asText()
+                            + "' — no definition under " + root + " has that id");
+                }
+            }
+            if (violations.isEmpty()) {
+                getLog().debug("Valid EVENTS: " + file);
+            } else {
+                failures.add(file + ":\n  - " + String.join("\n  - ", violations));
+            }
+        }
+        return eventFiles.size();
+    }
+
+    /** The ids of the definitions under {@code root}, declared or derived, for cross-checking file entries. */
+    private java.util.Set<String> definitionIds(Path root) throws MojoExecutionException {
+        java.util.Set<String> workflowIds = new java.util.HashSet<>();
+        for (Path file : listDefinitionFiles(root)) {
+            try {
+                JsonNode wf = parse(file);
+                workflowIds.add(wf.hasNonNull("id") && !wf.get("id").asText().isBlank()
+                        ? wf.get("id").asText() : derivedId(root, file));
+            } catch (IOException e) {
+                // reported by the definition pass
+            }
+        }
+        return workflowIds;
     }
 
     /**
@@ -216,16 +284,7 @@ public class ValidateMojo extends AbstractMojo {
         if (cronFiles.isEmpty()) {
             return 0;
         }
-        java.util.Set<String> workflowIds = new java.util.HashSet<>();
-        for (Path file : listDefinitionFiles(root)) {
-            try {
-                JsonNode wf = parse(file);
-                workflowIds.add(wf.hasNonNull("id") && !wf.get("id").asText().isBlank()
-                        ? wf.get("id").asText() : derivedId(root, file));
-            } catch (IOException e) {
-                // reported by the definition pass
-            }
-        }
+        java.util.Set<String> workflowIds = definitionIds(root);
         for (Path file : cronFiles) {
             JsonNode document;
             try {

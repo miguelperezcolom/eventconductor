@@ -59,12 +59,12 @@ class EventRestControllerMvcTest {
                                 Map.of("bookingId", "${data.bookingId}"))))));
         var receipts = new InMemoryEventReceiptRepository();
         var pauses = new InMemoryTriggerPauseRepository();
-        var inbound = new InboundEventService(definitions, receipts, pauses, ingressRouter, messageDispatcher,
+        var inbound = new InboundEventService(definitions, new io.mateu.workflow.infra.out.memory.InMemoryEventTriggerRepository(), receipts, pauses, ingressRouter, messageDispatcher,
                 mock(ObjectProvider.class));
         var beans = new StaticListableBeanFactory();
         beans.addBean("caller", (CallerResolver) () -> new AuthorizationContext("alice", List.of(), List.of()));
         var controller = new EventRestController(inbound,
-                new EventTriggerService(definitions, pauses, receipts, new EventDestinationsProperties()), apiProperties,
+                new EventTriggerService(definitions, pauses, receipts, new EventDestinationsProperties(), new io.mateu.workflow.infra.out.memory.InMemoryEventTriggerRepository()), apiProperties,
                 beans.getBeanProvider(CallerResolver.class));
         mvc = MockMvcBuilders.standaloneSetup(controller).build();
     }

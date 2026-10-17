@@ -1,0 +1,11 @@
+# Event triggers declared outside the definitions, for EventTriggerE2eTest / EventTriggerJpaE2eTest.
+# Not a workflow definition: the importers skip events.yaml and load it as triggers.
+- id: on-customer-updated
+  destination: e2e-customers-cdc
+  type: "*"
+  workflow: event-file-trigger
+  filter: "data.op == 'u'"
+  businessKey: "customer-${data.after.id}"
+  variables:
+    customerId: "${data.after.id}"
+    email: "${data.after.email}"

@@ -1,13 +1,15 @@
 package io.mateu.workflow.application.services;
 
 import io.mateu.workflow.application.out.EventReceiptRepository;
+import io.mateu.workflow.application.out.EventTriggerRepository;
 import io.mateu.workflow.application.out.TriggerPauseRepository;
 import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
 import io.mateu.workflow.domain.aggregates.EventReceipt;
-import io.mateu.workflow.domain.aggregates.EventTrigger;
+import io.mateu.workflow.domain.aggregates.EventTriggerOrigin;
 import io.mateu.workflow.domain.aggregates.StepType;
 import io.mateu.workflow.domain.aggregates.TriggerPause;
 import io.mateu.workflow.domain.aggregates.WorkflowDefinition;
+import io.mateu.workflow.domain.services.EventTriggerCatalog;
 import io.mateu.workflow.infra.config.EventDestinationsProperties;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -25,8 +27,9 @@ import java.util.Set;
 
 /**
  * The event triggers as the admin UI, the REST API and the MCP tools see them: consult them, pause and
- * resume them, and read what the received events did. Triggers are declared in definitions and changed
- * there; this only operates them.
+ * resume them, and read what the received events did. Triggers are declared in definitions
+ * ({@code triggers}) and in {@code events.yaml} files next to them, and changed there; this only
+ * operates them. {@link EventTriggerCatalog} is what makes the two sources one list.
  */
 @Service
 @RequiredArgsConstructor
@@ -36,9 +39,13 @@ public class EventTriggerService {
     final TriggerPauseRepository pauses;
     final EventReceiptRepository receipts;
     final EventDestinationsProperties destinations;
+    final EventTriggerRepository fileTriggers;
 
-    /** Whether a trigger starts processes now. */
-    public enum TriggerState { ACTIVE, PAUSED, INACTIVE }
+    /**
+     * Whether a trigger starts processes now. {@code DUPLICATE}: an {@code events.yaml} entry whose id
+     * the workflow already has — listed, never fires.
+     */
+    public enum TriggerState { ACTIVE, PAUSED, INACTIVE, DUPLICATE }
 
     /**
      * One trigger, for display.
@@ -46,11 +53,17 @@ public class EventTriggerService {
      * @param topic        the destination's topic, or null when the destination is not configured with one
      * @param variables    the variable templates by name; null means "data's top-level members"
      * @param workflowStatus ACTIVE, DISABLED or ARCHIVED (INACTIVE state when not ACTIVE)
+     * @param origin       DEFINITION or EVENTS_FILE
+     * @param source       the definition id, or the import source key of its {@code events.yaml}
+     * @param sourceLabel  "Definition", "events.yaml (git)", "events.yaml (directory)", "events.yaml (classpath)"
+     * @param declaredIn   exactly where
+     * @param duplicateOf  where the owner of its id is declared, for a file entry that never fires; null otherwise
      */
     public record TriggerView(String workflowId, String workflowName, String triggerId, String destination,
                               String topic, String type, String filter, String businessKey,
                               Map<String, Object> variables, String workflowStatus, boolean workflowPaused,
-                              boolean paused, Instant pausedAt, String pausedBy, TriggerState state) {
+                              boolean paused, Instant pausedAt, String pausedBy, TriggerState state,
+                              String origin, String source, String sourceLabel, String declaredIn, String duplicateOf) {
 
         /** The key the trigger's pause is kept under: {@code <workflow>/<trigger>}. */
         public String key() {
@@ -58,22 +71,33 @@ public class EventTriggerService {
         }
     }
 
-    /** Every trigger, by workflow then declaration order; optionally one workflow's, or those matching {@code text}. */
+    /**
+     * Every trigger, by workflow then declaration order — the definition's own first, then its
+     * {@code events.yaml} entries; optionally one workflow's, or those matching {@code text}.
+     */
     public List<TriggerView> list(String workflowId, String text) {
         var paused = pauses.findAll();
         var views = new ArrayList<TriggerView>();
-        for (var definition : definitions()) {
-            if (workflowId != null && !workflowId.isBlank() && !workflowId.equals(definition.id())) {
+        for (var entry : catalog()) {
+            if (workflowId != null && !workflowId.isBlank() && !workflowId.equals(entry.definition().id())) {
                 continue;
             }
-            for (var trigger : definition.identifiedTriggers()) {
-                var view = view(definition, trigger, paused.get(TriggerPause.keyOf(definition.id(), trigger.id())));
-                if (matchesText(view, text)) {
-                    views.add(view);
-                }
+            var view = view(entry, paused.get(entry.key()));
+            if (matchesText(view, text)) {
+                views.add(view);
             }
         }
         return views;
+    }
+
+    /** Every trigger the engine knows, definitions and {@code events.yaml} entries alike, in precedence order. */
+    public List<EventTriggerCatalog.Entry> catalog() {
+        return EventTriggerCatalog.of(definitions(), fileTriggers == null ? List.of() : fileTriggers.findAll());
+    }
+
+    /** How many triggers of {@code origin} can fire (not duplicates), for the gauge. */
+    public long count(EventTriggerOrigin origin) {
+        return catalog().stream().filter(e -> e.origin() == origin && e.fires()).count();
     }
 
     /** One trigger. */
@@ -102,12 +126,15 @@ public class EventTriggerService {
     }
 
     /**
-     * The destinations the engine should listen on: those some definition's trigger or
-     * {@code WAIT_FOR_MESSAGE} {@code onEvent} names, whatever the definition's status (a disabled
-     * definition's running processes still wait).
+     * The destinations the engine should listen on: those some definition's trigger, some
+     * {@code events.yaml} entry or some {@code WAIT_FOR_MESSAGE} {@code onEvent} names, whatever the
+     * definition's status (a disabled definition's running processes still wait).
      */
     public Set<String> listenedDestinations() {
         var names = new LinkedHashSet<String>();
+        if (fileTriggers != null) {
+            fileTriggers.findAll().forEach(t -> names.add(t.trigger().destination()));
+        }
         for (var definition : definitions()) {
             if (definition.triggers() != null) {
                 definition.triggers().forEach(t -> names.add(t.destination()));
@@ -128,14 +155,18 @@ public class EventTriggerService {
         return configured == null || configured.getTopic() == null || configured.getTopic().isBlank() ? null : configured.getTopic();
     }
 
-    private TriggerView view(WorkflowDefinition definition, EventTrigger trigger, TriggerPause pause) {
+    private TriggerView view(EventTriggerCatalog.Entry entry, TriggerPause pause) {
+        var definition = entry.definition();
+        var trigger = entry.trigger();
         var accepts = definition.status().accceptsNewInstances();
-        var state = !accepts ? TriggerState.INACTIVE : pause != null ? TriggerState.PAUSED : TriggerState.ACTIVE;
+        var state = !entry.fires() ? TriggerState.DUPLICATE
+                : !accepts ? TriggerState.INACTIVE : pause != null ? TriggerState.PAUSED : TriggerState.ACTIVE;
         return new TriggerView(definition.id(), definition.name(), trigger.id(), trigger.destination(),
                 topicOf(trigger.destination()), trigger.type(), trigger.filter(), trigger.businessKey(),
                 trigger.variables() == null ? null : new LinkedHashMap<>(trigger.variables()),
                 definition.status().name(), definition.paused(), pause != null,
-                pause == null ? null : pause.pausedAt(), pause == null ? null : pause.pausedBy(), state);
+                pause == null ? null : pause.pausedAt(), pause == null ? null : pause.pausedBy(), state,
+                entry.origin().name(), entry.source(), entry.sourceLabel(), entry.declaredIn(), entry.duplicateOf());
     }
 
     private List<WorkflowDefinition> definitions() {
@@ -151,7 +182,7 @@ public class EventTriggerService {
         }
         var needle = text.toLowerCase(Locale.ROOT);
         return java.util.stream.Stream.of(view.workflowId(), view.workflowName(), view.triggerId(), view.destination(),
-                        view.type(), view.filter(), view.businessKey())
+                        view.type(), view.filter(), view.businessKey(), view.sourceLabel(), view.source())
                 .anyMatch(s -> s != null && s.toLowerCase(Locale.ROOT).contains(needle));
     }
 }

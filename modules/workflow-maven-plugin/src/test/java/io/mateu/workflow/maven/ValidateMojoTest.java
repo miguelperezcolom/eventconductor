@@ -82,6 +82,20 @@ class ValidateMojoTest {
     }
 
     @Test
+    void eventsYamlIsValidatedAsTriggersAndItsWorkflowsCrossChecked() throws Exception {
+        assertThatThrownBy(() -> mojo("events-invalid").execute())
+                .isInstanceOf(MojoFailureException.class)
+                .hasMessageContaining("events.yaml")
+                .hasMessageContaining("entry 1: 're ports' is not a valid destination name")
+                .hasMessageContaining("entry 2: unknown workflow 'ghost'")
+                .hasMessageContaining("workflow 'report': trigger id 'on-report' is declared more than once")
+                .hasMessageContaining("varaibles")
+                // entry 0 is fine; events.yaml is not a definition
+                .hasMessageNotContaining("entry 0")
+                .hasMessageNotContaining("'name'");
+    }
+
+    @Test
     void cronYamlIsValidatedAsSchedulesAndItsWorkflowsCrossChecked() throws Exception {
         assertThatThrownBy(() -> mojo("cron-invalid").execute())
                 .isInstanceOf(MojoFailureException.class)

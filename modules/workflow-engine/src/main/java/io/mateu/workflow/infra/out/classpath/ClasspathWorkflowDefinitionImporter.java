@@ -54,6 +54,8 @@ public class ClasspathWorkflowDefinitionImporter implements ApplicationRunner {
             }
             // cron.yaml sits next to the definitions but holds schedules (ClasspathCronScheduleLoader).
             resources.removeIf(r -> io.mateu.workflow.analysis.ScheduleRules.isCronFileName(r.getFilename()));
+            // events.yaml too: event triggers naming their workflow (ClasspathEventTriggerLoader).
+            resources.removeIf(r -> io.mateu.workflow.analysis.EventTriggerRules.isEventFileName(r.getFilename()));
             for (var resource : resources) {
                 try {
                     String filename = resource.getFilename();

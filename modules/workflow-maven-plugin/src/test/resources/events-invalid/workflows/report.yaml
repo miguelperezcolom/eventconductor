@@ -1,0 +1,13 @@
+# No id: the engine derives "report" from the file name, and so does the cron.yaml cross-check.
+name: Report
+schedules:
+  - cron: "0 0 9 * * *"
+    zone: Nowhere/Land
+steps:
+  - id: start
+    type: START
+    name: Start
+  - id: end
+    type: END
+    name: End
+    preconditionStepId: start

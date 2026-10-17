@@ -8,7 +8,8 @@ import io.mateu.workflow.application.services.EventTriggerService.TriggerView;
 /**
  * One row of the Events page: an event trigger of some workflow.
  *
- * @param id {@code <workflow>/<trigger>}, the key its pause is kept under
+ * @param id     {@code <workflow>/<trigger>}, the key its pause is kept under
+ * @param source "Definition", "events.yaml (git)", "events.yaml (directory)", "events.yaml (classpath)"
  */
 public record EventTriggerRow(
         @Label("Id") String id,
@@ -19,6 +20,7 @@ public record EventTriggerRow(
         @Label("Filter") String filter,
         @Label("Business key") String businessKey,
         @Label("Variables") String variables,
+        @Label("Source") String source,
         @Label("Paused by") String pausedBy,
         @Label("Status") Status status
 ) implements Identifiable {
@@ -26,6 +28,7 @@ public record EventTriggerRow(
     public static EventTriggerRow of(TriggerView view) {
         return new EventTriggerRow(view.key(), view.workflowId(), view.triggerId(), EventFormats.destination(view),
                 view.type(), EventFormats.orDash(view.filter()), EventFormats.businessKey(view),
-                EventFormats.variables(view), EventFormats.orDash(view.pausedBy()), EventFormats.status(view.state()));
+                EventFormats.variables(view), view.sourceLabel(), EventFormats.orDash(view.pausedBy()),
+                EventFormats.status(view.state()));
     }
 }

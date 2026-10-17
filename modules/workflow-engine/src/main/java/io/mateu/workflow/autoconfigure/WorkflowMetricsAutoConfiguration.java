@@ -82,6 +82,30 @@ public class WorkflowMetricsAutoConfiguration {
     }
 
     /**
+     * How many event triggers can fire, by origin — a definition's own {@code triggers} or an
+     * {@code events.yaml} entry — so a dashboard shows a trigger that an import dropped, or that a
+     * duplicate id silenced. Counting walks every definition, hence the same TTL as the other gauges.
+     */
+    @Bean
+    SmartInitializingSingleton eventconductorEventTriggersGauge(
+            ObjectProvider<MeterRegistry> meterRegistry,
+            ObjectProvider<io.mateu.workflow.application.services.EventTriggerService> triggerServices,
+            org.springframework.core.env.Environment environment) {
+        var gaugeTtl = gaugeTtl(environment);
+        return () -> meterRegistry.ifAvailable(registry -> triggerServices.ifAvailable(service -> {
+            for (var origin : io.mateu.workflow.domain.aggregates.EventTriggerOrigin.values()) {
+                var cached = new CachedCount(() -> service.count(origin), gaugeTtl);
+                Gauge.builder(MicrometerWorkflowMetrics.EVENT_TRIGGERS, cached, CachedCount::value)
+                        .tag("origin", origin.name().toLowerCase(java.util.Locale.ROOT))
+                        .description("Event triggers that can start a process, by where they are declared"
+                                + " (definition, events_file). Sampled at most once per workflow.metrics.gauge-ttl")
+                        .strongReference(true)
+                        .register(registry);
+            }
+        }));
+    }
+
+    /**
      * The pending-outbox gauge only makes sense with JPA persistence (in memory mode
      * events are dispatched synchronously and there is no outbox). Guarded on the
      * classpath because spring-data-jpa is an optional dependency of this module.

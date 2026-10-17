@@ -43,6 +43,7 @@
         <JsonSchema.ProviderFactory implementation="com.eventconductor.intellij.RuleJsonSchemaProviderFactory"/>
         <JsonSchema.ProviderFactory implementation="com.eventconductor.intellij.TaskJsonSchemaProviderFactory"/>
         <JsonSchema.ProviderFactory implementation="com.eventconductor.intellij.CronJsonSchemaProviderFactory"/>
+        <JsonSchema.ProviderFactory implementation="com.eventconductor.intellij.EventsJsonSchemaProviderFactory"/>
     </extensions>
 
     <!-- Scaffold a worker project from a task contract, or wire an existing module to one. The

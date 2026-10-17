@@ -1,0 +1,16 @@
+- id: on-report
+  destination: reports
+  type: com.acme.report.*
+  workflow: report
+- destination: "re ports"
+  type: com.acme.report.requested
+  workflow: report
+- destination: reports
+  type: com.acme.report.requested
+  workflow: ghost
+- id: on-report
+  destination: reports
+  type: com.acme.report.other
+  workflow: report
+  varaibles:
+    a: 1

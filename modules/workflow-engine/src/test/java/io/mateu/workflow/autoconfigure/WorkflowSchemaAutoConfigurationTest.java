@@ -57,6 +57,9 @@ class WorkflowSchemaAutoConfigurationTest {
             assertThat(tableExists(dataSource, "cron_schedule")).isTrue();
             assertThat(indexExists(dataSource, "idx_cron_schedule_schedule_id")).isTrue();
             assertThat(tableExists(dataSource, "cron_schedule_pause")).isTrue();
+            // Event triggers declared in events.yaml files (V40).
+            assertThat(tableExists(dataSource, "event_trigger")).isTrue();
+            assertThat(indexExists(dataSource, "idx_event_trigger_workflow_id")).isTrue();
 
             // Domain events in (V39): receipts for idempotency and trigger pauses.
             assertThat(tableExists(dataSource, "inbound_event_receipt")).isTrue();

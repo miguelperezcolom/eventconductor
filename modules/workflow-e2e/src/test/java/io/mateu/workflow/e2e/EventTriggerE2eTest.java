@@ -157,4 +157,47 @@ class EventTriggerE2eTest extends AbstractE2eTest {
         assertThat(process(businessKey).getVariables()).contains(new Variable("lastPaymentId", "P-2"));
         assertThat(triggers.received(50, "event-wait")).extracting(EventReceipt::eventId).contains("pay-1", "pay-2");
     }
+
+    private static InboundEvent cdc(String id, String op, String customerId, String email) {
+        // A Debezium-style record: no CloudEvents type, the change envelope as the payload.
+        return new InboundEvent("e2e-customers-cdc", id, "kafka://e2e.public.customers", null, null, null, customerId,
+                "application/json", "{\"op\":\"" + op + "\",\"after\":{\"id\":\"" + customerId + "\",\"email\":\"" + email + "\"}}",
+                Map.of());
+    }
+
+    @Test
+    void aTriggerDeclaredInEventsYamlStartsAProcessLikeOneDeclaredInTheDefinition() {
+        var result = inbound.receive(cdc("cdc-1", "u", "C-1", "c1@acme.com"));
+
+        assertThat(result.started()).isEqualTo(1);
+        assertThat(result.receipts()).singleElement().satisfies(receipt -> {
+            assertThat(receipt.workflowId()).isEqualTo("event-file-trigger");
+            assertThat(receipt.triggerId()).isEqualTo("on-customer-updated");
+        });
+        var process = process("customer-C-1");
+        assertThat(process.getWorkflowDefinitionId()).isEqualTo("event-file-trigger");
+        assertThat(process.getStatus()).isEqualTo(ProcessStatus.COMPLETED);
+        assertThat(process.getVariables()).contains(new Variable("customerId", "C-1"), new Variable("email", "c1@acme.com"));
+
+        // The filter holds only for updates; a create starts nothing and leaves no receipt.
+        var create = inbound.receive(cdc("cdc-2", "c", "C-2", "c2@acme.com"));
+        assertThat(create.started()).isZero();
+        assertThat(create.receipts()).isEmpty();
+    }
+
+    @Test
+    void anEventsYamlTriggerIsListedWithItsSourceAndOperatedByTheSameKey() {
+        var view = triggers.get("event-file-trigger", "on-customer-updated");
+
+        assertThat(view.origin()).isEqualTo("EVENTS_FILE");
+        assertThat(view.sourceLabel()).isEqualTo("events.yaml (classpath)");
+        assertThat(view.source()).isEqualTo("classpath:/workflows/events.yaml");
+        assertThat(view.state()).isEqualTo(EventTriggerService.TriggerState.ACTIVE);
+        assertThat(triggers.listenedDestinations()).contains("e2e-customers-cdc");
+
+        triggers.pause("event-file-trigger", "on-customer-updated", "ops");
+        assertThat(inbound.receive(cdc("cdc-3", "u", "C-3", "c3@acme.com")).started()).isZero();
+        triggers.resume("event-file-trigger", "on-customer-updated");
+        assertThat(inbound.receive(cdc("cdc-4", "u", "C-4", "c4@acme.com")).started()).isEqualTo(1);
+    }
 }

@@ -2,6 +2,7 @@ package io.mateu.workflow.application.services;
 
 import io.mateu.workflow.analysis.EventTriggerRules;
 import io.mateu.workflow.application.out.EventReceiptRepository;
+import io.mateu.workflow.application.out.EventTriggerRepository;
 import io.mateu.workflow.application.out.TriggerPauseRepository;
 import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
 import io.mateu.workflow.domain.aggregates.EventReceipt;
@@ -11,6 +12,7 @@ import io.mateu.workflow.domain.aggregates.InboundEvent;
 import io.mateu.workflow.domain.aggregates.StepType;
 import io.mateu.workflow.domain.aggregates.TriggerPause;
 import io.mateu.workflow.domain.aggregates.WorkflowDefinition;
+import io.mateu.workflow.domain.services.EventTriggerCatalog;
 import io.mateu.workflow.domain.services.InboundEvents;
 import io.mateu.workflow.dtos.Variable;
 import io.mateu.workflow.dtos.events.integration.MessageReceived;
@@ -33,14 +35,14 @@ import java.util.Set;
 
 /**
  * The one place a domain event is received: matched against every definition's event
- * {@code triggers} and every {@code WAIT_FOR_MESSAGE}'s {@code onEvent}, de-duplicated, and turned into
- * process starts and messages. Every channel ends here — the Kafka consumer, the REST and MCP inject,
+ * {@code triggers}, every {@code events.yaml} entry ({@link EventTriggerCatalog}) and every
+ * {@code WAIT_FOR_MESSAGE}'s {@code onEvent}, de-duplicated, and turned into process starts and messages. Every channel ends here — the Kafka consumer, the REST and MCP inject,
  * the embedded API (call {@link #receive} or publish an {@link InboundEvent} as a Spring application
  * event) and, in embedded mode, the engine's own {@code PUBLISH_EVENT}s looped back.
  *
  * <ul>
- *   <li><b>Triggers</b>: for every definition that accepts new instances, every trigger whose destination
- *       and type match, not paused, whose filter holds — a {@link ProcessCreationRequested} as
+ *   <li><b>Triggers</b>: for every definition that accepts new instances, every trigger — its own or an
+ *       {@code events.yaml} entry naming it — whose destination and type match, not paused, whose filter holds — a {@link ProcessCreationRequested} as
  *       {@link AuthorizationContext#SYSTEM} through the {@link IngressRouter}, the door cron uses (so a
  *       paused definition creates it paused).</li>
  *   <li><b>Waits</b>: for every {@code onEvent} whose destination and type match and whose filter holds,
@@ -65,6 +67,7 @@ import java.util.Set;
 public class InboundEventService {
 
     private final WorkflowDefinitionRepository workflowDefinitionRepository;
+    private final EventTriggerRepository fileTriggers;
     private final EventReceiptRepository receipts;
     private final TriggerPauseRepository pauses;
     private final IngressRouter ingressRouter;
@@ -72,12 +75,14 @@ public class InboundEventService {
     private final ObjectProvider<MeterRegistry> meterRegistry;
 
     public InboundEventService(WorkflowDefinitionRepository workflowDefinitionRepository,
+                               EventTriggerRepository fileTriggers,
                                EventReceiptRepository receipts,
                                TriggerPauseRepository pauses,
                                IngressRouter ingressRouter,
                                MessageDispatcher messageDispatcher,
                                ObjectProvider<MeterRegistry> meterRegistry) {
         this.workflowDefinitionRepository = workflowDefinitionRepository;
+        this.fileTriggers = fileTriggers;
         this.receipts = receipts;
         this.pauses = pauses;
         this.ingressRouter = ingressRouter;
@@ -127,11 +132,10 @@ public class InboundEventService {
         var acted = new ArrayList<EventReceipt>();
         var duplicates = new ArrayList<String>();
         var paused = pauses.findAll().keySet();
-        for (var definition : definitions) {
-            for (var trigger : definition.identifiedTriggers()) {
-                if (matches(trigger.destination(), trigger.type(), event)) {
-                    start(definition, trigger, event, context, paused, acted, duplicates);
-                }
+        var catalog = EventTriggerCatalog.of(definitions, fileTriggers == null ? List.of() : fileTriggers.findAll());
+        for (var entry : catalog) {
+            if (entry.fires() && matches(entry.trigger().destination(), entry.trigger().type(), event)) {
+                start(entry.definition(), entry.trigger(), event, context, paused, acted, duplicates);
             }
         }
         deliver(definitions, event, context, acted, duplicates);
