@@ -31,6 +31,9 @@ dependencies {
         bundledPlugin("org.jetbrains.plugins.yaml")
         // Headless platform tests (`./gradlew test`): file types, schema association, validation.
         testFramework(TestFrameworkType.Platform)
+        // The Marketplace ZIP Signer `signPlugin` runs before `publishPlugin` (CI sets the
+        // CERTIFICATE_CHAIN / PRIVATE_KEY / PRIVATE_KEY_PASSWORD it reads, see `signing` below).
+        zipSigner()
     }
     // The single source of task-worker project templates and source generation. Resolved from the
     // local Maven repository (built with `mvn install` in the repo root); it brings jackson-databind
