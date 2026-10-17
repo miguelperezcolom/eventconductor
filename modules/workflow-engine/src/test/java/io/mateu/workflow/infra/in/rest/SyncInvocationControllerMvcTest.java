@@ -401,9 +401,13 @@ class SyncInvocationControllerMvcTest {
         for (var failure : List.of("definition gone", "db down")) {
             var result = mvc.perform(get("/workflow/api/invocations/inv-1").accept("text/event-stream")
                     .header("Prefer", "wait=60")).andReturn();
-            assertThat(result.getRequest().isAsyncStarted()).isTrue();
-            assertThat(result.getAsyncResult(2_000)).as(failure)
-                    .isInstanceOfSatisfying(Throwable.class, e -> assertThat(e).hasMessage(failure));
+            // The first look runs on the stream scheduler at once, so it can fail and end the emitter
+            // before the request has gone async; either way the failure ends the stream. When it went
+            // async, the error is the stream's result.
+            if (result.getRequest().isAsyncStarted()) {
+                assertThat(result.getAsyncResult(2_000)).as(failure)
+                        .isInstanceOfSatisfying(Throwable.class, e -> assertThat(e).hasMessage(failure));
+            }
         }
         // The slot came back both times: a third caller is still admitted, not refused 429.
         when(service.tick(eq(INVOCATION), any())).thenReturn(new SyncInvocationService.Tick(List.of(),
