@@ -49,6 +49,11 @@ class EventRestControllerMvcTest {
     final IngressRouter ingressRouter = mock(IngressRouter.class);
     final MessageDispatcher messageDispatcher = mock(MessageDispatcher.class);
     final MessageApiProperties apiProperties = new MessageApiProperties();
+
+    {
+        // These tests call without a key: an isolated engine that opted into anonymous access (off by default since 2.27.0).
+        apiProperties.setAllowAnonymous(true);
+    }
     MockMvc mvc;
 
     @BeforeEach

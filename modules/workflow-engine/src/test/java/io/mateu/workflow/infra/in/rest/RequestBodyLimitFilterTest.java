@@ -40,6 +40,7 @@ class RequestBodyLimitFilterTest {
 
     private MockMvc limitedTo(int maxBytes) {
         var properties = new MessageApiProperties();
+        properties.setAllowAnonymous(true);
         return MockMvcBuilders
                 .standaloneSetup(new MessageRestController(properties, messageDispatcher))
                 .addFilters(new RequestBodyLimitFilter(maxBytes))

@@ -43,6 +43,8 @@ class MessageRestControllerTest {
     @BeforeEach
     void setUp() {
         properties = new MessageApiProperties();
+        // These tests call without a key: an isolated engine that opted into anonymous access (off by default since 2.27.0).
+        properties.setAllowAnonymous(true);
         controller = new MessageRestController(properties, messageDispatcher);
     }
 

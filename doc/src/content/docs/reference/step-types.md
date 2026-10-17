@@ -313,7 +313,7 @@ curl -X POST http://localhost:8080/workflow/api/messages \
   -d '{"messageName": "payment-received", "correlationKey": "res-123", "variables": {"paymentId": "P-9"}}'
 ```
 
-The endpoint responds `202 Accepted` (fire-and-forget: an unmatched message is ignored, per the delivery semantics above). The `X-Api-Key` header is required only when `workflow.message-api.api-key` is configured:
+The endpoint responds `202 Accepted` (fire-and-forget: an unmatched message is ignored, per the delivery semantics above). The `X-Api-Key` header is required when `workflow.message-api.api-key` is configured (see [HTTP security](/reference/configuration/#http-security) for an engine without a key):
 
 ```yaml
 workflow:

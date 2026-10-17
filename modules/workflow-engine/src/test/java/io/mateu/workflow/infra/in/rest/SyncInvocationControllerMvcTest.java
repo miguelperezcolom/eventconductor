@@ -44,6 +44,11 @@ class SyncInvocationControllerMvcTest {
     SyncInvocationService service = mock(SyncInvocationService.class);
     SyncReplyWaiters waiters = mock(SyncReplyWaiters.class);
     MessageApiProperties apiProperties = new MessageApiProperties();
+
+    {
+        // These tests call without a key: an isolated engine that opted into anonymous access (off by default since 2.27.0).
+        apiProperties.setAllowAnonymous(true);
+    }
     SyncInvocationController controller;
     MockMvc mvc;
 

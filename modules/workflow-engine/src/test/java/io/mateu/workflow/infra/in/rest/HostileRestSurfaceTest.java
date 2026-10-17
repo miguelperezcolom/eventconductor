@@ -49,6 +49,7 @@ class HostileRestSurfaceTest {
     private MockMvc messages(String apiKey) {
         var properties = new MessageApiProperties();
         properties.setApiKey(apiKey);
+        properties.setAllowAnonymous(true);
         return MockMvcBuilders.standaloneSetup(
                 new MessageRestController(properties, messageDispatcher)).build();
     }

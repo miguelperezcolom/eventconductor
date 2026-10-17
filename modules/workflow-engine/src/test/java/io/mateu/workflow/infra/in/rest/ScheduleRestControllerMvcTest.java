@@ -40,6 +40,11 @@ class ScheduleRestControllerMvcTest {
     final WorkflowDefinitionRepository definitions = mock(WorkflowDefinitionRepository.class);
     final List<ProcessCreationRequested> started = new ArrayList<>();
     final MessageApiProperties apiProperties = new MessageApiProperties();
+
+    {
+        // These tests call without a key: an isolated engine that opted into anonymous access (off by default since 2.27.0).
+        apiProperties.setAllowAnonymous(true);
+    }
     MockMvc mvc;
 
     @BeforeEach

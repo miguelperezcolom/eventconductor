@@ -8,6 +8,10 @@ app:
 # This dev app runs distributed (Kafka + JPA). The framework default is
 # embedded + memory, so opt into kafka/jpa explicitly here.
 workflow:
+  # A local development app without Spring Security: let the engine's REST API answer without a key.
+  # Off by default since 2.27.0; never on for an engine reachable on a network.
+  message-api:
+    allow-anonymous: true
   mode: ${WORKFLOW_MODE:kafka}
   persistence: ${WORKFLOW_PERSISTENCE:jpa}
 

@@ -140,8 +140,10 @@ public class MessageRestController {
      */
     @ExceptionHandler(MethodArgumentNotValidException.class)
     ProblemDetail onInvalidBody(MethodArgumentNotValidException e, HttpServletRequest request) {
-        if (!apiKeyAccepted(request.getHeader("X-Api-Key"))) {
-            return ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, MISSING_OR_INVALID_KEY);
+        try {
+            verifyApiKey(request.getHeader("X-Api-Key"));
+        } catch (org.springframework.web.server.ResponseStatusException refused) {
+            return ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, refused.getReason());
         }
         var reason = e.getBindingResult().getFieldErrors().stream()
                 .map(DefaultMessageSourceResolvable::getDefaultMessage)
@@ -151,19 +153,7 @@ public class MessageRestController {
     }
 
     private void verifyApiKey(String received) {
-        if (!apiKeyAccepted(received)) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, MISSING_OR_INVALID_KEY);
-        }
+        EngineApiAccess.verify(messageApiProperties, received);
     }
 
-    /** Whether this caller may come in: true when no key is configured, otherwise it must match. */
-    private boolean apiKeyAccepted(String received) {
-        String expected = messageApiProperties.getApiKey();
-        if (expected == null || expected.isBlank()) {
-            return true;
-        }
-        // constant-time comparison to prevent timing attacks
-        return received != null && MessageDigest.isEqual(
-                expected.getBytes(StandardCharsets.UTF_8), received.getBytes(StandardCharsets.UTF_8));
-    }
 }

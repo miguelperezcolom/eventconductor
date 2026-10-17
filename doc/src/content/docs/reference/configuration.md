@@ -32,7 +32,8 @@ description: Complete reference for all EventConductor configuration properties.
 | `workflow.outbox.purge-interval` | ISO-8601 duration | `PT1M` | How often a purge pass runs |
 | `workflow.outbox.purge-max-batches-per-pass` | int | `20` | Batches one pass may delete. Caps how much a pod that has been down while the table grew can do in one go, so catching up happens over several passes instead of one sweep competing with the engine |
 | `workflow.metrics.gauge-ttl` | duration | `PT30S` | How long the two counting gauges (`eventconductor.process.running`, `eventconductor.outbox.pending`) may reuse their last value. Both answer with a `count(*)` against the engine's own database, and counting running processes walks one index entry per running process — the very number being reported — so without this the cost of observing the system grows with the system, once per pod per scrape. `PT0S` restores a query on every scrape |
-| `workflow.message-api.api-key` | string | — | Optional API key required in the `X-Api-Key` header of `POST /workflow/api/messages`. Blank = unauthenticated |
+| `workflow.message-api.api-key` | string | — | API key required in the `X-Api-Key` header of the engine's REST API (`/workflow/api/**`: messages, events, triggers, schedules, sync invocations). See [HTTP security](#http-security) for what happens when it is blank |
+| `workflow.message-api.allow-anonymous` | boolean | `false` | Accept requests without credentials when no `api-key` is set and no Spring Security filter chain protects the application. Off since 2.27.0; turn it on only for an isolated deployment |
 | `workflow.embedded.worker-threads` | int | `0` | Embedded mode only. `0` runs the worker on the thread that dispatched the task — which under `jpa` persistence is the single outbox relay thread, the one advancing **every** process in the JVM, so a worker that blocks stops all of them. Above zero the task is handed to a pool of that many threads and the dispatching thread is freed. See the note below before turning it on |
 | `workflow.embedded.worker-queue-capacity` | int | `1000` | How many tasks may wait for a worker thread. A full queue rejects, and the rejection is retryable: the outbox holds the message and offers it again |
 | `workflow.embedded.worker-shutdown-grace-ms` | ms | `10000` | How long shutdown waits for in-flight workers before abandoning them |
@@ -377,7 +378,7 @@ The gateway reads the destinations' topics from the same `workflow.events.destin
 | `workflow.http.auth.<name>.type` | `none` | `none`, `basic`, `bearer`, `api-key`, `oauth2-client-credentials`. |
 | `workflow.http.auth.<name>.*` | — | `username`/`password`, `token`, `header`/`value`/`in`, `token-uri`/`client-id`/`client-secret`/`scope`. |
 | `workflow.http.secrets.<NAME>` | — | What `${secret:NAME}` resolves to (else, with `secrets-from-environment`, the `NAME` property / env var). |
-| `workflow.http.secrets-from-environment` | `true` | Whether a `${secret:NAME}` not listed under `workflow.http.secrets` falls back to **any** environment variable or Spring property named `NAME`. `false` resolves only from `workflow.http.secrets`, so a definition author cannot reach other values of the process (database passwords, cloud credentials). While `true` and `allowed-hosts` is empty, a WARN at startup says so. |
+| `workflow.http.secrets-from-environment` | `false` | Whether a `${secret:NAME}` not listed under `workflow.http.secrets` falls back to **any** environment variable or Spring property named `NAME`. Off since 2.27.0, so a definition author cannot reach other values of the process (database passwords, cloud credentials); `true` restores the fallback. While `true` and `allowed-hosts` is empty, a WARN at startup says so. |
 | `workflow.http.allowed-hosts` | *(any public host)* | Hosts absolute URLs — and the `token-uri` of an inline OAuth2 block — may target (`api.x.com`, `*.partner.com`). Internal addresses are always refused for them; a host that does not resolve is refused too (a retryable `HTTP_IO`). |
 | `workflow.http.connect-timeout` / `read-timeout` | `PT5S` / `PT30S` | Timeouts for absolute URLs. |
 | `workflow.http.max-response-bytes` | `1048576` | Largest response read; larger fails the step. |
@@ -541,6 +542,14 @@ catalogue for every engine and how to enable Prometheus scraping and OTLP export
 the dedicated [Observability](/reference/observability/) page.
 
 ## HTTP security
+
+**The engine's REST API** (`/workflow/api/**`: messages, events, triggers, schedules, sync invocations) lets a request in when:
+
+1. `workflow.message-api.api-key` is set and the `X-Api-Key` header matches it; or
+2. no key is set and a Spring Security filter chain protects the application (the request has passed the application's own authentication — the standalone apps below); or
+3. no key is set, no filter chain exists, and `workflow.message-api.allow-anonymous=true`.
+
+Otherwise it answers `401`. Since 2.27.0: before, an engine embedded in an application without Spring Security and without a key answered anybody who could reach the port. At startup the engine logs which of the three applies. A filter chain that permits everything (for instance `eventconductor.security.enabled=false` in the standalone apps) counts as protection — set a key if such an engine is reachable on a network.
 
 The standalone apps protect their HTTP endpoints (UI, REST, actuator) with basic authentication, configured via `eventconductor.security.*`:
 

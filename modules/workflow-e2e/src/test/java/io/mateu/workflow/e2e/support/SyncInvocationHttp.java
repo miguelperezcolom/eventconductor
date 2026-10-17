@@ -23,7 +23,9 @@ public class SyncInvocationHttp {
     private final MockMvc mvc;
 
     public SyncInvocationHttp(SyncInvocationService service, SyncReplyWaiters waiters, WorkflowMetrics metrics) {
-        var controller = new SyncInvocationController(service, waiters, new MessageApiProperties(),
+        var apiProperties = new MessageApiProperties();
+        apiProperties.setAllowAnonymous(true);
+        var controller = new SyncInvocationController(service, waiters, apiProperties,
                 new StaticListableBeanFactory().getBeanProvider(CallerResolver.class), metrics);
         controller.init();
         this.mvc = MockMvcBuilders.standaloneSetup(controller).build();

@@ -218,14 +218,6 @@ public class EventRestController {
     }
 
     private void verifyApiKey(String received) {
-        String expected = apiProperties.getApiKey();
-        if (expected == null || expected.isBlank()) {
-            return;
-        }
-        // constant-time comparison to prevent timing attacks
-        if (received == null || !MessageDigest.isEqual(
-                expected.getBytes(StandardCharsets.UTF_8), received.getBytes(StandardCharsets.UTF_8))) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, MISSING_OR_INVALID_KEY);
-        }
+        EngineApiAccess.verify(apiProperties, received);
     }
 }

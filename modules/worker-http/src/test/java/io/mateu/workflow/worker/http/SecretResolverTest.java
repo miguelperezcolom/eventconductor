@@ -19,19 +19,21 @@ class SecretResolverTest {
     }
 
     @Test
-    void theEnvironmentFallbackCanBeTurnedOff() {
+    void secretsComeOnlyFromTheListUnlessTheEnvironmentFallbackIsTurnedOn() {
         var environment = new org.springframework.mock.env.MockEnvironment().withProperty("DB_PASSWORD", "fake-db-value");
         var properties = new HttpWorkerProperties();
         properties.getSecrets().put("PARTNER", "p");
 
-        var withFallback = new SecretResolver(HttpWorkerAutoConfiguration.secretLookup(properties, environment));
-        assertThat(withFallback.resolve("${secret:PARTNER}")).isEqualTo("p");
-        assertThat(withFallback.resolve("${secret:DB_PASSWORD}")).as("documented default").isEqualTo("fake-db-value");
-
-        properties.setSecretsFromEnvironment(false);
+        // The default since 2.27.0: only what the operator listed under workflow.http.secrets.
         var listedOnly = new SecretResolver(HttpWorkerAutoConfiguration.secretLookup(properties, environment));
         assertThat(listedOnly.resolve("${secret:PARTNER}")).isEqualTo("p");
         assertThatThrownBy(() -> listedOnly.resolve("${secret:DB_PASSWORD}"))
+                .as("an environment value the operator did not list")
                 .isInstanceOf(SecretResolver.MissingSecretException.class);
+
+        properties.setSecretsFromEnvironment(true);
+        var withFallback = new SecretResolver(HttpWorkerAutoConfiguration.secretLookup(properties, environment));
+        assertThat(withFallback.resolve("${secret:PARTNER}")).isEqualTo("p");
+        assertThat(withFallback.resolve("${secret:DB_PASSWORD}")).as("opted back in").isEqualTo("fake-db-value");
     }
 }

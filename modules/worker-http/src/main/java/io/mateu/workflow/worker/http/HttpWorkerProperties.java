@@ -45,10 +45,12 @@ public class HttpWorkerProperties {
 
     /**
      * Whether a {@code ${secret:NAME}} that is not in {@code secrets} falls back to the environment
-     * variable / Spring property {@code NAME}. True — the default — keeps the documented lookup; false
-     * resolves only from {@code secrets}, so a definition can reach no value the operator did not list.
+     * variable / Spring property {@code NAME}. False — the default since 2.27.0 — resolves only from
+     * {@code secrets}, so a definition can reach no value the operator did not list; true restores the
+     * earlier lookup, in which a definition author could send any value of the process's environment
+     * (database passwords, cloud credentials) to a host of their choosing.
      */
-    private boolean secretsFromEnvironment = true;
+    private boolean secretsFromEnvironment = false;
 
     /**
      * Hosts an absolute URL may target: exact names or {@code *.suffix} patterns. Empty — the default —
