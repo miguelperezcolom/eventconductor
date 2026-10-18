@@ -41,7 +41,7 @@
             <dependency>
                 <groupId>at.yawk.lz4</groupId>
                 <artifactId>lz4-java</artifactId>
-                <version>1.11.4</version>
+                <version>1.12.0</version>
             </dependency>
             <!-- CVE-2026-84939 (critical, path traversal via a malformed locale): freemarker 2.3.34 arrives
                  through Mateu's annotation-processor-mvc. Drop when Mateu depends on 2.3.35 or later. -->
