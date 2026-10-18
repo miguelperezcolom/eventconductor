@@ -51,6 +51,8 @@ description: Complete reference for all EventConductor configuration properties.
 | `workflow.embedded.worker-queue-capacity` | int | `1000` | How many tasks may wait for a worker thread. A full queue rejects, and the rejection is retryable: the outbox holds the message and offers it again |
 | `workflow.embedded.worker-shutdown-grace-ms` | ms | `10000` | How long shutdown waits for in-flight workers before abandoning them |
 | `workflow.dynamic.max-steps-per-process` | int | `500` | Runaway guard for [dynamic workflows](/guides/dynamic-workflows/): the most step executions any one process may ever hold, runtime injections included. An injection that would push a process past this cap is rejected and its `DYNAMIC` step fails. A definition's own `maxSteps` overrides this when it declares one (`> 0`); this is the fallback for every definition that does not |
+| `workflow.foreach.max-items` | int | `1000` | Runaway guard for [forEach](/guides/loops-and-multi-instance/#foreach--once-per-item): the longest list one forEach step may run over. A longer one fails the step when it starts |
+| `workflow.loops.max-iterations` | int | `1000` | Runaway guard for [repeat and loopBack](/guides/loops-and-multi-instance/#caps): the most runs any loop may make, whatever its `maxIterations` says. Going past it fails the step |
 | `rules.persistence` | `jpa` \| `memory` | `memory` | Rule catalog persistence mode |
 | `rules.source` | `local` \| `classpath` \| `rest` \| `grpc` | `local` | Where the rule runtime reads rules from |
 | `rules.catalog.url` | URL | — | Catalog base URL for `rules.source=rest` |

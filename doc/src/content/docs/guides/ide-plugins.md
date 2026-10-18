@@ -37,6 +37,11 @@ opening a file shows the graph by default, backed by the underlying text documen
   line, click a node to select it and filter the graph to what it is connected to, wheel to zoom,
   drag the background to pan, plus fit-to-view and a minimap. A token-flow **simulation** animates
   the paths (and pauses on an AND-join to show it synchronising on all its branches).
+- **Loops and multi-instance** — a `forEach` step is drawn as a stack of cards with what it runs
+  over (`∥ rooms`, `⇣` when sequential), a `repeat` step carries a `↻ until …` chip, and a
+  `loopBack` is a dashed violet back-edge with its condition. The step panel edits all three
+  (items, as/index, mode, max concurrency, output, completion; until, max iterations, delay; loop
+  back to, while). See [Loops and Multi-Instance](/guides/loops-and-multi-instance/).
 - **Workflow status** — the graph's **Settings** panel declares whether the workflow is `Active`,
   `Disabled` or `Archived`, written to the `.ec` as `status`. It is a floor the runtime cannot
   lift: an operator can take a workflow out of service, but cannot enable one whose definition

@@ -110,7 +110,7 @@ Written in JSON or YAML (`.json`, `.yaml`, `.yml`); version-controlled and PR-re
 | `cronExpression` | string | Spring cron; the engine starts a new instance at each occurrence (deterministic business keys, multi-pod safe) |
 | `triggers` | array | `[{id?, destination, type, filter?, businessKey?, variables?}]` — or the same entries plus `workflow: <id>` in an `events.yaml` next to the definitions, never read as a definition, so a CDC stream or a partner's events can be wired to a workflow without changing it; triggers can also be created, edited, deleted and exported as `events.yaml` from the admin UI, `/workflow/api/triggers` or MCP (`createEventTrigger`…), a file entry with the same workflow and id taking one over on import — domain events (CloudEvents) that start an instance: a logical destination (`workflow.events.destinations.<name>.topic`), a type (`*` wildcards), a JEXL filter and templates over the event (`data.x`, `id`, `subject`, `key`…) for the business key (default derived from the event) and initial variables (default: `data`'s members); each event starts at most one process per trigger; ACTIVE definitions only, paused triggers skip; Kafka consumer in kafka mode, `POST /workflow/api/events/{destination}`, MCP `publishInboundEvent`, the embedded `InboundEventService`/Spring `InboundEvent`, and in embedded mode this engine's own PUBLISH_EVENTs |
 | `schedules` | array | `[{id?, cron, zone?, variables?}]`: scheduled starts with an optional id (one schedule per id across the engine), their own IANA zone (default `workflow.time.zone`) and initial process variables; coexists with `cronExpression`. The same entries plus `workflow: <id>` can live in a `cron.yaml` next to the definitions (classpath, directory or repository import), never read as a definition; each import replaces its source's entries. Schedules can also be created, edited, paused, run now and exported as a `cron.yaml` entry from the admin UI (Workflow → Schedules), `/workflow/api/schedules` or the MCP schedule tools; on import a file entry with the same id takes such a schedule over (git overwrites), and an entry removed from its file is deleted |
-| `defaultMaxStepExecutions` | integer | Default cap on executions per step (validated metadata; not enforced at runtime today) |
+| `defaultMaxStepExecutions` | integer | Default cap on successful runs per step, enforced when a `repeat`/`loopBack` would run a step again (the step fails); a step's `maxSuccessfulExecutions` overrides it; `0` = no cap of its own |
 | `syncInvocation` | object | `{enabled, onFailure, onLockBusy, defaultDeadlineMs}` — lets a caller start an instance over HTTP and wait for its `REPLY`. `onFailure`: `REPLY_IMMEDIATELY` (default; answers FAILED with compensation IN_PROGRESS/NONE as soon as the process fails) or `REPLY_AFTER_COMPENSATION` (answers COMPENSATED/COMPENSATION_FAILED when the rollback ends). `onLockBusy`: `WAIT` (default, queue FIFO) or `FAIL` (409, no instance) |
 | `processLock` | object | `{name, key}` — serialize every instance of this definition by a JEXL `key` (e.g. `bookingId`): instances resolving to the same key run one at a time, the rest wait FIFO. The process-level counterpart of a `LOCK`/`UNLOCK` section |
 | `steps` | array | The step definitions |
@@ -300,6 +300,35 @@ The engine renders the request (templates in url/path, query, headers, body) and
 ```
 The engine renders `system` and `prompt` (text templates) and dispatches the built-in task `llm-call@1` (library `worker-llm` on Spring AI, with `spring-ai-anthropic` and/or `spring-ai-openai`: embedded in the engine's pod, or topic `llm-calls` served by `llm-worker-standalone-app`). Connections are configuration: `workflow.llm.connections.<name>` = `provider` (`anthropic` | `openai`), `model`, `api-key`, `base-url`, `temperature`, `max-tokens` (4096), `timeout` (PT60S), `structured-output` (`prompt` | `native`). A step may override `model`, `temperature`, `maxTokens`. With `responseSchema` the answer must be one JSON document valid against it (`LLM_INVALID_OUTPUT` otherwise, retried). Answer → `outputVariable` (text / JSON) and `output` (JEXL over `{text, json, usage, model, finishReason}`); token usage → `usageVariable`. Provider 4xx → `LLM_<status>`, final; 408/409/429/5xx and `LLM_IO` retried. Metrics: `eventconductor.llm.call{workflow,step,connection,model,outcome}`, `eventconductor.llm.tokens{workflow,step,connection,model,type}`.
 
+### Loops and multi-instance — `forEach`, `repeat`, `loopBack`
+The precondition graph stays acyclic (a cycle is still an error); repetition is declared on a step:
+```yaml
+- id: reserve            # once per item
+  type: ACTION
+  topic: booking
+  preconditionStepId: start
+  compensable: true
+  compensationStepId: release          # once per COMPLETED iteration, newest first
+  forEach: { items: rooms, as: room, indexAs: i, mode: parallel, maxConcurrency: 3,
+             output: reservations, outputElement: reservationId, completion: all }
+- id: poll               # until a condition
+  type: HTTP_CALL
+  preconditionStepId: reserve
+  http: { connection: pay, path: "/p/${paymentId}", output: { paymentStatus: "body.status" } }
+  repeat: { until: "paymentStatus == 'SETTLED'", maxIterations: 20, delay: PT30S }
+- id: rework             # back-edge, on a CHOICE branch (no `while` = always)
+  type: ACTION
+  topic: notify
+  preconditions: [ { stepId: decide, expression: "verdict == 'REWORK'" } ]
+  loopBack: { to: draft, maxIterations: 5 }
+```
+- **forEach**: `items` (JEXL; a variable holding a JSON array/object is read as structure; evaluated once) → one child step execution per item with its own task id, retries and timeout. The iteration sees the process vars with `as` (default `item`) and `indexAs` (default `index`) overlaid; workers get objects as JSON text, HTTP/LLM templates get them typed (`${room.number}`). What an iteration reports is NOT written to the process; `output` collects one element per item in item order (`null` if it did not complete), `outputElement` = JEXL over what it reported (default: all of it as an object). `completion`: `all` | `any` | JEXL over vars + `completedIterations`/`totalIterations`/`activeIterations` (+ the output so far) — the rest are cancelled. One iteration failing for good fails the step (rest cancelled, non-retryable); retrying it re-runs only failed/cancelled iterations. Empty list → completes at once (`output` = `[]`). Cap `workflow.foreach.max-items` (1000).
+- **repeat**: `until` evaluated once per completed run over the vars + `iteration` (1-based); false → a new execution after `delay`.
+- **loopBack**: when the step completes and `while` (default always; vars + `iteration`) holds, every step on a path from `to` to it gets a fresh execution — JOIN/XOR/CHOICE latches reset, vars carry over, in-flight ones in the section are cancelled. `to` must be upstream; no REPLY/END in the section; loops nested or apart.
+- Decisions latch (evaluated once per completion). Caps — `maxIterations` (required), `maxSuccessfulExecutions`/`defaultMaxStepExecutions`, `workflow.loops.max-iterations` (1000) — fail the step finally when exceeded.
+- Compensation runs once per completed iteration/pass, newest first, each seeing that run's item/index and reported variables.
+- Storage: passes are step executions with `iteration` > 0 (earlier ones `superseded`); iterations have `parentExecutionId` + `itemIndex` (migration V47).
+
 ### END — complete the process
 ```json
 { "id": "end", "type": "END", "name": "Done", "preconditionStepId": "last-step" }
@@ -336,7 +365,10 @@ Exactly one per workflow. Transitions the process to `COMPLETED`. With parallel 
 | `retries` | integer | `0` | Auto-retry attempts on ERROR/TIMEOUT |
 | `compensable` | boolean | `false` | Enable saga compensation on failure |
 | `compensationStepId` | string | — | Compensation step (needs `compensable: true`) |
-| `maxSuccessfulExecutions` | integer | `0` | Cap on successful executions of this step (validated metadata; not enforced at runtime today) |
+| `maxSuccessfulExecutions` | integer | `0` | Cap on successful runs of this step per process; enforced when a loop would run it again (the step fails); `0` inherits `defaultMaxStepExecutions` |
+| `forEach` | object | — | Multi-instance (ACTION, USER_TASK, PROCESS, HTTP_CALL, LLM_CALL, RULE): `{items, as?, indexAs?, mode?, maxConcurrency?, output?, outputElement?, completion?}` — see "Loops and multi-instance" |
+| `repeat` | object | — | Same types: `{until, maxIterations, delay?}` — run the step again until `until` holds |
+| `loopBack` | object | — | Any step but START/END/REPLY: `{to, while?, maxIterations, delay?}` — run the section from `to` to here again |
 | `lockName` | string | — | Lock domain (LOCK/UNLOCK); defaults to the definition id |
 | `lockKey` | string | — | JEXL expression giving the key to serialize on (LOCK/UNLOCK; **required** on those) |
 | `replyVariables` | string[] | — | REPLY: variables the reply object is made of |
@@ -582,6 +614,8 @@ A worker that does no work: it plays back the scenario the process asks for, so 
 | `TIMEOUT` | Exceeded `timeout` — retries if attempts remain |
 | `WAITING_ON_LOCK` | A `LOCK` step parked behind another holder, admitted FIFO on release — active work (the process does not complete or error around it), no worker involved |
 | `CANCELLED` | Process cancellation, saga compensation, or step never run when `END` fired |
+
+A step runs more than once only through `forEach` (child executions with `parentExecutionId`/`itemIndex`) or `repeat`/`loopBack` (a new execution per pass, `iteration` 1, 2…, the replaced one `superseded`); the process status and percentage read the current execution of each step.
 
 There is **no `SKIPPED` status**. A step whose `preconditionExpression` is falsy is simply never run: it stays `CREATED` and is flipped to `CANCELLED` when the `END` step fires. Because dependent steps require their `preconditionStepId` step to be `COMPLETED`, a never-run step permanently blocks its dependents — give conditional chains an alternative path to `END`.
 

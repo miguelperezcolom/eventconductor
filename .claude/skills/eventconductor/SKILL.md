@@ -37,6 +37,9 @@ machine, a scheduler, or retry/timeout loops — declare them on the step.
 | emit a domain event for other services | `PUBLISH_EVENT` step (+ `workflow.events.destinations`) | [workflow-definitions.md](reference/workflow-definitions.md) |
 | call a process over HTTP and wait for its answer | `REPLY` step + definition `syncInvocation.enabled` + `POST /workflow/api/definitions/{id}/invocations` | [workflow-definitions.md](reference/workflow-definitions.md), [api.md](reference/api.md) |
 | conditional / skipped steps | `preconditionExpression` (JEXL over variables) | [workflow-definitions.md](reference/workflow-definitions.md) |
+| the same step once per item of a list | `forEach` on the step (`items`, `as`, `mode`, `output`, `completion`) | [workflow-definitions.md](reference/workflow-definitions.md) |
+| poll / retry-until a condition | `repeat: {until, maxIterations, delay}` on the step | [workflow-definitions.md](reference/workflow-definitions.md) |
+| go back and redo a section (rework loop) | `loopBack: {to, while?, maxIterations}` — never a precondition cycle | [workflow-definitions.md](reference/workflow-definitions.md) |
 
 Common mistakes: [gotchas.md](reference/gotchas.md). Deployment topology & config:
 use the `eventconductor-scaffold` skill. Running/verifying a change: `eventconductor-run`.

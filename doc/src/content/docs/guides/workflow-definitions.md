@@ -80,7 +80,7 @@ steps: [...]
 | `cronExpression` | string | Spring cron expression (six fields, seconds first). Unless the definition is disabled or archived, the engine creates a process instance at each occurrence. `null` = no scheduled starts |
 | `triggers` | array | Event triggers, each `{id?, destination, type, filter?, businessKey?, variables?}`: the domain events (CloudEvents) that start a process of this definition — a logical destination, a type (`*` wildcards), a JEXL filter, and templates over the event for the business key and the initial variables. Each event starts at most one process per trigger. The same entries, naming their workflow, can live in an `events.yaml` next to the definitions. See [Starting on and waiting for domain events](/guides/domain-event-triggers/) |
 | `schedules` | array | Scheduled starts, each `{id?, cron, zone?, variables?}`: an optional name (one schedule per id), a Spring cron, an optional IANA zone (default `workflow.time.zone`) and the initial process variables. Coexists with `cronExpression`; entries can also live in a `cron.yaml` next to the definitions (see [Starting a process](/guides/starting-a-process/#schedules-with-parameters)) |
-| `defaultMaxStepExecutions` | integer | Default cap on how many times each step may successfully run within one process instance; a step's own `maxSuccessfulExecutions` overrides it. `0` or `null` = unbounded |
+| `defaultMaxStepExecutions` | integer | Default cap on how many times each step may successfully run within one process instance; a step's own `maxSuccessfulExecutions` overrides it. Enforced when a `repeat` or `loopBack` would run a step again (see [Loops and Multi-Instance](/guides/loops-and-multi-instance/#caps)). `0` or `null` = no cap of its own |
 | `maxSteps` | integer | Cap on the total number of step executions one process instance may ever hold, runtime injections included (see [Dynamic Workflows](/guides/dynamic-workflows/)). `0` or `null` falls back to the engine-wide `workflow.dynamic.max-steps-per-process` default; any positive value overrides it for this definition's processes |
 | `layout` | object | Where each step's node sits on the diagram, keyed by step id: `{x, y}` in whole pixels. Written by the graph editor as you drag, not by hand. Absent means the graph is laid out automatically (see [Diagram layout](#diagram-layout)) |
 
@@ -413,7 +413,10 @@ archiving.
 | `retries` | integer | `0` | Auto-retry attempts on ERROR or TIMEOUT |
 | `compensable` | boolean | `false` | Trigger compensation step on failure |
 | `compensationStepId` | string | — | Step to run as compensation (required when `compensable: true`) |
-| `maxSuccessfulExecutions` | integer | `0` | Cap on successful runs of this step per process instance; `0` inherits the workflow's `defaultMaxStepExecutions` |
+| `maxSuccessfulExecutions` | integer | `0` | Cap on successful runs of this step per process instance, enforced when a loop would run it again; `0` inherits the workflow's `defaultMaxStepExecutions` |
+| `forEach` | object | — | Run the step once per item of a list — `{items, as?, indexAs?, mode?, maxConcurrency?, output?, outputElement?, completion?}` (ACTION, USER_TASK, PROCESS, HTTP_CALL, LLM_CALL, RULE). See [Loops and Multi-Instance](/guides/loops-and-multi-instance/) |
+| `repeat` | object | — | Run the step again until a condition holds — `{until, maxIterations, delay?}` |
+| `loopBack` | object | — | An explicit back-edge: run the steps from `to` to here again while `while` holds — `{to, while?, maxIterations, delay?}`. Ordinary precondition cycles stay an error |
 | `joinType` | enum | `AND` | JOIN only: `AND` (default) is a synchronizing join that waits for **all** incoming branches; `XOR` is an exclusive join that proceeds on **any one**. Null/absent = `AND` |
 
 See [Step Types](/reference/step-types/) for the semantics of each type.
@@ -454,11 +457,12 @@ Beyond the JSON schema, the engine checks these invariants when a definition is 
 - **Reachability (roots rule)** — a step with no preconditions never starts by itself, so it must be something that another mechanism starts: a `START`, a `WAIT_FOR_MESSAGE` that begins a flow, or a step named as some other step's `compensationStepId` (started by the rollback pipeline). Anything else with no preconditions is rejected — nothing would ever start it. Conversely, a `START` step must have **no** preconditions.
 - **At most one START** — a workflow has a single entry point (or enters via `WAIT_FOR_MESSAGE`); more than one `START` is rejected. Multiple `END` steps are fine — a flow may finish through several distinct outcomes.
 - **Precondition cycles** — the precondition graph must be acyclic (A waits for B waits for … waits for A would deadlock). Steps may declare several preconditions, so the check is a DFS over the multi-edge graph.
+- **Loops and multi-instance** — a loop is declared, never drawn as a cycle: `forEach`, `repeat` and `loopBack` are checked by the shared `LoopRules` (the step types that may carry them, `loopBack.to` upstream of its step, no REPLY or END inside a loop's section, loops nested or apart, required `maxIterations`) and their JEXL must parse. See [Loops and Multi-Instance](/guides/loops-and-multi-instance/#rules).
 - **TIMER required fields** — a `TIMER` step must define a positive `duration` or a non-blank `untilVariable`.
 - **Message required fields** — a `WAIT_FOR_MESSAGE` or `SEND_MESSAGE` step must define a non-blank `messageName` **and** a non-blank `correlationExpression`.
 - **PROCESS required fields** — a `PROCESS` step must define a `childWorkflowDefinitionId`, and it must differ from the workflow's own id (direct self-recursion is rejected).
 
-The [Maven plugin](/reference/maven-plugin/) mirrors the structural checks (duplicate/dangling/self references, the roots rule, START-without-preconditions, multi-edge cycle detection, the PROCESS child id) at build time; the TIMER/message value checks are only verified at engine load.
+The [Maven plugin](/reference/maven-plugin/) mirrors the structural checks (duplicate/dangling/self references, the roots rule, START-without-preconditions, multi-edge cycle detection, the PROCESS child id, the loop and multi-instance rules) at build time; the TIMER/message value checks are only verified at engine load.
 
 :::tip[Gateway-model guidance (warnings, not errors)]
 The engine also logs non-fatal **warnings** nudging you toward the gateway model: a normal step

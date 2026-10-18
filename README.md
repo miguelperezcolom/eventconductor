@@ -38,8 +38,10 @@ BPMN was designed to be drawn, not written. EventConductor's JSON workflow DSL w
 to be owned by developers: human-readable, version-controlled, reviewable in a PR, and
 expressive enough to model retries, timeouts, compensation (saga), parallel execution
 (steps run as a pure dataflow over the precondition graph, with `FORK`/`JOIN` fan-out and
-barriers), child workflows (`PROCESS` steps), conditional branching (JEXL expressions), and
-human tasks — all in a single flat file.
+barriers), child workflows (`PROCESS` steps), conditional branching (JEXL expressions),
+loops and multi-instance (`forEach` over a list, `repeat` until a condition, `loopBack` to re-run a
+section — declared, capped and validated, never a precondition cycle), and human tasks — all in a
+single flat file.
 
 ### Validated at build time, not at runtime
 Because definitions are data owned by developers, the `workflow-maven-plugin` validates your
@@ -656,6 +658,9 @@ order is irrelevant. Every step with no preconditions must be a `START` or a
 | `compensable` | boolean | `false` | Trigger compensation step on failure |
 | `compensationStepId` | string | — | Step to run as compensation (requires `compensable: true`) |
 | `maxSuccessfulExecutions` | integer | `0` | Cap on successful runs of this step per process instance (loop backstop); `0` inherits the workflow's `defaultMaxStepExecutions` |
+| `forEach` | object | — | Run the step once per item: `{items, as?, indexAs?, mode?, maxConcurrency?, output?, outputElement?, completion?}` (see [Loops and Multi-Instance](doc/src/content/docs/guides/loops-and-multi-instance.md)) |
+| `repeat` | object | — | Run the step again until a condition holds: `{until, maxIterations, delay?}` |
+| `loopBack` | object | — | Re-run the section from `to` to this step while `while` holds: `{to, while?, maxIterations, delay?}` |
 
 ### Workflow-level fields
 

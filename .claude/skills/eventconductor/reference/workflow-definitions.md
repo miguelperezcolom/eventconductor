@@ -59,7 +59,41 @@ Add `"$schema"` (JSON) or a `# yaml-language-server: $schema=...` comment (YAML)
 | `timeout` | all | ISO-8601 (`PT30S`,`PT1H30M`) or ms int; `0`=none |
 | `retries` | all | auto-retry count on ERROR/TIMEOUT |
 | `rollbackable` + `compensationStepId` | all | saga compensation on failure |
-| `maxSuccessfulExecutions` | all | validated metadata, not enforced at runtime today |
+| `maxSuccessfulExecutions` | all | cap on successful runs per process; enforced when a `repeat`/`loopBack` would run the step again (the step fails); `0` inherits `defaultMaxStepExecutions` |
+| `forEach` | ACTION/USER_TASK/PROCESS/HTTP_CALL/LLM_CALL/RULE | `{items, as?, indexAs?, mode?: parallel\|sequential, maxConcurrency?, output?, outputElement?, completion?: all\|any\|JEXL}` — once per item; see Loops below |
+| `repeat` | same | `{until, maxIterations, delay?}` — run again until `until` holds |
+| `loopBack` | all but START/END/REPLY | `{to, while?, maxIterations, delay?}` — re-run the section from `to` (upstream) to here |
+
+## Loops and multi-instance
+
+Never draw a cycle in the preconditions — it is rejected. Declare repetition instead
+(guide: `doc/src/content/docs/guides/loops-and-multi-instance.md`):
+
+```yaml
+- id: reserve
+  type: ACTION
+  topic: booking
+  preconditionStepId: start
+  compensable: true
+  compensationStepId: release        # runs once per completed iteration, sees room + what it reported
+  forEach: { items: rooms, as: room, output: reservations, outputElement: reservationId }
+- id: poll
+  type: HTTP_CALL
+  preconditionStepId: reserve
+  http: { connection: pay, path: "/p/${paymentId}", output: { paymentStatus: "body.status" } }
+  repeat: { until: "paymentStatus == 'SETTLED'", maxIterations: 20, delay: PT30S }
+- id: rework                         # on a CHOICE branch: no `while` = always loop
+  type: ACTION
+  topic: notify
+  preconditions: [ { stepId: decide, expression: "verdict == 'REWORK'" } ]
+  loopBack: { to: draft, maxIterations: 5 }
+```
+
+- forEach iterations are separate tasks (own id/retries/timeout); a worker sees `item`/`index` (or
+  `as`/`indexAs`) as variables. Iteration results do NOT land on the process — use `output`.
+- One iteration failing for good fails the step; `completion: any` or a condition ends it early.
+- `maxIterations` is required on `repeat`/`loopBack`; exceeding any cap fails the step.
+- Engine limits: `workflow.foreach.max-items`, `workflow.loops.max-iterations` (both 1000).
 
 ## Step types
 
