@@ -34,7 +34,9 @@ public class WorkflowUi {
     }
 
     private com.microsoft.playwright.Locator menuRoot() {
-        return page.locator("vaadin-menu-bar").first();
+        // The visible one: since Mateu 3.0-alpha.4xx the shell also renders a "☰" menu bar for
+        // narrow screens, first in the document and hidden at desktop width.
+        return page.locator("vaadin-menu-bar:visible").first();
     }
 
     /** Opens Workflow → Processes and returns the page object for what lands. */

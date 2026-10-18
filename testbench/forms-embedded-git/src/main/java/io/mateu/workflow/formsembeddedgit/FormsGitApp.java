@@ -1,11 +1,13 @@
 package io.mateu.workflow.formsembeddedgit;
 
+import io.mateu.workflow.autoconfigure.EnableWorkflowUi;
 import io.mateu.workflow.autoconfigure.FormsEmbeddedApplication;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.AutoConfigurationPackage;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
 @FormsEmbeddedApplication
+@EnableWorkflowUi
 @EnableJpaRepositories(basePackages = "io.mateu.workflow.infra.out.persistence")
 @AutoConfigurationPackage(basePackages = "io.mateu.workflow.infra.out.persistence")
 public class FormsGitApp {

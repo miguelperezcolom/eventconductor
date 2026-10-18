@@ -33,16 +33,17 @@ class ScheduleJourneyTest extends AbstractUiE2eTest {
 
         // Create lands on the schedule's page, with its next starts.
         assertThat(page.getByText("Schedule ui-nightly").first()).isVisible();
-        assertThat(page.getByLabel("When").first()).hasValue("Every day at 09:00");
-        assertThat(page.getByLabel("Source").first()).hasValue("UI/API");
+        assertThat(page.getByLabel("When").first()).containsText("Every day at 09:00");
+        assertThat(page.getByLabel("Source").first()).containsText("UI/API");
         assertThat(page.locator("li").filter(new com.microsoft.playwright.Locator.FilterOptions()
                 .setHasText("09:00:00 +00:00 (UTC)")).first()).isVisible();
 
         // Created here, so editable: the id stays, the cron changes.
         page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("Edit")).first().click();
-        page.getByLabel("Cron").first().fill("0 30 9 * * *");
+        // The textbox, not the label: the view it came from shows Cron as read-only text until the form replaces it.
+        page.getByRole(AriaRole.TEXTBOX, new Page.GetByRoleOptions().setName("Cron")).first().fill("0 30 9 * * *");
         page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("Save")).first().click();
-        assertThat(page.getByLabel("When").first()).hasValue("Every day at 09:30");
+        assertThat(page.getByLabel("When").first()).containsText("Every day at 09:30");
 
         page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("Pause")).first().click();
         assertThat(page.getByText("Paused").first()).isVisible();

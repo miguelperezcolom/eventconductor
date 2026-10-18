@@ -22,7 +22,7 @@ class ProcessDetailJourneyTest extends AbstractUiE2eTest {
         var detail = ui.goToProcesses().open(id);
 
         assertThat(detail.statusBadge()).containsText("Completed");
-        assertThat(detail.name()).hasValue("UI Greeting");
+        assertThat(detail.name()).containsText("UI Greeting");
     }
 
     @Test

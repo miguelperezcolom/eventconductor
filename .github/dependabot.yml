@@ -27,25 +27,24 @@ updates:
     schedule:
       interval: weekly
 
+  # The apps' images, all of them in one PR. The JRE line is chosen by hand, not by Dependabot:
+  # the images run on the current LTS that Spring Boot supports (eclipse-temurin 25), and a major
+  # bump proposes a non-LTS JDK (26 went out of support six months after it came, 27 is past what
+  # Spring Boot 4.1 supports). Minor/patch updates of the same line still come through.
   - package-ecosystem: docker
-    directory: "/apps/orchestrator-standalone-app"
+    directories:
+      - "/apps/*"
     schedule:
       interval: weekly
-
-  - package-ecosystem: docker
-    directory: "/apps/forms-standalone-app"
-    schedule:
-      interval: weekly
-
-  - package-ecosystem: docker
-    directory: "/apps/worker-standalone-app"
-    schedule:
-      interval: weekly
-
-  - package-ecosystem: docker
-    directory: "/apps/dev-app"
-    schedule:
-      interval: weekly
+    groups:
+      app-images:
+        patterns:
+          - "*"
+    ignore:
+      - dependency-name: "eclipse-temurin"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "maven"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: npm
     directory: "/doc"

@@ -38,8 +38,13 @@ import static org.mockito.Mockito.when;
  * console that mounts only the administration UI still has tasks to answer, and the page used to be
  * "Not found." through both: when Mateu folded {@code @Route} into {@code @UI}, the task page became
  * an app of its own at the literal path {@code /forms/task/:_taskId}.
+ *
+ * <p>Who the caller is comes from an unsigned bearer token, as it does behind a gateway that
+ * verified the real one — which is what {@code workflow.security.trust-forwarded-token} declares.
+ * Without it the pages see nobody signed in, and every claim is refused.
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+        properties = "workflow.security.trust-forwarded-token=true")
 class TaskPageJourneyTest {
 
     static final String TASK_PAGE = "io.mateu.workflow.infra.in.ui.pages.Task";

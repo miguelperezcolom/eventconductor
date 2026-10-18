@@ -46,7 +46,17 @@ public class ForwardedTokenCallerResolver implements CallerResolver {
 
     @Override
     public AuthorizationContext current() {
-        var payload = payloadOfCurrentRequest();
+        return fromAuthorizationHeader(authorizationHeaderOfCurrentRequest());
+    }
+
+    /**
+     * The caller an {@code Authorization} header names, read the same way {@link #current()} reads
+     * the current request's — for a caller that holds the header itself rather than a servlet
+     * request on this thread (the engine's UI, through Mateu's request abstraction). Null when the
+     * header is absent, not a bearer token, not a JWT, or names nobody.
+     */
+    public AuthorizationContext fromAuthorizationHeader(String header) {
+        var payload = payloadOf(header);
         if (payload == null) {
             return null;
         }
@@ -61,14 +71,21 @@ public class ForwardedTokenCallerResolver implements CallerResolver {
         return new AuthorizationContext(subject, scopes, roles);
     }
 
-    /** The token's claims, or null for any reason at all — no request, no header, not a JWT. */
-    private JsonNode payloadOfCurrentRequest() {
+    private static String authorizationHeaderOfCurrentRequest() {
         try {
             var attributes = RequestContextHolder.getRequestAttributes();
             if (!(attributes instanceof ServletRequestAttributes servlet)) {
                 return null;
             }
-            var header = servlet.getRequest().getHeader("Authorization");
+            return servlet.getRequest().getHeader("Authorization");
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    /** The token's claims, or null for any reason at all — no header, not a bearer token, not a JWT. */
+    private static JsonNode payloadOf(String header) {
+        try {
             if (header == null || !header.regionMatches(true, 0, BEARER, 0, BEARER.length())) {
                 return null;
             }

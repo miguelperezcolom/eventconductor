@@ -189,7 +189,7 @@ public class ProcessDetailPage {
         return page.locator("text=\"" + text + "\" >> visible=true").first();
     }
 
-    /** The workflow name, which the detail renders as the value of a field rather than as text. */
+    /** The workflow name: a read-only field, which Mateu renders as its value under the label (not an input). */
     public Locator name() {
         return page.getByLabel("Name");
     }

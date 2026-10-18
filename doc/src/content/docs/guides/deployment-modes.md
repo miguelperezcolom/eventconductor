@@ -115,6 +115,16 @@ public class MyApplication {
 }
 ```
 
+To show the engine's UI in this application — your own `@UI` mounts `WorkflowMenu` (or `FormsMenu`, `RulesMenu`) — add `@EnableWorkflowUi` beside `@WorkflowEmbeddedApplication`. The embedded annotations leave the UI layer out, and since Mateu 3.0-alpha.409 nothing else brings it back. Scan your own extra packages through an imported class, not a `@ComponentScan` on the application class: declared there, it replaces the embedded annotation's scans instead of adding to them.
+
+```java
+@WorkflowEmbeddedApplication
+@EnableWorkflowUi
+@EnableJpaRepositories(basePackages = "io.mateu.workflow.infra.out.persistence")
+@AutoConfigurationPackage(basePackages = "io.mateu.workflow.infra.out.persistence")
+public class MyApplication { … }
+```
+
 **Characteristics:**
 - Events dispatched in-process via `EmbeddedOutboxRelay`. It is woken by the pod's own writes; the poll interval is a fallback, not the latency of a step
 - All state persisted via JPA/Hibernate — survives restarts

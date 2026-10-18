@@ -69,7 +69,8 @@ class TestWorkerJourneyTest extends AbstractUiE2eTest {
         // out of the DOM just as the assertion sampled, timing it out under CI load. Every field is a
         // column here, so the list already shows all of it and no click is needed.
         assertThat(worker.text("charge-card")).isVisible();
-        assertThat(worker.text("TEST_CONFIG")).isVisible();
+        // An enum cell reads as its label since Mateu 3.0-alpha.4xx: TEST_CONFIG shows as "Test config".
+        assertThat(worker.text("Test config")).isVisible();
         assertThat(worker.text("ERROR")).isVisible();
         assertThat(worker.text("card declined")).isVisible();
     }
