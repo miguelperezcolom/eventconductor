@@ -145,7 +145,7 @@ class PublishersTest {
     }
 
     @org.junit.jupiter.params.ParameterizedTest
-    @org.junit.jupiter.params.provider.CsvSource({"400,400", "401,401", "403,403", "404,404", "413,413", "422,422",
+    @org.junit.jupiter.params.provider.CsvSource({"400,400", "401,502", "403,502", "404,404", "413,413", "422,422",
             "409,502", "429,502", "500,502", "503,502"})
     void aRefusalTheEngineWouldRepeatIsPassedOnSoTheSenderDoesNotRetryIt(int engineStatus, int senderStatus)
             throws Exception {

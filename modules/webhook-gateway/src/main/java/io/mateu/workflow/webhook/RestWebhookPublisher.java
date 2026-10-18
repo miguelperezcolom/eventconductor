@@ -14,15 +14,16 @@ import java.util.LinkedHashMap;
  * Hands the event to the engine's {@code POST /workflow/api/events/{destination}} as a structured
  * CloudEvent — for deployments without Kafka (embedded mode), or when the gateway should not hold
  * broker credentials. The engine answers what the event did. A refusal that would be the same on
- * redelivery (400, 401, 403, 404, 413, 422) is passed on with its status, so the sender does not retry
- * it; anything else that is not a 2xx — a 5xx, a timeout, an engine that cannot be reached — is a
- * {@code 502}, so the sender may redeliver. The engine's answer itself never reaches the sender.
+ * redelivery (400, 404, 413, 422) is passed on with its status, so the sender does not retry it.
+ * A 401 or 403 is not: it means the gateway's own engine api-key is wrong, which is fixed by
+ * configuration, so the sender must keep its event and redeliver it then. That, and anything
+ * else that is not a 2xx (a 5xx, a timeout, an engine that cannot be reached), is a {@code 502}, so the sender may redeliver. The engine's answer itself never reaches the sender.
  */
 public class RestWebhookPublisher implements WebhookPublisher {
 
     private static final ObjectMapper JSON = new ObjectMapper();
     /** Engine answers that a redelivery of the same event would get again: passed on, not turned into a 502. */
-    static final java.util.Set<Integer> DETERMINISTIC = java.util.Set.of(400, 401, 403, 404, 413, 422);
+    static final java.util.Set<Integer> DETERMINISTIC = java.util.Set.of(400, 404, 413, 422);
     private static final org.apache.commons.logging.Log log =
             org.apache.commons.logging.LogFactory.getLog(RestWebhookPublisher.class);
 
