@@ -161,7 +161,9 @@
         <dependency>
             <groupId>com.google.protobuf</groupId>
             <artifactId>protobuf-java</artifactId>
-            <version>4.36.2</version>
+            <!-- Equal to rule-runtime's protobuf.version and to what the Spring Boot BOM manages:
+                 generated stubs refuse to load on an older runtime. -->
+            <version>4.35.1</version>
             <optional>true</optional>
         </dependency>
         <dependency>
