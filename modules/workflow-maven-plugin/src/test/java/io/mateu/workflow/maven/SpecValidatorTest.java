@@ -69,6 +69,77 @@ class SpecValidatorTest {
     }
 
     @Test
+    void anAwaitReplyIsValidated() throws Exception {
+        var valid = new YAMLMapper().readTree("""
+                name: Ask and wait
+                steps:
+                  - id: start
+                    type: START
+                    name: Start
+                  - id: ask
+                    type: PUBLISH_EVENT
+                    name: Ask
+                    preconditionStepId: start
+                    timeout: PT30S
+                    onTimeoutStepId: no-reply
+                    event:
+                      destination: quote-requests
+                      type: com.acme.quote.requested
+                    awaitReply:
+                      messageName: quote-ready
+                      correlationExpression: businessKey
+                      onEvent:
+                        destination: quote-replies
+                        type: com.acme.quote.ready
+                        correlationKey: "${data.requestId}"
+                  - id: no-reply
+                    type: ACTION
+                    name: No reply
+                    topic: work
+                    preconditions:
+                      - stepId: ask
+                        expression: "false"
+                """);
+        assertThat(validator.validate(SpecValidator.Kind.WORKFLOW, valid)).isEmpty();
+
+        var invalid = new YAMLMapper().readTree("""
+                name: Bad replies
+                steps:
+                  - id: start
+                    type: START
+                    name: Start
+                  - id: ask
+                    type: HTTP_CALL
+                    name: Ask
+                    preconditionStepId: start
+                    messageName: quote-ready
+                    http:
+                      url: https://pricing.example.com/quotes
+                    awaitReply:
+                      messageName: quote-ready
+                      correlationExpression: "businessKey +"
+                      onEvent:
+                        destination: "quote replies"
+                        type: com.acme.quote.ready
+                        correlationKey: "${unterminated"
+                  - id: act
+                    type: ACTION
+                    name: Act
+                    topic: work
+                    preconditionStepId: ask
+                    awaitReply:
+                      messageName: m
+                      correlationExpression: businessKey
+                """);
+        assertThat(validator.validate(SpecValidator.Kind.WORKFLOW, invalid))
+                .anySatisfy(v -> assertThat(v).contains("awaitReply.correlationExpression"))
+                .anySatisfy(v -> assertThat(v).contains("awaitReply.onEvent: 'quote replies' is not a valid destination name"))
+                .anySatisfy(v -> assertThat(v).contains("awaitReply.onEvent correlationKey"))
+                .anySatisfy(v -> assertThat(v).contains("Step 'ask' declares messageName, which an HTTP_CALL does not read"))
+                .anySatisfy(v -> assertThat(v).contains("only an HTTP_CALL or a PUBLISH_EVENT awaits a reply"));
+    }
+
+    @Test
     void aTriggerWithoutATypeFailsTheSchema() throws Exception {
         var doc = new YAMLMapper().readTree("""
                 name: No type

@@ -226,6 +226,62 @@ class WorkflowDefinitionValidatorTest {
     }
 
     @Test
+    void anAwaitReplyIsAcceptedOnARequestStepAndRejectedElsewhereBySourceValidation() throws Exception {
+        var yaml = new com.fasterxml.jackson.dataformat.yaml.YAMLMapper();
+        var valid = yaml.readTree("""
+                name: Ask
+                steps:
+                  - id: start
+                    type: START
+                    name: Start
+                  - id: ask
+                    type: PUBLISH_EVENT
+                    name: Ask
+                    preconditionStepId: start
+                    timeout: PT30S
+                    event: { destination: quotes, type: quote.requested }
+                    awaitReply:
+                      messageName: quote-ready
+                      correlationExpression: businessKey
+                      onEvent: { destination: quote-replies, type: quote.ready }
+                """);
+        assertThatNoException().isThrownBy(() -> validator.validateSource(valid, "ask.yaml"));
+
+        var misplaced = yaml.readTree("""
+                name: Ask
+                steps:
+                  - id: start
+                    type: START
+                    name: Start
+                  - id: act
+                    type: ACTION
+                    name: Act
+                    topic: work
+                    preconditionStepId: start
+                    awaitReply: { messageName: m, correlationExpression: businessKey }
+                """);
+        assertThatThrownBy(() -> validator.validateSource(misplaced, "act.yaml"))
+                .isInstanceOf(WorkflowDefinitionValidator.WorkflowDefinitionValidationException.class);
+
+        var incomplete = yaml.readTree("""
+                name: Ask
+                steps:
+                  - id: start
+                    type: START
+                    name: Start
+                  - id: ask
+                    type: PUBLISH_EVENT
+                    name: Ask
+                    preconditionStepId: start
+                    event: { destination: quotes, type: quote.requested }
+                    awaitReply: { messageName: quote-ready, correlationKey: "${requestId}" }
+                """);
+        assertThatThrownBy(() -> validator.validateSource(incomplete, "ask.yaml"))
+                .isInstanceOf(WorkflowDefinitionValidator.WorkflowDefinitionValidationException.class)
+                .hasMessageContaining("correlationKey");
+    }
+
+    @Test
     void definitionWithSelfPreconditionFailsInvariantCheck() {
         Step selfPrecondition = new Step("s1", null, StepType.ACTION, "Step", null, "s1", null, null, false, "topic", null, null, null, null, 0, null, null, null, null, 0, 0, false, null, 0, null);
         var wd = new WorkflowDefinition("wd-1", "Test", 1, "desc",  false, 0, false, null, 0, List.of(selfPrecondition));

@@ -74,6 +74,19 @@ class EventTriggerServiceTest {
     }
 
     @Test
+    void theDestinationOfAnAwaitedReplyEventIsListenedTo() {
+        var ask = io.mateu.core.infra.JsonSerializer.pojoFromJson("""
+                {"id": "ask", "type": "PUBLISH_EVENT", "name": "Ask",
+                 "event": {"destination": "quote-requests", "type": "quote.requested"},
+                 "awaitReply": {"messageName": "quote-ready", "correlationExpression": "businessKey",
+                                "onEvent": {"destination": "quote-replies", "type": "quote.ready"}}}
+                """, io.mateu.workflow.domain.aggregates.Step.class);
+        when(definitions.findAll()).thenReturn(List.of(definition("quote").withSteps(List.of(ask))));
+
+        assertThat(service.listenedDestinations()).containsExactly("quote-replies");
+    }
+
+    @Test
     void aDraftIsCheckedBeforeAnythingIsStored() {
         assertThatThrownBy(() -> service.create(new TriggerDraft(null, "sync-customer", "cdc", "*", null, null, null)))
                 .isInstanceOf(InvalidTriggerException.class).hasMessageContaining("needs an id");

@@ -60,6 +60,10 @@ void on(ExternalEventPublished published) {
 
 An application with a broker provides its own `ExternalEventPublisher` bean (Kafka, RabbitMQ, SNS…); it is called after the step's transaction committed, and throwing leaves the event to be retried.
 
+## Waiting for the answer
+
+An event that is a request — someone else answers it later — can wait for its answer in the same step: give the `PUBLISH_EVENT` an `awaitReply` (`messageName`, `correlationExpression` and an optional `onEvent`, as on a `WAIT_FOR_MESSAGE`). The wait is armed in the transaction that writes the event to the outbox, so an answer cannot come back before the step is waiting for it; the step completes when the answer is correlated, and its `timeout` and `onTimeoutStepId` cover the wait. See [Asynchronous Request/Response](/guides/request-response/#b-ec-asks-and-waits).
+
 ## Listening to events
 
 The other direction — a workflow started by a domain event, or a `WAIT_FOR_MESSAGE` waiting for one — uses the same destinations and CloudEvents conventions: see [Starting on and waiting for domain events](/guides/domain-event-triggers/). In embedded mode an event published here is also received by this engine's own triggers and waits (`workflow.events.loopback`, default `true`).

@@ -89,10 +89,30 @@ public class UpdateStepExecutionUseCase {
                     command.status(), execution.id(), command.attempt(), execution.getDispatchCount());
             return;
         }
+        // Checked after the attempt: a retried HTTP_CALL that re-armed its wait ignores the previous
+        // attempt's report above, so only the current attempt's response can be recorded below.
+        var awaitsReply = awaitsReply(execution);
+        if (awaitsReply && StepExecutionStatus.RUNNING.equals(command.status())) {
+            // An HTTP_CALL waiting for a reply stays PENDING while its worker runs: PENDING is what a
+            // reply correlates against, and the step's timeout bounds the whole exchange.
+            log.debug("Step execution {} awaits a reply; its worker's RUNNING report leaves it PENDING", execution.id());
+            return;
+        }
         var process = processRepository.findById(execution.getProcessId())
                 .orElseThrow(() -> new UnknownProcessException(execution.getProcessId()));
         process.updateVariables(command.variables());
         processRepository.save(process);
+
+        if (awaitsReply && StepExecutionStatus.COMPLETED.equals(command.status())) {
+            // The request was answered (2xx, response mapped into the process above), but the step is
+            // complete only when its reply is correlated. It keeps waiting — armed since it started —
+            // under the same timeout; a reply that came first already completed it (terminal, above).
+            messageSubscriptionService.rearm(process);
+            logMessageRepository.save(new LogMessage(UUID.randomUUID().toString(), LocalDateTime.now(),
+                    execution.getProcessId(), execution.id(), MessageType.Info.name(),
+                    "Request answered; waiting for reply '" + execution.getAwaitingMessageName() + "'", "system"));
+            return;
+        }
 
         // A worker that says its failure is final (FailureMarkers) spares the step its retries.
         var nonRetryable = StepExecutionStatus.ERROR.equals(command.status())
@@ -115,6 +135,16 @@ public class UpdateStepExecutionUseCase {
         }
 
         recordWhatHappened(command, execution);
+    }
+
+    /** Whether this is an HTTP_CALL (or PUBLISH_EVENT) whose completion is its reply, not its worker's report. */
+    private static boolean awaitsReply(StepExecution execution) {
+        try {
+            return io.mateu.core.infra.JsonSerializer.pojoFromJson(execution.getStepJson(),
+                    io.mateu.workflow.domain.aggregates.Step.class).awaitsReply();
+        } catch (RuntimeException e) {
+            return false;
+        }
     }
 
     /**

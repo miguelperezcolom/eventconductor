@@ -1,0 +1,70 @@
+{
+  "id": "rr-event-await-twice",
+  "name": "Two replies on the same message and key",
+  "version": 1,
+  "steps": [
+    {
+      "id": "start",
+      "type": "START",
+      "name": "Start"
+    },
+    {
+      "id": "ask-1",
+      "type": "PUBLISH_EVENT",
+      "name": "Ask 1",
+      "preconditionStepId": "start",
+      "event": {
+        "destination": "rr-event-quote-requests",
+        "type": "com.acme.quote.requested",
+        "key": "${process.businessKey}",
+        "payload": {
+          "correlationId": "${process.businessKey}"
+        }
+      },
+      "awaitReply": {
+        "messageName": "quote-event-ready",
+        "correlationExpression": "businessKey",
+        "onEvent": {
+          "destination": "rr-quote-replies",
+          "type": "com.acme.quote.ready",
+          "correlationKey": "${data.requestId}",
+          "variables": {
+            "price": "${data.price}"
+          }
+        }
+      }
+    },
+    {
+      "id": "ask-2",
+      "type": "PUBLISH_EVENT",
+      "name": "Ask 2",
+      "preconditionStepId": "ask-1",
+      "event": {
+        "destination": "rr-event-quote-requests",
+        "type": "com.acme.quote.requested",
+        "key": "${process.businessKey}",
+        "payload": {
+          "correlationId": "${process.businessKey}"
+        }
+      },
+      "awaitReply": {
+        "messageName": "quote-event-ready",
+        "correlationExpression": "businessKey",
+        "onEvent": {
+          "destination": "rr-quote-replies",
+          "type": "com.acme.quote.ready",
+          "correlationKey": "${data.requestId}",
+          "variables": {
+            "price": "${data.price}"
+          }
+        }
+      }
+    },
+    {
+      "id": "end",
+      "type": "END",
+      "name": "End",
+      "preconditionStepId": "ask-2"
+    }
+  ]
+}

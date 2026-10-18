@@ -697,6 +697,30 @@ Publish a domain event from the process's state, without a worker. See [Publishi
 
 Written to the outbox with the step's completion — published if and only if the step completed; at-least-once, `id` = the step execution id. An unknown destination, a template that does not render or an oversized payload fails the step.
 
+**Waiting for the answer: `awaitReply`.** With an `awaitReply` block the step is a request that waits for its reply — asynchronous request/response in one step, with no reply lost however fast it comes back:
+
+```yaml
+- id: ask-quote
+  type: PUBLISH_EVENT
+  name: Ask for a quote
+  preconditionStepId: start
+  timeout: PT5M                       # bounds request + reply
+  retries: 0
+  onTimeoutStepId: no-quote
+  event: { destination: quote-requests, type: com.acme.quote.requested, key: "${process.businessKey}",
+           payload: { requestId: "${process.businessKey}", item: "${item}" } }
+  awaitReply:
+    messageName: quote-ready          # the message that is the reply
+    correlationExpression: businessKey
+    onEvent:                          # optional: the reply comes as a domain event
+      destination: quote-replies
+      type: com.acme.quote.ready
+      correlationKey: "${data.requestId}"
+      variables: { price: "${data.price}" }
+```
+
+`awaitReply` takes the fields of a [`WAIT_FOR_MESSAGE`](#wait_for_message) — `messageName` and `correlationExpression` (both required) and an optional `onEvent` — with the same meaning. The wait is armed in the transaction that writes the event to the outbox, so the event cannot leave before the step is waiting for its answer. The step stays `PENDING` after publishing and completes when the reply is correlated, its variables merged into the process. `timeout`, `deadline`, `retries` and `onTimeoutStepId` bound the whole exchange; a retry publishes the request again — as a new event, `id` = `<step execution id>-<attempt>` — and waits again. See [Asynchronous Request/Response](/guides/request-response/#b-ec-asks-and-waits).
+
 ---
 
 ## HTTP_CALL
@@ -712,6 +736,27 @@ Call an HTTP endpoint and map the response into variables, without writing a wor
 **Required:** `http` with exactly one of `connection` (+ optional `path`) and `url`. **Optional:** `method` (default `GET`), `query`, `headers`, `body` / `bodyTemplate`, `successStatus` (default 2xx), `output` (variable ← JEXL over `{status, headers, body}`), `auth` (a profile name, or inline with `${secret:NAME}` credentials only), `retryOn` (default `[5xx, io]` — a 4xx is not retried).
 
 Rendered by the engine and executed by the built-in `http-call@1` task (`worker-http`): embedded in the engine's pod, or on topic `http-calls` in kafka mode. Timeouts, retries, compensation and cancellation work as for `ACTION`.
+
+**Waiting for a callback: `awaitReply`.** When the HTTP response only acknowledges the request and the answer comes later — a webhook, a callback, an event — give the step an `awaitReply` (the fields of a [`WAIT_FOR_MESSAGE`](#wait_for_message), as on [`PUBLISH_EVENT`](#publish_event)):
+
+```yaml
+- id: ask-quote
+  type: HTTP_CALL
+  name: Ask for a quote
+  preconditionStepId: start
+  timeout: PT5M
+  onTimeoutStepId: no-quote
+  http: { connection: pricing, method: POST, path: /quotes,
+          body: { requestId: "${process.businessKey}", item: "${item}" }, output: { ticket: "body.ticket" } }
+  awaitReply: { messageName: quote-ready, correlationExpression: businessKey }
+```
+
+The wait is armed before the HTTP task is dispatched, so a callback the remote system sends before (or instead of waiting for) its own response is never lost. The step completes when the reply is correlated:
+
+- **Response first, then reply**: the 2xx response is recorded — `output` mapped into the process — and the step keeps waiting (`PENDING`, under the same `timeout`). The reply completes it.
+- **Reply first, then response**: the reply completes the step; the response that comes after finds it complete and is ignored, `output` included. Do not rely on `output` in successors: correlate on an id you send, and carry what you need in the reply.
+- **A failed request** (non-2xx, I/O error, before any reply) fails the step as any `HTTP_CALL` fails: `retries` send the request again — with the same `Idempotency-Key` — and re-arm the wait. A reply that arrives while the step waits out its backoff matches nothing.
+- The worker's `RUNNING` progress report leaves the step `PENDING`: `timeout` bounds the request and the reply together — and `workflow.default-step-timeout-ms`, when set, applies to an `HTTP_CALL` without a `timeout` whether or not it awaits a reply, so give one that awaits a slow reply a `timeout` of its own.
 
 ---
 
@@ -752,6 +797,7 @@ Rendered by the engine and executed by the built-in `llm-call@1` task (`worker-l
 | `compensable` | boolean | `false` | Trigger compensation step on failure |
 | `compensationStepId` | string | — | Step to run as compensation. **Required when `compensable: true`** (enforced by the JSON schema) |
 | `onTimeoutStepId` | string | — | Step to route to when this step times out (after `retries` are exhausted) instead of failing the process — the step's own on-timeout branch. See [On-timeout routing](/guides/retries-timeouts-compensation/#on-timeout-routing) |
-| `deadline` | moment | — | ACTION, USER_TASK, RULE, WAIT_FOR_MESSAGE, PROCESS, HTTP_CALL, LLM_CALL: a moment (`{date, offset, at, zone}` from the process's data) by which the step must have finished. Reaching it is a timeout that retries do not extend; with `timeout` too, the earlier wins; it follows the variables. See [Scheduling and Deadlines](/guides/scheduling-and-deadlines/) |
+| `deadline` | moment | — | ACTION, USER_TASK, RULE, WAIT_FOR_MESSAGE, PROCESS, HTTP_CALL, LLM_CALL, and a PUBLISH_EVENT with `awaitReply`: a moment (`{date, offset, at, zone}` from the process's data) by which the step must have finished. Reaching it is a timeout that retries do not extend; with `timeout` too, the earlier wins; it follows the variables. See [Scheduling and Deadlines](/guides/scheduling-and-deadlines/) |
+| `awaitReply` | object | — | HTTP_CALL and PUBLISH_EVENT only: `{messageName, correlationExpression, onEvent?}` — the reply the step waits for after sending its request, armed in the same transaction that sends it. See [PUBLISH_EVENT](#publish_event) and [HTTP_CALL](#http_call) |
 | `onEvent` | object | — | WAIT_FOR_MESSAGE only: `{destination, type, correlationKey?, filter?, variables?}` — a domain event that becomes the step's message. See [Starting on and waiting for domain events](/guides/domain-event-triggers/) |
 | `maxSuccessfulExecutions` | integer | `0` | Cap on how many times this step may successfully run within one process instance (backstop against runaway loops). `0` inherits the workflow-level `defaultMaxStepExecutions`; both `0` = unbounded. Validated design metadata today — the engine runs each step once, and the cap will be enforced when step re-execution lands |

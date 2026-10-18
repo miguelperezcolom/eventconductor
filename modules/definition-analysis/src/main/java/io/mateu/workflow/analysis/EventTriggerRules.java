@@ -95,7 +95,9 @@ public final class EventTriggerRules {
     /** {@code onEvent} is only read on a {@code WAIT_FOR_MESSAGE}: anywhere else it would be ignored. */
     public static List<String> onEventPlacementViolations(String stepId, String stepType, boolean hasOnEvent) {
         if (hasOnEvent && !"WAIT_FOR_MESSAGE".equals(stepType)) {
-            return List.of("Step '" + stepId + "' declares onEvent, which only a WAIT_FOR_MESSAGE reads.");
+            return List.of("Step '" + stepId + "' declares onEvent, which only a WAIT_FOR_MESSAGE reads"
+                    + (AwaitReplyRules.STEP_TYPES.contains(stepType)
+                    ? " (" + AwaitReplyRules.withArticle(stepType) + " waiting for a reply takes it inside awaitReply)." : "."));
         }
         return List.of();
     }

@@ -257,12 +257,69 @@ public record Step(
          */
         @Hidden
         @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
-        EventWait onEvent
+        EventWait onEvent,
+        /**
+         * HTTP_CALL and PUBLISH_EVENT only: the reply the step waits for after sending its request
+         * (see {@link AwaitReply}). The wait is armed in the same unit of work that sends the request,
+         * so a fast reply is never lost. Left out of the JSON when absent, like {@code onEvent}.
+         */
+        @Hidden
+        @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+        AwaitReply awaitReply
 ) implements Identifiable {
 
     public Step {
         requiredScopes = requiredScopes == null ? List.of() : List.copyOf(requiredScopes);
         requiredRoles = requiredRoles == null ? List.of() : List.copyOf(requiredRoles);
+    }
+
+    /** The shape this record had before {@code awaitReply}, so every caller of the full constructor keeps compiling. */
+    public Step(String id, String workflowDefinitionId, StepType type, String name, String description,
+                String preconditionStepId, List<String> preconditionStepIds, List<Precondition> preconditions,
+                String preconditionExpression, boolean parallel, String topic, String formId, String ruleId,
+                String childWorkflowDefinitionId, List<String> outputVariables, long duration,
+                String untilVariable, String messageName, String correlationExpression,
+                List<String> messageVariables, long timeout, int retries, boolean compensable,
+                String compensationStepId, String onTimeoutStepId, int maxSuccessfulExecutions,
+                JoinType joinType, List<String> requiredScopes, List<String> requiredRoles,
+                String lockName, String lockKey, String task, List<String> replyVariables,
+                String replyExpression, Object replyTemplate, PublishEvent event, HttpCall http,
+                Moment until, Moment deadline, LlmCall llm, EventWait onEvent) {
+        this(id, workflowDefinitionId, type, name, description, preconditionStepId, preconditionStepIds,
+                preconditions, preconditionExpression, parallel, topic, formId, ruleId,
+                childWorkflowDefinitionId, outputVariables, duration, untilVariable, messageName,
+                correlationExpression, messageVariables, timeout, retries, compensable, compensationStepId,
+                onTimeoutStepId, maxSuccessfulExecutions, joinType, requiredScopes, requiredRoles,
+                lockName, lockKey, task, replyVariables, replyExpression, replyTemplate, event, http, until, deadline,
+                llm, onEvent, null);
+    }
+
+    /**
+     * Whether this step, once started, waits for a message: a WAIT_FOR_MESSAGE, or an HTTP_CALL /
+     * PUBLISH_EVENT with an {@code awaitReply}. Everything that finds, routes or completes a waiting step
+     * asks this rather than the type, and reads the wait through {@link #messageWait()}.
+     */
+    public boolean awaitsMessage() {
+        return StepType.WAIT_FOR_MESSAGE.equals(type) || awaitsReply();
+    }
+
+    /** Whether this is an HTTP_CALL or a PUBLISH_EVENT that waits for a reply to its request. */
+    public boolean awaitsReply() {
+        return awaitReply != null && (StepType.HTTP_CALL.equals(type) || StepType.PUBLISH_EVENT.equals(type));
+    }
+
+    /**
+     * This step as a message wait: itself for a WAIT_FOR_MESSAGE (or any other step), and for a step that
+     * {@link #awaitsReply()} a copy whose {@code messageName}, {@code correlationExpression} and
+     * {@code onEvent} are its reply's — so correlation reads one shape whichever way the wait was written.
+     */
+    public Step messageWait() {
+        if (!awaitsReply()) {
+            return this;
+        }
+        return withMessageName(awaitReply.messageName())
+                .withCorrelationExpression(awaitReply.correlationExpression())
+                .withOnEvent(awaitReply.onEvent());
     }
 
     /**

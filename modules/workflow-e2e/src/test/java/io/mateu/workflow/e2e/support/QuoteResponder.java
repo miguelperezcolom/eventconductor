@@ -28,19 +28,62 @@ public class QuoteResponder {
     /** An item nobody quotes: the request goes out and no reply ever comes. */
     public static final String SILENT = "nobody-sells-this";
 
-    private final ObjectProvider<ProcessUpstreamEventUseCase> upstream;
-    private final Map<String, Integer> replies = new ConcurrentHashMap<>();
+    /** Requests on this destination are answered only from the second one per key on: the first is ignored. */
+    public static final String SECOND_TIME = "rr-quote-requests-twice";
+    /** Requests on this destination are answered with a domain event on {@link #REPLIES}, not a message. */
+    public static final String BY_EVENT = "rr-quote-requests-by-event";
+    /** Where the event replies go: an {@code onEvent} reply's destination. */
+    public static final String REPLIES = "rr-quote-replies";
 
-    public QuoteResponder(ObjectProvider<ProcessUpstreamEventUseCase> upstream) {
+    private final ObjectProvider<ProcessUpstreamEventUseCase> upstream;
+    private final ObjectProvider<io.mateu.workflow.application.services.InboundEventService> inbound;
+    private final Map<String, Integer> replies = new ConcurrentHashMap<>();
+    private final Map<String, List<String>> requestIds = new ConcurrentHashMap<>();
+
+    public QuoteResponder(ObjectProvider<ProcessUpstreamEventUseCase> upstream,
+                          ObjectProvider<io.mateu.workflow.application.services.InboundEventService> inbound) {
         this.upstream = upstream;
+        this.inbound = inbound;
     }
 
     @EventListener
     public void on(ExternalEventPublished published) {
-        if ("rr-quote-requests".equals(published.event().destination())
-                && !published.event().data().contains("\"item\":\"" + SILENT + "\"")) {
-            reply(published.event().key());
+        var event = published.event();
+        var silent = event.data().contains("\"item\":\"" + SILENT + "\"");
+        switch (event.destination()) {
+            case "rr-quote-requests" -> {
+                if (!silent) {
+                    reply(event.key());
+                }
+            }
+            case SECOND_TIME -> {
+                var ids = requestIds.computeIfAbsent(event.key(), k -> new java.util.concurrent.CopyOnWriteArrayList<>());
+                ids.add(event.eventId());
+                if (ids.size() >= 2) {
+                    reply(event.key());
+                }
+            }
+            case BY_EVENT -> {
+                if (!silent) {
+                    replyWithEvent(event.key(), "reply-to-" + event.eventId());
+                }
+            }
+            default -> {
+            }
         }
+    }
+
+    /** Answers with a domain event on {@link #REPLIES} carrying the request's id in its payload. */
+    public void replyWithEvent(String correlationId, String eventId) {
+        replies.merge(correlationId, 1, Integer::sum);
+        inbound.getObject().receive(new io.mateu.workflow.domain.aggregates.InboundEvent(REPLIES, eventId,
+                "pricing/e2e", "com.acme.quote.ready", null, null, null, "application/json",
+                "{\"requestId\":\"" + correlationId + "\",\"price\":\"42\"}", Map.of()));
+    }
+
+    /** The CloudEvents ids of the requests seen on {@link #SECOND_TIME} for this correlation id, in order. */
+    public List<String> requestIdsFor(String correlationId) {
+        return List.copyOf(requestIds.getOrDefault(correlationId, List.of()));
     }
 
     /** Sends the reply the way any producer would: a message, correlated by the request's id. */

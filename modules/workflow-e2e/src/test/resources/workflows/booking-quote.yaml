@@ -5,29 +5,13 @@ steps:
   - id: start
     type: START
     name: Start
-  - id: fork
-    type: FORK
-    name: Arm the wait and send the request together
-    preconditionStepId: start
-  - id: wait-quote
-    type: WAIT_FOR_MESSAGE
-    name: Wait for the quote
-    preconditionStepId: fork
-    messageName: quote-ready
-    correlationExpression: businessKey               # known before the request leaves
-    timeout: PT5M
-    retries: 0
-    onTimeoutStepId: no-quote
-    onEvent:
-      destination: quote-replies
-      type: com.acme.quote.ready
-      correlationKey: "${data.requestId}"
-      variables:
-        price: "${data.price}"
   - id: ask-quote
     type: PUBLISH_EVENT
-    name: Ask for a quote
-    preconditionStepId: fork
+    name: Ask for a quote and wait for it
+    preconditionStepId: start
+    timeout: PT5M                                    # the whole exchange: request and reply
+    retries: 0
+    onTimeoutStepId: no-quote
     event:
       destination: quote-requests
       type: com.acme.quote.requested
@@ -35,22 +19,27 @@ steps:
       payload:
         requestId: "${process.businessKey}"          # the correlation id the answer must carry
         item: "${item}"
-  - id: quoted
-    type: JOIN
-    name: Request sent and quote in
-    preconditionStepIds: [ask-quote, wait-quote]
+    awaitReply:
+      messageName: quote-ready
+      correlationExpression: businessKey             # known before the request leaves
+      onEvent:
+        destination: quote-replies
+        type: com.acme.quote.ready
+        correlationKey: "${data.requestId}"
+        variables:
+          price: "${data.price}"
   - id: book
     type: ACTION
     name: Book at the quoted price
     topic: booking
-    preconditionStepId: quoted
+    preconditionStepId: ask-quote
   - id: no-quote
     type: ACTION
     name: Tell the customer there is no quote
     topic: booking
     preconditions:
-      - stepId: wait-quote
-        expression: "false"                          # reached only through wait-quote's onTimeoutStepId
+      - stepId: ask-quote
+        expression: "false"                          # reached only through ask-quote's onTimeoutStepId
   - id: outcome
     type: JOIN
     name: Outcome

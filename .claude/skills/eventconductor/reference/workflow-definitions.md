@@ -110,6 +110,12 @@ Add `"$schema"` (JSON) or a `# yaml-language-server: $schema=...` comment (YAML)
   `workflow.events.destinations.<name>.topic` — never a topic in the definition. Kafka: CloudEvent
   (binary default / structured / plain), key default business key. Embedded: `ExternalEventPublisher`
   bean (default: Spring `ExternalEventPublished` event).
+- **`awaitReply`** (HTTP_CALL and PUBLISH_EVENT) — `{messageName, correlationExpression, onEvent?}`, the
+  fields of a WAIT_FOR_MESSAGE: the request step waits for its reply, armed in the same transaction that
+  sends the request, so a fast reply is never lost. Prefer it to request → WAIT_FOR_MESSAGE (racy). The
+  step completes on the reply; `timeout`/`retries`/`onTimeoutStepId` bound the exchange (a retry
+  re-sends and re-arms). HTTP_CALL: 2xx first → `output` recorded, still waiting; reply first → step
+  complete, late response ignored; failed request → fails as usual.
 - **HTTP_CALL** — `http: {connection + path | url, method, query, headers, body | bodyTemplate,
   successStatus, output, auth, retryOn}`. Engine renders the request and dispatches built-in task
   `http-call@1` (library `worker-http`; kafka topic `http-calls`, app `http-worker-standalone-app`).

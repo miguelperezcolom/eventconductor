@@ -2,7 +2,6 @@ package io.mateu.workflow.application.services.messagerouting;
 
 import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
 import io.mateu.workflow.domain.aggregates.Step;
-import io.mateu.workflow.domain.aggregates.StepType;
 import io.mateu.workflow.domain.aggregates.WorkflowDefinition;
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -60,9 +59,13 @@ public class MessageClassifier {
             if (definition.steps() == null) {
                 continue;
             }
-            for (Step step : definition.steps()) {
-                if (step.type() != StepType.WAIT_FOR_MESSAGE
-                        || step.messageName() == null || step.messageName().isBlank()) {
+            for (Step definedStep : definition.steps()) {
+                // WAIT_FOR_MESSAGE steps and HTTP_CALL / PUBLISH_EVENT steps that await a reply alike.
+                if (!definedStep.awaitsMessage()) {
+                    continue;
+                }
+                var step = definedStep.messageWait();
+                if (step.messageName() == null || step.messageName().isBlank()) {
                     continue;
                 }
                 var name = step.messageName();

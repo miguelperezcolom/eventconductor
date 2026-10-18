@@ -437,7 +437,7 @@
         "object",
         "null"
       ],
-      "description": "WAIT_FOR_MESSAGE only: a domain event that is this step's message. An event of type arriving on destination for which filter holds becomes the message messageName with the correlation key and variables rendered from it, dispatched like any message — so the step's correlationExpression, deadline, timeout and onTimeoutStepId apply unchanged, and the message API can still complete the wait by messageName. The same event (source + id) is correlated at most once per message and key.",
+      "description": "WAIT_FOR_MESSAGE (and an HTTP_CALL / PUBLISH_EVENT awaitReply): a domain event that is this step's message. An event of type arriving on destination for which filter holds becomes the message messageName with the correlation key and variables rendered from it, dispatched like any message — so the step's correlationExpression, deadline, timeout and onTimeoutStepId apply unchanged, and the message API can still complete the wait by messageName. The same event (source + id) is correlated at most once per message and key.",
       "additionalProperties": false,
       "required": [
         "destination",
@@ -476,6 +476,34 @@
           ],
           "description": "The variables the message merges into the process, by name, each a payload template over the event (\"${data.bookingId}\"; a leaf that is exactly one expression keeps its type, and a non-string value becomes its JSON text, as process variables are strings). Absent means every top-level member of data when data is a JSON object; {} means none. Evaluated over the event context: id, source, type, subject, time, key (the Kafka record key, or the key given to the REST/MCP inject), destination, datacontenttype, data (the payload parsed as JSON — objects are maps, so data.bookingId — or its raw text) and extensions (any other CloudEvents attribute).",
           "additionalProperties": true
+        }
+      }
+    },
+    "AwaitReply": {
+      "title": "AwaitReply",
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "HTTP_CALL / PUBLISH_EVENT only: the reply the step waits for after sending its request — asynchronous request/response in one step. The wait is armed in the same unit of work that sends the request (the event's outbox row, the HTTP task's dispatch), so a reply can never arrive before the step is waiting for it. The step completes when the reply is correlated, its variables merged into the process; an HTTP_CALL's 2xx response (and its output mapping) is recorded when it comes first, but does not complete the step. The step's timeout, deadline, retries and onTimeoutStepId bound the whole exchange; a retry sends the request again and waits again. Same fields and meaning as on a WAIT_FOR_MESSAGE.",
+      "additionalProperties": false,
+      "required": [
+        "messageName",
+        "correlationExpression"
+      ],
+      "properties": {
+        "messageName": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The name of the message that is the reply — sent to POST /workflow/api/messages, the upstream topic, a SEND_MESSAGE, or made from a domain event by onEvent."
+        },
+        "correlationExpression": {
+          "type": "string",
+          "minLength": 1,
+          "description": "JEXL expression over the process variables that yields the key the reply must carry ('businessKey' correlates by business key). Choose a key the request carries, so the other side can echo it."
+        },
+        "onEvent": {
+          "$ref": "#/$defs/EventWait"
         }
       }
     },
@@ -1022,6 +1050,9 @@
         "onEvent": {
           "$ref": "#/$defs/EventWait"
         },
+        "awaitReply": {
+          "$ref": "#/$defs/AwaitReply"
+        },
         "replyTemplate": {
           "description": "REPLY only: the reply as a structured template — JSON/YAML whose string leaves may hold ${...} JEXL expressions. A leaf that is exactly one expression keeps its type; text around expressions makes a string. Mutually exclusive with replyVariables and replyExpression."
         },
@@ -1094,7 +1125,7 @@
               "type": "null"
             }
           ],
-          "description": "ACTION, USER_TASK, RULE, WAIT_FOR_MESSAGE, PROCESS, HTTP_CALL, LLM_CALL: a moment by which the step must have finished, from the process's data ({date, offset, at, zone}, no ifPast). Reaching it is a timeout (onTimeoutStepId or failure) that retries do not extend; with timeout too, the earlier wins."
+          "description": "ACTION, USER_TASK, RULE, WAIT_FOR_MESSAGE, PROCESS, HTTP_CALL, LLM_CALL and a PUBLISH_EVENT with awaitReply: a moment by which the step must have finished, from the process's data ({date, offset, at, zone}, no ifPast). Reaching it is a timeout (onTimeoutStepId or failure) that retries do not extend; with timeout too, the earlier wins."
         },
         "retries": {
           "type": [
@@ -1414,6 +1445,28 @@
             "required": [
               "event"
             ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "awaitReply": {
+                "type": "object"
+              }
+            },
+            "required": [
+              "awaitReply"
+            ]
+          },
+          "then": {
+            "properties": {
+              "type": {
+                "enum": [
+                  "HTTP_CALL",
+                  "PUBLISH_EVENT"
+                ]
+              }
+            }
           }
         },
         {

@@ -99,6 +99,26 @@ interface WorkflowStep {
     deadline?: Moment;
     /** WAIT_FOR_MESSAGE only: the domain event that is this step's message. */
     onEvent?: EventSource;
+    /** HTTP_CALL / PUBLISH_EVENT only: the reply the step waits for after sending its request. */
+    awaitReply?: AwaitReply;
+}
+
+/** The reply an HTTP_CALL or a PUBLISH_EVENT waits for — the fields of a WAIT_FOR_MESSAGE. */
+interface AwaitReply {
+    messageName?: string;
+    correlationExpression?: string;
+    onEvent?: EventSource;
+}
+
+/** The reply in words — "⇄ quote-ready", or the event it comes as. */
+function describeAwaitReply(reply: AwaitReply): string {
+    return "⇄ " + (reply.onEvent ? describeEventSource(reply.onEvent) : (reply.messageName || "reply"));
+}
+
+/** The reply in full, for the properties panel: message, key and the event it may come as. */
+function describeAwaitReplyFully(reply: AwaitReply): string {
+    return (reply.messageName || "?") + " · key " + (reply.correlationExpression || "?")
+        + (reply.onEvent ? " · ⚡ " + describeEventWait(reply.onEvent) : "");
 }
 
 /** Where a domain event comes from and how it is read: a trigger's or a wait's `onEvent`. */
@@ -464,8 +484,10 @@ function badgeOf(step: WorkflowStep): string {
         case "DYNAMIC": return "⚡ " + (step.topic ? "→ " + step.topic : "DYNAMIC");
         case "REPLY": return "↩ " + (step.replyVariables && step.replyVariables.length
             ? step.replyVariables.join(", ") : (step.replyExpression ? "expression" : "REPLY"));
-        case "PUBLISH_EVENT": return "📣 " + (step.event?.destination || "event");
-        case "HTTP_CALL": return (step.http?.method || "GET") + " " + (step.http?.connection || step.http?.url || "http");
+        case "PUBLISH_EVENT": return "📣 " + (step.event?.destination || "event")
+            + (step.awaitReply ? " " + describeAwaitReply(step.awaitReply) : "");
+        case "HTTP_CALL": return (step.http?.method || "GET") + " " + (step.http?.connection || step.http?.url || "http")
+            + (step.awaitReply ? " " + describeAwaitReply(step.awaitReply) : "");
         case "LLM_CALL": return "✦ " + (step.llm?.connection || "llm") + (step.llm?.model ? " · " + step.llm.model : "");
         case "TIMER": return "⏱ " + (step.until ? describeMoment(step.until)
             : step.untilVariable ? "until " + step.untilVariable
@@ -3646,6 +3668,9 @@ export class MateuWorkflowElk extends LitElement {
                     ${step.type === "PUBLISH_EVENT" ? field("Event", html`
                         <input class="inp" readonly title="Edit the event block in the YAML"
                                .value="${(step.event?.type || "") + " → " + (step.event?.destination || "")}"/>`) : ""}
+                    ${(step.type === "HTTP_CALL" || step.type === "PUBLISH_EVENT") && step.awaitReply ? field("Awaits reply", html`
+                        <input class="inp" readonly title="Edit the awaitReply block in the YAML"
+                               .value="${describeAwaitReplyFully(step.awaitReply)}"/>`) : ""}
                     ${step.type === "WAIT_FOR_MESSAGE" && step.onEvent ? field("Event source", html`
                         <input class="inp" readonly title="Edit the onEvent block in the YAML"
                                .value="${describeEventWait(step.onEvent)}"/>`) : ""}

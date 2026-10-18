@@ -114,6 +114,8 @@ public class StepOverProcessUseCase {
             return;
         }
 
+        // Taken before the transition: in memory mode start() moves the very instances read above.
+        var pendingBefore = alreadyPending(stepExecutions);
         var result = workflowOrchestrationService.calculateNextTransitions(process, stepExecutions);
 
         // Resolve any LOCK/UNLOCK step that just started this pass. It runs in this same transaction,
@@ -128,7 +130,7 @@ public class StepOverProcessUseCase {
         boolean replied = resolveReplySteps(result.getUpdatedProcess(), result.getStepsToSave());
         // And any PUBLISH_EVENT: the event rides this transaction into the outbox with the step's
         // completion — published if and only if the step completed.
-        resolvePublishSteps(result.getUpdatedProcess(), result.getStepsToSave());
+        resolvePublishSteps(result.getUpdatedProcess(), result.getStepsToSave(), pendingBefore);
 
         if (result.getUpdatedProcess() != process || replied) {
             processRepository.save(result.getUpdatedProcess());
@@ -326,9 +328,12 @@ public class StepOverProcessUseCase {
      * completes it — or fails it (so retries and compensation engage) when the destination is unknown
      * or the payload cannot be rendered.
      */
-    private void resolvePublishSteps(Process process, List<StepExecution> stepsToSave) {
+    private void resolvePublishSteps(Process process, List<StepExecution> stepsToSave, java.util.Set<String> alreadyPending) {
         for (var stepExecution : stepsToSave) {
-            if (!StepExecutionStatus.PENDING.equals(stepExecution.getStatus())) {
+            if (!StepExecutionStatus.PENDING.equals(stepExecution.getStatus())
+                    // A PUBLISH_EVENT waiting for its reply stays PENDING across step-overs: it was
+                    // published when it started, and must not be published again on every later pass.
+                    || alreadyPending.contains(stepExecution.getId())) {
                 continue;
             }
             var step = pojoFromJson(stepExecution.getStepJson(), Step.class);
@@ -338,9 +343,20 @@ public class StepOverProcessUseCase {
             try {
                 var event = io.mateu.workflow.domain.services.ExternalEventRenderer.render(
                         step, process, stepExecution.id(), eventDestinations, "kafka".equals(mode));
+                if (step.awaitsReply() && stepExecution.getAttemptCount() > 0) {
+                    // A retry of a request that got no reply asks again, so it is a new event: an id
+                    // of its own per attempt, or a responder deduplicating on it would drop the re-ask.
+                    event = withEventId(event, stepExecution.id() + "-" + stepExecution.getAttemptCount());
+                }
                 stepExecution.publish(event);
                 stepExecution.logInfo("Event '" + event.eventType() + "' published to '" + event.destination()
                         + "' with key '" + event.key() + "'.");
+                if (step.awaitsReply()) {
+                    // Armed in start(), in this same unit of work: the reply completes the step
+                    // (CompleteMessageStepHandler), or its timeout routes or fails it.
+                    stepExecution.logInfo("Waiting for reply '" + step.awaitReply().messageName() + "'.");
+                    continue;
+                }
                 stepExecution.updateStatus(StepExecutionStatus.COMPLETED);
             } catch (IllegalArgumentException | io.mateu.workflow.template.Templates.TemplateException e) {
                 log.warn("PUBLISH_EVENT step {} of process {} failed: {}", step.id(), process.getId(), e.getMessage());
@@ -348,6 +364,21 @@ public class StepOverProcessUseCase {
                 stepExecution.updateStatus(StepExecutionStatus.ERROR);
             }
         }
+    }
+
+    /** The ids of the steps that were already PENDING before this step-over decided anything. */
+    private static java.util.Set<String> alreadyPending(List<StepExecution> stepExecutions) {
+        return stepExecutions.stream()
+                .filter(stepExecution -> StepExecutionStatus.PENDING.equals(stepExecution.getStatus()))
+                .map(StepExecution::getId)
+                .collect(java.util.stream.Collectors.toSet());
+    }
+
+    private static io.mateu.workflow.dtos.events.integration.ExternalEventRequested withEventId(
+            io.mateu.workflow.dtos.events.integration.ExternalEventRequested e, String eventId) {
+        return new io.mateu.workflow.dtos.events.integration.ExternalEventRequested(eventId, e.destination(),
+                e.eventType(), e.key(), e.format(), e.data(), e.processId(), e.workflowDefinitionId(), e.stepId(),
+                e.businessKey(), e.time());
     }
 
     /** A step-level lock defaults its domain to the definition id, so unrelated definitions do not

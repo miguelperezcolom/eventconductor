@@ -9,7 +9,6 @@ import io.mateu.workflow.domain.aggregates.EventFileTrigger;
 import io.mateu.workflow.domain.aggregates.EventReceipt;
 import io.mateu.workflow.domain.aggregates.EventTrigger;
 import io.mateu.workflow.domain.aggregates.EventTriggerOrigin;
-import io.mateu.workflow.domain.aggregates.StepType;
 import io.mateu.workflow.domain.aggregates.TriggerPause;
 import io.mateu.workflow.domain.aggregates.WorkflowDefinition;
 import io.mateu.workflow.domain.services.EventTriggerCatalog;
@@ -348,7 +347,7 @@ public class EventTriggerService {
 
     /**
      * The destinations the engine should listen on: those some definition's trigger, some
-     * {@code events.yaml} entry or some {@code WAIT_FOR_MESSAGE} {@code onEvent} names, whatever the
+     * {@code events.yaml} entry or some {@code WAIT_FOR_MESSAGE} {@code onEvent} (or {@code awaitReply.onEvent}) names, whatever the
      * definition's status (a disabled definition's running processes still wait).
      */
     public Set<String> listenedDestinations() {
@@ -361,8 +360,9 @@ public class EventTriggerService {
                 definition.triggers().forEach(t -> names.add(t.destination()));
             }
             for (var step : definition.steps()) {
-                if (step.onEvent() != null && StepType.WAIT_FOR_MESSAGE.equals(step.type())) {
-                    names.add(step.onEvent().destination());
+                var wait = step.awaitsMessage() ? step.messageWait().onEvent() : null;
+                if (wait != null) {
+                    names.add(wait.destination());
                 }
             }
         }

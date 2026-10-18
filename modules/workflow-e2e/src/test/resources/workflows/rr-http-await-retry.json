@@ -1,0 +1,69 @@
+{
+  "id": "rr-http-await-retry",
+  "name": "A failed request is retried and the wait re-armed",
+  "version": 1,
+  "steps": [
+    {
+      "id": "start",
+      "type": "START",
+      "name": "Start"
+    },
+    {
+      "id": "ask",
+      "type": "HTTP_CALL",
+      "name": "Ask for a quote and wait for it",
+      "preconditionStepId": "start",
+      "timeout": 5000,
+      "retries": 1,
+      "onTimeoutStepId": "no-quote",
+      "http": {
+        "connection": "pricing",
+        "method": "POST",
+        "path": "/quotes",
+        "body": {
+          "correlationId": "${process.businessKey}",
+          "item": "${item}"
+        }
+      },
+      "awaitReply": {
+        "messageName": "quote-ready",
+        "correlationExpression": "businessKey"
+      }
+    },
+    {
+      "id": "use-quote",
+      "type": "ACTION",
+      "name": "Use the quote",
+      "topic": "work",
+      "preconditionStepId": "ask"
+    },
+    {
+      "id": "no-quote",
+      "type": "ACTION",
+      "name": "No quote in time",
+      "topic": "work",
+      "preconditions": [
+        {
+          "stepId": "ask",
+          "expression": "false"
+        }
+      ]
+    },
+    {
+      "id": "outcome",
+      "type": "JOIN",
+      "name": "Outcome",
+      "joinType": "XOR",
+      "preconditionStepIds": [
+        "use-quote",
+        "no-quote"
+      ]
+    },
+    {
+      "id": "end",
+      "type": "END",
+      "name": "End",
+      "preconditionStepId": "outcome"
+    }
+  ]
+}

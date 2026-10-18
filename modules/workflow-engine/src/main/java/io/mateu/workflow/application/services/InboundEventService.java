@@ -10,7 +10,6 @@ import io.mateu.workflow.domain.aggregates.EventReceipt;
 import io.mateu.workflow.domain.aggregates.EventTrigger;
 import io.mateu.workflow.domain.aggregates.EventWait;
 import io.mateu.workflow.domain.aggregates.InboundEvent;
-import io.mateu.workflow.domain.aggregates.StepType;
 import io.mateu.workflow.domain.aggregates.TriggerPause;
 import io.mateu.workflow.domain.aggregates.WorkflowDefinition;
 import io.mateu.workflow.domain.services.EventTriggerCatalog;
@@ -245,9 +244,14 @@ public class InboundEventService {
                          List<EventReceipt> acted, List<String> duplicates) {
         var deliveries = new LinkedHashMap<String, Delivery>();
         for (var definition : definitions) {
-            for (var step : definition.steps()) {
+            for (var definedStep : definition.steps()) {
+                // A WAIT_FOR_MESSAGE's onEvent, or the onEvent of an HTTP_CALL / PUBLISH_EVENT awaitReply.
+                if (!definedStep.awaitsMessage()) {
+                    continue;
+                }
+                var step = definedStep.messageWait();
                 EventWait wait = step.onEvent();
-                if (wait == null || !StepType.WAIT_FOR_MESSAGE.equals(step.type()) || blank(step.messageName())
+                if (wait == null || blank(step.messageName())
                         || !matches(wait.destination(), wait.type(), event)) {
                     continue;
                 }

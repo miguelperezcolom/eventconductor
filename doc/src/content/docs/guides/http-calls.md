@@ -53,6 +53,10 @@ The engine renders the request — URL/path, query, headers and body are [payloa
 - **`retryOn`** decides which failures the step's `retries` apply to: `5xx`, `4xx`, `io`, or specific codes. The default `[5xx, io]` means **a 4xx is not retried** — a 400 does not fix itself — and the saga's compensation runs at once.
 - Every retry of a step sends the same **`Idempotency-Key`** (the step execution id), so a server that honours it applies a retried charge once. A connection can rename the header or turn it off (`idempotency-header: none`).
 
+## Waiting for a callback
+
+When the response only acknowledges the request and the real answer comes later — a webhook, a callback, an event — give the step an `awaitReply` (`messageName`, `correlationExpression` and an optional `onEvent`, as on a `WAIT_FOR_MESSAGE`). The wait is armed before the task is dispatched, so a callback sent even before the response is caught. A 2xx records `output` and the step keeps waiting; the reply completes it — and a reply that comes before the response completes it on its own, the late response then ignored. See [Asynchronous Request/Response](/guides/request-response/#the-same-with-an-http-request).
+
 ## Connections, authorization and secrets
 
 ```yaml

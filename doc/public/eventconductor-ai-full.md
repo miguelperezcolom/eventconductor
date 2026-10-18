@@ -281,6 +281,8 @@ No worker. Records the process's reply — `replyVariables` (a JSON object of th
 ```
 No worker. The event (payload from a structured `payload` template, a text `payloadTemplate` or `payloadVariables`; key defaults to the business key, else the process id) is written to the outbox with the step's completion — published if and only if the step completed; at-least-once, `id` = the step execution id. Kafka: to the topic of `workflow.events.destinations.<destination>.topic` as a CloudEvent (binary: `ce_*` headers; or structured / plain). Embedded: `ExternalEventPublisher` (default Spring `ExternalEventPublished`). A definition never names a topic.
 
+**`awaitReply: {messageName, correlationExpression, onEvent?}`** (HTTP_CALL and PUBLISH_EVENT, since 2.28.0) makes the request step wait for its reply — asynchronous request/response in one step: the wait is armed in the transaction that sends the request, so a fast reply is never lost (a `WAIT_FOR_MESSAGE` placed *after* the request can lose it); the step completes when the reply is correlated; `timeout`/`deadline`/`retries`/`onTimeoutStepId` bound the whole exchange, a retry re-sends and re-arms (a retried PUBLISH_EVENT gets id `<step execution id>-<attempt>`). HTTP_CALL: a 2xx before the reply is recorded (`output` mapped) and the step keeps waiting; a reply before the response completes the step and the late response is ignored; a failed request fails the step as usual.
+
 ### HTTP_CALL — call an HTTP endpoint
 ```json
 { "id": "charge", "type": "HTTP_CALL", "name": "Charge", "preconditionStepId": "book", "retries": 2,
@@ -341,6 +343,7 @@ Exactly one per workflow. Transitions the process to `COMPLETED`. With parallel 
 | `replyExpression` | string | — | REPLY: JEXL expression whose value is the reply (exclusive with `replyVariables` and `replyTemplate`) |
 | `replyTemplate` | any | — | REPLY: the reply as a payload template (JSON/YAML with `${…}` leaves) |
 | `event` | object | — | PUBLISH_EVENT: `{destination, type, key?, payload \| payloadTemplate \| payloadVariables, format?}` |
+| `awaitReply` | object | — | HTTP_CALL / PUBLISH_EVENT: `{messageName, correlationExpression, onEvent?}` — wait for the reply to the request in the same step, armed before the request leaves |
 | `http` | object | — | HTTP_CALL: `{connection + path \| url, method, query, headers, body \| bodyTemplate, successStatus, output, auth, retryOn}` |
 | `llm` | object | — | LLM_CALL: `{connection, model, system, prompt, temperature, maxTokens, responseSchema, output, outputVariable, usageVariable}` |
 

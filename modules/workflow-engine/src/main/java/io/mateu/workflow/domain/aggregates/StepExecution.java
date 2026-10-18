@@ -204,11 +204,13 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
         var step = pojoFromJson(stepJson, Step.class);
         var followsProcess = followsProcess(step);
         var deadline = followsProcess ? deadlineFollowing(process) : computeDeadline();
+        // A WAIT_FOR_MESSAGE, or an HTTP_CALL / PUBLISH_EVENT waiting for the reply to its request.
+        var wait = step.messageWait();
         var waiting = StepExecutionStatus.PENDING.equals(status)
-                && StepType.WAIT_FOR_MESSAGE.equals(step.type())
-                && step.messageName() != null && !step.messageName().isBlank();
-        var messageName = waiting ? step.messageName() : null;
-        var correlationKey = waiting ? MessageCorrelation.expectedKey(step, process) : null;
+                && step.awaitsMessage()
+                && wait.messageName() != null && !wait.messageName().isBlank();
+        var messageName = waiting ? wait.messageName() : null;
+        var correlationKey = waiting ? MessageCorrelation.expectedKey(wait, process) : null;
         if (Objects.equals(deadline, deadlineAt)
                 && Objects.equals(messageName, awaitingMessageName)
                 && Objects.equals(correlationKey, awaitingCorrelationKey)) {
@@ -523,6 +525,9 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
         } else if (StepType.HTTP_CALL.equals(step.type())) {
             // Rendered here, from the process as it stands, then dispatched to the built-in http-call
             // worker task like any worker step (timeouts, retries, compensation, cancellation).
+            if (step.awaitsReply() && !armReplyWait(step, process)) {
+                return this;
+            }
             String request;
             try {
                 request = io.mateu.workflow.domain.services.HttpRequestRenderer.render(step, process, id);
@@ -560,8 +565,12 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
                     .toList(), dispatchCount));
         } else if (StepType.PUBLISH_EVENT.equals(step.type())) {
             // No worker: the step-over renders the event, writes it to the outbox with this step's
-            // completion (published if and only if the step completed), and completes it.
+            // completion (published if and only if the step completed), and completes it — or, with an
+            // awaitReply, leaves it waiting for the reply, armed here before the event is even rendered.
             send(new TaskLogEmitted(id, MessageType.Info, "PUBLISH_EVENT step " + step.name() + " reached."));
+            if (step.awaitsReply() && !armReplyWait(step, process)) {
+                return this;
+            }
         } else if (StepType.REPLY.equals(step.type())) {
             // A reply involves no worker: the step stays PENDING and the step-over use case, which
             // holds the process as well as the step, computes the payload, records it on the
@@ -580,6 +589,33 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
         }
         status = StepExecutionStatus.PENDING;
         return this;
+    }
+
+    /**
+     * Arms the wait of an HTTP_CALL / PUBLISH_EVENT with an {@code awaitReply}: the message and key it
+     * waits for are materialised — and the routing subscription announced — on this very step, before
+     * the request is dispatched, so they are saved in the unit of work that sends the request and a reply
+     * can never arrive ahead of them. False (the step failed) when the reply names no message.
+     */
+    private boolean armReplyWait(Step step, Process process) {
+        var wait = step.messageWait();
+        if (wait.messageName() == null || wait.messageName().isBlank()) {
+            send(new TaskLogEmitted(id, MessageType.Error,
+                    "Step " + step.name() + ": awaitReply has no message name defined."));
+            updateStatus(StepExecutionStatus.ERROR);
+            return false;
+        }
+        this.awaitingMessageName = wait.messageName();
+        this.awaitingCorrelationKey = MessageCorrelation.expectedKey(wait, process);
+        send(new TaskLogEmitted(id, MessageType.Info,
+                "Waiting for reply '" + wait.messageName() + "' on step " + step.name()
+                        + (this.awaitingCorrelationKey == null ? " (its correlation expression could not be evaluated:"
+                        + " no reply will match)" : " with key '" + this.awaitingCorrelationKey + "'") + "."));
+        if (this.awaitingCorrelationKey != null) {
+            send(new io.mateu.workflow.dtos.events.domain.MessageSubscriptionChanged(
+                    id, this.awaitingMessageName, this.awaitingCorrelationKey, true, processId));
+        }
+        return true;
     }
 
     /** Queues an event for the outside world on this step, to be written to the outbox with it. */

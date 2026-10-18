@@ -1,0 +1,62 @@
+id: booking-quote-fork
+name: Book with a quote (a forked wait and request)
+version: 1
+steps:
+  - id: start
+    type: START
+    name: Start
+  - id: fork
+    type: FORK
+    name: Arm the wait and send the request together
+    preconditionStepId: start
+  - id: wait-quote
+    type: WAIT_FOR_MESSAGE
+    name: Wait for the quote
+    preconditionStepId: fork
+    messageName: quote-ready
+    correlationExpression: businessKey               # known before the request leaves
+    timeout: PT5M
+    retries: 0
+    onTimeoutStepId: no-quote
+    onEvent:
+      destination: quote-replies
+      type: com.acme.quote.ready
+      correlationKey: "${data.requestId}"
+      variables:
+        price: "${data.price}"
+  - id: ask-quote
+    type: PUBLISH_EVENT
+    name: Ask for a quote
+    preconditionStepId: fork
+    event:
+      destination: quote-requests
+      type: com.acme.quote.requested
+      key: "${process.businessKey}"
+      payload:
+        requestId: "${process.businessKey}"          # the correlation id the answer must carry
+        item: "${item}"
+  - id: quoted
+    type: JOIN
+    name: Request sent and quote in
+    preconditionStepIds: [ask-quote, wait-quote]
+  - id: book
+    type: ACTION
+    name: Book at the quoted price
+    topic: booking
+    preconditionStepId: quoted
+  - id: no-quote
+    type: ACTION
+    name: Tell the customer there is no quote
+    topic: booking
+    preconditions:
+      - stepId: wait-quote
+        expression: "false"                          # reached only through wait-quote's onTimeoutStepId
+  - id: outcome
+    type: JOIN
+    name: Outcome
+    joinType: XOR
+    preconditionStepIds: [book, no-quote]
+  - id: end
+    type: END
+    name: End
+    preconditionStepId: outcome

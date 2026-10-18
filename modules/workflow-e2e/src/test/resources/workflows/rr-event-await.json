@@ -1,0 +1,78 @@
+{
+  "id": "rr-event-await",
+  "name": "Ask and wait for a domain event in one step",
+  "version": 1,
+  "steps": [
+    {
+      "id": "start",
+      "type": "START",
+      "name": "Start"
+    },
+    {
+      "id": "ask",
+      "type": "PUBLISH_EVENT",
+      "name": "Ask for a quote and wait for it",
+      "preconditionStepId": "start",
+      "timeout": 1500,
+      "retries": 0,
+      "onTimeoutStepId": "no-quote",
+      "event": {
+        "destination": "rr-quote-requests-by-event",
+        "type": "com.acme.quote.requested",
+        "key": "${process.businessKey}",
+        "payload": {
+          "correlationId": "${process.businessKey}",
+          "replyWith": "quote-ready",
+          "item": "${item}"
+        }
+      },
+      "awaitReply": {
+        "messageName": "quote-event-ready",
+        "correlationExpression": "businessKey",
+        "onEvent": {
+          "destination": "rr-quote-replies",
+          "type": "com.acme.quote.ready",
+          "correlationKey": "${data.requestId}",
+          "variables": {
+            "price": "${data.price}"
+          }
+        }
+      }
+    },
+    {
+      "id": "use-quote",
+      "type": "ACTION",
+      "name": "Use the quote",
+      "topic": "work",
+      "preconditionStepId": "ask"
+    },
+    {
+      "id": "no-quote",
+      "type": "ACTION",
+      "name": "No quote in time",
+      "topic": "work",
+      "preconditions": [
+        {
+          "stepId": "ask",
+          "expression": "false"
+        }
+      ]
+    },
+    {
+      "id": "outcome",
+      "type": "JOIN",
+      "name": "Outcome",
+      "joinType": "XOR",
+      "preconditionStepIds": [
+        "use-quote",
+        "no-quote"
+      ]
+    },
+    {
+      "id": "end",
+      "type": "END",
+      "name": "End",
+      "preconditionStepId": "outcome"
+    }
+  ]
+}

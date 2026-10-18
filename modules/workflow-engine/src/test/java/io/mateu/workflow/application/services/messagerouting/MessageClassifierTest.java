@@ -46,6 +46,15 @@ class MessageClassifierTest {
     }
 
     @Test
+    void a_request_step_awaiting_a_reply_is_a_waiter_of_its_reply_message() {
+        var ask = actionStep().withType(StepType.PUBLISH_EVENT)
+                .withAwaitReply(new io.mateu.workflow.domain.aggregates.AwaitReply("quoteReady", "requestId", null));
+        var map = MessageClassifier.classify(List.of(def("a", List.of(ask))));
+
+        assertThat(map).containsEntry("quoteReady", MessageClassification.EXPRESSION);
+    }
+
+    @Test
     void several_versions_are_all_considered() {
         var map = MessageClassifier.classify(List.of(
                 def("order@1", List.of(waitStep("paid", null))),

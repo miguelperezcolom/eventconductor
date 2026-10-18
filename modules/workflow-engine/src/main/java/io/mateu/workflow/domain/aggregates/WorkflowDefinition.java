@@ -735,7 +735,7 @@ public record WorkflowDefinition(
                 requireValidMoment(step.until(), "TIMER step '" + step.id() + "' until", true);
             }
             if (step.deadline() != null) {
-                if (StepType.TIMER.equals(step.type()) || !canTimeOut(step.type())) {
+                if (StepType.TIMER.equals(step.type()) || !(canTimeOut(step.type()) || step.awaitsReply())) {
                     throw new IllegalStateException("Step '" + step.id() + "' declares a deadline, but a "
                             + step.type() + " step does not wait for anything that could miss it.");
                 }
@@ -759,6 +759,27 @@ public record WorkflowDefinition(
                         step.onEvent().destination(), step.onEvent().type(), where));
                 problems.addAll(eventTemplateProblems(step.onEvent().filter(), step.onEvent().correlationKey(),
                         step.onEvent().variables(), where));
+                if (!problems.isEmpty()) {
+                    throw new IllegalStateException(String.join(" ", problems));
+                }
+            }
+            {
+                var typeName = step.type() == null ? null : step.type().name();
+                var reply = step.awaitReply();
+                var problems = new java.util.ArrayList<>(io.mateu.workflow.analysis.AwaitReplyRules.violations(
+                        step.id(), typeName, reply != null,
+                        reply == null ? null : reply.messageName(),
+                        reply == null ? null : reply.correlationExpression(),
+                        reply != null && reply.onEvent() != null,
+                        reply == null || reply.onEvent() == null ? null : reply.onEvent().destination(),
+                        reply == null || reply.onEvent() == null ? null : reply.onEvent().type()));
+                problems.addAll(io.mateu.workflow.analysis.AwaitReplyRules.misplacedWaitFieldViolations(step.id(), typeName,
+                        step.messageName() != null && !step.messageName().isBlank(),
+                        step.correlationExpression() != null && !step.correlationExpression().isBlank()));
+                if (problems.isEmpty() && reply != null && reply.onEvent() != null) {
+                    problems.addAll(eventTemplateProblems(reply.onEvent().filter(), reply.onEvent().correlationKey(),
+                            reply.onEvent().variables(), "Step '" + step.id() + "' awaitReply.onEvent"));
+                }
                 if (!problems.isEmpty()) {
                     throw new IllegalStateException(String.join(" ", problems));
                 }

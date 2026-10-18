@@ -10,7 +10,6 @@ import io.mateu.workflow.domain.services.MessageCorrelation;
 import io.mateu.workflow.domain.aggregates.LogMessage;
 import io.mateu.workflow.domain.aggregates.Step;
 import io.mateu.workflow.domain.aggregates.StepExecutionStatus;
-import io.mateu.workflow.domain.aggregates.StepType;
 import io.mateu.workflow.dtos.MessageType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -56,9 +55,13 @@ public class CompleteMessageStepHandler {
             return false;
         }
 
-        var step = pojoFromJson(stepExecution.getStepJson(), Step.class);
+        var definedStep = pojoFromJson(stepExecution.getStepJson(), Step.class);
+        // A WAIT_FOR_MESSAGE, or an HTTP_CALL / PUBLISH_EVENT waiting for the reply to its request —
+        // read as the same wait. For HTTP_CALL the reply completes the step whether or not the worker
+        // has reported the response yet; a report that comes later finds the step terminal and is ignored.
+        var step = definedStep.messageWait();
 
-        if (!StepType.WAIT_FOR_MESSAGE.equals(step.type()) || stepExecution.getStartedAt() == null
+        if (!definedStep.awaitsMessage() || stepExecution.getStartedAt() == null
                 || !command.messageName().equals(step.messageName())) {
             return false;
         }

@@ -1,0 +1,70 @@
+{
+  "id": "rr-publish-await-retry",
+  "name": "Ask again when no reply comes (timeout retry re-sends and re-arms)",
+  "version": 1,
+  "steps": [
+    {
+      "id": "start",
+      "type": "START",
+      "name": "Start"
+    },
+    {
+      "id": "ask",
+      "type": "PUBLISH_EVENT",
+      "name": "Ask for a quote and wait for it",
+      "preconditionStepId": "start",
+      "timeout": 800,
+      "retries": 1,
+      "onTimeoutStepId": "no-quote",
+      "event": {
+        "destination": "rr-quote-requests-twice",
+        "type": "com.acme.quote.requested",
+        "key": "${process.businessKey}",
+        "payload": {
+          "correlationId": "${process.businessKey}",
+          "replyWith": "quote-ready",
+          "item": "${item}"
+        }
+      },
+      "awaitReply": {
+        "messageName": "quote-ready",
+        "correlationExpression": "businessKey"
+      }
+    },
+    {
+      "id": "use-quote",
+      "type": "ACTION",
+      "name": "Use the quote",
+      "topic": "work",
+      "preconditionStepId": "ask"
+    },
+    {
+      "id": "no-quote",
+      "type": "ACTION",
+      "name": "No quote in time",
+      "topic": "work",
+      "preconditions": [
+        {
+          "stepId": "ask",
+          "expression": "false"
+        }
+      ]
+    },
+    {
+      "id": "outcome",
+      "type": "JOIN",
+      "name": "Outcome",
+      "joinType": "XOR",
+      "preconditionStepIds": [
+        "use-quote",
+        "no-quote"
+      ]
+    },
+    {
+      "id": "end",
+      "type": "END",
+      "name": "End",
+      "preconditionStepId": "outcome"
+    }
+  ]
+}

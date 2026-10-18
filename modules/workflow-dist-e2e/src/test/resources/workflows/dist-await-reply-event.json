@@ -1,0 +1,16 @@
+{
+  "id": "dist-await-reply-event",
+  "name": "Distributed: ask with an event and wait for the answering event in the same step",
+  "version": 1,
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "ask", "type": "PUBLISH_EVENT", "name": "Ask for a quote and wait for it", "preconditionStepId": "start",
+      "timeout": 90000, "retries": 0,
+      "event": { "destination": "dist33-requests", "type": "com.acme.quote.requested", "key": "${process.businessKey}",
+                 "payload": { "requestId": "${process.businessKey}" } },
+      "awaitReply": { "messageName": "dist33-quote-ready-event", "correlationExpression": "businessKey",
+                      "onEvent": { "destination": "dist33-replies", "type": "com.acme.quote.ready",
+                                   "correlationKey": "${data.requestId}", "variables": { "price": "${data.price}" } } } },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "ask" }
+  ]
+}

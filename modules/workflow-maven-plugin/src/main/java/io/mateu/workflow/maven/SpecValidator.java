@@ -402,6 +402,28 @@ public class SpecValidator {
                         text(onEvent, "destination"), text(onEvent, "type"), where));
                 checkEventReading(onEvent, "correlationKey", where, violations);
             }
+            // awaitReply: the engine's own rules (definition-analysis), then its expression and templates.
+            JsonNode awaitReply = step.get("awaitReply");
+            boolean hasAwaitReply = awaitReply != null && awaitReply.isObject();
+            JsonNode replyEvent = hasAwaitReply ? awaitReply.get("onEvent") : null;
+            boolean hasReplyEvent = replyEvent != null && replyEvent.isObject();
+            violations.addAll(io.mateu.workflow.analysis.AwaitReplyRules.violations(id, type, hasAwaitReply,
+                    hasAwaitReply ? text(awaitReply, "messageName") : null,
+                    hasAwaitReply ? text(awaitReply, "correlationExpression") : null,
+                    hasReplyEvent,
+                    hasReplyEvent ? text(replyEvent, "destination") : null,
+                    hasReplyEvent ? text(replyEvent, "type") : null));
+            violations.addAll(io.mateu.workflow.analysis.AwaitReplyRules.misplacedWaitFieldViolations(id, type,
+                    isSet(text(step, "messageName")), isSet(corrExpr)));
+            if (hasAwaitReply) {
+                String replyCorrelation = text(awaitReply, "correlationExpression");
+                if (isSet(replyCorrelation)) {
+                    checkJexl(replyCorrelation, "step '" + id + "' awaitReply.correlationExpression", violations);
+                }
+                if (hasReplyEvent) {
+                    checkEventReading(replyEvent, "correlationKey", "Step '" + id + "' awaitReply.onEvent", violations);
+                }
+            }
             JsonNode event = step.get("event");
             if (event != null && event.isObject()) {
                 checkTemplate(event.get("payload"), "step '" + id + "' event.payload", violations);
