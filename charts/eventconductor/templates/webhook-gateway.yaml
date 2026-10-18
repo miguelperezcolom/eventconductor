@@ -1,0 +1,73 @@
+{{- if .Values.webhookGateway.enabled }}
+{{- $ctx := dict "root" . "name" "webhook-gateway" "v" .Values.webhookGateway "postgres" false }}
+{{- if not (has .Values.webhookGateway.transport (list "kafka" "rest")) }}
+{{- fail "webhookGateway.transport must be kafka or rest" }}
+{{- end }}
+{{- if and (eq .Values.webhookGateway.transport "rest") (not .Values.webhookGateway.existingSecret) }}
+{{- fail "webhookGateway.transport=rest needs webhookGateway.existingSecret holding ENGINE_API_KEY: the engine API refuses anonymous requests" }}
+{{- end }}
+{{- if and (eq .Values.webhookGateway.transport "rest") (not .Values.webhookGateway.engineUrl) }}
+{{- fail "webhookGateway.transport=rest needs webhookGateway.engineUrl (an engine with workflow.message-api.api-key set)" }}
+{{- end }}
+## ── Webhook gateway Deployment ───────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "eventconductor.fullname" . }}-webhook-gateway
+  labels:
+    {{- include "eventconductor.labels" . | nindent 4 }}
+    app.kubernetes.io/component: webhook-gateway
+spec:
+  replicas: {{ .Values.webhookGateway.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: webhook-gateway
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: webhook-gateway
+    spec:
+      {{- include "eventconductor.component.podPreamble" $ctx | trim | nindent 6 }}
+      containers:
+        - name: webhook-gateway
+          image: "{{ .Values.webhookGateway.image }}:{{ default .Chart.AppVersion .Values.webhookGateway.imageTag }}"
+          imagePullPolicy: {{ .Values.webhookGateway.imagePullPolicy }}
+          ports:
+            - containerPort: {{ .Values.webhookGateway.port }}
+          env:
+            {{- include "eventconductor.component.commonEnv" $ctx | nindent 12 }}
+            - name: WEBHOOKS_TRANSPORT
+              value: {{ .Values.webhookGateway.transport | quote }}
+            {{- if .Values.webhookGateway.engineUrl }}
+            - name: ENGINE_URL
+              value: {{ .Values.webhookGateway.engineUrl | quote }}
+            {{- end }}
+            {{- range $k, $v := .Values.webhookGateway.extraEnv }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+          {{- include "eventconductor.component.containerTail" $ctx | trim | nindent 10 }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+## ── Webhook gateway Service ──────────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: webhook-gateway
+  labels:
+    {{- include "eventconductor.labels" . | nindent 4 }}
+    app.kubernetes.io/component: webhook-gateway
+spec:
+  selector:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: webhook-gateway
+  ports:
+    - name: http
+      port: {{ .Values.webhookGateway.servicePort }}
+      targetPort: {{ .Values.webhookGateway.port }}
+{{- include "eventconductor.component.pdb" $ctx }}
+{{- end }}

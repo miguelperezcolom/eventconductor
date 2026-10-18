@@ -1,0 +1,81 @@
+{{- if .Values.worker.enabled }}
+{{- $ctx := dict "root" . "name" "worker" "v" .Values.worker "postgres" (eq .Values.worker.persistence "jpa") }}
+## ── Test worker Deployment ───────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "eventconductor.fullname" . }}-worker
+  labels:
+    {{- include "eventconductor.labels" . | nindent 4 }}
+    app.kubernetes.io/component: worker
+spec:
+  replicas: {{ .Values.worker.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: worker
+    spec:
+      {{- include "eventconductor.component.podPreamble" $ctx | trim | nindent 6 }}
+      containers:
+        - name: worker
+          image: "{{ .Values.worker.image }}:{{ default .Chart.AppVersion .Values.worker.imageTag }}"
+          imagePullPolicy: {{ .Values.worker.imagePullPolicy }}
+          ports:
+            - containerPort: {{ .Values.worker.port }}
+          env:
+            {{- include "eventconductor.component.commonEnv" $ctx | nindent 12 }}
+            - name: WORKER_TASK_DURATION
+              value: {{ .Values.worker.taskDuration | quote }}
+            {{- if eq .Values.worker.persistence "jpa" }}
+            - name: DB_URL
+              value: jdbc:postgresql://postgres:5432/{{ .Values.postgres.database }}
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default (printf "%s-postgres" (include "eventconductor.fullname" .)) .Values.postgres.existingSecret }}
+                  key: POSTGRES_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default (printf "%s-postgres" (include "eventconductor.fullname" .)) .Values.postgres.existingSecret }}
+                  key: POSTGRES_PASSWORD
+            - name: DB_POOL_SIZE
+              value: {{ .Values.worker.dbPoolSize | quote }}
+            {{- else if eq .Values.worker.persistence "memory" }}
+            - name: SPRING_PROFILES_ACTIVE
+              value: memory
+            {{- else }}
+            {{- fail "worker.persistence must be jpa or memory" }}
+            {{- end }}
+            {{- range $k, $v := .Values.worker.extraEnv }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+          {{- include "eventconductor.component.containerTail" $ctx | trim | nindent 10 }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+## ── Test worker Service (its UI) ─────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: worker
+  labels:
+    {{- include "eventconductor.labels" . | nindent 4 }}
+    app.kubernetes.io/component: worker
+spec:
+  selector:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: worker
+  ports:
+    - name: http
+      port: {{ .Values.worker.servicePort }}
+      targetPort: {{ .Values.worker.port }}
+{{- include "eventconductor.component.pdb" $ctx }}
+{{- end }}

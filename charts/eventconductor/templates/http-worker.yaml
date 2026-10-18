@@ -1,0 +1,46 @@
+{{- if .Values.httpWorker.enabled }}
+{{- $ctx := dict "root" . "name" "http-worker" "v" .Values.httpWorker "postgres" false }}
+## ── HTTP worker Deployment ───────────────────────────────────────────────────
+# No Service: it only consumes from Redpanda and calls out. Scrape it by pod (port {{ .Values.httpWorker.port }}, /actuator/prometheus).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "eventconductor.fullname" . }}-http-worker
+  labels:
+    {{- include "eventconductor.labels" . | nindent 4 }}
+    app.kubernetes.io/component: http-worker
+spec:
+  replicas: {{ .Values.httpWorker.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: http-worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: http-worker
+    spec:
+      {{- include "eventconductor.component.podPreamble" $ctx | trim | nindent 6 }}
+      containers:
+        - name: http-worker
+          image: "{{ .Values.httpWorker.image }}:{{ default .Chart.AppVersion .Values.httpWorker.imageTag }}"
+          imagePullPolicy: {{ .Values.httpWorker.imagePullPolicy }}
+          ports:
+            - containerPort: {{ .Values.httpWorker.port }}
+          env:
+            {{- include "eventconductor.component.commonEnv" $ctx | nindent 12 }}
+            - name: HTTP_CALLS_TOPIC
+              value: {{ .Values.httpWorker.topic | quote }}
+            - name: WORKFLOW_HTTP_ALLOWED_HOSTS
+              value: {{ .Values.httpWorker.allowedHosts | quote }}
+            {{- range $k, $v := .Values.httpWorker.extraEnv }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+          {{- include "eventconductor.component.containerTail" $ctx | trim | nindent 10 }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+{{- include "eventconductor.component.pdb" $ctx }}
+{{- end }}

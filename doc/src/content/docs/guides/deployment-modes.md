@@ -249,7 +249,8 @@ docker compose up -d --env-file .env.prod
 
 The chart in `charts/eventconductor/` deploys the whole stack — Redpanda, PostgreSQL, the
 orchestrator, the forms engine and the rule engine — with PersistentVolumeClaims, Secrets and
-readiness-gated initContainers.
+readiness-gated initContainers. The workers and the webhook gateway are optional components of the
+same chart, off by default (see [Optional components](#optional-components-workers-and-webhook-gateway)).
 
 **Install:**
 
@@ -285,6 +286,51 @@ helm install ec charts/eventconductor --set postgres.existingSecret=ec-postgres
 | `*.image` / `*.imageTag` | see values | Image; the tag defaults to the chart's `appVersion` |
 | `*.flywayTable` | per app | Migration history table for that app's engine. The three apps share one database and must not share one history table |
 | `ingress.enabled` | `false` | Ingress for the three UIs |
+
+### Optional components: workers and webhook gateway
+
+Since chart 0.2.0 four more applications can be switched on. Each runs as non-root with a
+read-only root filesystem and all capabilities dropped, is probed on `/actuator/health/liveness`
+and `/readiness`, waits for Redpanda before starting, and gets a NetworkPolicy when
+`networkPolicy.enabled` is set.
+
+| Component | Values key | Reads | Service | Secrets it may need |
+|---|---|---|---|---|
+| Test worker (`worker-standalone-app`) | `worker` | `downstream` | `worker:8108` (its UI) | none (DB credentials come from the chart's PostgreSQL Secret) |
+| HTTP worker (`http-worker-standalone-app`) | `httpWorker` | `http-calls` | — | `WORKFLOW_HTTP_SECRETS_<NAME>` for `${secret:NAME}` |
+| LLM worker (`llm-worker-standalone-app`) | `llmWorker` | `llm-calls` | — | `ANTHROPIC_API_KEY`, `LOCAL_LLM_API_KEY`, `WORKFLOW_LLM_CONNECTIONS_<NAME>_APIKEY` |
+| Webhook gateway (`webhook-gateway-standalone-app`) | `webhookGateway` | — (receives `POST /webhooks/<name>`) | `webhook-gateway:8109` | `WORKFLOW_WEBHOOKS_ENDPOINTS_<NAME>_SECRET`; `ENGINE_API_KEY` with `transport: rest` |
+
+The chart never takes a credential as a value. Put them in a Secret of your own and name it in
+`<component>.existingSecret`: every key becomes an environment variable of the pod. Everything that
+is not secret goes in `<component>.extraEnv`, with Spring's relaxed binding:
+
+```shell
+kubectl create secret generic ec-webhooks \
+  --from-literal=WORKFLOW_WEBHOOKS_ENDPOINTS_GITHUB_SECRET=<the secret given to GitHub>
+helm upgrade ec charts/eventconductor --reuse-values \
+  --set webhookGateway.enabled=true \
+  --set webhookGateway.existingSecret=ec-webhooks \
+  --set webhookGateway.extraEnv.WORKFLOW_WEBHOOKS_ENDPOINTS_GITHUB_PROVIDER=github \
+  --set webhookGateway.extraEnv.WORKFLOW_WEBHOOKS_ENDPOINTS_GITHUB_DESTINATION=github \
+  --set webhookGateway.extraEnv.WORKFLOW_EVENTS_DESTINATIONS_GITHUB_TOPIC=github-events
+```
+
+- **Test worker.** A simulator for tests and demos, not a production worker. `worker.persistence`
+  is `jpa` (its two tables in the chart's PostgreSQL, created by itself; add `worker.dbPoolSize` to
+  your `postgres.maxConnections` budget) or `memory` (no database, nothing survives a restart).
+- **HTTP worker.** Set `httpWorker.allowedHosts` in production. Only names listed under
+  `workflow.http.secrets` resolve (see [HTTP calls](/guides/http-calls/)): a key
+  `WORKFLOW_HTTP_SECRETS_PARTNER_TOKEN` in the Secret is what `${secret:PARTNER_TOKEN}` reaches.
+- **Webhook gateway.** `transport: kafka` (the default) publishes on the destination's topic, which
+  the orchestrator consumes. `transport: rest` hands events to an engine's
+  `POST /workflow/api/events/{destination}` with `X-Api-Key`, which suits an embedded engine with
+  `workflow.message-api.api-key`, not this chart's orchestrator (HTTP Basic); the chart refuses to
+  render it without `webhookGateway.engineUrl` and an `existingSecret` holding `ENGINE_API_KEY`.
+  With `ingress.enabled`, `/webhooks` on `ingress.host` routes to the gateway
+  (`webhookGateway.exposeOnIngress`, `webhookGateway.ingressPath`). With `networkPolicy.enabled`,
+  name your ingress controller in `webhookGateway.networkPolicyFrom` (NetworkPolicy `from` peers),
+  or senders from outside the namespace are blocked.
 
 **Upgrade / uninstall:**
 

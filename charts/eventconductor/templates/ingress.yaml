@@ -38,6 +38,15 @@ spec:
                 name: rules
                 port:
                   number: {{ .Values.rules.servicePort }}
+          {{- if and .Values.webhookGateway.enabled .Values.webhookGateway.exposeOnIngress }}
+          - path: {{ .Values.webhookGateway.ingressPath }}
+            pathType: Prefix
+            backend:
+              service:
+                name: webhook-gateway
+                port:
+                  number: {{ .Values.webhookGateway.servicePort }}
+          {{- end }}
   {{- with .Values.ingress.tls }}
   tls:
     {{- toYaml . | nindent 4 }}

@@ -199,3 +199,137 @@ networkPolicy:
 #   nodeSelector:
 #     kubernetes.io/arch: amd64
 nodeSelector: {}
+
+## ── Workers and webhook gateway (optional) ───────────────────────────────────
+# Four more applications, each off by default. None of them takes a credential as a plain value:
+# whatever is secret lives in a Secret you create, named by existingSecret, and every key of that
+# Secret becomes an environment variable of the pod (envFrom). Non-secret settings go in extraEnv,
+# injected verbatim, using Spring's relaxed binding (WORKFLOW_HTTP_CONNECTIONS_PAYMENTS_BASEURL=…).
+
+# The test worker (worker-standalone-app): a simulator that answers TaskExecutionRequested on
+# `downstream` with canned outcomes, with a UI to browse what arrived and to script replies. A test
+# instrument — install it in a non-production release, not next to real workers.
+worker:
+  enabled: false
+  image: miguelperezcolom/worker-standalone-app
+  imageTag: ""              # defaults to .Chart.AppVersion when blank
+  imagePullPolicy: IfNotPresent
+  replicas: 1
+  port: 8080
+  servicePort: 8108
+  # jpa keeps received tasks and canned replies in the chart's PostgreSQL (its own two tables,
+  # created with ddl-auto=update); memory needs no database and forgets everything on restart.
+  persistence: jpa
+  dbPoolSize: 8
+  # How long a task takes when the scenario does not say.
+  taskDuration: 2s
+  # Optional Secret, loaded with envFrom (e.g. TEST_CONFIG if your scenarios hold anything private).
+  existingSecret: ""
+  extraEnv: {}
+  resources:
+    requests:
+      memory: "384Mi"
+      cpu: "100m"
+    limits:
+      memory: "768Mi"
+      cpu: "1"
+  podDisruptionBudget:
+    enabled: false
+    minAvailable: 1
+
+# The HTTP worker (http-worker-standalone-app): executes the requests of HTTP_CALL steps, read from
+# the `http-calls` topic. Connections and auth profiles go in extraEnv; the values a definition's
+# ${secret:NAME} may reach go in existingSecret under keys WORKFLOW_HTTP_SECRETS_<NAME> — only what
+# is listed under workflow.http.secrets resolves (see the HTTP calls guide).
+httpWorker:
+  enabled: false
+  image: miguelperezcolom/http-worker-standalone-app
+  imageTag: ""
+  imagePullPolicy: IfNotPresent
+  replicas: 1
+  port: 8080
+  topic: http-calls
+  # Comma-separated hosts HTTP_CALL may reach. Empty means any host the SSRF guard lets through;
+  # set it in production.
+  allowedHosts: ""
+  existingSecret: ""
+  extraEnv: {}
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "1"
+  podDisruptionBudget:
+    enabled: false
+    minAvailable: 1
+
+# The LLM worker (llm-worker-standalone-app): executes the prompts of LLM_CALL steps, read from the
+# `llm-calls` topic. API keys go in existingSecret (ANTHROPIC_API_KEY, LOCAL_LLM_API_KEY,
+# WORKFLOW_LLM_CONNECTIONS_<NAME>_APIKEY); models, base URLs and extra connections in extraEnv
+# (CLAUDE_MODEL, LOCAL_LLM_BASE_URL, WORKFLOW_LLM_CONNECTIONS_<NAME>_PROVIDER, …).
+llmWorker:
+  enabled: false
+  image: miguelperezcolom/llm-worker-standalone-app
+  imageTag: ""
+  imagePullPolicy: IfNotPresent
+  replicas: 1
+  port: 8080
+  topic: llm-calls
+  existingSecret: ""
+  extraEnv: {}
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "1"
+  podDisruptionBudget:
+    enabled: false
+    minAvailable: 1
+
+# The webhook gateway (webhook-gateway-standalone-app): receives webhooks on POST /webhooks/<name>
+# (GitHub-signed or HMAC-signed generic), verifies them and publishes them as CloudEvents on a
+# destination. Endpoints are configured in extraEnv
+#   WORKFLOW_WEBHOOKS_ENDPOINTS_GITHUB_PROVIDER: github
+#   WORKFLOW_WEBHOOKS_ENDPOINTS_GITHUB_DESTINATION: github
+#   WORKFLOW_EVENTS_DESTINATIONS_GITHUB_TOPIC: github-events
+# and their signing secrets in existingSecret (WORKFLOW_WEBHOOKS_ENDPOINTS_GITHUB_SECRET).
+webhookGateway:
+  enabled: false
+  image: miguelperezcolom/webhook-gateway-standalone-app
+  imageTag: ""
+  imagePullPolicy: IfNotPresent
+  replicas: 1
+  port: 8080
+  servicePort: 8109
+  # kafka publishes on the destination's topic, which the orchestrator's inbound consumer reads.
+  # rest hands each event to an engine's POST /workflow/api/events/{destination} with X-Api-Key:
+  # that is meant for an embedded engine with workflow.message-api.api-key set, not the standalone
+  # orchestrator of this chart (HTTP Basic). It then needs engineUrl and ENGINE_API_KEY in
+  # existingSecret, and the chart refuses to render without existingSecret.
+  transport: kafka
+  engineUrl: ""
+  existingSecret: ""
+  extraEnv: {}
+  # Route ingress.host + this path to the gateway when ingress.enabled is true.
+  ingressPath: /webhooks
+  exposeOnIngress: true
+  # Sources allowed to reach the gateway when networkPolicy.enabled is true, as NetworkPolicy
+  # `from` peers. Webhooks come from outside the cluster through your ingress controller, which
+  # usually lives in another namespace — name it here, e.g.
+  #   - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: ingress-nginx } }
+  # Empty falls back to networkPolicy.ingressFromPodSelector, like the other components.
+  networkPolicyFrom: []
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "1"
+  podDisruptionBudget:
+    enabled: false
+    minAvailable: 1

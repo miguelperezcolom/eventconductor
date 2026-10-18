@@ -1,0 +1,44 @@
+{{- if .Values.llmWorker.enabled }}
+{{- $ctx := dict "root" . "name" "llm-worker" "v" .Values.llmWorker "postgres" false }}
+## ── LLM worker Deployment ────────────────────────────────────────────────────
+# No Service: it only consumes from Redpanda and calls out. Scrape it by pod (port {{ .Values.llmWorker.port }}, /actuator/prometheus).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "eventconductor.fullname" . }}-llm-worker
+  labels:
+    {{- include "eventconductor.labels" . | nindent 4 }}
+    app.kubernetes.io/component: llm-worker
+spec:
+  replicas: {{ .Values.llmWorker.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: llm-worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: llm-worker
+    spec:
+      {{- include "eventconductor.component.podPreamble" $ctx | trim | nindent 6 }}
+      containers:
+        - name: llm-worker
+          image: "{{ .Values.llmWorker.image }}:{{ default .Chart.AppVersion .Values.llmWorker.imageTag }}"
+          imagePullPolicy: {{ .Values.llmWorker.imagePullPolicy }}
+          ports:
+            - containerPort: {{ .Values.llmWorker.port }}
+          env:
+            {{- include "eventconductor.component.commonEnv" $ctx | nindent 12 }}
+            - name: LLM_CALLS_TOPIC
+              value: {{ .Values.llmWorker.topic | quote }}
+            {{- range $k, $v := .Values.llmWorker.extraEnv }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+          {{- include "eventconductor.component.containerTail" $ctx | trim | nindent 10 }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+{{- include "eventconductor.component.pdb" $ctx }}
+{{- end }}

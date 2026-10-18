@@ -76,3 +76,31 @@ spec:
   egress:
     - {}
 {{- end }}
+{{- if .Values.networkPolicy.enabled }}
+{{- $defaultFrom := list (dict "podSelector" (default (dict "matchLabels" (dict "app.kubernetes.io/instance" .Release.Name)) .Values.networkPolicy.ingressFromPodSelector)) }}
+{{- range $c := list (dict "name" "worker" "v" .Values.worker) (dict "name" "http-worker" "v" .Values.httpWorker) (dict "name" "llm-worker" "v" .Values.llmWorker) (dict "name" "webhook-gateway" "v" .Values.webhookGateway) }}
+{{- if $c.v.enabled }}
+---
+# {{ $c.name }}: ingress only on its HTTP port (UI, webhooks, actuator); egress open, like the
+# others — the HTTP and LLM workers call hosts outside the cluster.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "eventconductor.fullname" $ }}-{{ $c.name }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ $.Release.Name }}
+      app.kubernetes.io/component: {{ $c.name }}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        {{- toYaml (default $defaultFrom $c.v.networkPolicyFrom) | nindent 8 }}
+      ports:
+        - port: {{ $c.v.port }}
+          protocol: TCP
+  egress:
+    - {}
+{{- end }}
+{{- end }}
+{{- end }}
