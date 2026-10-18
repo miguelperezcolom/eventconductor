@@ -589,8 +589,12 @@ public record WorkflowDefinition(
         }
     }
 
-    /** The filter, a text template and the variable templates of a trigger or an onEvent, parsed. */
-    static List<String> eventTemplateProblems(String filter, String textTemplate, Map<String, Object> variables, String where) {
+    /**
+     * The filter, a text template and the variable templates of a trigger or an onEvent, parsed. The one
+     * check every trigger goes through — declared in a definition, an {@code events.yaml} or created
+     * through the engine — so none can be stored that would fail on every event.
+     */
+    public static List<String> eventTemplateProblems(String filter, String textTemplate, Map<String, Object> variables, String where) {
         var problems = new java.util.ArrayList<String>();
         if (filter != null) {
             problems.addAll(io.mateu.workflow.template.Templates.problems("${" + filter + "}", where + " filter"));

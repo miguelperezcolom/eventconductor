@@ -87,6 +87,30 @@ class EventTriggerImporterTest {
     }
 
     @Test
+    void anEntryWhoseFilterOrTemplatesDoNotParseIsLeftOutAsADefinitionTriggerWouldBe() {
+        var parsed = EventTriggerImporter.parse("events.yaml", yaml("""
+                - destination: bookings
+                  type: com.acme.booking.created
+                  workflow: booking
+                - destination: bookings
+                  type: t
+                  workflow: booking
+                  filter: "data.op =="
+                - destination: bookings
+                  type: t
+                  workflow: booking
+                  businessKey: "b-${data.id +}"
+                - destination: bookings
+                  type: t
+                  workflow: booking
+                  variables: {x: "${(}"}
+                """));
+
+        assertThat(parsed.entries()).extracting(e -> e.trigger().type()).containsExactly("com.acme.booking.created");
+        assertThat(parsed.errors()).hasSize(3);
+    }
+
+    @Test
     void reportsEachBadEntryAndKeepsTheRest() {
         var parsed = EventTriggerImporter.parse("events.yaml", yaml("""
                 - destination: bookings

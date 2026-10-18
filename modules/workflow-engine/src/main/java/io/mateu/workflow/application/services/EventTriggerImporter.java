@@ -250,6 +250,8 @@ public class EventTriggerImporter {
             }
             entryErrors.addAll(EventTriggerRules.triggerViolations(id, destination, type, where));
             var variables = variables(node.get("variables"), where, entryErrors);
+            entryErrors.addAll(io.mateu.workflow.domain.aggregates.WorkflowDefinition.eventTemplateProblems(
+                    filter, businessKey, variables, where));
             if (entryErrors.isEmpty()) {
                 entries.add(new Entry(workflow.trim(), new EventTrigger(id, destination, type, filter, businessKey, variables)));
             } else {

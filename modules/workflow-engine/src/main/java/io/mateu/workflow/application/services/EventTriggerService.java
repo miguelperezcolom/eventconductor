@@ -317,6 +317,10 @@ public class EventTriggerService {
             violations.add("unknown workflow '" + workflowId + "'");
         }
         violations.addAll(EventTriggerRules.triggerViolations(id, draft.destination(), draft.type(), null));
+        // The same template check a definition's triggers get: a filter or template that does not parse
+        // would only fail later, as an ERROR receipt on every event.
+        violations.addAll(io.mateu.workflow.domain.aggregates.WorkflowDefinition.eventTemplateProblems(
+                draft.filter(), draft.businessKey(), draft.variables(), "the trigger"));
         if (!violations.isEmpty()) {
             throw new InvalidTriggerException(violations);
         }

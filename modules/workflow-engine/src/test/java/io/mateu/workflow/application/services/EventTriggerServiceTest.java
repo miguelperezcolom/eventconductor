@@ -86,6 +86,15 @@ class EventTriggerServiceTest {
         assertThatThrownBy(() -> service.create(new TriggerDraft("web", "booking", "bookings", "t", null, null, null)))
                 .isInstanceOf(InvalidTriggerException.class)
                 .hasMessageContaining("already used by the trigger declared in definition booking triggers[0]");
+        // The template check a definition's triggers get: a filter that does not parse is refused here,
+        // not discovered as an ERROR receipt on every event.
+        assertThatThrownBy(() -> service.create(new TriggerDraft("x", "sync-customer", "cdc", "*", "data.op ==", null, null)))
+                .isInstanceOf(InvalidTriggerException.class).hasMessageContaining("filter");
+        assertThatThrownBy(() -> service.create(new TriggerDraft("x", "sync-customer", "cdc", "*", null, "k-${data.id +}", null)))
+                .isInstanceOf(InvalidTriggerException.class);
+        assertThatThrownBy(() -> service.create(new TriggerDraft("x", "sync-customer", "cdc", "*", null, null,
+                Map.of("v", "${(}"))))
+                .isInstanceOf(InvalidTriggerException.class).hasMessageContaining("variables");
         assertThat(triggers.findAll()).isEmpty();
     }
 
