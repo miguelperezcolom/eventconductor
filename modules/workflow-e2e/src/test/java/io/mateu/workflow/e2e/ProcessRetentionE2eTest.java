@@ -53,10 +53,12 @@ class ProcessRetentionE2eTest extends AbstractE2eTest {
         assertThat(service.purgeDue(LocalDateTime.now()).total()).isZero();
         assertThat(processRepository.findByBusinessKey("retained-1")).isPresent();
 
-        // Due: the parent and its child go together, steps included.
+        // Due: the parent and its child go together, steps included. The e2e suite shares one store,
+        // so finished processes other tests left behind are due too: count at least ours, and check
+        // ours by key below.
         var report = service.purgeDue(LocalDateTime.now().plusDays(31));
-        assertThat(report.purged().get("parent-flow")).containsEntry(ProcessStatus.COMPLETED, 1);
-        assertThat(report.purged().get("child-flow")).containsEntry(ProcessStatus.COMPLETED, 1);
+        assertThat(report.purged().get("parent-flow").get(ProcessStatus.COMPLETED)).isGreaterThanOrEqualTo(1);
+        assertThat(report.purged().get("child-flow").get(ProcessStatus.COMPLETED)).isGreaterThanOrEqualTo(1);
         assertThat(processRepository.findByBusinessKey("retained-1")).isEmpty();
         assertThat(processRepository.findByBusinessKey(childKey)).isEmpty();
         assertThat(stepExecutionRepository.findById(spawn.getId())).isEmpty();
