@@ -10,7 +10,7 @@ version: 0.2.0
 # each release: the release workflow (build-and-publish.yml) fails before publishing anything when
 # appVersion differs from the release version, so set appVersion to the version you are about to
 # tag (and bump the chart version) in the PR that prepares the release.
-appVersion: "2.27.0"
+appVersion: "2.28.0"
 maintainers:
   - name: Miguel Pérez Colom
     url: https://github.com/miguelperezcolom
