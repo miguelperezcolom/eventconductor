@@ -79,6 +79,28 @@ class ImportFormsFromDirectoryTest {
         verify(repository).deleteAllById(List.of("two"));
     }
 
+    @Test
+    void aFormWhoseFileFailsIsNotDeletedAndIsPrunedOnceTheSourceImportsCleanly(@TempDir Path dir) throws Exception {
+        write(dir, "one.yml", "one");
+        write(dir, "two.yml", "two");
+        useCase.handle(List.of(dir.toString()));
+
+        // A typo pushed to the source: the file is still there, it just cannot be read.
+        Files.writeString(dir.resolve("two.yml"), "id: two\nname: [unclosed\n");
+        when(repository.findById("two")).thenReturn(Optional.of(new Form("two", "two", null, List.of())));
+
+        var result = useCase.handle(List.of(dir.toString()));
+
+        assertThat(result.pruned()).isEmpty();
+        verify(repository, never()).deleteAllById(any());
+        assertThat(result.errors()).anySatisfy(e -> assertThat(e).startsWith("Pruning skipped for "));
+
+        // Once the source is clean and the file is really gone, it is pruned as usual.
+        Files.delete(dir.resolve("two.yml"));
+        var clean = useCase.handle(List.of(dir.toString()));
+        assertThat(clean.pruned()).singleElement().satisfies(p -> assertThat(p).contains("two"));
+    }
+
     private void writeWithoutId(Path dir, String name, String formName) throws IOException {
         Files.writeString(dir.resolve(name), """
                 name: %s

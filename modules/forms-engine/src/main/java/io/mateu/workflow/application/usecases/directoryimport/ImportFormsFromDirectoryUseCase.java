@@ -93,8 +93,30 @@ public class ImportFormsFromDirectoryUseCase {
     public void importFrom(Path root, String pruneKey, List<String> imported, List<String> errors,
                            List<String> pruned) throws IOException {
         var importedIds = new LinkedHashSet<String>();
+        int errorsBefore = errors.size();
         scanAndImport(root, imported, errors, importedIds);
-        pruneRemovedForms(pruneKey, importedIds, pruned);
+        int failed = errors.size() - errorsBefore;
+        var wouldDelete = new LinkedHashSet<>(importedDefinitionsRegistry.idsFor(NAMESPACE, pruneKey));
+        wouldDelete.removeAll(importedIds);
+        if (failed > 0 && !wouldDelete.isEmpty()) {
+            // A file that failed to import says nothing about which form it holds, so its id is missing
+            // from importedIds and pruning would delete a form that is still in the source — a typo
+            // pushed to git hard-deleting it. Nothing is deleted while the source has files that failed;
+            // the next clean import prunes as usual. As the workflow import does.
+            keepPreviouslyImported(pruneKey, importedIds);
+            errors.add("Pruning skipped for " + io.mateu.workflow.webhook.UrlSanitizer.sanitize(pruneKey) + ": "
+                    + failed + " file(s) could not be imported, so no form was deleted (" + wouldDelete.size()
+                    + " would have been). Fix them and import again.");
+        } else {
+            pruneRemovedForms(pruneKey, importedIds, pruned);
+        }
+    }
+
+    /** Records what this import produced on top of what the source had, so a later clean import still prunes it. */
+    void keepPreviouslyImported(String source, Set<String> importedIds) {
+        var kept = new LinkedHashSet<>(importedDefinitionsRegistry.idsFor(NAMESPACE, source));
+        kept.addAll(importedIds);
+        importedDefinitionsRegistry.replace(NAMESPACE, source, kept);
     }
 
     /**

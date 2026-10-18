@@ -52,4 +52,38 @@ class ImportRulesPruneTest {
         verify(ruleRepository, never()).deleteAllById(any());
         assertThat(pruned).isEmpty();
     }
+
+    @Test
+    void aRuleWhoseFileFailsIsNotDeletedAndIsPrunedOnceTheSourceImportsCleanly(
+            @org.junit.jupiter.api.io.TempDir java.nio.file.Path dir) throws Exception {
+        var saveRule = mock(SaveRuleUseCase.class);
+        when(saveRule.handle(any())).thenAnswer(call ->
+                ((io.mateu.workflow.application.usecases.saverule.SaveRuleCommand) call.getArgument(0)).rule().id());
+        var importer = new ImportRulesFromDirectoryUseCase(mock(RuleDirectoryImportProperties.class), saveRule,
+                new io.mateu.workflow.application.services.RuleValidator(), ruleRepository,
+                mock(RuleCatalogMetrics.class), registry);
+        var source = dir.toString();
+        registry.replace("rule", source, Set.of("a", "b"));
+        java.nio.file.Files.writeString(dir.resolve("a.json"), "{ \"id\": \"a\", \"name\": \"A\", \"type\": \"expression\","
+                + " \"when\": \"true\", \"then\": [ { \"name\": \"ok\", \"expression\": \"true\" } ] }");
+        // "b" is still in the source, it just cannot be read right now.
+        java.nio.file.Files.writeString(dir.resolve("b.json"), "{ \"id\": \"b\", \"name\": ");
+        var rule = mock(Rule.class);
+        when(rule.name()).thenReturn("B");
+        when(ruleRepository.findById("b")).thenReturn(Optional.of(rule));
+
+        var imported = new ArrayList<String>();
+        var errors = new ArrayList<String>();
+        var pruned = new ArrayList<String>();
+        importer.importFrom(dir, source, imported, errors, pruned);
+
+        verify(ruleRepository, never()).deleteAllById(any());
+        assertThat(pruned).isEmpty();
+        assertThat(errors).anySatisfy(e -> assertThat(e).startsWith("Pruning skipped for "));
+        assertThat(registry.idsFor("rule", source)).containsExactlyInAnyOrder("a", "b");
+
+        java.nio.file.Files.delete(dir.resolve("b.json"));
+        importer.importFrom(dir, source, imported, new ArrayList<>(), pruned);
+        verify(ruleRepository).deleteAllById(List.of("b"));
+    }
 }
