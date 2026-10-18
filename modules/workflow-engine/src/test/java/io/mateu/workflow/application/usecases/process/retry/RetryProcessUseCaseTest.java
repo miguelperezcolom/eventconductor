@@ -1,5 +1,7 @@
 package io.mateu.workflow.application.usecases.process.retry;
 
+import io.mateu.workflow.application.out.ConcurrentProcessAccessException;
+import io.mateu.workflow.application.out.ProcessLockService;
 import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.out.WorkflowMetrics;
@@ -9,6 +11,8 @@ import io.mateu.workflow.domain.aggregates.Process;
 import io.mateu.workflow.domain.aggregates.ProcessStatus;
 import io.mateu.workflow.domain.aggregates.StepExecution;
 import io.mateu.workflow.domain.aggregates.StepExecutionStatus;
+import io.mateu.workflow.support.TrackedProcessLock;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -21,7 +25,9 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -41,8 +47,17 @@ class RetryProcessUseCaseTest {
     io.mateu.workflow.application.out.WorkflowTracing workflowTracing =
             io.mateu.workflow.application.out.WorkflowTracing.NOOP;
 
+    @Mock ProcessLockService processLockService;
+
     @InjectMocks
     RetryProcessUseCase retryProcessUseCase;
+
+    final TrackedProcessLock lock = new TrackedProcessLock();
+
+    @BeforeEach
+    void lockIsGranted() {
+        lenient().when(processLockService.runExclusively(anyString(), any())).thenAnswer(lock.granted());
+    }
 
     @Test
     void shouldRetryProcess() {
@@ -130,5 +145,51 @@ class RetryProcessUseCaseTest {
         verify(stepExecutionRepository, never()).save(any());
         verify(processRepository, never()).save(any());
         verify(stepOverProcessUseCase, never()).handle(any());
+    }
+
+    @Test
+    void retriesUnderTheProcessLock() {
+        // The status check, the step revival, the status change and the step-over are one unit.
+        var process = Process.builder().id("p-1").status(ProcessStatus.ERROR).build();
+        var failed = StepExecution.builder().id("se-1").status(StepExecutionStatus.ERROR).build();
+        when(processRepository.findById("p-1")).thenAnswer(invocation -> {
+            lock.assertHeld("the process is read");
+            return Optional.of(process);
+        });
+        when(stepExecutionRepository.findByProcess(any())).thenAnswer(invocation -> {
+            lock.assertHeld("the steps are read");
+            return List.of(failed);
+        });
+        when(stepExecutionRepository.save(any())).thenAnswer(invocation -> {
+            lock.assertHeld("a step is written");
+            return "se-1";
+        });
+        when(processRepository.save(any())).thenAnswer(invocation -> {
+            lock.assertHeld("the process is written");
+            return "p-1";
+        });
+        doAnswer(invocation -> {
+            lock.assertHeld("the flow is driven forward");
+            return null;
+        }).when(stepOverProcessUseCase).handle(any());
+
+        retryProcessUseCase.handle(new RetryProcessCommand("p-1"));
+
+        verify(processLockService).runExclusively(eq("p-1"), any());
+        verify(stepOverProcessUseCase).handle(new StepOverProcessCommand("p-1"));
+    }
+
+    @Test
+    void aRetryThatCannotTakeTheLockFailsInsteadOfDoingNothingSilently() {
+        reset(processLockService);
+        TrackedProcessLock.refused(processLockService);
+
+        assertThatThrownBy(() -> retryProcessUseCase.handle(new RetryProcessCommand("p-1")))
+                .isInstanceOf(ConcurrentProcessAccessException.class);
+
+        verify(processRepository, never()).findById(any());
+        verify(stepExecutionRepository, never()).save(any());
+        verify(processRepository, never()).save(any());
+        verifyNoInteractions(stepOverProcessUseCase);
     }
 }

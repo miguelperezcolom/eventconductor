@@ -1,6 +1,5 @@
 package io.mateu.workflow.application.usecases.stepexecution.update;
 
-import io.mateu.workflow.application.out.ConcurrentProcessAccessException;
 import io.mateu.workflow.application.out.LogMessageRepository;
 import io.mateu.workflow.application.out.ProcessLockService;
 import io.mateu.workflow.application.out.ProcessRepository;
@@ -56,13 +55,11 @@ public class UpdateStepExecutionUseCase {
         // Waiting rather than dropping: silently discarding a worker status update because
         // another node happened to hold the process would leave the step PENDING/RUNNING
         // forever. The wait is the database's row-lock queue now, not a sleep loop.
-        if (!processLockService.runExclusively(processId, () -> doUpdate(command))) {
-            // The lock queue should block until this attempt owns the process; if it still comes
-            // back unacquired (a lost race / rebalance) the worker's result must not be dropped —
-            // that would leave the step PENDING/RUNNING forever. Signal a retryable failure so
-            // whoever delivered the event redelivers it, exactly as for a lost concurrent write.
-            throw new ConcurrentProcessAccessException(processId, null);
-        }
+        // The lock queue should block until this attempt owns the process; if it still comes
+        // back unacquired (a lost race / rebalance) the worker's result must not be dropped —
+        // that would leave the step PENDING/RUNNING forever. It fails with a retryable exception
+        // so whoever delivered the event redelivers it, exactly as for a lost concurrent write.
+        ProcessLockService.runExclusivelyOrThrow(processLockService, processId, () -> doUpdate(command));
     }
 
     private void doUpdate(UpdateStepExecutionCommand command) {

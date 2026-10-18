@@ -1,6 +1,8 @@
 package io.mateu.workflow.application.usecases.process.cancel;
 
+import io.mateu.workflow.application.out.ConcurrentProcessAccessException;
 import io.mateu.workflow.application.out.DownstreamEventPublisher;
+import io.mateu.workflow.application.out.ProcessLockService;
 import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.out.WorkflowMetrics;
@@ -9,6 +11,8 @@ import io.mateu.workflow.application.usecases.process.parentnotify.NotifyParentS
 import io.mateu.workflow.domain.aggregates.*;
 import io.mateu.workflow.domain.aggregates.Process;
 import io.mateu.workflow.dtos.events.integration.TaskCancellationRequested;
+import io.mateu.workflow.support.TrackedProcessLock;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -20,7 +24,9 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -33,8 +39,17 @@ class CancelProcessUseCaseTest {
     @Mock NotifyParentStepService notifyParentStepService;
     @Mock io.mateu.workflow.application.services.RecordProcessTraceService recordProcessTraceService;
     @Mock CancelChildProcessService cancelChildProcessService;
+    @Mock ProcessLockService processLockService;
 
     @InjectMocks CancelProcessUseCase useCase;
+
+    final TrackedProcessLock lock = new TrackedProcessLock();
+    final java.util.concurrent.atomic.AtomicBoolean lockHeld = new java.util.concurrent.atomic.AtomicBoolean();
+
+    @BeforeEach
+    void lockIsGranted() {
+        lenient().when(processLockService.runExclusively(eq("p-1"), any())).thenAnswer(lock.granted());
+    }
 
     private Process process(String id) {
         return Process.builder().id(id).status(ProcessStatus.RUNNING).build();
@@ -175,5 +190,77 @@ class CancelProcessUseCaseTest {
         verify(processRepository, never()).save(any());
         verify(stepExecutionRepository, never()).save(any());
         verify(workflowMetrics, never()).processCancelled(any(), any());
+    }
+
+    @Test
+    void cancelsUnderTheProcessLock() {
+        var process = process("p-1");
+        var se = se("se-1", StepExecutionStatus.PENDING);
+        when(processRepository.findById("p-1")).thenAnswer(invocation -> {
+            lock.assertHeld("the process is read");
+            return Optional.of(process);
+        });
+        when(stepExecutionRepository.findByProcess(process)).thenAnswer(invocation -> {
+            lock.assertHeld("the steps are read");
+            return List.of(se);
+        });
+        when(processRepository.save(any())).thenAnswer(invocation -> {
+            lock.assertHeld("the process is written");
+            return "p-1";
+        });
+        when(stepExecutionRepository.save(any())).thenAnswer(invocation -> {
+            lock.assertHeld("a step is written");
+            return "se-1";
+        });
+
+        useCase.handle(new CancelProcessCommand("p-1"));
+
+        verify(processRepository).save(argThat(p -> p.getStatus() == ProcessStatus.CANCELLED));
+        verify(stepExecutionRepository).save(argThat(s -> s.getStatus() == StepExecutionStatus.CANCELLED));
+    }
+
+    @Test
+    void theCascadeToOtherProcessesRunsAfterThisOnesLockIsReleased() {
+        // Children (cancelled through this use case) and the parent (through its step update)
+        // take their own locks; holding this one meanwhile would let a parent cancel and a child
+        // reporting to its parent each wait on the other.
+        var process = process("p-1");
+        when(processRepository.findById("p-1")).thenReturn(Optional.of(process));
+        when(stepExecutionRepository.findByProcess(process)).thenReturn(List.of(se("se-1", StepExecutionStatus.PENDING)));
+        when(processLockService.runExclusively(eq("p-1"), any())).thenAnswer(invocation -> {
+            lockHeld.set(true);
+            try {
+                invocation.getArgument(1, Runnable.class).run();
+            } finally {
+                lockHeld.set(false);
+            }
+            return true;
+        });
+        doAnswer(invocation -> {
+            assertThat(lockHeld).as("child cascade outside the lock").isFalse();
+            return null;
+        }).when(cancelChildProcessService).stepReachedTerminalStatus(any());
+        doAnswer(invocation -> {
+            assertThat(lockHeld).as("parent notification outside the lock").isFalse();
+            return null;
+        }).when(notifyParentStepService).processReachedTerminalStatus(any());
+
+        useCase.handle(new CancelProcessCommand("p-1"));
+
+        verify(cancelChildProcessService).stepReachedTerminalStatus(any());
+        verify(notifyParentStepService).processReachedTerminalStatus(any());
+    }
+
+    @Test
+    void aCancelThatCannotTakeTheLockFailsInsteadOfDoingNothingSilently() {
+        reset(processLockService);
+        TrackedProcessLock.refused(processLockService);
+
+        assertThatThrownBy(() -> useCase.handle(new CancelProcessCommand("p-1")))
+                .isInstanceOf(ConcurrentProcessAccessException.class);
+
+        verify(processRepository, never()).save(any());
+        verify(stepExecutionRepository, never()).save(any());
+        verifyNoInteractions(cancelChildProcessService, notifyParentStepService, recordProcessTraceService);
     }
 }

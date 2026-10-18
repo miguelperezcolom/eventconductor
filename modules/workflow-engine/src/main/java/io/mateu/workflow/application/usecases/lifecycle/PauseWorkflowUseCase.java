@@ -36,6 +36,16 @@ public class PauseWorkflowUseCase {
                 .filter(process -> workflowDefinitionId.equals(process.getWorkflowDefinitionId()))
                 .filter(process -> ProcessStatus.PENDING.equals(process.getStatus())
                         || ProcessStatus.RUNNING.equals(process.getStatus()))
-                .forEach(process -> pauseProcessUseCase.handle(new PauseProcessCommand(process.getId())));
+                .forEach(process -> {
+                    // Each process on its own, as ResumeWorkflowUseCase does: one that cannot be
+                    // paused right now (its lock is busy) must not leave every process after it
+                    // running.
+                    try {
+                        pauseProcessUseCase.handle(new PauseProcessCommand(process.getId()));
+                    } catch (RuntimeException e) {
+                        log.error("Could not pause process {} of definition {}; it keeps running",
+                                process.getId(), workflowDefinitionId, e);
+                    }
+                });
     }
 }

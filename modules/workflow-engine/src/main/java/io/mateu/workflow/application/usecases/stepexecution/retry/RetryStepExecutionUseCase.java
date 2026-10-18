@@ -1,5 +1,6 @@
 package io.mateu.workflow.application.usecases.stepexecution.retry;
 
+import io.mateu.workflow.application.out.ProcessLockService;
 import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.out.WorkflowMetrics;
@@ -18,8 +19,19 @@ public class RetryStepExecutionUseCase {
     final ProcessRepository processRepository;
     final StepOverProcessUseCase stepOverProcessUseCase;
     final WorkflowMetrics workflowMetrics;
+    final ProcessLockService processLockService;
 
     public void handle(RetryStepExecutionCommand command) {
+        var processId = stepExecutionRepository.findById(command.stepExecutionId()).orElseThrow()
+                .getProcessId();
+        // Under the process lock, like every other writer of the process: the step is re-read
+        // inside it, so the status check, the revival and the step-over are one unit and cannot
+        // interleave with the relay moving the same process. A lock that cannot be had fails
+        // rather than doing nothing silently — the requested event is redelivered.
+        ProcessLockService.runExclusivelyOrThrow(processLockService, processId, () -> doHandle(command));
+    }
+
+    private void doHandle(RetryStepExecutionCommand command) {
         var stepExecution = stepExecutionRepository.findById(command.stepExecutionId()).orElseThrow();
 
         if (!StepExecutionStatus.ERROR.equals(stepExecution.getStatus())

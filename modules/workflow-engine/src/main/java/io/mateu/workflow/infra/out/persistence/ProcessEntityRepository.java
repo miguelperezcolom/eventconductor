@@ -258,6 +258,10 @@ public interface ProcessEntityRepository extends JpaRepository<ProcessEntity, St
      * <p>{@code max(finishedAt)} is null for a process whose steps have all been created and none
      * finished; that is a process that never started moving, and it is excluded rather than
      * reported, because "stalled" is about stopping, not about not having begun.
+     *
+     * <p>"Nothing left to run" counts every status {@link
+     * io.mateu.workflow.domain.aggregates.StepExecutionStatus#keepsTheProcessInFlight()} names: a
+     * step waiting out a long retry backoff or queued behind a lock holder is not a stall.
      */
     @Query("""
             select p.id
@@ -265,7 +269,8 @@ public interface ProcessEntityRepository extends JpaRepository<ProcessEntity, St
             where p.status = 'RUNNING'
               and not exists (
                   select 1 from StepExecutionEntity se
-                  where se.processId = p.id and se.status in ('PENDING', 'RUNNING')
+                  where se.processId = p.id
+                    and se.status in ('PENDING', 'RUNNING', 'AWAITING_RETRY', 'WAITING_ON_LOCK')
               )
               and (
                   select max(se2.finishedAt) from StepExecutionEntity se2

@@ -1,5 +1,6 @@
 package io.mateu.workflow.application.usecases.process.restart;
 
+import io.mateu.workflow.application.out.ProcessLockService;
 import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.out.WorkflowMetrics;
@@ -59,8 +60,17 @@ public class RestartProcessUseCase {
     final StepExecutionRepository stepExecutionRepository;
     final StepOverProcessUseCase stepOverProcessUseCase;
     final WorkflowMetrics workflowMetrics;
+    final ProcessLockService processLockService;
 
     public void handle(RestartProcessCommand command) {
+        // Under the process lock, like every other writer of the process: the status check and the
+        // writes that follow it are one unit, so two restarts of the same process cannot both reset
+        // its steps, and the step-over that follows runs inside the same lock. A lock that cannot be
+        // had fails rather than doing nothing silently — the requested event is redelivered.
+        ProcessLockService.runExclusivelyOrThrow(processLockService, command.processId(), () -> doHandle(command));
+    }
+
+    private void doHandle(RestartProcessCommand command) {
         var process = processRepository.findById(command.processId()).orElseThrow();
         if (!RESTARTABLE.contains(process.getStatus())) {
             log.warn("Process {} cannot be restarted from status {} — ignoring",

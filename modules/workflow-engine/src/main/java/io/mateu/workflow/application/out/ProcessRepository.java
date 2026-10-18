@@ -211,6 +211,10 @@ public interface ProcessRepository extends CrudStore<Process> {
      * the process: the repair is a definition change, and cancelling it here would destroy the
      * evidence of what it was waiting to match.
      *
+     * <p>"No step left to run" means none {@link
+     * io.mateu.workflow.domain.aggregates.StepExecutionStatus#keepsTheProcessInFlight() keeps it in
+     * flight}: a step waiting out its retry backoff, or queued behind a lock, is still going.
+     *
      * <p>Last movement is the newest {@code finishedAt} among the process's step executions, since
      * a process row carries no timestamp of its own for it.
      *

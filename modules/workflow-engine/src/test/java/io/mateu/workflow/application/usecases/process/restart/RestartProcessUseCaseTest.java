@@ -1,5 +1,7 @@
 package io.mateu.workflow.application.usecases.process.restart;
 
+import io.mateu.workflow.application.out.ConcurrentProcessAccessException;
+import io.mateu.workflow.application.out.ProcessLockService;
 import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.out.WorkflowMetrics;
@@ -10,6 +12,8 @@ import io.mateu.workflow.domain.aggregates.ProcessStatus;
 import io.mateu.workflow.domain.aggregates.StepExecution;
 import io.mateu.workflow.domain.aggregates.StepExecutionStatus;
 import io.mateu.workflow.domain.aggregates.Variable;
+import io.mateu.workflow.support.TrackedProcessLock;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -24,7 +28,9 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -40,7 +46,16 @@ class RestartProcessUseCaseTest {
     io.mateu.workflow.application.out.WorkflowTracing workflowTracing =
             io.mateu.workflow.application.out.WorkflowTracing.NOOP;
 
+    @Mock ProcessLockService processLockService;
+
     @InjectMocks RestartProcessUseCase restartProcessUseCase;
+
+    final TrackedProcessLock lock = new TrackedProcessLock();
+
+    @BeforeEach
+    void lockIsGranted() {
+        lenient().when(processLockService.runExclusively(anyString(), any())).thenAnswer(lock.granted());
+    }
 
     private StepExecution step(String id, int order, StepExecutionStatus status,
                                LocalDateTime startedAt, List<Variable> variables) {
@@ -135,5 +150,51 @@ class RestartProcessUseCaseTest {
         verify(stepExecutionRepository, never()).save(any());
         verify(processRepository, never()).save(any());
         verify(stepOverProcessUseCase, never()).handle(any());
+    }
+
+    @Test
+    void restartsUnderTheProcessLock() {
+        // The status check, the reset, the status change and the step-over are one unit.
+        var process = Process.builder().id("p-1").status(ProcessStatus.ERROR).variables(List.of()).build();
+        var failed = step("s1", 1, StepExecutionStatus.ERROR, LocalDateTime.now(), List.of());
+        when(processRepository.findById("p-1")).thenAnswer(invocation -> {
+            lock.assertHeld("the process is read");
+            return Optional.of(process);
+        });
+        when(stepExecutionRepository.findByProcess(any())).thenAnswer(invocation -> {
+            lock.assertHeld("the steps are read");
+            return List.of(failed);
+        });
+        when(stepExecutionRepository.save(any())).thenAnswer(invocation -> {
+            lock.assertHeld("a step is written");
+            return "s1";
+        });
+        when(processRepository.save(any())).thenAnswer(invocation -> {
+            lock.assertHeld("the process is written");
+            return "p-1";
+        });
+        doAnswer(invocation -> {
+            lock.assertHeld("the flow is driven forward");
+            return null;
+        }).when(stepOverProcessUseCase).handle(any());
+
+        restartProcessUseCase.handle(new RestartProcessCommand("p-1"));
+
+        verify(processLockService).runExclusively(eq("p-1"), any());
+        verify(stepOverProcessUseCase).handle(new StepOverProcessCommand("p-1"));
+    }
+
+    @Test
+    void aRestartThatCannotTakeTheLockFailsInsteadOfDoingNothingSilently() {
+        reset(processLockService);
+        TrackedProcessLock.refused(processLockService);
+
+        assertThatThrownBy(() -> restartProcessUseCase.handle(new RestartProcessCommand("p-1")))
+                .isInstanceOf(ConcurrentProcessAccessException.class);
+
+        verify(processRepository, never()).findById(any());
+        verify(stepExecutionRepository, never()).save(any());
+        verify(processRepository, never()).save(any());
+        verifyNoInteractions(stepOverProcessUseCase);
     }
 }

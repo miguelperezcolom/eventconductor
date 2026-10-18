@@ -1,6 +1,7 @@
 package io.mateu.workflow.application.usecases.process.pause;
 
 import io.mateu.workflow.application.out.LogMessageRepository;
+import io.mateu.workflow.application.out.ProcessLockService;
 import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.domain.aggregates.LogMessage;
 import io.mateu.workflow.domain.aggregates.ProcessStatus;
@@ -26,8 +27,17 @@ public class PauseProcessUseCase {
 
     final ProcessRepository processRepository;
     final LogMessageRepository logMessageRepository;
+    final ProcessLockService processLockService;
 
     public void handle(PauseProcessCommand command) {
+        // Under the process lock, like every other writer of the process: the status check and the
+        // writes that follow it are one unit, so a pause cannot interleave with the relay moving the
+        // process, nor overwrite a status another writer has just changed. A lock that cannot be had
+        // fails rather than doing nothing silently — the requested event is redelivered.
+        ProcessLockService.runExclusivelyOrThrow(processLockService, command.processId(), () -> doHandle(command));
+    }
+
+    private void doHandle(PauseProcessCommand command) {
         var process = processRepository.findById(command.processId()).orElseThrow();
         if (!ProcessStatus.PENDING.equals(process.getStatus())
                 && !ProcessStatus.RUNNING.equals(process.getStatus())) {

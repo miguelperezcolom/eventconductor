@@ -17,4 +17,20 @@ public interface ProcessLockService {
      * "another node has this one", not as an error to retry in a loop.
      */
     boolean runExclusively(String processId, Runnable action);
+
+    /**
+     * Runs the action with exclusive access to the process, or fails with
+     * {@link ConcurrentProcessAccessException} — without running it — when exclusivity could not
+     * be had. For the callers to whom "someone else has this process" must not be a silent no-op:
+     * an operator action has to learn it did nothing, and an event that triggered it has to be
+     * redelivered ({@code EventFailures} treats the exception as retryable).
+     *
+     * <p>Static rather than a default method on purpose: tests mock this interface, and a mock
+     * would swallow a default method instead of routing it through {@link #runExclusively}.
+     */
+    static void runExclusivelyOrThrow(ProcessLockService lockService, String processId, Runnable action) {
+        if (!lockService.runExclusively(processId, action)) {
+            throw new ConcurrentProcessAccessException(processId, null);
+        }
+    }
 }

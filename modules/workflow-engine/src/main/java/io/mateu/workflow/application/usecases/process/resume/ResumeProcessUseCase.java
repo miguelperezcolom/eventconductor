@@ -1,6 +1,5 @@
 package io.mateu.workflow.application.usecases.process.resume;
 
-import io.mateu.workflow.application.out.ConcurrentProcessAccessException;
 import io.mateu.workflow.application.out.LogMessageRepository;
 import io.mateu.workflow.application.out.ProcessLockService;
 import io.mateu.workflow.application.out.ProcessRepository;
@@ -46,11 +45,9 @@ public class ResumeProcessUseCase {
         // pause, the step-over it triggers) and lost on the optimistic version. It also makes the
         // PAUSED check, the clock shift and the status change one atomic unit: two resumes of the
         // same process can no longer both see PAUSED and shift every timer twice.
-        if (!processLockService.runExclusively(command.processId(), () -> doHandle(command))) {
-            // Not dropped: the caller (an operator, the resume-requested event) must learn that
-            // nothing happened, and an event must be redelivered.
-            throw new ConcurrentProcessAccessException(command.processId(), null);
-        }
+        // A lock that cannot be had is not dropped: the caller (an operator, the resume-requested
+        // event) must learn that nothing happened, and an event must be redelivered.
+        ProcessLockService.runExclusivelyOrThrow(processLockService, command.processId(), () -> doHandle(command));
     }
 
     private void doHandle(ResumeProcessCommand command) {

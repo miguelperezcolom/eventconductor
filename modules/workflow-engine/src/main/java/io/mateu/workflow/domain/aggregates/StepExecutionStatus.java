@@ -26,6 +26,16 @@ public enum StepExecutionStatus {
     ERROR,
     TIMEOUT;
 
+    /**
+     * Whether this step keeps its process in flight — there is still something coming: a worker
+     * owes an answer (PENDING, RUNNING), a backoff will re-dispatch it (AWAITING_RETRY), or a lock
+     * release will admit it (WAITING_ON_LOCK). A RUNNING process with none of these is stalled
+     * ({@code ProcessRepository#findStalled}).
+     */
+    public boolean keepsTheProcessInFlight() {
+        return this == PENDING || this == RUNNING || this == AWAITING_RETRY || this == WAITING_ON_LOCK;
+    }
+
     public boolean isTerminal() {
         return this == COMPLETED || this == CANCELLED || this == ERROR || this == TIMEOUT;
     }

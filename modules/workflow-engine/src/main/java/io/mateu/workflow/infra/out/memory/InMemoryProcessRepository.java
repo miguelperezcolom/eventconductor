@@ -4,11 +4,15 @@ import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.infra.in.async.processdomainevent.ProcessDomainEventCommand;
 import io.mateu.workflow.infra.in.async.processdomainevent.ProcessDomainEventUseCase;
 import io.mateu.workflow.domain.aggregates.Process;
+import io.mateu.workflow.domain.aggregates.ProcessStatus;
+import io.mateu.workflow.domain.aggregates.StepExecution;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -33,6 +37,10 @@ public class InMemoryProcessRepository implements ProcessRepository {
 
     @Autowired
     private org.springframework.beans.factory.ObjectProvider<io.mateu.workflow.application.out.ReplySignal> replySignal;
+
+    // Provider: only findStalled reads steps, and the step store is a sibling bean of this one.
+    @Autowired
+    private org.springframework.beans.factory.ObjectProvider<io.mateu.workflow.application.out.StepExecutionRepository> stepExecutionRepository;
 
     private final Map<String, Process> store = new ConcurrentHashMap<>();
 
@@ -71,6 +79,38 @@ public class InMemoryProcessRepository implements ProcessRepository {
     @Override
     public void deleteAllById(List<String> ids) {
         ids.forEach(store::remove);
+    }
+
+    /** The JPA query's semantics over the heap; see {@code ProcessEntityRepository#findStalled}. */
+    @Override
+    public List<String> findStalled(LocalDateTime idleBefore, int limit) {
+        var steps = stepExecutionRepository == null ? null : stepExecutionRepository.getIfAvailable();
+        if (steps == null) {
+            return List.of();
+        }
+        record Candidate(String id, LocalDateTime lastMoved) {
+        }
+        return store.values().stream()
+                .filter(process -> ProcessStatus.RUNNING.equals(process.getStatus()))
+                .map(process -> {
+                    var executions = steps.findByProcessId(process.id());
+                    if (executions.stream().anyMatch(se -> se.getStatus().keepsTheProcessInFlight())) {
+                        return null;
+                    }
+                    var lastMoved = executions.stream()
+                            .map(StepExecution::getFinishedAt)
+                            .filter(java.util.Objects::nonNull)
+                            .max(Comparator.naturalOrder())
+                            .orElse(null);
+                    // Never moved is not stalled, as in the query.
+                    return lastMoved != null && lastMoved.isBefore(idleBefore)
+                            ? new Candidate(process.id(), lastMoved) : null;
+                })
+                .filter(java.util.Objects::nonNull)
+                .sorted(Comparator.comparing(Candidate::lastMoved).reversed())
+                .limit(limit)
+                .map(Candidate::id)
+                .toList();
     }
 
     @Override

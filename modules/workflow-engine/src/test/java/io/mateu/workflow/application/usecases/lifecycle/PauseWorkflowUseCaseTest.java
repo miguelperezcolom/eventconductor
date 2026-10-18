@@ -82,4 +82,18 @@ class PauseWorkflowUseCaseTest {
         assertThatThrownBy(() -> useCase.handle("missing"))
                 .isInstanceOf(IllegalArgumentException.class);
     }
+
+    @Test
+    void oneProcessWhoseLockIsBusyDoesNotLeaveTheOthersRunning() {
+        when(repository.findById("wd-1")).thenReturn(Optional.of(definition(false)));
+        when(processRepository.findAll()).thenReturn(List.of(
+                process("p-busy", "wd-1", ProcessStatus.RUNNING),
+                process("p-free", "wd-1", ProcessStatus.RUNNING)));
+        org.mockito.Mockito.doThrow(new io.mateu.workflow.application.out.ConcurrentProcessAccessException("p-busy", null))
+                .when(pauseProcessUseCase).handle(new PauseProcessCommand("p-busy"));
+
+        useCase.handle("wd-1");
+
+        verify(pauseProcessUseCase).handle(new PauseProcessCommand("p-free"));
+    }
 }

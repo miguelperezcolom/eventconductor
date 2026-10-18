@@ -1,6 +1,5 @@
 package io.mateu.workflow.application.usecases.process.stepover;
 
-import io.mateu.workflow.application.out.ConcurrentProcessAccessException;
 import io.mateu.workflow.application.out.LockService;
 import io.mateu.workflow.application.out.ProcessLockService;
 import io.mateu.workflow.application.out.ProcessRepository;
@@ -80,19 +79,18 @@ public class StepOverProcessUseCase {
         // with nothing to say which process they belong to or what came before them — because the
         // context that produced the event does not survive the outbox row and the broker record in
         // between. The anchor is derived from the process id, so every pod computes the same one.
-        if (!processLockService.runExclusively(command.processId(),
+        //
+        // Not skipped when the lock comes back unacquired (a timeout waiting for the row, a
+        // deadlock, a lost optimistic write): that means this step-over did nothing, and whatever
+        // asked for it — usually a status-change event the relay is delivering — would be
+        // acknowledged and gone, leaving the process stuck until someone nudged it. Failing makes
+        // the event come round again, exactly as UpdateStepExecutionUseCase does.
+        ProcessLockService.runExclusivelyOrThrow(processLockService, command.processId(),
                 () -> workflowTracing.continuing(
                         processTrace.contextFor(command.processId()),
                         "eventconductor.step-over",
                         java.util.Map.of("eventconductor.process.id", command.processId()),
-                        () -> doHandle(command)))) {
-            // Not skipped: the lock coming back unacquired (a timeout waiting for the row, a
-            // deadlock, a lost optimistic write) means this step-over did nothing, and whatever
-            // asked for it — usually a status-change event the relay is delivering — would be
-            // acknowledged and gone, leaving the process stuck until someone nudged it. Failing
-            // makes the event come round again, exactly as UpdateStepExecutionUseCase does.
-            throw new ConcurrentProcessAccessException(command.processId(), null);
-        }
+                        () -> doHandle(command)));
     }
 
     private void doHandle(StepOverProcessCommand command) {
