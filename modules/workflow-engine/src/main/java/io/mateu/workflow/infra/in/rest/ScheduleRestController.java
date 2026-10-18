@@ -54,7 +54,7 @@ import java.util.List;
  * resumed and run now. A schedule that breaks a rule answers {@code 400} with every violation in
  * {@code violations}; an unknown id {@code 404}.
  *
- * <p>Same optional {@code X-Api-Key} as the message API. Managing schedules is administration — a
+ * <p>Same {@code X-Api-Key} rule as the message API (see {@link EngineApiAccess}). Managing schedules is administration — a
  * schedule starts its workflow as the engine itself — so put this path behind whatever guards
  * {@code /_workflow-admin}.
  */

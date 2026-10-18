@@ -63,7 +63,7 @@ import java.util.regex.Pattern;
  * be at that URL. A retry with the same key never starts a second process.
  *
  * <p>Nothing waits on a servlet thread: the answer is a {@link DeferredResult} completed by
- * {@link SyncReplyWaiters}. Same optional {@code X-Api-Key} as the message API.
+ * {@link SyncReplyWaiters}. Same {@code X-Api-Key} rule as the message API (see {@link EngineApiAccess}).
  */
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 @RestController

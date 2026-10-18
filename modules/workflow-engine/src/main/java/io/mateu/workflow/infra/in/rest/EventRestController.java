@@ -51,7 +51,7 @@ import java.util.NoSuchElementException;
  * they are what makes a second post of the same event a duplicate. The event is received on this
  * request in both modes, so the answer says what it started and delivered.
  *
- * <p>Same optional {@code X-Api-Key} as the message API. An injected event starts workflows as the
+ * <p>Same {@code X-Api-Key} rule as the message API (see {@link EngineApiAccess}). An injected event starts workflows as the
  * engine itself, so put this path behind whatever guards the message API.
  */
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
