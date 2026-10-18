@@ -49,6 +49,12 @@ public class AutoRetryService {
                         || StepExecutionStatus.TIMEOUT.equals(stepExecution.getStatus()))) {
             return false;
         }
+        if (stepExecution.isContainer()
+                || io.mateu.workflow.domain.aggregates.StepExecution.LOOP_EXHAUSTED.equals(stepExecution.getLoopDecision())) {
+            // A forEach container fails because an iteration spent its own retries, and a loop fails
+            // because it hit a cap: retrying either would only multiply the one or hit the other again.
+            return false;
+        }
         var step = pojoFromJson(stepExecution.getStepJson(), Step.class);
         if (stepExecution.getAttemptCount() >= step.retries()) {
             return false;

@@ -77,7 +77,10 @@ public class RetryProcessUseCase {
         var revivable = ProcessStatus.CANCELLED.equals(process.getStatus())
                 ? FAILED_OR_CANCELLED : FAILED;
 
-        var stepExecutions = stepExecutionRepository.findByProcess(process);
+        // The current execution of each step: a failed forEach is retried through its container, which
+        // re-runs the failed iterations itself; a loop's earlier passes are history.
+        var stepExecutions = io.mateu.workflow.domain.services.StepExecutions.current(
+                stepExecutionRepository.findByProcess(process));
         boolean changed = false;
         for (var stepExecution : stepExecutions) {
             if (revivable.contains(stepExecution.getStatus())) {

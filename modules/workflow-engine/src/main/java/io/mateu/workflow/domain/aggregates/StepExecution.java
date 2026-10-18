@@ -127,6 +127,58 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
     @With(AccessLevel.NONE)
     private int dispatchCount;
 
+    /**
+     * The loop pass this execution belongs to: 0 for the first run of a step, then one more each
+     * time a {@code repeat} or a {@code loopBack} runs it again. Every pass is its own execution;
+     * the one it replaced is {@link #superseded}.
+     */
+    private int iteration;
+
+    /**
+     * Replaced by a later pass of a loop (or discarded by a restart): history, kept for the
+     * timeline and for compensation, but no longer the step's current execution. The orchestrator
+     * reasons over the current executions only — which is what resets a loop section's JOIN
+     * barriers and CHOICE latches when it runs again.
+     */
+    private boolean superseded;
+
+    /**
+     * The latched outcome of this execution's {@code repeat.until} / {@code loopBack.while}, decided
+     * once on the first step-over after it completed: {@link #LOOP_EXITED}, {@link #LOOP_LOOPED} or
+     * {@link #LOOP_EXHAUSTED}; {@link #LOOP_DISCARDED} for history a restart left behind. Null while
+     * undecided, and for a step that does not loop.
+     */
+    private String loopDecision;
+
+    /**
+     * For a forEach iteration, the container execution it belongs to; null for every other execution.
+     * Iterations are driven by their container, never by the precondition graph.
+     */
+    private String parentExecutionId;
+
+    /** For a forEach iteration, its 0-based position in the list; null otherwise. */
+    private Integer itemIndex;
+
+    /**
+     * For a forEach iteration, the variables laid over the process's for it (the item, its index, and
+     * for a compensation iteration what the iteration it undoes reported), as a JSON object of
+     * strings. For a container, {@code {"total": n}} — or with {@code "compensates"} for a
+     * compensation run over several units. Null for an ordinary execution: a top-level execution
+     * that carries a scope is a container.
+     */
+    private String scopeJson;
+
+    /**
+     * For a forEach iteration, what it reported, as a JSON object (an iteration never writes the
+     * process's variables). For a container, the collected {@code output} once it completed.
+     */
+    private String outputJson;
+
+    public static final String LOOP_EXITED = "EXITED";
+    public static final String LOOP_LOOPED = "LOOPED";
+    public static final String LOOP_EXHAUSTED = "EXHAUSTED";
+    public static final String LOOP_DISCARDED = "DISCARDED";
+
 
     public static StepExecution create(Step step, String processId, int position) {
         return create(step, processId, position, null);
@@ -336,7 +388,7 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
      * nothing left for the scheduler to fire.
      */
     private LocalDateTime computeDeadline() {
-        if (startedAt == null) {
+        if (startedAt == null || isContainer()) {
             return null;
         }
         try {
@@ -348,10 +400,26 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
 
     public StepExecution start(Process process) {
         this.dispatchCount++;
+        // A forEach iteration sees the process with its item and index laid over the variables — its
+        // own scope, which nothing it does writes back. Everything below reads this view.
+        var scope = scope();
+        var typedScope = io.mateu.workflow.domain.services.MultiInstance.typed(scope);
+        if (!scope.isEmpty() && parentExecutionId != null) {
+            process = process.withVariables(io.mateu.workflow.domain.services.MultiInstance.overlay(
+                    process.getVariables(), scope));
+        }
         var variables = process.getVariables() == null ? List.<Variable>of() : process.getVariables();
         this.variables = variables;
         this.startedAt = LocalDateTime.now();
         var step = pojoFromJson(stepJson, Step.class);
+        if (parentExecutionId == null && step.forEach() != null) {
+            // A forEach container runs no task of its own: the orchestrator materialises its
+            // iterations (beginIterations) and drives them. Reaching here means it was started by a
+            // path that does not know that; leave it pending for the orchestrator.
+            this.deadlineAt = null;
+            status = StepExecutionStatus.PENDING;
+            return this;
+        }
         // Materialise the deadline now, while everything it derives from is being frozen. A
         // misconfigured TIMER leaves it null and errors below, so nothing is ever left armed
         // without a moment to fire at.
@@ -530,7 +598,7 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
             }
             String request;
             try {
-                request = io.mateu.workflow.domain.services.HttpRequestRenderer.render(step, process, id);
+                request = io.mateu.workflow.domain.services.HttpRequestRenderer.render(step, process, id, typedScope);
             } catch (RuntimeException e) {
                 send(new TaskLogEmitted(id, MessageType.Error,
                         "Step " + step.name() + ": the HTTP request could not be rendered: " + e.getMessage()));
@@ -549,7 +617,7 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
             // built-in llm-call worker task like any worker step — as HTTP_CALL does.
             String request;
             try {
-                request = io.mateu.workflow.domain.services.LlmRequestRenderer.render(step, process, id);
+                request = io.mateu.workflow.domain.services.LlmRequestRenderer.render(step, process, id, typedScope);
             } catch (RuntimeException e) {
                 send(new TaskLogEmitted(id, MessageType.Error,
                         "Step " + step.name() + ": the LLM prompt could not be rendered: " + e.getMessage()));
@@ -646,6 +714,8 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
             // Back to CREATED is a step about to run again: whatever was dispatched before is not
             // the attempt any more, and its late reply must not count.
             this.dispatchCount++;
+            // And its next completion is a new one, whose loop condition has not been asked yet.
+            this.loopDecision = null;
         }
         this.status = status;
         if (status.isTerminal()) {
@@ -680,6 +750,13 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
      */
     public void resetForRerun() {
         this.dispatchCount++;
+        this.loopDecision = null;
+        if (parentExecutionId == null) {
+            // A container starts over: its iterations are discarded by the restart and it
+            // materialises new ones when it runs again.
+            this.scopeJson = null;
+            this.outputJson = null;
+        }
         this.status = StepExecutionStatus.CREATED;
         this.startedAt = null;
         this.finishedAt = null;
@@ -738,6 +815,180 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
      * through the ordinary update path. {@code WAITING_ON_LOCK} is also absent from the wire
      * {@code TaskStatus}, so it must not go through {@link #updateStatus(StepExecutionStatus)}.
      */
+    // ------------------------------------------------------------------ loops and multi-instance
+
+    /** Whether this is a forEach iteration. */
+    public boolean isIteration() {
+        return parentExecutionId != null;
+    }
+
+    /**
+     * Whether this is a forEach container: a top-level execution of a step with a {@code forEach}, or
+     * one that runs a compensation over several units (it then carries a scope).
+     */
+    public boolean isContainer() {
+        if (parentExecutionId != null) {
+            return false;
+        }
+        if (scopeJson != null) {
+            return true;
+        }
+        try {
+            return stepJson != null && pojoFromJson(stepJson, Step.class).forEach() != null;
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
+
+    /** This execution's scope (see {@link #scopeJson}), as strings; empty when it has none. */
+    public java.util.Map<String, String> scope() {
+        return io.mateu.workflow.domain.services.MultiInstance.stringMap(scopeJson);
+    }
+
+    /** What this iteration reported (see {@link #outputJson}); empty when nothing yet. */
+    public java.util.Map<String, String> output() {
+        return io.mateu.workflow.domain.services.MultiInstance.stringMap(outputJson);
+    }
+
+    /** How many iterations this container runs, or -1 when it has not materialised them. */
+    public int totalIterations() {
+        var total = scope().get("total");
+        try {
+            return total == null ? -1 : Integer.parseInt(total);
+        } catch (NumberFormatException e) {
+            return -1;
+        }
+    }
+
+    /** For a compensation container, the step whose units it undoes; null otherwise. */
+    public String compensatedStepId() {
+        return scope().get("compensates");
+    }
+
+    /**
+     * Starts this execution as a container of {@code total} iterations: no task of its own, no
+     * deadline (each iteration has its own), PENDING until its iterations say otherwise.
+     *
+     * @param compensates for a compensation run over several units, the step it undoes; else null
+     */
+    public void beginIterations(Process process, int total, String compensates) {
+        this.dispatchCount++;
+        this.variables = process.getVariables() == null ? List.of() : process.getVariables();
+        this.startedAt = LocalDateTime.now();
+        this.finishedAt = null;
+        this.deadlineAt = null;
+        var scope = new java.util.LinkedHashMap<String, Object>();
+        scope.put("total", total);
+        if (compensates != null) {
+            scope.put("compensates", compensates);
+        }
+        this.scopeJson = io.mateu.workflow.domain.services.MultiInstance.toJson(scope);
+        this.status = StepExecutionStatus.PENDING;
+        send(new TaskLogEmitted(id, MessageType.Info, compensates != null
+                ? "Compensating " + total + " completed runs of step " + compensates + ", newest first."
+                : "forEach on step " + stepId + ": " + total + (total == 1 ? " iteration." : " iterations.")));
+    }
+
+    /** A new iteration of {@code container}, CREATED, with its own id and scope. */
+    public static StepExecution iterationOf(StepExecution container, String stepJson, int index,
+                                            java.util.Map<String, String> scope) {
+        return StepExecution.builder()
+                .id(UUID.randomUUID().toString())
+                .processId(container.getProcessId())
+                .workflowDefinitionId(container.getWorkflowDefinitionId())
+                .stepId(container.getStepId())
+                .stepJson(stepJson)
+                .variables(List.of())
+                .status(StepExecutionStatus.CREATED)
+                .order(container.getOrder())
+                .iteration(container.getIteration())
+                .injectedByStepExecutionId(container.getInjectedByStepExecutionId())
+                .parentExecutionId(container.getId())
+                .itemIndex(index)
+                .scopeJson(io.mateu.workflow.domain.services.MultiInstance.toJson(scope))
+                .build();
+    }
+
+    /** The next pass of a loop over this execution's step: same frozen step, CREATED, one iteration on. */
+    public static StepExecution nextPassOf(StepExecution previous) {
+        return StepExecution.builder()
+                .id(UUID.randomUUID().toString())
+                .processId(previous.getProcessId())
+                .workflowDefinitionId(previous.getWorkflowDefinitionId())
+                .stepId(previous.getStepId())
+                .stepJson(previous.getStepJson())
+                .variables(List.of())
+                .status(StepExecutionStatus.CREATED)
+                .order(previous.getOrder())
+                .iteration(previous.getIteration() + 1)
+                .injectedByStepExecutionId(previous.getInjectedByStepExecutionId())
+                .build();
+    }
+
+    /** Marks this execution as replaced by a later pass (history from now on). */
+    public void supersede(String decision) {
+        this.superseded = true;
+        if (decision != null) {
+            this.loopDecision = decision;
+        }
+    }
+
+    /** Records the latched outcome of this execution's loop condition. */
+    public void decideLoop(String decision) {
+        this.loopDecision = decision;
+    }
+
+    /**
+     * Ends a loop that would run past one of its caps: the step fails, finally — a retry would only
+     * hit the same cap — so the process's failure handling engages.
+     */
+    public void exhaustLoop(String reason) {
+        this.loopDecision = LOOP_EXHAUSTED;
+        send(new TaskLogEmitted(id, MessageType.Error, reason));
+        updateStatus(StepExecutionStatus.ERROR, true);
+    }
+
+    /**
+     * Parks a new pass until {@code wake} (a loop's {@code delay}): AWAITING_RETRY with its wake in
+     * {@code deadlineAt}, which the retry scheduler releases like any backoff — without counting an
+     * attempt, since nothing failed.
+     */
+    public void parkUntil(LocalDateTime wake) {
+        this.status = StepExecutionStatus.AWAITING_RETRY;
+        this.deadlineAt = wake;
+        send(new TaskLogEmitted(id, MessageType.Info,
+                "Run " + (iteration + 1) + " of step " + stepId + " scheduled at " + wake + "."));
+    }
+
+    /** Cancels a step that never started, with no event: nothing was dispatched, nobody to tell. */
+    public void cancelQuietly() {
+        this.status = StepExecutionStatus.CANCELLED;
+        this.finishedAt = LocalDateTime.now();
+    }
+
+    /** Records what this iteration reported, merged over what it reported before. */
+    public void recordOutput(List<Variable> reported) {
+        if (reported == null || reported.isEmpty()) {
+            return;
+        }
+        var merged = new java.util.LinkedHashMap<String, String>(output());
+        reported.forEach(variable -> merged.put(variable.name(), variable.value()));
+        this.outputJson = io.mateu.workflow.domain.services.MultiInstance.toJson(merged);
+    }
+
+    /** Completes this container with its collected {@code output} (null when it declares none). */
+    public void completeIterations(String collectedOutput, String why) {
+        this.outputJson = collectedOutput;
+        send(new TaskLogEmitted(id, MessageType.Info, why));
+        updateStatus(StepExecutionStatus.COMPLETED);
+    }
+
+    /** Fails this container because of one of its iterations: final, the iteration spent the retries. */
+    public void failIterations(StepExecutionStatus status, String why) {
+        send(new TaskLogEmitted(id, MessageType.Error, why));
+        updateStatus(status, true);
+    }
+
     public void markWaitingOnLock() {
         this.status = StepExecutionStatus.WAITING_ON_LOCK;
         this.finishedAt = null;

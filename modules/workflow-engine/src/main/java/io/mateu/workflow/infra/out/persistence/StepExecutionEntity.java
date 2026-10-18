@@ -112,6 +112,26 @@ public class StepExecutionEntity {
      */
     Integer dispatchCount;
 
+    /*
+     * Loops and multi-instance (V47). All boxed and nullable: rows written before read as the first
+     * pass of an ordinary step. See StepExecution for what each one means.
+     */
+    Integer iteration;
+
+    Boolean superseded;
+
+    String loopDecision;
+
+    String parentExecutionId;
+
+    Integer itemIndex;
+
+    @Column(columnDefinition = "TEXT")
+    String scopeJson;
+
+    @Column(columnDefinition = "TEXT")
+    String outputJson;
+
     /**
      * Backward-compatible constructor for the callers that predate the lock columns (the write-side
      * mapping in {@code StepExecutionDBRepository}). They arrive null; only lock steps set them,
@@ -125,7 +145,8 @@ public class StepExecutionEntity {
             String injectedByStepExecutionId) {
         this(id, processId, workflowDefinitionId, stepId, stepJson, stepType, variables, status, workerId,
                 order, startedAt, finishedAt, attemptCount, deadlineAt, awaitingMessageName,
-                awaitingCorrelationKey, null, null, version, injectedByStepExecutionId, null);
+                awaitingCorrelationKey, null, null, version, injectedByStepExecutionId, null,
+                null, null, null, null, null, null, null);
     }
 
 }

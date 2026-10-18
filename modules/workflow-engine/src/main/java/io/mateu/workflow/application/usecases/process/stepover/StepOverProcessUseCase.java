@@ -92,10 +92,20 @@ public class StepOverProcessUseCase {
                         processTrace.contextFor(command.processId()),
                         "eventconductor.step-over",
                         java.util.Map.of("eventconductor.process.id", command.processId()),
-                        () -> doHandle(command)));
+                        () -> {
+                            // A pass that materialised executions (forEach iterations, a loop's next
+                            // pass) saved them CREATED; the next pass, now that they are stored, starts
+                            // them. Bounded: each follow-up only starts what the one before created.
+                            for (int passes = 0; passes < MAX_FOLLOW_UP_PASSES && doHandle(command); passes++) {
+                                log.debug("Step-over of process {} runs a follow-up pass", command.processId());
+                            }
+                        }));
     }
 
-    private void doHandle(StepOverProcessCommand command) {
+    private static final int MAX_FOLLOW_UP_PASSES = 8;
+
+    /** @return whether another pass should run right away (see {@code TransitionResult.followUp}) */
+    private boolean doHandle(StepOverProcessCommand command) {
         // Steps first, process second, and the order is load-bearing. This query auto-flushes
         // whatever writes are pending on JPA — including a version bump on this very process, left
         // by a caller that saved it just before (ResumeProcessUseCase does exactly that). Mapping
@@ -111,11 +121,18 @@ public class StepOverProcessUseCase {
         // makes no progress at all until it is admitted. Reentrant, so once this instance holds the
         // lock every later step-over sails through; the terminal-state releaseAll below frees it.
         if (!holdsProcessLockOrParks(process)) {
-            return;
+            return false;
         }
 
         // Taken before the transition: in memory mode start() moves the very instances read above.
         var pendingBefore = alreadyPending(stepExecutions);
+        // Status as it was before the transition decided anything — taken now, because the
+        // orchestration service moves some executions in place (a step it starts, an iteration it
+        // cancels); this is the only way to tell a step that was merely waiting its turn from one a
+        // worker is running right now.
+        var statusBefore = stepExecutions.stream()
+                .collect(java.util.stream.Collectors.toMap(StepExecution::getId, StepExecution::getStatus));
+
         var result = workflowOrchestrationService.calculateNextTransitions(process, stepExecutions);
 
         // Resolve any LOCK/UNLOCK step that just started this pass. It runs in this same transaction,
@@ -136,13 +153,6 @@ public class StepOverProcessUseCase {
             processRepository.save(result.getUpdatedProcess());
         }
         tagOutcome(result.getUpdatedProcess(), result.getStepsToSave());
-
-        // Status as it was before the transition decided anything. The orchestration service is
-        // pure and hands back copies (@With), so the list read above still holds the old values —
-        // which is the only way to tell a step that was merely waiting its turn from one a worker
-        // is running right now.
-        var statusBefore = stepExecutions.stream()
-                .collect(java.util.stream.Collectors.toMap(StepExecution::getId, StepExecution::getStatus));
 
         result.getStepsToSave().forEach(stepExecution -> {
             stepExecutionRepository.save(stepExecution);
@@ -201,6 +211,7 @@ public class StepOverProcessUseCase {
             // finally known, so it is where it can be written out as a trace.
             recordProcessTraceService.processReachedTerminalStatus(result.getUpdatedProcess());
         }
+        return result.isFollowUp();
     }
 
     /**

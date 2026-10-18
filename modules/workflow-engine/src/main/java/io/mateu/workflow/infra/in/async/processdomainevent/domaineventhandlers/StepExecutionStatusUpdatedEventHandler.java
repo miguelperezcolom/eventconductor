@@ -135,7 +135,19 @@ public class StepExecutionStatusUpdatedEventHandler implements DomainEventHandle
                 // time (CREATED); start() dispatches it. Only one is ever in flight, so the
                 // reverse-order chain advances one completion at a time.
                 var compensation = decision.next();
-                compensation.start(process);
+                if (decision.isMultiUnit()) {
+                    // Several completed runs to undo — a forEach's iterations, a loop's passes: the
+                    // compensation runs once per run, newest first, each seeing the run it undoes
+                    // (its item and index, and what it reported). The step-over below starts the first.
+                    var units = decision.units();
+                    compensation.beginIterations(process, units.size(), units.get(0).getStepId());
+                    for (int i = 0; i < units.size(); i++) {
+                        stepExecutionRepository.save(io.mateu.workflow.domain.aggregates.StepExecution.iterationOf(
+                                compensation, compensation.getStepJson(), i, compensationScope(units.get(i))));
+                    }
+                } else {
+                    compensation.start(process);
+                }
                 stepExecutionRepository.save(compensation);
                 workflowMetrics.compensationTriggered(compensation.getWorkflowDefinitionId());
             }
@@ -147,6 +159,22 @@ public class StepExecutionStatusUpdatedEventHandler implements DomainEventHandle
             case FAILED -> markCompensationFailed(process, executions);
             case NONE, WAITING -> { /* nothing to start now */ }
         }
+    }
+
+    /**
+     * What one run of a compensation over several units sees laid over the process: for a forEach
+     * iteration, its item and index and everything it reported (the reservation id to release); for a
+     * loop's pass, {@code iteration}, the 1-based number of that pass.
+     */
+    private static java.util.Map<String, String> compensationScope(StepExecution unit) {
+        var scope = new java.util.LinkedHashMap<String, String>();
+        if (unit.isIteration()) {
+            scope.putAll(unit.scope());
+            scope.putAll(unit.output());
+        } else {
+            scope.put("iteration", String.valueOf(unit.getIteration() + 1));
+        }
+        return scope;
     }
 
     /**

@@ -62,7 +62,15 @@ public class StepExecutionDBRepository implements StepExecutionRepository {
                 entity.getAwaitingCorrelationKey(),
                 entity.getVersion(),
                 entity.getInjectedByStepExecutionId(),
-                entity.getDispatchCount() == null ? 0 : entity.getDispatchCount()
+                entity.getDispatchCount() == null ? 0 : entity.getDispatchCount(),
+                // Loops and forEach (V47): rows written before read as the first pass of an ordinary step.
+                entity.getIteration() == null ? 0 : entity.getIteration(),
+                Boolean.TRUE.equals(entity.getSuperseded()),
+                entity.getLoopDecision(),
+                entity.getParentExecutionId(),
+                entity.getItemIndex(),
+                entity.getScopeJson(),
+                entity.getOutputJson()
         );
     }
 
@@ -89,6 +97,13 @@ public class StepExecutionDBRepository implements StepExecutionRepository {
                 stepExecution.getInjectedByStepExecutionId()
         );
         entity.setDispatchCount(stepExecution.getDispatchCount());
+        entity.setIteration(stepExecution.getIteration());
+        entity.setSuperseded(stepExecution.isSuperseded());
+        entity.setLoopDecision(stepExecution.getLoopDecision());
+        entity.setParentExecutionId(stepExecution.getParentExecutionId());
+        entity.setItemIndex(stepExecution.getItemIndex());
+        entity.setScopeJson(stepExecution.getScopeJson());
+        entity.setOutputJson(stepExecution.getOutputJson());
         stepExecutionEntityRepository.save(entity);
 
         // Captured here, at the one moment the event and the context that produced it are both

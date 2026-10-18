@@ -18,8 +18,19 @@ import java.util.Map;
 public final class TemplateContext {
 
     public static Map<String, Object> of(Process process, Step step, String stepExecutionId) {
+        return of(process, step, stepExecutionId, null);
+    }
+
+    /**
+     * The same, with a forEach iteration's scope laid over the variables — typed, so a template reads
+     * {@code ${room.number}} off an item that is an object.
+     */
+    public static Map<String, Object> of(Process process, Step step, String stepExecutionId, Map<String, Object> scope) {
         var context = new HashMap<String, Object>();
         process.getVariables().forEach(variable -> context.put(variable.name(), variable.value()));
+        if (scope != null) {
+            context.putAll(scope);
+        }
         var processInfo = new LinkedHashMap<String, Object>();
         processInfo.put("id", process.getId());
         processInfo.put("businessKey", process.getBusinessKey());

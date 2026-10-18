@@ -100,8 +100,14 @@ public class UpdateStepExecutionUseCase {
         }
         var process = processRepository.findById(execution.getProcessId())
                 .orElseThrow(() -> new UnknownProcessException(execution.getProcessId()));
-        process.updateVariables(command.variables());
-        processRepository.save(process);
+        if (execution.isIteration()) {
+            // A forEach iteration never writes the process: parallel iterations would race on the same
+            // variables. What it reports stays on it, for its container's output to collect.
+            execution.recordOutput(command.variables());
+        } else {
+            process.updateVariables(command.variables());
+            processRepository.save(process);
+        }
 
         if (awaitsReply && StepExecutionStatus.COMPLETED.equals(command.status())) {
             // The request was answered (2xx, response mapped into the process above), but the step is

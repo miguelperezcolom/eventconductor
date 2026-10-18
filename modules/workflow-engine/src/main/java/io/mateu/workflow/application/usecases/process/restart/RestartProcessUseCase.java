@@ -100,7 +100,17 @@ public class RestartProcessUseCase {
                 downstreamEventPublisher.publish(new TaskCancellationRequested(stepExecution.getId()),
                         stepExecution.topic());
             }
-            stepExecution.resetForRerun();
+            if (io.mateu.workflow.domain.services.StepExecutions.isCurrent(stepExecution)) {
+                stepExecution.resetForRerun();
+            } else {
+                // A loop's earlier pass or a forEach iteration belongs to the run being thrown away:
+                // kept as history, but discarded — it is neither the step's execution any more nor a
+                // unit of work the saga would undo, and it no longer counts against a loop's cap.
+                if (!stepExecution.getStatus().isTerminal()) {
+                    stepExecution.cancelQuietly();
+                }
+                stepExecution.supersede(io.mateu.workflow.domain.aggregates.StepExecution.LOOP_DISCARDED);
+            }
             stepExecutionRepository.save(stepExecution);
         }
         workflowMetrics.retryPerformed(process.getWorkflowDefinitionId(),
@@ -127,6 +137,8 @@ public class RestartProcessUseCase {
      */
     private List<Variable> variablesTheProcessStartedWith(List<StepExecution> stepExecutions) {
         return stepExecutions.stream()
+                // Not an iteration: its frozen variables carry its item laid over the process's.
+                .filter(stepExecution -> stepExecution.getParentExecutionId() == null)
                 .filter(stepExecution -> stepExecution.getStartedAt() != null)
                 .min(Comparator.comparingLong(StepExecution::getOrder))
                 .map(StepExecution::getVariables)

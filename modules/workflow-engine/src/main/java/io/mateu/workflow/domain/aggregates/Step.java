@@ -265,7 +265,23 @@ public record Step(
          */
         @Hidden
         @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
-        AwaitReply awaitReply
+        AwaitReply awaitReply,
+        /**
+         * Multi-instance: run this step once per element of a list (see {@link ForEach}). Left out of
+         * the JSON when absent, so a step that declares none hashes into a definition version exactly
+         * as before.
+         */
+        @Hidden
+        @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+        ForEach forEach,
+        /** Run this step again until a condition holds (see {@link Repeat}). Absent = runs once. */
+        @Hidden
+        @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+        Repeat repeat,
+        /** An explicit back-edge re-running the section from {@code to} to this step (see {@link LoopBack}). */
+        @Hidden
+        @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+        LoopBack loopBack
 ) implements Identifiable {
 
     public Step {
@@ -320,6 +336,37 @@ public record Step(
         return withMessageName(awaitReply.messageName())
                 .withCorrelationExpression(awaitReply.correlationExpression())
                 .withOnEvent(awaitReply.onEvent());
+    }
+
+    /** The shape this record had before loops and multi-instance, so every caller of the full constructor keeps compiling. */
+    public Step(String id, String workflowDefinitionId, StepType type, String name, String description,
+                String preconditionStepId, List<String> preconditionStepIds, List<Precondition> preconditions,
+                String preconditionExpression, boolean parallel, String topic, String formId, String ruleId,
+                String childWorkflowDefinitionId, List<String> outputVariables, long duration,
+                String untilVariable, String messageName, String correlationExpression,
+                List<String> messageVariables, long timeout, int retries, boolean compensable,
+                String compensationStepId, String onTimeoutStepId, int maxSuccessfulExecutions,
+                JoinType joinType, List<String> requiredScopes, List<String> requiredRoles,
+                String lockName, String lockKey, String task, List<String> replyVariables,
+                String replyExpression, Object replyTemplate, PublishEvent event, HttpCall http,
+                Moment until, Moment deadline, LlmCall llm, EventWait onEvent, AwaitReply awaitReply) {
+        this(id, workflowDefinitionId, type, name, description, preconditionStepId, preconditionStepIds,
+                preconditions, preconditionExpression, parallel, topic, formId, ruleId,
+                childWorkflowDefinitionId, outputVariables, duration, untilVariable, messageName,
+                correlationExpression, messageVariables, timeout, retries, compensable, compensationStepId,
+                onTimeoutStepId, maxSuccessfulExecutions, joinType, requiredScopes, requiredRoles,
+                lockName, lockKey, task, replyVariables, replyExpression, replyTemplate, event, http, until, deadline,
+                llm, onEvent, awaitReply, null, null, null);
+    }
+
+    /** Whether this step runs once per element of a list. */
+    public boolean isMultiInstance() {
+        return forEach != null;
+    }
+
+    /** Whether completing this step may send the flow round again (a {@code repeat} or a {@code loopBack}). */
+    public boolean loops() {
+        return repeat != null || loopBack != null;
     }
 
     /**

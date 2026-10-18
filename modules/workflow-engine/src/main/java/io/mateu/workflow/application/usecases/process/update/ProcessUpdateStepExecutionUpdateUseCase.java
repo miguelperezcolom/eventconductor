@@ -51,7 +51,11 @@ public class ProcessUpdateStepExecutionUpdateUseCase {
         apply(process, executions);
     }
 
-    private void apply(Process process, List<StepExecution> executions) {
+    private void apply(Process process, List<StepExecution> allExecutions) {
+        // The current execution of each step: a loop's earlier passes are history and a forEach's
+        // iterations answer to their container — counting them would skew both the percentage and
+        // the status (a pass that was re-run is not a failure; a container decides for its items).
+        var executions = io.mateu.workflow.domain.services.StepExecutions.current(allExecutions);
         var previousStatus = process.getStatus();
         // One pass over the steps for everything the status derives from: how many completed,
         // whether any is still live, whether any has finally failed.

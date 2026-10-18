@@ -1171,7 +1171,7 @@
             "integer",
             "null"
           ],
-          "description": "Cap on how many times this step may successfully run within one process instance (runtime backstop against runaway loops). 0 or null inherits the workflow's defaultMaxStepExecutions.",
+          "description": "Cap on how many times this step may successfully run within one process instance — enforced when a repeat or loopBack would run it again (the step then fails). 0 or null inherits the workflow's defaultMaxStepExecutions; both 0 = only the loop's own maxIterations and workflow.loops.max-iterations bound it.",
           "minimum": 0,
           "default": 0
         },
@@ -1207,6 +1207,149 @@
             "type": "string"
           },
           "description": "Flow authorization: the roles the caller must ALL hold for this step to run. See requiredScopes."
+        },
+        "forEach": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "description": "ACTION, USER_TASK, PROCESS, HTTP_CALL, LLM_CALL and RULE only: multi-instance — run this step once per element of a list. Each iteration is its own task (own id, retries, timeout, compensation) and sees the process variables with `as` and `indexAs` laid over them; nothing it reports is written to the process — `output` collects it. One iteration failing for good fails the step. See the 'Loops and multi-instance' guide.",
+          "additionalProperties": false,
+          "required": [
+            "items"
+          ],
+          "properties": {
+            "items": {
+              "type": "string",
+              "description": "JEXL over the process variables giving the list to run over. A variable holding a JSON array or object is read as that structure here (e.g. `order.lines`). Evaluated once, when the step starts."
+            },
+            "as": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "The variable an iteration finds its element in. Default: item. Objects reach workers as JSON text and HTTP/LLM templates as structure (`${item.id}`)."
+            },
+            "indexAs": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "The variable an iteration finds its 0-based position in. Default: index."
+            },
+            "mode": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "enum": [
+                "parallel",
+                "sequential",
+                null
+              ],
+              "description": "parallel (default): every iteration may run at once, up to maxConcurrency. sequential: one at a time, in list order.",
+              "default": "parallel"
+            },
+            "maxConcurrency": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1,
+              "description": "parallel only: the most iterations in flight at once. Absent = no limit."
+            },
+            "output": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "A process variable that receives, when the step completes, a JSON array with one element per item, in item order (null for an iteration that did not complete)."
+            },
+            "outputElement": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "JEXL over what one iteration reported (plus `as`/`indexAs`) giving its element of `output`. Default: an object of everything it reported."
+            },
+            "completion": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "all (default): every iteration completes. any: the first completed iteration completes the step and cancels the rest. Anything else is a JEXL condition, checked after each completed iteration over the process variables, the output gathered so far and completedIterations/totalIterations/activeIterations.",
+              "default": "all"
+            }
+          }
+        },
+        "repeat": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "description": "ACTION, USER_TASK, PROCESS, HTTP_CALL, LLM_CALL and RULE only: run this step again until a condition holds — the polling pattern. Each time it completes, `until` is evaluated once; while it is false the step runs again (as a new execution) after `delay`. Exclusive with forEach.",
+          "additionalProperties": false,
+          "required": [
+            "until",
+            "maxIterations"
+          ],
+          "properties": {
+            "until": {
+              "type": "string",
+              "description": "JEXL condition that ends the repetition, over the process variables (with what the run just reported) plus `iteration`, the 1-based number of that run."
+            },
+            "maxIterations": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "The most times the step may run, the first included. Needing one more fails the step (final, not retried)."
+            },
+            "delay": {
+              "type": [
+                "integer",
+                "string",
+                "null"
+              ],
+              "description": "Wait before each new run: milliseconds, or an ISO-8601 duration (e.g. PT30S). 0 or absent = at once."
+            }
+          }
+        },
+        "loopBack": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "description": "An explicit back-edge: when this step completes and `while` holds, every step on a path from `to` to this one (both included) runs again — with fresh executions, so JOINs, XOR joins and CHOICE latches inside start over; variables carry over. Ordinary precondition cycles stay an error. Not on START, END or REPLY.",
+          "additionalProperties": false,
+          "required": [
+            "to",
+            "maxIterations"
+          ],
+          "properties": {
+            "to": {
+              "type": "string",
+              "description": "The step the loop goes back to; must be upstream of this step."
+            },
+            "while": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "JEXL condition over the process variables plus `iteration` (1-based number of the pass that just ended). Absent = always: put the loopBack on a CHOICE branch to make the CHOICE the condition."
+            },
+            "maxIterations": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "The most times the section may run, the first pass included. Needing one more fails this step (final)."
+            },
+            "delay": {
+              "type": [
+                "integer",
+                "string",
+                "null"
+              ],
+              "description": "Wait before each new run: milliseconds, or an ISO-8601 duration (e.g. PT30S). 0 or absent = at once."
+            }
+          }
         }
       },
       "allOf": [

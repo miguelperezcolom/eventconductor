@@ -28,11 +28,16 @@ public final class HttpRequestRenderer {
     private static final com.fasterxml.jackson.databind.ObjectMapper JSON = new com.fasterxml.jackson.databind.ObjectMapper();
 
     public static String render(Step step, Process process, String stepExecutionId) {
+        return render(step, process, stepExecutionId, null);
+    }
+
+    /** The same, rendered with a forEach iteration's typed scope laid over the variables. */
+    public static String render(Step step, Process process, String stepExecutionId, Map<String, Object> scope) {
         var http = step.http();
         if (http == null) {
             throw new IllegalArgumentException("HTTP_CALL step '" + step.id() + "' has no http block.");
         }
-        var context = TemplateContext.of(process, step, stepExecutionId);
+        var context = TemplateContext.of(process, step, stepExecutionId, scope);
         var request = new LinkedHashMap<String, Object>();
         request.put("method", http.method() == null ? "GET" : http.method().toUpperCase());
         request.put("connection", http.connection());

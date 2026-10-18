@@ -48,6 +48,11 @@ public class RetryStepExecutionUseCase {
 
     private void doHandle(RetryStepExecutionCommand command) {
         var stepExecution = stepExecutionRepository.findById(command.stepExecutionId()).orElseThrow();
+        if (stepExecution.isIteration()) {
+            // An iteration is retried through its container: the container re-runs every failed or
+            // cancelled iteration, each with a fresh retry budget, and keeps the completed ones.
+            stepExecution = stepExecutionRepository.findById(stepExecution.getParentExecutionId()).orElseThrow();
+        }
 
         if (!retriesStepFrom(stepExecution.getStatus())) {
             return;

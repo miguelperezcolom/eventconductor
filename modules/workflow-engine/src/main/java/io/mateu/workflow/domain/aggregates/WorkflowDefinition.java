@@ -860,6 +860,16 @@ public record WorkflowDefinition(
         for (var start : preconditions.keySet()) {
             checkNoPreconditionCycle(start, preconditions, new java.util.LinkedHashSet<>(), acyclic);
         }
+        // Loops and multi-instance: their shape (shared with the Maven plugin), then their expressions.
+        // After the cycle check too: a loop's section is computed over the acyclic graph.
+        var loops = loopAnalysis();
+        if (!loops.isValid()) {
+            throw new IllegalStateException(String.join(" ", loops.errors()));
+        }
+        var loopExpressionProblems = loopExpressionProblems();
+        if (!loopExpressionProblems.isEmpty()) {
+            throw new IllegalStateException(String.join(" ", loopExpressionProblems));
+        }
         // At most one REPLY per run, and a sync-invocable definition must be able to reply at all.
         // Checked after the cycle check: the analysis assumes the graph is acyclic.
         var replyAnalysis = replyAnalysis();
@@ -921,6 +931,44 @@ public record WorkflowDefinition(
         return io.mateu.workflow.analysis.ReplyPathAnalyzer.analyze(nodes, isSyncInvocable());
     }
 
+    /**
+     * The loop and multi-instance rules — shared, as code, with the Maven plugin's build-time
+     * validation (definition-analysis {@code LoopRules}).
+     */
+    private io.mateu.workflow.analysis.LoopRules.Report loopAnalysis() {
+        var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        var nodes = steps.stream()
+                .filter(step -> step.id() != null)
+                .map(step -> new io.mateu.workflow.analysis.LoopRules.Node(step.id(),
+                        step.type() == null ? null : step.type().name(), step.preconditionIds(),
+                        step.compensationStepId(),
+                        step.forEach() == null ? null : mapper.convertValue(step.forEach(), Map.class),
+                        step.repeat() == null ? null : mapper.convertValue(step.repeat(), Map.class),
+                        step.loopBack() == null ? null : mapper.convertValue(step.loopBack(), Map.class)))
+                .toList();
+        return io.mateu.workflow.analysis.LoopRules.analyze(nodes);
+    }
+
+    /** Every JEXL expression in a forEach, repeat or loopBack must parse. */
+    private List<String> loopExpressionProblems() {
+        var problems = new java.util.ArrayList<String>();
+        for (var step : steps) {
+            var where = "Step '" + step.id() + "'";
+            if (step.forEach() != null) {
+                problems.addAll(io.mateu.workflow.template.Templates.expressionProblems(step.forEach().items(), where + " forEach.items"));
+                problems.addAll(io.mateu.workflow.template.Templates.expressionProblems(step.forEach().outputElement(), where + " forEach.outputElement"));
+                problems.addAll(io.mateu.workflow.template.Templates.expressionProblems(step.forEach().completionCondition(), where + " forEach.completion"));
+            }
+            if (step.repeat() != null) {
+                problems.addAll(io.mateu.workflow.template.Templates.expressionProblems(step.repeat().until(), where + " repeat.until"));
+            }
+            if (step.loopBack() != null) {
+                problems.addAll(io.mateu.workflow.template.Templates.expressionProblems(step.loopBack().condition(), where + " loopBack.while"));
+            }
+        }
+        return problems;
+    }
+
     /** The steps some other step names as its {@code compensationStepId}. */
     private java.util.Set<String> compensationTargets() {
         var targets = new java.util.HashSet<String>();
@@ -967,6 +1015,7 @@ public record WorkflowDefinition(
             }
         }
         warnings.addAll(choiceWithoutDefaultWarnings());
+        warnings.addAll(loopAnalysis().warnings());
         warnings.addAll(replyAnalysis().warnings());
         // Wait fields written on a request step instead of inside its awaitReply: ignored, as they always
         // were — a warning, so a definition that carries them keeps loading.

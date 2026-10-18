@@ -124,7 +124,10 @@ public class InjectStepsUseCase {
                 .filter(maxSteps -> maxSteps > 0)
                 .orElse(maxStepsPerProcess);
 
-        var rejection = validate(injectedSteps, existingExecutions, effectiveBudget);
+        // Judged on the current execution of each step: a loop's earlier passes and a forEach's iterations
+        // are runs of steps already counted, not more steps.
+        var rejection = validate(injectedSteps,
+                io.mateu.workflow.domain.services.StepExecutions.current(existingExecutions), effectiveBudget);
         if (rejection != null) {
             reject(injectingStep, rejection);
             return;

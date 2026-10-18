@@ -43,9 +43,25 @@ public class CompensationService {
         FAILED
     }
 
-    public record Decision(Outcome outcome, StepExecution next) {
+    /**
+     * @param next  the compensation to start, for {@link Outcome#RUN}
+     * @param units what it undoes, newest first: the completed runs of the compensated step — one for
+     *              an ordinary step (then {@code next} runs once, as it always did), one per completed
+     *              iteration of a forEach or per completed pass of a loop (then {@code next} runs once
+     *              per unit, see {@link #isMultiUnit()})
+     */
+    public record Decision(Outcome outcome, StepExecution next, List<StepExecution> units) {
+        public Decision(Outcome outcome, StepExecution next) {
+            this(outcome, next, List.of());
+        }
+
         static Decision of(Outcome outcome) {
-            return new Decision(outcome, null);
+            return new Decision(outcome, null, List.of());
+        }
+
+        /** Whether the compensation must run once per unit rather than once. */
+        public boolean isMultiUnit() {
+            return units.size() > 1 || units.stream().anyMatch(StepExecution::isIteration);
         }
     }
 
@@ -54,23 +70,43 @@ public class CompensationService {
      * @return what to do next to advance (or finish) the compensation of that process
      */
     public Decision decide(List<StepExecution> executions) {
-        boolean failed = executions.stream().anyMatch(CompensationService::failsTheProcess);
+        // The process's failure, its compensations and their progress are read off the current
+        // execution of each step; the units of work to undo are every completed run.
+        var current = StepExecutions.current(executions);
+        boolean failed = current.stream().anyMatch(CompensationService::failsTheProcess);
         if (!failed) {
             return Decision.of(Outcome.NONE);
         }
 
         Map<String, StepExecution> byStepId = new HashMap<>();
-        for (var execution : executions) {
+        for (var execution : current) {
             byStepId.put(execution.getStepId(), execution);
         }
+
+        // Every completed run, grouped by step: a top-level execution that completed (a loop's earlier
+        // passes included), or a completed iteration of a forEach — the container is not a unit, its
+        // iterations are, whether it went on to complete or failed after some of them did.
+        var unitsByStep = new java.util.LinkedHashMap<String, List<StepExecution>>();
+        for (var execution : executions) {
+            if (!succeeded(execution.getStatus())
+                    || StepExecution.LOOP_DISCARDED.equals(execution.getLoopDecision())
+                    || (execution.isIteration() && execution.isSuperseded())
+                    || (!execution.isIteration() && execution.isContainer())) {
+                continue;
+            }
+            unitsByStep.computeIfAbsent(execution.getStepId(), k -> new java.util.ArrayList<>()).add(execution);
+        }
+        // A compensation run over several units is itself a container; its iterations are not units.
+        executions.stream()
+                .filter(e -> e.isContainer() && !e.isIteration() && e.compensatedStepId() != null)
+                .forEach(e -> unitsByStep.remove(e.getStepId()));
 
         // Steps that COMPLETED successfully and declare a compensation, ordered latest-completed
         // first so we undo them in reverse. A step that failed (ERROR/TIMEOUT) is deliberately
         // excluded: it committed nothing to undo, so compensating it would reverse work that never
-        // happened.
-        var toCompensate = executions.stream()
-                .filter(e -> succeeded(e.getStatus()))
-                .map(e -> new Compensable(e, step(e)))
+        // happened — but the iterations of a forEach that did complete did commit theirs.
+        var toCompensate = unitsByStep.values().stream()
+                .map(units -> new Compensable(newestFirst(units), step(units.get(0))))
                 .filter(c -> c.step().compensable()
                         && c.step().compensationStepId() != null
                         && !c.step().compensationStepId().isBlank())
@@ -94,17 +130,31 @@ public class CompensationService {
             }
             switch (compensation.getStatus()) {
                 case COMPLETED -> { /* already undone — look further back in the chain */ }
-                case CREATED -> { return new Decision(Outcome.RUN, compensation); }
+                case CREATED -> { return new Decision(Outcome.RUN, compensation, compensable.units()); }
                 // AWAITING_RETRY is a compensation waiting out its own backoff before retrying —
                 // still in flight, so wait for it, exactly like PENDING/RUNNING.
-                case PENDING, RUNNING, AWAITING_RETRY -> { return Decision.of(Outcome.WAITING); }
+                case PENDING, RUNNING, AWAITING_RETRY, WAITING_ON_LOCK -> { return Decision.of(Outcome.WAITING); }
                 case ERROR, TIMEOUT, CANCELLED -> { return Decision.of(Outcome.FAILED); }
             }
         }
         return Decision.of(Outcome.DONE);
     }
 
-    private record Compensable(StepExecution execution, Step step) {}
+    private static List<StepExecution> newestFirst(List<StepExecution> units) {
+        return units.stream()
+                .sorted(Comparator.comparing(StepExecution::getFinishedAt, Comparator.nullsFirst(Comparator.naturalOrder()))
+                        .thenComparing(StepExecution::getIteration)
+                        .thenComparing(e -> e.getItemIndex() == null ? 0 : e.getItemIndex())
+                        .reversed())
+                .toList();
+    }
+
+    /** A compensable step and its completed units, newest first — the first is the one ordered by. */
+    private record Compensable(List<StepExecution> units, Step step) {
+        StepExecution execution() {
+            return units.get(0);
+        }
+    }
 
     // finishedAt DESC (latest-completed first), tie-broken by definition order DESC. finishedAt
     // is always set for a COMPLETED step (the terminal status stamps it); nullsFirst is defensive.

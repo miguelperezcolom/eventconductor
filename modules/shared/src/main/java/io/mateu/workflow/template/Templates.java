@@ -128,6 +128,20 @@ public final class Templates {
         return problems;
     }
 
+    /** Problems with one bare JEXL expression (not a template): it must parse. Empty when it does or is blank. */
+    public static List<String> expressionProblems(String expression, String where) {
+        if (expression == null || expression.isBlank()) {
+            return List.of();
+        }
+        try {
+            ExpressionGuard.check(expression, where);
+            JEXL.createExpression(expression);
+            return List.of();
+        } catch (RuntimeException e) {
+            return List.of(where + ": '" + expression + "' is not a valid expression (" + firstLine(e.getMessage()) + ")");
+        }
+    }
+
     private static Object renderLeaf(String text, Map<String, ?> context) {
         if (!TemplateSyntax.isTemplate(text)) {
             return text;
