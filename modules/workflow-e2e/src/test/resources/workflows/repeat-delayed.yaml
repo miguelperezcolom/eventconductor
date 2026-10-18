@@ -1,0 +1,15 @@
+id: repeat-delayed
+name: Poll with a delay
+version: 1
+steps:
+  - { id: start, type: START, name: Start }
+  - id: poll
+    type: ACTION
+    name: Poll
+    topic: work
+    preconditionStepId: start
+    repeat:
+      until: "iteration >= 3"
+      maxIterations: 5
+      delay: PT0.3S
+  - { id: end, type: END, name: End, preconditionStepId: poll }

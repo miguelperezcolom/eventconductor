@@ -1,0 +1,22 @@
+id: foreach-rooms
+name: Reserve every room
+version: 1
+steps:
+  - { id: start, type: START, name: Start }
+  - id: reserve
+    type: ACTION
+    name: Reserve a room
+    topic: work
+    preconditionStepId: start
+    retries: 1
+    compensable: true
+    compensationStepId: release
+    forEach:
+      items: rooms
+      as: room
+      indexAs: roomIndex
+      output: reservations
+      outputElement: reservationId
+  - { id: confirm, type: ACTION, name: Confirm, topic: work, preconditionStepId: reserve }
+  - { id: release, type: ACTION, name: Release a room, topic: work }
+  - { id: end, type: END, name: End, preconditionStepId: confirm }

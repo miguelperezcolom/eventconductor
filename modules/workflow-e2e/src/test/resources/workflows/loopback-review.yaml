@@ -1,0 +1,24 @@
+id: loopback-review
+name: Draft until approved
+version: 1
+steps:
+  - { id: start, type: START, name: Start }
+  - { id: draft, type: ACTION, name: Draft, topic: work, preconditionStepId: start }
+  - { id: review, type: ACTION, name: Review, topic: work, preconditionStepId: draft }
+  - { id: decide, type: CHOICE, name: "Approved?", preconditionStepId: review }
+  - id: rework
+    type: ACTION
+    name: Ask for rework
+    topic: work
+    preconditions:
+      - { stepId: decide, expression: "verdict == 'REWORK'" }
+    loopBack:
+      to: draft
+      maxIterations: 3
+  - id: publish
+    type: ACTION
+    name: Publish
+    topic: work
+    preconditions:
+      - { stepId: decide }
+  - { id: end, type: END, name: End, preconditionStepId: publish }

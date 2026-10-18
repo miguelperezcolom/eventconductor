@@ -1,0 +1,15 @@
+id: repeat-capped
+name: Capped by maxSuccessfulExecutions
+version: 1
+defaultMaxStepExecutions: 3
+steps:
+  - { id: start, type: START, name: Start }
+  - id: poll
+    type: ACTION
+    name: Poll
+    topic: work
+    preconditionStepId: start
+    repeat:
+      until: "done == 'yes'"
+      maxIterations: 10
+  - { id: end, type: END, name: End, preconditionStepId: poll }

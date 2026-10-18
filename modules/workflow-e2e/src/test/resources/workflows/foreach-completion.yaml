@@ -1,0 +1,25 @@
+id: foreach-completion
+name: Enough quotes
+version: 1
+steps:
+  - { id: start, type: START, name: Start }
+  - id: quote
+    type: ACTION
+    name: Ask a supplier
+    topic: work
+    preconditionStepId: start
+    forEach:
+      items: suppliers
+      as: supplier
+      output: quotes
+      outputElement: price
+      completion: "completedIterations >= 2"
+  - id: first
+    type: ACTION
+    name: First answer wins
+    topic: work
+    preconditionStepId: quote
+    forEach:
+      items: suppliers
+      completion: any
+  - { id: end, type: END, name: End, preconditionStepId: first }

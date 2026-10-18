@@ -1,0 +1,15 @@
+id: repeat-poll
+name: Poll until settled
+version: 1
+steps:
+  - { id: start, type: START, name: Start }
+  - id: poll
+    type: ACTION
+    name: Poll the payment
+    topic: work
+    preconditionStepId: start
+    repeat:
+      until: "paymentStatus == 'SETTLED'"
+      maxIterations: 4
+  - { id: ship, type: ACTION, name: Ship, topic: work, preconditionStepId: poll }
+  - { id: end, type: END, name: End, preconditionStepId: ship }

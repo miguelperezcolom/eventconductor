@@ -1,0 +1,19 @@
+id: loopback-while
+name: Fork and join, again while asked
+version: 1
+steps:
+  - { id: start, type: START, name: Start }
+  - { id: fork, type: FORK, name: Fork, preconditionStepId: start }
+  - { id: a, type: ACTION, name: A, topic: work, preconditionStepId: fork }
+  - { id: b, type: ACTION, name: B, topic: work, preconditionStepId: fork }
+  - { id: join, type: JOIN, name: Join, preconditionStepIds: [a, b] }
+  - id: check
+    type: ACTION
+    name: Check
+    topic: work
+    preconditionStepId: join
+    loopBack:
+      to: fork
+      while: "again == 'yes'"
+      maxIterations: 3
+  - { id: end, type: END, name: End, preconditionStepId: check }
