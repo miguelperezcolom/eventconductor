@@ -32,6 +32,15 @@ public class WorkflowDefinitionDBRepository implements WorkflowDefinitionReposit
     // repository that cannot be built without them would make every test harness wire them too.
     private org.springframework.beans.factory.ObjectProvider<io.mateu.workflow.application.out.EventTriggerRepository> eventTriggers;
     private org.springframework.beans.factory.ObjectProvider<io.mateu.workflow.application.out.TriggerPauseRepository> triggerPauses;
+    // Programmatic, not @Transactional: an annotation would make this bean a CGLIB proxy, and the
+    // admin UI's view models hold it as a field that Mateu serializes — a proxy serializes into a
+    // self-referencing cycle and every process detail page fails.
+    private org.springframework.beans.factory.ObjectProvider<org.springframework.transaction.support.TransactionTemplate> transactions;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setTransactions(org.springframework.beans.factory.ObjectProvider<org.springframework.transaction.support.TransactionTemplate> transactions) {
+        this.transactions = transactions;
+    }
 
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     void setTriggerStores(
@@ -202,8 +211,17 @@ public class WorkflowDefinitionDBRepository implements WorkflowDefinitionReposit
     }
 
     @Override
-    @org.springframework.transaction.annotation.Transactional
     public void deleteAllById(List<String> selectedIds) {
+        var tx = transactions == null ? null : transactions.getIfAvailable();
+        if (tx == null) {
+            doDeleteAllById(selectedIds);
+            return;
+        }
+        tx.executeWithoutResult(status -> doDeleteAllById(selectedIds));
+    }
+
+    /** The definitions and their UI/API triggers and pauses go together, or not at all. */
+    private void doDeleteAllById(List<String> selectedIds) {
         selectedIds.stream().map(workflowDefinitionEntityRepository::findById)
                 .map(Optional::orElseThrow)
                 .filter(entity -> WorkflowStatus.of(entity.getRuntimeStatus(), false, false)
