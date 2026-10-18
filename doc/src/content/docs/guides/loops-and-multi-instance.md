@@ -202,8 +202,9 @@ over (`∥ rooms`, `⇣ lines` for sequential), a repeating step carries a `↻ 
 shows `completed/total` iterations and a looped node how many times it ran (`×3`).
 
 In storage, a pass is a step execution with `iteration` > 0 (the one it replaced `superseded`), and an
-iteration is one with a `parentExecutionId` (its forEach) and an `itemIndex`. Analytics count every
-one of them as a run of its step.
+iteration is one with a `parentExecutionId` (its forEach) and an `itemIndex`. Analytics count every pass and every
+iteration as a run of its step; a forEach's container is not one — a forEach of N items is N runs
+(their durations included), and the definition graph counts a process once per step.
 
 ## Configuration
 

@@ -139,6 +139,20 @@ abstract class AnalyticsReadModelContract {
                 id, processId, definition, stepId, status.name(), order, ts(startedAt), ts(finishedAt));
     }
 
+    /** A forEach: its container (top-level, carrying a scope) and its iterations (with a parent). */
+    void multiInstance(String id, String processId, String definition, String stepId, StepExecutionStatus status,
+                       LocalDateTime startedAt, LocalDateTime finishedAt) {
+        step(id, processId, definition, stepId, status, 1, startedAt, finishedAt);
+        jdbc.update("UPDATE step_execution_entity SET scope_json = ? WHERE id = ?", "{\"total\":2}", id);
+    }
+
+    void iteration(String id, String containerId, String processId, String definition, String stepId,
+                   StepExecutionStatus status, int index, LocalDateTime startedAt, LocalDateTime finishedAt) {
+        step(id, processId, definition, stepId, status, 1, startedAt, finishedAt);
+        jdbc.update("UPDATE step_execution_entity SET parent_execution_id = ?, item_index = ?, scope_json = ? WHERE id = ?",
+                containerId, index, "{\"item\":\"" + index + "\"}", id);
+    }
+
     void finishProcess(String id, ProcessStatus status, LocalDateTime finished) {
         jdbc.update("UPDATE process_entity SET status = ?, finished = ? WHERE id = ?",
                 status.name(), ts(finished), id);
@@ -262,6 +276,59 @@ abstract class AnalyticsReadModelContract {
         assertThat(stepDurations.get("reserve").totalNanos()).isEqualTo(nanos(Duration.ofSeconds(4)));
         assertThat(stepDurations.get("charge").samples()).isEqualTo(1);
         assertThat(stepDurations.get("charge").totalNanos()).isEqualTo(nanos(Duration.ofSeconds(1)));
+    }
+
+    /**
+     * A forEach of N items is N runs of its step, not N + 1: the container is not a run (its
+     * duration would be its iterations' counted again). The incremental fold, a fold from scratch
+     * over the same rows, the live overlay and the raw GROUP BY behind them all say the same.
+     */
+    @Test
+    void aForEachCountsItsIterationsAndNotItsContainerAlikeEverywhere() {
+        process("m1", ORDER, ProcessStatus.RUNNING, "order-m1", at(D1, 9, 0, 0), at(D1, 9, 0, 0), null);
+        multiInstance("c1", "m1", ORDER, "reserve", StepExecutionStatus.PENDING, at(D1, 9, 0, 0), null);
+        iteration("i0", "c1", "m1", ORDER, "reserve", StepExecutionStatus.COMPLETED, 0, at(D1, 9, 0, 0), at(D1, 9, 0, 1));
+        iteration("i1", "c1", "m1", ORDER, "reserve", StepExecutionStatus.RUNNING, 1, at(D1, 9, 0, 0), null);
+        var projector = projector();
+        projector.projectOnce();
+
+        // In flight: one iteration done, one live — the container shows nowhere.
+        assertThat(reader().aggregateSteps(null, null).counts()).containsExactlyInAnyOrder(
+                new DefinitionStepCount(ORDER, "reserve", StepExecutionStatus.COMPLETED, 1, 1),
+                new DefinitionStepCount(ORDER, "reserve", StepExecutionStatus.RUNNING, 1, 1));
+
+        // Finished: the second iteration, then the container, then the process.
+        finishStep("i1", StepExecutionStatus.COMPLETED, at(D1, 9, 0, 3));
+        finishStep("c1", StepExecutionStatus.COMPLETED, at(D1, 9, 0, 3));
+        finishProcess("m1", ProcessStatus.COMPLETED, at(D1, 9, 0, 4));
+        projector.projectOnce();
+        var incremental = reader().aggregateSteps(null, null);
+        assertThat(incremental.counts()).containsExactly(
+                new DefinitionStepCount(ORDER, "reserve", StepExecutionStatus.COMPLETED, 2, 1));
+        assertThat(incremental.durations()).singleElement().satisfies(d -> {
+            assertThat(d.duration().samples()).isEqualTo(2);
+            assertThat(d.duration().totalNanos()).isEqualTo(nanos(Duration.ofSeconds(1)) + nanos(Duration.ofSeconds(3)));
+        });
+        var folded = snapshot();
+
+        // A fold from scratch over the same rows lands on the same read model.
+        for (var table : List.of("process_created_daily", "process_finished_daily", "process_status_daily",
+                "process_duration_daily", "step_status_daily", "step_duration_daily",
+                "analytics_counted_process", "analytics_counted_step", "analytics_projection_state")) {
+            jdbc.update("DELETE FROM " + table);
+        }
+        projector().projectOnce();
+        assertThat(snapshot()).isEqualTo(folded);
+
+        // And the raw GROUP BY — what answers when the read model is off — agrees.
+        var raw = context.getBean(StepExecutionEntityRepository.class);
+        assertThat(raw.aggregateStepCountsAllTime()).singleElement().satisfies(count -> {
+            assertThat(count.getStepId()).isEqualTo("reserve");
+            assertThat(count.getCount()).isEqualTo(2);
+        });
+        assertThat(raw.aggregateStepCounts(at(D1, 0, 0, 0), at(D1, 23, 0, 0))).singleElement()
+                .satisfies(count -> assertThat(count.getCount()).isEqualTo(2));
+        assertThat(raw.findAnalyticsRows(null, null)).hasSize(2);
     }
 
     @Test

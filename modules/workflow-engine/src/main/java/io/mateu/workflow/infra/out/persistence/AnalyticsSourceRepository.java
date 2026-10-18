@@ -45,6 +45,7 @@ interface AnalyticsSourceRepository extends Repository<ProcessEntity, String> {
             from StepExecutionEntity s join ProcessEntity p on p.id = s.processId
             where s.finishedAt is not null and s.finishedAt <= :ceiling
               and (s.finishedAt > :cursorTs or (s.finishedAt = :cursorTs and s.id > :cursorId))
+              and not (s.parentExecutionId is null and s.scopeJson is not null)
             order by s.finishedAt, s.id
             """)
     List<StepFinishSourceView> stepFinishesAfter(@Param("cursorTs") LocalDateTime cursorTs,
@@ -79,6 +80,7 @@ interface AnalyticsSourceRepository extends Repository<ProcessEntity, String> {
             from StepExecutionEntity s join ProcessEntity p on p.id = s.processId
             where s.finishedAt is not null and p.created is not null and s.finishedAt >= :from
               and (s.finishedAt < :cursorTs or (s.finishedAt = :cursorTs and s.id <= :cursorId))
+              and not (s.parentExecutionId is null and s.scopeJson is not null)
               and not exists (select c.stepExecutionId from CountedStepEntity c where c.stepExecutionId = s.id)
             order by s.finishedAt, s.id
             """)

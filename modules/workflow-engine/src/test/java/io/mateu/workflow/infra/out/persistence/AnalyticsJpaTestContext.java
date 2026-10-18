@@ -33,7 +33,7 @@ import java.util.Map;
                 StepStatusDailyRepository.class, StepDurationDailyRepository.class,
                 AnalyticsProjectionStateRepository.class, AnalyticsSourceRepository.class,
                 LiveOverlayRepository.class, CountedProcessRepository.class,
-                CountedStepRepository.class,
+                CountedStepRepository.class, StepExecutionEntityRepository.class,
                 // Not analytics: the process listing's queries, on the same migrated schemas.
                 ProcessEntityRepository.class, ImportedDefinitionSourceEntityRepository.class}))
 class AnalyticsJpaTestContext {

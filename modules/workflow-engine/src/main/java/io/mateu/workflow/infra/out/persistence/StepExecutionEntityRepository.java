@@ -98,6 +98,7 @@ public interface StepExecutionEntityRepository extends JpaRepository<StepExecuti
             where p.created is not null
               and (cast(:createdFrom as LocalDateTime) is null or p.created >= :createdFrom)
               and (cast(:createdTo as LocalDateTime) is null or p.created <= :createdTo)
+              and not (s.parentExecutionId is null and s.scopeJson is not null)
             """)
     List<StepExecutionAnalyticsView> findAnalyticsRows(@Param("createdFrom") LocalDateTime createdFrom,
                                                        @Param("createdTo") LocalDateTime createdTo);
@@ -118,6 +119,7 @@ public interface StepExecutionEntityRepository extends JpaRepository<StepExecuti
             where p.created is not null
               and (cast(:createdFrom as LocalDateTime) is null or p.created >= :createdFrom)
               and (cast(:createdTo as LocalDateTime) is null or p.created <= :createdTo)
+              and not (s.parentExecutionId is null and s.scopeJson is not null)
             group by s.workflowDefinitionId, s.stepId, s.status
             """)
     List<StepCountView> aggregateStepCounts(@Param("createdFrom") LocalDateTime createdFrom,
@@ -135,6 +137,7 @@ public interface StepExecutionEntityRepository extends JpaRepository<StepExecuti
             join ProcessEntity p on p.id = s.processId
             where p.created is not null
               and s.startedAt is not null and s.finishedAt is not null
+              and not (s.parentExecutionId is null and s.scopeJson is not null)
               and (cast(:createdFrom as LocalDateTime) is null or p.created >= :createdFrom)
               and (cast(:createdTo as LocalDateTime) is null or p.created <= :createdTo)
             group by s.workflowDefinitionId, s.stepId
@@ -158,6 +161,7 @@ public interface StepExecutionEntityRepository extends JpaRepository<StepExecuti
             select s.workflowDefinitionId as definitionId, s.stepId as stepId, s.status as status,
                    count(s) as count, min(s.order) as firstOrder
             from StepExecutionEntity s
+            where not (s.parentExecutionId is null and s.scopeJson is not null)
             group by s.workflowDefinitionId, s.stepId, s.status
             """)
     List<StepCountView> aggregateStepCountsAllTime();
@@ -171,6 +175,7 @@ public interface StepExecutionEntityRepository extends JpaRepository<StepExecuti
                    ) as p95Nanos
             from StepExecutionEntity s
             where s.startedAt is not null and s.finishedAt is not null
+              and not (s.parentExecutionId is null and s.scopeJson is not null)
             group by s.workflowDefinitionId, s.stepId
             """)
     List<StepDurationView> aggregateStepDurationsAllTime();

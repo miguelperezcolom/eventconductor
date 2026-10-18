@@ -130,6 +130,9 @@ public interface StepExecutionRepository extends CrudStore<StepExecution> {
         // caller indexes these by process and only ever looks up processes already in the window.
         // The JPA store, which can join, narrows it properly.
         return findAll().stream()
+                // A forEach container is not a run of its step — its iterations are (see
+                // StepExecution#isRunOfItsStep); the JPA queries leave it out the same way.
+                .filter(StepExecution::isRunOfItsStep)
                 .map(StepExecutionAnalyticsRow::from)
                 .toList();
     }

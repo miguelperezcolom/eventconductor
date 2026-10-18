@@ -842,6 +842,18 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
         }
     }
 
+    /**
+     * Whether analytics counts this execution as a run of its step: every execution but a started
+     * forEach container (a top-level execution carrying a scope), whose iterations are the runs —
+     * so a forEach of N items is N runs, not N + 1, and its duration is not the iterations' sum
+     * counted again. Decided on stored columns only, so the JPA queries ask exactly the same:
+     * {@code not (parentExecutionId is null and scopeJson is not null)}.
+     */
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    public boolean isRunOfItsStep() {
+        return !(parentExecutionId == null && scopeJson != null);
+    }
+
     /** This execution's scope (see {@link #scopeJson}), as strings; empty when it has none. */
     public java.util.Map<String, String> scope() {
         return io.mateu.workflow.domain.services.MultiInstance.stringMap(scopeJson);

@@ -26,8 +26,13 @@ public final class WorkflowGraphOverlays {
     /** Live process count per step id, from a pre-filtered set of live step executions. */
     public static Map<String, Integer> countsByStep(List<StepExecution> live) {
         var counts = new HashMap<String, Integer>();
+        // A process counts once per step: a forEach has its container and its iterations live at
+        // once, and they are one process waiting at that step.
+        var seen = new java.util.HashSet<String>();
         for (var se : live) {
-            counts.merge(se.getStepId(), 1, Integer::sum);
+            if (seen.add(se.getStepId() + "\u0000" + (se.getProcessId() == null ? se.getId() : se.getProcessId()))) {
+                counts.merge(se.getStepId(), 1, Integer::sum);
+            }
         }
         return counts;
     }
@@ -40,7 +45,11 @@ public final class WorkflowGraphOverlays {
     public static Map<String, int[]> heatByStep(List<StepExecution> live) {
         var now = LocalDateTime.now();
         var heat = new HashMap<String, int[]>();
+        var seen = new java.util.HashSet<String>();
         for (var se : live) {
+            if (!seen.add(se.getStepId() + "\u0000" + (se.getProcessId() == null ? se.getId() : se.getProcessId()))) {
+                continue;
+            }
             heat.computeIfAbsent(se.getStepId(), k -> new int[HEAT_WINDOW_DAYS])[bucketOf(se.getStartedAt(), now)]++;
         }
         return heat;

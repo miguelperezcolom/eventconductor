@@ -112,6 +112,20 @@ class LoopsAndForEachOrchestrationTest {
     }
 
     @Test
+    void analyticsCountTheIterationsAsRunsAndNotTheContainer() {
+        definition(ROOMS, new Variable("rooms", "[\"a\",\"b\"]"));
+        stepOver();
+
+        assertThat(current("reserve").isRunOfItsStep()).isFalse();
+        assertThat(iterations("reserve")).allMatch(StepExecution::isRunOfItsStep);
+        assertThat(current("start").isRunOfItsStep()).isTrue();
+        // The definition graph counts a process once per step, however many of its executions are live.
+        var live = store.stream().filter(e -> "reserve".equals(e.getStepId())).toList();
+        assertThat(io.mateu.workflow.infra.in.ui.pages.WorkflowGraphOverlays.countsByStep(live)).containsEntry("reserve", 1);
+        assertThat(io.mateu.workflow.infra.in.ui.pages.WorkflowGraphOverlays.heatByStep(live).get("reserve")[0]).isEqualTo(1);
+    }
+
+    @Test
     void aFailedIterationFailsTheContainerAndCancelsTheRest() {
         definition(ROOMS, new Variable("rooms", "[\"a\",\"b\",\"c\"]"));
         stepOver();
