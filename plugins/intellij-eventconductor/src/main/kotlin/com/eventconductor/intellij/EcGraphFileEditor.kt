@@ -122,6 +122,10 @@ class EcGraphFileEditor(
         val svg = String(decoder.decode(payload.substring(dot + 1)), StandardCharsets.UTF_8)
         val name = file.nameWithoutExtension.takeIf { it.isNotBlank() }?.let { "$it.svg" } ?: suggested
         ApplicationManager.getApplication().invokeLater {
+            // Deprecated from 2025.1 in favour of FileSaverDescriptor(title, description) plus
+            // withExtensionFilter, neither of which exists in 2024.2 (sinceBuild 242). Switch when the
+            // plugin's minimum platform moves to 251; until then this is the only call both accept.
+            @Suppress("DEPRECATION")
             val descriptor = FileSaverDescriptor("Export Workflow Graph", "Save the graph as an SVG image", "svg")
             val dialog = FileChooserFactory.getInstance().createSaveFileDialog(descriptor, project)
             val wrapper = dialog.save(file.parent, name) ?: return@invokeLater  // cancelled

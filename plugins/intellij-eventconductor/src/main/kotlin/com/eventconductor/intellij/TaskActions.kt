@@ -8,6 +8,7 @@ import com.intellij.openapi.actionSystem.CommonDataKeys
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.project.guessProjectDir
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.vfs.VfsUtil
 import com.intellij.openapi.vfs.VirtualFile
@@ -86,7 +87,7 @@ internal object TaskProjectScaffolder {
 
     /** Add a `<module>` entry to the reactor pom at the workspace root, if there is one. */
     fun addModuleToReactor(project: Project, moduleDirName: String) {
-        val base = project.baseDir ?: return
+        val base = project.guessProjectDir() ?: return
         val pom = base.findChild("pom.xml") ?: return
         val text = VfsUtil.loadText(pom)
         if (!text.contains("<modules>") || text.contains("<module>$moduleDirName</module>")) {
@@ -160,7 +161,7 @@ abstract class CreateTaskProjectAction(
 
         ApplicationManager.getApplication().invokeLater {
             WriteCommandAction.runWriteCommandAction(project) {
-                val base = project.baseDir ?: file.parent
+                val base = project.guessProjectDir() ?: file.parent
                 val moduleDir = base.findChild(artifactId) ?: base.createChildDirectory(this, artifactId)
                 TaskProjectScaffolder.write(project, moduleDir, generated, file.name, contractText)
                 TaskProjectScaffolder.addModuleToReactor(project, artifactId)
