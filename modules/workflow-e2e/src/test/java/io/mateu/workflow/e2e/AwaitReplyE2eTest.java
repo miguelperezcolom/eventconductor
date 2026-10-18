@@ -146,6 +146,32 @@ class AwaitReplyE2eTest extends AbstractE2eTest {
     }
 
     @Test
+    void aRetriedRequestIgnoresTheLateResponseOfTheAttemptItReplaced() {
+        var callbacks = new java.util.concurrent.ConcurrentHashMap<Integer, io.mateu.workflow.e2e.support.TestWorker.WorkerCallback>();
+        // Neither attempt answers on its own: the first times out and the step is dispatched again.
+        worker.on("ask", (request, callback, invocation) -> callbacks.put(invocation, callback));
+
+        ask("rr-http-await-retry-timeout", "aw-mem-late");
+        await().atMost(Duration.ofSeconds(10)).until(() -> callbacks.containsKey(2));
+        assertThat(step("aw-mem-late", "ask").getStatus()).isEqualTo(StepExecutionStatus.PENDING);
+
+        // The first attempt's response arrives late: it is about an attempt the step no longer runs.
+        callbacks.get(1).complete(List.of(var("ticket", "T-stale")));
+        assertThat(step("aw-mem-late", "ask").getStatus()).isEqualTo(StepExecutionStatus.PENDING);
+        assertThat(process("aw-mem-late").getVariables()).extracting(Variable::name).doesNotContain("ticket");
+
+        // The current attempt's response is recorded, and the step keeps waiting for its reply.
+        callbacks.get(2).complete(List.of(var("ticket", "T-2")));
+        assertThat(step("aw-mem-late", "ask").getStatus()).isEqualTo(StepExecutionStatus.PENDING);
+        assertThat(process("aw-mem-late").getVariables()).contains(new Variable("ticket", "T-2"));
+
+        responder.reply("aw-mem-late");
+
+        assertAnswered("aw-mem-late");
+        assertThat(process("aw-mem-late").getVariables()).contains(new Variable("ticket", "T-2"));
+    }
+
+    @Test
     void anEventReplyIsCaughtEvenWhenItComesBackImmediately() {
         ask("rr-event-await", "aw-mem-event");
 
