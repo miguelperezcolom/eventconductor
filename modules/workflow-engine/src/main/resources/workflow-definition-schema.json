@@ -103,6 +103,43 @@
         }
       ]
     },
+    "searchAttributes": {
+      "type": "object",
+      "maxProperties": 20,
+      "propertyNames": {
+        "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$"
+      },
+      "additionalProperties": {
+        "oneOf": [
+          {
+            "type": "string",
+            "pattern": "\\$\\{",
+            "maxLength": 500,
+            "description": "A template over the process variables, e.g. \"${customerId}\": indexed as a keyword."
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["value"],
+            "properties": {
+              "value": {
+                "type": "string",
+                "pattern": "\\$\\{",
+                "maxLength": 500,
+                "description": "A template over the process variables, e.g. \"${total}\"."
+              },
+              "type": {
+                "type": "string",
+                "enum": ["keyword", "text", "number", "date", "bool"],
+                "default": "keyword",
+                "description": "keyword: exact match; text: case-insensitive contains; number and date: exact match and ranges; bool: true or false."
+              }
+            }
+          }
+        ]
+      },
+      "description": "Search attributes: named values every process of this workflow is indexed by, computed from its variables whenever they change — customerId: \"${customerId}\", or amount: { value: \"${total}\", type: number }. At most 20; names are a letter then letters, digits and '_'. The Processes page, the REST API (attr.<name>=…), the MCP tools and batch operations filter by them. Part of the version: changing them mints one."
+    },
     "limitConcurrentExecutions": {
       "type": [
         "boolean",

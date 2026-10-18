@@ -103,11 +103,84 @@ public class JdbcProcessIndexStore implements ProcessIndexRepository {
 
     private void atomicUpsert(ProcessIndexRow row) {
         withConnection(connection -> {
+            int applied;
             try (var statement = connection.prepareStatement(POSTGRES_UPSERT)) {
                 bindRow(statement, row);
-                statement.executeUpdate();
+                applied = statement.executeUpdate();
+            }
+            // Zero rows: the guard refused a stale event, whose attributes are stale too.
+            if (applied > 0) {
+                replaceAttributes(connection, row);
             }
             return null;
+        });
+    }
+
+    /**
+     * Replaces a process's search attributes with the row's — when the row carries them: a row from an
+     * event that says nothing about them ({@code null}) leaves what is stored. One transaction, so a
+     * reader never sees a process with half its attributes.
+     */
+    private static void replaceAttributes(Connection connection, ProcessIndexRow row) throws SQLException {
+        if (row.searchAttributes() == null) {
+            return;
+        }
+        var autoCommit = connection.getAutoCommit();
+        connection.setAutoCommit(false);
+        try {
+            try (var delete = connection.prepareStatement(
+                    "DELETE FROM process_index_search_attribute WHERE process_id = ?")) {
+                delete.setString(1, row.processId());
+                delete.executeUpdate();
+            }
+            if (!row.searchAttributes().isEmpty()) {
+                try (var insert = connection.prepareStatement("INSERT INTO process_index_search_attribute"
+                        + " (process_id, attr_name, attr_type, keyword_value, number_value, date_value)"
+                        + " VALUES (?,?,?,?,?,?)")) {
+                    for (var value : row.searchAttributes()) {
+                        insert.setString(1, row.processId());
+                        insert.setString(2, value.name());
+                        insert.setString(3, value.type().keyword());
+                        insert.setString(4, value.keyword());
+                        if (value.number() == null) {
+                            insert.setNull(5, java.sql.Types.DOUBLE);
+                        } else {
+                            insert.setDouble(5, value.number());
+                        }
+                        insert.setTimestamp(6, timestamp(value.date()));
+                        insert.addBatch();
+                    }
+                    insert.executeBatch();
+                }
+            }
+            connection.commit();
+        } catch (SQLException e) {
+            connection.rollback();
+            throw e;
+        } finally {
+            connection.setAutoCommit(autoCommit);
+        }
+    }
+
+    /** The search attributes the index holds for a process — for tests and diagnosis. */
+    public List<io.mateu.workflow.search.SearchAttributeValue> searchAttributesOf(String processId) {
+        return withConnection(connection -> {
+            var found = new ArrayList<io.mateu.workflow.search.SearchAttributeValue>();
+            try (var statement = connection.prepareStatement("SELECT attr_name, attr_type, keyword_value,"
+                    + " number_value, date_value FROM process_index_search_attribute WHERE process_id = ?"
+                    + " ORDER BY attr_name")) {
+                statement.setString(1, processId);
+                try (var rows = statement.executeQuery()) {
+                    while (rows.next()) {
+                        var number = rows.getDouble("number_value");
+                        found.add(new io.mateu.workflow.search.SearchAttributeValue(rows.getString("attr_name"),
+                                io.mateu.workflow.search.SearchAttributeType.of(rows.getString("attr_type")),
+                                rows.getString("keyword_value"), rows.wasNull() ? null : number,
+                                timestamp(rows, "date_value")));
+                    }
+                }
+            }
+            return List.copyOf(found);
         });
     }
 
@@ -130,6 +203,7 @@ public class JdbcProcessIndexStore implements ProcessIndexRepository {
                 bindRow(insert, row);
                 insert.executeUpdate();
             }
+            replaceAttributes(connection, row);
             return null;
         });
     }
@@ -150,6 +224,13 @@ public class JdbcProcessIndexStore implements ProcessIndexRepository {
                         delete.setString(i + 1, chunk.get(i));
                     }
                     deleted += delete.executeUpdate();
+                }
+                try (var delete = connection.prepareStatement("DELETE FROM process_index_search_attribute WHERE process_id IN ("
+                        + String.join(",", java.util.Collections.nCopies(chunk.size(), "?")) + ")")) {
+                    for (int i = 0; i < chunk.size(); i++) {
+                        delete.setString(i + 1, chunk.get(i));
+                    }
+                    delete.executeUpdate();
                 }
             }
             return deleted;
@@ -221,23 +302,39 @@ public class JdbcProcessIndexStore implements ProcessIndexRepository {
      */
     @Override
     public Optional<ProcessIndexPage> search(String searchText, boolean onlyErrors, int page, int size) {
+        return search(searchText, onlyErrors, List.of(), page, size);
+    }
+
+    /**
+     * The listing narrowed by search attributes as well: one {@code EXISTS} per condition over
+     * {@code process_index_search_attribute}, every value a bound parameter (see
+     * {@link SearchAttributeConditions}).
+     */
+    @Override
+    public Optional<ProcessIndexPage> search(String searchText, boolean onlyErrors,
+                                             List<io.mateu.workflow.search.SearchAttributeFilter> attributes,
+                                             int page, int size) {
         var pattern = (searchText == null || searchText.isBlank())
                 ? null : "%" + searchText.toLowerCase() + "%";
         var where = new StringBuilder(" WHERE 1=1");
+        var params = new ArrayList<Object>();
         if (onlyErrors) {
             where.append(" AND status = 'ERROR'");
         }
         if (pattern != null) {
             where.append(" AND lower(coalesce(name,'') || ' ' || coalesce(business_key,'')) LIKE ?");
+            params.add(pattern);
         }
+        var conditions = SearchAttributeConditions.of(SearchAttributeConditions.Dialect.SQL,
+                "process_index_search_attribute", "process_index.process_id", attributes, "a");
+        where.append(conditions.text());
+        params.addAll(conditions.positional());
         var filter = where.toString();
         return withConnection(connection -> {
             long total;
             try (var statement = connection.prepareStatement(
                     "SELECT count(*) FROM process_index" + filter)) {
-                if (pattern != null) {
-                    statement.setString(1, pattern);
-                }
+                bindParams(statement, params);
                 try (var rows = statement.executeQuery()) {
                     rows.next();
                     total = rows.getLong(1);
@@ -247,10 +344,7 @@ public class JdbcProcessIndexStore implements ProcessIndexRepository {
             var found = new ArrayList<ProcessIndexRow>();
             try (var statement = connection.prepareStatement("SELECT " + COLUMNS + " FROM process_index"
                     + filter + " ORDER BY created DESC NULLS LAST LIMIT ? OFFSET ?")) {
-                var i = 1;
-                if (pattern != null) {
-                    statement.setString(i++, pattern);
-                }
+                var i = bindParams(statement, params) + 1;
                 statement.setInt(i++, served.size());
                 statement.setLong(i, served.offset());
                 try (var rows = statement.executeQuery()) {
@@ -328,6 +422,21 @@ public class JdbcProcessIndexStore implements ProcessIndexRepository {
                 timestamp(rows, "finished"),
                 timestamp(rows, "updated_at"),
                 rows.getString("shard_id"));
+    }
+
+    /** Binds the values in order from the first placeholder; returns how many were bound. */
+    private static int bindParams(PreparedStatement statement, List<Object> values) throws SQLException {
+        for (var i = 0; i < values.size(); i++) {
+            var value = values.get(i);
+            if (value instanceof LocalDateTime moment) {
+                statement.setTimestamp(i + 1, timestamp(moment));
+            } else if (value instanceof Double number) {
+                statement.setDouble(i + 1, number);
+            } else {
+                statement.setString(i + 1, (String) value);
+            }
+        }
+        return values.size();
     }
 
     private static void bindAll(PreparedStatement statement, int from, List<String> values) throws SQLException {

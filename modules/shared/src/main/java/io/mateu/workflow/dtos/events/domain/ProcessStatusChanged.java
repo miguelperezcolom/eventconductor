@@ -27,6 +27,10 @@ import java.time.LocalDateTime;
  *                   a single fanned-out projector consuming every shard's events, which could not
  *                   otherwise tell them apart. It is what lets a targeted command (retry / cancel /
  *                   pause a process by id) be routed back to the shard that owns it.
+ * @param searchAttributes the process's search attributes as they are now (2.30), so the index can be
+ *                   searched by them; {@code null} when the event says nothing about them — a process of
+ *                   a definition that declares none, or an event from before 2.30 — and then the index
+ *                   keeps whatever it holds. Since 2.30 the event is also emitted when only these change.
  */
 public record ProcessStatusChanged(
         String processId,
@@ -40,7 +44,17 @@ public record ProcessStatusChanged(
         LocalDateTime started,
         LocalDateTime finished,
         LocalDateTime occurredAt,
-        String shardId) implements DomainEvent {
+        String shardId,
+        java.util.List<io.mateu.workflow.search.SearchAttributeValue> searchAttributes) implements DomainEvent {
+
+    /** The shape before search attributes: the event says nothing about them. */
+    public ProcessStatusChanged(String processId, String businessKey, String name, String workflowDefinitionId,
+                                int workflowDefinitionVersion, String status, int completionPercentage,
+                                LocalDateTime created, LocalDateTime started, LocalDateTime finished,
+                                LocalDateTime occurredAt, String shardId) {
+        this(processId, businessKey, name, workflowDefinitionId, workflowDefinitionVersion, status,
+                completionPercentage, created, started, finished, occurredAt, shardId, null);
+    }
 
     @Override
     public String partitionKey() {

@@ -63,7 +63,7 @@ class PostgresReadStoresTest {
     @BeforeEach
     void emptyTables() throws Exception {
         try (var connection = dataSource.getConnection(); var statement = connection.createStatement()) {
-            statement.execute("TRUNCATE process_index, process_placement, message_subscription");
+            statement.execute("TRUNCATE process_index, process_index_search_attribute, process_placement, message_subscription");
         }
     }
 
@@ -105,6 +105,37 @@ class PostgresReadStoresTest {
         store.upsert(row("p1", "order-1", "RUNNING", T0, T0.plusMinutes(5)));
         store.upsert(row("p1", "order-1", "ERROR", T0, null));
         assertThat(store.findByProcessId("p1").orElseThrow().status()).isEqualTo("ERROR");
+    }
+
+    @Test
+    void searchAttributesAreProjectedAndSearchedOnPostgres() {
+        var store = new JdbcProcessIndexStore(dataSource);
+        var c9 = io.mateu.workflow.search.SearchAttributeValue.of("customerId",
+                io.mateu.workflow.search.SearchAttributeType.KEYWORD, "C-9").orElseThrow();
+        var amount = io.mateu.workflow.search.SearchAttributeValue.of("amount",
+                io.mateu.workflow.search.SearchAttributeType.NUMBER, "150").orElseThrow();
+        var placed = io.mateu.workflow.search.SearchAttributeValue.of("placedOn",
+                io.mateu.workflow.search.SearchAttributeType.DATE, "2026-10-01T10:00:00").orElseThrow();
+        var r1 = row("p1", "order-1", "RUNNING", T0, T0);
+        store.upsert(new ProcessIndexRow(r1.processId(), r1.businessKey(), r1.name(), r1.workflowDefinitionId(), 2,
+                r1.status(), 50, T0, T0, null, T0, "s1", java.util.List.of(c9, amount, placed)));
+        store.upsert(row("p2", "order-2", "RUNNING", T0.plusMinutes(1), T0));
+        // The atomic upsert refuses a stale event — and its attributes with it.
+        store.upsert(new ProcessIndexRow("p1", "order-1", "x", "orders", 2, "RUNNING", 50, T0, T0, null,
+                T0.minusMinutes(1), "s1", java.util.List.of()));
+        assertThat(store.searchAttributesOf("p1")).hasSize(3);
+
+        var found = store.search(null, false, java.util.List.of(
+                new io.mateu.workflow.search.SearchAttributeFilter("customerId", io.mateu.workflow.search.SearchAttributeFilter.Op.EQ, "C-9"),
+                new io.mateu.workflow.search.SearchAttributeFilter("amount", io.mateu.workflow.search.SearchAttributeFilter.Op.GTE, "100"),
+                new io.mateu.workflow.search.SearchAttributeFilter("placedOn", io.mateu.workflow.search.SearchAttributeFilter.Op.LTE, "2026-10-01")),
+                0, 10).orElseThrow();
+        assertThat(found.content()).extracting(ProcessIndexRow::processId).containsExactly("p1");
+        assertThat(store.search(null, false, java.util.List.of(
+                new io.mateu.workflow.search.SearchAttributeFilter("amount", io.mateu.workflow.search.SearchAttributeFilter.Op.LT, "100")),
+                0, 10).orElseThrow().totalElements()).isZero();
+        store.deleteByProcessIds(java.util.List.of("p1"));
+        assertThat(store.searchAttributesOf("p1")).isEmpty();
     }
 
     @Test

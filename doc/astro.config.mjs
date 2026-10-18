@@ -88,6 +88,7 @@ export default defineConfig({
 						{ label: 'Retries, Timeouts & Compensation', slug: 'guides/retries-timeouts-compensation' },
 						{ label: 'Operating running processes', slug: 'guides/operating-running-processes' },
 						{ label: 'Process Analytics', slug: 'guides/analytics' },
+						{ label: 'Searching and Bulk Operations', slug: 'guides/searching-and-bulk-operations' },
 						{ label: 'Process Index (CQRS Read Model)', slug: 'guides/process-index' },
 						{ label: 'Sharding', slug: 'guides/sharding' },
 						{ label: 'Event Storming', slug: 'guides/event-storming' },

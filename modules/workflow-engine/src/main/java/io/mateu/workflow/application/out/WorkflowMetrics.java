@@ -217,4 +217,17 @@ public interface WorkflowMetrics {
      * {@code retry-from-step}, {@code retry-incident}) and the definition.
      */
     default void processOperation(String workflowDefinitionId, String operation) {}
+
+    /**
+     * A batch operation ended — {@code eventconductor.batch.operations{type,outcome}}: outcome
+     * {@code completed}, {@code failed} or {@code cancelled}.
+     */
+    default void batchOperationFinished(String type, String outcome) {}
+
+    /**
+     * A page of a batch operation acted on {@code count} processes with this outcome —
+     * {@code eventconductor.batch.operation.items{type,outcome}}: outcome {@code succeeded}, {@code failed}
+     * or {@code skipped}.
+     */
+    default void batchOperationItems(String type, String outcome, long count) {}
 }

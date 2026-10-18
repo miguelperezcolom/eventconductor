@@ -63,6 +63,7 @@ import java.util.Set;
  * <pre>
  *   POST /workflow/api/processes                                  start {definitionId, businessKey?, variables?}
  *   GET  /workflow/api/processes?definitionId=&amp;tag=&amp;status=&amp;from=&amp;to=&amp;businessKey=&amp;q=&amp;page=&amp;size=
+ *                                &amp;attr.&lt;name&gt;=&amp;attr.&lt;name&gt;.gte=&amp;attr.&lt;name&gt;.lte=&amp;query=
  *   GET  /workflow/api/processes/by-key?businessKey=…
  *   GET  /workflow/api/processes/{id}
  *   GET  /workflow/api/processes/{id}/steps
@@ -146,9 +147,13 @@ public class ProcessRestController {
 
     @GetMapping
     @Operation(operationId = "listProcesses", summary = "List processes",
-            description = "One page of processes, newest first, narrowed by every filter given (ANDed). Served from"
-                    + " the process index (workflow.projection.enabled) when only q is given, from the engine's"
-                    + " store otherwise — the same rule as the admin console's listing.")
+            description = "One page of processes, newest first, narrowed by every filter given (ANDed). Search"
+                    + " attributes (the ones definitions declare in searchAttributes): attr.<name>=value — exact for a"
+                    + " keyword or bool, contains for a text, equal for a number or date — and attr.<name>.gt=, .gte=,"
+                    + " .lt=, .lte= for a number or a date; repeatable, with query= for the same conditions as"
+                    + " text. Served from the process index (workflow.projection.enabled) when only q and search"
+                    + " attributes are given, from the engine's store otherwise — the same rule as the admin"
+                    + " console's listing.")
     @ApiResponses({@ApiResponse(responseCode = "200", description = "One page of processes."),
             @ApiResponse(responseCode = "400", description = "A malformed filter or page.", content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))})
     public ProcessPage list(
@@ -160,8 +165,14 @@ public class ProcessRestController {
             @Parameter(description = "Created at or before: an ISO date-time, or a date (its last moment).") @RequestParam(value = "to", required = false) String to,
             @Parameter(description = "Business key contains this (case-insensitive).") @RequestParam(value = "businessKey", required = false) String businessKey,
             @Parameter(description = "Name or business key contains this (case-insensitive).") @RequestParam(value = "q", required = false) String q,
+            @Parameter(description = "Search-attribute conditions joined by AND: customerId = \"C-9\" AND amount > 100"
+                    + " (operators =, >, >=, <, <=). ANDed with every attr.<name> parameter.")
+            @RequestParam(value = "query", required = false) String query,
             @Parameter(description = "Zero-based page.") @RequestParam(value = "page", defaultValue = "0") int page,
-            @Parameter(description = "Page size, 1–" + MAX_PAGE_SIZE + ".") @RequestParam(value = "size", defaultValue = "20") int size) {
+            @Parameter(description = "Page size, 1–" + MAX_PAGE_SIZE + ".") @RequestParam(value = "size", defaultValue = "20") int size,
+            // Every parameter, for the attr.<name>[.<op>] ones, which have no fixed names: documented in
+            // the operation's description rather than as a parameter OpenAPI cannot name.
+            @Parameter(hidden = true) @RequestParam org.springframework.util.MultiValueMap<String, String> parameters) {
         verify(apiKey);
         if (page < 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "page must be 0 or more.");
@@ -175,7 +186,7 @@ public class ProcessRestController {
         InputLimits.checkIdentifier(q, "q");
         var filter = new ProcessListingFilter(blankToNull(q), false, blankToNull(definitionId), statuses(status),
                 moment(from, "from", false), moment(to, "to", true), blankToNull(businessKey),
-                processes.definitionsTagged(blankToNull(tag)));
+                processes.definitionsTagged(blankToNull(tag)), attributeFilters(parameters, query));
         return ProcessPage.of(processes.list(filter, page, size));
     }
 
@@ -470,6 +481,35 @@ public class ProcessRestController {
         } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
             return String.valueOf(value);
         }
+    }
+
+    /**
+     * The search-attribute conditions of a request: every {@code attr.<name>[.<op>]=value} parameter, then
+     * the {@code query}. A malformed one is a 400 (IllegalArgumentException), never "no filter".
+     */
+    static List<io.mateu.workflow.search.SearchAttributeFilter> attributeFilters(
+            org.springframework.util.MultiValueMap<String, String> parameters, String query) {
+        var filters = new ArrayList<io.mateu.workflow.search.SearchAttributeFilter>();
+        if (parameters != null) {
+            parameters.forEach((key, values) -> {
+                if (!key.startsWith("attr.") || values == null) {
+                    return;
+                }
+                var rest = key.substring("attr.".length());
+                var name = rest;
+                var op = io.mateu.workflow.search.SearchAttributeFilter.Op.EQ;
+                var dot = rest.lastIndexOf('.');
+                if (dot > 0) {
+                    name = rest.substring(0, dot);
+                    op = io.mateu.workflow.search.SearchAttributeFilter.Op.ofSuffix(rest.substring(dot + 1));
+                }
+                for (var value : values) {
+                    filters.add(new io.mateu.workflow.search.SearchAttributeFilter(name, op, value));
+                }
+            });
+        }
+        filters.addAll(io.mateu.workflow.search.SearchQuery.parse(query));
+        return io.mateu.workflow.search.SearchAttributeFilter.checked(filters);
     }
 
     /** Repeated or comma-separated; an unknown status is a 400, not "no filter". */

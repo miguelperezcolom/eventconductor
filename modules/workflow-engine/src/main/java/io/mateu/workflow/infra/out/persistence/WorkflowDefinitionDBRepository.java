@@ -84,7 +84,8 @@ public class WorkflowDefinitionDBRepository implements WorkflowDefinitionReposit
                 .withSchedules(schedulesFromJson(entity.getSchedulesJson()))
                 .withTriggers(triggersFromJson(entity.getTriggersJson()))
                 .withTags(tagsFromJson(entity.getTagsJson()))
-                .withRetention(retentionFromJson(entity.getRetentionJson()));
+                .withRetention(retentionFromJson(entity.getRetentionJson()))
+                .withSearchAttributes(searchAttributesFromJson(entity.getSearchAttributesJson()));
     }
 
     /** The stored process-level lock, or null when the definition declares none (read leniently). */
@@ -158,6 +159,30 @@ public class WorkflowDefinitionDBRepository implements WorkflowDefinitionReposit
         }
     }
 
+    /** The stored search attributes as the file wrote them, or null when there are none (read leniently). */
+    @SuppressWarnings("unchecked")
+    static java.util.Map<String, Object> searchAttributesFromJson(String json) {
+        if (json == null || json.isBlank()) {
+            return null;
+        }
+        try {
+            return LAYOUT_MAPPER.readValue(json, java.util.LinkedHashMap.class);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    static String searchAttributesToJson(java.util.Map<String, Object> searchAttributes) {
+        if (searchAttributes == null) {
+            return null;
+        }
+        try {
+            return LAYOUT_MAPPER.writeValueAsString(searchAttributes);
+        } catch (Exception e) {
+            throw new IllegalStateException("Could not serialise the search attributes " + searchAttributes, e);
+        }
+    }
+
     static String retentionToJson(io.mateu.workflow.domain.aggregates.ProcessRetention retention) {
         if (retention == null) {
             return null;
@@ -224,7 +249,8 @@ public class WorkflowDefinitionDBRepository implements WorkflowDefinitionReposit
                 workflowDefinition.schedules() == null ? null : toJson(workflowDefinition.schedules()),
                 workflowDefinition.triggers() == null ? null : toJson(workflowDefinition.triggers()),
                 workflowDefinition.tags() == null ? null : toJson(workflowDefinition.tags()),
-                retentionToJson(workflowDefinition.retention())
+                retentionToJson(workflowDefinition.retention()),
+                searchAttributesToJson(workflowDefinition.searchAttributes())
         ));
         triggerCleanup().definitionSaved(workflowDefinition);
         return workflowDefinition.id();

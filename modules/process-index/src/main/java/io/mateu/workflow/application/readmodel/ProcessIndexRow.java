@@ -12,6 +12,9 @@ import java.time.LocalDateTime;
  *
  * @param shardId the write shard the process lives on ({@code null} in a non-sharded deployment);
  *                lets a fanned-out projector record provenance and a command be routed back.
+ * @param searchAttributes the process's search attributes; {@code null} when the event carried none —
+ *                the store then keeps what it holds — and never read back by the lookups (they are
+ *                searched, not returned).
  */
 public record ProcessIndexRow(
         String processId,
@@ -25,12 +28,22 @@ public record ProcessIndexRow(
         LocalDateTime started,
         LocalDateTime finished,
         LocalDateTime updatedAt,
-        String shardId) {
+        String shardId,
+        java.util.List<io.mateu.workflow.search.SearchAttributeValue> searchAttributes) {
+
+    /** A row that says nothing about search attributes. */
+    public ProcessIndexRow(String processId, String businessKey, String name, String workflowDefinitionId,
+                           int workflowDefinitionVersion, String status, int completionPercentage,
+                           LocalDateTime created, LocalDateTime started, LocalDateTime finished,
+                           LocalDateTime updatedAt, String shardId) {
+        this(processId, businessKey, name, workflowDefinitionId, workflowDefinitionVersion, status,
+                completionPercentage, created, started, finished, updatedAt, shardId, null);
+    }
 
     public static ProcessIndexRow from(ProcessStatusChanged e, LocalDateTime updatedAt, String shardId) {
         return new ProcessIndexRow(
                 e.processId(), e.businessKey(), e.name(), e.workflowDefinitionId(), e.workflowDefinitionVersion(),
                 e.status(), e.completionPercentage(), e.created(), e.started(), e.finished(),
-                updatedAt, shardId);
+                updatedAt, shardId, e.searchAttributes());
     }
 }

@@ -48,6 +48,7 @@ public class Processes extends Crud<Object, Object, CreateProcessForm, ProcessFi
     final RetryProcessUseCase retryProcessUseCase;
     final CreateProcessUseCase createProcessUseCase;
     final CallerResolver callerResolver;
+    final io.mateu.workflow.application.services.BatchOperationService batchOperations;
 
     @Override
     public Class<ProcessFilters> filtersClass() {
@@ -202,4 +203,44 @@ public class Processes extends Crud<Object, Object, CreateProcessForm, ProcessFi
                 commandDispatcher.dispatch(new ProcessCancellationRequested(null, row.id())));
     }
 
+    /**
+     * Retries every process the filter on screen matches — not only the page, not only a selection — as a
+     * batch operation, walked in the background (see the Batch operations page for its progress). Asks
+     * first. A filter is required: an unfiltered list is never "all of them" by accident.
+     */
+    @ListToolbarButton
+    @io.mateu.uidl.annotations.Action(confirmationRequired = true, confirmationTitle = "Retry all matching",
+            confirmationMessage = "Retry every process this filter matches, in the background?",
+            confirmationText = "Retry all", confirmationDenialText = "Cancel")
+    @Label("Retry all matching")
+    public io.mateu.uidl.data.Message retryAllMatching(HttpRequest httpRequest) {
+        return batch(io.mateu.workflow.domain.batch.BatchOperationType.RETRY, httpRequest);
+    }
+
+    /** Cancels every process the filter on screen matches, as a batch operation. Asks first. */
+    @ListToolbarButton
+    @io.mateu.uidl.annotations.Action(confirmationRequired = true, confirmationTitle = "Cancel all matching",
+            confirmationMessage = "Cancel every process this filter matches, in the background?",
+            confirmationText = "Cancel all", confirmationDenialText = "Keep them")
+    @Label("Cancel all matching")
+    public io.mateu.uidl.data.Message cancelAllMatching(HttpRequest httpRequest) {
+        return batch(io.mateu.workflow.domain.batch.BatchOperationType.CANCEL, httpRequest);
+    }
+
+    private io.mateu.uidl.data.Message batch(io.mateu.workflow.domain.batch.BatchOperationType type, HttpRequest httpRequest) {
+        try {
+            var created = batchOperations.create(type, processCrudAdapter.batchFilter(httpRequest), null,
+                    callerResolver.current());
+            return io.mateu.uidl.data.Message.builder()
+                    .variant(io.mateu.uidl.data.NotificationVariant.success)
+                    .text("Batch operation " + created.id() + " created: " + type + " over " + created.matched()
+                            + " process(es). Follow it on the Batch operations page.")
+                    .build();
+        } catch (IllegalArgumentException refused) {
+            return io.mateu.uidl.data.Message.builder()
+                    .variant(io.mateu.uidl.data.NotificationVariant.error)
+                    .text(refused.getMessage())
+                    .build();
+        }
+    }
 }

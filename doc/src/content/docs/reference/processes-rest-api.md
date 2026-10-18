@@ -72,6 +72,9 @@ Location: /workflow/api/processes/5f0c…
 | `from`, `to` | created at or after / at or before — an ISO date-time (`2026-10-18T09:30:00`) or a date (`from` = its first moment, `to` = its last), in the engine's time zone |
 | `businessKey` | business key contains this, case-insensitively |
 | `q` | name or business key contains this, case-insensitively |
+| `attr.<name>` | the [search attribute](/guides/searching-and-bulk-operations/) equals this — exactly for a keyword or bool, as a case-insensitive substring for a text, numerically for a number, as a moment for a date; repeatable |
+| `attr.<name>.gt`, `.gte`, `.lt`, `.lte` | a number or date attribute is above / at least / below / at most this (a bare date as an upper bound is its last moment); a value that is neither a number nor a date is `400` |
+| `query` | the same conditions as text, joined by `AND`: `customerId = "C-9" AND amount > 100`; malformed is `400` |
 | `page`, `size` | zero-based page (default `0`) and page size (default `20`, `1`–`500`) |
 
 ```json
@@ -83,7 +86,9 @@ Location: /workflow/api/processes/5f0c…
 
 `page` and `size` in the answer are the ones served: a page past the end is answered with the last real page. The listing carries no variables.
 
-**Where it comes from** — the same rule as the console's Processes page. With the [process index](/guides/process-index/) on (`workflow.projection.enabled=true`) a listing filtered only by `q` is answered from the read model, which has seen every shard; any other filter is answered by the engine's own store, because the index cannot apply it and a page that silently ignored a filter would be a wrong answer.
+Every attribute condition is bound as a parameter; at most 10 per request. `GET /workflow/api/processes/{id}` carries the process's `searchAttributes` by name.
+
+**Where it comes from** — the same rule as the console's Processes page. With the [process index](/guides/process-index/) on (`workflow.projection.enabled=true`) a listing filtered only by `q` and search attributes is answered from the read model, which has seen every shard; any other filter is answered by the engine's own store, because the index cannot apply it and a page that silently ignored a filter would be a wrong answer.
 
 ### Commands
 
@@ -96,6 +101,19 @@ Before accepting, the API checks what a synchronous caller needs to know: the pr
 Set variables, complete a step and retry from a step change a live (`RUNNING`, `PAUSED` or `ERROR`) process by hand. Each needs a `reason` (`400` without one), answers `202` with `{processId, command, stepExecutionId, stepId}`, and is carried out — and recorded, with the caller and the reason, in the process log — by the node that owns the process. Before accepting, the API checks with the engine's own rules: `404` for an unknown process, step execution or step; `409` with the reason when the process or the step is not in a status the operation is done from, when a saga rollback is under way, for a retry from a step that has not run yet, or when another failure is not downstream of it. Semantics, locks and compensations: [Operating running processes](/guides/operating-running-processes/).
 
 The incidents endpoints group the failures waiting for an operator; a group retry is bounded and runs in the background past `workflow.incidents.retry.sync-limit` — see [Incidents](/guides/operating-running-processes/#incidents).
+
+## Batch operations
+
+`/workflow/api/batch-operations` applies one command to every process a filter matches, in the background ([guide](/guides/searching-and-bulk-operations/#batch-operations)).
+
+| Method and path | Does | Answers |
+|---|---|---|
+| `POST /workflow/api/batch-operations` | Create `{type, filter}` — `type` `CANCEL`, `RETRY`, `RESTART`, `PAUSE` or `RESUME`; `filter` `{definitionId?, tag?, status?[], from?, to?, businessKey?, q?, onlyErrors?, query?, attributes?: {name: value}}`, at least one | `202` + `Location`, the batch `CREATED` with `matched` |
+| `GET /workflow/api/batch-operations` | The most recent batches, newest first | `200` `BatchOperation[]` |
+| `GET /workflow/api/batch-operations/{id}` | One batch: `status`, `matched`, `processed`, `succeeded`, `failed`, `skipped`, `skippedByReason` (`notApplicable`, `notAuthorized`, `gone`), `percent`, `errors` (a sample), `createdBy`, dates, `failure` | `200`; `404` |
+| `POST /workflow/api/batch-operations/{id}/cancel` | Stop it: no further process is touched | `200`; `404`; `409` when it already finished |
+
+Each process is commanded as the single-process endpoint would be, judged against the caller who created the batch: with flow authorization on, a process of a definition the caller may not operate is skipped (`notAuthorized`). An empty filter, an unknown type or status, or a malformed date or query is `400`.
 
 ## Security
 
@@ -148,6 +166,7 @@ The engine then contributes the `eventconductor` group — `/v3/api-docs/eventco
 
 ## Not over REST (yet)
 
+- Editing a batch operation once created (cancel it and create another).
 - Pausing or resuming a whole definition — the console and the `pauseWorkflow` / `resumeWorkflow` MCP tools.
 - Analytics — the console and the `getWorkflowAnalytics` / `findBottleneck` MCP tools.
 - In a sharded fleet, reading a process (`/{id}`, its steps, variables and log) answers from the shard that serves the request; a process owned by another shard is `404` there. Commands are routed (above).

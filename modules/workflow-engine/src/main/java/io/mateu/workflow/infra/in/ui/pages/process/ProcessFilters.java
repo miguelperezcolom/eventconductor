@@ -29,6 +29,7 @@ import java.util.Set;
  * @param businessKey          the business identifier, matched as a case-insensitive substring
  * @param createdFrom          inclusive; either end may be left open
  * @param createdTo            inclusive
+ * @param attributes           search-attribute conditions, in the query language ({@code SearchQuery})
  */
 public record ProcessFilters(
         @MainFilter @Label("Only errors") Boolean onlyErrors,
@@ -49,5 +50,11 @@ public record ProcessFilters(
         @Label("Created from") LocalDateTime createdFrom,
         @Label("Created to")
         @Help("Both ends are inclusive, and either may be left empty.")
-        LocalDateTime createdTo) {
+        LocalDateTime createdTo,
+        @Label("Search attributes")
+        @Help("Conditions on the search attributes the definitions declare, joined by AND: "
+                + "customerId = \"C-9\" AND amount > 100. Operators =, >, >=, <, <=; a keyword matches "
+                + "exactly, a text contains, numbers and dates compare.")
+        String attributes) {
+
 }

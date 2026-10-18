@@ -95,16 +95,84 @@ public class WorkflowMcpTools implements McpTools, McpSystemContext {
     public record LogEntry(
             String timestamp, String stepExecutionId, String type, String message, String workerId) {}
 
-    @Tool(description = "List all workflow processes with their ID, name, business key, status and completion percentage")
+    /**
+     * The listing, for the filtered form of {@link #listProcesses}: field-injected and optional, so the
+     * tools keep their constructor (and a deployment without it keeps the unfiltered listing).
+     */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    org.springframework.beans.factory.ObjectProvider<io.mateu.workflow.application.services.ProcessListingService> processListing;
+
+    /** The most processes one filtered call returns. */
+    static final int MAX_PAGE_SIZE = 500;
+
+    /** Every process, unfiltered — what the tool answered before it took filters. */
     public List<ProcessSummary> listProcesses() {
-        log.info("Listing processes");
-        return processRepository.findAll().stream()
-                .map(p -> new ProcessSummary(
-                        p.getId(), p.getName(), p.getBusinessKey(),
-                        p.getStatus().name(), p.getCompletionPercentage(),
-                        p.getCreated() != null ? p.getCreated().toString() : null,
-                        p.getFinished() != null ? p.getFinished().toString() : null))
+        return listProcesses(null, null, null, null, null, null);
+    }
+
+    @Tool(description = "List workflow processes with their ID, name, business key, status and completion"
+            + " percentage. With no argument it lists every process. Optional filters, all ANDed: workflowDefinitionId;"
+            + " status (comma-separated: RUNNING,ERROR); tag (processes of the definitions carrying it); query —"
+            + " search-attribute conditions joined by AND, e.g. customerId = \"C-9\" AND amount > 100 (operators ="
+            + " > >= < <=; the attributes are the ones the definitions declare in searchAttributes). With a filter the"
+            + " answer is one page, newest first: page (0-based) and size (default 100, at most 500).")
+    public List<ProcessSummary> listProcesses(
+            @org.springframework.ai.tool.annotation.ToolParam(required = false, description = "Only processes of this definition") String workflowDefinitionId,
+            @org.springframework.ai.tool.annotation.ToolParam(required = false, description = "Comma-separated statuses") String status,
+            @org.springframework.ai.tool.annotation.ToolParam(required = false, description = "Only processes of the definitions carrying this tag") String tag,
+            @org.springframework.ai.tool.annotation.ToolParam(required = false, description = "Search-attribute conditions: name = value AND name > value") String query,
+            @org.springframework.ai.tool.annotation.ToolParam(required = false, description = "0-based page") Integer page,
+            @org.springframework.ai.tool.annotation.ToolParam(required = false, description = "Page size, at most 500") Integer size) {
+        var listing = processListing == null ? null : processListing.getIfAvailable();
+        var filtered = !isBlank(workflowDefinitionId) || !isBlank(status) || !isBlank(tag) || !isBlank(query);
+        if (!filtered || listing == null) {
+            log.info("Listing processes");
+            return processRepository.findAll().stream()
+                    .map(p -> new ProcessSummary(
+                            p.getId(), p.getName(), p.getBusinessKey(),
+                            p.getStatus().name(), p.getCompletionPercentage(),
+                            p.getCreated() != null ? p.getCreated().toString() : null,
+                            p.getFinished() != null ? p.getFinished().toString() : null))
+                    .toList();
+        }
+        log.info("Listing processes, definition={} status={} tag={} query={}", workflowDefinitionId, status, tag, query);
+        InputLimits.checkIdentifier(workflowDefinitionId, "workflowDefinitionId");
+        InputLimits.checkIdentifier(tag, "tag");
+        var filter = new io.mateu.workflow.application.out.ProcessListingFilter(null, false,
+                isBlank(workflowDefinitionId) ? null : workflowDefinitionId.trim(), statusesOf(status), null, null, null,
+                listing.definitionsTagged(isBlank(tag) ? null : tag.trim()),
+                io.mateu.workflow.search.SearchQuery.parse(query));
+        var pageSize = size == null || size <= 0 ? 100 : Math.min(size, MAX_PAGE_SIZE);
+        return listing.search(filter, page == null || page < 0 ? 0 : page, pageSize).content().stream()
+                .map(p -> new ProcessSummary(p.id(), p.name(), p.businessKey(), p.status().name(),
+                        p.completionPercentage(),
+                        p.created() != null ? p.created().toString() : null,
+                        p.finished() != null ? p.finished().toString() : null))
                 .toList();
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.isBlank();
+    }
+
+    /** Comma-separated statuses; an unknown one is refused with the ones there are. */
+    private static java.util.Set<io.mateu.workflow.domain.aggregates.ProcessStatus> statusesOf(String raw) {
+        if (isBlank(raw)) {
+            return null;
+        }
+        var statuses = java.util.EnumSet.noneOf(io.mateu.workflow.domain.aggregates.ProcessStatus.class);
+        for (var token : raw.split(",")) {
+            if (token.isBlank()) {
+                continue;
+            }
+            try {
+                statuses.add(io.mateu.workflow.domain.aggregates.ProcessStatus.valueOf(token.trim().toUpperCase(java.util.Locale.ROOT)));
+            } catch (IllegalArgumentException unknown) {
+                throw new IllegalArgumentException("Unknown status '" + token.trim() + "'; one of "
+                        + java.util.Arrays.toString(io.mateu.workflow.domain.aggregates.ProcessStatus.values()));
+            }
+        }
+        return statuses.isEmpty() ? null : statuses;
     }
 
     @Tool(description = "Get full details of a workflow process including variables and step executions")

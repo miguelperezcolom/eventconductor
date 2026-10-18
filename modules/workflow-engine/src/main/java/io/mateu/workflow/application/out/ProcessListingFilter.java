@@ -42,18 +42,37 @@ public record ProcessListingFilter(
          * resolves the tag to the definitions that carry it. Null or empty narrows nothing; a non-empty
          * set that matches no definition yields an empty listing (the caller passes a sentinel).
          */
-        Set<String> workflowDefinitionIds) {
+        Set<String> workflowDefinitionIds,
+        /**
+         * Conditions on the processes' search attributes, all of which must hold (2.30; see
+         * {@link io.mateu.workflow.search.SearchAttributeFilter}). Null or empty narrows nothing.
+         */
+        java.util.List<io.mateu.workflow.search.SearchAttributeFilter> searchAttributes) {
 
     /** The listing with nothing but a text box and the errors toggle — what every caller had. */
     public static ProcessListingFilter of(String searchText, boolean onlyErrors) {
-        return new ProcessListingFilter(searchText, onlyErrors, null, null, null, null, null, null);
+        return new ProcessListingFilter(searchText, onlyErrors, null, null, null, null, null, null, null);
+    }
+
+    /** The shape before search attributes; null narrows nothing. */
+    public ProcessListingFilter(String searchText, boolean onlyErrors, String workflowDefinitionId,
+                                Set<ProcessStatus> status, LocalDateTime createdFrom, LocalDateTime createdTo,
+                                String businessKey, Set<String> workflowDefinitionIds) {
+        this(searchText, onlyErrors, workflowDefinitionId, status, createdFrom, createdTo, businessKey,
+                workflowDefinitionIds, null);
+    }
+
+    /** A copy narrowed by these search-attribute conditions as well (replacing any it had). */
+    public ProcessListingFilter withSearchAttributes(java.util.List<io.mateu.workflow.search.SearchAttributeFilter> conditions) {
+        return new ProcessListingFilter(searchText, onlyErrors, workflowDefinitionId, status, createdFrom, createdTo,
+                businessKey, workflowDefinitionIds, conditions);
     }
 
     /** The shape every caller had before a definition-set (tag) filter existed; null narrows nothing. */
     public ProcessListingFilter(String searchText, boolean onlyErrors, String workflowDefinitionId,
                                 Set<ProcessStatus> status, LocalDateTime createdFrom, LocalDateTime createdTo,
                                 String businessKey) {
-        this(searchText, onlyErrors, workflowDefinitionId, status, createdFrom, createdTo, businessKey, null);
+        this(searchText, onlyErrors, workflowDefinitionId, status, createdFrom, createdTo, businessKey, null, null);
     }
 
     /**
@@ -62,7 +81,7 @@ public record ProcessListingFilter(
      */
     public ProcessListingFilter(String searchText, boolean onlyErrors, String workflowDefinitionId,
                                 Set<ProcessStatus> status, LocalDateTime createdFrom, LocalDateTime createdTo) {
-        this(searchText, onlyErrors, workflowDefinitionId, status, createdFrom, createdTo, null, null);
+        this(searchText, onlyErrors, workflowDefinitionId, status, createdFrom, createdTo, null, null, null);
     }
 
     /**
@@ -75,9 +94,22 @@ public record ProcessListingFilter(
      * the index, everything else on the write side — rather than a per-field patchwork.
      */
     public boolean hasNarrowingBeyondText() {
+        return hasNarrowingBeyondTextAndAttributes() || normalisedSearchAttributes() != null;
+    }
+
+    /**
+     * Whether anything beyond text, the errors toggle and search attributes is set — the three the
+     * process index can answer (since 2.30 it holds the attributes too).
+     */
+    public boolean hasNarrowingBeyondTextAndAttributes() {
         return workflowDefinitionId != null || (status != null && !status.isEmpty())
                 || createdFrom != null || createdTo != null || normalisedBusinessKey() != null
                 || normalisedDefinitionIds() != null;
+    }
+
+    /** Null and empty both mean "no attribute filter"; normalised here so no store has to decide. */
+    public java.util.List<io.mateu.workflow.search.SearchAttributeFilter> normalisedSearchAttributes() {
+        return searchAttributes == null || searchAttributes.isEmpty() ? null : searchAttributes;
     }
 
     /** Null and blank both mean "no text filter"; normalised here so no store has to decide. */

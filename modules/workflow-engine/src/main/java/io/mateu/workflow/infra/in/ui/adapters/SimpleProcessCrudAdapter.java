@@ -84,7 +84,8 @@ public class SimpleProcessCrudAdapter  {
                     filters.createdFrom(),
                     filters.createdTo(),
                     blankToNull(filters.businessKey()),
-                    definitionsTagged(blankToNull(filters.tag())));
+                    definitionsTagged(blankToNull(filters.tag())),
+                    io.mateu.workflow.search.SearchQuery.parse(filters.attributes()));
         }
         return new io.mateu.workflow.application.out.ProcessListingFilter(
                 searchText,
@@ -94,7 +95,25 @@ public class SimpleProcessCrudAdapter  {
                 stateDateTime(httpRequest, "createdFrom"),
                 stateDateTime(httpRequest, "createdTo"),
                 blankToNull(stateString(httpRequest, "businessKey")),
-                definitionsTagged(blankToNull(stateString(httpRequest, "tag"))));
+                definitionsTagged(blankToNull(stateString(httpRequest, "tag"))),
+                io.mateu.workflow.search.SearchQuery.parse(stateString(httpRequest, "attributes")));
+    }
+
+    /**
+     * The Processes page's filter as a batch operation keeps it — the tag and the attribute query as typed,
+     * resolved again whenever the batch reads a page — from the component state the toolbar action carries.
+     */
+    public io.mateu.workflow.domain.batch.BatchOperationFilter batchFilter(HttpRequest httpRequest) {
+        return new io.mateu.workflow.domain.batch.BatchOperationFilter(
+                stateString(httpRequest, "workflowDefinitionId"),
+                stateString(httpRequest, "tag"),
+                stateStatus(httpRequest),
+                stateDateTime(httpRequest, "createdFrom"),
+                stateDateTime(httpRequest, "createdTo"),
+                stateString(httpRequest, "businessKey"),
+                stateString(httpRequest, "searchText"),
+                stateFlag(httpRequest, "onlyErrors"),
+                stateString(httpRequest, "attributes"));
     }
 
     /** A tag that no definition carries must list nothing: a set no process can match, never "no filter". */

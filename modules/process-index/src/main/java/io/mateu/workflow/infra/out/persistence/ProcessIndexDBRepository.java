@@ -18,12 +18,20 @@ import java.util.stream.Collectors;
 public class ProcessIndexDBRepository implements ProcessIndexRepository {
 
     private final ProcessIndexEntityRepository repository;
+    private final ProcessIndexSearchAttributeEntityRepository attributes;
 
-    public ProcessIndexDBRepository(ProcessIndexEntityRepository repository) {
+    /** The engine's own persistence unit — where the embedded index lives. */
+    @jakarta.persistence.PersistenceContext
+    private jakarta.persistence.EntityManager entityManager;
+
+    public ProcessIndexDBRepository(ProcessIndexEntityRepository repository,
+                                    ProcessIndexSearchAttributeEntityRepository attributes) {
         this.repository = repository;
+        this.attributes = attributes;
     }
 
     @Override
+    @org.springframework.transaction.annotation.Transactional
     public void upsert(ProcessIndexRow row) {
         // save() is an upsert on the @Id (processId). Out-of-order redelivery is guarded: skip a
         // write whose event is older than what is already stored.
@@ -36,6 +44,19 @@ public class ProcessIndexDBRepository implements ProcessIndexRepository {
                 row.processId(), row.businessKey(), row.name(), row.workflowDefinitionId(),
                 row.workflowDefinitionVersion(), row.status(), row.completionPercentage(),
                 row.created(), row.started(), row.finished(), row.updatedAt(), row.shardId()));
+        // An event that carries attributes replaces them; one that carries none (null) leaves them.
+        if (row.searchAttributes() != null) {
+            attributes.deleteAll(attributes.findAllByProcessId(row.processId()));
+            attributes.flush();
+            attributes.saveAll(row.searchAttributes().stream()
+                    .map(value -> new ProcessIndexSearchAttributeEntity(row.processId(), value)).toList());
+        }
+    }
+
+    /** The search attributes the index holds for a process — for tests and diagnosis. */
+    public List<io.mateu.workflow.search.SearchAttributeValue> searchAttributesOf(String processId) {
+        return attributes.findAllByProcessId(processId).stream()
+                .map(ProcessIndexSearchAttributeEntity::toValue).toList();
     }
 
     @Override
@@ -85,6 +106,47 @@ public class ProcessIndexDBRepository implements ProcessIndexRepository {
                 new ProcessIndexPage(content, total, served.number(), served.size()));
     }
 
+    /**
+     * The listing narrowed by search attributes too: the same text and errors conditions as
+     * {@link #search(String, boolean, int, int)}, plus one {@code EXISTS} per attribute condition — built
+     * as JPQL with every value bound (see {@code SearchAttributeConditions}).
+     */
+    @Override
+    public java.util.Optional<ProcessIndexPage> search(String searchText, boolean onlyErrors,
+                                                       List<io.mateu.workflow.search.SearchAttributeFilter> filters,
+                                                       int page, int size) {
+        if (filters == null || filters.isEmpty()) {
+            return search(searchText, onlyErrors, page, size);
+        }
+        var pattern = (searchText == null || searchText.isBlank())
+                ? null : "%" + searchText.toLowerCase() + "%";
+        var where = new StringBuilder(" where 1 = 1");
+        var params = new java.util.LinkedHashMap<String, Object>();
+        if (onlyErrors) {
+            where.append(" and p.status = 'ERROR'");
+        }
+        if (pattern != null) {
+            where.append(" and lower(concat(coalesce(p.name, ''), ' ', coalesce(p.businessKey, ''))) like :pattern");
+            params.put("pattern", pattern);
+        }
+        var conditions = io.mateu.workflow.processindex.SearchAttributeConditions.of(
+                io.mateu.workflow.processindex.SearchAttributeConditions.Dialect.JPQL,
+                "ProcessIndexSearchAttributeEntity", "p.processId", filters, "a");
+        where.append(conditions.text());
+        params.putAll(conditions.named());
+        var count = entityManager.createQuery("select count(p) from ProcessIndexEntity p" + where, Long.class);
+        params.forEach(count::setParameter);
+        long total = count.getSingleResult();
+        var served = ServedPage.of(page, size, total);
+        var select = entityManager.createQuery("select p from ProcessIndexEntity p" + where
+                + " order by p.created desc nulls last", ProcessIndexEntity.class);
+        params.forEach(select::setParameter);
+        select.setFirstResult((int) served.offset());
+        select.setMaxResults(served.size());
+        var content = select.getResultList().stream().map(this::toRow).toList();
+        return java.util.Optional.of(new ProcessIndexPage(content, total, served.number(), served.size()));
+    }
+
     private ProcessIndexRow toRow(ProcessIndexEntity e) {
         return new ProcessIndexRow(
                 e.getProcessId(), e.getBusinessKey(), e.getName(), e.getWorkflowDefinitionId(),
@@ -93,12 +155,14 @@ public class ProcessIndexDBRepository implements ProcessIndexRepository {
     }
 
     @Override
+    @org.springframework.transaction.annotation.Transactional
     public int deleteByProcessIds(java.util.Collection<String> processIds) {
         if (processIds.isEmpty()) {
             return 0;
         }
         var present = repository.findAllById(processIds);
         repository.deleteAll(present);
+        attributes.deleteAllByProcessIdIn(processIds);
         return present.size();
     }
 }

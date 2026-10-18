@@ -49,4 +49,7 @@ public class WorkflowMenu {
     @Menu
     Analytics analytics;
 
+    @Menu
+    io.mateu.workflow.infra.in.ui.pages.batch.BatchOperations batchOperations;
+
 }

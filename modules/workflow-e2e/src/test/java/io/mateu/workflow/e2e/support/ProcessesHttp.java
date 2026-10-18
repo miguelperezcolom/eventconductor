@@ -43,6 +43,12 @@ public class ProcessesHttp {
                 .get("/workflow/api/processes" + path).header("X-Api-Key", API_KEY)).andReturn().getResponse();
     }
 
+    /** A GET with one parameter passed as a parameter — its value sent as typed, encoded once. */
+    public MockHttpServletResponse get(String path, String name, String value) throws Exception {
+        return mvc.perform(MockMvcRequestBuilders.get("/workflow/api/processes" + path).param(name, value)
+                .header("X-Api-Key", API_KEY)).andReturn().getResponse();
+    }
+
     public MockHttpServletResponse post(String path) throws Exception {
         return mvc.perform(MockMvcRequestBuilders
                 .post("/workflow/api/processes" + path).header("X-Api-Key", API_KEY)).andReturn().getResponse();

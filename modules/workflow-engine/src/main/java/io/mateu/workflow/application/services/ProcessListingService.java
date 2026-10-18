@@ -23,7 +23,8 @@ import java.util.stream.Collectors;
  * admin console's Processes page and the REST API ({@code GET /workflow/api/processes}).
  *
  * <p>It decides where the page comes from. The CQRS process index answers when it is on and the
- * filter is one it can answer (text and the errors toggle); the write side answers everything else.
+ * filter is one it can answer (text, the errors toggle and — since 2.30 — search attributes); the write
+ * side answers everything else.
  * The index holds a projection, not the process, so rather than serve a page that quietly ignores the
  * definition, status or dates that were asked for, it declines and the write side answers. In a
  * sharded fleet that is the difference between listing the fleet and listing the shard that served
@@ -70,17 +71,22 @@ public class ProcessListingService {
 
     /** Whether a listing with this filter would be answered from the process index. */
     public boolean answeredFromIndex(ProcessListingFilter filter) {
-        return !filter.hasNarrowingBeyondText() && readModel.isEnabled() && processIndex.getIfAvailable() != null;
+        return !filter.hasNarrowingBeyondTextAndAttributes() && readModel.isEnabled()
+                && processIndex.getIfAvailable() != null;
     }
 
     private Optional<ProcessSummaryPage> searchIndex(ProcessListingFilter filter, int page, int size) {
         if (!answeredFromIndex(filter)) {
             return Optional.empty();
         }
-        // The store may still decline (it cannot page), by answering empty rather than a page it
-        // had to load whole.
-        return processIndex.getIfAvailable()
-                .search(filter.normalisedSearchText(), filter.onlyErrors(), page, size)
+        // The store may still decline (it cannot page, or cannot match search attributes), by answering
+        // empty rather than a page it had to load whole or that ignores half the filter.
+        var attributes = filter.normalisedSearchAttributes();
+        var index = processIndex.getIfAvailable();
+        var answer = attributes == null
+                ? index.search(filter.normalisedSearchText(), filter.onlyErrors(), page, size)
+                : index.search(filter.normalisedSearchText(), filter.onlyErrors(), attributes, page, size);
+        return answer
                 .map(found -> new ProcessSummaryPage(
                         found.content().stream().map(ProcessListingService::summaryOf).toList(),
                         found.totalElements(), found.pageNumber(), found.pageSize()));

@@ -108,6 +108,13 @@ public class WorkflowDefinitionVersioningService {
         if (d.triggers() != null) {
             canonical.put("triggers", io.mateu.core.infra.JsonSerializer.toJson(d.triggers()));
         }
+        // Search attributes too: a process evaluates the attributes of the version it runs (they ride in
+        // its definition snapshot), so a version must say which ones its processes are indexed by — the
+        // definition shown as vN is then exactly what vN's processes can be searched by. Only written
+        // when present, so a definition without them hashes as before and an upgrade mints nothing.
+        if (d.searchAttributes() != null) {
+            canonical.put("searchAttributes", io.mateu.core.infra.JsonSerializer.toJson(d.searchAttributes()));
+        }
         canonical.put("defaultMaxStepExecutions", d.defaultMaxStepExecutions());
         canonical.put("steps", d.steps().stream()
                 .sorted(Comparator.comparing(Step::id, Comparator.nullsLast(Comparator.naturalOrder())))

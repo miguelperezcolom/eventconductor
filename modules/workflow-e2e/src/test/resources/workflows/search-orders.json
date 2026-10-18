@@ -1,0 +1,18 @@
+{
+  "id": "search-orders",
+  "name": "Searchable orders",
+  "version": 1,
+  "searchAttributes": {
+    "customerId": "${customerId}",
+    "amount": { "value": "${total}", "type": "number" },
+    "placedOn": { "value": "${placedOn}", "type": "date" },
+    "note": { "value": "${note}", "type": "text" },
+    "reviewed": "${reviewed}"
+  },
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "review", "type": "ACTION", "name": "Review", "topic": "work", "preconditionStepId": "start" },
+    { "id": "hold", "type": "ACTION", "name": "Hold", "topic": "work", "preconditionStepId": "review" },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "hold" }
+  ]
+}

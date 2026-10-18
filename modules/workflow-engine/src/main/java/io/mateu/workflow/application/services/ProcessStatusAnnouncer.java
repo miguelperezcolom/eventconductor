@@ -55,7 +55,19 @@ public class ProcessStatusAnnouncer {
      * @param previousStatus the status currently persisted, or {@code null} if the process is new.
      */
     public void announceIfChanged(Process process, ProcessStatus previousStatus) {
-        if (!enabled || previousStatus == process.getStatus()) {
+        announceIfChanged(process, previousStatus, SearchAttributeIndexer.Indexed.NONE);
+    }
+
+    /**
+     * As {@link #announceIfChanged(Process, ProcessStatus)}, and also when only the process's search
+     * attributes changed with this save: the index row is upserted whole, so it learns the new values
+     * without a status change. The event carries the attributes whenever the definition declares any
+     * ({@code null} otherwise, which tells the index to keep what it has).
+     */
+    public void announceIfChanged(Process process, ProcessStatus previousStatus,
+                                  SearchAttributeIndexer.Indexed searchAttributes) {
+        var indexed = searchAttributes == null ? SearchAttributeIndexer.Indexed.NONE : searchAttributes;
+        if (!enabled || (previousStatus == process.getStatus() && !indexed.changed())) {
             return;
         }
         process.send(new ProcessStatusChanged(
@@ -74,6 +86,7 @@ public class ProcessStatusAnnouncer {
                 EngineClock.now(),
                 // The owning shard, stamped here rather than read by the projector, so a fanned-out
                 // projector still records where the process lives (see ProcessStatusChanged#shardId).
-                shardId));
+                shardId,
+                indexed.values()));
     }
 }

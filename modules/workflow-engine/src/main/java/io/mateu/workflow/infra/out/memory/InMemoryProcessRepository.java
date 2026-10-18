@@ -42,6 +42,10 @@ public class InMemoryProcessRepository implements ProcessRepository {
     @Autowired
     private org.springframework.beans.factory.ObjectProvider<io.mateu.workflow.application.out.StepExecutionRepository> stepExecutionRepository;
 
+    // Computes the search attributes (memory keeps none: the listing evaluates them per process).
+    @Autowired(required = false)
+    private io.mateu.workflow.application.services.SearchAttributeIndexer searchAttributeIndexer;
+
     private final Map<String, Process> store = new ConcurrentHashMap<>();
 
     @Override
@@ -60,7 +64,8 @@ public class InMemoryProcessRepository implements ProcessRepository {
         // dispatch below. Off → no store read, no event.
         if (processStatusAnnouncer.isEnabled()) {
             var previous = store.get(process.id());
-            processStatusAnnouncer.announceIfChanged(process, previous == null ? null : previous.getStatus());
+            processStatusAnnouncer.announceIfChanged(process, previous == null ? null : previous.getStatus(),
+                    searchAttributeIndexer == null ? null : searchAttributeIndexer.index(process));
         }
         store.put(process.id(), process);
         if (process.hasReplied() && replySignal != null) {

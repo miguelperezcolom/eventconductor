@@ -56,18 +56,29 @@ public final class ProcessApi {
             @Schema(description = "When it was paused; null unless PAUSED.") String pausedAt,
             @Schema(description = "The PROCESS step execution that spawned it; null for a top-level process.")
             String parentStepExecutionId,
-            Map<String, String> variables) {
+            Map<String, String> variables,
+            @Schema(description = "Its search attributes, by name, as the definition declares them (2.30); empty when it declares none.")
+            Map<String, String> searchAttributes) {
 
         static ProcessView of(Process process) {
             return new ProcessView(process.getId(), process.getWorkflowDefinitionId(),
                     process.getWorkflowDefinitionVersion(), process.getName(), process.getBusinessKey(),
                     nameOf(process.getStatus()), process.getCompletionPercentage(),
                     format(process.getCreated()), format(process.getStarted()), format(process.getFinished()),
-                    format(process.getPausedAt()), process.getParentStepExecutionId(), variablesOf(process));
+                    format(process.getPausedAt()), process.getParentStepExecutionId(), variablesOf(process),
+                    searchAttributesOf(process));
         }
     }
 
     @Schema(name = "ProcessSummary", description = "A process as the listing shows it: no variables.")
+    /** A process's search attributes as text, by name, in declaration order. */
+    static Map<String, String> searchAttributesOf(Process process) {
+        var values = new java.util.LinkedHashMap<String, String>();
+        io.mateu.workflow.domain.services.SearchAttributeEvaluator.evaluate(process)
+                .forEach(value -> values.put(value.name(), value.display()));
+        return values;
+    }
+
     public record ProcessSummaryView(
             String id,
             String definitionId,

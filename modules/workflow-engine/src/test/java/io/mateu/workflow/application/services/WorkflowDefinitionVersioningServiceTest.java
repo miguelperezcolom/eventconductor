@@ -97,4 +97,16 @@ class WorkflowDefinitionVersioningServiceTest {
         assertThat(service.contentHash(def.withRetention(io.mateu.workflow.domain.aggregates.ProcessRetention.perStatus(
                 java.util.Map.of("error", "P180D"))))).isEqualTo(service.contentHash(def));
     }
+
+    @Test
+    void searchAttributesArePartOfTheVersion() throws Exception {
+        var def = def(TWO_STEPS);
+        var indexed = def.withSearchAttributes(java.util.Map.of("customerId", "${customerId}"));
+        assertThat(service.contentHash(indexed)).isNotEqualTo(service.contentHash(def));
+        assertThat(service.contentHash(indexed.withSearchAttributes(java.util.Map.of("customerId",
+                java.util.Map.of("value", "${customerId}", "type", "text")))))
+                .isNotEqualTo(service.contentHash(indexed));
+        // Absent hashes as before the field existed: an upgrade mints nothing.
+        assertThat(service.contentHash(def.withSearchAttributes(null))).isEqualTo(service.contentHash(def));
+    }
 }

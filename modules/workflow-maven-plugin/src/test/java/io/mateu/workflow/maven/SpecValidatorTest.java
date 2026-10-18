@@ -317,6 +317,38 @@ class SpecValidatorTest {
     }
 
     @Test
+    void searchAttributesFollowTheEnginesRules() throws Exception {
+        var mapper = new com.fasterxml.jackson.dataformat.yaml.YAMLMapper();
+        var good = mapper.readTree("""
+                id: indexed
+                name: Indexed
+                searchAttributes:
+                  customerId: "${customerId}"
+                  amount: {value: "${total}", type: number}
+                  region: {value: "${address.region}"}
+                steps:
+                  - {id: start, type: START, name: Start}
+                """);
+        assertThat(validator.validate(SpecValidator.Kind.WORKFLOW, good)).isEmpty();
+
+        var bad = mapper.readTree("""
+                id: indexed
+                name: Indexed
+                searchAttributes:
+                  amount: {value: "${total}", type: money}
+                  fixed: "always the same"
+                  Region: "${r}"
+                  region: "${r}"
+                steps:
+                  - {id: start, type: START, name: Start}
+                """);
+        assertThat(validator.validate(SpecValidator.Kind.WORKFLOW, bad))
+                .anySatisfy(v -> assertThat(v).contains("money"))
+                .anySatisfy(v -> assertThat(v).contains("fixed"))
+                .anySatisfy(v -> assertThat(v).contains("'region' is declared more than once"));
+    }
+
+    @Test
     void definitionRetentionFollowsTheEnginesRules() throws Exception {
         var mapper = new com.fasterxml.jackson.dataformat.yaml.YAMLMapper();
         for (var retention : new String[]{"P30D", "forever", "{completed: P30D, error: P180D, compensationFailed: forever}"}) {

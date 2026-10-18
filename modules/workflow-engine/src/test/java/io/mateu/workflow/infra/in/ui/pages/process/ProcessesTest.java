@@ -20,7 +20,7 @@ class ProcessesTest {
     private final CommandDispatcher commandDispatcher = mock(CommandDispatcher.class);
 
     private Processes page() {
-        return new Processes(null, commandDispatcher, null, null, null);
+        return new Processes(null, commandDispatcher, null, null, null, null);
     }
 
     private ProcessRow row(String id) {
@@ -62,5 +62,45 @@ class ProcessesTest {
         page().cancel(List.of());
 
         verifyNoInteractions(commandDispatcher);
+    }
+
+    /** "Cancel all matching" turns the filter on screen — attributes included — into a batch operation. */
+    @Test
+    void theAllMatchingButtonsCreateABatchFromTheFilterOnScreen() {
+        var batches = mock(io.mateu.workflow.application.services.BatchOperationService.class);
+        var adapter = new io.mateu.workflow.infra.in.ui.adapters.SimpleProcessCrudAdapter(null, null, null, null, null, null);
+        io.mateu.workflow.security.CallerResolver caller = () -> new io.mateu.workflow.security.AuthorizationContext("ana", List.of(), List.of());
+        var page = new Processes(adapter, commandDispatcher, null, null, caller, batches);
+        var state = new java.util.HashMap<String, Object>();
+        state.put("workflowDefinitionId", "orders");
+        state.put("status", "ERROR,CANCELLED");
+        state.put("attributes", "customerId = C-9");
+        state.put("onlyErrors", true);
+        state.put("createdFrom", "2026-10-01");
+        var request = mock(io.mateu.uidl.interfaces.HttpRequest.class);
+        org.mockito.Mockito.when(request.runActionRq()).thenReturn(io.mateu.dtos.RunActionRqDto.builder()
+                .componentState(state).build());
+        var created = io.mateu.workflow.domain.batch.BatchOperation.create("b1",
+                io.mateu.workflow.domain.batch.BatchOperationType.CANCEL,
+                new io.mateu.workflow.domain.batch.BatchOperationFilter("orders", null, null, null, null, null, null, false, null),
+                null, 4, null, java.time.LocalDateTime.now());
+        org.mockito.Mockito.when(batches.create(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any())).thenReturn(created);
+
+        assertThat(page.cancelAllMatching(request).text()).contains("b1", "CANCEL", "4 process(es)");
+        var filter = ArgumentCaptor.forClass(io.mateu.workflow.domain.batch.BatchOperationFilter.class);
+        verify(batches).create(org.mockito.ArgumentMatchers.eq(io.mateu.workflow.domain.batch.BatchOperationType.CANCEL),
+                filter.capture(), org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.any());
+        assertThat(filter.getValue().workflowDefinitionId()).isEqualTo("orders");
+        assertThat(filter.getValue().status()).containsExactlyInAnyOrder(
+                io.mateu.workflow.domain.aggregates.ProcessStatus.ERROR, io.mateu.workflow.domain.aggregates.ProcessStatus.CANCELLED);
+        assertThat(filter.getValue().query()).isEqualTo("customerId = C-9");
+        assertThat(filter.getValue().onlyErrors()).isTrue();
+        assertThat(filter.getValue().createdFrom()).isEqualTo(java.time.LocalDate.of(2026, 10, 1).atStartOfDay());
+
+        org.mockito.Mockito.when(batches.create(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                .thenThrow(new IllegalArgumentException("A batch operation needs a filter"));
+        assertThat(page.retryAllMatching(request).text()).contains("needs a filter");
     }
 }

@@ -245,6 +245,17 @@ public class SpecValidator {
                     e.getValue().isTextual() ? e.getValue().asText() : e.getValue().toString()));
             violations.addAll(io.mateu.workflow.analysis.RetentionRules.violations(null, byStatus, "retention"));
         }
+        JsonNode searchAttributes = wf.get("searchAttributes");
+        if (searchAttributes != null && !searchAttributes.isNull()) {
+            if (!searchAttributes.isObject()) {
+                violations.add("searchAttributes: must be an object of name: \"${expression}\" or name: { value, type }");
+            } else {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> declared = new com.fasterxml.jackson.databind.ObjectMapper()
+                        .convertValue(searchAttributes, LinkedHashMap.class);
+                violations.addAll(io.mateu.workflow.analysis.SearchAttributeRules.violations(declared, "searchAttributes"));
+            }
+        }
         JsonNode cron = wf.get("cronExpression");
         if (cron != null && cron.isTextual() && !cron.asText().isBlank()
                 && !CronExpression.isValidExpression(cron.asText().trim())) {

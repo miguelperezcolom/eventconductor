@@ -115,4 +115,11 @@ public class WorkflowDefinitionEntity {
     @Column(columnDefinition = "TEXT")
     String retentionJson;
 
+    /**
+     * The definition's {@code searchAttributes} as the file writes them (a JSON object of name → template
+     * or {value, type}), or null when it declares none (V48). Part of the version, unlike the tags.
+     */
+    @Column(columnDefinition = "TEXT")
+    String searchAttributesJson;
+
 }

@@ -117,6 +117,10 @@ Two tools expose the read model to AI assistants (both return empty unless the p
 The existing `listProcesses` / `findProcessByBusinessKey` tools continue to read the write side, so they
 work whether or not the read model is on.
 
+### Search attributes
+
+Since 2.30 `ProcessStatusChanged` also carries the process's [search attributes](/guides/searching-and-bulk-operations/), and is emitted when only they changed; the projector keeps them in `process_index_search_attribute` (one row per process and attribute). An event that carries none — a definition that declares none, or a producer older than 2.30 — leaves what the index holds, and a stale event is refused with the rest of its row. A listing narrowed only by text and search attributes is answered from the index; any other filter still goes to the write side.
+
 ## Storage
 
 The read model is one table, created by migration `V18__process_index.sql` (and by Hibernate DDL where

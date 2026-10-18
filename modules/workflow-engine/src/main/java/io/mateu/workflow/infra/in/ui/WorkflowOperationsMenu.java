@@ -28,6 +28,9 @@ public class WorkflowOperationsMenu {
     @Menu
     io.mateu.workflow.infra.in.ui.pages.incidents.Incidents incidents;
 
+    @Menu
+    io.mateu.workflow.infra.in.ui.pages.batch.BatchOperations batchOperations;
+
     // Steps is deliberately NOT here. A step execution is diagnosis of the engine rather than the
     // work itself, and the process detail already lists the steps of the one you are looking at —
     // which is how you reach a step you actually care about. WorkflowMenu still offers it, so an

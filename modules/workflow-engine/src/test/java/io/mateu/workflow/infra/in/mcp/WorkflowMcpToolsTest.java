@@ -142,6 +142,31 @@ class WorkflowMcpToolsTest {
     }
 
     @Test
+    void aFilteredListingGoesThroughTheListingWithTheAttributeQuery() {
+        var listing = mock(io.mateu.workflow.application.services.ProcessListingService.class);
+        var beans = new org.springframework.beans.factory.support.StaticListableBeanFactory();
+        beans.addBean("listing", listing);
+        tools.processListing = beans.getBeanProvider(io.mateu.workflow.application.services.ProcessListingService.class);
+        when(listing.definitionsTagged(null)).thenReturn(null);
+        when(listing.search(any(), eq(1), eq(500))).thenReturn(new io.mateu.workflow.application.out.ProcessSummaryPage(
+                List.of(new io.mateu.workflow.application.out.ProcessSummary("p-1", "Booking", ProcessStatus.ERROR, 40,
+                        CREATED, null, FINISHED, "bk-1", "booking")), 1, 1, 500));
+
+        assertThat(tools.listProcesses("booking", "error,cancelled", null, "customerId = C-9", 1, 9999))
+                .containsExactly(new WorkflowMcpTools.ProcessSummary("p-1", "Booking", "bk-1", "ERROR", 40,
+                        "2026-10-01T09:00", "2026-10-01T09:05"));
+        var filter = ArgumentCaptor.forClass(io.mateu.workflow.application.out.ProcessListingFilter.class);
+        verify(listing).search(filter.capture(), eq(1), eq(500));
+        assertThat(filter.getValue().workflowDefinitionId()).isEqualTo("booking");
+        assertThat(filter.getValue().status()).containsExactlyInAnyOrder(ProcessStatus.ERROR, ProcessStatus.CANCELLED);
+        assertThat(filter.getValue().normalisedSearchAttributes()).hasSize(1);
+        assertThatThrownBy(() -> tools.listProcesses(null, "NAPPING", null, null, null, null))
+                .hasMessageContaining("Unknown status");
+        assertThatThrownBy(() -> tools.listProcesses(null, null, null, "amount >", null, null))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
     void theDetailsCarryTheVariablesAsNameEqualsValueAndEveryStep() {
         var process = process("p-1", "bk-1", List.of(new io.mateu.workflow.domain.aggregates.Variable("amount", "12"), new io.mateu.workflow.domain.aggregates.Variable("currency", "EUR")));
         when(processes.findById("p-1")).thenReturn(Optional.of(process));

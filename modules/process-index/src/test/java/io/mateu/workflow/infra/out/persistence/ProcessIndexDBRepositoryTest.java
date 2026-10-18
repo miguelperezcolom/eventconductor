@@ -49,6 +49,40 @@ class ProcessIndexDBRepositoryTest {
     }
 
     @Test
+    void searchAttributesAreProjectedAndSearched() {
+        var c9 = io.mateu.workflow.search.SearchAttributeValue.of("customerId",
+                io.mateu.workflow.search.SearchAttributeType.KEYWORD, "C-9").orElseThrow();
+        var amount = io.mateu.workflow.search.SearchAttributeValue.of("amount",
+                io.mateu.workflow.search.SearchAttributeType.NUMBER, "150").orElseThrow();
+        var note = io.mateu.workflow.search.SearchAttributeValue.of("note",
+                io.mateu.workflow.search.SearchAttributeType.TEXT, "Rush 100% order").orElseThrow();
+        store.upsert(new ProcessIndexRow("p1", "order-1", "Order", "orders", 3, "RUNNING", 25, T0, T0, null, T0, "s1",
+                List.of(c9, amount, note)));
+        store.upsert(row("p2", "order-2", "Order", "orders", "RUNNING", T0.plusMinutes(1), T0));
+
+        var eq = io.mateu.workflow.search.SearchAttributeFilter.Op.EQ;
+        assertThat(store.search(null, false, List.of(new io.mateu.workflow.search.SearchAttributeFilter("customerId", eq, "C-9"),
+                new io.mateu.workflow.search.SearchAttributeFilter("amount", io.mateu.workflow.search.SearchAttributeFilter.Op.GT, "100")),
+                0, 10).orElseThrow().content()).extracting(ProcessIndexRow::processId).containsExactly("p1");
+        assertThat(store.search("order", false, List.of(new io.mateu.workflow.search.SearchAttributeFilter("note", eq, "100%")),
+                0, 10).orElseThrow().totalElements()).isEqualTo(1);
+        assertThat(store.search(null, true, List.of(new io.mateu.workflow.search.SearchAttributeFilter("customerId", eq, "C-9")),
+                0, 10).orElseThrow().totalElements()).isZero();
+        // No condition: the plain listing.
+        assertThat(store.search(null, false, List.of(), 0, 10).orElseThrow().totalElements()).isEqualTo(2);
+
+        // An event that says nothing keeps them; one with an empty list clears them; a purge forgets them.
+        store.upsert(new ProcessIndexRow("p1", "order-1", "Order", "orders", 3, "COMPLETED", 100, T0, T0, T0,
+                T0.plusMinutes(1), "s1", null));
+        assertThat(store.searchAttributesOf("p1")).hasSize(3);
+        store.upsert(new ProcessIndexRow("p1", "order-1", "Order", "orders", 3, "COMPLETED", 100, T0, T0, T0,
+                T0.plusMinutes(2), "s1", List.of(c9)));
+        assertThat(store.searchAttributesOf("p1")).containsExactly(c9);
+        store.deleteByProcessIds(List.of("p1"));
+        assertThat(store.searchAttributesOf("p1")).isEmpty();
+    }
+
+    @Test
     void roundTripsTheWholeRow() {
         var row = new ProcessIndexRow("p1", "order-1", "Order 1", "orders", 3, "COMPLETED", 100, T0,
                 T0.plusSeconds(1), T0.plusMinutes(2), T0.plusMinutes(2), "s7");

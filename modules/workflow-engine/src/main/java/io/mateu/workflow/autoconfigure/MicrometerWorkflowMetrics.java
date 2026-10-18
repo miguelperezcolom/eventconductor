@@ -63,6 +63,9 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
     public static final String PROCESS_OPERATIONS = "eventconductor.processes.operations";
     public static final String TAG_OPERATION = "operation";
     public static final String TAG_STATUS = "status";
+    public static final String BATCH_OPERATIONS = "eventconductor.batch.operations";
+    public static final String BATCH_OPERATION_ITEMS = "eventconductor.batch.operation.items";
+    public static final String TAG_TYPE = "type";
 
     public static final String TAG_WORKFLOW_DEFINITION_ID = "workflowDefinitionId";
     public static final String TAG_OUTCOME = "outcome";
@@ -215,6 +218,30 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
                 .tag(TAG_WORKFLOW_DEFINITION_ID, tagValue(workflowDefinitionId))
                 .register(registry)
                 .increment();
+    }
+
+    @Override
+    public void batchOperationFinished(String type, String outcome) {
+        var registry = registry();
+        if (registry == null) return;
+        Counter.builder(BATCH_OPERATIONS)
+                .description("Batch operations that ended, by type and outcome (completed, failed, cancelled)")
+                .tag(TAG_TYPE, tagValue(type))
+                .tag(TAG_OUTCOME, tagValue(outcome))
+                .register(registry)
+                .increment();
+    }
+
+    @Override
+    public void batchOperationItems(String type, String outcome, long count) {
+        var registry = registry();
+        if (registry == null || count <= 0) return;
+        Counter.builder(BATCH_OPERATION_ITEMS)
+                .description("Processes a batch operation acted on, by type and outcome (succeeded, failed, skipped)")
+                .tag(TAG_TYPE, tagValue(type))
+                .tag(TAG_OUTCOME, tagValue(outcome))
+                .register(registry)
+                .increment(count);
     }
 
     @Override

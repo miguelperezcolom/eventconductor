@@ -352,6 +352,22 @@ how the purge job runs. A definition's own `retention` wins over these; see
 | `workflow.processes.purge.batch-size` | `100` | Process trees read per query. Each tree is deleted in its own transaction. |
 | `workflow.processes.purge.max-per-pass` | `10000` | Processes one pass may delete — a backlog (retention just switched on over years of history) is worked off over several passes. |
 
+### Batch operations (`workflow.batch-operations.*`)
+
+The runner that walks [batch operations](/guides/searching-and-bulk-operations/#batch-operations). One node at a
+time works batches (`jpa`: an advisory lock); every node can create and cancel them.
+
+| Property | Default | Description |
+|---|---|---|
+| `workflow.batch-operations.enabled` | `true` | Run the runner on this node. Off: batches are still created and cancelled, and wait as `CREATED`. |
+| `workflow.batch-operations.poll-interval` | `PT1S` | Pause between two pages — and how soon a new batch is picked up. |
+| `workflow.batch-operations.page-size` | `100` | Processes read and acted on per page; the cursor and counters are saved after each page, so a restart repeats at most one page. |
+| `workflow.batch-operations.max-per-second` | `50` | Throttle: processes acted on per second. `0` or less: as fast as the commands go. |
+| `workflow.batch-operations.list-limit` | `200` | How many batches the console, REST and MCP list, newest first. |
+
+Search attributes need no configuration: they are declared per definition (`searchAttributes`) and stored by the
+migrations (V48 `process_search_attribute`, V49 `batch_operation`).
+
 ### Synchronous invocation (`workflow.sync.*`)
 
 Only relevant to definitions that declare `syncInvocation`; see [Synchronous Invocation](/guides/synchronous-invocation/).

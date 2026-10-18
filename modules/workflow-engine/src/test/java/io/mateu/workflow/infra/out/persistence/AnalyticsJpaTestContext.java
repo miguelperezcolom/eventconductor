@@ -37,7 +37,9 @@ import java.util.Map;
                 // Not analytics: the process listing's queries, on the same migrated schemas.
                 ProcessEntityRepository.class, ImportedDefinitionSourceEntityRepository.class,
                 // The incidents query.
-                StepExecutionEntityRepository.class, LogMessageEntityRepository.class}))
+                StepExecutionEntityRepository.class, LogMessageEntityRepository.class,
+                // Search attributes and batch operations (2.30), on the same migrated schemas.
+                ProcessSearchAttributeEntityRepository.class, BatchOperationEntityRepository.class}))
 class AnalyticsJpaTestContext {
 
     static AnnotationConfigApplicationContext open(DataSource dataSource) {

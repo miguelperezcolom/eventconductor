@@ -155,6 +155,9 @@ public class JdbcProcessPurgeRepository implements ProcessPurgeRepository {
             updateIn("DELETE FROM sync_invocation WHERE process_id IN (%s)", ids);
             updateIn("DELETE FROM analytics_counted_process WHERE process_id IN (%s)", ids);
             updateIn("DELETE FROM process_index WHERE process_id IN (%s)", ids);
+            // Search attributes (V48): the process's own, and the embedded index's copy.
+            updateIn("DELETE FROM process_search_attribute WHERE process_id IN (%s)", ids);
+            updateIn("DELETE FROM process_index_search_attribute WHERE process_id IN (%s)", ids);
             return true;
         });
         return Boolean.TRUE.equals(purged);

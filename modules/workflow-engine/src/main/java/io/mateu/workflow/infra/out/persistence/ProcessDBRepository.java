@@ -43,6 +43,11 @@ public class ProcessDBRepository implements ProcessRepository {
     final org.springframework.beans.factory.ObjectProvider<
             io.mateu.workflow.application.out.ReplySignal> replySignal;
     final org.springframework.beans.factory.ObjectProvider<ReplyNotifier> replyNotifier;
+    final io.mateu.workflow.application.services.SearchAttributeIndexer searchAttributeIndexer;
+
+    /** For the listing queries built per filter (search attributes, the batch walk). */
+    @jakarta.persistence.PersistenceContext
+    jakarta.persistence.EntityManager entityManager;
 
     @Override
     public Optional<Process> findById(String id) {
@@ -95,11 +100,13 @@ public class ProcessDBRepository implements ProcessRepository {
         // Read-model event, emitted at the one point every status transition funnels through: if the
         // read model is on and this save changes the status, ride a ProcessStatusChanged through the
         // outbox alongside the other domain events. Off → no prior-status read, no event.
+        // Search attributes, at the same chokepoint: recomputed from the variables, stored when they changed.
+        var searchAttributes = searchAttributeIndexer.index(process);
         if (processStatusAnnouncer.isEnabled()) {
             var previousStatus = processEntityRepository.findById(process.getId())
                     .map(entity -> ProcessStatus.valueOf(entity.getStatus()))
                     .orElse(null);
-            processStatusAnnouncer.announceIfChanged(process, previousStatus);
+            processStatusAnnouncer.announceIfChanged(process, previousStatus, searchAttributes);
         }
         // Normalize empty businessKey to null so the unique constraint does not
         // reject multiple processes that have no business key.
@@ -261,6 +268,9 @@ public class ProcessDBRepository implements ProcessRepository {
     @Override
     public ProcessSummaryPage searchSummaries(
             io.mateu.workflow.application.out.ProcessListingFilter filter, int page, int size) {
+        if (filter.normalisedSearchAttributes() != null) {
+            return searchWithAttributes(filter, page, size);
+        }
         var searchText = filter.normalisedSearchText();
         var pattern = searchText == null ? null : "%" + searchText.toLowerCase() + "%";
         var businessKey = filter.normalisedBusinessKey();
@@ -295,6 +305,47 @@ public class ProcessDBRepository implements ProcessRepository {
                         view.getWorkflowDefinitionId()))
                 .toList();
         return new ProcessSummaryPage(content, total, served.number(), served.size());
+    }
+
+    /** The listing narrowed by search attributes: the same conditions, built per filter (see ProcessListingJpql). */
+    private ProcessSummaryPage searchWithAttributes(io.mateu.workflow.application.out.ProcessListingFilter filter,
+                                                    int page, int size) {
+        var where = ProcessListingJpql.of(filter);
+        var count = entityManager.createQuery("select count(p) from ProcessEntity p" + where.text(), Long.class);
+        where.params().forEach(count::setParameter);
+        long total = count.getSingleResult();
+        var served = ServedPage.of(page, size, total);
+        var select = entityManager.createQuery("select p.id, p.name, p.status, p.completionPercentage, p.created,"
+                + " p.started, p.finished, p.businessKey, p.workflowDefinitionId from ProcessEntity p"
+                + where.text() + " order by p.created desc nulls last", Object[].class);
+        where.params().forEach(select::setParameter);
+        select.setFirstResult((int) served.offset());
+        select.setMaxResults(served.size());
+        var content = select.getResultList().stream()
+                .map(row -> new ProcessSummary((String) row[0], (String) row[1],
+                        ProcessStatus.valueOf((String) row[2]), ((Number) row[3]).intValue(),
+                        (LocalDateTime) row[4], (LocalDateTime) row[5], (LocalDateTime) row[6],
+                        (String) row[7], (String) row[8]))
+                .toList();
+        return new ProcessSummaryPage(content, total, served.number(), served.size());
+    }
+
+    /** One query: the filter's conditions, after the id, in id order — the batch operation's walk. */
+    @Override
+    public List<String> findIdsMatching(io.mateu.workflow.application.out.ProcessListingFilter filter,
+                                        String afterId, int limit) {
+        if (limit <= 0) {
+            return List.of();
+        }
+        var where = ProcessListingJpql.of(filter);
+        var query = entityManager.createQuery("select p.id from ProcessEntity p" + where.text()
+                + (afterId == null ? "" : " and p.id > :afterId") + " order by p.id", String.class);
+        where.params().forEach(query::setParameter);
+        if (afterId != null) {
+            query.setParameter("afterId", afterId);
+        }
+        query.setMaxResults(limit);
+        return query.getResultList();
     }
 
     @Override

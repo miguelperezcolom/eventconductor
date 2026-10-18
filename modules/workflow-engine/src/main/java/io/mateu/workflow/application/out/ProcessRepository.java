@@ -162,25 +162,8 @@ public interface ProcessRepository extends CrudStore<Process> {
      * question that was asked, and nothing on screen says so.
      */
     default ProcessSummaryPage searchSummaries(ProcessListingFilter filter, int page, int size) {
-        var needle = filter.normalisedSearchText() == null
-                ? "" : filter.normalisedSearchText().toLowerCase();
-        var businessKeyNeedle = filter.normalisedBusinessKey() == null
-                ? null : filter.normalisedBusinessKey().toLowerCase();
         var matching = findAll().stream()
-                .filter(process -> !filter.onlyErrors() || ProcessStatus.ERROR.equals(process.getStatus()))
-                .filter(process -> filter.status() == null || filter.status().isEmpty()
-                        || filter.status().contains(process.getStatus()))
-                .filter(process -> filter.workflowDefinitionId() == null
-                        || filter.workflowDefinitionId().equals(process.getWorkflowDefinitionId()))
-                .filter(process -> filter.normalisedDefinitionIds() == null
-                        || filter.normalisedDefinitionIds().contains(process.getWorkflowDefinitionId()))
-                .filter(process -> businessKeyNeedle == null
-                        || (process.getBusinessKey() != null
-                                && process.getBusinessKey().toLowerCase().contains(businessKeyNeedle)))
-                .filter(process -> filter.createdFrom() == null && filter.createdTo() == null
-                        || withinWindow(process.getCreated(), filter.createdFrom(), filter.createdTo()))
-                .filter(process -> needle.isEmpty()
-                        || process.searchableText().toLowerCase().contains(needle))
+                .filter(listingPredicate(filter))
                 // nullsFirst before the reverse, so a process with no creation date sorts last
                 .sorted(Comparator.comparing(Process::getCreated,
                         Comparator.nullsFirst(Comparator.<java.time.LocalDateTime>naturalOrder())).reversed())
@@ -192,6 +175,50 @@ public interface ProcessRepository extends CrudStore<Process> {
                 .map(ProcessSummary::from)
                 .toList();
         return new ProcessSummaryPage(content, matching.size(), served.number(), served.size());
+    }
+
+    /**
+     * The ids of the processes the filter matches that sort after {@code afterId}, in id order, at most
+     * {@code limit} — how a batch operation walks a filter: by key, not by page number, so processes
+     * leaving the filter as the batch acts on them (cancelled, retried) do not shift the pages under it,
+     * and a batch resumed after a restart carries on from the last id it reached.
+     *
+     * <p>This default is the in-memory one; the JPA store runs it as one query.
+     *
+     * @param afterId exclusive lower bound; null starts from the first
+     */
+    default List<String> findIdsMatching(ProcessListingFilter filter, String afterId, int limit) {
+        return findAll().stream()
+                .filter(process -> afterId == null || process.getId().compareTo(afterId) > 0)
+                .filter(listingPredicate(filter))
+                .map(Process::getId)
+                .sorted()
+                .limit(Math.max(0, limit))
+                .toList();
+    }
+
+    /** Every field of the filter, as a test on a loaded process — the in-memory stores' listing. */
+    static java.util.function.Predicate<Process> listingPredicate(ProcessListingFilter filter) {
+        var needle = filter.normalisedSearchText() == null
+                ? "" : filter.normalisedSearchText().toLowerCase();
+        var businessKeyNeedle = filter.normalisedBusinessKey() == null
+                ? null : filter.normalisedBusinessKey().toLowerCase();
+        var attributes = filter.normalisedSearchAttributes();
+        return process -> (!filter.onlyErrors() || ProcessStatus.ERROR.equals(process.getStatus()))
+                && (filter.status() == null || filter.status().isEmpty() || filter.status().contains(process.getStatus()))
+                && (filter.workflowDefinitionId() == null
+                        || filter.workflowDefinitionId().equals(process.getWorkflowDefinitionId()))
+                && (filter.normalisedDefinitionIds() == null
+                        || filter.normalisedDefinitionIds().contains(process.getWorkflowDefinitionId()))
+                && (businessKeyNeedle == null
+                        || (process.getBusinessKey() != null
+                                && process.getBusinessKey().toLowerCase().contains(businessKeyNeedle)))
+                && (filter.createdFrom() == null && filter.createdTo() == null
+                        || withinWindow(process.getCreated(), filter.createdFrom(), filter.createdTo()))
+                && (needle.isEmpty() || process.searchableText().toLowerCase().contains(needle))
+                // In memory the attributes are computed from the process itself: nothing to keep in step.
+                && (attributes == null || io.mateu.workflow.search.SearchAttributeFilter.matchAll(attributes,
+                        io.mateu.workflow.domain.services.SearchAttributeEvaluator.evaluate(process)));
     }
 
 

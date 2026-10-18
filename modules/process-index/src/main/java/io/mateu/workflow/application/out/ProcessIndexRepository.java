@@ -66,6 +66,21 @@ public interface ProcessIndexRepository {
         return Optional.empty();
     }
 
+    /**
+     * One page of the operator listing narrowed, as well, by search attributes — every condition must
+     * hold (see {@link io.mateu.workflow.search.SearchAttributeFilter}). With no conditions it is
+     * {@link #search(String, boolean, int, int)}. A store that cannot match attributes answers empty
+     * (the default), and the listing is answered from the write side instead.
+     */
+    default Optional<ProcessIndexPage> search(String searchText, boolean onlyErrors,
+                                              List<io.mateu.workflow.search.SearchAttributeFilter> attributes,
+                                              int page, int size) {
+        if (attributes == null || attributes.isEmpty()) {
+            return search(searchText, onlyErrors, page, size);
+        }
+        return Optional.empty();
+    }
+
     /** One page of {@link #search}, with the total the filter matched and the page actually served. */
     record ProcessIndexPage(List<ProcessIndexRow> content, long totalElements,
                             int pageNumber, int pageSize) {

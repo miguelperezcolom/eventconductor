@@ -28,7 +28,8 @@ The process tools have REST twins on the same application services — start, re
 
 | Tool | Description |
 |---|---|
-| `listProcesses` | All process instances with status and completion % |
+| `listProcesses` | Process instances with status and completion %; optionally filtered by `workflowDefinitionId`, `status`, `tag` and `query` — [search-attribute](/guides/searching-and-bulk-operations/) conditions such as `customerId = "C-9" AND amount > 100` (then one page: `page`, `size`) |
+| `createBatchOperation` / `listBatchOperations` / `getBatchOperation` / `cancelBatchOperation` | Cancel, retry, restart, pause or resume every process a filter matches, in the background; follow its progress, skip reasons and errors; cancel it ([guide](/guides/searching-and-bulk-operations/#batch-operations)) |
 | `getProcessDetails` | Full process detail: variables + all step executions |
 | `findProcessByBusinessKey` | Look up a process by its business key |
 | `getProcessLogs` | Audit trail and log messages for a process |
