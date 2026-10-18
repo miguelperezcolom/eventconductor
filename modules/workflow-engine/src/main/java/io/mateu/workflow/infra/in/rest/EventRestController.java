@@ -182,6 +182,16 @@ public class EventRestController {
         return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, e.getMessage());
     }
 
+    /**
+     * Input refused for its size or shape further in than the identifier checks above — the event's
+     * data or the variables it renders, checked by the engine when it receives the event. In embedded
+     * mode that runs inside this request, and without this it answered 500.
+     */
+    @ExceptionHandler(InputLimits.InputRejectedException.class)
+    ProblemDetail onRejectedInput(InputLimits.InputRejectedException e) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, e.getMessage());
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     ProblemDetail onInvalid(IllegalArgumentException e) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, e.getMessage());

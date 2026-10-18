@@ -289,8 +289,10 @@ set the Payload URL to `https://your-server/workflow/webhooks/github`, Content t
 - **Removed definitions are pruned.** A definition that was previously imported from a repo
   (and had an explicit `id`) but is no longer present is **archived** (the runtime `archived` flag);
   running processes are unaffected. Only git-imported definitions are ever pruned — classpath
-  and hand-authored ones are never touched. (Pruning is tracked per running instance and
-  resets on restart, repopulating on the next import.)
+  and hand-authored ones are never touched. With `workflow.persistence=jpa` what each source
+  imported is kept in the database (`imported_definition_source`), so the first import after a
+  restart prunes a definition removed while the engine was down; in memory mode it is tracked per
+  running instance and repopulates on the next import.
 
 **Authentication** (per provider, using `webhook-secret`; blank disables it — internal
 networks only):

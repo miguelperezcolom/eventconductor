@@ -1,5 +1,6 @@
 package io.mateu.workflow.application.usecases.process.restart;
 
+import io.mateu.workflow.application.out.DownstreamEventPublisher;
 import io.mateu.workflow.application.out.ProcessLockService;
 import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
@@ -9,6 +10,7 @@ import io.mateu.workflow.application.usecases.process.stepover.StepOverProcessUs
 import io.mateu.workflow.domain.aggregates.ProcessStatus;
 import io.mateu.workflow.domain.aggregates.StepExecution;
 import io.mateu.workflow.domain.aggregates.Variable;
+import io.mateu.workflow.dtos.events.integration.TaskCancellationRequested;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -61,6 +63,7 @@ public class RestartProcessUseCase {
     final StepOverProcessUseCase stepOverProcessUseCase;
     final WorkflowMetrics workflowMetrics;
     final ProcessLockService processLockService;
+    final DownstreamEventPublisher downstreamEventPublisher;
 
     public void handle(RestartProcessCommand command) {
         // Under the process lock, like every other writer of the process: the status check and the
@@ -83,6 +86,15 @@ public class RestartProcessUseCase {
         var initialVariables = variablesTheProcessStartedWith(stepExecutions);
 
         for (var stepExecution : stepExecutions) {
+            if (stepExecution.getStatus().isInFlightAtAWorker()) {
+                // A sibling of the failed step may still be at a worker (a process goes to ERROR as
+                // soon as one branch fails). Tell it to stop, as a cancel does; and since a worker
+                // that does not honour cancellation can still answer, the reset below also moves
+                // the step to a new dispatch, so that late answer is dropped rather than taken for
+                // the re-run's result.
+                downstreamEventPublisher.publish(new TaskCancellationRequested(stepExecution.getId()),
+                        stepExecution.topic());
+            }
             stepExecution.resetForRerun();
             stepExecutionRepository.save(stepExecution);
         }

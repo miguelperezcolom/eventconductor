@@ -51,4 +51,39 @@ interface AnalyticsSourceRepository extends Repository<ProcessEntity, String> {
                                                  @Param("cursorId") String cursorId,
                                                  @Param("ceiling") LocalDateTime ceiling,
                                                  Pageable page);
+
+    /**
+     * Finishes at or before the cursor that were never counted — committed after the cursor had
+     * already passed their {@code finished} (a long transaction, a pod whose clock runs behind). Only
+     * a window behind the cursor is looked at, and the ledger keeps out what is already counted.
+     */
+    @Query("""
+            select p.id as id, p.workflowDefinitionId as workflowDefinitionId, p.status as status,
+                   p.name as name, p.created as created, p.started as started, p.finished as finished
+            from ProcessEntity p
+            where p.finished is not null and p.created is not null and p.finished >= :from
+              and (p.finished < :cursorTs or (p.finished = :cursorTs and p.id <= :cursorId))
+              and not exists (select c.processId from CountedProcessEntity c where c.processId = p.id)
+            order by p.finished, p.id
+            """)
+    List<ProcessFinishSourceView> uncountedProcessFinishesBehind(@Param("from") LocalDateTime from,
+                                                                 @Param("cursorTs") LocalDateTime cursorTs,
+                                                                 @Param("cursorId") String cursorId,
+                                                                 Pageable page);
+
+    /** {@link #uncountedProcessFinishesBehind} for step executions. */
+    @Query("""
+            select s.id as id, s.workflowDefinitionId as workflowDefinitionId, s.stepId as stepId,
+                   s.status as status, s.order as stepOrder, s.startedAt as startedAt,
+                   s.finishedAt as finishedAt, p.created as processCreated
+            from StepExecutionEntity s join ProcessEntity p on p.id = s.processId
+            where s.finishedAt is not null and p.created is not null and s.finishedAt >= :from
+              and (s.finishedAt < :cursorTs or (s.finishedAt = :cursorTs and s.id <= :cursorId))
+              and not exists (select c.stepExecutionId from CountedStepEntity c where c.stepExecutionId = s.id)
+            order by s.finishedAt, s.id
+            """)
+    List<StepFinishSourceView> uncountedStepFinishesBehind(@Param("from") LocalDateTime from,
+                                                           @Param("cursorTs") LocalDateTime cursorTs,
+                                                           @Param("cursorId") String cursorId,
+                                                           Pageable page);
 }

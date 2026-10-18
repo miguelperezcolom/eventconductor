@@ -45,6 +45,7 @@ description: Complete reference for all EventConductor configuration properties.
 | `workflow.analytics.rollup-batch-size` | int | `1000` | Rows read per batch |
 | `workflow.analytics.rollup-max-batches-per-cycle` | int | `200` | Batches per stream per cycle — bounds a first-run backfill, which then catches up over several cycles |
 | `workflow.analytics.rollup-ceiling-seconds` | s | `2` | Rows newer than this are left for the next cycle, so a commit in flight at the boundary is not missed |
+| `workflow.analytics.rollup-lookback-seconds` | s | `120` | How far behind its cursor each cycle looks again for finishes never counted — committed after the cursor passed them (a long transaction, a pod whose clock is behind). Folded once: the counted-facts ledger keeps out what is already in. Must outlast the longest transaction that finishes a process plus a cycle; `0` turns it off |
 | `workflow.embedded.worker-threads` | int | `0` | Embedded mode only. `0` runs the worker on the thread that dispatched the task — which under `jpa` persistence is the single outbox relay thread, the one advancing **every** process in the JVM, so a worker that blocks stops all of them. Above zero the task is handed to a pool of that many threads and the dispatching thread is freed. See the note below before turning it on |
 | `workflow.embedded.worker-queue-capacity` | int | `1000` | How many tasks may wait for a worker thread. A full queue rejects, and the rejection is retryable: the outbox holds the message and offers it again |
 | `workflow.embedded.worker-shutdown-grace-ms` | ms | `10000` | How long shutdown waits for in-flight workers before abandoning them |
@@ -211,7 +212,7 @@ For `workflow.mode=kafka`, use `@SpringBootApplication` as normal — both engin
 
 ## Database (when `workflow.persistence=jpa`)
 
-EventConductor supports **PostgreSQL**, **MariaDB/MySQL**, and **Oracle**. The distributed locking dialect is auto-detected from the JDBC connection at startup — no extra property is needed.
+The engine's schema — its Flyway migrations — is written for **PostgreSQL**, the database it is built and tested against in production, and **H2** (PostgreSQL mode), which the embedded path and the test suites use. **MariaDB/MySQL and Oracle** are supported at the JPA and locking level only: the lock dialect is auto-detected from the JDBC connection at startup (no extra property), the queries are portable, but several migrations do not run there (V7, V10, V22, V23, V24 and V36 fail on MariaDB; Oracle has neither `IF NOT EXISTS` nor `TEXT`). On those databases the schema comes from `ddl-auto` and the indexes are yours to create — see [below](#mariadbmysql-and-oracle-no-migrations).
 
 **PostgreSQL** (default in examples):
 
@@ -272,9 +273,29 @@ Two things follow from the engine owning its schema:
 - **It never writes to `flyway_schema_history`.** That table is yours. Your application's migrations are numbered from V1 and so are the engine's; a shared history would collide them and the second one to run would fail validation on a checksum mismatch. `spring.flyway.*` keeps meaning exactly what it meant before — your migrations, your history — and the engine stays out of it.
 - **It adopts an existing schema.** The migrations baseline at 0 and every `V1` is written `IF NOT EXISTS`, so turning this on over tables `ddl-auto` already created applies the indexes and nothing else.
 
-:::caution[MariaDB/MySQL and Oracle: the migrations are PostgreSQL/H2 only]
-The engines' Flyway migrations are written for **PostgreSQL** and **H2** (the engine ships `flyway-database-postgresql` only). On MariaDB/MySQL or Oracle set `workflow.schema.enabled=false` (and `forms.schema.enabled=false`, `rules.schema.enabled=false` for those engines) and let `spring.jpa.hibernate.ddl-auto=update` create the tables — then create the indexes yourself, taking the `CREATE INDEX` statements from `db/migration/workflow` in the `workflow-engine` jar, since `ddl-auto` emits none.
-:::
+### MariaDB/MySQL and Oracle: no migrations
+
+The engines' Flyway migrations target **PostgreSQL** and **H2** only (the engine ships `flyway-database-postgresql` only), and some of them fail outright elsewhere. On MariaDB/MySQL or Oracle:
+
+1. Set `workflow.schema.enabled=false` (and `forms.schema.enabled=false`, `rules.schema.enabled=false` for those engines).
+2. Let `spring.jpa.hibernate.ddl-auto=update` create the tables. It also creates the indexes the entities declare (the deadline, outbox, correlation, lock and event-trigger lookups).
+3. Create the indexes that exist **only** in the migrations yourself — `ddl-auto` cannot produce them. Without them the process listing, the definition pages and analytics fall back to table scans:
+
+| Index | Table (columns) | Serves |
+|---|---|---|
+| `idx_process_status` | `process_entity (status)` | listing by status |
+| `idx_process_wf_def` | `process_entity (workflow_definition_id)` | processes of a definition |
+| `idx_process_wf_def_version` | `process_entity (workflow_definition_id, workflow_definition_version)` | counts per version |
+| `idx_process_created` | `process_entity (created DESC)` | the process listing's order |
+| `idx_process_status_created` | `process_entity (status, created DESC)` | the listing filtered by status |
+| `idx_step_exec_started_at` | `step_execution_entity (started_at DESC)` | the step listing's order |
+| `idx_step_exec_analytics` | `step_execution_entity (workflow_definition_id, step_id, status, _order)` | step analytics |
+| `idx_cron_schedule_workflow` | `cron_schedule (workflow_id)` | schedules of a definition |
+| `idx_cron_schedule_schedule_id` | `cron_schedule (schedule_id)` | a schedule by id |
+| `idx_process_created_daily_day`, `idx_process_finished_daily_created`, `idx_process_status_daily_created`, `idx_process_duration_daily_created`, `idx_step_status_daily_created`, `idx_step_duration_daily_created` | the analytics rollups (`created_day`) | the analytics report's window (only with `workflow.analytics.rollup=true`) |
+| `idx_process_index_status`, `idx_process_index_def_status`, `idx_process_index_business_key` | `process_index` | the process-index read model (only when it is on) |
+
+The exact statements are in `db/migration/workflow` in the `workflow-engine` jar; drop `NULLS LAST` and `IF NOT EXISTS` where your database does not take them.
 
 Embedding the engine needs `org.flywaydb:flyway-core` on the classpath (plus the driver module, e.g. `flyway-database-postgresql`) — it is an optional dependency, since a run with `workflow.persistence=memory` needs neither. With `persistence=jpa` and no Flyway the engine warns loudly at startup rather than running indexless in silence.
 
@@ -522,7 +543,7 @@ workflow.persistence=memory
 
 Kafka and JPA autoconfiguration are excluded automatically — no `spring.autoconfigure.exclude` needed.
 
-### Mode: embedded + jpa (PostgreSQL, MariaDB, Oracle, or H2)
+### Mode: embedded + jpa (PostgreSQL or H2; MariaDB/Oracle without migrations)
 
 ```properties
 workflow.mode=embedded
@@ -536,7 +557,7 @@ spring.jpa.hibernate.ddl-auto=update
 
 Kafka autoconfiguration is excluded automatically. Workflow definitions placed in `classpath:/workflows/` are imported into the database at startup.
 
-### Mode: kafka + jpa (full distributed, PostgreSQL, MariaDB, or Oracle)
+### Mode: kafka + jpa (full distributed; PostgreSQL, or MariaDB/Oracle without migrations)
 
 ```properties
 workflow.mode=kafka

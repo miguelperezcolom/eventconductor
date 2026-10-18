@@ -36,7 +36,7 @@ public class CancelProcessUseCase {
     final org.springframework.beans.factory.ObjectProvider<StepOverProcessUseCase> stepOverProcessUseCase;
 
     /** What the locked part decided, for the cascade that runs after the lock is released. */
-    private record Cancellation(Process cancelledProcess, List<StepExecution> cancelledSteps) {
+    private record Cancellation(Process cancelledProcess, List<StepExecution> cancelledSteps, boolean repeated) {
     }
 
     public void handle(CancelProcessCommand command) {
@@ -61,6 +61,11 @@ public class CancelProcessUseCase {
             cancelChildProcessService.stepReachedTerminalStatus(stepExecution);
         }
         var cancelledProcess = cancellation.cancelledProcess();
+        if (cancellation.repeated()) {
+            // The trace was written (or lost) with the first cancel: it is a transition, not a state.
+            notifyParentStepService.processReachedTerminalStatus(cancelledProcess);
+            return;
+        }
         // If this process is a child workflow, the PROCESS step of the parent that spawned
         // it cannot succeed any more — error it.
         notifyParentStepService.processReachedTerminalStatus(cancelledProcess);
@@ -69,12 +74,24 @@ public class CancelProcessUseCase {
         recordProcessTraceService.processReachedTerminalStatus(cancelledProcess);
     }
 
-    /** Null when there is nothing to cancel: the process already finished or was cancelled. */
+    /**
+     * Null when there is nothing to cancel: the process already finished. A process already
+     * CANCELLED is not nothing: its cascade runs after its own commit, outside the lock, so a pod
+     * that died in between left the children running and the parent step waiting — and the cancel
+     * that is redelivered for it (or sent again by an operator) finds the process CANCELLED. The
+     * cascade is idempotent (only children still running are cancelled, only a parent step still
+     * waiting is failed), so it is simply run again.
+     */
     private Cancellation cancelUnderLock(CancelProcessCommand command) {
         var process = processRepository.findById(command.processId()).orElseThrow();
-        if (ProcessStatus.COMPLETED.equals(process.getStatus())
-                || ProcessStatus.CANCELLED.equals(process.getStatus())) {
+        if (ProcessStatus.COMPLETED.equals(process.getStatus())) {
             return null;
+        }
+        if (ProcessStatus.CANCELLED.equals(process.getStatus())) {
+            var cancelledSteps = stepExecutionRepository.findByProcess(process).stream()
+                    .filter(stepExecution -> StepExecutionStatus.CANCELLED.equals(stepExecution.getStatus()))
+                    .toList();
+            return new Cancellation(process, cancelledSteps, true);
         }
 
         // Mark the process CANCELLED first: the step-status events emitted below re-enter
@@ -103,6 +120,6 @@ public class CancelProcessUseCase {
         // lock, with the cancel, so a wake that fails rolls the cancellation back with it and is
         // redelivered whole rather than leaving a granted waiter that nobody ever wakes.
         stepOverProcessUseCase.getObject().releaseLocksOf(process.getId());
-        return new Cancellation(cancelledProcess, cancelledSteps);
+        return new Cancellation(cancelledProcess, cancelledSteps, false);
     }
 }

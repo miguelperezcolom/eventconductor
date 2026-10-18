@@ -61,13 +61,14 @@ public class StepExecutionDBRepository implements StepExecutionRepository {
                 entity.getAwaitingMessageName(),
                 entity.getAwaitingCorrelationKey(),
                 entity.getVersion(),
-                entity.getInjectedByStepExecutionId()
+                entity.getInjectedByStepExecutionId(),
+                entity.getDispatchCount() == null ? 0 : entity.getDispatchCount()
         );
     }
 
     @Override
     public String save(StepExecution stepExecution) {
-        stepExecutionEntityRepository.save(new StepExecutionEntity(
+        var entity = new StepExecutionEntity(
             stepExecution.id(),
                 stepExecution.getProcessId(),
                 stepExecution.getWorkflowDefinitionId(),
@@ -86,7 +87,9 @@ public class StepExecutionDBRepository implements StepExecutionRepository {
                 stepExecution.getAwaitingCorrelationKey(),
                 stepExecution.getVersion(),
                 stepExecution.getInjectedByStepExecutionId()
-        ));
+        );
+        entity.setDispatchCount(stepExecution.getDispatchCount());
+        stepExecutionEntityRepository.save(entity);
 
         // Captured here, at the one moment the event and the context that produced it are both
         // in hand: the relay publishes this row later, from a thread that has neither.

@@ -257,4 +257,35 @@ class UpdateStepExecutionUseCaseTest {
         assertThat(se.getAttemptCount()).isEqualTo(1);
         verify(repository, never()).save(any());
     }
+
+    @Test
+    void aReplyFromAnAbandonedAttemptIsDropped() {
+        // Restarted (or retried after a timeout) under the same step execution id: the worker of
+        // the first dispatch answers late, carrying attempt 1, while the step is on its second.
+        var se = StepExecution.builder().id("se-1").processId("p-1")
+                .status(StepExecutionStatus.PENDING).dispatchCount(2).build();
+        when(repository.findById("se-1")).thenReturn(Optional.of(se));
+        when(processLockService.runExclusively(eq("p-1"), any())).thenAnswer(RunsTheAction.granted());
+
+        useCase.handle(new UpdateStepExecutionCommand("se-1", List.of(), "", StepExecutionStatus.COMPLETED, false, 1));
+
+        assertThat(se.getStatus()).isEqualTo(StepExecutionStatus.PENDING);
+        verify(repository, never()).save(any());
+        verify(processRepository, never()).save(any());
+    }
+
+    @Test
+    void aReplyForTheCurrentAttemptOrWithoutOneIsApplied() {
+        for (var attempt : new Integer[]{2, null}) {
+            var se = StepExecution.builder().id("se-1").processId("p-1")
+                    .status(StepExecutionStatus.PENDING).dispatchCount(2).build();
+            when(repository.findById("se-1")).thenReturn(Optional.of(se));
+            when(processRepository.findById("p-1")).thenReturn(Optional.of(process("p-1")));
+            when(processLockService.runExclusively(eq("p-1"), any())).thenAnswer(RunsTheAction.granted());
+
+            useCase.handle(new UpdateStepExecutionCommand("se-1", List.of(), "", StepExecutionStatus.COMPLETED, false, attempt));
+
+            assertThat(se.getStatus()).isEqualTo(StepExecutionStatus.COMPLETED);
+        }
+    }
 }

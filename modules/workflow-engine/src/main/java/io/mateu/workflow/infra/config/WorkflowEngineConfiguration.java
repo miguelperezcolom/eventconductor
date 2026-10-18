@@ -15,9 +15,10 @@ public class WorkflowEngineConfiguration {
 
     /**
      * Tracks which definitions came from which git repository so a webhook re-import can prune
-     * removed ones. In-memory (instance-local, best-effort): the baseline resets on restart,
-     * then repopulates on the next import. Declared with {@link ConditionalOnMissingBean} so a
-     * durable implementation can replace it without touching this config.
+     * removed ones. In-memory (instance-local): the baseline resets on restart, then repopulates
+     * on the next import — right for memory persistence, whose definitions do not survive a
+     * restart either. With {@code workflow.persistence=jpa} the durable
+     * {@code JpaImportedDefinitionsRegistry} ({@code @Primary}) is the one injected.
      */
     @Bean
     @ConditionalOnMissingBean

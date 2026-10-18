@@ -14,7 +14,8 @@ import lombok.Setter;
  * {@code V40__event_trigger_files.sql}, for the schemas {@code ddl-auto} creates.
  */
 @Entity
-@Table(name = "event_trigger")
+// The index V40 creates, declared here too for the schemas ddl-auto creates (see StepExecutionEntity).
+@Table(name = "event_trigger", indexes = @jakarta.persistence.Index(name = "idx_event_trigger_workflow_id", columnList = "workflow_id"))
 @Getter
 @Setter
 @NoArgsConstructor

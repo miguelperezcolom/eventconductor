@@ -222,6 +222,29 @@ class CancelProcessUseCaseTest {
     }
 
     @Test
+    void aCancelArrivingForAnAlreadyCancelledProcessRunsTheCascadeAgain() {
+        // The cascade runs after the cancel commits, outside the lock: a pod that died in between left
+        // the children running and the parent step waiting. The redelivered cancel finds the process
+        // CANCELLED — and must finish the job rather than shrug.
+        var process = process("p-1").withStatus(ProcessStatus.CANCELLED);
+        var cancelledChildStep = se("se-1", StepExecutionStatus.CANCELLED);
+        var completed = se("se-2", StepExecutionStatus.COMPLETED);
+        when(processRepository.findById("p-1")).thenReturn(Optional.of(process));
+        when(stepExecutionRepository.findByProcess(process)).thenReturn(List.of(cancelledChildStep, completed));
+
+        useCase.handle(new CancelProcessCommand("p-1"));
+
+        verify(cancelChildProcessService).stepReachedTerminalStatus(cancelledChildStep);
+        verify(cancelChildProcessService, never()).stepReachedTerminalStatus(completed);
+        verify(notifyParentStepService).processReachedTerminalStatus(process);
+        // Nothing of the cancel itself is done twice: no writes, no metric, no second trace.
+        verify(processRepository, never()).save(any());
+        verify(stepExecutionRepository, never()).save(any());
+        verify(workflowMetrics, never()).processCancelled(any(), any());
+        verifyNoInteractions(recordProcessTraceService, downstreamEventPublisher, stepOver);
+    }
+
+    @Test
     void cancelsUnderTheProcessLock() {
         var process = process("p-1");
         var se = se("se-1", StepExecutionStatus.PENDING);

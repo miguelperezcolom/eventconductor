@@ -28,6 +28,26 @@ public class WorkflowDefinitionDBRepository implements WorkflowDefinitionReposit
     final WorkflowDefinitionValidator workflowDefinitionValidator;
     final io.mateu.workflow.application.services.WorkflowDefinitionVersioningService versioningService;
 
+    // Optional and resolved when used: the trigger stores do not depend on the definitions, but a
+    // repository that cannot be built without them would make every test harness wire them too.
+    private org.springframework.beans.factory.ObjectProvider<io.mateu.workflow.application.out.EventTriggerRepository> eventTriggers;
+    private org.springframework.beans.factory.ObjectProvider<io.mateu.workflow.application.out.TriggerPauseRepository> triggerPauses;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setTriggerStores(
+            org.springframework.beans.factory.ObjectProvider<io.mateu.workflow.application.out.EventTriggerRepository> eventTriggers,
+            org.springframework.beans.factory.ObjectProvider<io.mateu.workflow.application.out.TriggerPauseRepository> triggerPauses) {
+        this.eventTriggers = eventTriggers;
+        this.triggerPauses = triggerPauses;
+    }
+
+    /** See {@link io.mateu.workflow.application.services.DefinitionTriggerCleanup}. */
+    private io.mateu.workflow.application.services.DefinitionTriggerCleanup triggerCleanup() {
+        return new io.mateu.workflow.application.services.DefinitionTriggerCleanup(
+                eventTriggers == null ? null : eventTriggers.getIfAvailable(),
+                triggerPauses == null ? null : triggerPauses.getIfAvailable());
+    }
+
     @Override
     public Optional<WorkflowDefinition> findById(String id) {
         return workflowDefinitionEntityRepository.findById(id).map(this::map);
@@ -172,6 +192,7 @@ public class WorkflowDefinitionDBRepository implements WorkflowDefinitionReposit
                 workflowDefinition.triggers() == null ? null : toJson(workflowDefinition.triggers()),
                 workflowDefinition.tags() == null ? null : toJson(workflowDefinition.tags())
         ));
+        triggerCleanup().definitionSaved(workflowDefinition);
         return workflowDefinition.id();
     }
 
@@ -181,6 +202,7 @@ public class WorkflowDefinitionDBRepository implements WorkflowDefinitionReposit
     }
 
     @Override
+    @org.springframework.transaction.annotation.Transactional
     public void deleteAllById(List<String> selectedIds) {
         selectedIds.stream().map(workflowDefinitionEntityRepository::findById)
                 .map(Optional::orElseThrow)
@@ -192,5 +214,6 @@ public class WorkflowDefinitionDBRepository implements WorkflowDefinitionReposit
                     throw new RuntimeException("Cannot delete an active workflow definition (disable or archive it first): " + entity.getName());
                 });
         workflowDefinitionEntityRepository.deleteAllById(selectedIds);
+        triggerCleanup().definitionsDeleted(selectedIds);
     }
 }

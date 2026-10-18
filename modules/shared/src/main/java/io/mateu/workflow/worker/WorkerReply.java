@@ -60,18 +60,18 @@ public final class WorkerReply {
     public static void completed(StreamOperations streamBridge, TaskExecutionRequested task,
                                  List<Variable> variables) {
         send(streamBridge, new TaskStatusChanged(
-                task.taskExecutionId(), TaskStatus.COMPLETED, variables, task.processId()));
+                task.taskExecutionId(), TaskStatus.COMPLETED, variables, task.processId(), false, task.attempt()));
     }
 
     public static void running(StreamOperations streamBridge, TaskExecutionRequested task) {
         send(streamBridge, new TaskStatusChanged(
-                task.taskExecutionId(), TaskStatus.RUNNING, List.of(), task.processId()));
+                task.taskExecutionId(), TaskStatus.RUNNING, List.of(), task.processId(), false, task.attempt()));
     }
 
     public static void failed(StreamOperations streamBridge, TaskExecutionRequested task,
                               List<Variable> variables) {
         send(streamBridge, new TaskStatusChanged(
-                task.taskExecutionId(), TaskStatus.ERROR, variables, task.processId()));
+                task.taskExecutionId(), TaskStatus.ERROR, variables, task.processId(), false, task.attempt()));
     }
 
     /**
@@ -108,7 +108,7 @@ public final class WorkerReply {
         // A reason marked final (FailureMarkers.NON_RETRYABLE) travels as a flag on the reply too: the
         // log line and the status are separate events, and the retry decision reads the status.
         send(streamBridge, new TaskStatusChanged(task.taskExecutionId(), TaskStatus.ERROR, variables,
-                task.processId(), FailureMarkers.isNonRetryable(reason)));
+                task.processId(), FailureMarkers.isNonRetryable(reason), task.attempt()));
     }
 
     /**

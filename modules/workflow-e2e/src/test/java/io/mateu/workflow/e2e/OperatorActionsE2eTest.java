@@ -105,6 +105,30 @@ class OperatorActionsE2eTest extends AbstractE2eTest {
     }
 
     /**
+     * A restart while a sibling of the failed step is still at its worker: the abandoned attempt's
+     * late answer lands on the same step execution id as the re-run's, and must not be taken for it.
+     */
+    @Test
+    void aLateReplyFromBeforeARestartIsNotTakenForTheRerunsResult() {
+        var held = new java.util.ArrayList<TestWorker.WorkerCallback>();
+        worker.on("a", TestWorker.failThenSucceed(1));
+        worker.on("b", (request, callback, invocation) -> held.add(callback));
+        createProcess("parallel", "ops-late");
+        assertThat(process("ops-late").getStatus()).isEqualTo(ProcessStatus.ERROR);
+        assertThat(step("ops-late", "b").getStatus()).isEqualTo(StepExecutionStatus.PENDING);
+
+        request(new RestartProcessRequested(process("ops-late").getId()));
+        assertThat(held).hasSize(2);
+
+        // The first run's worker finally answers: dropped, the re-run's b is still waiting for its own.
+        held.get(0).complete();
+        assertThat(step("ops-late", "b").getStatus()).isEqualTo(StepExecutionStatus.PENDING);
+
+        held.get(1).complete();
+        assertThat(process("ops-late").getStatus()).isEqualTo(ProcessStatus.COMPLETED);
+    }
+
+    /**
      * E2E-OPS-06 — a restart request runs the whole process again, the steps that already
      * succeeded included. That is the difference from a retry, and the only way to see it is to
      * count how many times a step that never failed was asked to do its work.

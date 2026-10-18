@@ -113,6 +113,20 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
      */
     private String injectedByStepExecutionId;
 
+    /**
+     * Which dispatch of this step execution is the current one: bumped every time the step starts
+     * and every time it goes back to CREATED to run again (a restart, a manual or automatic retry).
+     *
+     * <p>The step execution id does not change when a step runs again, so a worker still busy with
+     * the abandoned attempt answers under the same id as the new one. The number travels with the
+     * task ({@code TaskExecutionRequested.attempt}), the worker echoes it on its reply, and a reply
+     * that carries any other number is a late answer from an attempt that is no longer running —
+     * dropped instead of taken for the current attempt's result. Never reset, unlike
+     * {@link #attemptCount}, which a restart puts back to zero.
+     */
+    @With(AccessLevel.NONE)
+    private int dispatchCount;
+
 
     public static StepExecution create(Step step, String processId, int position) {
         return create(step, processId, position, null);
@@ -331,6 +345,7 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
     }
 
     public StepExecution start(Process process) {
+        this.dispatchCount++;
         var variables = process.getVariables() == null ? List.<Variable>of() : process.getVariables();
         this.variables = variables;
         this.startedAt = LocalDateTime.now();
@@ -363,7 +378,7 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
             this.variables = taskVariables;
             send(new TaskExecutionRequested(id, processId, workflowDefinitionId, stepId, "complete-form", taskVariables.stream()
                     .map(variable -> new io.mateu.workflow.dtos.Variable(variable.name(), variable.value()))
-                    .toList()));
+                    .toList(), dispatchCount));
         } else if (StepType.WAIT_FOR_MESSAGE.equals(step.type())) {
             // A message catch involves no worker: the step just stays PENDING and
             // CorrelateMessageUseCase completes it when a matching MessageReceived
@@ -488,7 +503,7 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
             this.variables = taskVariables;
             send(new TaskExecutionRequested(id, processId, workflowDefinitionId, stepId, "evaluate-rule", taskVariables.stream()
                     .map(variable -> new io.mateu.workflow.dtos.Variable(variable.name(), variable.value()))
-                    .toList()));
+                    .toList(), dispatchCount));
         } else if (StepType.LOCK.equals(step.type()) || StepType.UNLOCK.equals(step.type())) {
             // A lock step involves no worker: the step stays PENDING and the step-over use case,
             // which has the LockService the domain cannot reach, resolves it in the same
@@ -523,7 +538,7 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
             send(new TaskExecutionRequested(id, processId, workflowDefinitionId, stepId,
                     io.mateu.workflow.domain.services.HttpRequestRenderer.TASK_ID, taskVariables.stream()
                     .map(variable -> new io.mateu.workflow.dtos.Variable(variable.name(), variable.value()))
-                    .toList()));
+                    .toList(), dispatchCount));
         } else if (StepType.LLM_CALL.equals(step.type())) {
             // The prompts are rendered here, from the process as it stands, then dispatched to the
             // built-in llm-call worker task like any worker step — as HTTP_CALL does.
@@ -542,7 +557,7 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
             send(new TaskExecutionRequested(id, processId, workflowDefinitionId, stepId,
                     io.mateu.workflow.domain.services.LlmRequestRenderer.TASK_ID, taskVariables.stream()
                     .map(variable -> new io.mateu.workflow.dtos.Variable(variable.name(), variable.value()))
-                    .toList()));
+                    .toList(), dispatchCount));
         } else if (StepType.PUBLISH_EVENT.equals(step.type())) {
             // No worker: the step-over renders the event, writes it to the outbox with this step's
             // completion (published if and only if the step completed), and completes it.
@@ -561,7 +576,7 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
             var taskId = step.task() != null && !step.task().isBlank() ? step.task() : "";
             send(new TaskExecutionRequested(id, processId, workflowDefinitionId, stepId, taskId, variables.stream()
                     .map(variable -> new io.mateu.workflow.dtos.Variable(variable.name(), variable.value()))
-                    .toList()));
+                    .toList(), dispatchCount));
         }
         status = StepExecutionStatus.PENDING;
         return this;
@@ -591,6 +606,11 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
      *                     the step's retries on it
      */
     public void updateStatus(StepExecutionStatus status, boolean nonRetryable) {
+        if (StepExecutionStatus.CREATED.equals(status)) {
+            // Back to CREATED is a step about to run again: whatever was dispatched before is not
+            // the attempt any more, and its late reply must not count.
+            this.dispatchCount++;
+        }
         this.status = status;
         if (status.isTerminal()) {
             this.finishedAt = LocalDateTime.now();
@@ -623,6 +643,7 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
      * timeline later needs to see explained.
      */
     public void resetForRerun() {
+        this.dispatchCount++;
         this.status = StepExecutionStatus.CREATED;
         this.startedAt = null;
         this.finishedAt = null;
@@ -665,6 +686,7 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
      * the caller drives the next step-over.
      */
     public void releaseForRetry() {
+        this.dispatchCount++;
         this.status = StepExecutionStatus.CREATED;
         this.finishedAt = null;
         this.deadlineAt = null;

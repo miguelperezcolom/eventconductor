@@ -630,4 +630,47 @@ abstract class AnalyticsReadModelContract {
 
         assertThat(snapshot()).isEqualTo(once);
     }
+
+    @Test
+    void aFinishCommittedBehindTheCursorIsFoldedOnceByTheLookback() {
+        seed();
+        var projector = projector();
+        projector.lookbackSeconds = 120;
+        projector.projectOnce();
+        var once = snapshot();
+        projector.projectOnce();
+        // Nothing behind the cursor that is not counted: the second look changes nothing.
+        assertThat(snapshot()).isEqualTo(once);
+
+        // The finish cursors stand at p4's finish (D2 13:00:05) and s3's (D1 10:00:03). These commit
+        // only now, stamped before them — a long transaction, a pod whose clock runs behind.
+        finishProcess("p3", ProcessStatus.COMPLETED, at(D2, 13, 0, 1));
+        finishStep("s4", StepExecutionStatus.COMPLETED, at(D1, 10, 0, 2));
+        projector.projectOnce();
+
+        assertThat(reader().aggregateProcesses(null, null).statusCounts()).containsExactlyInAnyOrder(
+                new DefinitionStatusCount(ORDER, ProcessStatus.COMPLETED, 2, "order-1"),
+                new DefinitionStatusCount(ORDER, ProcessStatus.ERROR, 1, "order-2"),
+                new DefinitionStatusCount(REFUND, ProcessStatus.CANCELLED, 1, "refund-1"));
+        assertThat(reader().aggregateSteps(null, null).counts()).contains(
+                new DefinitionStepCount(ORDER, "reserve", StepExecutionStatus.COMPLETED, 2, 1));
+
+        // And once only.
+        var twice = snapshot();
+        projector.projectOnce();
+        projector().projectOnce();
+        assertThat(snapshot()).isEqualTo(twice);
+    }
+
+    @Test
+    void withoutTheLookbackAFinishBehindTheCursorWasNeverFolded() {
+        seed();
+        var projector = projector();
+        projector.projectOnce();
+        finishProcess("p3", ProcessStatus.COMPLETED, at(D2, 13, 0, 1));
+        projector.projectOnce();
+        // What the lookback exists for: the cursor alone never sees it.
+        assertThat(reader().aggregateProcesses(null, null).statusCounts())
+                .doesNotContain(new DefinitionStatusCount(ORDER, ProcessStatus.COMPLETED, 2, "order-1"));
+    }
 }

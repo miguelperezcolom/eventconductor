@@ -47,6 +47,7 @@ class RestartProcessUseCaseTest {
             io.mateu.workflow.application.out.WorkflowTracing.NOOP;
 
     @Mock ProcessLockService processLockService;
+    @Mock io.mateu.workflow.application.out.DownstreamEventPublisher downstreamEventPublisher;
 
     @InjectMocks RestartProcessUseCase restartProcessUseCase;
 
@@ -92,6 +93,26 @@ class RestartProcessUseCaseTest {
         verify(stepExecutionRepository, times(2)).save(any(StepExecution.class));
         verify(stepOverProcessUseCase).handle(any(StepOverProcessCommand.class));
         verify(workflowMetrics).retryPerformed(any(), eq(WorkflowMetrics.RetryTrigger.MANUAL));
+    }
+
+    @Test
+    void cancelsTheSiblingsStillAtAWorkerAndMovesThemToANewDispatch() {
+        // The process went to ERROR on one branch while another was still at a worker. Resetting
+        // that one to CREATED without a word left the worker running, and its late reply landed on
+        // the re-run step (same id) as if it were the re-run's result.
+        var process = Process.builder().id("p-9").status(ProcessStatus.ERROR).variables(List.of()).build();
+        var failed = step("s1", 1, StepExecutionStatus.ERROR, LocalDateTime.now(), List.of());
+        var stillAtWorker = step("s2", 2, StepExecutionStatus.PENDING, LocalDateTime.now(), List.of());
+        var dispatchBefore = stillAtWorker.getDispatchCount();
+        when(processRepository.findById("p-9")).thenReturn(Optional.of(process));
+        when(stepExecutionRepository.findByProcess(any())).thenReturn(List.of(failed, stillAtWorker));
+
+        restartProcessUseCase.handle(new RestartProcessCommand("p-9"));
+
+        verify(downstreamEventPublisher).publish(
+                eq(new io.mateu.workflow.dtos.events.integration.TaskCancellationRequested("s2")), any());
+        verify(downstreamEventPublisher, times(1)).publish(any(), any());
+        assertThat(stillAtWorker.getDispatchCount()).isGreaterThan(dispatchBefore);
     }
 
     @Test

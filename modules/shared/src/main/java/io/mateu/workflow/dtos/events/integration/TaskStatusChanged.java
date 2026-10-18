@@ -13,9 +13,20 @@ import java.util.List;
  *                  record: a worker built against an older shared module leaves it null, and the
  *                  event then falls back to the unrouted behaviour rather than failing to
  *                  deserialize.
+ * @param attempt   echoed back from {@link TaskExecutionRequested#attempt()}: which dispatch of the
+ *                  step this reply is about, so a late reply from an abandoned attempt (a process
+ *                  restarted, a step retried after a timeout) is not taken for the running one's.
+ *                  Null from a worker that does not echo it, and such a reply is applied unchecked,
+ *                  as before.
  */
 public record TaskStatusChanged(String taskExecutionId, TaskStatus status, List<Variable> variables,
-                                String processId, boolean nonRetryable) implements DomainEvent {
+                                String processId, boolean nonRetryable, Integer attempt) implements DomainEvent {
+
+    /** The shape before the attempt was echoed: the reply is applied without the attempt check. */
+    public TaskStatusChanged(String taskExecutionId, TaskStatus status, List<Variable> variables,
+                             String processId, boolean nonRetryable) {
+        this(taskExecutionId, status, variables, processId, nonRetryable, null);
+    }
 
     /**
      * The shape before a worker could declare a failure final ({@code nonRetryable}: the engine does
@@ -24,7 +35,7 @@ public record TaskStatusChanged(String taskExecutionId, TaskStatus status, List<
      */
     public TaskStatusChanged(String taskExecutionId, TaskStatus status, List<Variable> variables,
                              String processId) {
-        this(taskExecutionId, status, variables, processId, false);
+        this(taskExecutionId, status, variables, processId, false, null);
     }
 
     /**
@@ -33,7 +44,7 @@ public record TaskStatusChanged(String taskExecutionId, TaskStatus status, List<
      * handled by whichever pod receives it, exactly as before ownership existed.
      */
     public TaskStatusChanged(String taskExecutionId, TaskStatus status, List<Variable> variables) {
-        this(taskExecutionId, status, variables, null, false);
+        this(taskExecutionId, status, variables, null, false, null);
     }
 
     @Override

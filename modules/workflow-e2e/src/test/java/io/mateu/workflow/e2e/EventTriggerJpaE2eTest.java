@@ -130,4 +130,29 @@ class EventTriggerJpaE2eTest extends AbstractJpaE2eTest {
 
         assertThat(inbound.receive(payment).duplicates()).containsExactly("wait:e2e-payment-captured/JW-1");
     }
+
+    @Test
+    void deletingADefinitionTakesItsEngineCreatedTriggersAndPausesWithIt() {
+        triggers.create(new EventTriggerService.TriggerDraft("api-made", "event-trigger", "e2e-bookings",
+                "com.acme.booking.cancelled", null, null, null));
+        triggers.pause("event-trigger", "api-made", "ops");
+        triggers.pause("event-trigger", "web", "ops");
+        assertThat(fileTriggers.findAll()).anySatisfy(t -> assertThat(t.key()).isEqualTo("event-trigger/api-made"));
+
+        var definition = workflowDefinitionRepository.findById("event-trigger").orElseThrow();
+        workflowDefinitionRepository.save(definition.withRuntimeStatus(io.mateu.workflow.domain.aggregates.WorkflowStatus.DISABLED));
+        workflowDefinitionRepository.deleteAllById(java.util.List.of("event-trigger"));
+
+        // Re-creating a definition with the same id must not bring them back, paused or not.
+        assertThat(fileTriggers.findAll()).noneSatisfy(t -> assertThat(t.key()).isEqualTo("event-trigger/api-made"));
+        assertThat(pauses.findAll()).isEmpty();
+        workflowDefinitionRepository.save(definition);
+        assertThat(triggers.list("event-trigger", null)).extracting(EventTriggerService.TriggerView::triggerId)
+                .doesNotContain("api-made");
+    }
+
+    @Test
+    void importProvenanceIsKeptInTheDatabase(@Autowired io.mateu.workflow.webhook.ImportedDefinitionsRegistry registry) {
+        assertThat(registry).isInstanceOf(io.mateu.workflow.infra.out.persistence.JpaImportedDefinitionsRegistry.class);
+    }
 }

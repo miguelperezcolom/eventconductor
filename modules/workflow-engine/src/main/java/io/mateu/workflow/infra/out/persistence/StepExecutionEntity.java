@@ -107,6 +107,12 @@ public class StepExecutionEntity {
     String injectedByStepExecutionId;
 
     /**
+     * Which dispatch of the step is the current one (see {@code StepExecution.dispatchCount}). Boxed:
+     * rows written before the column existed read null, which is the same as zero.
+     */
+    Integer dispatchCount;
+
+    /**
      * Backward-compatible constructor for the callers that predate the lock columns (the write-side
      * mapping in {@code StepExecutionDBRepository}). They arrive null; only lock steps set them,
      * once the engine wires that in. Kept as an overload rather than reordering the fields, the same
@@ -119,7 +125,7 @@ public class StepExecutionEntity {
             String injectedByStepExecutionId) {
         this(id, processId, workflowDefinitionId, stepId, stepJson, stepType, variables, status, workerId,
                 order, startedAt, finishedAt, attemptCount, deadlineAt, awaitingMessageName,
-                awaitingCorrelationKey, null, null, version, injectedByStepExecutionId);
+                awaitingCorrelationKey, null, null, version, injectedByStepExecutionId, null);
     }
 
 }

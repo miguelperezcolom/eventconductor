@@ -201,7 +201,7 @@ public class EmbeddedDownstreamEventPublisher implements DownstreamEventPublishe
                     request.taskExecutionId(),
                     List.of(),
                     describe(failure),
-                    StepExecutionStatus.ERROR));
+                    StepExecutionStatus.ERROR, false, request.attempt()));
         } catch (Exception reportingFailure) {
             // Best effort by construction: if this cannot be written the step keeps waiting, and
             // only its timeout will free it. Said out loud rather than swallowed.

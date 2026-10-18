@@ -74,7 +74,8 @@ A file is the optional, durable home of a trigger, not a precondition for having
 
 - **Any trigger** can be paused and resumed. **Only triggers created here** are edited and deleted here: one declared in a definition or an `events.yaml` is changed in its file — its page says where.
 - A trigger created here is matched, receipted and keyed exactly like a declared one, and listed after the file-declared triggers of its workflow. Its id must be free within the workflow.
-- **Promote it to git**: its page shows its `events.yaml` entry, id and workflow included (also `GET …/yaml`, `exportEventTriggerYaml`). Commit it next to the definitions: on the next import the file owns the trigger — the stored copy is deleted, the file's values take over, and its pause carries over. An entry removed from its file later is deleted with its pause, including one that started life in the UI. Imports never touch the triggers created here otherwise.
+- **Promote it to git**: its page shows its `events.yaml` entry, id and workflow included (also `GET …/yaml`, `exportEventTriggerYaml`). Commit it next to the definitions: on the next import the file owns the trigger — the stored copy is deleted, the file's values take over, and its pause carries over. An entry removed from its file later is deleted with its pause, including one that started life in the UI. Imports never touch the triggers created here otherwise. The same takeover happens whenever a definition declaring that trigger is saved, however it is saved — not only on a file import.
+- **Deleting a definition** deletes the triggers created here for it and the pauses of all of its triggers: re-creating a definition with the same id starts with none of them, and nothing is left behind that could no longer be reached.
 
 ### What a filter and a template see
 

@@ -28,13 +28,13 @@ final class UpdateStepExecutionSink implements io.mateu.workflow.worker.api.Task
     @Override
     public void running(TaskExecutionRequested task) {
         updateStepExecution.handle(new UpdateStepExecutionCommand(
-                task.taskExecutionId(), List.of(), "", StepExecutionStatus.RUNNING));
+                task.taskExecutionId(), List.of(), "", StepExecutionStatus.RUNNING, false, task.attempt()));
     }
 
     @Override
     public void completed(TaskExecutionRequested task, List<io.mateu.workflow.dtos.Variable> variables) {
         updateStepExecution.handle(new UpdateStepExecutionCommand(
-                task.taskExecutionId(), toDomain(variables), "", StepExecutionStatus.COMPLETED));
+                task.taskExecutionId(), toDomain(variables), "", StepExecutionStatus.COMPLETED, false, task.attempt()));
     }
 
     @Override
@@ -42,7 +42,7 @@ final class UpdateStepExecutionSink implements io.mateu.workflow.worker.api.Task
                        String reason) {
         updateStepExecution.handle(new UpdateStepExecutionCommand(
                 task.taskExecutionId(), toDomain(variables), reason == null ? "" : reason,
-                StepExecutionStatus.ERROR));
+                StepExecutionStatus.ERROR, false, task.attempt()));
     }
 
     private static List<Variable> toDomain(List<io.mateu.workflow.dtos.Variable> variables) {

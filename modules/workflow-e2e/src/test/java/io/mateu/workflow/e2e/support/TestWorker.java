@@ -113,12 +113,13 @@ public class TestWorker implements EmbeddedTaskExecutor {
         behavior.run(request, callbackFor(request), invocation);
     }
 
+    /** Echoes the task's attempt, as a worker replying through {@code WorkerReply} does. */
     private WorkerCallback callbackFor(TaskExecutionRequested request) {
         return new WorkerCallback() {
             @Override
             public void complete(List<Variable> variables) {
                 updateStepExecution.handle(new UpdateStepExecutionCommand(
-                        request.taskExecutionId(), variables, "", StepExecutionStatus.COMPLETED));
+                        request.taskExecutionId(), variables, "", StepExecutionStatus.COMPLETED, false, request.attempt()));
             }
 
             @Override
@@ -134,7 +135,7 @@ public class TestWorker implements EmbeddedTaskExecutor {
             @Override
             public void fail(String reason) {
                 updateStepExecution.handle(new UpdateStepExecutionCommand(
-                        request.taskExecutionId(), List.of(), reason, StepExecutionStatus.ERROR));
+                        request.taskExecutionId(), List.of(), reason, StepExecutionStatus.ERROR, false, request.attempt()));
             }
         };
     }

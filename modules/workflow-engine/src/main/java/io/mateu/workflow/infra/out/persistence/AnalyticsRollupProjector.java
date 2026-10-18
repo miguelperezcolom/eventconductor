@@ -118,6 +118,17 @@ public class AnalyticsRollupProjector {
     @Value("${workflow.analytics.rollup-max-batches-per-cycle:200}")
     int maxBatchesPerCycle;
 
+    /**
+     * How far behind the finish cursors each pass looks again for finishes that were never counted.
+     * The cursor trusts that a row's timestamp is no older than its commit, give or take the ceiling;
+     * a transaction that ran longer, or a pod whose clock is behind, commits a finish the cursor has
+     * already passed, and without this it was never folded. The ledger makes the second look safe —
+     * only what it does not hold is folded — so this is a cost knob, not a correctness one: it must
+     * outlast the longest transaction that finishes a process plus a pass interval. 0 turns it off.
+     */
+    @Value("${workflow.analytics.rollup-lookback-seconds:120}")
+    long lookbackSeconds;
+
     private TransactionTemplate tx;
     private volatile boolean running = true;
     private Thread thread;
@@ -173,6 +184,53 @@ public class AnalyticsRollupProjector {
         foldCreated(ceiling);
         foldProcessFinished(ceiling);
         foldStepFinished(ceiling);
+        if (lookbackSeconds > 0) {
+            foldProcessFinishesBehindTheCursor();
+            foldStepFinishesBehindTheCursor();
+        }
+    }
+
+    /** Folds the finishes the process cursor skipped: committed after it had passed their timestamp. */
+    private void foldProcessFinishesBehindTheCursor() {
+        for (int cycle = 0; cycle < maxBatchesPerCycle; cycle++) {
+            var full = Boolean.TRUE.equals(tx.execute(status -> {
+                var state = state();
+                // Page 0 every time: what a batch folds enters the ledger and drops out of the query.
+                var batch = source.uncountedProcessFinishesBehind(
+                        state.getPfinishedCursorTs().minusSeconds(lookbackSeconds),
+                        state.getPfinishedCursorTs(), state.getPfinishedCursorId(), PageRequest.of(0, batchSize));
+                if (batch.isEmpty()) {
+                    return false;
+                }
+                log.info("Analytics: folding {} process finish(es) committed behind the cursor", batch.size());
+                foldProcessFinishes(batch);
+                return batch.size() == batchSize;
+            }));
+            if (!full) {
+                return;
+            }
+        }
+    }
+
+    /** {@link #foldProcessFinishesBehindTheCursor()} for step executions. */
+    private void foldStepFinishesBehindTheCursor() {
+        for (int cycle = 0; cycle < maxBatchesPerCycle; cycle++) {
+            var full = Boolean.TRUE.equals(tx.execute(status -> {
+                var state = state();
+                var batch = source.uncountedStepFinishesBehind(
+                        state.getSfinishedCursorTs().minusSeconds(lookbackSeconds),
+                        state.getSfinishedCursorTs(), state.getSfinishedCursorId(), PageRequest.of(0, batchSize));
+                if (batch.isEmpty()) {
+                    return false;
+                }
+                log.info("Analytics: folding {} step finish(es) committed behind the cursor", batch.size());
+                foldStepFinishes(batch);
+                return batch.size() == batchSize;
+            }));
+            if (!full) {
+                return;
+            }
+        }
     }
 
     /** Takes back out what was counted for every process that has since been retried or restarted. */
@@ -255,40 +313,7 @@ public class AnalyticsRollupProjector {
                 if (batch.isEmpty()) {
                     return false;
                 }
-                var counted = batch.stream()
-                        .filter(v -> v.getCreated() != null && v.getFinished() != null)
-                        .toList();
-                var rows = counted.stream()
-                        .map(v -> new FinishedProcessRow(v.getWorkflowDefinitionId(),
-                                v.getCreated().toLocalDate(), v.getFinished().toLocalDate(),
-                                ProcessStatus.valueOf(v.getStatus()), v.getName(),
-                                processDurationNanos(v.getStarted(), v.getCreated(), v.getFinished())))
-                        .toList();
-                // Already in the ledger: reopened and finished again since it was counted (or the
-                // batch is a replay). Its old contribution comes out before the new one goes in.
-                var previously = countedProcesses.findAllById(counted.stream().map(v -> v.getId()).toList())
-                        .stream().collect(Collectors.toMap(CountedProcessEntity::getProcessId, Function.identity()));
-                var emptied = new ArrayList<Runnable>();
-                if (!previously.isEmpty()) {
-                    applyProcessDeltas(RollupFolder.foldProcessFinished(
-                            previously.values().stream().map(AnalyticsRollupProjector::asRow).toList()),
-                            -1, emptied);
-                }
-                applyProcessDeltas(RollupFolder.foldProcessFinished(rows), +1, emptied);
-                for (int i = 0; i < counted.size(); i++) {
-                    var v = counted.get(i);
-                    var row = rows.get(i);
-                    var entry = previously.get(v.getId());
-                    if (entry == null) {
-                        countedProcesses.save(new CountedProcessEntity(v.getId(), row.definitionId(),
-                                row.createdDay(), row.finishedDay(), row.status().name(), row.durationNanos()));
-                    } else {
-                        entry.setFinishedDay(row.finishedDay());
-                        entry.setStatus(row.status().name());
-                        entry.setDurationNanos(row.durationNanos());
-                    }
-                }
-                emptied.forEach(Runnable::run);
+                foldProcessFinishes(batch);
                 var last = batch.get(batch.size() - 1);
                 state.setPfinishedCursorTs(last.getFinished());
                 state.setPfinishedCursorId(last.getId());
@@ -311,38 +336,7 @@ public class AnalyticsRollupProjector {
                 if (batch.isEmpty()) {
                     return false;
                 }
-                var counted = batch.stream()
-                        .filter(v -> v.getProcessCreated() != null && v.getFinishedAt() != null)
-                        .toList();
-                var rows = counted.stream()
-                        .map(v -> new FinishedStepRow(v.getWorkflowDefinitionId(), v.getStepId(),
-                                v.getProcessCreated().toLocalDate(),
-                                StepExecutionStatus.valueOf(v.getStatus()), v.getStepOrder(),
-                                stepDurationNanos(v.getStartedAt(), v.getFinishedAt())))
-                        .toList();
-                var previously = countedSteps.findAllById(counted.stream().map(v -> v.getId()).toList())
-                        .stream().collect(Collectors.toMap(CountedStepEntity::getStepExecutionId, Function.identity()));
-                var emptied = new ArrayList<Runnable>();
-                if (!previously.isEmpty()) {
-                    applyStepDeltas(RollupFolder.foldStepFinished(
-                            previously.values().stream().map(AnalyticsRollupProjector::asRow).toList()),
-                            -1, emptied);
-                }
-                applyStepDeltas(RollupFolder.foldStepFinished(rows), +1, emptied);
-                for (int i = 0; i < counted.size(); i++) {
-                    var v = counted.get(i);
-                    var row = rows.get(i);
-                    var entry = previously.get(v.getId());
-                    if (entry == null) {
-                        countedSteps.save(new CountedStepEntity(v.getId(), row.definitionId(), row.stepId(),
-                                row.createdDay(), row.status().name(), row.order(), row.durationNanos()));
-                    } else {
-                        entry.setStatus(row.status().name());
-                        entry.setStepOrder(row.order());
-                        entry.setDurationNanos(row.durationNanos());
-                    }
-                }
-                emptied.forEach(Runnable::run);
+                foldStepFinishes(batch);
                 var last = batch.get(batch.size() - 1);
                 state.setSfinishedCursorTs(last.getFinishedAt());
                 state.setSfinishedCursorId(last.getId());
@@ -353,6 +347,83 @@ public class AnalyticsRollupProjector {
                 return;
             }
         }
+    }
+
+    /**
+     * Folds finished processes into the rollups and the ledger: a row the ledger already holds has
+     * its old contribution taken out first, so folding the same fact again changes nothing.
+     */
+    private void foldProcessFinishes(List<AnalyticsRollupRepositories.ProcessFinishSourceView> batch) {
+        var counted = batch.stream()
+                .filter(v -> v.getCreated() != null && v.getFinished() != null)
+                .toList();
+        var rows = counted.stream()
+                .map(v -> new FinishedProcessRow(v.getWorkflowDefinitionId(),
+                        v.getCreated().toLocalDate(), v.getFinished().toLocalDate(),
+                        ProcessStatus.valueOf(v.getStatus()), v.getName(),
+                        processDurationNanos(v.getStarted(), v.getCreated(), v.getFinished())))
+                .toList();
+        // Already in the ledger: reopened and finished again since it was counted (or the
+        // batch is a replay). Its old contribution comes out before the new one goes in.
+        var previously = countedProcesses.findAllById(counted.stream().map(v -> v.getId()).toList())
+                .stream().collect(Collectors.toMap(CountedProcessEntity::getProcessId, Function.identity()));
+        var emptied = new ArrayList<Runnable>();
+        if (!previously.isEmpty()) {
+            applyProcessDeltas(RollupFolder.foldProcessFinished(
+                    previously.values().stream().map(AnalyticsRollupProjector::asRow).toList()),
+                    -1, emptied);
+        }
+        applyProcessDeltas(RollupFolder.foldProcessFinished(rows), +1, emptied);
+        for (int i = 0; i < counted.size(); i++) {
+            var v = counted.get(i);
+            var row = rows.get(i);
+            var entry = previously.get(v.getId());
+            if (entry == null) {
+                countedProcesses.save(new CountedProcessEntity(v.getId(), row.definitionId(),
+                        row.createdDay(), row.finishedDay(), row.status().name(), row.durationNanos()));
+            } else {
+                entry.setFinishedDay(row.finishedDay());
+                entry.setStatus(row.status().name());
+                entry.setDurationNanos(row.durationNanos());
+            }
+        }
+        emptied.forEach(Runnable::run);
+    }
+
+    /** {@link #foldProcessFinishes} for step executions. */
+    private void foldStepFinishes(List<AnalyticsRollupRepositories.StepFinishSourceView> batch) {
+        var counted = batch.stream()
+                .filter(v -> v.getProcessCreated() != null && v.getFinishedAt() != null)
+                .toList();
+        var rows = counted.stream()
+                .map(v -> new FinishedStepRow(v.getWorkflowDefinitionId(), v.getStepId(),
+                        v.getProcessCreated().toLocalDate(),
+                        StepExecutionStatus.valueOf(v.getStatus()), v.getStepOrder(),
+                        stepDurationNanos(v.getStartedAt(), v.getFinishedAt())))
+                .toList();
+        var previously = countedSteps.findAllById(counted.stream().map(v -> v.getId()).toList())
+                .stream().collect(Collectors.toMap(CountedStepEntity::getStepExecutionId, Function.identity()));
+        var emptied = new ArrayList<Runnable>();
+        if (!previously.isEmpty()) {
+            applyStepDeltas(RollupFolder.foldStepFinished(
+                    previously.values().stream().map(AnalyticsRollupProjector::asRow).toList()),
+                    -1, emptied);
+        }
+        applyStepDeltas(RollupFolder.foldStepFinished(rows), +1, emptied);
+        for (int i = 0; i < counted.size(); i++) {
+            var v = counted.get(i);
+            var row = rows.get(i);
+            var entry = previously.get(v.getId());
+            if (entry == null) {
+                countedSteps.save(new CountedStepEntity(v.getId(), row.definitionId(), row.stepId(),
+                        row.createdDay(), row.status().name(), row.order(), row.durationNanos()));
+            } else {
+                entry.setStatus(row.status().name());
+                entry.setStepOrder(row.order());
+                entry.setDurationNanos(row.durationNanos());
+            }
+        }
+        emptied.forEach(Runnable::run);
     }
 
     // ─────────────────────────── upserts: find the row, add (or take out) the delta, save ───────────────────────────

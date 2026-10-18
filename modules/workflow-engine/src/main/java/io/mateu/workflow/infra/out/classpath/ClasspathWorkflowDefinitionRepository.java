@@ -47,6 +47,26 @@ public class ClasspathWorkflowDefinitionRepository implements WorkflowDefinition
 
     private static final ObjectMapper YAML_MAPPER = new YAMLMapper();
 
+    // Optional and resolved when used: the trigger stores do not depend on the definitions, but a
+    // repository that cannot be built without them would make every test harness wire them too.
+    private org.springframework.beans.factory.ObjectProvider<io.mateu.workflow.application.out.EventTriggerRepository> eventTriggers;
+    private org.springframework.beans.factory.ObjectProvider<io.mateu.workflow.application.out.TriggerPauseRepository> triggerPauses;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setTriggerStores(
+            org.springframework.beans.factory.ObjectProvider<io.mateu.workflow.application.out.EventTriggerRepository> eventTriggers,
+            org.springframework.beans.factory.ObjectProvider<io.mateu.workflow.application.out.TriggerPauseRepository> triggerPauses) {
+        this.eventTriggers = eventTriggers;
+        this.triggerPauses = triggerPauses;
+    }
+
+    /** See {@link io.mateu.workflow.application.services.DefinitionTriggerCleanup}. */
+    private io.mateu.workflow.application.services.DefinitionTriggerCleanup triggerCleanup() {
+        return new io.mateu.workflow.application.services.DefinitionTriggerCleanup(
+                eventTriggers == null ? null : eventTriggers.getIfAvailable(),
+                triggerPauses == null ? null : triggerPauses.getIfAvailable());
+    }
+
     private void loadFromClasspath() {
         var resolver = new PathMatchingResourcePatternResolver();
         try {
@@ -107,6 +127,7 @@ public class ClasspathWorkflowDefinitionRepository implements WorkflowDefinition
     @Override
     public String save(WorkflowDefinition def) {
         definitions.put(def.id(), def);
+        triggerCleanup().definitionSaved(def);
         return def.id();
     }
 
@@ -118,5 +139,6 @@ public class ClasspathWorkflowDefinitionRepository implements WorkflowDefinition
     @Override
     public void deleteAllById(List<String> ids) {
         ids.forEach(definitions::remove);
+        triggerCleanup().definitionsDeleted(ids);
     }
 }

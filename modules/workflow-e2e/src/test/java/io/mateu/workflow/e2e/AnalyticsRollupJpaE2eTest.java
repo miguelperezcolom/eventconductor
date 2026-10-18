@@ -35,6 +35,7 @@ class AnalyticsRollupJpaE2eTest extends AbstractJpaE2eTest {
 
     @Autowired ProcessAnalyticsService analyticsService;
     @Autowired RollupAnalyticsPort rollup;
+    @Autowired io.mateu.workflow.infra.out.persistence.ProcessEntityRepository processEntities;
 
     @Test
     void theReportIsAnsweredFromTheRollupsOnceTheProjectorHasFolded() {
@@ -66,5 +67,47 @@ class AnalyticsRollupJpaE2eTest extends AbstractJpaE2eTest {
             assertThat(count.status()).isEqualTo(ProcessStatus.COMPLETED);
             assertThat(count.count()).isEqualTo(2);
         });
+    }
+
+    @Test
+    void aFinishCommittedBehindTheCursorIsStillCounted() {
+        worker.on("s1", TestWorker.succeed());
+        worker.on("s2", TestWorker.succeed());
+        worker.on("s3", TestWorker.succeed());
+        createProcess("sequential-3", "ana-late-1");
+        awaitStatus("ana-late-1", ProcessStatus.COMPLETED);
+        await().atMost(Duration.ofSeconds(15)).untilAsserted(() ->
+                assertThat(rollup.aggregateProcesses(null, null).statusCounts())
+                        .anySatisfy(count -> assertThat(count.workflowDefinitionId()).isEqualTo("sequential-3")));
+
+        // The finish cursor is past now. A process whose finish was stamped 30 seconds ago commits only
+        // now — a long transaction, or a pod whose clock runs behind: the cursor will never see it.
+        var now = java.time.LocalDateTime.now();
+        var late = new io.mateu.workflow.infra.out.persistence.ProcessEntity();
+        late.setId("late-process");
+        late.setBusinessKey("ana-late-2");
+        late.setName("late");
+        late.setStatus(ProcessStatus.COMPLETED.name());
+        late.setWorkflowDefinitionId("late-definition");
+        late.setCreated(now.minusSeconds(40));
+        late.setStarted(now.minusSeconds(40));
+        late.setFinished(now.minusSeconds(30));
+        processEntities.save(late);
+
+        await().atMost(Duration.ofSeconds(15)).untilAsserted(() ->
+                assertThat(rollup.aggregateProcesses(null, null).statusCounts()).anySatisfy(count -> {
+                    assertThat(count.workflowDefinitionId()).isEqualTo("late-definition");
+                    assertThat(count.status()).isEqualTo(ProcessStatus.COMPLETED);
+                    assertThat(count.count()).isEqualTo(1);
+                }));
+        // Counted once, however many passes look at it again.
+        try {
+            Thread.sleep(500);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        assertThat(rollup.aggregateProcesses(null, null).statusCounts())
+                .filteredOn(count -> "late-definition".equals(count.workflowDefinitionId()))
+                .singleElement().satisfies(count -> assertThat(count.count()).isEqualTo(1));
     }
 }

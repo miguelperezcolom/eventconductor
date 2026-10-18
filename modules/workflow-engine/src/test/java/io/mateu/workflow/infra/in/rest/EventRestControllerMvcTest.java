@@ -306,4 +306,22 @@ class EventRestControllerMvcTest {
         mvc.perform(post("/workflow/api/triggers/onboarding/com.acme.booking.any/resume")).andExpect(status().isUnauthorized());
         org.mockito.Mockito.verifyNoInteractions(ingressRouter);
     }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void inputTheEngineRejectsFurtherInIsA400NotA500() throws Exception {
+        // In embedded mode the engine checks the event's data as it receives it, inside this request.
+        var inbound = mock(InboundEventService.class);
+        when(inbound.receive(org.mockito.ArgumentMatchers.any())).thenThrow(
+                new io.mateu.workflow.input.InputLimits.InputRejectedException("variables: too large"));
+        var controller = new EventRestController(inbound, mock(EventTriggerService.class), apiProperties,
+                mock(ObjectProvider.class));
+        MockMvcBuilders.standaloneSetup(controller).build()
+                .perform(post("/workflow/api/events/bookings").contentType("application/json").content("""
+                        {"specversion": "1.0", "id": "e-1", "source": "pms", "type": "com.acme.booking.created",
+                         "data": {"bookingId": "B-1"}}
+                        """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("variables: too large"));
+    }
 }

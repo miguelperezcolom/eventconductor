@@ -65,7 +65,8 @@ public class UnkeyedEventRouter {
         log.debug("Re-routing unkeyed status report for step {} to the owner of process {}",
                 event.taskExecutionId(), processId);
         upstreamEventPublisher.publish(new TaskStatusChanged(
-                event.taskExecutionId(), event.status(), event.variables(), processId));
+                event.taskExecutionId(), event.status(), event.variables(), processId,
+                event.nonRetryable(), event.attempt()));
         return true;
     }
 

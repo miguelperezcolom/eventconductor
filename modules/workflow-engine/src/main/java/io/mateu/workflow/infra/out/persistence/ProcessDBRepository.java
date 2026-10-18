@@ -255,6 +255,9 @@ public class ProcessDBRepository implements ProcessRepository {
      * carries the workflow definition JSON, so loading the table to show ten rows moves hundreds of
      * megabytes per keystroke once a deployment has been running for a while.
      */
+    /** The list bound to an {@code in} that its "no filter" flag switches off: never null, never empty. */
+    private static final List<String> NO_FILTER = List.of("");
+
     @Override
     public ProcessSummaryPage searchSummaries(
             io.mateu.workflow.application.out.ProcessListingFilter filter, int page, int size) {
@@ -263,20 +266,22 @@ public class ProcessDBRepository implements ProcessRepository {
         var businessKey = filter.normalisedBusinessKey();
         var businessKeyPattern = businessKey == null ? null : "%" + businessKey.toLowerCase() + "%";
         // The statuses travel as their names: the column is a string, and passing the enum would
-        // leave the comparison to however the provider chooses to bind it. Null (no status filter)
-        // short-circuits the SQL IN via the ":statuses is null" guard.
-        var statuses = filter.normalisedStatuses() == null
-                ? null : filter.normalisedStatuses().stream().map(Enum::name).toList();
+        // leave the comparison to however the provider chooses to bind it. No status filter is a
+        // flag plus a placeholder list (see searchSummaries): never a null or empty list in an IN.
+        var anyStatus = filter.normalisedStatuses() == null;
+        var statuses = anyStatus ? NO_FILTER : filter.normalisedStatuses().stream().map(Enum::name).toList();
         // Counted first, because which page can be served depends on how many there are — see
         // ServedPage. Two queries either way: a Spring Data Page would have run this same count.
-        var definitionIds = filter.normalisedDefinitionIds();
+        var anyDefinition = filter.normalisedDefinitionIds() == null;
+        java.util.Collection<String> definitionIds = anyDefinition ? NO_FILTER : filter.normalisedDefinitionIds();
         var total = processEntityRepository.countSummaries(filter.onlyErrors(), pattern, businessKeyPattern,
-                filter.workflowDefinitionId(), definitionIds, statuses, filter.createdFrom(), filter.createdTo());
+                filter.workflowDefinitionId(), anyDefinition, definitionIds, anyStatus, statuses,
+                filter.createdFrom(), filter.createdTo());
         var served = ServedPage.of(page, size, total);
         var content = processEntityRepository
                 .searchSummaries(filter.onlyErrors(), pattern, businessKeyPattern,
-                        filter.workflowDefinitionId(), definitionIds, statuses, filter.createdFrom(), filter.createdTo(),
-                        PageRequest.of(served.number(), served.size()))
+                        filter.workflowDefinitionId(), anyDefinition, definitionIds, anyStatus, statuses,
+                        filter.createdFrom(), filter.createdTo(), PageRequest.of(served.number(), served.size()))
                 .stream()
                 .map(view -> new ProcessSummary(
                         view.getId(),

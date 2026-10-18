@@ -62,9 +62,9 @@ public class RuleTaskKafkaConsumerConfig {
         return event -> {
             if (event instanceof TaskExecutionRequested(
                     String taskExecutionId, String processId, String workflowDefinitionId, String stepId,
-                    String taskId, List<Variable> variables)
+                    String taskId, List<Variable> variables, Integer attempt)
                     && EVALUATE_RULE_TASK_ID.equals(taskId)) {
-                evaluate(taskExecutionId, processId, variables);
+                evaluate(taskExecutionId, processId, variables, attempt);
             }
         };
     }
@@ -75,7 +75,7 @@ public class RuleTaskKafkaConsumerConfig {
      * failure to <em>publish</em> must escape, and swallowing it here is the bug this shape
      * exists to prevent.
      */
-    private void evaluate(String taskExecutionId, String processId, List<Variable> variables) {
+    private void evaluate(String taskExecutionId, String processId, List<Variable> variables, Integer attempt) {
         var outputs = new ArrayList<Variable>();
         TaskStatus status;
         MessageType logType;
@@ -103,7 +103,7 @@ public class RuleTaskKafkaConsumerConfig {
 
         emitLog(taskExecutionId, logType, logMessage);
 
-        WorkerReply.send(streamBridge, new TaskStatusChanged(taskExecutionId, status, outputs, processId));
+        WorkerReply.send(streamBridge, new TaskStatusChanged(taskExecutionId, status, outputs, processId, false, attempt));
     }
 
     /**

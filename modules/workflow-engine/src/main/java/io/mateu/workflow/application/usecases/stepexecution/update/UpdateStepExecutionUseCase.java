@@ -80,6 +80,15 @@ public class UpdateStepExecutionUseCase {
                     command.status(), execution.id());
             return;
         }
+        if (command.attempt() != null && command.attempt() != execution.getDispatchCount()) {
+            // A reply about an attempt that is no longer the step's: the process was restarted, or
+            // the step timed out and was dispatched again, under the same step execution id. The
+            // abandoned attempt's worker may still answer — applying it would hand the running
+            // attempt a result it never produced (or complete a step that has not even started).
+            log.warn("Ignoring status update {} for step execution {} from attempt {} — the current one is {}",
+                    command.status(), execution.id(), command.attempt(), execution.getDispatchCount());
+            return;
+        }
         var process = processRepository.findById(execution.getProcessId())
                 .orElseThrow(() -> new UnknownProcessException(execution.getProcessId()));
         process.updateVariables(command.variables());

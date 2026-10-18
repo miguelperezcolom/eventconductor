@@ -137,9 +137,15 @@ record TaskExecutionRequested(
     String workflowDefinitionId,
     String stepId,
     String taskId,
-    List<Variable> variables   // process variables at this point
+    List<Variable> variables,  // process variables at this point
+    Integer attempt            // which dispatch of the step this is (since 2.28; null from older engines)
 ) {}
 ```
+
+The `taskExecutionId` stays the same when a step runs again — a process restarted from the top, a step
+retried after a timeout — so `attempt` is what tells one run of it from the next. Echo it back on your
+reply (`WorkerReply` does it for you): the engine then drops a late reply from an attempt it has
+abandoned instead of taking it for the current one's result. A reply without it is applied as before.
 
 ### Reporting completion
 
@@ -150,7 +156,9 @@ record TaskStatusChanged(
     String taskExecutionId,
     TaskStatus status,         // COMPLETED | ERROR | RUNNING
     List<Variable> variables,  // output variables merged into the process
-    String log                 // optional log message
+    String processId,          // echoed from the task, routes the reply to the owning pod
+    boolean nonRetryable,      // the failure is final: do not spend the step's retries on it
+    Integer attempt            // echoed from the task (optional; see above)
 ) {}
 ```
 

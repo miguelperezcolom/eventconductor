@@ -49,6 +49,11 @@ public interface ProcessEntityRepository extends JpaRepository<ProcessEntity, St
      * <p>{@code :pattern} is a pre-lowercased LIKE pattern (wildcards included) or null for "no
      * text filter"; it is matched against the same {@code name + " " + businessKey} text the
      * in-memory store searches.
+     *
+     * <p>The id and status lists come with a flag saying "no filter" rather than as null: {@code
+     * (:list is null or …)} renders as {@code (?, ?) is null} once the list has two elements, which
+     * PostgreSQL and H2 tolerate and MariaDB and Oracle reject. The caller passes a one-element
+     * placeholder when the flag is set, so the {@code in} never meets an empty list either.
      */
     @Query(value = """
             select p.id as id, p.name as name, p.status as status,
@@ -60,8 +65,8 @@ public interface ProcessEntityRepository extends JpaRepository<ProcessEntity, St
                    or lower(concat(coalesce(p.name, ''), ' ', coalesce(p.businessKey, ''))) like :pattern)
               and (:businessKey is null or lower(coalesce(p.businessKey, '')) like :businessKey)
               and (:definitionId is null or p.workflowDefinitionId = :definitionId)
-              and (:definitionIds is null or p.workflowDefinitionId in :definitionIds)
-              and (:statuses is null or p.status in :statuses)
+              and (:anyDefinition = true or p.workflowDefinitionId in :definitionIds)
+              and (:anyStatus = true or p.status in :statuses)
               and (cast(:createdFrom as LocalDateTime) is null or p.created >= :createdFrom)
               and (cast(:createdTo as LocalDateTime) is null or p.created <= :createdTo)
             order by p.created desc nulls last
@@ -70,7 +75,9 @@ public interface ProcessEntityRepository extends JpaRepository<ProcessEntity, St
                                              @Param("pattern") String pattern,
                                              @Param("businessKey") String businessKey,
                                              @Param("definitionId") String definitionId,
+                                             @Param("anyDefinition") boolean anyDefinition,
                                              @Param("definitionIds") Collection<String> definitionIds,
+                                             @Param("anyStatus") boolean anyStatus,
                                              @Param("statuses") Collection<String> statuses,
                                              @Param("createdFrom") LocalDateTime createdFrom,
                                              @Param("createdTo") LocalDateTime createdTo,
@@ -90,8 +97,8 @@ public interface ProcessEntityRepository extends JpaRepository<ProcessEntity, St
                    or lower(concat(coalesce(p.name, ''), ' ', coalesce(p.businessKey, ''))) like :pattern)
               and (:businessKey is null or lower(coalesce(p.businessKey, '')) like :businessKey)
               and (:definitionId is null or p.workflowDefinitionId = :definitionId)
-              and (:definitionIds is null or p.workflowDefinitionId in :definitionIds)
-              and (:statuses is null or p.status in :statuses)
+              and (:anyDefinition = true or p.workflowDefinitionId in :definitionIds)
+              and (:anyStatus = true or p.status in :statuses)
               and (cast(:createdFrom as LocalDateTime) is null or p.created >= :createdFrom)
               and (cast(:createdTo as LocalDateTime) is null or p.created <= :createdTo)
             """)
@@ -99,7 +106,9 @@ public interface ProcessEntityRepository extends JpaRepository<ProcessEntity, St
                         @Param("pattern") String pattern,
                         @Param("businessKey") String businessKey,
                         @Param("definitionId") String definitionId,
+                        @Param("anyDefinition") boolean anyDefinition,
                         @Param("definitionIds") Collection<String> definitionIds,
+                        @Param("anyStatus") boolean anyStatus,
                         @Param("statuses") Collection<String> statuses,
                         @Param("createdFrom") LocalDateTime createdFrom,
                         @Param("createdTo") LocalDateTime createdTo);
