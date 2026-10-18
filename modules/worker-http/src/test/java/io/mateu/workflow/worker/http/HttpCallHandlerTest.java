@@ -16,17 +16,22 @@ import io.mateu.workflow.worker.api.TaskReplySink;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.ServerSocket;
+import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -387,6 +392,89 @@ class HttpCallHandlerTest {
                 .isInstanceOfSatisfying(TaskFailure.class, f -> assertThat(f.code()).isEqualTo("HTTP_CONFIG"));
         assertThatThrownBy(() -> handler.handle(new HttpCallHandler.Input(null), null))
                 .isInstanceOfSatisfying(TaskFailure.class, f -> assertThat(f.code()).isEqualTo("HTTP_REQUEST"));
+    }
+
+    /**
+     * A one-shot raw HTTP/1.1 server: reads the request head, writes {@code head} and {@code partialBody},
+     * then either closes (a truncated body) or keeps the connection open until the client drops it. The
+     * returned future completes, with the nanoTime, when the client has released the connection.
+     */
+    private CompletableFuture<Long> rawServer(ServerSocket socket, String head, String partialBody, boolean closeAfter) {
+        var released = new CompletableFuture<Long>();
+        Thread.ofVirtual().start(() -> {
+            try (socket; Socket client = socket.accept()) {
+                var in = client.getInputStream();
+                var window = 0;
+                while (window != 0x0d0a0d0a) {
+                    var b = in.read();
+                    if (b < 0) break;
+                    window = (window << 8) | b;
+                }
+                client.getOutputStream().write((head + partialBody).getBytes(StandardCharsets.UTF_8));
+                client.getOutputStream().flush();
+                if (!closeAfter) {
+                    while (in.read() >= 0) {
+                        // the client never sends more: read returns -1 (or throws) when it drops the connection
+                    }
+                }
+                released.complete(System.nanoTime());
+            } catch (IOException e) {
+                released.complete(System.nanoTime());
+            }
+        });
+        return released;
+    }
+
+    private void rawConnection(ServerSocket socket, Duration readTimeout) {
+        var connection = new HttpWorkerProperties.Connection();
+        connection.setBaseUrl("http://127.0.0.1:" + socket.getLocalPort());
+        connection.setReadTimeout(readTimeout);
+        properties.getConnections().put("raw", connection);
+    }
+
+    @Test
+    @Timeout(value = 5, threadMode = Timeout.ThreadMode.SEPARATE_THREAD) // before the fix, the read never ended
+    void aBodyThatStallsAfterTheHeadersTimesOutWithinTheReadTimeoutAndReleasesTheConnection() throws Exception {
+        var socket = new ServerSocket(0, 1, InetAddress.getLoopbackAddress());
+        rawConnection(socket, Duration.ofMillis(200));
+        var released = rawServer(socket, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 100\r\n\r\n",
+                "{\"partial\":", false);
+
+        var started = System.nanoTime();
+        assertThatThrownBy(() -> call("{\"connection\":\"raw\",\"path\":\"/stall\",\"retryOn\":[\"io\"]}"))
+                .isInstanceOfSatisfying(TaskFailure.class, f -> {
+                    assertThat(f.code()).isEqualTo("HTTP_IO");
+                    assertThat(f.reason()).contains("timed out");
+                    assertThat(f.retryable()).isTrue();
+                });
+        var elapsedMs = (System.nanoTime() - started) / 1_000_000;
+        assertThat(elapsedMs).as("bounded by the 200 ms read timeout, body included").isLessThan(700);
+        var releasedAt = released.get(2, TimeUnit.SECONDS);
+        assertThat((releasedAt - started) / 1_000_000).as("the server saw the connection dropped").isLessThan(1_500);
+    }
+
+    @Test
+    void aTruncatedBodyIsAnIoFailureRetryableOnlyWhenRetryOnHasIo() throws Exception {
+        var head = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 100\r\n\r\n";
+
+        var finalSocket = new ServerSocket(0, 1, InetAddress.getLoopbackAddress());
+        rawConnection(finalSocket, Duration.ofSeconds(2));
+        rawServer(finalSocket, head, "{\"cut\":", true);
+        assertThatThrownBy(() -> call("{\"connection\":\"raw\",\"path\":\"/cut\",\"retryOn\":[]}"))
+                .isInstanceOfSatisfying(TaskFailure.class, f -> {
+                    assertThat(f.code()).isEqualTo("HTTP_IO");
+                    assertThat(f.retryable()).isFalse();
+                    assertThat(f.reason()).startsWith(FailureMarkers.NON_RETRYABLE);
+                });
+
+        var retrySocket = new ServerSocket(0, 1, InetAddress.getLoopbackAddress());
+        rawConnection(retrySocket, Duration.ofSeconds(2));
+        rawServer(retrySocket, head, "{\"cut\":", true);
+        assertThatThrownBy(() -> call("{\"connection\":\"raw\",\"path\":\"/cut\",\"retryOn\":[\"io\"]}"))
+                .isInstanceOfSatisfying(TaskFailure.class, f -> {
+                    assertThat(f.code()).isEqualTo("HTTP_IO");
+                    assertThat(f.retryable()).isTrue();
+                });
     }
 
     @Test
