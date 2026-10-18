@@ -69,7 +69,7 @@ class WorkflowSchemaAutoConfigurationTest {
             // The received events of one workflow (V42): filtered by workflow, newest first.
             assertThat(indexExists(dataSource, "idx_inbound_event_receipt_workflow_received")).isTrue();
 
-            // The relays' per-key ordering probe (V43), replacing V33's (partition_key, status).
+            // The relays' per-key ordering probe (V44), replacing V33's (partition_key, status).
             assertThat(indexExists(dataSource, "idx_outbox_key_status_ts")).isTrue();
             assertThat(indexExists(dataSource, "idx_outbox_partition_status")).isFalse();
         });

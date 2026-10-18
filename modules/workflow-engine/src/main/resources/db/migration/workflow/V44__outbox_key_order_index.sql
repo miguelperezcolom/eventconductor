@@ -13,7 +13,7 @@
 -- before that, and unkeyed events, have NULL, which no equality matches: they are claimed as they
 -- always were, ordered against nothing.
 --
--- Plain portable DDL with IF NOT EXISTS, as V29-V42: it also runs over a schema ddl-auto created
+-- Plain portable DDL with IF NOT EXISTS, as V29-V43: it also runs over a schema ddl-auto created
 -- from the entity (OutboxMessageEntity, which declares the same index).
 CREATE INDEX IF NOT EXISTS idx_outbox_key_status_ts
     ON outbox_message_entity (partition_key, status, timestamp);
