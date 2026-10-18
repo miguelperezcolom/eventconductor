@@ -4,12 +4,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.mateu.workflow.worker.api.TaskFailure;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
@@ -23,28 +21,39 @@ import java.util.function.LongSupplier;
  *
  * <p>A token endpoint that comes from a definition (an inline auth block) is untrusted like any URL in
  * a definition: it is checked with the {@link HostGuard} before the client secret is posted to it. The
- * token response is read up to a cap, so a hostile endpoint cannot exhaust the worker's memory.
+ * token response is read up to a cap, so a hostile endpoint cannot exhaust the worker's memory, and
+ * within one deadline covering headers and body, so a stalling endpoint cannot hold the worker: past
+ * it the exchange is cancelled and the call fails with an {@link java.net.http.HttpTimeoutException}.
  */
 public final class OAuth2TokenCache {
 
     private record Token(String value, Instant expiresAt) {
     }
 
-    /** The cap used when none is given: generous for any token response. */
-    static final long DEFAULT_MAX_TOKEN_RESPONSE_BYTES = 1_048_576;
+    /** The cap on a token response (lowered further by a smaller {@code max-response-bytes}). */
+    static final long DEFAULT_MAX_TOKEN_RESPONSE_BYTES = 64 * 1024;
+
+    /** The deadline for a token request, response body included. */
+    static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(10);
 
     private static final ObjectMapper JSON = new ObjectMapper();
     private final Map<String, Token> tokens = new ConcurrentHashMap<>();
     private final HttpClient client;
     private final LongSupplier maxResponseBytes;
+    private final Duration timeout;
 
     public OAuth2TokenCache(HttpClient client) {
         this(client, () -> DEFAULT_MAX_TOKEN_RESPONSE_BYTES);
     }
 
     public OAuth2TokenCache(HttpClient client, LongSupplier maxResponseBytes) {
+        this(client, maxResponseBytes, DEFAULT_TIMEOUT);
+    }
+
+    OAuth2TokenCache(HttpClient client, LongSupplier maxResponseBytes, Duration timeout) {
         this.client = client;
         this.maxResponseBytes = maxResponseBytes;
+        this.timeout = timeout;
     }
 
     /** A token from a trusted (configured) token endpoint. */
@@ -83,12 +92,13 @@ public final class OAuth2TokenCache {
         }
         var form = "grant_type=client_credentials&client_id=" + encode(clientId) + "&client_secret=" + encode(clientSecret)
                 + (scope == null || scope.isBlank() ? "" : "&scope=" + encode(scope));
-        var response = client.send(HttpRequest.newBuilder(uri)
-                        .timeout(Duration.ofSeconds(10))
+        var max = Math.min(maxResponseBytes.getAsLong(), DEFAULT_MAX_TOKEN_RESPONSE_BYTES);
+        var response = BoundedExchange.send(client, HttpRequest.newBuilder(uri)
+                        .timeout(timeout)
                         .header("Content-Type", "application/x-www-form-urlencoded")
-                        .POST(HttpRequest.BodyPublishers.ofString(form)).build(),
-                HttpResponse.BodyHandlers.ofInputStream());
-        var bodyText = readCapped(response.body());
+                        .POST(HttpRequest.BodyPublishers.ofString(form)).build(), timeout, max,
+                "the token endpoint's response is larger than " + max + " bytes (workflow.http.max-response-bytes)");
+        var bodyText = response.body();
         if (response.statusCode() / 100 != 2) {
             throw new IOException("token endpoint answered " + response.statusCode());
         }
@@ -104,18 +114,6 @@ public final class OAuth2TokenCache {
 
     public void invalidate(String profile) {
         tokens.remove(profile);
-    }
-
-    private String readCapped(InputStream body) throws IOException {
-        var max = maxResponseBytes.getAsLong();
-        try (body) {
-            var bytes = body.readNBytes((int) Math.min(Integer.MAX_VALUE - 1, max + 1));
-            if (bytes.length > max) {
-                throw new TaskFailure("HTTP_RESPONSE_TOO_LARGE", "the token endpoint's response is larger than "
-                        + max + " bytes (workflow.http.max-response-bytes)", false);
-            }
-            return new String(bytes, StandardCharsets.UTF_8);
-        }
     }
 
     private static String encode(String value) {

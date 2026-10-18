@@ -478,6 +478,35 @@ class HttpCallHandlerTest {
     }
 
     @Test
+    void aTruncatedTokenResponseIsAnIoFailureThatFollowsRetryOn() throws Exception {
+        routes.put("/api/x", (e, b) -> reply(e, 200, "{}"));
+        var token = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 100\r\n\r\n";
+        var oauth = new HttpWorkerProperties.AuthProfile();
+        oauth.setType("oauth2-client-credentials");
+        oauth.setClientId("ec");
+        oauth.setClientSecret("${secret:PASS}");
+        properties.getAuth().put("idp", oauth);
+
+        var finalSocket = new ServerSocket(0, 1, InetAddress.getLoopbackAddress());
+        oauth.setTokenUri("http://127.0.0.1:" + finalSocket.getLocalPort() + "/token");
+        rawServer(finalSocket, token, "{\"access_", true);
+        assertThatThrownBy(() -> call("{\"connection\":\"local\",\"path\":\"/x\",\"auth\":\"idp\",\"retryOn\":[]}"))
+                .isInstanceOfSatisfying(TaskFailure.class, f -> {
+                    assertThat(f.code()).isEqualTo("HTTP_IO");
+                    assertThat(f.retryable()).isFalse();
+                });
+
+        var retrySocket = new ServerSocket(0, 1, InetAddress.getLoopbackAddress());
+        oauth.setTokenUri("http://127.0.0.1:" + retrySocket.getLocalPort() + "/token");
+        rawServer(retrySocket, token, "{\"access_", true);
+        assertThatThrownBy(() -> call("{\"connection\":\"local\",\"path\":\"/x\",\"auth\":\"idp\",\"retryOn\":[\"io\"]}"))
+                .isInstanceOfSatisfying(TaskFailure.class, f -> {
+                    assertThat(f.code()).isEqualTo("HTTP_IO");
+                    assertThat(f.retryable()).isTrue();
+                });
+    }
+
+    @Test
     void anOversizedResponseFailsAndATextBodyKeepsItsType() throws Exception {
         properties.setMaxResponseBytes(10);
         routes.put("/api/big", (e, b) -> reply(e, 200, "{\"much\":\"too much\"}"));
