@@ -1,0 +1,89 @@
+{
+  "id": "rr-publish-fork-ask-first",
+  "name": "Arm the wait and send the request in the same pass",
+  "version": 1,
+  "steps": [
+    {
+      "id": "start",
+      "type": "START",
+      "name": "Start"
+    },
+    {
+      "id": "fork",
+      "type": "FORK",
+      "name": "Fork",
+      "preconditionStepId": "start"
+    },
+    {
+      "id": "ask",
+      "type": "PUBLISH_EVENT",
+      "name": "Ask for a quote",
+      "preconditionStepId": "fork",
+      "event": {
+        "destination": "rr-quote-requests",
+        "type": "com.acme.quote.requested",
+        "key": "${process.businessKey}",
+        "payload": {
+          "correlationId": "${process.businessKey}",
+          "replyWith": "quote-ready",
+          "item": "${item}"
+        }
+      }
+    },
+    {
+      "id": "wait",
+      "type": "WAIT_FOR_MESSAGE",
+      "name": "Wait for the quote",
+      "preconditionStepId": "fork",
+      "messageName": "quote-ready",
+      "correlationExpression": "businessKey",
+      "timeout": 1500,
+      "retries": 0,
+      "onTimeoutStepId": "no-quote"
+    },
+    {
+      "id": "got-reply",
+      "type": "JOIN",
+      "name": "Request sent and reply in",
+      "preconditionStepIds": [
+        "ask",
+        "wait"
+      ]
+    },
+    {
+      "id": "use-quote",
+      "type": "ACTION",
+      "name": "Use the quote",
+      "topic": "work",
+      "preconditionStepId": "got-reply"
+    },
+    {
+      "id": "no-quote",
+      "type": "ACTION",
+      "name": "No quote in time",
+      "topic": "work",
+      "preconditions": [
+        {
+          "stepId": "wait",
+          "expression": "false"
+        }
+      ]
+    },
+    {
+      "id": "outcome",
+      "type": "JOIN",
+      "name": "Outcome",
+      "joinType": "XOR",
+      "preconditionStepIds": [
+        "use-quote",
+        "no-quote"
+      ]
+    },
+    {
+      "id": "end",
+      "type": "END",
+      "name": "End",
+      "preconditionStepId": "outcome"
+    }
+  ]
+}

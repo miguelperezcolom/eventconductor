@@ -1,0 +1,74 @@
+{
+  "id": "rr-http-sequential",
+  "name": "Request, then wait for the reply (racy)",
+  "version": 1,
+  "steps": [
+    {
+      "id": "start",
+      "type": "START",
+      "name": "Start"
+    },
+    {
+      "id": "ask",
+      "type": "HTTP_CALL",
+      "name": "Ask for a quote",
+      "preconditionStepId": "start",
+      "retries": 0,
+      "http": {
+        "connection": "pricing",
+        "method": "POST",
+        "path": "/quotes",
+        "body": {
+          "correlationId": "${process.businessKey}",
+          "item": "${item}"
+        }
+      }
+    },
+    {
+      "id": "wait",
+      "type": "WAIT_FOR_MESSAGE",
+      "name": "Wait for the quote",
+      "preconditionStepId": "ask",
+      "messageName": "quote-ready",
+      "correlationExpression": "businessKey",
+      "timeout": 1500,
+      "retries": 0,
+      "onTimeoutStepId": "no-quote"
+    },
+    {
+      "id": "use-quote",
+      "type": "ACTION",
+      "name": "Use the quote",
+      "topic": "work",
+      "preconditionStepId": "wait"
+    },
+    {
+      "id": "no-quote",
+      "type": "ACTION",
+      "name": "No quote in time",
+      "topic": "work",
+      "preconditions": [
+        {
+          "stepId": "wait",
+          "expression": "false"
+        }
+      ]
+    },
+    {
+      "id": "outcome",
+      "type": "JOIN",
+      "name": "Outcome",
+      "joinType": "XOR",
+      "preconditionStepIds": [
+        "use-quote",
+        "no-quote"
+      ]
+    },
+    {
+      "id": "end",
+      "type": "END",
+      "name": "End",
+      "preconditionStepId": "outcome"
+    }
+  ]
+}

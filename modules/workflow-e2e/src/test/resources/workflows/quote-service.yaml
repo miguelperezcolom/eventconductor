@@ -1,0 +1,56 @@
+id: quote-service
+name: Quote service (answers quote requests)
+version: 1
+triggers:
+  - id: on-quote-requested
+    destination: quote-requests
+    type: com.acme.quote.requested
+    businessKey: "quote-service-${data.requestId}"   # one process per request, however often it is delivered
+    variables:
+      requestId: "${data.requestId}"                 # the requester's correlation id
+      item: "${data.item}"
+steps:
+  - id: start
+    type: START
+    name: Start
+  - id: price
+    type: ACTION
+    name: Price the item
+    topic: pricing
+    preconditionStepId: start
+    timeout: PT30S
+    retries: 0
+    onTimeoutStepId: cannot-price
+  - id: reply
+    type: PUBLISH_EVENT
+    name: Quote ready
+    preconditionStepId: price
+    event:
+      destination: quote-replies
+      type: com.acme.quote.ready
+      key: "${requestId}"                            # the correlation id goes back as the record key…
+      payload:
+        requestId: "${requestId}"                    # …and in the payload
+        price: "${price}"
+  - id: cannot-price
+    type: PUBLISH_EVENT
+    name: Quote failed
+    preconditions:
+      - stepId: price
+        expression: "false"                          # reached only through price's onTimeoutStepId
+    event:
+      destination: quote-replies
+      type: com.acme.quote.failed
+      key: "${requestId}"
+      payload:
+        requestId: "${requestId}"
+        reason: "pricing timed out"
+  - id: answered
+    type: JOIN
+    name: Answered
+    joinType: XOR
+    preconditionStepIds: [reply, cannot-price]
+  - id: end
+    type: END
+    name: End
+    preconditionStepId: answered

@@ -71,6 +71,7 @@ export default defineConfig({
 						{ label: 'IDE Plugins (VS Code & IntelliJ)', slug: 'guides/ide-plugins' },
 						{ label: 'Starting a Process', slug: 'guides/starting-a-process' },
 						{ label: 'Synchronous Invocation', slug: 'guides/synchronous-invocation' },
+						{ label: 'Asynchronous Request/Response', slug: 'guides/request-response' },
 						{ label: 'HTTP Calls', slug: 'guides/http-calls' },
 						{ label: 'LLM Calls', slug: 'guides/llm-calls' },
 						{ label: 'Publishing Domain Events', slug: 'guides/publishing-events' },

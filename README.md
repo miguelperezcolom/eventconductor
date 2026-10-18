@@ -91,6 +91,8 @@ A web UI is provided out of the box for operators and developers:
 - **REST message delivery** — `POST /workflow/api/messages` (`X-Api-Key` or the app's Spring Security; [HTTP security](https://miguelperezcolom.github.io/eventconductor/reference/configuration/#http-security))
   delivers external messages to waiting `WAIT_FOR_MESSAGE` steps, so webhooks and SaaS callbacks can
   resume processes without producing to Kafka.
+- **Asynchronous request/response** — answer another system's request with an event or a callback, or send a request and wait for its answer with a deadline, without losing a fast reply. See the
+  [Asynchronous Request/Response guide](https://miguelperezcolom.github.io/eventconductor/guides/request-response/).
 - **Broker/DB outage resilience** — the orchestrator boots gracefully with Kafka or PostgreSQL
   down and resumes parked work when they return (outbox-based recovery, chaos-tested — see
   [TESTING.md](./TESTING.md)).

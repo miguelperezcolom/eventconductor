@@ -29,6 +29,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **No credentials in git import errors** (#502, #504): a failed clone of the workflow, task-contract, rules or forms repositories reported JGit's message, which names the URL with its user name — often a token — in the import result (UI, REST, MCP) and the error log. The message is sanitized like the URL; the raw exception only reaches the debug log.
 - **Forms fail closed on an unreadable requirement** (#506): a form whose stored `requiredRoles`/`requiredScopes` could not be read was treated as unrestricted, opening its tasks to everyone. It now reads as a requirement nobody holds, logged as an error until the form is imported again.
 
+### Docs
+- **Asynchronous request/response guide** (`guides/request-response`): EC answering a request (trigger → `PUBLISH_EVENT`/`HTTP_CALL` reply with the correlation id) and EC asking and waiting. A `WAIT_FOR_MESSAGE` placed after the `PUBLISH_EVENT`/`HTTP_CALL` that sends the request can lose a fast reply in every mode; `FORK` the wait and the request so the wait is armed in the same transaction. End-to-end tests `RequestResponse*E2eTest` show both.
+
 ## [2.26.0] - 2026-10-17
 
 The entries below were collected since 2.23.6 and shipped across 2.24.x, 2.25.x and 2.26.0; they were not split per release.
