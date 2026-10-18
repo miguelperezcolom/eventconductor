@@ -44,11 +44,39 @@ public class WebhookBodyLimitFilter extends OncePerRequestFilter implements Orde
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        var uri = request.getRequestURI();
-        var context = request.getContextPath();
-        var path = uri == null ? "" : (context != null && uri.startsWith(context) ? uri.substring(context.length()) : uri);
         var prefix = properties.getPath() == null ? "/webhooks" : properties.getPath().replaceAll("/+$", "");
-        return !path.startsWith(prefix + "/");
+        return !normalizedPath(request).startsWith(prefix + "/");
+    }
+
+    /**
+     * The path the way the controller's mapping sees it, not as the raw request URI: decoded,
+     * {@code ;parameters} stripped, slashes collapsed and dot segments resolved — so
+     * {@code /webhooks;x=y/github}, {@code /%77ebhooks/github} or {@code //webhooks/github}, which all
+     * reach the controller, cannot be written past this filter.
+     */
+    static String normalizedPath(HttpServletRequest request) {
+        String path;
+        try {
+            path = org.springframework.web.util.UrlPathHelper.defaultInstance.getPathWithinApplication(request);
+        } catch (RuntimeException e) {
+            path = request.getRequestURI();
+        }
+        if (path == null) {
+            return "";
+        }
+        var segments = new java.util.ArrayDeque<String>();
+        for (var segment : path.split("/+")) {
+            var bare = segment.contains(";") ? segment.substring(0, segment.indexOf(';')) : segment;
+            if (bare.isEmpty() || bare.equals(".")) {
+                continue;
+            }
+            if (bare.equals("..")) {
+                segments.pollLast();
+                continue;
+            }
+            segments.addLast(bare);
+        }
+        return "/" + String.join("/", segments) + (path.endsWith("/") && !segments.isEmpty() ? "/" : "");
     }
 
     @Override

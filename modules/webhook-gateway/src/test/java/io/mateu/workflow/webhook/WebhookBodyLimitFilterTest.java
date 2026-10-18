@@ -68,6 +68,23 @@ class WebhookBodyLimitFilterTest {
         assertThat(chain.getRequest()).as("the controller is never reached").isNull();
     }
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"/webhooks;x=y/partner", "/%77ebhooks/partner",
+            "/webhooks/partner;x=y", "/webhooks//partner", "/./webhooks/partner"})
+    void aPathTheControllerMatchesCannotBeWrittenSoThatTheLimitIsSkipped(String path) throws Exception {
+        var oversized = "{\"a\":\"" + "x".repeat(100) + "\"}";
+        mvc.perform(post(java.net.URI.create(path)).contentType("application/json").content(oversized))
+                .andExpect(status().isPayloadTooLarge());
+        assertThat(published).isEmpty();
+    }
+
+    @Test
+    void theNormalizedPathIsWhatTheMappingSees() {
+        var request = new MockHttpServletRequest("POST", "//webhooks/../webhooks/./partner;a=b/");
+        assertThat(WebhookBodyLimitFilter.normalizedPath(request)).isEqualTo("/webhooks/partner/");
+        assertThat(WebhookBodyLimitFilter.normalizedPath(new MockHttpServletRequest("POST", "/"))).isEqualTo("/");
+    }
+
     @Test
     void otherPathsAreNotFiltered() throws Exception {
         var request = new MockHttpServletRequest("POST", "/upload");
