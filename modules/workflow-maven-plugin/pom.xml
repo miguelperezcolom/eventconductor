@@ -20,7 +20,7 @@
              (89.5%). Raise it when the module improves; never lower it. -->
         <jacoco.line.minimum>0.89</jacoco.line.minimum>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <maven.api.version>3.10.0</maven.api.version>
+        <maven.api.version>3.9.16</maven.api.version>
         <!-- Do not run the plugin on itself. -->
         <eventconductor.validate.skip>true</eventconductor.validate.skip>
     </properties>
@@ -153,6 +153,12 @@
                 <version>3.16.0</version>
                 <configuration>
                     <goalPrefix>eventconductor</goalPrefix>
+                    <!-- The oldest Maven the plugin runs on, stated rather than derived: left out,
+                         maven-plugin-plugin takes it from maven-plugin-api's version above, so
+                         compiling against a newer API (3.10.0 did) refuses every user on an older
+                         Maven. Both goals use only AbstractMojo, MavenProject and the resolver
+                         (org.eclipse.aether) API; checked on 3.6.3 and 3.9.0. -->
+                    <requiredMavenVersion>3.6.3</requiredMavenVersion>
                 </configuration>
             </plugin>
         </plugins>

@@ -11,6 +11,15 @@ updates:
       # the older runtime, and the rule app does not start (2.26.0, 2.27.0). Raised by hand with Boot.
       - dependency-name: "com.google.protobuf:protobuf-java"
       - dependency-name: "com.google.protobuf:protoc"
+      # Maven 3.10 is a deliberate move for the whole repository, not a bump: it changes classpath
+      # ordering (breadth-first), CI builds with 3.9, and compiling the Maven plugin against a
+      # newer API used to raise the Maven its users need. Lift these when the repository moves.
+      - dependency-name: "org.apache.maven:apache-maven"
+        versions: [">= 3.10.0"]
+      - dependency-name: "org.apache.maven:maven-plugin-api"
+        versions: [">= 3.10.0"]
+      - dependency-name: "org.apache.maven:maven-core"
+        versions: [">= 3.10.0"]
     groups:
       spring-boot:
         patterns:
