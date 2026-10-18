@@ -116,4 +116,48 @@ class TerminalLockReleaseE2eTest extends AbstractE2eTest {
         await().atMost(Duration.ofSeconds(5)).untilAsserted(() ->
                 assertThat(step("lre-P4", "pwork").getStatus()).isEqualTo(StepExecutionStatus.PENDING));
     }
+
+    @Test
+    void aFailedSagaKeepsItsLockUntilItsRollbackIsDone() {
+        worker.on("charge", TestWorker.succeed());
+        worker.on("ship", TestWorker.deferForever());
+        worker.on("refund", TestWorker.deferForever());
+        createProcess("lock-compensation", "lre-S1", booking("LRE-SAGA"));
+        createProcess("lock-compensation", "lre-S2", booking("LRE-SAGA"));
+        assertThat(step("lre-S2", "lock").getStatus()).isEqualTo(StepExecutionStatus.WAITING_ON_LOCK);
+
+        // S1 fails after charging: it is ERROR and its refund is in flight...
+        updateStepExecutionUseCase.handle(new UpdateStepExecutionCommand(
+                step("lre-S1", "ship").id(), List.of(), "boom", StepExecutionStatus.ERROR));
+        assertThat(process("lre-S1").getStatus()).isEqualTo(ProcessStatus.ERROR);
+        assertThat(step("lre-S1", "refund").getStatus()).isEqualTo(StepExecutionStatus.PENDING);
+
+        // ...so the booking is still being undone: S2 must not enter its critical section yet.
+        assertThat(step("lre-S2", "lock").getStatus())
+                .as("the key stays locked while the holder's rollback runs")
+                .isEqualTo(StepExecutionStatus.WAITING_ON_LOCK);
+
+        // The refund completes, the saga is rolled back, and only then is S2 admitted.
+        updateStepExecutionUseCase.handle(new UpdateStepExecutionCommand(
+                step("lre-S1", "refund").id(), List.of(), "", StepExecutionStatus.COMPLETED));
+        assertThat(process("lre-S1").getStatus()).isEqualTo(ProcessStatus.COMPENSATED);
+        assertThat(step("lre-S2", "lock").getStatus()).isEqualTo(StepExecutionStatus.COMPLETED);
+    }
+
+    @Test
+    void aSagaWhoseRollbackFailsStillReleasesItsLock() {
+        worker.on("charge", TestWorker.succeed());
+        worker.on("ship", TestWorker.deferForever());
+        worker.on("refund", TestWorker.deferForever());
+        createProcess("lock-compensation", "lre-S3", booking("LRE-SAGA-2"));
+        createProcess("lock-compensation", "lre-S4", booking("LRE-SAGA-2"));
+
+        updateStepExecutionUseCase.handle(new UpdateStepExecutionCommand(
+                step("lre-S3", "ship").id(), List.of(), "boom", StepExecutionStatus.ERROR));
+        updateStepExecutionUseCase.handle(new UpdateStepExecutionCommand(
+                step("lre-S3", "refund").id(), List.of(), "refund failed", StepExecutionStatus.ERROR));
+
+        assertThat(process("lre-S3").getStatus()).isEqualTo(ProcessStatus.COMPENSATION_FAILED);
+        assertThat(step("lre-S4", "lock").getStatus()).isEqualTo(StepExecutionStatus.COMPLETED);
+    }
 }

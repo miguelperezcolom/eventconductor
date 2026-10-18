@@ -20,6 +20,7 @@ import io.mateu.workflow.domain.aggregates.WorkflowDefinition;
 import io.mateu.workflow.domain.services.LockKeyResolver;
 import io.mateu.workflow.domain.services.WorkflowOrchestrationService;
 import io.mateu.workflow.dtos.events.integration.TaskCancellationRequested;
+import io.mateu.workflow.domain.services.CompensationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
@@ -47,6 +48,7 @@ public class StepOverProcessUseCase {
     final io.mateu.workflow.application.out.WorkflowTracing workflowTracing;
     final io.mateu.workflow.application.services.ProcessTrace processTrace;
     final LockService lockService;
+    final CompensationService compensationService;
     // ObjectProvider (not direct injection): waking a granted waiter runs UpdateStepExecutionUseCase,
     // which sits on the same step-update pipeline that leads back here, so a direct dependency could
     // close an injection cycle — the same reason NotifyParentStepService uses one.
@@ -169,7 +171,11 @@ public class StepOverProcessUseCase {
         // process ERROR before this step-over runs, all-steps-completed sets COMPLETED), leaving
         // both flags false — and COMPENSATED/COMPENSATION_FAILED/CANCELLED never raise them at all.
         // Idempotent: a process that already released holds nothing, and releaseAll is then a no-op.
-        if (endsHoldingNothing(result.getUpdatedProcess().getStatus())) {
+        // Except while a failed saga is still rolling back: an ERROR process with a compensation to
+        // run or in flight is still changing what its locks protect, so it keeps them until the
+        // rollback ends (COMPENSATED or COMPENSATION_FAILED, which this same check then releases).
+        if (endsHoldingNothing(result.getUpdatedProcess().getStatus())
+                && !rollingBack(result.getUpdatedProcess().getStatus(), stepExecutions)) {
             releaseLocksOf(process.getId());
         }
 
@@ -349,6 +355,15 @@ public class StepOverProcessUseCase {
     private static String lockName(Step step, StepExecution stepExecution) {
         return step.lockName() != null && !step.lockName().isBlank()
                 ? step.lockName() : stepExecution.getWorkflowDefinitionId();
+    }
+
+    /** A failed process whose saga rollback has a compensation still to run or in flight. */
+    private boolean rollingBack(ProcessStatus status, List<StepExecution> stepExecutions) {
+        if (status != ProcessStatus.ERROR) {
+            return false;
+        }
+        var outcome = compensationService.decide(stepExecutions).outcome();
+        return outcome == CompensationService.Outcome.RUN || outcome == CompensationService.Outcome.WAITING;
     }
 
     /** The statuses a process never leaves on its own: it holds no lock in any of them. */

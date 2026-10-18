@@ -1,0 +1,18 @@
+{
+  "id": "lock-compensation",
+  "name": "Lock-serialized saga",
+  "version": 1,
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "lock", "type": "LOCK", "name": "Take booking lock", "lockName": "booking",
+      "lockKey": "bookingId", "preconditionStepId": "start" },
+    { "id": "charge", "type": "ACTION", "name": "Charge card", "topic": "lcharge",
+      "compensable": true, "compensationStepId": "refund", "preconditionStepId": "lock" },
+    { "id": "ship", "type": "ACTION", "name": "Ship order", "topic": "lship", "retries": 0,
+      "preconditionStepId": "charge" },
+    { "id": "refund", "type": "ACTION", "name": "Refund", "topic": "lrefund", "retries": 0 },
+    { "id": "unlock", "type": "UNLOCK", "name": "Release booking lock", "lockName": "booking",
+      "lockKey": "bookingId", "preconditionStepId": "ship" },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "unlock" }
+  ]
+}
