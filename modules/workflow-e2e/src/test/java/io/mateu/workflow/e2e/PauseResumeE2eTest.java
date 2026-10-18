@@ -185,4 +185,42 @@ class PauseResumeE2eTest extends AbstractE2eTest {
         assertThat(process("pz-4a").getStatus()).isEqualTo(ProcessStatus.COMPLETED);
         assertThat(process("pz-4b").getStatus()).isEqualTo(ProcessStatus.COMPLETED);
     }
+    /**
+     * A step waiting out its retry backoff when the process is paused must still be retried after
+     * the resume. The resume shifts every in-flight step's clock, and for an AWAITING_RETRY step
+     * that used to recompute deadlineAt as a timeout — null for a step without one — erasing the
+     * backoff wake the retry scan looks for: the step was never retried and the process stayed
+     * RUNNING forever.
+     */
+    @Test
+    void aStepAwaitingItsRetryWhenPausedIsRetriedAfterTheResume() {
+        worker.on("flaky", TestWorker.deferForever());
+        createProcess("retry", "pz-retry");
+        pause("pz-retry");
+
+        // The attempt in flight fails during the pause: it is parked for its retry, held by the pause.
+        updateStepExecutionUseCase.handle(new UpdateStepExecutionCommand(
+                step("pz-retry", "flaky").id(), List.of(), "boom", StepExecutionStatus.ERROR));
+        assertThat(step("pz-retry", "flaky").getStatus()).isEqualTo(StepExecutionStatus.AWAITING_RETRY);
+        var wake = step("pz-retry", "flaky").getDeadlineAt();
+        assertThat(wake).isNotNull();
+
+        // Past the 50ms backoff: still parked, the pause freezes it.
+        await().pollDelay(Duration.ofMillis(500)).atMost(Duration.ofSeconds(2)).untilAsserted(() ->
+                assertThat(step("pz-retry", "flaky").getStatus()).isEqualTo(StepExecutionStatus.AWAITING_RETRY));
+
+        worker.on("flaky", TestWorker.succeed());
+        resume("pz-retry");
+
+        // The backoff wake was moved by the pause, never dropped...
+        assertThat(step("pz-retry", "flaky").getStatus()).isIn(StepExecutionStatus.AWAITING_RETRY,
+                StepExecutionStatus.COMPLETED);
+        if (step("pz-retry", "flaky").getStatus() == StepExecutionStatus.AWAITING_RETRY) {
+            assertThat(step("pz-retry", "flaky").getDeadlineAt()).isAfter(wake);
+        }
+        // ...so the retry runs and the process completes.
+        await().atMost(Duration.ofSeconds(10)).untilAsserted(() ->
+                assertThat(process("pz-retry").getStatus()).isEqualTo(ProcessStatus.COMPLETED));
+        assertThat(worker.invocationsOf("flaky")).isEqualTo(2);
+    }
 }

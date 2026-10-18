@@ -8,6 +8,7 @@ import io.mateu.workflow.domain.aggregates.Step;
 import io.mateu.workflow.domain.aggregates.StepExecution;
 import io.mateu.workflow.domain.aggregates.StepExecutionStatus;
 import io.mateu.workflow.domain.aggregates.StepType;
+import io.mateu.workflow.application.usecases.process.parentnotify.ChildProcesses;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
@@ -24,7 +25,8 @@ import static io.mateu.core.infra.JsonSerializer.pojoFromJson;
  * every seam where a step execution is saved with one of those statuses.
  *
  * <p>The child is found through its deterministic businessKey
- * {@code "parent:" + stepExecutionId} and cancelled through {@link CancelProcessUseCase},
+ * {@code "parent:" + stepExecutionId} (or {@code #2}, {@code #3}, … for a step that ran its child
+ * again — see {@link ChildProcesses}) and cancelled through {@link CancelProcessUseCase},
  * which cancels the child's own PROCESS steps in turn — each of those re-enters this
  * service, which is exactly how the cascade reaches grandchildren.
  */
@@ -55,10 +57,12 @@ public class CancelChildProcessService {
         if (!StepType.PROCESS.equals(step.type())) {
             return;
         }
-        processRepository.findByBusinessKey("parent:" + stepExecution.id())
+        // Every child the step has run — a retried step's earlier children are finished, but the
+        // one in flight may be any of them (a retry after a timeout re-attaches to its child).
+        ChildProcesses.of(processRepository, stepExecution.id()).stream()
                 .filter(child -> ProcessStatus.PENDING.equals(child.getStatus())
                         || ProcessStatus.RUNNING.equals(child.getStatus()))
-                .ifPresent(child -> {
+                .forEach(child -> {
                     log.info("Parent PROCESS step {} ended {} — cancelling child process {}",
                             stepExecution.id(), stepExecution.getStatus(), child.getId());
                     cancelProcessUseCase.getObject().handle(new CancelProcessCommand(child.getId()));

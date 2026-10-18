@@ -143,4 +143,25 @@ class StepExecutionDeadlineTest {
 
         assertThat(step.deadlineAt(startedAt, List.of())).isEqualTo(startedAt.plusSeconds(45));
     }
+    @Test
+    void movingTheClockOfAStepAwaitingItsRetryMovesTheBackoffWakeNotATimeout() {
+        // For an AWAITING_RETRY step deadlineAt is the backoff wake, not a timeout. Recomputing it
+        // as one on resume erased it (null for a step without a timeout), and the retry scan —
+        // status AWAITING_RETRY and deadlineAt in the past — never found the step again.
+        var noTimeout = created(actionStep(0)).start(process());
+        noTimeout.scheduleRetry(Duration.ofSeconds(10));
+        var wake = noTimeout.getDeadlineAt();
+
+        var shifted = noTimeout.withStartedAt(noTimeout.getStartedAt().plusMinutes(3));
+
+        assertThat(shifted.getDeadlineAt()).isEqualTo(wake.plusMinutes(3));
+
+        // Likewise with a timeout: the wake stays the wake, shifted, not startedAt + timeout.
+        var withTimeout = created(actionStep(30_000)).start(process());
+        withTimeout.scheduleRetry(Duration.ofSeconds(10));
+        var timedWake = withTimeout.getDeadlineAt();
+
+        assertThat(withTimeout.withStartedAt(withTimeout.getStartedAt().plusMinutes(3)).getDeadlineAt())
+                .isEqualTo(timedWake.plusMinutes(3));
+    }
 }

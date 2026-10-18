@@ -149,4 +149,56 @@ class RetryStepExecutionUseCaseTest {
         verify(processRepository, never()).save(any());
         verifyNoInteractions(stepOverProcessUseCase);
     }
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.EnumSource(value = ProcessStatus.class,
+            names = {"CANCELLED", "COMPENSATED", "COMPENSATION_FAILED", "COMPLETED"})
+    void aStepOfAFinishedProcessIsNotRetried(ProcessStatus finished) {
+        // Like RetryProcessUseCase: a rolled-back saga (or a cancelled or completed process) is
+        // sticky, and reviving one of its failed steps would run it again on a process whose
+        // compensations already undid it.
+        var process = Process.builder().id("p-1").status(finished).build();
+        var failed = StepExecution.builder().id("se-1").processId("p-1").status(StepExecutionStatus.ERROR).build();
+        when(stepExecutionRepository.findById("se-1")).thenReturn(Optional.of(failed));
+        when(processRepository.findById("p-1")).thenReturn(Optional.of(process));
+
+        retryStepExecutionUseCase.handle(new RetryStepExecutionCommand("se-1"));
+
+        verify(stepExecutionRepository, never()).save(any());
+        verify(processRepository, never()).save(any());
+        verifyNoInteractions(stepOverProcessUseCase);
+        verify(workflowMetrics, never()).retryPerformed(any(), any());
+    }
+
+    @Test
+    void retryingAStepReopensTheProcessAndClearsItsFinish() {
+        // The analytics read model retracts an ERROR fact only for a process whose finished is
+        // null again (CountedProcessRepository.reopened), and the duration metrics measure up to
+        // finished — so a reopened process must not keep the moment it failed.
+        var process = Process.builder().id("p-1").status(ProcessStatus.ERROR)
+                .finished(java.time.LocalDateTime.now().minusMinutes(5)).build();
+        var failed = StepExecution.builder().id("se-1").processId("p-1").status(StepExecutionStatus.ERROR).build();
+        when(stepExecutionRepository.findById("se-1")).thenReturn(Optional.of(failed));
+        when(processRepository.findById("p-1")).thenReturn(Optional.of(process));
+
+        retryStepExecutionUseCase.handle(new RetryStepExecutionCommand("se-1"));
+
+        var saved = org.mockito.ArgumentCaptor.forClass(Process.class);
+        verify(processRepository).save(saved.capture());
+        org.assertj.core.api.Assertions.assertThat(saved.getValue().getStatus()).isEqualTo(ProcessStatus.RUNNING);
+        org.assertj.core.api.Assertions.assertThat(saved.getValue().getFinished()).isNull();
+    }
+
+    @Test
+    void retryingAStepOfAPausedProcessKeepsItPaused() {
+        // The step is revived, but the pause still holds it: only a resume lets the flow move.
+        var process = Process.builder().id("p-1").status(ProcessStatus.PAUSED).build();
+        var failed = StepExecution.builder().id("se-1").processId("p-1").status(StepExecutionStatus.ERROR).build();
+        when(stepExecutionRepository.findById("se-1")).thenReturn(Optional.of(failed));
+        when(processRepository.findById("p-1")).thenReturn(Optional.of(process));
+
+        retryStepExecutionUseCase.handle(new RetryStepExecutionCommand("se-1"));
+
+        verify(stepExecutionRepository).save(any());
+        verify(processRepository, never()).save(any());
+    }
 }

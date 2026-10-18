@@ -35,8 +35,8 @@ public class CheckRetryUseCase {
             return;
         }
         // A paused process freezes its retry clocks, exactly like its timers and timeouts: nothing
-        // is re-dispatched until it resumes. The deadline stays in the past, so the next scan after
-        // resume picks it up immediately.
+        // is re-dispatched until it resumes. The resume moves the backoff wake forward by the pause
+        // (StepExecution.withStartedAt), so the retry fires once the rest of its backoff elapses.
         if (isPaused(command.processId())) {
             return;
         }

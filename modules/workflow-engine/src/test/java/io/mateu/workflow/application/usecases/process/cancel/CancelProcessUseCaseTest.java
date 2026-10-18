@@ -40,6 +40,8 @@ class CancelProcessUseCaseTest {
     @Mock io.mateu.workflow.application.services.RecordProcessTraceService recordProcessTraceService;
     @Mock CancelChildProcessService cancelChildProcessService;
     @Mock ProcessLockService processLockService;
+    @Mock org.springframework.beans.factory.ObjectProvider<io.mateu.workflow.application.usecases.process.stepover.StepOverProcessUseCase> stepOverProcessUseCase;
+    @Mock io.mateu.workflow.application.usecases.process.stepover.StepOverProcessUseCase stepOver;
 
     @InjectMocks CancelProcessUseCase useCase;
 
@@ -49,6 +51,33 @@ class CancelProcessUseCaseTest {
     @BeforeEach
     void lockIsGranted() {
         lenient().when(processLockService.runExclusively(eq("p-1"), any())).thenAnswer(lock.granted());
+        lenient().when(stepOverProcessUseCase.getObject()).thenReturn(stepOver);
+    }
+
+    @Test
+    void releasesTheLocksTheCancelledProcessHoldsUnderItsLock() {
+        // A cancelled holder must not wedge its key until the lease reaper comes round.
+        var process = process("p-1");
+        when(processRepository.findById("p-1")).thenReturn(Optional.of(process));
+        when(stepExecutionRepository.findByProcess(process)).thenReturn(List.of());
+        doAnswer(invocation -> {
+            lock.assertHeld("the cancelled process's locks are released");
+            return null;
+        }).when(stepOver).releaseLocksOf("p-1");
+
+        useCase.handle(new CancelProcessCommand("p-1"));
+
+        verify(stepOver).releaseLocksOf("p-1");
+    }
+
+    @Test
+    void anAlreadyFinishedProcessReleasesNothingAgain() {
+        when(processRepository.findById("p-1")).thenReturn(Optional.of(
+                Process.builder().id("p-1").status(ProcessStatus.COMPLETED).build()));
+
+        useCase.handle(new CancelProcessCommand("p-1"));
+
+        verifyNoInteractions(stepOver);
     }
 
     private Process process(String id) {

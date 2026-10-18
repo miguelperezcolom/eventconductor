@@ -115,4 +115,79 @@ class CreateProcessUseCaseTest {
         org.assertj.core.api.Assertions.assertThat(saved.popEvents())
                 .anyMatch(event -> event instanceof io.mateu.workflow.dtos.events.domain.ProcessCreated);
     }
+    // --- the children of a PROCESS step -------------------------------------------------------
+
+    private WorkflowDefinition childDefinition() {
+        Step step = new Step("step-1", "wd-child", StepType.ACTION, "Step 1", "Desc", null, null, null, false, "topic", null, null, null, null, 0, null, null, null, null, 0, 0, false, null, 0, null);
+        return new WorkflowDefinition("wd-child", "Child", 1, "Description", false, 0, false, null, 0, List.of(step));
+    }
+
+    private CreateProcessCommand childCreation() {
+        return new CreateProcessCommand(null, "wd-child", "parent:pse-1", List.of(), "pse-1");
+    }
+
+    private io.mateu.workflow.domain.aggregates.Process child(String key, ProcessStatus status) {
+        return io.mateu.workflow.domain.aggregates.Process.builder().id("child-" + key).businessKey(key)
+                .parentStepExecutionId("pse-1").status(status).variables(List.of()).build();
+    }
+
+    private void parentStepIs(StepExecutionStatus status) {
+        when(stepExecutionRepository.findById("pse-1")).thenReturn(Optional.of(
+                StepExecution.builder().id("pse-1").processId("p-parent").status(status).build()));
+    }
+
+    private String createdKey() {
+        var saved = org.mockito.ArgumentCaptor.forClass(io.mateu.workflow.domain.aggregates.Process.class);
+        verify(processRepository).save(saved.capture());
+        return saved.getValue().getBusinessKey();
+    }
+
+    @Test
+    void aPROCESSStepsFirstChildTakesTheBaseKey() {
+        createProcessUseCase.maxProcessDepth = 20;
+        when(workflowDefinitionRepository.findById("wd-child")).thenReturn(Optional.of(childDefinition()));
+
+        createProcessUseCase.handle(childCreation());
+
+        org.assertj.core.api.Assertions.assertThat(createdKey()).isEqualTo("parent:pse-1");
+    }
+
+    @Test
+    void aChildStillInFlightIsNotStartedTwice() {
+        // A redelivered creation, or a retry after a timeout: either way it re-attaches.
+        when(processRepository.findByBusinessKey("parent:pse-1"))
+                .thenReturn(Optional.of(child("parent:pse-1", ProcessStatus.RUNNING)));
+
+        createProcessUseCase.handle(childCreation());
+
+        verify(processRepository, never()).save(any());
+    }
+
+    @Test
+    void aWaitingStepWhoseChildrenAllFinishedRunsTheChildAgainUnderTheNextKey() {
+        createProcessUseCase.maxProcessDepth = 20;
+        when(processRepository.findByBusinessKey("parent:pse-1"))
+                .thenReturn(Optional.of(child("parent:pse-1", ProcessStatus.ERROR)));
+        when(processRepository.findByBusinessKey("parent:pse-1#2"))
+                .thenReturn(Optional.of(child("parent:pse-1#2", ProcessStatus.CANCELLED)));
+        when(processRepository.findByBusinessKey("parent:pse-1#3")).thenReturn(Optional.empty());
+        parentStepIs(StepExecutionStatus.PENDING);
+        when(workflowDefinitionRepository.findById("wd-child")).thenReturn(Optional.of(childDefinition()));
+
+        createProcessUseCase.handle(childCreation());
+
+        org.assertj.core.api.Assertions.assertThat(createdKey()).isEqualTo("parent:pse-1#3");
+    }
+
+    @Test
+    void aStaleCreationForAStepThatIsNoLongerWaitingStartsNothing() {
+        when(processRepository.findByBusinessKey("parent:pse-1"))
+                .thenReturn(Optional.of(child("parent:pse-1", ProcessStatus.COMPLETED)));
+        when(processRepository.findByBusinessKey("parent:pse-1#2")).thenReturn(Optional.empty());
+        parentStepIs(StepExecutionStatus.COMPLETED);
+
+        createProcessUseCase.handle(childCreation());
+
+        verify(processRepository, never()).save(any());
+    }
 }

@@ -153,6 +153,16 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
      */
     public StepExecution withStartedAt(LocalDateTime startedAt) {
         var shifted = toBuilder().startedAt(startedAt).build();
+        if (StepExecutionStatus.AWAITING_RETRY.equals(status)) {
+            // A step waiting out its backoff carries the backoff wake in deadlineAt, not a
+            // timeout: recomputing it from the step would drop it (a step with no timeout gets
+            // null) and the retry scan — AWAITING_RETRY with a past deadlineAt — would never find
+            // the step again. The wake moves with the clock, by exactly as much.
+            shifted.deadlineAt = deadlineAt == null || this.startedAt == null || startedAt == null
+                    ? deadlineAt
+                    : deadlineAt.plus(java.time.Duration.between(this.startedAt, startedAt));
+            return shifted;
+        }
         var step = pojoFromJson(stepJson, Step.class);
         // A TIMER's until is an absolute moment kept current by rearmedFor: a pause does not move
         // a check-in date, and recomputing from the start snapshot would undo a moved one.
@@ -172,7 +182,9 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
      * boot-time rearm brings it up to date the same way.
      */
     public StepExecution rearmedFor(Process process) {
-        if (startedAt == null) {
+        // An AWAITING_RETRY step's deadlineAt is its backoff wake, which nothing here derives:
+        // recomputing it as a timeout would erase the retry.
+        if (startedAt == null || StepExecutionStatus.AWAITING_RETRY.equals(status)) {
             return this;
         }
         var step = pojoFromJson(stepJson, Step.class);

@@ -13,7 +13,12 @@ import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
+@lombok.extern.slf4j.Slf4j
 public class RetryStepExecutionUseCase {
+
+    private static final java.util.Set<ProcessStatus> NOT_REVIVABLE = java.util.EnumSet.of(
+            ProcessStatus.CANCELLED, ProcessStatus.COMPLETED,
+            ProcessStatus.COMPENSATED, ProcessStatus.COMPENSATION_FAILED);
 
     final StepExecutionRepository stepExecutionRepository;
     final ProcessRepository processRepository;
@@ -40,9 +45,13 @@ public class RetryStepExecutionUseCase {
         }
 
         var process = processRepository.findById(stepExecution.getProcessId()).orElseThrow();
-        if (ProcessStatus.CANCELLED.equals(process.getStatus())) {
-            // Retrying a step must not revive a cancelled process (its other steps
-            // are already CANCELLED and will never run).
+        if (NOT_REVIVABLE.contains(process.getStatus())) {
+            // Retrying a step must not revive a finished process: a cancelled one's other steps
+            // are already CANCELLED and will never run, a rolled-back saga (COMPENSATED, or
+            // COMPENSATION_FAILED half way) already undid what this step would build on, and a
+            // COMPLETED one is over. Same refusal as RetryProcessUseCase for the last three.
+            log.warn("Step execution {} of process {} cannot be retried while the process is {} — ignoring",
+                    stepExecution.id(), process.getId(), process.getStatus());
             return;
         }
 
@@ -51,7 +60,13 @@ public class RetryStepExecutionUseCase {
         workflowMetrics.retryPerformed(stepExecution.getWorkflowDefinitionId(),
                 WorkflowMetrics.RetryTrigger.MANUAL);
 
-        processRepository.save(process.withStatus(ProcessStatus.RUNNING));
+        if (!ProcessStatus.PAUSED.equals(process.getStatus())) {
+            // Reopened, like RetryProcessUseCase/RestartProcessUseCase: finished goes back to null,
+            // which is what the analytics read model keys the retraction of the ERROR fact on
+            // (CountedProcessRepository.reopened) and what the duration metrics measure up to.
+            // A paused process stays paused: the revived step waits for the resume.
+            processRepository.save(process.withStatus(ProcessStatus.RUNNING).withFinished(null));
+        }
         stepOverProcessUseCase.handle(new StepOverProcessCommand(process.getId()));
     }
 }

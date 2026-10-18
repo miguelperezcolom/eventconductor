@@ -125,4 +125,62 @@ class ChildProcessE2eTest extends AbstractE2eTest {
             assertThat(step(childKey, "child-work").getStatus()).isEqualTo(StepExecutionStatus.CANCELLED);
         });
     }
+    @Test
+    void aRetriedProcessStepRunsAFreshChildWhenTheFirstOneFailed() {
+        // The first child fails; the PROCESS step has a retry left, so it is parked and woken —
+        // and the retry must actually run the child again. It used to re-request the creation
+        // under the same business key, which the dedupe matched to the failed child and dropped,
+        // leaving the parent step PENDING (and the parent RUNNING) forever.
+        worker.on("child-work", TestWorker.failThenSucceed(1));
+
+        createProcess("parent-retry", "pr-1");
+
+        await().atMost(Duration.ofSeconds(10)).untilAsserted(() ->
+                assertThat(process("pr-1").getStatus()).isEqualTo(ProcessStatus.COMPLETED));
+        var spawnStep = step("pr-1", "spawn-child");
+        assertThat(spawnStep.getStatus()).isEqualTo(StepExecutionStatus.COMPLETED);
+        // The failed first child keeps its key and its history; the retry ran under the next one.
+        assertThat(process("parent:" + spawnStep.getId()).getStatus()).isEqualTo(ProcessStatus.ERROR);
+        assertThat(process("parent:" + spawnStep.getId() + "#2").getStatus()).isEqualTo(ProcessStatus.COMPLETED);
+        assertThat(worker.invocationsOf("child-work")).isEqualTo(2);
+    }
+
+    @Test
+    void aProcessStepThatExhaustsItsRetriesFailsTheParent() {
+        worker.on("child-work", TestWorker.fail());
+
+        createProcess("parent-retry", "pr-2");
+
+        await().atMost(Duration.ofSeconds(10)).untilAsserted(() ->
+                assertThat(process("pr-2").getStatus()).isEqualTo(ProcessStatus.ERROR));
+        var spawnStep = step("pr-2", "spawn-child");
+        assertThat(spawnStep.getStatus()).isEqualTo(StepExecutionStatus.ERROR);
+        assertThat(process("parent:" + spawnStep.getId() + "#2").getStatus()).isEqualTo(ProcessStatus.ERROR);
+        assertThat(worker.invocationsOf("child-work")).isEqualTo(2);
+    }
+
+    @Test
+    void aProcessStepRetriedAfterATimeoutReattachesToItsStillRunningChild() {
+        // A timeout leaves the child running while retries remain; the retry must wait for that
+        // child rather than start a second one next to it.
+        worker.on("child-work", TestWorker.deferForever());
+
+        createProcess("parent-timeout-retry", "ptr-1");
+        var spawnStep = step("ptr-1", "spawn-child");
+        var childKey = "parent:" + spawnStep.getId();
+
+        await().atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
+            assertThat(step("ptr-1", "spawn-child").getAttemptCount()).isEqualTo(1);
+            assertThat(step("ptr-1", "spawn-child").getStatus()).isEqualTo(StepExecutionStatus.PENDING);
+        });
+        assertThat(processRepository.findByBusinessKey(childKey + "#2")).isEmpty();
+        assertThat(process(childKey).getStatus()).isEqualTo(ProcessStatus.RUNNING);
+
+        // The original child finishes: the re-attached parent step completes with it.
+        updateStepExecutionUseCase.handle(new io.mateu.workflow.application.usecases.stepexecution.update.UpdateStepExecutionCommand(
+                step(childKey, "child-work").id(), java.util.List.of(), "",
+                StepExecutionStatus.COMPLETED));
+        assertThat(process(childKey).getStatus()).isEqualTo(ProcessStatus.COMPLETED);
+        assertThat(process("ptr-1").getStatus()).isEqualTo(ProcessStatus.COMPLETED);
+    }
 }

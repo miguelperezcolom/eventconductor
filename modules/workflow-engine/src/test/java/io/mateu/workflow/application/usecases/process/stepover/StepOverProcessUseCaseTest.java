@@ -393,4 +393,34 @@ class StepOverProcessUseCaseTest {
         verify(stepExecutionRepository).save(steps.capture());
         assertThat(steps.getValue().getStatus()).isEqualTo(StepExecutionStatus.ERROR);
     }
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.EnumSource(value = ProcessStatus.class,
+            names = {"ERROR", "COMPLETED", "CANCELLED", "COMPENSATED", "COMPENSATION_FAILED"})
+    void aProcessAlreadyInATerminalStatusReleasesWhatItHolds(ProcessStatus terminal) {
+        // The status recompute ends the process before this step-over runs (ERROR on a step's final
+        // failure, COMPLETED when every step completed), so the "just errored/completed" flags of
+        // this pass are false — and the locks used to stay held until the lease reaper.
+        var process = Process.builder().id("p-1").status(terminal).variables(List.of()).build();
+        var failed = se("se-1", "step-1", StepType.ACTION, StepExecutionStatus.ERROR, 0, "start");
+        when(processRepository.findById("p-1")).thenReturn(Optional.of(process));
+        when(stepExecutionRepository.findByProcessId("p-1")).thenReturn(List.of(startedFlow(), failed));
+
+        useCase.handle(new StepOverProcessCommand("p-1"));
+
+        // (Waking whoever the release admits is the existing path, exercised end to end in
+        // TerminalLockReleaseE2eTest.)
+        verify(namedLockService).releaseAll("p-1");
+    }
+
+    @Test
+    void aRunningProcessReleasesNothing() {
+        var process = process("p-1");
+        var pending = se("se-1", "step-1", StepType.ACTION, StepExecutionStatus.PENDING, 0, "start");
+        when(processRepository.findById("p-1")).thenReturn(Optional.of(process));
+        when(stepExecutionRepository.findByProcessId("p-1")).thenReturn(List.of(startedFlow(), pending));
+
+        useCase.handle(new StepOverProcessCommand("p-1"));
+
+        verify(namedLockService, never()).releaseAll(any());
+    }
 }

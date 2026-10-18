@@ -1,0 +1,27 @@
+{
+  "id": "parent-timeout-retry",
+  "name": "Parent whose PROCESS step times out and retries",
+  "version": 1,
+  "steps": [
+    {
+      "id": "start",
+      "type": "START",
+      "name": "Start"
+    },
+    {
+      "id": "spawn-child",
+      "type": "PROCESS",
+      "name": "Spawn the child",
+      "preconditionStepId": "start",
+      "childWorkflowDefinitionId": "child-flow",
+      "timeout": 1500,
+      "retries": 1
+    },
+    {
+      "id": "end",
+      "type": "END",
+      "name": "End",
+      "preconditionStepId": "spawn-child"
+    }
+  ]
+}

@@ -14,6 +14,7 @@ import io.mateu.workflow.domain.aggregates.Process;
 import io.mateu.workflow.domain.aggregates.ProcessStatus;
 import io.mateu.workflow.domain.aggregates.StepExecution;
 import io.mateu.workflow.domain.services.StepTimeoutDefaults;
+import io.mateu.workflow.application.usecases.process.parentnotify.ChildProcesses;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
@@ -82,6 +83,17 @@ public class CreateProcessUseCase {
     boolean flowAuthorizationEnabled;
 
     public void handle(CreateProcessCommand command) {
+        if (isAPROCESSStepsChild(command)) {
+            var child = childToStart(command);
+            if (child != null) {
+                create(child);
+            }
+            return;
+        }
+        create(command);
+    }
+
+    private void create(CreateProcessCommand command) {
         // Idempotency: a redelivered creation event carries the same processId and/or
         // businessKey — skip silently instead of creating a duplicate process.
         if (command.processId() != null && !command.processId().isBlank()) {
@@ -224,6 +236,55 @@ public class CreateProcessUseCase {
      * @param context what is being judged, for the log (a business key, a schedule id…)
      * @throws FlowAuthorizationDeniedException if the caller is missing anything the definition requires
      */
+    /** A creation a PROCESS step asked for, under the deterministic key of its first child. */
+    private static boolean isAPROCESSStepsChild(CreateProcessCommand command) {
+        return command.parentStepExecutionId() != null && !command.parentStepExecutionId().isBlank()
+                && ChildProcesses.firstKey(command.parentStepExecutionId()).equals(command.businessKey());
+    }
+
+    /**
+     * Which child, if any, a PROCESS step's creation request should start — null for none.
+     *
+     * <p>Plain business-key dedupe is not enough here. A PROCESS step that runs its child again (it
+     * retries after the child failed, an operator retries it, the process restarts) asks under the
+     * same key as the first time, and dedupe matched it to the child that already finished and
+     * dropped it — leaving the parent step PENDING, and the parent RUNNING, forever. So:
+     * <ul>
+     *   <li>no child yet: start the first one, under {@code parent:<id>};</li>
+     *   <li>a child still in flight: this is a redelivery, or a retry after a timeout, which
+     *       re-attaches to that child — start nothing;</li>
+     *   <li>every child finished and the parent step is waiting again: run the child afresh, under
+     *       the next key ({@code parent:<id>#2}, …). A parent step that is not waiting (it already
+     *       took the child's outcome) makes this a stale redelivery — start nothing.</li>
+     * </ul>
+     */
+    private CreateProcessCommand childToStart(CreateProcessCommand command) {
+        var parentStepExecutionId = command.parentStepExecutionId();
+        var children = ChildProcesses.of(processRepository, parentStepExecutionId);
+        if (children.isEmpty()) {
+            return command;
+        }
+        var live = children.stream().filter(child -> !ChildProcesses.isFinished(child)).findFirst();
+        if (live.isPresent()) {
+            log.info("PROCESS step execution {} already has child process {} in flight — not starting another",
+                    parentStepExecutionId, live.get().getId());
+            return null;
+        }
+        var waiting = stepExecutionRepository.findById(parentStepExecutionId)
+                .map(parent -> io.mateu.workflow.domain.aggregates.StepExecutionStatus.PENDING.equals(parent.getStatus()))
+                .orElse(false);
+        if (!waiting) {
+            log.warn("Process with business key '{}' already exists, ignoring duplicate creation request",
+                    command.businessKey());
+            return null;
+        }
+        var key = ChildProcesses.key(parentStepExecutionId, children.size() + 1);
+        log.info("PROCESS step execution {} runs its child again as '{}' (the previous one ended {})",
+                parentStepExecutionId, key, children.get(children.size() - 1).getStatus());
+        return new CreateProcessCommand(command.processId(), command.workflowDefinitionId(), key,
+                command.variables(), parentStepExecutionId, command.caller(), command.traceContext());
+    }
+
     public static void refuseIfCallerMayNotStart(io.mateu.workflow.domain.aggregates.WorkflowDefinition definition,
                                                  AuthorizationContext caller, String context) {
         var decision = FlowAuthorizationService.authorize(

@@ -23,7 +23,8 @@ import java.util.UUID;
  * Resumes a PAUSED process. Before letting the flow move again, the clocks of every in-flight
  * step are shifted forward by the pause duration: {@code timerDueAt} and step timeouts both
  * derive from {@code startedAt}, so shifting it freezes TIMER due moments and timeout
- * deadlines for exactly as long as the process was paused. Then the process goes back to
+ * deadlines for exactly as long as the process was paused — and a step waiting out its retry
+ * backoff has its wake moved by the same amount. Then the process goes back to
  * RUNNING and the flow is driven forward (successors held during the pause start now,
  * deferred blocking errors engage, an already-finished flow completes).
  */

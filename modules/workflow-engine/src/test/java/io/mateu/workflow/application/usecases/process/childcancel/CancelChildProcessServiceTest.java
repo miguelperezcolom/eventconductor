@@ -95,6 +95,23 @@ class CancelChildProcessServiceTest {
     }
 
     @Test
+    void cancelsTheChildOfARetryNotTheFinishedFirstOne() {
+        // A retried PROCESS step ran its child again under the next key: the one in flight is
+        // parent:pse-1#2, and the failed first one is left as it ended.
+        when(processRepository.findByBusinessKey("parent:pse-1"))
+                .thenReturn(Optional.of(child(ProcessStatus.ERROR)));
+        when(processRepository.findByBusinessKey("parent:pse-1#2"))
+                .thenReturn(Optional.of(Process.builder().id("p-child-2").businessKey("parent:pse-1#2")
+                        .parentStepExecutionId("pse-1").status(ProcessStatus.RUNNING).variables(List.of()).build()));
+        when(processRepository.findByBusinessKey("parent:pse-1#3")).thenReturn(Optional.empty());
+
+        service.stepReachedTerminalStatus(stepExecution(StepType.PROCESS, StepExecutionStatus.ERROR));
+
+        verify(cancelProcessUseCase).handle(new CancelProcessCommand("p-child-2"));
+        verify(cancelProcessUseCase, never()).handle(new CancelProcessCommand("p-child"));
+    }
+
+    @Test
     void absentChildIsANoOp() {
         when(processRepository.findByBusinessKey("parent:pse-1")).thenReturn(Optional.empty());
 

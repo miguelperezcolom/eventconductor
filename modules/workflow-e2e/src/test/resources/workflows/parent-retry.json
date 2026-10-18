@@ -1,0 +1,29 @@
+{
+  "id": "parent-retry",
+  "name": "Parent workflow whose PROCESS step retries a failed child",
+  "version": 1,
+  "steps": [
+    {
+      "id": "start",
+      "type": "START",
+      "name": "Start"
+    },
+    {
+      "id": "spawn-child",
+      "type": "PROCESS",
+      "name": "Spawn the child",
+      "preconditionStepId": "start",
+      "childWorkflowDefinitionId": "child-flow",
+      "retries": 1,
+      "outputVariables": [
+        "result"
+      ]
+    },
+    {
+      "id": "end",
+      "type": "END",
+      "name": "End",
+      "preconditionStepId": "spawn-child"
+    }
+  ]
+}

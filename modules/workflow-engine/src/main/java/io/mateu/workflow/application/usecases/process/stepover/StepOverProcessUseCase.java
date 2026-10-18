@@ -164,8 +164,13 @@ public class StepOverProcessUseCase {
         // A process that ends still holding locks (it errored inside a critical section, or simply
         // never reached its UNLOCK) must not wedge the key forever: release everything it holds and
         // wake the waiters. The lease reaper is the backstop for a pod that dies without getting here.
-        if (result.isProcessErrored() || result.isProcessCompleted()) {
-            lockService.releaseAll(process.getId()).forEach(this::wakeWaiter);
+        // Keyed off the status the process is in, not off this pass's "just completed/errored"
+        // flags: the status recompute usually gets there first (a step's final ERROR sets the
+        // process ERROR before this step-over runs, all-steps-completed sets COMPLETED), leaving
+        // both flags false — and COMPENSATED/COMPENSATION_FAILED/CANCELLED never raise them at all.
+        // Idempotent: a process that already released holds nothing, and releaseAll is then a no-op.
+        if (endsHoldingNothing(result.getUpdatedProcess().getStatus())) {
+            releaseLocksOf(process.getId());
         }
 
         if (result.isProcessErrored()) {
@@ -344,6 +349,24 @@ public class StepOverProcessUseCase {
     private static String lockName(Step step, StepExecution stepExecution) {
         return step.lockName() != null && !step.lockName().isBlank()
                 ? step.lockName() : stepExecution.getWorkflowDefinitionId();
+    }
+
+    /** The statuses a process never leaves on its own: it holds no lock in any of them. */
+    private static boolean endsHoldingNothing(ProcessStatus status) {
+        return status == ProcessStatus.COMPLETED
+                || status == ProcessStatus.ERROR
+                || status == ProcessStatus.CANCELLED
+                || status == ProcessStatus.COMPENSATED
+                || status == ProcessStatus.COMPENSATION_FAILED;
+    }
+
+    /**
+     * Releases every lock the process holds — step-level and process-level — drops it from every
+     * queue it waits in, and wakes whoever each release admitted. For a process that has ended;
+     * idempotent, so every seam that ends a process may call it.
+     */
+    public void releaseLocksOf(String processId) {
+        lockService.releaseAll(processId).forEach(this::wakeWaiter);
     }
 
     /**

@@ -51,9 +51,22 @@ public class JdbcProcessLockService implements ProcessLockService {
 
     @Override
     public boolean runExclusively(String processId, Runnable action) {
+        // Only two things mean "exclusivity was not obtained": the row lock could not be taken (a
+        // statement timeout waiting for it, a deadlock the database broke while taking it), and a
+        // lost optimistic race at commit. Anything the action itself throws is the action's
+        // failure and propagates as itself. Swallowing it into false used to turn every failure —
+        // a poison event's PoisonEventException included — into a cause-less, retryable
+        // ConcurrentProcessAccessException, so the relay retried defective events forever.
+        var notLocked = new java.util.concurrent.atomic.AtomicReference<RuntimeException>();
         try {
             return Boolean.TRUE.equals(transactionTemplate.execute(status -> {
-                lockRow(processId);
+                try {
+                    lockRow(processId);
+                } catch (RuntimeException e) {
+                    notLocked.set(e);
+                    status.setRollbackOnly();
+                    return false;
+                }
                 action.run();
                 return true;
             }));
@@ -66,12 +79,13 @@ public class JdbcProcessLockService implements ProcessLockService {
             log.warn("Concurrent write to process {} was rejected; the event will be redelivered",
                     processId);
             return false;
-        } catch (Exception e) {
-            // A statement timeout waiting for the row, or a deadlock the database broke. Either
-            // way another node has this process; the caller decides whether that deserves a log
-            // line or whether the event that triggered it will simply come round again.
-            log.warn("Could not obtain exclusive access to process {} ({})", processId, e.getMessage());
-            return false;
+        } finally {
+            if (notLocked.get() != null) {
+                // Another node has this process; the caller decides whether that deserves a log
+                // line or whether the event that triggered it will simply come round again.
+                log.warn("Could not obtain exclusive access to process {} ({})", processId,
+                        notLocked.get().getMessage());
+            }
         }
     }
 

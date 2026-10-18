@@ -32,6 +32,8 @@ public class CancelProcessUseCase {
     final io.mateu.workflow.application.services.RecordProcessTraceService recordProcessTraceService;
     final CancelChildProcessService cancelChildProcessService;
     final ProcessLockService processLockService;
+    // A provider: step-over reaches this use case back through the child-cancellation cascade.
+    final org.springframework.beans.factory.ObjectProvider<StepOverProcessUseCase> stepOverProcessUseCase;
 
     /** What the locked part decided, for the cascade that runs after the lock is released. */
     private record Cancellation(Process cancelledProcess, List<StepExecution> cancelledSteps) {
@@ -96,6 +98,11 @@ public class CancelProcessUseCase {
                 cancelledSteps.add(stepExecution);
             }
         }
+        // A cancelled process holds no lock: free every one it holds (a LOCK step's, its definition's
+        // processLock) and leave every queue it waits in, admitting the next waiter. Inside this
+        // lock, with the cancel, so a wake that fails rolls the cancellation back with it and is
+        // redelivered whole rather than leaving a granted waiter that nobody ever wakes.
+        stepOverProcessUseCase.getObject().releaseLocksOf(process.getId());
         return new Cancellation(cancelledProcess, cancelledSteps);
     }
 }

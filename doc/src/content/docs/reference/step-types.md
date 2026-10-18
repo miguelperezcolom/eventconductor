@@ -411,6 +411,12 @@ Semantics:
   normal retry/compensation pipeline engages.
 - `timeout` bounds the wait: a parent step whose child has not finished within `timeout` goes
   through the usual `TIMEOUT` → retry/`ERROR` pipeline.
+- **Retries run the child again.** With `retries` set, a step whose child ended `ERROR` or
+  `CANCELLED` is retried by starting a **fresh** child process, under the next deterministic key:
+  `parent:<stepExecutionId>#2`, then `#3`, and so on. The failed child keeps its own key, status
+  and history. The same goes for an operator retry of the step, or a restart of the parent process.
+  A retry after a `timeout` is different: the child is still running, so the retried step
+  **re-attaches** to it and does not start a second one.
 
 Cancellation propagates from parent to child: when the parent `PROCESS` step ends `CANCELLED`,
 `ERROR` or `TIMEOUT` (retries exhausted), a still-running child process is cancelled too — and
@@ -627,7 +633,7 @@ Acquire a named per-key lock, serializing every process — or every critical se
 Semantics:
 
 - **Reentrant.** A process taking a lock it already holds gets it again at once.
-- **Released** by a matching [`UNLOCK`](#unlock) step, or — whatever happened in between — when the process reaches a terminal state (completed or errored), so a process that fails inside its critical section does not wedge the key. A lease (`workflow.lock.lease-ms`) is the backstop for a pod that dies while holding one; see [Serialization locks](/reference/configuration/#serialization-locks-workflowlock).
+- **Released** by a matching [`UNLOCK`](#unlock) step, or — whatever happened in between — when the process reaches a terminal state (`COMPLETED`, `ERROR`, `CANCELLED`, `COMPENSATED` or `COMPENSATION_FAILED`), so a process that fails, or is cancelled, inside its critical section does not wedge the key. A process that ends while queued for a lock leaves the queue. A lease (`workflow.lock.lease-ms`) is the backstop for a pod that dies while holding one; see [Serialization locks](/reference/configuration/#serialization-locks-workflowlock).
 - **Always waits.** A `LOCK` step never refuses; to refuse a synchronous caller when the key is busy, use a process-level lock with `onLockBusy: FAIL` (below).
 
 **Process-level lock.** To serialize *whole instances* of a definition rather than a section of them, declare `processLock` on the definition instead of steps: `"processLock": { "name": "booking", "key": "bookingId" }` (`key` required, `name` defaulting to the definition id). An instance that cannot take it makes no progress at all until it is admitted, and holds it until it ends. See [Synchronous Invocation — Locks](/guides/synchronous-invocation/#6-locks) for `onLockBusy`.
