@@ -233,4 +233,32 @@ class GitImportWebhookControllerTest {
         assertThat(response.getBody()).isEqualTo("import scheduled for 2 repository/ies");
         verify(importUseCase, timeout(2000)).handle(anyList());
     }
+
+    @Test
+    void concurrentPushesOfTheSameRepositoryNeverImportAtOnceAndCoalesceIntoOneMoreRun() throws Exception {
+        var started = new java.util.concurrent.CountDownLatch(1);
+        var release = new java.util.concurrent.CountDownLatch(1);
+        var running = new java.util.concurrent.atomic.AtomicInteger();
+        var maxRunning = new java.util.concurrent.atomic.AtomicInteger();
+        when(importUseCase.handle(anyList())).thenAnswer(call -> {
+            maxRunning.accumulateAndGet(running.incrementAndGet(), Math::max);
+            started.countDown();
+            release.await(5, java.util.concurrent.TimeUnit.SECONDS);
+            running.decrementAndGet();
+            return new ImportWorkflowDefinitionsResult(List.of(), List.of(), List.of());
+        });
+        var push = githubPush("master", "https://github.com/org/defs.git");
+
+        controller.webhook("github", new HttpHeaders(), push);
+        assertThat(started.await(5, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+        for (int i = 0; i < 4; i++) {
+            controller.webhook("github", new HttpHeaders(), push);
+        }
+        release.countDown();
+
+        // The running import, then exactly one more for the pushes that came in meanwhile — never two at once.
+        verify(importUseCase, timeout(3000).times(2)).handle(anyList());
+        verify(importUseCase, after(300).times(2)).handle(anyList());
+        assertThat(maxRunning.get()).isEqualTo(1);
+    }
 }

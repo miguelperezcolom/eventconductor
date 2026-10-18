@@ -18,7 +18,6 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 
 /**
  * Webhook endpoint triggered by a git provider after a push/merge.
@@ -38,6 +37,11 @@ public class FormGitImportWebhookController {
 
     final GitImportProperties gitImportProperties;
     final ImportFormsFromGitUseCase importUseCase;
+    /**
+     * One import at a time, a repeat coalesced: two imports of the same source at once race, and the
+     * stale one finishing last would prune what the newer one added.
+     */
+    io.mateu.workflow.webhook.CoalescingImportRunner importRunner = new io.mateu.workflow.webhook.CoalescingImportRunner();
 
     @PostMapping("/{provider}")
     public ResponseEntity<String> webhook(
@@ -72,7 +76,8 @@ public class FormGitImportWebhookController {
 
         var toImport = selected.isEmpty() ? repositories : selected;
 
-        CompletableFuture.runAsync(() -> {
+        var key = toImport.stream().map(r -> r.getUrl() + "#" + r.getBranch()).toList().toString();
+        importRunner.submit(key, () -> {
             log.info("Webhook ({}) triggered: importing forms from {} repository/ies…", webhookProvider, toImport.size());
             try {
                 var result = importUseCase.handle(toImport);

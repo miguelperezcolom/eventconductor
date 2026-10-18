@@ -19,7 +19,6 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
@@ -59,6 +58,11 @@ public class GitImportWebhookController {
     final ImportWorkflowDefinitionsFromGitUseCase importUseCase;
     final TaskContractGitImportProperties taskGitImportProperties;
     final ImportTasksFromGitUseCase taskImportUseCase;
+    /**
+     * One import at a time, a repeat coalesced: two imports of the same source at once race, and the
+     * stale one finishing last would prune what the newer one added.
+     */
+    io.mateu.workflow.webhook.CoalescingImportRunner importRunner = new io.mateu.workflow.webhook.CoalescingImportRunner();
 
     @org.springframework.beans.factory.annotation.Autowired
     public GitImportWebhookController(GitImportProperties gitImportProperties,
@@ -122,7 +126,9 @@ public class GitImportWebhookController {
         var toImport = payload.isEmpty() ? repositories : selected;
         var tasksToImport = payload.isEmpty() ? taskRepositories : selectedTasks;
 
-        CompletableFuture.runAsync(() -> {
+        var key = "tasks=" + tasksToImport.stream().map(r -> r.getUrl() + "#" + r.getBranch()).toList()
+                + " workflows=" + toImport.stream().map(r -> r.getUrl() + "#" + r.getBranch()).toList();
+        importRunner.submit(key, () -> {
             // Task contracts before workflows: a step's `task:` reference resolves at import.
             if (!tasksToImport.isEmpty()) {
                 importTaskContracts(webhookProvider, tasksToImport);
