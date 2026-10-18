@@ -81,6 +81,24 @@ class UpstreamInputGuardTest {
     }
 
     @Test
+    void aManualOperationCarryingTooMuchIsRefused() {
+        assertThatThrownBy(() -> UpstreamInputGuard.check(new io.mateu.workflow.dtos.events.integration.SetProcessVariablesRequested(
+                "p-1", List.of(new Variable("v", TOO_BIG_VALUE)), List.of(), "r", "alice")))
+                .isInstanceOf(InputRejectedException.class);
+        assertThatThrownBy(() -> UpstreamInputGuard.check(new io.mateu.workflow.dtos.events.integration.SetProcessVariablesRequested(
+                "p-1", List.of(), List.of(TOO_LONG_KEY), "r", "alice")))
+                .isInstanceOf(InputRejectedException.class);
+        assertThatThrownBy(() -> UpstreamInputGuard.check(new io.mateu.workflow.dtos.events.integration.CompleteStepManuallyRequested(
+                "p-1", TOO_LONG_KEY, List.of(), "r", "alice")))
+                .isInstanceOf(InputRejectedException.class).hasMessageContaining("stepExecutionId");
+        assertThatThrownBy(() -> UpstreamInputGuard.check(new io.mateu.workflow.dtos.events.integration.RetryFromStepRequested(
+                "p-1", "s", TOO_BIG_VALUE, "alice")))
+                .isInstanceOf(InputRejectedException.class).hasMessageContaining("reason");
+        assertThatCode(() -> UpstreamInputGuard.check(new io.mateu.workflow.dtos.events.integration.RetryFromStepRequested(
+                "p-1", "s", "fixed", null))).doesNotThrowAnyException();
+    }
+
+    @Test
     void ordinaryEventsPass() {
         assertThatCode(() -> {
             UpstreamInputGuard.check(new ProcessCreationRequested("wd-1", "BK",

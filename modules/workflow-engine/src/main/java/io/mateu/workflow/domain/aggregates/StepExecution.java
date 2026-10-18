@@ -750,6 +750,14 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
      * timeline later needs to see explained.
      */
     public void resetForRerun() {
+        resetForRerun("Step " + stepId + " reset to run again from the start of the process");
+    }
+
+    /**
+     * {@link #resetForRerun()}, logging {@code why} instead — an operator running the process again
+     * from one of its steps rather than from the start.
+     */
+    public void resetForRerun(String why) {
         this.dispatchCount++;
         this.loopDecision = null;
         if (parentExecutionId == null) {
@@ -766,8 +774,7 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
         this.awaitingMessageName = null;
         this.awaitingCorrelationKey = null;
         this.workerId = null;
-        send(new TaskLogEmitted(id, MessageType.Info,
-                "Step " + stepId + " reset to run again from the start of the process"));
+        send(new TaskLogEmitted(id, MessageType.Info, why));
     }
 
     /**

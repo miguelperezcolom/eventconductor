@@ -154,8 +154,41 @@ public final class ProcessApi {
             + " asynchronously by the node that owns the process: read the process to see the outcome.")
     public record CommandAccepted(
             String processId,
-            @Schema(description = "cancel, pause, resume, retry, restart or retry-step.") String command,
-            @Schema(description = "The step execution, for retry-step.") String stepExecutionId) {
+            @Schema(description = "cancel, pause, resume, retry, restart, retry-step, set-variables, complete-step or"
+                    + " retry-from-step.") String command,
+            @Schema(description = "The step execution, for retry-step and complete-step.") String stepExecutionId,
+            @Schema(description = "The definition's step, for retry-from-step.") String stepId) {
+
+        public CommandAccepted(String processId, String command, String stepExecutionId) {
+            this(processId, command, stepExecutionId, null);
+        }
+    }
+
+    @Schema(name = "SetVariablesRequest", description = "A manual change of a live process's variables.")
+    public record SetVariablesRequest(
+            @Schema(description = "Variables to write — created, or overwritten. A non-string value is stored as its JSON.")
+            Map<String, Object> set,
+            @Schema(description = "Names of variables to delete.") java.util.List<String> remove,
+            @Schema(description = "Why — mandatory, recorded in the process's audit trail.",
+                    requiredMode = Schema.RequiredMode.REQUIRED, example = "Customer corrected the delivery date by phone")
+            String reason) {
+    }
+
+    @Schema(name = "CompleteStepRequest", description = "A manual completion of a step execution.")
+    public record CompleteStepRequest(
+            @Schema(description = "What the step returns — written onto the process as a worker's reply would be."
+                    + " A non-string value is stored as its JSON.")
+            Map<String, Object> variables,
+            @Schema(description = "Why — mandatory, recorded in the process's audit trail.",
+                    requiredMode = Schema.RequiredMode.REQUIRED, example = "Payment taken by phone, ref 8812")
+            String reason) {
+    }
+
+    @Schema(name = "OperationReason", description = "The reason a manual operation is performed.")
+    public record ReasonRequest(
+            @Schema(description = "Why — mandatory, recorded in the process's audit trail.",
+                    requiredMode = Schema.RequiredMode.REQUIRED, example = "Partner API fixed; re-run the booking")
+            String reason) {
     }
 
     private static final DateTimeFormatter ISO = DateTimeFormatter.ISO_LOCAL_DATE_TIME;

@@ -151,6 +151,20 @@ public class Process extends AggregateRoot implements Identifiable {
         this.variables.addAll(variables);
     }
 
+    /**
+     * Deletes the named variables, if present — an operator's correction of a live process
+     * ({@code SetProcessVariablesUseCase}). Names it does not hold are ignored.
+     */
+    public void removeVariables(java.util.Collection<String> names) {
+        if (names == null || names.isEmpty() || this.variables == null) {
+            return;
+        }
+        if (!(this.variables instanceof java.util.ArrayList)) {
+            this.variables = new java.util.ArrayList<>(this.variables);
+        }
+        this.variables.removeIf(variable -> names.contains(variable.name()));
+    }
+
     /** Whether this process has already given its (one) reply. */
     public boolean hasReplied() {
         return reply != null;

@@ -16,6 +16,21 @@ class MicrometerWorkflowMetricsTest {
     private final MicrometerWorkflowMetrics metrics = new MicrometerWorkflowMetrics(registry);
 
     @Test
+    void manualOperationsAreCountedByOperationAndDefinition() {
+        metrics.processOperation("orders", "set-variables");
+        metrics.processOperation("orders", "set-variables");
+        metrics.processOperation("orders", "retry-from-step");
+
+        assertThat(registry.get(MicrometerWorkflowMetrics.PROCESS_OPERATIONS)
+                .tag(MicrometerWorkflowMetrics.TAG_OPERATION, "set-variables")
+                .tag(MicrometerWorkflowMetrics.TAG_WORKFLOW_DEFINITION_ID, "orders")
+                .counter().count()).isEqualTo(2);
+        assertThat(registry.get(MicrometerWorkflowMetrics.PROCESS_OPERATIONS)
+                .tag(MicrometerWorkflowMetrics.TAG_OPERATION, "retry-from-step")
+                .counter().count()).isEqualTo(1);
+    }
+
+    @Test
     void purgedProcessesAreCountedByDefinitionAndStatus() {
         metrics.processesPurged("orders", io.mateu.workflow.domain.aggregates.ProcessStatus.COMPLETED, 3);
         metrics.processesPurged("orders", io.mateu.workflow.domain.aggregates.ProcessStatus.COMPLETED, 2);

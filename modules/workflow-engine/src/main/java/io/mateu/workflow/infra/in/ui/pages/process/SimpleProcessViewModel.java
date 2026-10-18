@@ -79,6 +79,9 @@ import static io.mateu.workflow.infra.in.ui.adapters.SimpleProcessCrudAdapter.ma
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 @Service
 @Scope("prototype")
+// A manual operation's dialog closes with this event: repaint, so the operator sees what it did.
+@SubscribeTo(event = io.mateu.workflow.infra.in.ui.pages.process.operate.OperationForms.OPERATED_EVENT,
+        action = "refresh", source = SubscriptionSource.DOCUMENT)
 public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySupplier {
 
     /** Custom element + ESM bundle that render the workflow as a read-only ELK graph. */
@@ -144,6 +147,15 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
     @Tab("Resources")
     @Label("")
     List<Resource> resources;
+
+    /**
+     * The manual operations performed on this process — who, when, what and why — newest first. The
+     * same lines are in the process log; here they are on their own, because they are the first thing
+     * to read when a process did something its definition does not explain.
+     */
+    @Tab("Operations")
+    @Label("")
+    List<Message> operations;
 
     @Tab
     @Label("")
@@ -230,6 +242,12 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
                 .filter(msg -> !MessageType.isError(msg.getMessageType()))
                 .sorted(Comparator.comparing(LogMessage::getTimestamp).reversed())
                 .limit(10)
+                .map(msg -> new Message(id, msg.id(), msg.getTimestamp(), msg.getMessage()))
+                .toList();
+        this.operations = logs.stream()
+                .filter(io.mateu.workflow.application.usecases.process.operate.OperatorAudit::isOperatorLine)
+                .sorted(Comparator.comparing(LogMessage::getTimestamp).reversed())
+                .limit(50)
                 .map(msg -> new Message(id, msg.id(), msg.getTimestamp(), msg.getMessage()))
                 .toList();
         this.errors = logs.stream()
@@ -687,6 +705,45 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
 
 
     /**
+     * Changes the variables of the process by hand — an admin operation, recorded with the reason.
+     * Opens a dialog; see {@code SetProcessVariablesUseCase}.
+     */
+    @Toolbar(buttonStyle = ButtonStyle.secondary)
+    @Label("Set variables")
+    @Action
+    public Object setVariables() {
+        return io.mateu.workflow.infra.in.ui.pages.process.operate.OperationForms.dialog("Set variables",
+                MateuBeanProvider.getBean(io.mateu.workflow.infra.in.ui.pages.process.operate.SetVariablesForm.class)
+                        .forProcess(id));
+    }
+
+    /**
+     * Completes a step by hand, as if its worker had answered — an admin operation, recorded with the
+     * reason. Opens a dialog; see {@code CompleteStepManuallyUseCase}.
+     */
+    @Toolbar(buttonStyle = ButtonStyle.secondary)
+    @Label("Complete step")
+    @Action
+    public Object completeStep() {
+        return io.mateu.workflow.infra.in.ui.pages.process.operate.OperationForms.dialog("Complete a step by hand",
+                MateuBeanProvider.getBean(io.mateu.workflow.infra.in.ui.pages.process.operate.CompleteStepForm.class)
+                        .forProcess(id));
+    }
+
+    /**
+     * Runs the process again from one of its steps — an admin operation, recorded with the reason.
+     * Opens a dialog; see {@code RetryFromStepUseCase}.
+     */
+    @Toolbar(buttonStyle = ButtonStyle.secondary)
+    @Label("Retry from step")
+    @Action
+    public Object retryFromStep() {
+        return io.mateu.workflow.infra.in.ui.pages.process.operate.OperationForms.dialog("Run again from a step",
+                MateuBeanProvider.getBean(io.mateu.workflow.infra.in.ui.pages.process.operate.RetryFromStepForm.class)
+                        .forProcess(id));
+    }
+
+    /**
      * Copies the process's state to the clipboard as JSON — the identity, status, variables, steps
      * and the message/error log — so it can be pasted into a ticket or a chat without screenshotting
      * a screen a paste cannot carry.
@@ -816,6 +873,15 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
         // wherever the engine will accept them (see RetryProcessUseCase / RestartProcessUseCase).
         // A cancelled process is stopped, not finished, and picking it up again is a normal
         // operator move; COMPLETED and COMPENSATED are terminal by design and stay out of it.
+        if ("setVariables".equals(memberName) || "completeStep".equals(memberName)
+                || "retryFromStep".equals(memberName)) {
+            // The manual operations: a live process only (ProcessOperationRules.LIVE).
+            return processStatus == null
+                    || !io.mateu.workflow.application.usecases.process.operate.ProcessOperationRules.LIVE.contains(processStatus);
+        }
+        if ("operations".equals(memberName)) {
+            return operations == null || operations.isEmpty();
+        }
         if ("retryProcess".equals(memberName) || "restartProcess".equals(memberName)) {
             return processStatus != ProcessStatus.ERROR && processStatus != ProcessStatus.CANCELLED;
         }

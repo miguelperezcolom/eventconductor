@@ -1,0 +1,12 @@
+{
+  "id": "ops-guard",
+  "name": "A step held by a link guard until a variable says so",
+  "version": 1,
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "prepare", "type": "ACTION", "name": "Prepare", "topic": "work", "preconditionStepId": "start" },
+    { "id": "ship", "type": "ACTION", "name": "Ship", "topic": "work",
+      "preconditions": [ { "stepId": "prepare", "expression": "approved == 'true'" } ] },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "ship" }
+  ]
+}

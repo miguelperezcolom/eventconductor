@@ -24,6 +24,12 @@ The machine-readable description is published with these docs: **[`/openapi/even
 | `POST /workflow/api/processes/{id}/retry` | Pick an `ERROR` or `CANCELLED` process up where it stopped | `202` |
 | `POST /workflow/api/processes/{id}/restart` | Run an `ERROR` or `CANCELLED` process again from the beginning | `202` |
 | `POST /workflow/api/processes/{id}/steps/{stepExecutionId}/retry` | Run one `ERROR`/`TIMEOUT` step execution again | `202` |
+| `POST /workflow/api/processes/{id}/variables` | Change a live process's variables `{set?, remove?, reason}` | `202` |
+| `POST /workflow/api/processes/{id}/steps/{stepExecutionId}/complete` | Complete a step execution by hand `{variables?, reason}` | `202` |
+| `POST /workflow/api/processes/{id}/retry-from/{stepId}` | Run a live process again from one of its steps `{reason}` | `202` |
+| `GET /workflow/api/incidents?definitionId=…` | Failed steps of failed processes, grouped by definition, step and error family | `200` `IncidentList` |
+| `GET /workflow/api/incidents/{key}/processes?limit=…` | The failed steps (and processes) of one incident | `200` `IncidentMember[]` |
+| `POST /workflow/api/incidents/{key}/retry` | Retry every failed step of one incident `{reason}` | `202` `IncidentRetryAccepted` |
 
 A step that ran more than once has a row per run in `/steps`: a [forEach](/guides/loops-and-multi-instance/) iteration carries `parentExecutionId` (its container's id) and `itemIndex`; a loop pass carries `iteration` (0 for the first run) and `superseded: true` once a later pass replaced it. Retrying an iteration retries its forEach, which re-runs only the failed and cancelled items.
 
@@ -85,6 +91,12 @@ A command answers `202 Accepted` with `{processId, command, stepExecutionId}` an
 
 Before accepting, the API checks what a synchronous caller needs to know: the process exists (`404`) and its status allows the command (`409`, with `processStatus` in the body) — by the use case's own rule, so a `202` is a command the engine will carry out. A step retry also checks the step belongs to the process (`404`), failed (`ERROR`/`TIMEOUT`) and that the process is not finished (`409`). In a sharded fleet with the process index on, a process another shard owns is found through the index and the command routed to its shard.
 
+### Manual operations
+
+Set variables, complete a step and retry from a step change a live (`RUNNING`, `PAUSED` or `ERROR`) process by hand. Each needs a `reason` (`400` without one), answers `202` with `{processId, command, stepExecutionId, stepId}`, and is carried out — and recorded, with the caller and the reason, in the process log — by the node that owns the process. Before accepting, the API checks with the engine's own rules: `404` for an unknown process, step execution or step; `409` with the reason when the process or the step is not in a status the operation is done from, when a saga rollback is under way, for a retry from a step that has not run yet, or when another failure is not downstream of it. Semantics, locks and compensations: [Operating running processes](/guides/operating-running-processes/).
+
+The incidents endpoints group the failures waiting for an operator; a group retry is bounded and runs in the background past `workflow.incidents.retry.sync-limit` — see [Incidents](/guides/operating-running-processes/#incidents).
+
 ## Security
 
 Exactly the rule of the rest of `/workflow/api/**` — see [HTTP security](/reference/configuration/#http-security): the `X-Api-Key` header when `workflow.message-api.api-key` is set; otherwise the application's own Spring Security; otherwise `401` unless `workflow.message-api.allow-anonymous=true`. Bodies over `workflow.rest.max-body-bytes` are cut off unread (`413`), and identifiers and variables over the engine's input limits are refused with `400` naming the field.
@@ -93,6 +105,8 @@ With `workflow.security.flow-authorization.enabled=true`, a definition's `requir
 
 - **starting** a process of it — as everywhere the engine starts one;
 - **reading** one of its processes (`/{id}`, `/by-key`, `/steps`, `/variables`, `/logs`) and **commanding** it (cancel, pause, resume, retry, restart, step retry): a caller who may not start a workflow may not read its variables or stop its runs either.
+
+The manual operations and the incident retry are admin operations: besides the definition's requirements (when flow authorization is on), the caller must hold every role in `workflow.security.operations.required-roles` — enforced whenever it is set, flow authorization on or off; empty by default.
 
 A caller who lacks something gets `403` naming what is missing. The listing is not filtered by it — it shows what identifies a process and its status, never its variables.
 
@@ -104,7 +118,7 @@ Errors are `application/problem+json` (RFC 9457):
 |---|---|
 | `400` | no `definitionId`; a value over the input limits; a malformed body, status, date, `page` or `size` |
 | `401` | missing or wrong `X-Api-Key`, or an anonymous request the engine refuses |
-| `403` | flow authorization refused the caller |
+| `403` | flow authorization, or `workflow.security.operations.required-roles`, refused the caller |
 | `404` | no such process, step execution of it, or definition (on start) |
 | `409` | the business key belongs to another definition's process; the definition accepts no new processes; the process's status does not allow the command |
 | `413` | body over `workflow.rest.max-body-bytes` |

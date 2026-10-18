@@ -36,6 +36,10 @@ The process tools have REST twins on the same application services — start, re
 | `countProcessesByStatus` | Process counts by status across the fleet, from the process-index read model; empty when the projection is off |
 | `retryProcess` | Pick a stopped process up where it stopped: the failed (or cancelled) steps run again, the ones that succeeded are left alone. `ERROR` or `CANCELLED` only |
 | `restartProcess` | Run a stopped process again from the beginning, the steps that already succeeded included, with the variables it was created with. `ERROR` or `CANCELLED` only |
+| `setProcessVariables` | Change a live process's variables (`set`, `remove`) — an audited admin operation; `reason` mandatory ([guide](/guides/operating-running-processes/)) |
+| `completeStepManually` | Complete a step execution by hand with output variables, as if its worker had answered; the flow carries on |
+| `retryProcessFromStep` | Run a live process again from one of its steps: it and everything downstream start over |
+| `listIncidents` / `getIncidentProcesses` / `retryIncident` | Failures grouped by definition, step and error family; their processes; retry a whole group |
 | `pauseProcess` / `resumeProcess` | Pause a `PENDING` or `RUNNING` process (in-flight work finishes, successors held, clocks frozen) and resume it |
 | `pauseWorkflow` / `resumeWorkflow` | Pause/resume a whole definition: all its processes, with new instances born paused |
 | `sendMessage` | Send an external message to resume processes waiting on a `WAIT_FOR_MESSAGE` step |

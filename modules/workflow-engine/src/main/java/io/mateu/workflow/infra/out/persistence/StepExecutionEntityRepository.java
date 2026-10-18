@@ -256,4 +256,41 @@ public interface StepExecutionEntityRepository extends JpaRepository<StepExecuti
         long getCount();
     }
 
+
+    /**
+     * The failed steps (ERROR, TIMEOUT) of the failed processes (ERROR), newest failure first — the rows
+     * the incidents view groups. A join from {@code idx_process_status} into
+     * {@code idx_step_exec_process_status}; the definition filter is a flag rather than
+     * {@code (:id is null or …)}, which is not portable.
+     */
+    @Query("""
+            select s.id as stepExecutionId, s.processId as processId, p.businessKey as businessKey,
+                   s.workflowDefinitionId as definitionId, s.stepId as stepId, s.status as status,
+                   s.finishedAt as finishedAt
+            from StepExecutionEntity s
+            join ProcessEntity p on p.id = s.processId
+            where p.status = 'ERROR'
+              and s.status in ('ERROR', 'TIMEOUT')
+              and (:anyDefinition = true or s.workflowDefinitionId = :definitionId)
+            order by s.finishedAt desc nulls last, s.id
+            """)
+    List<FailedStepView> findFailedStepsOfFailedProcesses(@Param("anyDefinition") boolean anyDefinition,
+                                                          @Param("definitionId") String definitionId,
+                                                          org.springframework.data.domain.Pageable page);
+
+    interface FailedStepView {
+        String getStepExecutionId();
+
+        String getProcessId();
+
+        String getBusinessKey();
+
+        String getDefinitionId();
+
+        String getStepId();
+
+        String getStatus();
+
+        java.time.LocalDateTime getFinishedAt();
+    }
 }

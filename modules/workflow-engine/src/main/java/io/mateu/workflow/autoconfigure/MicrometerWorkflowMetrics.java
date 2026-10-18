@@ -60,6 +60,8 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
     public static final String SYNC_INLINE_FALLBACKS = "eventconductor.sync.inline.fallbacks";
     public static final String TAG_REASON = "reason";
     public static final String PROCESSES_PURGED = "eventconductor.processes.purged";
+    public static final String PROCESS_OPERATIONS = "eventconductor.processes.operations";
+    public static final String TAG_OPERATION = "operation";
     public static final String TAG_STATUS = "status";
 
     public static final String TAG_WORKFLOW_DEFINITION_ID = "workflowDefinitionId";
@@ -201,6 +203,18 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
                 .tag(TAG_STATUS, status == null ? UNKNOWN : status.name())
                 .register(registry)
                 .increment(count);
+    }
+
+    @Override
+    public void processOperation(String workflowDefinitionId, String operation) {
+        var registry = registry();
+        if (registry == null) return;
+        Counter.builder(PROCESS_OPERATIONS)
+                .description("Manual operations an operator performed on live processes")
+                .tag(TAG_OPERATION, tagValue(operation))
+                .tag(TAG_WORKFLOW_DEFINITION_ID, tagValue(workflowDefinitionId))
+                .register(registry)
+                .increment();
     }
 
     @Override

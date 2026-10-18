@@ -1,0 +1,15 @@
+{
+  "id": "ops-choice",
+  "name": "A choice downstream of the step an operator retries from",
+  "version": 1,
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "assess", "type": "ACTION", "name": "Assess", "topic": "work", "preconditionStepId": "start" },
+    { "id": "route", "type": "CHOICE", "name": "Route", "preconditionStepId": "assess" },
+    { "id": "standard", "type": "ACTION", "name": "Standard", "topic": "work",
+      "preconditions": [ { "stepId": "route" } ] },
+    { "id": "express", "type": "ACTION", "name": "Express", "topic": "work",
+      "preconditions": [ { "stepId": "route", "expression": "tier == 'gold'" } ] },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepIds": [ "standard", "express" ] }
+  ]
+}

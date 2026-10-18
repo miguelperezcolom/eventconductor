@@ -35,7 +35,9 @@ import java.util.Map;
                 LiveOverlayRepository.class, CountedProcessRepository.class,
                 CountedStepRepository.class, StepExecutionEntityRepository.class,
                 // Not analytics: the process listing's queries, on the same migrated schemas.
-                ProcessEntityRepository.class, ImportedDefinitionSourceEntityRepository.class}))
+                ProcessEntityRepository.class, ImportedDefinitionSourceEntityRepository.class,
+                // The incidents query.
+                StepExecutionEntityRepository.class, LogMessageEntityRepository.class}))
 class AnalyticsJpaTestContext {
 
     static AnnotationConfigApplicationContext open(DataSource dataSource) {

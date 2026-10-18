@@ -103,6 +103,28 @@ public final class UpstreamInputGuard {
                 InputLimits.checkIdentifier(e.stepExecutionId(), "stepExecutionId");
                 InputLimits.checkIdentifier(e.processId(), "processId");
             }
+            case io.mateu.workflow.dtos.events.integration.SetProcessVariablesRequested e -> {
+                InputLimits.checkIdentifier(e.processId(), "processId");
+                InputLimits.checkVariables(e.set(), "a change of process variables");
+                if (e.remove() != null) {
+                    e.remove().forEach(name -> InputLimits.checkIdentifier(name, "a variable to remove"));
+                }
+                InputLimits.checkText(e.reason(), "an operation's reason");
+                InputLimits.checkIdentifier(e.requestedBy(), "requestedBy");
+            }
+            case io.mateu.workflow.dtos.events.integration.CompleteStepManuallyRequested e -> {
+                InputLimits.checkIdentifier(e.processId(), "processId");
+                InputLimits.checkIdentifier(e.stepExecutionId(), "stepExecutionId");
+                InputLimits.checkVariables(e.outputVariables(), "a manual step completion");
+                InputLimits.checkText(e.reason(), "an operation's reason");
+                InputLimits.checkIdentifier(e.requestedBy(), "requestedBy");
+            }
+            case io.mateu.workflow.dtos.events.integration.RetryFromStepRequested e -> {
+                InputLimits.checkIdentifier(e.processId(), "processId");
+                InputLimits.checkIdentifier(e.stepId(), "stepId");
+                InputLimits.checkText(e.reason(), "an operation's reason");
+                InputLimits.checkIdentifier(e.requestedBy(), "requestedBy");
+            }
             case ProcessCancellationRequested e -> {
                 InputLimits.checkIdentifier(e.businessKey(), "businessKey");
                 InputLimits.checkIdentifier(e.processId(), "processId");

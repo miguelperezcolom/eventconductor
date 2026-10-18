@@ -209,4 +209,12 @@ public interface WorkflowMetrics {
      */
     default void processesPurged(String workflowDefinitionId, io.mateu.workflow.domain.aggregates.ProcessStatus status,
                                  int count) {}
+
+    /**
+     * An operator changed a live process by hand — set its variables, completed a step for it, ran it
+     * again from a step, or retried an incident group — {@code eventconductor.processes.operations},
+     * tagged with the {@code operation} ({@code set-variables}, {@code complete-step},
+     * {@code retry-from-step}, {@code retry-incident}) and the definition.
+     */
+    default void processOperation(String workflowDefinitionId, String operation) {}
 }

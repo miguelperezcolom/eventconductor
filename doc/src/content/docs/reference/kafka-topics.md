@@ -108,6 +108,15 @@ The engine contributes the `outbox`, `upstream`, `downstream`, `dead-letter` and
 { "type": "retry-process-requested",        "processId": "process-uuid" }
 { "type": "retry-step-execution-requested", "processId": "process-uuid", "stepExecutionId": "exec-uuid" }
 
+// Manual operations (admin, audited — see Operating running processes)
+{ "type": "set-process-variables-requested", "processId": "process-uuid",
+  "set": [{"name": "checkIn", "value": "2026-11-02"}], "remove": ["tempQuote"],
+  "reason": "Guest moved the stay", "requestedBy": "alice" }
+{ "type": "complete-step-manually-requested", "processId": "process-uuid", "stepExecutionId": "exec-uuid",
+  "outputVariables": [{"name": "paymentRef", "value": "PHONE-8812"}], "reason": "Paid by phone", "requestedBy": "alice" }
+{ "type": "retry-from-step-requested", "processId": "process-uuid", "stepId": "charge",
+  "reason": "Partner API fixed", "requestedBy": "alice" }
+
 // Steps a DYNAMIC step injects into its process
 {
   "type": "steps-injected",
@@ -119,7 +128,7 @@ The engine contributes the `outbox`, `upstream`, `downstream`, `dead-letter` and
 
 A `message-received` event resumes processes waiting on a `WAIT_FOR_MESSAGE` step with the same `messageName` and correlation key. Alternatives to raw Kafka delivery: `POST /workflow/api/messages`, the `sendMessage` MCP tool, a `SEND_MESSAGE` step in another workflow, or programmatically via `ProcessUpstreamEventUseCase` — see [Step Types — WAIT_FOR_MESSAGE](/reference/step-types/#wait_for_message).
 
-The operator commands are handled by `CancelProcessRequestedEventHandler`, `PauseProcessRequestedEventHandler`, `ResumeProcessRequestedEventHandler`, `RestartProcessRequestedEventHandler`, `RetryProcessRequestedEventHandler` and `RetryStepExecutionRequestedEventHandler`, which call the same use cases as the UI and MCP tools (`CancelProcessUseCase`, …); `steps-injected` is handled by `StepsInjectedEventHandler`. The commands address the process by `processId`; the optional `businessKey` of a `process-cancellation-requested` is not used to find it. See [Starting a Process — Cancelling a process](/guides/starting-a-process/#cancelling-a-process).
+The operator commands are handled by `CancelProcessRequestedEventHandler`, `PauseProcessRequestedEventHandler`, `ResumeProcessRequestedEventHandler`, `RestartProcessRequestedEventHandler`, `RetryProcessRequestedEventHandler`, `RetryStepExecutionRequestedEventHandler`, `SetProcessVariablesRequestedEventHandler`, `CompleteStepManuallyRequestedEventHandler` and `RetryFromStepRequestedEventHandler`, which call the same use cases as the UI and MCP tools (`CancelProcessUseCase`, …); `steps-injected` is handled by `StepsInjectedEventHandler`. The commands address the process by `processId`; the optional `businessKey` of a `process-cancellation-requested` is not used to find it. See [Starting a Process — Cancelling a process](/guides/starting-a-process/#cancelling-a-process).
 
 ## downstream
 

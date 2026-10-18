@@ -70,6 +70,9 @@ import java.util.Set;
  *   GET  /workflow/api/processes/{id}/logs
  *   POST /workflow/api/processes/{id}/cancel | /pause | /resume | /retry | /restart
  *   POST /workflow/api/processes/{id}/steps/{stepExecutionId}/retry
+ *   POST /workflow/api/processes/{id}/variables                        {set?, remove?, reason}
+ *   POST /workflow/api/processes/{id}/steps/{stepExecutionId}/complete {variables?, reason}
+ *   POST /workflow/api/processes/{id}/retry-from/{stepId}              {reason}
  * </pre>
  *
  * <p>A start answers {@code 201} with a {@code Location}; the same business key and definition again
@@ -304,6 +307,81 @@ public class ProcessRestController {
         verify(apiKey);
         processes.retryStep(id, stepExecutionId, caller());
         return accepted(id, "retry-step", stepExecutionId);
+    }
+
+    // ── Manual operations ────────────────────────────────────────────────────────────────────────
+
+    @PostMapping("/{id}/variables")
+    @Operation(operationId = "setProcessVariables", summary = "Change a live process's variables",
+            description = "RUNNING, PAUSED or ERROR: writes `set` and deletes `remove`. A waiting message's correlation"
+                    + " key and a timer computed from a variable follow the change; on a RUNNING process a step held by"
+                    + " a link guard is released if the guard now holds. Recorded, with the caller and the reason, in"
+                    + " the process's log. An admin operation: see the security notes.")
+    @ApiResponses({@ApiResponse(responseCode = "202", description = "Accepted."),
+            @ApiResponse(responseCode = "400", description = "No reason, nothing to change, or over the input limits.", content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class))),
+            @ApiResponse(responseCode = "403", description = "The caller may not operate on the process.", content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class))),
+            @ApiResponse(responseCode = "404", description = "No such process.", content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class))),
+            @ApiResponse(responseCode = "409", description = "The process is not live.", content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))})
+    public ResponseEntity<CommandAccepted> setVariables(
+            @Parameter(hidden = true) @RequestHeader(value = "X-Api-Key", required = false) String apiKey,
+            @PathVariable("id") String id,
+            @RequestBody(required = false) ProcessApi.SetVariablesRequest body) {
+        verify(apiKey);
+        if (body == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A JSON body is required.");
+        }
+        processes.setVariables(id, variablesOf(body.set()), body.remove(), body.reason(), caller());
+        return accepted(id, "set-variables", null);
+    }
+
+    @PostMapping("/{id}/steps/{stepExecutionId}/complete")
+    @Operation(operationId = "completeStepExecution", summary = "Complete a step execution by hand",
+            description = "As if its worker had answered COMPLETED with `variables`: a PENDING, RUNNING, AWAITING_RETRY,"
+                    + " ERROR or TIMEOUT step of a RUNNING, PAUSED or ERROR process. A step still at a worker is told to"
+                    + " stop and its late answer is dropped; the flow carries on past it, and a failed process whose"
+                    + " last failure this was runs again. Refused while a saga rollback is under way.")
+    @ApiResponses({@ApiResponse(responseCode = "202", description = "Accepted."),
+            @ApiResponse(responseCode = "400", description = "No reason, or over the input limits.", content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class))),
+            @ApiResponse(responseCode = "403", description = "The caller may not operate on the process.", content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class))),
+            @ApiResponse(responseCode = "404", description = "No such process, or no such step execution of it.", content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class))),
+            @ApiResponse(responseCode = "409", description = "The process or the step is not in a status it is done from.", content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))})
+    public ResponseEntity<CommandAccepted> completeStep(
+            @Parameter(hidden = true) @RequestHeader(value = "X-Api-Key", required = false) String apiKey,
+            @PathVariable("id") String id,
+            @PathVariable("stepExecutionId") String stepExecutionId,
+            @RequestBody(required = false) ProcessApi.CompleteStepRequest body) {
+        verify(apiKey);
+        if (body == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A JSON body is required.");
+        }
+        processes.completeStep(id, stepExecutionId, variablesOf(body.variables()), body.reason(), caller());
+        return accepted(id, "complete-step", stepExecutionId);
+    }
+
+    @PostMapping("/{id}/retry-from/{stepId}")
+    @Operation(operationId = "retryProcessFromStep", summary = "Run a live process again from one of its steps",
+            description = "The step and every step downstream of it go back to the state they were created in and the"
+                    + " flow runs from there; the rest is left as it is. RUNNING, PAUSED or ERROR (a failed process runs"
+                    + " again). Refused while a saga rollback is under way, for a step that has not run yet, and when"
+                    + " another failure is not downstream of the step.")
+    @ApiResponses({@ApiResponse(responseCode = "202", description = "Accepted."),
+            @ApiResponse(responseCode = "400", description = "No reason.", content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class))),
+            @ApiResponse(responseCode = "403", description = "The caller may not operate on the process.", content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class))),
+            @ApiResponse(responseCode = "404", description = "No such process, or it has no such step.", content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class))),
+            @ApiResponse(responseCode = "409", description = "The retry is refused; the detail says why.", content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))})
+    public ResponseEntity<CommandAccepted> retryFromStep(
+            @Parameter(hidden = true) @RequestHeader(value = "X-Api-Key", required = false) String apiKey,
+            @PathVariable("id") String id,
+            @Parameter(description = "The definition's step id (not a step execution's).") @PathVariable("stepId") String stepId,
+            @RequestBody(required = false) ProcessApi.ReasonRequest body) {
+        verify(apiKey);
+        if (body == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A JSON body is required.");
+        }
+        processes.retryFromStep(id, stepId, body.reason(), caller());
+        return ResponseEntity.accepted()
+                .location(URI.create("/workflow/api/processes/" + id))
+                .body(new CommandAccepted(id, "retry-from-step", null, stepId));
     }
 
     // ── Errors: application/problem+json ─────────────────────────────────────────────────────────

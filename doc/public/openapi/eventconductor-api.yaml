@@ -14,6 +14,9 @@ servers:
 security:
 - apiKey: []
 tags:
+- description: "Failures waiting for an operator, grouped by definition, step and\
+    \ error family."
+  name: Incidents
 - description: "Start, read, list and operate processes."
   name: Processes
 paths:
@@ -148,6 +151,110 @@ paths:
           description: OK
       tags:
       - event-rest-controller
+  /workflow/api/incidents:
+    get:
+      description: "The failed steps of failed (ERROR) processes, grouped by definition,\
+        \ step and error family, most failures first."
+      operationId: listIncidents
+      parameters:
+      - description: Only this definition's.
+        in: query
+        name: definitionId
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IncidentList"
+          description: The incidents.
+      summary: List incidents
+      tags:
+      - Incidents
+  /workflow/api/incidents/{key}/processes:
+    get:
+      description: Most recent first — the drill-down to its processes.
+      operationId: listIncidentProcesses
+      parameters:
+      - in: path
+        name: key
+        required: true
+        schema:
+          type: string
+      - description: "At most this many, 1–500."
+        in: query
+        name: limit
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 100
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/IncidentMember"
+          description: Its failed steps.
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such incident (any more).
+      summary: The failed steps of one incident
+      tags:
+      - Incidents
+  /workflow/api/incidents/{key}/retry:
+    post:
+      description: "Each as a step retry: on the node that owns its process, under\
+        \ its lock, recorded in the process's log with the caller and the reason.\
+        \ Bounded by workflow.incidents.retry.max-steps; beyond workflow.incidents.retry.sync-limit\
+        \ the retries are requested in the background."
+      operationId: retryIncident
+      parameters:
+      - in: path
+        name: key
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OperationReason"
+      responses:
+        "202":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IncidentRetryAccepted"
+          description: Accepted.
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No reason.
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: The caller may not operate on the definition.
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such incident (any more).
+      summary: Retry every failed step of one incident
+      tags:
+      - Incidents
   /workflow/api/invocations/{invocationId}:
     get:
       operationId: get_1
@@ -591,6 +698,65 @@ paths:
       summary: Retry a stopped process from where it stopped
       tags:
       - Processes
+  /workflow/api/processes/{id}/retry-from/{stepId}:
+    post:
+      description: "The step and every step downstream of it go back to the state\
+        \ they were created in and the flow runs from there; the rest is left as it\
+        \ is. RUNNING, PAUSED or ERROR (a failed process runs again). Refused while\
+        \ a saga rollback is under way, for a step that has not run yet, and when\
+        \ another failure is not downstream of the step."
+      operationId: retryProcessFromStep
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      - description: The definition's step id (not a step execution's).
+        in: path
+        name: stepId
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OperationReason"
+      responses:
+        "202":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandAccepted"
+          description: Accepted.
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No reason.
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: The caller may not operate on the process.
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "No such process, or it has no such step."
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: The retry is refused; the detail says why.
+      summary: Run a live process again from one of its steps
+      tags:
+      - Processes
   /workflow/api/processes/{id}/steps:
     get:
       description: In the order they were created.
@@ -617,6 +783,64 @@ paths:
                 $ref: "#/components/schemas/ProblemDetail"
           description: No such process.
       summary: The process's step executions
+      tags:
+      - Processes
+  /workflow/api/processes/{id}/steps/{stepExecutionId}/complete:
+    post:
+      description: "As if its worker had answered COMPLETED with `variables`: a PENDING,\
+        \ RUNNING, AWAITING_RETRY, ERROR or TIMEOUT step of a RUNNING, PAUSED or ERROR\
+        \ process. A step still at a worker is told to stop and its late answer is\
+        \ dropped; the flow carries on past it, and a failed process whose last failure\
+        \ this was runs again. Refused while a saga rollback is under way."
+      operationId: completeStepExecution
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: stepExecutionId
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompleteStepRequest"
+      responses:
+        "202":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandAccepted"
+          description: Accepted.
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "No reason, or over the input limits."
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: The caller may not operate on the process.
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "No such process, or no such step execution of it."
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: The process or the step is not in a status it is done from.
+      summary: Complete a step execution by hand
       tags:
       - Processes
   /workflow/api/processes/{id}/steps/{stepExecutionId}/retry:
@@ -683,6 +907,58 @@ paths:
                 $ref: "#/components/schemas/ProblemDetail"
           description: No such process.
       summary: The process's variables
+      tags:
+      - Processes
+    post:
+      description: "RUNNING, PAUSED or ERROR: writes `set` and deletes `remove`. A\
+        \ waiting message's correlation key and a timer computed from a variable follow\
+        \ the change; on a RUNNING process a step held by a link guard is released\
+        \ if the guard now holds. Recorded, with the caller and the reason, in the\
+        \ process's log. An admin operation: see the security notes."
+      operationId: setProcessVariables
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetVariablesRequest"
+      responses:
+        "202":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandAccepted"
+          description: Accepted.
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "No reason, nothing to change, or over the input limits."
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: The caller may not operate on the process.
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such process.
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: The process is not live.
+      summary: Change a live process's variables
       tags:
       - Processes
   /workflow/api/schedules:
@@ -1042,12 +1318,31 @@ components:
       properties:
         command:
           type: string
-          description: "cancel, pause, resume, retry, restart or retry-step."
+          description: "cancel, pause, resume, retry, restart, retry-step, set-variables,\
+            \ complete-step or retry-from-step."
         processId:
           type: string
         stepExecutionId:
           type: string
-          description: "The step execution, for retry-step."
+          description: "The step execution, for retry-step and complete-step."
+        stepId:
+          type: string
+          description: "The definition's step, for retry-from-step."
+    CompleteStepRequest:
+      type: object
+      description: A manual completion of a step execution.
+      properties:
+        reason:
+          type: string
+          description: "Why — mandatory, recorded in the process's audit trail."
+          example: "Payment taken by phone, ref 8812"
+        variables:
+          type: object
+          additionalProperties: {}
+          description: What the step returns — written onto the process as a worker's
+            reply would be. A non-string value is stored as its JSON.
+      required:
+      - reason
     EventReceipt:
       type: object
       properties:
@@ -1089,6 +1384,90 @@ components:
           type: string
         workflowId:
           type: string
+    Incident:
+      type: object
+      description: "One incident: a step of a definition failing with one family of\
+        \ error."
+      properties:
+        definitionId:
+          type: string
+        errorFamily:
+          type: string
+          description: "The error message with ids, numbers and quoted values taken\
+            \ out."
+        failedSteps:
+          type: integer
+          format: int32
+          description: Failed step executions in the group.
+        firstSeen:
+          type: string
+        key:
+          type: string
+          description: "Stable id of the group — what /{key}/processes and /{key}/retry\
+            \ take."
+        lastSeen:
+          type: string
+        processes:
+          type: integer
+          format: int32
+          description: Distinct processes they belong to.
+        sampleError:
+          type: string
+          description: "The most recent error message of the group, as logged."
+        stepId:
+          type: string
+          description: The definition's step that failed.
+    IncidentList:
+      type: object
+      description: "The incidents, most failures first."
+      properties:
+        incidents:
+          type: array
+          items:
+            $ref: "#/components/schemas/Incident"
+        scanned:
+          type: integer
+          format: int32
+          description: Failed steps read.
+        truncated:
+          type: boolean
+          description: "Whether there were more than workflow.incidents.scan-limit:\
+            \ the counts are then of the most recent."
+    IncidentMember:
+      type: object
+      description: One failed step of an incident.
+      properties:
+        businessKey:
+          type: string
+        error:
+          type: string
+        failedAt:
+          type: string
+        processId:
+          type: string
+        status:
+          type: string
+          description: ERROR or TIMEOUT.
+        stepExecutionId:
+          type: string
+    IncidentRetryAccepted:
+      type: object
+      description: A group retry was accepted (202).
+      properties:
+        async:
+          type: boolean
+          description: Whether they are being requested in the background (more than
+            workflow.incidents.retry.sync-limit).
+        key:
+          type: string
+        requested:
+          type: integer
+          format: int32
+          description: Step retries requested.
+        truncated:
+          type: boolean
+          description: Whether the group held more than workflow.incidents.retry.max-steps;
+            retry again for the rest.
     InvocationResponse:
       type: object
       properties:
@@ -1126,6 +1505,16 @@ components:
           description: "The message type (INFO, ERROR, …)."
         workerId:
           type: string
+    OperationReason:
+      type: object
+      description: The reason a manual operation is performed.
+      properties:
+        reason:
+          type: string
+          description: "Why — mandatory, recorded in the process's audit trail."
+          example: Partner API fixed; re-run the booking
+      required:
+      - reason
     ProblemDetail:
       type: object
       properties:
@@ -1346,6 +1735,26 @@ components:
       required:
       - correlationKey
       - messageName
+    SetVariablesRequest:
+      type: object
+      description: A manual change of a live process's variables.
+      properties:
+        reason:
+          type: string
+          description: "Why — mandatory, recorded in the process's audit trail."
+          example: Customer corrected the delivery date by phone
+        remove:
+          type: array
+          description: Names of variables to delete.
+          items:
+            type: string
+        set:
+          type: object
+          additionalProperties: {}
+          description: "Variables to write — created, or overwritten. A non-string\
+            \ value is stored as its JSON."
+      required:
+      - reason
     SseEmitter:
       type: object
       properties:

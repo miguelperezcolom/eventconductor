@@ -1,0 +1,11 @@
+{
+  "id": "ui-failing",
+  "name": "UI Failing",
+  "version": 1,
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "charge", "type": "ACTION", "name": "Charge the card", "topic": "work",
+      "preconditionStepId": "start", "retries": 0 },
+    { "id": "end", "type": "END", "name": "Done", "preconditionStepId": "charge" }
+  ]
+}

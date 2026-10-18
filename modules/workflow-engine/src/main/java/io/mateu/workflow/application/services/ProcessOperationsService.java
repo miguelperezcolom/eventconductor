@@ -79,7 +79,28 @@ public class ProcessOperationsService {
     private final ProcessStatusAnnouncer readModel;
     private final ObjectProvider<ProcessIndexRepository> processIndex;
     private final boolean flowAuthorizationEnabled;
+    private final io.mateu.workflow.application.usecases.process.operate.ProcessOperationRules rules;
+    private final List<String> operationsRequiredRoles;
 
+    /** Without the manual operations' own settings: their rules as the engine has them, no extra role. */
+    public ProcessOperationsService(ProcessRepository processRepository,
+                                    StepExecutionRepository stepExecutionRepository,
+                                    LogMessageRepository logMessageRepository,
+                                    WorkflowDefinitionRepository workflowDefinitionRepository,
+                                    CreateProcessUseCase createProcessUseCase,
+                                    CommandDispatcher commandDispatcher,
+                                    ProcessListingService listing,
+                                    ProcessStatusAnnouncer readModel,
+                                    ObjectProvider<ProcessIndexRepository> processIndex,
+                                    boolean flowAuthorizationEnabled) {
+        this(processRepository, stepExecutionRepository, logMessageRepository, workflowDefinitionRepository,
+                createProcessUseCase, commandDispatcher, listing, readModel, processIndex, flowAuthorizationEnabled,
+                new io.mateu.workflow.application.usecases.process.operate.ProcessOperationRules(
+                        new io.mateu.workflow.domain.services.CompensationService()),
+                List.of());
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
     public ProcessOperationsService(ProcessRepository processRepository,
                                     StepExecutionRepository stepExecutionRepository,
                                     LogMessageRepository logMessageRepository,
@@ -90,7 +111,10 @@ public class ProcessOperationsService {
                                     ProcessStatusAnnouncer readModel,
                                     ObjectProvider<ProcessIndexRepository> processIndex,
                                     @Value("${workflow.security.flow-authorization.enabled:false}")
-                                    boolean flowAuthorizationEnabled) {
+                                    boolean flowAuthorizationEnabled,
+                                    io.mateu.workflow.application.usecases.process.operate.ProcessOperationRules rules,
+                                    @Value("${workflow.security.operations.required-roles:}")
+                                    List<String> operationsRequiredRoles) {
         this.processRepository = processRepository;
         this.stepExecutionRepository = stepExecutionRepository;
         this.logMessageRepository = logMessageRepository;
@@ -101,6 +125,9 @@ public class ProcessOperationsService {
         this.readModel = readModel;
         this.processIndex = processIndex;
         this.flowAuthorizationEnabled = flowAuthorizationEnabled;
+        this.rules = rules;
+        this.operationsRequiredRoles = operationsRequiredRoles == null ? List.of()
+                : operationsRequiredRoles.stream().filter(role -> role != null && !role.isBlank()).map(String::trim).toList();
     }
 
     // ── Start ────────────────────────────────────────────────────────────────────────────────────
@@ -259,6 +286,155 @@ public class ProcessOperationsService {
                     process.status(), "a finished process is not revived");
         }
         commandDispatcher.dispatch(new RetryStepExecutionRequested(stepExecutionId, processId));
+    }
+
+    // ── Manual operations (instance modification) ────────────────────────────────────────────────
+
+    /**
+     * Changes the variables of a live (RUNNING, PAUSED or ERROR) process: writes {@code set}, deletes
+     * {@code remove}. Carried out by {@code SetProcessVariablesUseCase} on the node that owns the process.
+     *
+     * @throws IllegalArgumentException      no reason, or nothing to change
+     * @throws ProcessNotFoundException      no such process
+     * @throws ProcessStateConflictException the process is not live
+     * @throws FlowAuthorizationDeniedException the caller may not operate on it
+     */
+    public void setVariables(String processId, List<Variable> set, List<String> remove, String reason,
+                             AuthorizationContext caller) {
+        requireReason(reason);
+        var toSet = set == null ? List.<Variable>of() : set;
+        var toRemove = remove == null ? List.<String>of() : remove;
+        if (toSet.isEmpty() && toRemove.isEmpty()) {
+            throw new IllegalArgumentException("Nothing to change: give variables to set or names to remove.");
+        }
+        InputLimits.checkNamedValues(toSet, Variable::name, Variable::value, "a change of process variables");
+        toSet.forEach(variable -> {
+            if (variable.name() == null || variable.name().isBlank()) {
+                throw new IllegalArgumentException("A variable to set needs a name.");
+            }
+        });
+        toRemove.forEach(name -> InputLimits.checkIdentifier(name, "a variable to remove"));
+        var process = ref(processId);
+        authorizeOperation(process.workflowDefinitionId(), caller, "change the variables of process '" + processId + "'");
+        var local = processRepository.findById(processId).orElse(null);
+        var why = local != null ? rules.whyNotSetVariables(local) : liveOrWhy(process.status());
+        if (why != null) {
+            throw new ProcessStateConflictException(processId, "change the variables of", process.status(), why);
+        }
+        commandDispatcher.dispatch(new io.mateu.workflow.dtos.events.integration.SetProcessVariablesRequested(processId,
+                io.mateu.workflow.application.usecases.process.operate.OperationVariables.toWire(toSet), List.copyOf(toRemove),
+                reason.strip(), subject(caller)));
+    }
+
+    /**
+     * Completes one step execution of a live process by hand, as if its worker had answered COMPLETED
+     * with {@code outputVariables}. Carried out by {@code CompleteStepManuallyUseCase}.
+     *
+     * @throws ProcessNotFoundException      no such process, or no such step execution of it
+     * @throws ProcessStateConflictException the process or the step is not in a status it is done from
+     */
+    public void completeStep(String processId, String stepExecutionId, List<Variable> outputVariables, String reason,
+                             AuthorizationContext caller) {
+        requireReason(reason);
+        var outputs = outputVariables == null ? List.<Variable>of() : outputVariables;
+        InputLimits.checkNamedValues(outputs, Variable::name, Variable::value, "a manual step completion");
+        InputLimits.checkIdentifier(stepExecutionId, "stepExecutionId");
+        var process = ref(processId);
+        authorizeOperation(process.workflowDefinitionId(), caller, "complete a step of process '" + processId + "'");
+        var local = processRepository.findById(processId).orElse(null);
+        if (local != null) {
+            var step = stepExecutionRepository.findById(stepExecutionId)
+                    .filter(found -> processId.equals(found.getProcessId()))
+                    .orElseThrow(() -> new ProcessNotFoundException("Process '" + processId
+                            + "' has no step execution '" + stepExecutionId + "'."));
+            var why = rules.whyNotCompleteStep(local, step, stepExecutionRepository.findByProcess(local));
+            if (why != null) {
+                throw new ProcessStateConflictException(processId, "complete step '" + stepExecutionId + "' of",
+                        process.status(), why);
+            }
+        } else {
+            var why = liveOrWhy(process.status());
+            if (why != null) {
+                throw new ProcessStateConflictException(processId, "complete a step of", process.status(), why);
+            }
+        }
+        commandDispatcher.dispatch(new io.mateu.workflow.dtos.events.integration.CompleteStepManuallyRequested(processId,
+                stepExecutionId, io.mateu.workflow.application.usecases.process.operate.OperationVariables.toWire(outputs),
+                reason.strip(), subject(caller)));
+    }
+
+    /**
+     * Runs a live process again from one of its steps: that step and everything downstream of it are
+     * reopened. Carried out by {@code RetryFromStepUseCase}.
+     *
+     * @param stepId the definition's step id, not a step execution's
+     * @throws ProcessNotFoundException      no such process, or it has no such step
+     * @throws ProcessStateConflictException the retry is refused — see {@code ProcessOperationRules#planRetryFrom}
+     */
+    public void retryFromStep(String processId, String stepId, String reason, AuthorizationContext caller) {
+        requireReason(reason);
+        if (stepId == null || stepId.isBlank()) {
+            throw new IllegalArgumentException("stepId is required.");
+        }
+        InputLimits.checkIdentifier(stepId, "stepId");
+        var process = ref(processId);
+        authorizeOperation(process.workflowDefinitionId(), caller, "retry process '" + processId + "' from a step");
+        var local = processRepository.findById(processId).orElse(null);
+        if (local != null) {
+            var steps = stepExecutionRepository.findByProcess(local);
+            if (steps.stream().noneMatch(se -> stepId.equals(se.getStepId()))) {
+                throw new ProcessNotFoundException("Process '" + processId + "' has no step '" + stepId + "'.");
+            }
+            try {
+                rules.planRetryFrom(local, stepId, steps);
+            } catch (io.mateu.workflow.application.usecases.process.operate.ProcessOperationRules.Refused refused) {
+                throw new ProcessStateConflictException(processId, "retry from step '" + stepId + "'", process.status(),
+                        refused.getMessage());
+            }
+        } else {
+            var why = liveOrWhy(process.status());
+            if (why != null) {
+                throw new ProcessStateConflictException(processId, "retry from step '" + stepId + "'", process.status(), why);
+            }
+        }
+        commandDispatcher.dispatch(new io.mateu.workflow.dtos.events.integration.RetryFromStepRequested(processId, stepId,
+                reason.strip(), subject(caller)));
+    }
+
+    /**
+     * The gate of a manual operation: the definition's flow authorization (when it is on), and — whether
+     * or not it is — {@code workflow.security.operations.required-roles}, every one of which the caller
+     * must hold. Public so the incident retry applies the same one.
+     */
+    public void authorizeOperation(String definitionId, AuthorizationContext caller, String what) {
+        authorize(definitionId, caller, what);
+        if (operationsRequiredRoles.isEmpty()) {
+            return;
+        }
+        var decision = FlowAuthorizationService.authorize(caller, List.of(), operationsRequiredRoles);
+        if (!decision.allowed()) {
+            log.warn("Refused to {}: caller '{}' is missing the operations role(s) {}", what,
+                    caller == null ? null : caller.subject(), decision.missingRoles());
+            throw FlowAuthorizationDeniedException.of(what, caller == null ? null : caller.subject(),
+                    List.of(), decision.missingRoles());
+        }
+    }
+
+    private static void requireReason(String reason) {
+        if (reason == null || reason.isBlank()) {
+            throw new IllegalArgumentException("A reason is required for a manual operation.");
+        }
+        InputLimits.checkText(reason, "an operation's reason");
+    }
+
+    private static String liveOrWhy(ProcessStatus status) {
+        return status != null && io.mateu.workflow.application.usecases.process.operate.ProcessOperationRules.LIVE.contains(status)
+                ? null : "only a RUNNING, PAUSED or ERROR process is operated on by hand";
+    }
+
+    /** Who the operation is recorded as: the caller's subject, or null when nobody was identified. */
+    private static String subject(AuthorizationContext caller) {
+        return caller == null ? null : caller.subject();
     }
 
     private void request(String processId, String operation, Predicate<ProcessStatus> accepts,

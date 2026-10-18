@@ -1,0 +1,12 @@
+{
+  "id": "ops-lock",
+  "name": "A failure inside a critical section",
+  "version": 1,
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "lock", "type": "LOCK", "name": "Lock", "lockName": "ops", "lockKey": "bookingId", "preconditionStepId": "start" },
+    { "id": "work", "type": "ACTION", "name": "Work", "topic": "work", "preconditionStepId": "lock" },
+    { "id": "unlock", "type": "UNLOCK", "name": "Unlock", "lockName": "ops", "lockKey": "bookingId", "preconditionStepId": "work" },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "unlock" }
+  ]
+}

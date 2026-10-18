@@ -54,6 +54,12 @@ public class WorkflowUi {
         clickMenuItem("Definitions");
     }
 
+    /** Opens Workflow → Incidents. */
+    public void goToIncidents() {
+        openWorkflowMenu();
+        clickMenuItem("Incidents");
+    }
+
     /** Opens Workflow → Steps. */
     public void goToSteps() {
         openWorkflowMenu();

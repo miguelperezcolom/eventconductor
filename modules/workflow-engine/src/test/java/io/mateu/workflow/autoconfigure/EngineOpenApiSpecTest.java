@@ -70,12 +70,13 @@ class EngineOpenApiSpecTest {
             WorkflowOpenApiAutoConfiguration.class,
     })
     @EnableConfigurationProperties(MessageApiProperties.class)
-    @Import({ProcessRestController.class, MessageRestController.class, EventRestController.class,
+    @Import({ProcessRestController.class, io.mateu.workflow.infra.in.rest.IncidentRestController.class, MessageRestController.class, EventRestController.class,
             ScheduleRestController.class, SyncInvocationController.class})
     static class SpecApplication {
     }
 
     @MockitoBean ProcessOperationsService processOperationsService;
+    @MockitoBean io.mateu.workflow.application.services.IncidentService incidentService;
     @MockitoBean MessageDispatcher messageDispatcher;
     @MockitoBean InboundEventService inboundEventService;
     @MockitoBean EventTriggerService eventTriggerService;

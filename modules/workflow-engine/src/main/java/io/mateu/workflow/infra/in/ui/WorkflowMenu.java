@@ -44,6 +44,9 @@ public class WorkflowMenu {
     io.mateu.workflow.infra.in.ui.pages.events.ReceivedEvents receivedEvents;
 
     @Menu
+    io.mateu.workflow.infra.in.ui.pages.incidents.Incidents incidents;
+
+    @Menu
     Analytics analytics;
 
 }
