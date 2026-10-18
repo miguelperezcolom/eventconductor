@@ -143,4 +143,34 @@ class PublishersTest {
             server.stop(0);
         }
     }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({"400,400", "401,401", "403,403", "404,404", "413,413", "422,422",
+            "409,502", "429,502", "500,502", "503,502"})
+    void aRefusalTheEngineWouldRepeatIsPassedOnSoTheSenderDoesNotRetryIt(int engineStatus, int senderStatus)
+            throws Exception {
+        var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/workflow/api/events/partner", exchange -> {
+            exchange.getRequestBody().readAllBytes();
+            var internal = "{\"detail\":\"workflow 'x' at orchestrator-0.internal refused it\"}".getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(engineStatus, internal.length);
+            exchange.getResponseBody().write(internal);
+            exchange.close();
+        });
+        server.start();
+        try {
+            var engine = new WebhookGatewayProperties.Engine();
+            engine.setUrl("http://127.0.0.1:" + server.getAddress().getPort());
+            var publisher = new RestWebhookPublisher(HttpClient.newHttpClient(), engine);
+
+            assertThatThrownBy(() -> publisher.publish("partner", EVENT))
+                    .isInstanceOfSatisfying(WebhookRejectedException.class, e -> {
+                        assertThat(e.status()).isEqualTo(senderStatus);
+                        assertThat(e.getMessage()).doesNotContain("orchestrator-0").doesNotContain("127.0.0.1")
+                                .doesNotContain("workflow 'x'");
+                    });
+        } finally {
+            server.stop(0);
+        }
+    }
 }

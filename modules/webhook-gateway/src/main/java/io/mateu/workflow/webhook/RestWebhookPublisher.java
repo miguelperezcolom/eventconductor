@@ -13,12 +13,16 @@ import java.util.LinkedHashMap;
 /**
  * Hands the event to the engine's {@code POST /workflow/api/events/{destination}} as a structured
  * CloudEvent — for deployments without Kafka (embedded mode), or when the gateway should not hold
- * broker credentials. The engine answers what the event did; anything but a 2xx is an error the
- * sender sees, so it may redeliver.
+ * broker credentials. The engine answers what the event did. A refusal that would be the same on
+ * redelivery (400, 401, 403, 404, 413, 422) is passed on with its status, so the sender does not retry
+ * it; anything else that is not a 2xx — a 5xx, a timeout, an engine that cannot be reached — is a
+ * {@code 502}, so the sender may redeliver. The engine's answer itself never reaches the sender.
  */
 public class RestWebhookPublisher implements WebhookPublisher {
 
     private static final ObjectMapper JSON = new ObjectMapper();
+    /** Engine answers that a redelivery of the same event would get again: passed on, not turned into a 502. */
+    static final java.util.Set<Integer> DETERMINISTIC = java.util.Set.of(400, 401, 403, 404, 413, 422);
     private static final org.apache.commons.logging.Log log =
             org.apache.commons.logging.LogFactory.getLog(RestWebhookPublisher.class);
 
@@ -56,6 +60,12 @@ public class RestWebhookPublisher implements WebhookPublisher {
         if (response.statusCode() / 100 != 2) {
             log.error("The engine answered " + response.statusCode() + " to " + redacted(url) + " for webhook event "
                     + event.id() + ": " + abbreviate(response.body()));
+            if (DETERMINISTIC.contains(response.statusCode())) {
+                // The engine will answer the same to the same delivery: a 502 would have the sender
+                // redeliver it for nothing. Its status is passed on, its answer is not.
+                throw new WebhookRejectedException(response.statusCode(),
+                        "The event was refused (" + response.statusCode() + "); redelivering it unchanged will not help.");
+            }
             throw new WebhookRejectedException(502, "The event could not be delivered; it may be redelivered.");
         }
     }
