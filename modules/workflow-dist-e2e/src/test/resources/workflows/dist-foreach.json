@@ -1,0 +1,13 @@
+{
+  "id": "dist-foreach",
+  "name": "Distributed forEach",
+  "version": 1,
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "each", "type": "ACTION", "name": "Each item", "topic": "work", "preconditionStepId": "start",
+      "forEach": { "items": "items", "as": "item", "maxConcurrency": 2, "output": "results", "outputElement": "doubled" } },
+    { "id": "poll", "type": "ACTION", "name": "Poll", "topic": "work", "preconditionStepId": "each",
+      "repeat": { "until": "iteration >= 2", "maxIterations": 3 } },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "poll" }
+  ]
+}
