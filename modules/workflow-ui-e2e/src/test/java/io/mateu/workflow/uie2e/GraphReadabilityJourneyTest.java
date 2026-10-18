@@ -79,4 +79,27 @@ class GraphReadabilityJourneyTest extends AbstractUiE2eTest {
                 .contains("customerTier")
                 .doesNotContain("…");
     }
+
+    /**
+     * Loops and multi-instance are read off the picture: a forEach is a stack of cards saying what it
+     * runs over, a repeat says what it waits for, a loopBack is a line going back with its condition
+     * on it — and a process that ran them says how many iterations and runs it took.
+     */
+    @Test
+    void loopsAndForEachAreDrawnAsWhatTheyAre() {
+        var id = startProcess("ui-loops", "graph-loops");
+        awaitUntil(Duration.ofSeconds(20), () -> processes.findById(id).orElseThrow().getStatus()
+                == io.mateu.workflow.domain.aggregates.ProcessStatus.COMPLETED);
+
+        var detail = ui.goToProcesses().open(id);
+        detail.openTab("Diagram");
+
+        awaitUntil(THE_GRAPH_LAYS_OUT, () -> detail.loopShapes().stream().anyMatch(s -> s.startsWith("loop-edge:")));
+
+        assertThat(detail.loopShapes())
+                .contains("stack:each", "loop-edge:check", "iterations:each:3/3", "iterations:poll:×4")
+                .anySatisfy(s -> assertThat(s).startsWith("foreach:each:∥"))
+                .anySatisfy(s -> assertThat(s).startsWith("repeat:poll:↻ until iteration >= 2"))
+                .anySatisfy(s -> assertThat(s).startsWith("loop-chip:↺ while iteration < 2"));
+    }
 }

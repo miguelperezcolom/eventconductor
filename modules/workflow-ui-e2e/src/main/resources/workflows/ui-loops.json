@@ -1,0 +1,15 @@
+{
+  "id": "ui-loops",
+  "name": "UI Loops",
+  "version": 1,
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "each", "type": "ACTION", "name": "Each room", "topic": "work", "preconditionStepId": "start",
+      "forEach": { "items": "['a', 'b', 'c']", "as": "room", "output": "done" } },
+    { "id": "poll", "type": "ACTION", "name": "Poll", "topic": "work", "preconditionStepId": "each",
+      "repeat": { "until": "iteration >= 2", "maxIterations": 3 } },
+    { "id": "check", "type": "ACTION", "name": "Check", "topic": "work", "preconditionStepId": "poll",
+      "loopBack": { "to": "each", "while": "iteration < 2", "maxIterations": 2 } },
+    { "id": "end", "type": "END", "name": "Done", "preconditionStepId": "check" }
+  ]
+}

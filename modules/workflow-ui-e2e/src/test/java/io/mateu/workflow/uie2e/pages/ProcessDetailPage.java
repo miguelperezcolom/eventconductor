@@ -165,6 +165,32 @@ public class ProcessDetailPage {
         return new java.util.ArrayList<>((java.util.List<String>) (java.util.List<?>) raw);
     }
 
+    /**
+     * What the diagram draws for loops and multi-instance, as "kind:stepId[:text]" entries — the
+     * stacked cards of a forEach, the chips under a forEach or a repeat, the back-edge of a loopBack
+     * and its chip, and the iterations/runs badge a running process shows.
+     */
+    @SuppressWarnings("unchecked")
+    public java.util.List<String> loopShapes() {
+        var raw = page.locator("eventconductor-workflow-graph").first().evaluate("""
+                el => {
+                    const out = [];
+                    if (!el.shadowRoot) return out;
+                    el.shadowRoot.querySelectorAll('.node[data-node]').forEach(node => {
+                        const id = node.getAttribute('data-node');
+                        if (node.querySelectorAll('.node-stack').length >= 2) out.push('stack:' + id);
+                        node.querySelectorAll('.mi-badge').forEach(b => out.push(
+                            (b.classList.contains('mi-repeat') ? 'repeat:' : 'foreach:') + id + ':' + b.querySelector('text').textContent.trim()));
+                        const it = node.querySelector('.ov-iterations text');
+                        if (it) out.push('iterations:' + id + ':' + it.textContent.trim());
+                    });
+                    el.shadowRoot.querySelectorAll('.loop-edge[data-loop]').forEach(e => out.push('loop-edge:' + e.getAttribute('data-loop')));
+                    el.shadowRoot.querySelectorAll('.loop-chip text').forEach(t => out.push('loop-chip:' + t.textContent.trim()));
+                    return out;
+                }""");
+        return new java.util.ArrayList<>((java.util.List<String>) (java.util.List<?>) raw);
+    }
+
     /** The full text a guard chip reveals under the pointer, for the first chip on the canvas. */
     public String firstGuardFullText() {
         return page.locator("eventconductor-workflow-graph").first().evaluate("""
