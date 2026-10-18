@@ -91,6 +91,18 @@ public final class DurationHistogram {
         }
     }
 
+    /**
+     * Takes another histogram back out of this one, bucket for bucket — the inverse of
+     * {@link #mergeIn}, for a contribution the read model counted and has to retract (a retried
+     * process's first finish). Exact when {@code other} was merged in before; floored at zero so a
+     * stray retraction can never leave a negative bucket behind.
+     */
+    public void mergeOut(DurationHistogram other) {
+        for (int i = 0; i < BUCKETS; i++) {
+            counts[i] = Math.max(0, counts[i] - other.counts[i]);
+        }
+    }
+
     static int bucketOf(long nanos) {
         if (nanos < BOUNDS[0]) {
             return 0;

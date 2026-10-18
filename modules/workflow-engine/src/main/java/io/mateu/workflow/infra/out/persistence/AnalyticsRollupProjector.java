@@ -14,6 +14,8 @@ import io.mateu.workflow.application.out.analytics.RollupModel.StepStatusDaily;
 import io.mateu.workflow.domain.aggregates.ProcessStatus;
 import io.mateu.workflow.domain.aggregates.StepExecutionStatus;
 import io.mateu.workflow.infra.out.persistence.AnalyticsRollupEntities.AnalyticsProjectionStateEntity;
+import io.mateu.workflow.infra.out.persistence.AnalyticsRollupEntities.CountedProcessEntity;
+import io.mateu.workflow.infra.out.persistence.AnalyticsRollupEntities.CountedStepEntity;
 import io.mateu.workflow.infra.out.persistence.AnalyticsRollupEntities.ProcessCreatedDailyEntity;
 import io.mateu.workflow.infra.out.persistence.AnalyticsRollupEntities.ProcessDurationDailyEntity;
 import io.mateu.workflow.infra.out.persistence.AnalyticsRollupEntities.ProcessFinishedDailyEntity;
@@ -35,11 +37,14 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
- * Keeps the analytics read model current, offline, off the raw tables — folding each immutable fact
- * exactly once and never re-scanning history.
+ * Keeps the analytics read model current, offline, off the raw tables — counting each fact at most
+ * once and never re-scanning history.
  *
  * <p>Three streams, three cursors: a process the moment it is created, a process the moment it
  * finishes, a step the moment it finishes. Each cursor is a {@code (timestamp, id)} the projector
@@ -53,6 +58,18 @@ import java.util.List;
  * backfill, no separate path. A trailing ceiling ({@code now - a couple of seconds}) keeps it off
  * rows still being committed at the boundary. One advisory lock, so several pods do not fold the
  * same batch; held only for the work, which in steady state is a batch or two.
+ *
+ * <p><b>A finish is not immutable.</b> Retrying or restarting a process clears its {@code finished}
+ * and resets its step executions; the engine's own step retry clears a step's {@code finished_at}.
+ * So every contribution the projector adds is also written to a ledger
+ * ({@code analytics_counted_process} / {@code analytics_counted_step}, keyed by the row's id) in the
+ * same transaction. Each pass first retracts the contribution of every counted row that has since
+ * reopened (it is in flight again, and the live overlay counts it), and a finish whose row is already
+ * in the ledger — reopened and finished again between two passes, or a replayed batch — has its old
+ * contribution subtracted before the new one is added. A row is therefore counted at most once,
+ * whatever happens to it, and re-folding the same fact is a no-op rather than something only the
+ * cursor prevents. A rollup row a retraction brings to zero is deleted, so the read model after any
+ * sequence of reopen/finish equals a fresh rebuild from the raw tables.
  */
 @Service
 @ConditionalOnProperty(name = "workflow.analytics.rollup", havingValue = "true")
@@ -76,6 +93,8 @@ public class AnalyticsRollupProjector {
     final ProcessDurationDailyRepository durationDaily;
     final StepStatusDailyRepository stepStatusDaily;
     final StepDurationDailyRepository stepDurationDaily;
+    final CountedProcessRepository countedProcesses;
+    final CountedStepRepository countedSteps;
     final AnalyticsProjectionStateRepository stateRepository;
     final JdbcTemplate jdbcTemplate;
     final DbLockDialect dbLockDialect;
@@ -149,9 +168,54 @@ public class AnalyticsRollupProjector {
 
     void projectOnce() {
         var ceiling = LocalDateTime.now().minusSeconds(ceilingSeconds);
+        retractReopenedProcesses();
+        retractReopenedSteps();
         foldCreated(ceiling);
         foldProcessFinished(ceiling);
         foldStepFinished(ceiling);
+    }
+
+    /** Takes back out what was counted for every process that has since been retried or restarted. */
+    private void retractReopenedProcesses() {
+        for (int cycle = 0; cycle < maxBatchesPerCycle; cycle++) {
+            var full = Boolean.TRUE.equals(tx.execute(status -> {
+                // Page 0 every time: each batch deletes its ledger rows, so the next one is new.
+                var reopened = countedProcesses.reopened(PageRequest.of(0, batchSize));
+                if (reopened.isEmpty()) {
+                    return false;
+                }
+                var emptied = new ArrayList<Runnable>();
+                applyProcessDeltas(RollupFolder.foldProcessFinished(
+                        reopened.stream().map(AnalyticsRollupProjector::asRow).toList()), -1, emptied);
+                countedProcesses.deleteAll(reopened);
+                emptied.forEach(Runnable::run);
+                return reopened.size() == batchSize;
+            }));
+            if (!full) {
+                return;
+            }
+        }
+    }
+
+    /** Takes back out what was counted for every step execution that has since been reset. */
+    private void retractReopenedSteps() {
+        for (int cycle = 0; cycle < maxBatchesPerCycle; cycle++) {
+            var full = Boolean.TRUE.equals(tx.execute(status -> {
+                var reopened = countedSteps.reopened(PageRequest.of(0, batchSize));
+                if (reopened.isEmpty()) {
+                    return false;
+                }
+                var emptied = new ArrayList<Runnable>();
+                applyStepDeltas(RollupFolder.foldStepFinished(
+                        reopened.stream().map(AnalyticsRollupProjector::asRow).toList()), -1, emptied);
+                countedSteps.deleteAll(reopened);
+                emptied.forEach(Runnable::run);
+                return reopened.size() == batchSize;
+            }));
+            if (!full) {
+                return;
+            }
+        }
     }
 
     private void foldCreated(LocalDateTime ceiling) {
@@ -191,17 +255,40 @@ public class AnalyticsRollupProjector {
                 if (batch.isEmpty()) {
                     return false;
                 }
-                var rows = batch.stream()
+                var counted = batch.stream()
                         .filter(v -> v.getCreated() != null && v.getFinished() != null)
+                        .toList();
+                var rows = counted.stream()
                         .map(v -> new FinishedProcessRow(v.getWorkflowDefinitionId(),
                                 v.getCreated().toLocalDate(), v.getFinished().toLocalDate(),
                                 ProcessStatus.valueOf(v.getStatus()), v.getName(),
                                 processDurationNanos(v.getStarted(), v.getCreated(), v.getFinished())))
                         .toList();
-                var deltas = RollupFolder.foldProcessFinished(rows);
-                deltas.finishedPerDay().forEach(this::applyFinished);
-                deltas.statusCounts().forEach(this::applyStatus);
-                deltas.durations().forEach(this::applyProcessDuration);
+                // Already in the ledger: reopened and finished again since it was counted (or the
+                // batch is a replay). Its old contribution comes out before the new one goes in.
+                var previously = countedProcesses.findAllById(counted.stream().map(v -> v.getId()).toList())
+                        .stream().collect(Collectors.toMap(CountedProcessEntity::getProcessId, Function.identity()));
+                var emptied = new ArrayList<Runnable>();
+                if (!previously.isEmpty()) {
+                    applyProcessDeltas(RollupFolder.foldProcessFinished(
+                            previously.values().stream().map(AnalyticsRollupProjector::asRow).toList()),
+                            -1, emptied);
+                }
+                applyProcessDeltas(RollupFolder.foldProcessFinished(rows), +1, emptied);
+                for (int i = 0; i < counted.size(); i++) {
+                    var v = counted.get(i);
+                    var row = rows.get(i);
+                    var entry = previously.get(v.getId());
+                    if (entry == null) {
+                        countedProcesses.save(new CountedProcessEntity(v.getId(), row.definitionId(),
+                                row.createdDay(), row.finishedDay(), row.status().name(), row.durationNanos()));
+                    } else {
+                        entry.setFinishedDay(row.finishedDay());
+                        entry.setStatus(row.status().name());
+                        entry.setDurationNanos(row.durationNanos());
+                    }
+                }
+                emptied.forEach(Runnable::run);
                 var last = batch.get(batch.size() - 1);
                 state.setPfinishedCursorTs(last.getFinished());
                 state.setPfinishedCursorId(last.getId());
@@ -224,16 +311,38 @@ public class AnalyticsRollupProjector {
                 if (batch.isEmpty()) {
                     return false;
                 }
-                var rows = batch.stream()
+                var counted = batch.stream()
                         .filter(v -> v.getProcessCreated() != null && v.getFinishedAt() != null)
+                        .toList();
+                var rows = counted.stream()
                         .map(v -> new FinishedStepRow(v.getWorkflowDefinitionId(), v.getStepId(),
                                 v.getProcessCreated().toLocalDate(),
                                 StepExecutionStatus.valueOf(v.getStatus()), v.getStepOrder(),
                                 stepDurationNanos(v.getStartedAt(), v.getFinishedAt())))
                         .toList();
-                var deltas = RollupFolder.foldStepFinished(rows);
-                deltas.statusCounts().forEach(this::applyStepStatus);
-                deltas.durations().forEach(this::applyStepDuration);
+                var previously = countedSteps.findAllById(counted.stream().map(v -> v.getId()).toList())
+                        .stream().collect(Collectors.toMap(CountedStepEntity::getStepExecutionId, Function.identity()));
+                var emptied = new ArrayList<Runnable>();
+                if (!previously.isEmpty()) {
+                    applyStepDeltas(RollupFolder.foldStepFinished(
+                            previously.values().stream().map(AnalyticsRollupProjector::asRow).toList()),
+                            -1, emptied);
+                }
+                applyStepDeltas(RollupFolder.foldStepFinished(rows), +1, emptied);
+                for (int i = 0; i < counted.size(); i++) {
+                    var v = counted.get(i);
+                    var row = rows.get(i);
+                    var entry = previously.get(v.getId());
+                    if (entry == null) {
+                        countedSteps.save(new CountedStepEntity(v.getId(), row.definitionId(), row.stepId(),
+                                row.createdDay(), row.status().name(), row.order(), row.durationNanos()));
+                    } else {
+                        entry.setStatus(row.status().name());
+                        entry.setStepOrder(row.order());
+                        entry.setDurationNanos(row.durationNanos());
+                    }
+                }
+                emptied.forEach(Runnable::run);
                 var last = batch.get(batch.size() - 1);
                 state.setSfinishedCursorTs(last.getFinishedAt());
                 state.setSfinishedCursorId(last.getId());
@@ -246,7 +355,23 @@ public class AnalyticsRollupProjector {
         }
     }
 
-    // ─────────────────────────── upserts: find the row, add the delta, save ───────────────────────────
+    // ─────────────────────────── upserts: find the row, add (or take out) the delta, save ───────────────────────────
+    //
+    // sign is +1 to add a contribution, -1 to retract one the ledger says was added. A retraction
+    // never creates a row (there is nothing to take out of one that is not there); a row it brings to
+    // zero is queued on `emptied` and deleted once the batch's additions are in — the same key may be
+    // refilled by them — so zero rows never reach the report.
+
+    private void applyProcessDeltas(RollupFolder.ProcessFinishedDeltas deltas, int sign, List<Runnable> emptied) {
+        deltas.finishedPerDay().forEach(d -> applyFinished(d, sign, emptied));
+        deltas.statusCounts().forEach(d -> applyStatus(d, sign, emptied));
+        deltas.durations().forEach(d -> applyProcessDuration(d, sign, emptied));
+    }
+
+    private void applyStepDeltas(RollupFolder.StepFinishedDeltas deltas, int sign, List<Runnable> emptied) {
+        deltas.statusCounts().forEach(d -> applyStepStatus(d, sign, emptied));
+        deltas.durations().forEach(d -> applyStepDuration(d, sign, emptied));
+    }
 
     private void applyCreated(ProcessCreatedDaily d) {
         var key = key(d.definitionId(), String.valueOf(d.day()));
@@ -256,66 +381,124 @@ public class AnalyticsRollupProjector {
         createdDaily.save(e);
     }
 
-    private void applyFinished(ProcessFinishedDaily d) {
+    private void applyFinished(ProcessFinishedDaily d, int sign, List<Runnable> emptied) {
         var key = key(d.definitionId(), String.valueOf(d.createdDay()), String.valueOf(d.finishedDay()));
-        var e = finishedDaily.findById(key).orElseGet(() ->
+        var existing = finishedDaily.findById(key);
+        if (existing.isEmpty() && sign < 0) {
+            return;
+        }
+        var e = existing.orElseGet(() ->
                 new ProcessFinishedDailyEntity(key, d.definitionId(), d.createdDay(), d.finishedDay(), 0));
-        e.setCnt(e.getCnt() + d.count());
+        e.setCnt(e.getCnt() + sign * d.count());
         finishedDaily.save(e);
+        if (e.getCnt() <= 0) {
+            emptied.add(() -> finishedDaily.findById(key).filter(r -> r.getCnt() <= 0)
+                    .ifPresent(finishedDaily::delete));
+        }
     }
 
-    private void applyStatus(ProcessStatusDaily d) {
+    private void applyStatus(ProcessStatusDaily d, int sign, List<Runnable> emptied) {
         var key = key(d.definitionId(), String.valueOf(d.createdDay()), d.status().name());
-        var e = statusDaily.findById(key).orElseGet(() ->
+        var existing = statusDaily.findById(key);
+        if (existing.isEmpty() && sign < 0) {
+            return;
+        }
+        var e = existing.orElseGet(() ->
                 new ProcessStatusDailyEntity(key, d.definitionId(), d.createdDay(), d.status().name(), 0,
                         d.anyName()));
-        e.setCnt(e.getCnt() + d.count());
+        e.setCnt(e.getCnt() + sign * d.count());
         if (e.getAnyName() == null && d.anyName() != null) {
             e.setAnyName(d.anyName());
         }
         statusDaily.save(e);
+        if (e.getCnt() <= 0) {
+            emptied.add(() -> statusDaily.findById(key).filter(r -> r.getCnt() <= 0)
+                    .ifPresent(statusDaily::delete));
+        }
     }
 
-    private void applyProcessDuration(ProcessDurationDaily d) {
+    private void applyProcessDuration(ProcessDurationDaily d, int sign, List<Runnable> emptied) {
         var key = key(d.definitionId(), String.valueOf(d.createdDay()));
         var e = durationDaily.findById(key).orElse(null);
         if (e == null) {
-            durationDaily.save(new ProcessDurationDailyEntity(key, d.definitionId(), d.createdDay(),
-                    d.samples(), d.totalNanos(), d.histogram().serialize()));
+            if (sign > 0) {
+                durationDaily.save(new ProcessDurationDailyEntity(key, d.definitionId(), d.createdDay(),
+                        d.samples(), d.totalNanos(), d.histogram().serialize()));
+            }
             return;
         }
         var merged = DurationHistogram.parse(e.getHistogram());
-        merged.mergeIn(d.histogram());
-        e.setSamples(e.getSamples() + d.samples());
-        e.setTotalNanos(e.getTotalNanos() + d.totalNanos());
+        if (sign > 0) {
+            merged.mergeIn(d.histogram());
+        } else {
+            merged.mergeOut(d.histogram());
+        }
+        e.setSamples(e.getSamples() + sign * d.samples());
+        e.setTotalNanos(e.getTotalNanos() + sign * d.totalNanos());
         e.setHistogram(merged.serialize());
         durationDaily.save(e);
+        if (e.getSamples() <= 0) {
+            emptied.add(() -> durationDaily.findById(key).filter(r -> r.getSamples() <= 0)
+                    .ifPresent(durationDaily::delete));
+        }
     }
 
-    private void applyStepStatus(StepStatusDaily d) {
+    private void applyStepStatus(StepStatusDaily d, int sign, List<Runnable> emptied) {
         var key = key(d.definitionId(), d.stepId(), String.valueOf(d.createdDay()), d.status().name());
-        var e = stepStatusDaily.findById(key).orElseGet(() ->
+        var existing = stepStatusDaily.findById(key);
+        if (existing.isEmpty() && sign < 0) {
+            return;
+        }
+        var e = existing.orElseGet(() ->
                 new StepStatusDailyEntity(key, d.definitionId(), d.stepId(), d.createdDay(),
                         d.status().name(), 0, d.firstOrder()));
-        e.setCnt(e.getCnt() + d.count());
-        e.setFirstOrder(Math.min(e.getFirstOrder(), d.firstOrder()));
+        e.setCnt(e.getCnt() + sign * d.count());
+        if (sign > 0) {
+            // A minimum is not retractable, and need not be: a retried execution keeps its _order.
+            e.setFirstOrder(Math.min(e.getFirstOrder(), d.firstOrder()));
+        }
         stepStatusDaily.save(e);
+        if (e.getCnt() <= 0) {
+            emptied.add(() -> stepStatusDaily.findById(key).filter(r -> r.getCnt() <= 0)
+                    .ifPresent(stepStatusDaily::delete));
+        }
     }
 
-    private void applyStepDuration(StepDurationDaily d) {
+    private void applyStepDuration(StepDurationDaily d, int sign, List<Runnable> emptied) {
         var key = key(d.definitionId(), d.stepId(), String.valueOf(d.createdDay()));
         var e = stepDurationDaily.findById(key).orElse(null);
         if (e == null) {
-            stepDurationDaily.save(new StepDurationDailyEntity(key, d.definitionId(), d.stepId(),
-                    d.createdDay(), d.samples(), d.totalNanos(), d.histogram().serialize()));
+            if (sign > 0) {
+                stepDurationDaily.save(new StepDurationDailyEntity(key, d.definitionId(), d.stepId(),
+                        d.createdDay(), d.samples(), d.totalNanos(), d.histogram().serialize()));
+            }
             return;
         }
         var merged = DurationHistogram.parse(e.getHistogram());
-        merged.mergeIn(d.histogram());
-        e.setSamples(e.getSamples() + d.samples());
-        e.setTotalNanos(e.getTotalNanos() + d.totalNanos());
+        if (sign > 0) {
+            merged.mergeIn(d.histogram());
+        } else {
+            merged.mergeOut(d.histogram());
+        }
+        e.setSamples(e.getSamples() + sign * d.samples());
+        e.setTotalNanos(e.getTotalNanos() + sign * d.totalNanos());
         e.setHistogram(merged.serialize());
         stepDurationDaily.save(e);
+        if (e.getSamples() <= 0) {
+            emptied.add(() -> stepDurationDaily.findById(key).filter(r -> r.getSamples() <= 0)
+                    .ifPresent(stepDurationDaily::delete));
+        }
+    }
+
+    /** A ledger entry as the row it was folded from — what to fold, with a minus sign, to retract it. */
+    private static FinishedProcessRow asRow(CountedProcessEntity c) {
+        return new FinishedProcessRow(c.getWorkflowDefinitionId(), c.getCreatedDay(), c.getFinishedDay(),
+                ProcessStatus.valueOf(c.getStatus()), null, c.getDurationNanos());
+    }
+
+    private static FinishedStepRow asRow(CountedStepEntity c) {
+        return new FinishedStepRow(c.getWorkflowDefinitionId(), c.getStepId(), c.getCreatedDay(),
+                StepExecutionStatus.valueOf(c.getStatus()), c.getStepOrder(), c.getDurationNanos());
     }
 
     private AnalyticsProjectionStateEntity state() {

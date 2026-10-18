@@ -9,7 +9,6 @@ import io.mateu.workflow.domain.aggregates.ProcessStatus;
 import io.mateu.workflow.domain.aggregates.StepExecutionStatus;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -88,6 +87,8 @@ abstract class AnalyticsReadModelContract {
                 context.getBean(ProcessDurationDailyRepository.class),
                 context.getBean(StepStatusDailyRepository.class),
                 context.getBean(StepDurationDailyRepository.class),
+                context.getBean(CountedProcessRepository.class),
+                context.getBean(CountedStepRepository.class),
                 context.getBean(AnalyticsProjectionStateRepository.class),
                 jdbc,
                 dialect,
@@ -391,15 +392,67 @@ abstract class AnalyticsReadModelContract {
         assertThat(thread.isAlive()).as("the loop ends with its context").isFalse();
     }
 
+    // ─────────────────────────── a counted fact taken back out: retry, restart, step reset ───────────────────────────
+
+    /** Clears a process's finish and puts it back to RUNNING, as Retry/RestartProcessUseCase do. */
+    void reopenProcess(String id) {
+        jdbc.update("UPDATE process_entity SET status = 'RUNNING', finished = NULL WHERE id = ?", id);
+    }
+
+    /** Resets a step execution to CREATED, as a retry ({@code updateStatus(CREATED)}) does. */
+    void resetStep(String id) {
+        jdbc.update("UPDATE step_execution_entity SET status = 'CREATED', finished_at = NULL WHERE id = ?", id);
+    }
+
+    /** ...and as a restart ({@code resetForRerun}) does: its start goes too. */
+    void resetStepForRerun(String id) {
+        jdbc.update("UPDATE step_execution_entity SET status = 'CREATED', started_at = NULL, "
+                + "finished_at = NULL WHERE id = ?", id);
+    }
+
+    void startStep(String id, LocalDateTime startedAt) {
+        jdbc.update("UPDATE step_execution_entity SET status = 'RUNNING', started_at = ? WHERE id = ?",
+                ts(startedAt), id);
+    }
+
+    long ledgerRows(String table) {
+        Long count = jdbc.queryForObject("SELECT COUNT(*) FROM " + table, Long.class);
+        return count == null ? 0 : count;
+    }
+
     /**
-     * Known defect, reported rather than fixed here: a finished process is treated as an immutable
-     * fact, but {@code RetryProcessUseCase} and {@code RestartProcessUseCase} reopen it
-     * ({@code finished = null}). The fold of its first finish is never retracted, so the live
-     * overlay counts it again while it runs, and its second finish is folded on top: one process,
-     * counted twice. Enable this test with the fix.
+     * The report after everything that happened, against the report a projector folding today's raw
+     * rows from scratch produces. Folding incrementally through reopens and second finishes must
+     * land exactly where a fresh backfill does — the definition of "counted once".
      */
+    void assertEqualsAFreshRebuild() {
+        var processes = reader().aggregateProcesses(null, null);
+        var steps = reader().aggregateSteps(null, null);
+        var rollups = snapshot();
+
+        for (var table : List.of("process_created_daily", "process_finished_daily", "process_status_daily",
+                "process_duration_daily", "step_status_daily", "step_duration_daily",
+                "analytics_counted_process", "analytics_counted_step", "analytics_projection_state")) {
+            jdbc.update("DELETE FROM " + table);
+        }
+        projector().projectOnce();
+
+        var rebuilt = reader().aggregateProcesses(null, null);
+        assertThat(processes.statusCounts()).containsExactlyInAnyOrderElementsOf(rebuilt.statusCounts());
+        assertThat(processes.createdPerDay()).containsExactlyInAnyOrderElementsOf(rebuilt.createdPerDay());
+        assertThat(processes.finishedPerDay()).containsExactlyInAnyOrderElementsOf(rebuilt.finishedPerDay());
+        assertThat(processes.durations()).containsExactlyInAnyOrderElementsOf(rebuilt.durations());
+        var rebuiltSteps = reader().aggregateSteps(null, null);
+        assertThat(steps.counts()).containsExactlyInAnyOrderElementsOf(rebuiltSteps.counts());
+        assertThat(steps.durations()).containsExactlyInAnyOrderElementsOf(rebuiltSteps.durations());
+        // Row for row, too: no zero rows left behind by a retraction.
+        var fresh = snapshot();
+        for (var table : List.of("created", "finished", "status", "duration", "stepStatus", "stepDuration")) {
+            assertThat(rollups.get(table)).as(table).isEqualTo(fresh.get(table));
+        }
+    }
+
     @Test
-    @Disabled("Known defect: a retried/restarted process is double-counted by the read model")
     void aRetriedProcessIsCountedOnce() {
         process("r", ORDER, ProcessStatus.ERROR, "r", at(D1, 8, 0, 0), at(D1, 8, 0, 0), at(D1, 8, 0, 1));
         var projector = projector();
@@ -411,5 +464,170 @@ abstract class AnalyticsReadModelContract {
 
         assertThat(reader().aggregateProcesses(null, null).statusCounts())
                 .containsExactly(new DefinitionStatusCount(ORDER, ProcessStatus.RUNNING, 1, "r"));
+    }
+
+    @Test
+    void aRetriedProcessThatFinishesAgainIsCountedOnceWithItsNewOutcome() {
+        process("r", ORDER, ProcessStatus.ERROR, "r", at(D1, 8, 0, 0), at(D1, 8, 0, 0), at(D1, 8, 0, 3));
+        step("r1", "r", ORDER, "reserve", StepExecutionStatus.COMPLETED, 1, at(D1, 8, 0, 0), at(D1, 8, 0, 1));
+        step("r2", "r", ORDER, "charge", StepExecutionStatus.ERROR, 2, at(D1, 8, 0, 1), at(D1, 8, 0, 3));
+        var projector = projector();
+        projector.projectOnce();
+
+        // RetryProcessUseCase: the failed step back to CREATED, the process back to RUNNING.
+        resetStep("r2");
+        reopenProcess("r");
+        projector.projectOnce();
+
+        var reopened = reader().aggregateProcesses(null, null);
+        assertThat(reopened.statusCounts())
+                .containsExactly(new DefinitionStatusCount(ORDER, ProcessStatus.RUNNING, 1, "r"));
+        assertThat(reopened.finishedPerDay()).isEmpty();
+        assertThat(reopened.durations()).isEmpty();
+        assertThat(reopened.createdPerDay()).containsExactly(new DefinitionDayCount(ORDER, D1, 1));
+        var reopenedSteps = reader().aggregateSteps(null, null);
+        assertThat(reopenedSteps.counts()).containsExactlyInAnyOrder(
+                new DefinitionStepCount(ORDER, "reserve", StepExecutionStatus.COMPLETED, 1, 1),
+                new DefinitionStepCount(ORDER, "charge", StepExecutionStatus.CREATED, 1, 2));
+        assertThat(reopenedSteps.durations()).extracting(DefinitionStepDuration::stepId)
+                .containsExactly("reserve");
+        assertThat(ledgerRows("analytics_counted_process")).isZero();
+        assertThat(ledgerRows("analytics_counted_step")).isEqualTo(1);
+
+        // The retry succeeds, on the next day.
+        startStep("r2", at(D2, 9, 0, 0));
+        finishStep("r2", StepExecutionStatus.COMPLETED, at(D2, 9, 0, 2));
+        finishProcess("r", ProcessStatus.COMPLETED, at(D2, 9, 0, 2));
+        projector.projectOnce();
+
+        var report = reader().aggregateProcesses(null, null);
+        assertThat(report.statusCounts())
+                .containsExactly(new DefinitionStatusCount(ORDER, ProcessStatus.COMPLETED, 1, "r"));
+        assertThat(report.finishedPerDay()).containsExactly(new DefinitionDayCount(ORDER, D2, 1));
+        assertThat(report.durations()).singleElement()
+                .satisfies(d -> assertThat(d.duration().samples()).isEqualTo(1));
+        assertThat(reader().aggregateSteps(null, null).counts()).containsExactlyInAnyOrder(
+                new DefinitionStepCount(ORDER, "reserve", StepExecutionStatus.COMPLETED, 1, 1),
+                new DefinitionStepCount(ORDER, "charge", StepExecutionStatus.COMPLETED, 1, 2));
+        assertEqualsAFreshRebuild();
+    }
+
+    @Test
+    void aRestartedProcessIsCountedOnce() {
+        process("x", ORDER, ProcessStatus.CANCELLED, "x", at(D1, 8, 0, 0), at(D1, 8, 0, 0), at(D1, 8, 0, 5));
+        step("x1", "x", ORDER, "reserve", StepExecutionStatus.COMPLETED, 1, at(D1, 8, 0, 0), at(D1, 8, 0, 1));
+        step("x2", "x", ORDER, "charge", StepExecutionStatus.CANCELLED, 2, at(D1, 8, 0, 1), at(D1, 8, 0, 5));
+        var projector = projector();
+        projector.projectOnce();
+
+        // RestartProcessUseCase: every step reset for a rerun, including the one that succeeded.
+        resetStepForRerun("x1");
+        resetStepForRerun("x2");
+        reopenProcess("x");
+        projector.projectOnce();
+
+        assertThat(reader().aggregateProcesses(null, null).statusCounts())
+                .containsExactly(new DefinitionStatusCount(ORDER, ProcessStatus.RUNNING, 1, "x"));
+        var steps = reader().aggregateSteps(null, null);
+        assertThat(steps.counts()).containsExactlyInAnyOrder(
+                new DefinitionStepCount(ORDER, "reserve", StepExecutionStatus.CREATED, 1, 1),
+                new DefinitionStepCount(ORDER, "charge", StepExecutionStatus.CREATED, 1, 2));
+        assertThat(steps.durations()).isEmpty();
+        assertThat(ledgerRows("analytics_counted_step")).isZero();
+
+        // The rerun fails this time.
+        startStep("x1", at(D1, 10, 0, 0));
+        finishStep("x1", StepExecutionStatus.COMPLETED, at(D1, 10, 0, 1));
+        startStep("x2", at(D1, 10, 0, 1));
+        finishStep("x2", StepExecutionStatus.ERROR, at(D1, 10, 0, 4));
+        finishProcess("x", ProcessStatus.ERROR, at(D1, 10, 0, 4));
+        projector.projectOnce();
+
+        assertThat(reader().aggregateProcesses(null, null).statusCounts())
+                .containsExactly(new DefinitionStatusCount(ORDER, ProcessStatus.ERROR, 1, "x"));
+        assertThat(reader().aggregateSteps(null, null).counts()).containsExactlyInAnyOrder(
+                new DefinitionStepCount(ORDER, "reserve", StepExecutionStatus.COMPLETED, 1, 1),
+                new DefinitionStepCount(ORDER, "charge", StepExecutionStatus.ERROR, 1, 2));
+        assertEqualsAFreshRebuild();
+    }
+
+    @Test
+    void aStepExecutionResetToCreatedIsCountedOnce() {
+        // The process never finished; one of its steps failed and the engine sends it round again.
+        process("s", ORDER, ProcessStatus.RUNNING, "s", at(D1, 8, 0, 0), at(D1, 8, 0, 0), null);
+        step("s1", "s", ORDER, "charge", StepExecutionStatus.ERROR, 1, at(D1, 8, 0, 0), at(D1, 8, 0, 2));
+        var projector = projector();
+        projector.projectOnce();
+        assertThat(reader().aggregateSteps(null, null).counts()).containsExactly(
+                new DefinitionStepCount(ORDER, "charge", StepExecutionStatus.ERROR, 1, 1));
+
+        resetStep("s1");
+        projector.projectOnce();
+        var steps = reader().aggregateSteps(null, null);
+        assertThat(steps.counts()).containsExactly(
+                new DefinitionStepCount(ORDER, "charge", StepExecutionStatus.CREATED, 1, 1));
+        assertThat(steps.durations()).isEmpty();
+
+        startStep("s1", at(D1, 9, 0, 0));
+        finishStep("s1", StepExecutionStatus.COMPLETED, at(D1, 9, 0, 1));
+        projector.projectOnce();
+        assertThat(reader().aggregateSteps(null, null).counts()).containsExactly(
+                new DefinitionStepCount(ORDER, "charge", StepExecutionStatus.COMPLETED, 1, 1));
+        assertEqualsAFreshRebuild();
+    }
+
+    @Test
+    void reopenedAndFinishedAgainBetweenTwoPassesSwapsTheContribution() {
+        process("q", ORDER, ProcessStatus.ERROR, "q", at(D1, 8, 0, 0), at(D1, 8, 0, 0), at(D1, 8, 0, 1));
+        step("q1", "q", ORDER, "charge", StepExecutionStatus.ERROR, 1, at(D1, 8, 0, 0), at(D1, 8, 0, 1));
+        var projector = projector();
+        projector.projectOnce();
+
+        // Retried and done again before the projector looks: it never sees the row reopened.
+        startStep("q1", at(D1, 9, 0, 0));
+        finishStep("q1", StepExecutionStatus.COMPLETED, at(D1, 9, 0, 3));
+        finishProcess("q", ProcessStatus.COMPLETED, at(D1, 9, 0, 3));
+        projector.projectOnce();
+
+        assertThat(reader().aggregateProcesses(null, null).statusCounts())
+                .containsExactly(new DefinitionStatusCount(ORDER, ProcessStatus.COMPLETED, 1, "q"));
+        assertThat(reader().aggregateSteps(null, null).counts()).containsExactly(
+                new DefinitionStepCount(ORDER, "charge", StepExecutionStatus.COMPLETED, 1, 1));
+        assertEqualsAFreshRebuild();
+    }
+
+    @Test
+    void retractingIsIdempotentAcrossPassesAndPods() {
+        seed();
+        var projector = projector();
+        projector.projectOnce();
+
+        resetStep("s3");
+        reopenProcess("p2");
+        projector.projectOnce();
+        var once = snapshot();
+
+        // The same pod again, and another pod with its own projector over the same database.
+        projector.projectOnce();
+        projector().projectOnce();
+        assertThat(snapshot()).isEqualTo(once);
+        assertEqualsAFreshRebuild();
+    }
+
+    @Test
+    void aReplayedFinishBatchIsANoOp() {
+        seed();
+        var projector = projector();
+        projector.projectOnce();
+        var once = snapshot();
+
+        // Rewind the finish cursors to the epoch: every finish is read again. The ledger turns each
+        // re-read into "take out what was added, add it again" — nothing changes but the cursors.
+        jdbc.update("UPDATE analytics_projection_state SET pfinished_cursor_ts = ?, pfinished_cursor_id = '', "
+                + "sfinished_cursor_ts = ?, sfinished_cursor_id = ''",
+                ts(LocalDateTime.of(1970, 1, 1, 0, 0)), ts(LocalDateTime.of(1970, 1, 1, 0, 0)));
+        projector.projectOnce();
+
+        assertThat(snapshot()).isEqualTo(once);
     }
 }

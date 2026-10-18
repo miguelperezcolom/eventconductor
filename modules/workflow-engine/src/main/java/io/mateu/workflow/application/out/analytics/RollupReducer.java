@@ -32,9 +32,9 @@ import java.util.Map;
  *
  * <p>Summing the rollup is the whole point: counts add, samples and totals add,
  * {@link DurationHistogram}s merge. The overlay is added on top of the terminal counts because a
- * process that has not finished is not in the rollup yet — the rollup holds immutable facts, and a
- * running process is not one. The two are disjoint (finished versus not), so adding them
- * double-counts nothing.
+ * process that has not finished is not in the rollup — and one that was finished and has been
+ * reopened (retried, restarted) is retracted from it by the projector. The two are disjoint
+ * (finished versus not), so adding them double-counts nothing.
  */
 public final class RollupReducer {
 

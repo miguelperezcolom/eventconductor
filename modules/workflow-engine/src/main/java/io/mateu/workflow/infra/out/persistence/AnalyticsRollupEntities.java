@@ -3,11 +3,15 @@ package io.mateu.workflow.infra.out.persistence;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
+import jakarta.persistence.PostLoad;
+import jakarta.persistence.PostPersist;
 import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.springframework.data.domain.Persistable;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -113,5 +117,94 @@ final class AnalyticsRollupEntities {
         private String pfinishedCursorId;
         private LocalDateTime sfinishedCursorTs;
         private String sfinishedCursorId;
+    }
+    /**
+     * What the projector added to the rollups for one finished process — the ledger entry that lets
+     * it take that contribution back out when the process is retried or restarted (V43).
+     *
+     * <p>{@link Persistable} so a first-time entry is inserted without the select a {@code merge}
+     * of an assigned id would issue: the projector already looked the batch's ids up, so it knows.
+     */
+    @Entity(name = "CountedProcessEntity")
+    @Table(name = "analytics_counted_process")
+    @Getter @Setter @NoArgsConstructor
+    static class CountedProcessEntity implements Persistable<String> {
+        @Id private String processId;
+        private String workflowDefinitionId;
+        private LocalDate createdDay;
+        private LocalDate finishedDay;
+        private String status;
+        private Long durationNanos;
+        @Transient private boolean fresh;
+
+        CountedProcessEntity(String processId, String workflowDefinitionId, LocalDate createdDay,
+                             LocalDate finishedDay, String status, Long durationNanos) {
+            this.processId = processId;
+            this.workflowDefinitionId = workflowDefinitionId;
+            this.createdDay = createdDay;
+            this.finishedDay = finishedDay;
+            this.status = status;
+            this.durationNanos = durationNanos;
+            this.fresh = true;
+        }
+
+        @Override
+        public String getId() {
+            return processId;
+        }
+
+        @Override
+        public boolean isNew() {
+            return fresh;
+        }
+
+        @PostLoad
+        @PostPersist
+        void stored() {
+            fresh = false;
+        }
+    }
+
+    /** What the projector added to the rollups for one finished step execution — see above. */
+    @Entity(name = "CountedStepEntity")
+    @Table(name = "analytics_counted_step")
+    @Getter @Setter @NoArgsConstructor
+    static class CountedStepEntity implements Persistable<String> {
+        @Id private String stepExecutionId;
+        private String workflowDefinitionId;
+        private String stepId;
+        private LocalDate createdDay;
+        private String status;
+        private long stepOrder;
+        private Long durationNanos;
+        @Transient private boolean fresh;
+
+        CountedStepEntity(String stepExecutionId, String workflowDefinitionId, String stepId,
+                          LocalDate createdDay, String status, long stepOrder, Long durationNanos) {
+            this.stepExecutionId = stepExecutionId;
+            this.workflowDefinitionId = workflowDefinitionId;
+            this.stepId = stepId;
+            this.createdDay = createdDay;
+            this.status = status;
+            this.stepOrder = stepOrder;
+            this.durationNanos = durationNanos;
+            this.fresh = true;
+        }
+
+        @Override
+        public String getId() {
+            return stepExecutionId;
+        }
+
+        @Override
+        public boolean isNew() {
+            return fresh;
+        }
+
+        @PostLoad
+        @PostPersist
+        void stored() {
+            fresh = false;
+        }
     }
 }

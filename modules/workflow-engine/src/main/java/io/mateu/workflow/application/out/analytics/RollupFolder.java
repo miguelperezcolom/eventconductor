@@ -23,8 +23,8 @@ import java.util.Map;
  *
  * <p>A "delta" is a rollup row carrying only this batch's contribution: a count of one day's new
  * processes, a histogram of one batch's durations. The projector adds it into whatever the store
- * already holds for that key. Because the rows folded here are immutable facts — a process that has
- * finished, a step that has finished — a fact is folded exactly once, and adding deltas is safe.
+ * already holds for that key — or, folding a ledger entry of a row that has since reopened, takes it
+ * back out (the same deltas, applied with a minus sign), which is why the folder itself is sign-free.
  */
 public final class RollupFolder {
 

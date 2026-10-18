@@ -32,7 +32,8 @@ import java.util.Map;
                 ProcessStatusDailyRepository.class, ProcessDurationDailyRepository.class,
                 StepStatusDailyRepository.class, StepDurationDailyRepository.class,
                 AnalyticsProjectionStateRepository.class, AnalyticsSourceRepository.class,
-                LiveOverlayRepository.class}))
+                LiveOverlayRepository.class, CountedProcessRepository.class,
+                CountedStepRepository.class}))
 class AnalyticsJpaTestContext {
 
     static AnnotationConfigApplicationContext open(DataSource dataSource) {

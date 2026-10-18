@@ -54,4 +54,21 @@ class DurationHistogramTest {
     void emptyHistogramHasNoQuantile() {
         assertThat(DurationHistogram.empty().quantileNanos(0.95)).isNull();
     }
+
+    @Test
+    void mergingOutTakesBackWhatWasMergedInAndNeverGoesNegative() {
+        var day = DurationHistogram.empty();
+        day.add(1_000_000L);
+        day.add(5_000_000_000L);
+        var retracted = DurationHistogram.empty();
+        retracted.add(5_000_000_000L);
+
+        day.mergeOut(retracted);
+        var expected = DurationHistogram.empty();
+        expected.add(1_000_000L);
+        assertThat(day.countsCopy()).isEqualTo(expected.countsCopy());
+
+        day.mergeOut(retracted);
+        assertThat(day.total()).isEqualTo(1);
+    }
 }

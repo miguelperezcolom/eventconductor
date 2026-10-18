@@ -63,7 +63,7 @@ public final class RollupModel {
     public record CreatedRow(String definitionId, LocalDate createdDay) {
     }
 
-    /** One process, the moment it finished — immutable from then, which is what makes folding safe. */
+    /** One process, the moment it finished (until a retry or restart reopens it — see the projector's ledger). */
     public record FinishedProcessRow(String definitionId, LocalDate createdDay, LocalDate finishedDay,
                                      ProcessStatus status, String name, Long durationNanos) {
     }
