@@ -187,6 +187,9 @@ public class ImportWorkflowDefinitionsFromDirectoryUseCase {
                             root.relativize(file).toString(), io.mateu.workflow.imports.ImportFiles.read(file)));
                 } catch (IOException e) {
                     errors.add("File " + root.relativize(file) + ": " + e.getMessage());
+                    // Not left out: a missing file would clear the source's entries and their pauses.
+                    files.add(new io.mateu.workflow.application.services.EventTriggerImporter.EventFile(
+                            root.relativize(file).toString(), null));
                 }
             }
         }
@@ -211,6 +214,9 @@ public class ImportWorkflowDefinitionsFromDirectoryUseCase {
                             root.relativize(file).toString(), io.mateu.workflow.imports.ImportFiles.read(file)));
                 } catch (IOException e) {
                     errors.add("File " + root.relativize(file) + ": " + e.getMessage());
+                    // Not left out: a missing file would clear the source's entries and their pauses.
+                    files.add(new io.mateu.workflow.application.services.CronScheduleImporter.CronFile(
+                            root.relativize(file).toString(), null));
                 }
             }
         }

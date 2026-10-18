@@ -110,4 +110,23 @@ class ImportCronFilesFromDirectoryTest {
         useCase.handle(List.of(dir.toString()));
         assertThat(schedules.findAll()).isEmpty();
     }
+
+    @Test
+    void aCronFileThatCannotBeReadLeavesTheSourcesSchedulesAsTheyWere(@TempDir Path dir) throws Exception {
+        writeDefinition(dir, "sweep", "");
+        Files.writeString(dir.resolve("cron.yml"), """
+                schedules:
+                  - cron: "@hourly"
+                    workflow: sweep
+                """);
+        useCase.handle(List.of(dir.toString()));
+        assertThat(schedules.findAll()).hasSize(1);
+
+        // Over the import's size cap: unreadable, which is not the same as empty.
+        Files.writeString(dir.resolve("cron.yml"), "schedules: []\n" + "#".repeat(6 * 1024 * 1024));
+        var result = useCase.handle(List.of(dir.toString()));
+
+        assertThat(result.errors()).anySatisfy(e -> assertThat(e).contains("cron.yml"));
+        assertThat(schedules.findAll()).extracting(s -> s.schedule().cron()).containsExactly("@hourly");
+    }
 }

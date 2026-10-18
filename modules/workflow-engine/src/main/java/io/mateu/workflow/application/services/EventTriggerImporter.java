@@ -71,6 +71,7 @@ public class EventTriggerImporter {
     final TriggerPauseRepository triggerPauseRepository;
 
     /** One events file of a source, as read off disk or the classpath. */
+    /** {@code content} is null for a file that is there but could not be read: the source is left unchanged. */
     public record EventFile(String name, byte[] content) {
     }
 
@@ -108,7 +109,11 @@ public class EventTriggerImporter {
         var triggers = new ArrayList<EventFileTrigger>();
         var ids = new HashSet<String>();
         for (var file : files) {
-            var parsed = parse(file.name(), file.content());
+            // A file whose bytes could not be read (an IO error, over the size cap) is as unknown as one
+            // that does not parse: it is not an empty file, so nothing the source had is dropped for it.
+            var parsed = file.content() == null
+                    ? new Parsed(List.of(), List.of(file.name() + ": the file could not be read"), true)
+                    : parse(file.name(), file.content());
             errors.addAll(parsed.errors());
             if (parsed.unreadable()) {
                 errors.forEach(e -> log.error("{}", e));

@@ -37,12 +37,13 @@ class ImportEventFilesFromDirectoryTest {
     private final ClasspathWorkflowDefinitionRepository definitions =
             new ClasspathWorkflowDefinitionRepository(taskReferenceResolver);
     private final InMemoryEventTriggerRepository triggers = new InMemoryEventTriggerRepository();
+    private final InMemoryTriggerPauseRepository pauses = new InMemoryTriggerPauseRepository();
     private final ImportWorkflowDefinitionsFromDirectoryUseCase useCase =
             new ImportWorkflowDefinitionsFromDirectoryUseCase(
                     mock(DirectoryImportProperties.class), definitions, new InMemoryImportedDefinitionsRegistry(),
                     new WorkflowDefinitionValidator(), taskReferenceResolver,
                     new CronScheduleImporter(definitions, new InMemoryCronScheduleRepository(), new InMemorySchedulePauseRepository()),
-                    new EventTriggerImporter(definitions, triggers, new InMemoryTriggerPauseRepository()));
+                    new EventTriggerImporter(definitions, triggers, pauses));
 
     private static void writeDefinition(Path dir, String id, String extra) throws Exception {
         Files.writeString(dir.resolve(id + ".yaml"), """
@@ -118,5 +119,28 @@ class ImportEventFilesFromDirectoryTest {
         Files.delete(dir.resolve("events.yaml"));
         useCase.handle(List.of(dir.toString()));
         assertThat(triggers.findAll()).isEmpty();
+    }
+
+    @Test
+    void anEventsFileThatCannotBeReadLeavesTheSourcesTriggersAndPausesAsTheyWere(@TempDir Path dir) throws Exception {
+        writeDefinition(dir, "sync-customer", "");
+        Files.writeString(dir.resolve("events.yaml"), """
+                - id: on-cdc
+                  destination: customers-cdc
+                  type: "*"
+                  workflow: sync-customer
+                """);
+        useCase.handle(List.of(dir.toString()));
+        assertThat(triggers.findAll()).hasSize(1);
+        pauses.save(new io.mateu.workflow.domain.aggregates.TriggerPause(
+                io.mateu.workflow.domain.aggregates.TriggerPause.keyOf("sync-customer", "on-cdc"), java.time.Instant.now(), "ops"));
+
+        // Over the import's size cap: unreadable, which is not the same as empty.
+        Files.writeString(dir.resolve("events.yaml"), "[]\n" + "#".repeat(6 * 1024 * 1024));
+        var result = useCase.handle(List.of(dir.toString()));
+
+        assertThat(result.errors()).anySatisfy(e -> assertThat(e).contains("events.yaml"));
+        assertThat(triggers.findAll()).extracting(t -> t.trigger().id()).containsExactly("on-cdc");
+        assertThat(pauses.findAll()).hasSize(1);
     }
 }
