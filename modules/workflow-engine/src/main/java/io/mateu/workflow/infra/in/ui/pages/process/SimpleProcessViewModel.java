@@ -713,7 +713,7 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
     @Action
     public Object setVariables() {
         return io.mateu.workflow.infra.in.ui.pages.process.operate.OperationForms.dialog("Set variables",
-                MateuBeanProvider.getBean(io.mateu.workflow.infra.in.ui.pages.process.operate.SetVariablesForm.class)
+                new io.mateu.workflow.infra.in.ui.pages.process.operate.SetVariablesForm()
                         .forProcess(id));
     }
 
@@ -726,7 +726,7 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
     @Action
     public Object completeStep() {
         return io.mateu.workflow.infra.in.ui.pages.process.operate.OperationForms.dialog("Complete a step by hand",
-                MateuBeanProvider.getBean(io.mateu.workflow.infra.in.ui.pages.process.operate.CompleteStepForm.class)
+                new io.mateu.workflow.infra.in.ui.pages.process.operate.CompleteStepForm()
                         .forProcess(id));
     }
 
@@ -739,7 +739,7 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
     @Action
     public Object retryFromStep() {
         return io.mateu.workflow.infra.in.ui.pages.process.operate.OperationForms.dialog("Run again from a step",
-                MateuBeanProvider.getBean(io.mateu.workflow.infra.in.ui.pages.process.operate.RetryFromStepForm.class)
+                new io.mateu.workflow.infra.in.ui.pages.process.operate.RetryFromStepForm()
                         .forProcess(id));
     }
 

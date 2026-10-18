@@ -52,4 +52,54 @@ class InstanceOperationsJourneyTest extends AbstractUiE2eTest {
         assertThat(page.getByText(java.util.regex.Pattern.compile("\\[set-variables\\] by .*removed note")).first())
                 .isVisible();
     }
+
+    @Test
+    void anOperatorCompletesAFailedStepByHand() {
+        var id = startProcess("ui-failing", "operate-2");
+        awaitUntil(Duration.ofSeconds(20), () -> processes.findById(id).orElseThrow().getStatus() == ProcessStatus.ERROR);
+
+        var detail = ui.goToProcesses().open(id);
+        detail.runAction("Complete step");
+
+        var dialog = page.getByRole(AriaRole.DIALOG).first();
+        assertThat(dialog).isVisible();
+        dialog.getByLabel("Reason").first().fill("Paid by phone");
+        dialog.getByRole(AriaRole.BUTTON, new com.microsoft.playwright.Locator.GetByRoleOptions().setName("Complete step")).click();
+
+        awaitUntil(Duration.ofSeconds(20), () -> processes.findById(id).orElseThrow().getStatus() == ProcessStatus.COMPLETED);
+        assertThat(detail.statusBadge()).containsText("Completed");
+    }
+
+    @Test
+    void anIncidentIsOpenedAndRetriedAsAWhole() {
+        var id = startProcess("ui-failing", "incident-retry-1");
+        awaitUntil(Duration.ofSeconds(20), () -> processes.findById(id).orElseThrow().getStatus() == ProcessStatus.ERROR);
+
+        ui.goToIncidents();
+        assertThat(page.getByText("The card was declined").first()).isVisible();
+        // The key is the row's link into the incident.
+        var key = incidents.incidents("ui-failing").groups().getFirst().key();
+        page.getByText(key).first().click();
+        assertThat(page.getByText(id).first()).isVisible();
+
+        page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("Retry all")).first().click();
+        var dialog = page.getByRole(AriaRole.DIALOG).first();
+        assertThat(dialog).isVisible();
+        dialog.getByLabel("Reason").first().fill("Gateway back up");
+        dialog.getByRole(AriaRole.BUTTON, new com.microsoft.playwright.Locator.GetByRoleOptions().setName("Retry all")).click();
+
+        awaitUntil(Duration.ofSeconds(20), () -> logs.findByProcessId(id).stream()
+                .anyMatch(line -> line.getMessage().contains("[retry-incident]")
+                        && line.getMessage().contains("Gateway back up")));
+
+        // The drill-down: each process of the incident links to its detail.
+        page.getByText(id).first().click();
+        new io.mateu.workflow.uie2e.pages.ProcessDetailPage(page).awaitLoaded();
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    io.mateu.workflow.application.out.LogMessageRepository logs;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    io.mateu.workflow.application.services.IncidentService incidents;
 }

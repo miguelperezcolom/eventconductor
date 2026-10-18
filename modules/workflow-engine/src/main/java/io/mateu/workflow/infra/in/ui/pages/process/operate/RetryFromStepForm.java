@@ -14,13 +14,7 @@ import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.services.ProcessOperationsService;
 import io.mateu.workflow.domain.aggregates.StepExecution;
 import io.mateu.workflow.domain.aggregates.StepExecutionStatus;
-import io.mateu.workflow.security.CallerResolver;
 import jakarta.validation.constraints.NotEmpty;
-import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
-import org.springframework.context.annotation.Scope;
-import org.springframework.stereotype.Service;
 
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -30,16 +24,8 @@ import java.util.List;
  * The "Retry from step" dialog of the process detail: pick a step the process has already reached —
  * it and everything after it run again — and say why. See {@code RetryFromStepUseCase}.
  */
-@ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
-@Service
-@Scope("prototype")
-@RequiredArgsConstructor
 @FormLayout(columns = 1)
 public class RetryFromStepForm implements OptionsSupplier {
-
-    final ProcessOperationsService processOperations;
-    final StepExecutionRepository stepExecutionRepository;
-    final ObjectProvider<CallerResolver> callerResolver;
 
     @Hidden
     String processId;
@@ -68,7 +54,7 @@ public class RetryFromStepForm implements OptionsSupplier {
         }
         // The steps the process has reached, in the order it reached them — one option per step.
         var reached = new LinkedHashMap<String, StepExecution>();
-        stepExecutionRepository.findByProcessId(processId).stream()
+        OperationForms.bean(StepExecutionRepository.class).findByProcessId(processId).stream()
                 .filter(se -> se.getStartedAt() != null || (se.getStatus() != StepExecutionStatus.CREATED
                         && se.getStatus() != StepExecutionStatus.CANCELLED))
                 .sorted(Comparator.comparingLong(StepExecution::getOrder))
@@ -82,7 +68,7 @@ public class RetryFromStepForm implements OptionsSupplier {
     @Label("Retry from this step")
     public Object apply() {
         try {
-            processOperations.retryFromStep(processId, stepId, reason, OperationForms.caller(callerResolver));
+            OperationForms.bean(ProcessOperationsService.class).retryFromStep(processId, stepId, reason, OperationForms.caller());
             return OperationForms.accepted("Retry from step " + stepId + " requested");
         } catch (RuntimeException e) {
             return OperationForms.refused(e);

@@ -8,7 +8,6 @@ import io.mateu.uidl.annotations.ReadOnly;
 import io.mateu.uidl.annotations.Toolbar;
 import io.mateu.uidl.data.ButtonStyle;
 import io.mateu.uidl.data.Element;
-import io.mateu.uidl.di.MateuBeanProvider;
 import io.mateu.workflow.application.services.IncidentService;
 import io.mateu.workflow.infra.in.ui.pages.process.childcruds.Step;
 import io.mateu.workflow.infra.in.ui.pages.process.operate.OperationForms;
@@ -113,7 +112,7 @@ public class IncidentDetailView {
     @Action
     public Object retryAll() {
         return OperationForms.dialog("Retry every process of this incident",
-                MateuBeanProvider.getBean(RetryIncidentForm.class).forIncident(key));
+                new RetryIncidentForm().forIncident(key));
     }
 
     @Override

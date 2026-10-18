@@ -7,7 +7,6 @@ import io.mateu.uidl.data.UICommand;
 import io.mateu.workflow.domain.aggregates.Variable;
 import io.mateu.workflow.security.AuthorizationContext;
 import io.mateu.workflow.security.CallerResolver;
-import org.springframework.beans.factory.ObjectProvider;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -46,9 +45,22 @@ public final class OperationForms {
         return Message.error(e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
     }
 
-    static AuthorizationContext caller(ObjectProvider<CallerResolver> callerResolver) {
-        var resolver = callerResolver == null ? null : callerResolver.getIfAvailable();
-        return resolver == null ? null : resolver.current();
+    /**
+     * The caller as resolved at this request. The dialogs are plain view models — Mateu refuses a Spring
+     * bean it did not route to — so what they need is looked up when their action runs.
+     */
+    public static AuthorizationContext caller() {
+        try {
+            var resolver = io.mateu.uidl.di.MateuBeanProvider.getBean(CallerResolver.class);
+            return resolver == null ? null : resolver.current();
+        } catch (RuntimeException noResolver) {
+            return null;
+        }
+    }
+
+    /** An application service, for a dialog's action. */
+    public static <T> T bean(Class<T> type) {
+        return io.mateu.uidl.di.MateuBeanProvider.getBean(type);
     }
 
     /** Rows of a master-detail list, without the empty ones a form leaves behind. */

@@ -16,13 +16,7 @@ import io.mateu.workflow.application.services.ProcessOperationsService;
 import io.mateu.workflow.application.usecases.process.operate.ProcessOperationRules;
 import io.mateu.workflow.domain.aggregates.StepExecution;
 import io.mateu.workflow.domain.aggregates.Variable;
-import io.mateu.workflow.security.CallerResolver;
 import jakarta.validation.constraints.NotEmpty;
-import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
-import org.springframework.context.annotation.Scope;
-import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -32,16 +26,8 @@ import java.util.List;
  * The "Complete step" dialog of the process detail: pick one of the steps that can be completed by
  * hand, give what it returns and why — see {@code CompleteStepManuallyUseCase}.
  */
-@ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
-@Service
-@Scope("prototype")
-@RequiredArgsConstructor
 @FormLayout(columns = 1)
 public class CompleteStepForm implements OptionsSupplier {
-
-    final ProcessOperationsService processOperations;
-    final StepExecutionRepository stepExecutionRepository;
-    final ObjectProvider<CallerResolver> callerResolver;
 
     @Hidden
     String processId;
@@ -86,7 +72,7 @@ public class CompleteStepForm implements OptionsSupplier {
         if (processId == null) {
             return List.of();
         }
-        return stepExecutionRepository.findByProcessId(processId).stream()
+        return OperationForms.bean(StepExecutionRepository.class).findByProcessId(processId).stream()
                 .filter(se -> ProcessOperationRules.COMPLETABLE.contains(se.getStatus()))
                 .sorted(Comparator.comparingLong(StepExecution::getOrder))
                 .toList();
@@ -96,8 +82,8 @@ public class CompleteStepForm implements OptionsSupplier {
     @Label("Complete step")
     public Object apply() {
         try {
-            processOperations.completeStep(processId, stepExecutionId, OperationForms.variables(variables), reason,
-                    OperationForms.caller(callerResolver));
+            OperationForms.bean(ProcessOperationsService.class).completeStep(processId, stepExecutionId, OperationForms.variables(variables), reason,
+                    OperationForms.caller());
             return OperationForms.accepted("Manual completion requested");
         } catch (RuntimeException e) {
             return OperationForms.refused(e);

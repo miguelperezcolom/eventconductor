@@ -10,26 +10,13 @@ import io.mateu.uidl.data.FieldStereotype;
 import io.mateu.uidl.data.Message;
 import io.mateu.uidl.data.UICommand;
 import io.mateu.workflow.application.services.IncidentService;
-import io.mateu.workflow.security.CallerResolver;
 import jakarta.validation.constraints.NotEmpty;
-import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
-import org.springframework.context.annotation.Scope;
-import org.springframework.stereotype.Service;
 
 import java.util.List;
 
 /** The "Retry all" dialog of an incident: why — and then every failed step of it is retried. */
-@ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
-@Service
-@Scope("prototype")
-@RequiredArgsConstructor
 @FormLayout(columns = 1)
 public class RetryIncidentForm {
-
-    final IncidentService incidentService;
-    final ObjectProvider<CallerResolver> callerResolver;
 
     @Hidden
     String key;
@@ -49,8 +36,7 @@ public class RetryIncidentForm {
     @Label("Retry all")
     public Object apply() {
         try {
-            var resolver = callerResolver == null ? null : callerResolver.getIfAvailable();
-            var outcome = incidentService.retryGroup(key, reason, resolver == null ? null : resolver.current());
+            var outcome = incidentService().retryGroup(key, reason, io.mateu.workflow.infra.in.ui.pages.process.operate.OperationForms.caller());
             return List.of(Message.success(outcome.requested() + " step retr" + (outcome.requested() == 1 ? "y" : "ies")
                             + " requested" + (outcome.async() ? " in the background" : "")
                             + (outcome.truncated() ? " — the incident held more; retry it again for the rest" : "") + "."),
@@ -58,6 +44,10 @@ public class RetryIncidentForm {
         } catch (RuntimeException e) {
             return Message.error(e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
         }
+    }
+
+    private static IncidentService incidentService() {
+        return io.mateu.workflow.infra.in.ui.pages.process.operate.OperationForms.bean(IncidentService.class);
     }
 
     @Override

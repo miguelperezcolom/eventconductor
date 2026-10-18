@@ -10,27 +10,18 @@ import io.mateu.uidl.annotations.Stereotype;
 import io.mateu.uidl.data.FieldStereotype;
 import io.mateu.workflow.application.services.ProcessOperationsService;
 import io.mateu.workflow.domain.aggregates.Variable;
-import io.mateu.workflow.security.CallerResolver;
 import jakarta.validation.constraints.NotEmpty;
-import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
-import org.springframework.context.annotation.Scope;
-import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
 
-/** The "Set variables" dialog of the process detail — see {@code SetProcessVariablesUseCase}. */
-@ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
-@Service
-@Scope("prototype")
-@RequiredArgsConstructor
+/**
+ * A plain view model rather than a Spring bean: Mateu only accepts back the types it may expose, and a
+ * service-stereotyped class it did not route to is refused. Services are looked up when an action runs.
+ *
+ * The "Set variables" dialog of the process detail — see {@code SetProcessVariablesUseCase}. */
 @FormLayout(columns = 1)
 public class SetVariablesForm {
-
-    final ProcessOperationsService processOperations;
-    final ObjectProvider<CallerResolver> callerResolver;
 
     @Hidden
     String processId;
@@ -58,8 +49,8 @@ public class SetVariablesForm {
     @Label("Apply")
     public Object apply() {
         try {
-            processOperations.setVariables(processId, OperationForms.variables(set), OperationForms.names(remove), reason,
-                    OperationForms.caller(callerResolver));
+            OperationForms.bean(ProcessOperationsService.class).setVariables(processId, OperationForms.variables(set), OperationForms.names(remove), reason,
+                    OperationForms.caller());
             return OperationForms.accepted("Variable change requested");
         } catch (RuntimeException e) {
             return OperationForms.refused(e);
