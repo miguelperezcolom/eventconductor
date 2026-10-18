@@ -46,9 +46,14 @@ class Dist09ConcurrentOutboxClaimTest extends AbstractDistTest {
         orchestrator2.close();
     }
 
+    /**
+     * The relays' own statement rather than a copy of it, so this keeps testing what ships. The rows
+     * below carry no partition key, so every one is the head of nothing and all of them are
+     * claimable — the per-key ordering on top of the claim is pinned in workflow-engine's
+     * PostgresDbLockDialectPostgresTest.
+     */
     private static final String CLAIM =
-            "SELECT id FROM outbox_message_entity WHERE status = 'Pending' "
-                    + "ORDER BY timestamp LIMIT ? FOR UPDATE SKIP LOCKED";
+            new io.mateu.workflow.infra.out.persistence.PostgresDbLockDialect().claimPendingOutboxSql();
 
     @Test
     void twoPodsClaimDisjointBatchesWithoutBlockingEachOther() throws Exception {

@@ -47,8 +47,17 @@ public class OracleDbLockDialect implements DbLockDialect {
     @Override
     public String claimPendingOutboxSql() {
         return "SELECT id FROM outbox_message_entity WHERE id IN ("
-                + "SELECT id FROM (SELECT id FROM outbox_message_entity WHERE status = 'Pending' "
-                + "ORDER BY timestamp) WHERE ROWNUM <= ?) FOR UPDATE SKIP LOCKED";
+                + "SELECT id FROM (SELECT o.id FROM outbox_message_entity o WHERE o.status = 'Pending' AND "
+                + HEAD_OF_KEY + " ORDER BY o.timestamp) WHERE ROWNUM <= ?) FOR UPDATE SKIP LOCKED";
+    }
+
+    /** The followers, in the same {@code ROWNUM}-outside-the-sort shape and without a row-limiting clause. */
+    @Override
+    public String claimFollowingOutboxSql(int keyCount) {
+        return "SELECT id FROM outbox_message_entity WHERE id IN ("
+                + "SELECT id FROM (SELECT o.id FROM outbox_message_entity o WHERE o.status = 'Pending' "
+                + "AND o.partition_key IN (" + DbLockDialect.placeholders(keyCount) + ") "
+                + "ORDER BY o.timestamp, o.id) WHERE ROWNUM <= ?) FOR UPDATE";
     }
 
     /** No {@code LIMIT} here either — same {@code ROWNUM}-outside-the-sort shape as the claim. */

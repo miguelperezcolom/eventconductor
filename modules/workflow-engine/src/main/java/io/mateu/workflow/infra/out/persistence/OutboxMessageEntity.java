@@ -29,8 +29,10 @@ import static io.mateu.core.infra.JsonSerializer.toJson;
 @Table(name = "outbox_message_entity", indexes = {
         // The relays claim pending messages oldest first, so the ordering has to be covered too.
         @Index(name = "idx_outbox_status_ts", columnList = "status, timestamp"),
-        // The fast path finds the rows its process wrote, and the claim sweeper finds expired claims.
-        @Index(name = "idx_outbox_partition_status", columnList = "partition_key, status"),
+        // The fast path finds the rows its process wrote; the relays' claim asks, for every candidate,
+        // whether an older pending row of the same key exists (V43) — one range probe on this index.
+        @Index(name = "idx_outbox_key_status_ts", columnList = "partition_key, status, timestamp"),
+        // The claim sweeper finds expired claims.
         @Index(name = "idx_outbox_claim_until", columnList = "status, claim_until")
 })
 @Getter

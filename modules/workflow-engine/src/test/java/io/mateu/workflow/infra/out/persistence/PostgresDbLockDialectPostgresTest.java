@@ -12,7 +12,14 @@ import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
@@ -222,5 +229,229 @@ class PostgresDbLockDialectPostgresTest {
             }
             assertThat(ids).containsExactly("old-sent-1", "old-sent-2");
         }
+    }
+
+    // ─────────────────────────── per-key order across pods ───────────────────────────
+
+    private void keyed(String id, String key, String status, LocalDateTime timestamp) {
+        jdbc.update("INSERT INTO outbox_message_entity (id, timestamp, status, message_type, payload, partition_key) "
+                + "VALUES (?, ?, ?, ?, ?, ?)", id, Timestamp.valueOf(timestamp), status, "io.mateu.Whatever", "{}", key);
+    }
+
+    private List<String> followers(Connection con, int limit, List<String> keys) throws Exception {
+        try (var ps = con.prepareStatement(dialect.claimFollowingOutboxSql(keys.size()))) {
+            for (int i = 0; i < keys.size(); i++) {
+                ps.setString(i + 1, keys.get(i));
+            }
+            ps.setInt(keys.size() + 1, limit);
+            try (var rs = ps.executeQuery()) {
+                var ids = new ArrayList<String>();
+                while (rs.next()) {
+                    ids.add(rs.getString(1));
+                }
+                return ids;
+            }
+        }
+    }
+
+    private static void lockTimeout(Connection con) throws Exception {
+        try (var st = con.createStatement()) {
+            st.execute("SET lock_timeout = '2s'");
+        }
+    }
+
+    @Test
+    void whileOnePodHoldsAKeysOldestRowNoOtherPodClaimsANewerOne() throws Exception {
+        var t0 = LocalDateTime.now().minusMinutes(10);
+        keyed("p1", "P", "Pending", t0.plusSeconds(1));
+        keyed("p2", "P", "Pending", t0.plusSeconds(2));
+        keyed("q1", "Q", "Pending", t0.plusSeconds(3));
+        keyed("p3", "P", "Pending", t0.plusSeconds(4));
+        keyed("q2", "Q", "Pending", t0.plusSeconds(5));
+
+        try (var podA = dataSource.getConnection(); var podB = dataSource.getConnection()) {
+            podA.setAutoCommit(false);
+            podB.setAutoCommit(false);
+            lockTimeout(podA);
+            lockTimeout(podB);
+
+            // A's limit cuts between p1 and p2 — the second way the old claim split a process.
+            assertThat(claim(podA, 1)).containsExactly("p1");
+            // SKIP LOCKED skips p1, and p2 is not a head while p1 is Pending: B gets Q only.
+            // The plain SKIP LOCKED claim handed B p2 here, and B could publish it before A sent p1.
+            assertThat(claim(podB, 10)).containsExactly("q1");
+            assertThat(followers(podB, 10, List.of("Q"))).containsExactlyInAnyOrder("q1", "q2");
+            // A takes the rest of its own run in the same transaction; nothing waits on B.
+            assertThat(followers(podA, 10, List.of("P"))).containsExactlyInAnyOrder("p1", "p2", "p3");
+
+            podA.rollback();
+            podB.rollback();
+        }
+    }
+
+    @Test
+    void aHeadWhoseSendFailedHoldsItsSuccessorsBackOnEveryPod() throws Exception {
+        var t0 = LocalDateTime.now().minusMinutes(10);
+        keyed("p1", "P", "Pending", t0.plusSeconds(1));
+        keyed("p2", "P", "Pending", t0.plusSeconds(2));
+
+        try (var podA = dataSource.getConnection(); var podB = dataSource.getConnection()) {
+            podA.setAutoCommit(false);
+            podB.setAutoCommit(false);
+            // A claims p1, its send fails, the pass commits with p1 still Pending — the third way.
+            assertThat(claim(podA, 1)).containsExactly("p1");
+            podA.commit();
+
+            // B, the next pod to look, is handed p1 again — not p2.
+            assertThat(claim(podB, 10)).containsExactly("p1");
+            try (var ps = podB.prepareStatement("UPDATE outbox_message_entity SET status = 'Sent' WHERE id = 'p1'")) {
+                ps.executeUpdate();
+            }
+            podB.commit();
+
+            // Only once p1 is Sent does p2 become claimable, by anyone.
+            assertThat(claim(podA, 10)).containsExactly("p2");
+            podA.rollback();
+        }
+    }
+
+    @Test
+    void aRowLockedByAnotherPodStillCountsAsPendingForItsSuccessors() throws Exception {
+        var t0 = LocalDateTime.now().minusMinutes(10);
+        keyed("p1", "P", "Pending", t0.plusSeconds(1));
+        keyed("p2", "P", "Pending", t0.plusSeconds(2));
+        keyed("u1", null, "Pending", t0.plusSeconds(3));
+
+        try (var podA = dataSource.getConnection(); var podB = dataSource.getConnection()) {
+            podA.setAutoCommit(false);
+            podB.setAutoCommit(false);
+            lockTimeout(podB);
+            assertThat(claim(podA, 10)).containsExactly("p1", "u1");
+            // Even with A's whole head set locked, B finds nothing it may take — and does not wait.
+            assertThat(claim(podB, 10)).isEmpty();
+            podA.rollback();
+            podB.rollback();
+        }
+    }
+
+    /**
+     * The end-to-end property, under real concurrency: several relays drain one outbox, each pass
+     * claims heads and their followers, "publishes" each key's rows in order with random sends that
+     * fail (left Pending, the rest of the key held back) and random pauses while the locks are held.
+     * Whatever the interleaving, every key must come out exactly in the order it was written.
+     */
+    @Test
+    void concurrentRelaysPublishEveryKeysEventsInTheOrderTheyWereWritten() throws Exception {
+        var t0 = LocalDateTime.now().minusMinutes(10);
+        int keys = 24;
+        int perKey = 12;
+        int n = 0;
+        for (int seq = 0; seq < perKey; seq++) {
+            for (int k = 0; k < keys; k++) {
+                // Interleaved in time across keys, so every batch mixes processes.
+                keyed(String.format("k%02d-%02d", k, seq), "key-" + k, "Pending", t0.plusNanos(1_000L * n++));
+            }
+        }
+
+        Map<String, List<String>> published = new ConcurrentHashMap<>();
+        int relays = 4;
+        var pool = Executors.newFixedThreadPool(relays);
+        var deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(60);
+        var futures = new ArrayList<java.util.concurrent.Future<?>>();
+        for (int r = 0; r < relays; r++) {
+            futures.add(pool.submit(() -> {
+                try (var con = dataSource.getConnection()) {
+                    con.setAutoCommit(false);
+                    try (var st = con.createStatement()) {
+                        st.execute("SET lock_timeout = '10s'");
+                    }
+                    var random = ThreadLocalRandom.current();
+                    while (System.nanoTime() < deadline && pendingCount() > 0) {
+                        relayOnePass(con, 1 + random.nextInt(8), published);
+                    }
+                }
+                return null;
+            }));
+        }
+        for (var future : futures) {
+            future.get(90, TimeUnit.SECONDS);
+        }
+        pool.shutdownNow();
+
+        assertThat(pendingCount()).as("everything was relayed").isZero();
+        assertThat(published).hasSize(keys);
+        published.forEach((key, ids) -> assertThat(ids)
+                .as("the order %s reached the broker in", key)
+                .hasSize(perKey)
+                .isSortedAccordingTo(Comparator.naturalOrder()));
+    }
+
+    private int pendingCount() {
+        return jdbc.queryForObject("SELECT count(*) FROM outbox_message_entity WHERE status = 'Pending'", Integer.class);
+    }
+
+    /** One relay pass the way OutboxDrain makes it: heads, their followers, each key in order, stop at a failure. */
+    private void relayOnePass(Connection con, int batchSize, Map<String, List<String>> published) throws Exception {
+        var random = ThreadLocalRandom.current();
+        var ids = new ArrayList<>(claim(con, batchSize));
+        if (ids.isEmpty()) {
+            con.rollback();
+            Thread.sleep(1);
+            return;
+        }
+        var rows = rows(con, ids);
+        var keys = rows.stream().map(Row::key).filter(k -> k != null).distinct().toList();
+        if (!keys.isEmpty() && ids.size() < batchSize) {
+            var remaining = batchSize - ids.size();
+            var held = new java.util.HashSet<>(ids);
+            var more = followers(con, remaining + keys.size(), keys).stream()
+                    .filter(held::add).limit(remaining).toList();
+            rows = new ArrayList<>(rows);
+            rows.addAll(rows(con, more));
+        }
+        rows.sort(Comparator.comparing(Row::timestamp).thenComparing(Row::id));
+        var byKey = new LinkedHashMap<String, List<Row>>();
+        rows.forEach(row -> byKey.computeIfAbsent(row.key(), k -> new ArrayList<>()).add(row));
+
+        var sent = new ArrayList<String>();
+        for (var group : byKey.values()) {
+            for (var row : group) {
+                if (random.nextInt(10) == 0) {
+                    break; // refused: this row stays Pending and holds the rest of its key back
+                }
+                published.computeIfAbsent(row.key(), k -> java.util.Collections.synchronizedList(new ArrayList<>()))
+                        .add(row.id());
+                sent.add(row.id());
+                if (random.nextBoolean()) {
+                    Thread.sleep(random.nextInt(3)); // widen the window other relays race in
+                }
+            }
+        }
+        if (!sent.isEmpty()) {
+            try (var ps = con.prepareStatement("UPDATE outbox_message_entity SET status = 'Sent' WHERE id = ANY (?)")) {
+                ps.setArray(1, con.createArrayOf("varchar", sent.toArray()));
+                ps.executeUpdate();
+            }
+        }
+        con.commit();
+    }
+
+    private record Row(String id, String key, Timestamp timestamp) {}
+
+    private List<Row> rows(Connection con, List<String> ids) throws Exception {
+        var rows = new ArrayList<Row>();
+        if (ids.isEmpty()) {
+            return rows;
+        }
+        try (var ps = con.prepareStatement(
+                "SELECT id, partition_key, timestamp FROM outbox_message_entity WHERE id = ANY (?)")) {
+            ps.setArray(1, con.createArrayOf("varchar", ids.toArray()));
+            try (var rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    rows.add(new Row(rs.getString(1), rs.getString(2), rs.getTimestamp(3)));
+                }
+            }
+        }
+        return rows;
     }
 }

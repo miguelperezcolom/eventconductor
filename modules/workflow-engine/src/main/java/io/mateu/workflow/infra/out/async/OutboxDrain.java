@@ -59,6 +59,8 @@ import static io.mateu.core.infra.JsonSerializer.pojoFromJson;
  *
  * <p>Splitting by key is what makes it safe rather than merely fast: two events of one process are
  * never in flight together, which is the ordering that keying events by process exists to give.
+ * Across pods that order is the claim's job: only the oldest pending row of a key can be claimed,
+ * so a process's events are never split between relays (see {@code claim}).
  * Concurrency is 1 by default, so this is opt-in until a cluster measurement says otherwise.
  */
 @Component
@@ -154,19 +156,19 @@ public class OutboxDrain {
      */
     public Result drain(int batchSize, Consumer<DomainEvent> deliver) {
         var result = transactionTemplate.execute(status -> {
-            var ids = claim(batchSize);
-            if (ids.isEmpty()) {
+            var messages = claim(batchSize);
+            if (messages.isEmpty()) {
                 return new Result(0, 0);
             }
             var poisoned = new ArrayList<OutboxMessageEntity>();
-            var byKey = groupByPartitionKey(ids, poisoned);
+            var byKey = groupByPartitionKey(messages, poisoned);
 
             // Wall-clock across the whole batch, which is what the relay thread actually pays.
             // Before the batch ran concurrently this was also the sum of the acks; now the two
             // differ, and the gap between them is the win.
             var startedAt = System.nanoTime();
             var sent = deliverGroups(byKey, deliver);
-            workflowMetrics.outboxBatchDelivered(ids.size(), Duration.ofNanos(System.nanoTime() - startedAt));
+            workflowMetrics.outboxBatchDelivered(messages.size(), Duration.ofNanos(System.nanoTime() - startedAt));
 
             sent.forEach(message -> message.setStatus(OutboxMessageStatus.Sent.name()));
             poisoned.forEach(message -> message.setStatus(OutboxMessageStatus.Error.name()));
@@ -175,7 +177,7 @@ public class OutboxDrain {
                 touched.addAll(poisoned);
                 outboxMessageEntityRepository.saveAll(touched);
             }
-            return new Result(ids.size(), sent.size() + poisoned.size());
+            return new Result(messages.size(), sent.size() + poisoned.size());
         });
         return result == null ? new Result(0, 0) : result;
     }
@@ -195,10 +197,8 @@ public class OutboxDrain {
      * already makes to Kafka.
      */
     private Map<String, List<Delivery>> groupByPartitionKey(
-            List<String> ids, List<OutboxMessageEntity> poisoned) {
+            List<OutboxMessageEntity> messages, List<OutboxMessageEntity> poisoned) {
         var claimedAt = LocalDateTime.now();
-        var messages = new ArrayList<OutboxMessageEntity>();
-        outboxMessageEntityRepository.findAllById(ids).forEach(messages::add);
         messages.sort(Comparator
                 .comparing(OutboxMessageEntity::getTimestamp, Comparator.nullsFirst(Comparator.naturalOrder()))
                 .thenComparing(OutboxMessageEntity::getId, Comparator.nullsFirst(Comparator.naturalOrder())));
@@ -314,10 +314,67 @@ public class OutboxDrain {
 
     private record Delivery(OutboxMessageEntity message, DomainEvent payload) {}
 
-    private List<String> claim(int batchSize) {
-        return jdbcTemplate.query(
+    /**
+     * Claims up to {@code batchSize} rows in two steps, both inside the pass's transaction.
+     *
+     * <p><b>Heads first.</b> {@code claimPendingOutboxSql} only matches a row that is the oldest
+     * pending one of its partition key, and skips what other pods hold. That is what keeps a
+     * process's events in order <em>across</em> pods: while pod A holds (or keeps failing to send)
+     * event 1 of a process, event 2 is not a head, so pod B cannot claim it and publish it first —
+     * whether A's lock is what B ran into, A's batch limit cut between the two, or A's send failed
+     * and left event 1 Pending. Plain {@code SKIP LOCKED} let B take event 2 in all three cases; the
+     * ordering this class keeps inside one batch only ever held inside one pod.
+     *
+     * <p><b>Then the rest of those runs.</b> Heads alone would relay one event per process per pass,
+     * and the relay only loops on a full batch, so a process's next event would wait for the next
+     * poll. Its successors cannot be claimed by anyone else while its head is Pending, so this pass
+     * takes them too, oldest first, up to what is left of the batch.
+     *
+     * <p>Keys come from the rows' {@code partition_key} column, which is what the claim's predicate
+     * reads; a row without one has no successors to fetch.
+     */
+    private List<OutboxMessageEntity> claim(int batchSize) {
+        var heads = jdbcTemplate.query(
                 dbLockDialect.claimPendingOutboxSql(),
                 ps -> ps.setInt(1, batchSize),
                 (rs, rowNum) -> rs.getString(1));
+        var messages = load(heads);
+        var claimed = new java.util.HashSet<>(heads);
+        var keys = new ArrayList<>(messages.stream()
+                .map(OutboxMessageEntity::getPartitionKey)
+                .filter(key -> key != null)
+                .distinct()
+                .toList());
+        // Chunked so the IN list stays far below any database's limit on it (Oracle's is 1000)
+        // whatever the batch size. Each key is in one chunk, so each still gets a prefix of its run.
+        for (int from = 0; from < keys.size() && messages.size() < batchSize; from += MAX_KEYS_PER_CLAIM) {
+            var chunk = keys.subList(from, Math.min(keys.size(), from + MAX_KEYS_PER_CLAIM));
+            var remaining = batchSize - messages.size();
+            // The runs come back with their heads, which this pass holds already: ask for that many
+            // more, drop them, and keep the oldest of the rest. Each key's share stays a prefix.
+            var limit = remaining + chunk.size();
+            var run = jdbcTemplate.query(
+                    dbLockDialect.claimFollowingOutboxSql(chunk.size()),
+                    ps -> {
+                        for (int i = 0; i < chunk.size(); i++) {
+                            ps.setString(i + 1, chunk.get(i));
+                        }
+                        ps.setInt(chunk.size() + 1, limit);
+                    },
+                    (rs, rowNum) -> rs.getString(1));
+            var followers = run.stream().filter(claimed::add).limit(remaining).toList();
+            messages.addAll(load(followers));
+        }
+        return messages;
+    }
+
+    static final int MAX_KEYS_PER_CLAIM = 500;
+
+    private List<OutboxMessageEntity> load(List<String> ids) {
+        var messages = new ArrayList<OutboxMessageEntity>();
+        if (!ids.isEmpty()) {
+            outboxMessageEntityRepository.findAllById(ids).forEach(messages::add);
+        }
+        return messages;
     }
 }
