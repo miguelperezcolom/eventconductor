@@ -43,7 +43,9 @@ public class WebhookController {
                                                        @RequestBody(required = false) byte[] body) {
         var endpoint = properties.endpoint(endpointName);
         if (endpoint == null) {
-            metrics.count(endpointName, "unknown");
+            // Not the requested name: it comes from the URL, and one meter series per name a client
+            // invents would grow without bound. Every configured endpoint keeps its own tag.
+            metrics.count(WebhookMetrics.UNKNOWN_ENDPOINT, "unknown");
             throw new WebhookRejectedException(404, "No webhook endpoint '" + endpointName + "' is configured.");
         }
         if (endpoint.getDestination() == null || endpoint.getDestination().isBlank()) {

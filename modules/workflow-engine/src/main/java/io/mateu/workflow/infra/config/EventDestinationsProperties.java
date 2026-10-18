@@ -61,6 +61,12 @@ public class EventDestinationsProperties {
         private java.time.Duration retryBackoff = java.time.Duration.ofSeconds(5);
         /** Consumer threads. */
         private int concurrency = 1;
+        /**
+         * Kafka client properties for this consumer only, e.g. {@code sasl.jaas.config}: they override
+         * {@code spring.kafka.*} and the binder's {@code configuration}, but not the brokers, group, offset
+         * reset, manual commits or deserializers above.
+         */
+        private java.util.Map<String, String> properties = new java.util.LinkedHashMap<>();
     }
 
     @Getter

@@ -111,7 +111,7 @@ table — there it means "not measured", not "nothing stalled".
 
 | Meter | Type | Tags | Meaning |
 |---|---|---|---|
-| `eventconductor.webhooks.received` | counter | `endpoint`, `outcome` (`published`, `unauthorized`, `rejected`, `unknown`, `error`) | Every webhook delivery and what became of it |
+| `eventconductor.webhooks.received` | counter | `endpoint` (the configured endpoint's name; `_unknown` for every URL naming no configured endpoint), `outcome` (`published`, `unauthorized`, `rejected`, `unknown`, `error`) | Every webhook delivery and what became of it |
 
 #### HTTP calls (`worker-http`)
 

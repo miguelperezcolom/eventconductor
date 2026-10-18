@@ -1,5 +1,6 @@
 package io.mateu.workflow.webhook;
 
+import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -18,7 +19,8 @@ import java.util.Map;
 /**
  * Wires the gateway wherever this module is on the classpath of a web application: the controller,
  * the providers, and the publisher the transport asks for — Kafka (a producer of its own, bytes in and
- * out, on {@code workflow.webhooks.kafka.bootstrap-servers} or {@code spring.kafka.bootstrap-servers})
+ * out, on {@code workflow.webhooks.kafka.bootstrap-servers}, else the binder's or Spring Kafka's brokers, with the
+ * application's Kafka security and TLS settings — see {@link WebhookKafkaConfig})
  * or the engine's REST inject. {@code workflow.webhooks.enabled=false} leaves it all out.
  */
 @AutoConfiguration
@@ -83,19 +85,9 @@ public class WebhookGatewayAutoConfiguration {
         @Bean
         @ConditionalOnMissingBean(WebhookPublisher.class)
         public WebhookPublisher kafkaWebhookPublisher(WebhookGatewayProperties properties,
-                                                      WebhookDestinationsProperties destinations, Environment environment) {
-            var brokers = properties.getKafka().getBootstrapServers();
-            if (brokers == null || brokers.isBlank()) {
-                brokers = environment.getProperty("spring.kafka.bootstrap-servers", "localhost:9092");
-            }
-            var config = new java.util.HashMap<String, Object>();
-            config.put(org.apache.kafka.clients.producer.ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, brokers);
-            config.put(org.apache.kafka.clients.producer.ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG,
-                    org.apache.kafka.common.serialization.ByteArraySerializer.class);
-            config.put(org.apache.kafka.clients.producer.ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG,
-                    org.apache.kafka.common.serialization.ByteArraySerializer.class);
-            config.put(org.apache.kafka.clients.producer.ProducerConfig.ACKS_CONFIG, "all");
-            config.put(org.apache.kafka.clients.producer.ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, true);
+                                                      WebhookDestinationsProperties destinations, Environment environment,
+                                                      BeanFactory beans) {
+            var config = WebhookKafkaConfig.producer(properties, environment, beans);
             var factory = new org.springframework.kafka.core.DefaultKafkaProducerFactory<byte[], byte[]>(config);
             return new KafkaWebhookPublisher(new org.springframework.kafka.core.KafkaTemplate<>(factory), destinations,
                     properties.getKafka().getSendTimeout());

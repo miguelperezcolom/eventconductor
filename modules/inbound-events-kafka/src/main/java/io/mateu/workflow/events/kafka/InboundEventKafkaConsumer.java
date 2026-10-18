@@ -12,6 +12,7 @@ import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.serialization.ByteArrayDeserializer;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.boot.kafka.autoconfigure.KafkaProperties;
 import org.springframework.context.event.EventListener;
 import org.springframework.core.env.Environment;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
@@ -33,6 +34,7 @@ import java.util.TreeSet;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 /**
  * Kafka mode: consumes the topics of the destinations that some definition's event trigger or
@@ -62,6 +64,8 @@ public class InboundEventKafkaConsumer {
     private final EventTriggerService eventTriggerService;
     private final EventDestinationsProperties properties;
     private final Environment environment;
+    /** The application's Spring Kafka settings, when it has them as a bean; null binds them from the environment. */
+    private final Supplier<KafkaProperties> springKafka;
 
     private ScheduledExecutorService refresher;
     private ConcurrentMessageListenerContainer<byte[], byte[]> container;
@@ -73,6 +77,13 @@ public class InboundEventKafkaConsumer {
 
     public InboundEventKafkaConsumer(InboundEventService inboundEventService, EventTriggerService eventTriggerService,
                                      EventDestinationsProperties properties, Environment environment) {
+        this(inboundEventService, eventTriggerService, properties, environment, null);
+    }
+
+    public InboundEventKafkaConsumer(InboundEventService inboundEventService, EventTriggerService eventTriggerService,
+                                     EventDestinationsProperties properties, Environment environment,
+                                     Supplier<KafkaProperties> springKafka) {
+        this.springKafka = springKafka;
         this.inboundEventService = inboundEventService;
         this.eventTriggerService = eventTriggerService;
         this.properties = properties;
@@ -143,8 +154,7 @@ public class InboundEventKafkaConsumer {
         log.info("Listening for inbound domain events on {} (group {})", topics, properties.getConsumer().getGroup());
         var containerProperties = new ContainerProperties(topics.toArray(String[]::new));
         containerProperties.setMessageListener((MessageListener<byte[], byte[]>) this::onRecord);
-        container = new ConcurrentMessageListenerContainer<>(new DefaultKafkaConsumerFactory<>(consumerConfig()),
-                containerProperties);
+        container = new ConcurrentMessageListenerContainer<>(consumerFactory(), containerProperties);
         container.setConcurrency(Math.max(1, properties.getConsumer().getConcurrency()));
         container.setCommonErrorHandler(errorHandler());
         container.setBeanName("inboundEventContainer");
@@ -208,15 +218,24 @@ public class InboundEventKafkaConsumer {
         return s == null || s.isBlank();
     }
 
-    private Map<String, Object> consumerConfig() {
-        var config = new HashMap<String, Object>();
-        config.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers());
-        config.put(ConsumerConfig.GROUP_ID_CONFIG, properties.getConsumer().getGroup());
-        config.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, properties.getConsumer().getAutoOffsetReset());
-        config.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
-        config.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, ByteArrayDeserializer.class);
-        config.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, ByteArrayDeserializer.class);
-        return config;
+    DefaultKafkaConsumerFactory<byte[], byte[]> consumerFactory() {
+        return new DefaultKafkaConsumerFactory<>(consumerConfig());
+    }
+
+    /**
+     * The application's Kafka client settings (security, TLS, tuning — see {@link KafkaClientConfig}),
+     * then {@code workflow.events.consumer.properties}, then what this consumer needs to work: its
+     * brokers, group, offset reset, manual commits and byte-array deserializers, which nothing overrides.
+     */
+    Map<String, Object> consumerConfig() {
+        var required = new HashMap<String, Object>();
+        required.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers());
+        required.put(ConsumerConfig.GROUP_ID_CONFIG, properties.getConsumer().getGroup());
+        required.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, properties.getConsumer().getAutoOffsetReset());
+        required.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
+        required.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, ByteArrayDeserializer.class);
+        required.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, ByteArrayDeserializer.class);
+        return KafkaClientConfig.consumer(environment, springKafka, properties.getConsumer().getProperties(), required);
     }
 
     /** The configured brokers: this consumer's own, else the binder's, else Spring Kafka's. */

@@ -346,6 +346,7 @@ Only relevant to definitions that declare `syncInvocation`; see [Synchronous Inv
 | `workflow.events.consumer.refresh-interval` | `PT30S` | How often the set of topics is recomputed from the definitions. |
 | `workflow.events.consumer.retry-backoff` | `PT5S` | Back-off before retrying an event whose starts or messages could not be handed over. |
 | `workflow.events.consumer.concurrency` | `1` | Consumer threads. |
+| `workflow.events.consumer.properties.<key>` | — | Kafka client properties for this consumer only (e.g. `sasl.jaas.config`). Override `spring.kafka.*` and the binder's `configuration`, never the brokers, group, offset reset, manual commits or deserializers above. See [Kafka client security](#kafka-client-security-sasl-tls). |
 | `workflow.events.receipts.retention` | `P7D` | How long an event's receipts — the protection against a redelivery — are kept. |
 | `workflow.events.receipts.purge-interval` | `PT10M` | How often old receipts are purged. |
 
@@ -365,8 +366,9 @@ Read by the `webhook-gateway` module (`webhook-gateway-standalone-app`, or any a
 | `workflow.webhooks.engine.url` | — | The engine's base URL, for the `rest` transport (e.g. `http://orchestrator:8080`). |
 | `workflow.webhooks.engine.api-key` | — | Its `X-Api-Key`, when the message API requires one. |
 | `workflow.webhooks.engine.timeout` | `PT10S` | How long a hand-over to the engine may take. |
-| `workflow.webhooks.kafka.bootstrap-servers` | — | Brokers, for the `kafka` transport; empty means `spring.kafka.bootstrap-servers`. |
+| `workflow.webhooks.kafka.bootstrap-servers` | — | Brokers, for the `kafka` transport; empty means `spring.cloud.stream.kafka.binder.brokers`, else `spring.kafka.bootstrap-servers`. |
 | `workflow.webhooks.kafka.send-timeout` | `PT10S` | How long a send may take before the webhook is answered with an error. |
+| `workflow.webhooks.kafka.properties.<key>` | — | Kafka client properties for the gateway's producer only (e.g. `sasl.jaas.config`). Override `spring.kafka.*` and the binder's `configuration`, never the brokers, byte-array serializers, `acks=all` or idempotence. See [Kafka client security](#kafka-client-security-sasl-tls). |
 | `workflow.webhooks.endpoints.<name>.provider` | `generic` | `github` or `generic`. `<name>` is the last path segment of the endpoint's URL. |
 | `workflow.webhooks.endpoints.<name>.destination` | — | The logical destination the event is published on (never a topic). |
 | `workflow.webhooks.endpoints.<name>.secret` | — | The shared secret the sender signs with. Required for GitHub; optional for a generic sender. |
@@ -419,6 +421,36 @@ The gateway reads the destinations' topics from the same `workflow.events.destin
 ```properties
 spring.kafka.bootstrap-servers=localhost:9092
 ```
+
+### Kafka client security (SASL, TLS)
+
+Besides the Spring Cloud Stream binder, two components build a Kafka client of their own: the
+inbound domain-event consumer (`inbound-events-kafka`) and the webhook gateway's producer
+(`webhook-gateway`). Both inherit the application's Kafka client settings, so authentication and TLS
+configured once reach every client. From lowest to highest precedence:
+
+1. Spring Kafka: `spring.kafka.security.protocol`, `spring.kafka.ssl.*`, `spring.kafka.properties.*`
+   and the consumer- or producer-specific `spring.kafka.consumer.*` / `spring.kafka.producer.*`;
+2. the binder's `spring.cloud.stream.kafka.binder.configuration.*`, then its
+   `consumer-properties.*` / `producer-properties.*`;
+3. the client's own map: `workflow.events.consumer.properties.*` or `workflow.webhooks.kafka.properties.*`;
+4. what each client needs to work, which nothing overrides — brokers, group id, offset reset, manual
+   commits and byte-array deserializers for the consumer; brokers, byte-array serializers, `acks=all`
+   and idempotence for the producer (which is never transactional).
+
+```properties
+spring.kafka.security.protocol=SASL_SSL
+spring.kafka.properties.sasl.mechanism=SCRAM-SHA-512
+spring.kafka.properties.sasl.jaas.config=org.apache.kafka.common.security.scram.ScramLoginModule required username="${KAFKA_USER}" password="${KAFKA_PASSWORD}";
+spring.kafka.ssl.trust-store-location=file:/etc/kafka/truststore.p12
+spring.kafka.ssl.trust-store-password=${KAFKA_TRUSTSTORE_PASSWORD}
+spring.kafka.ssl.trust-store-type=PKCS12
+```
+
+Settings given only as `spring.cloud.stream.kafka.binder.configuration.*` (the binder's own way) are
+inherited too. As environment variables: `SPRING_KAFKA_SECURITY_PROTOCOL=SASL_SSL`,
+`SPRING_KAFKA_PROPERTIES_SASL_MECHANISM=…`; a key such as `sasl.jaas.config` is safest set in a
+properties file or a `SPRING_APPLICATION_JSON`, since relaxed binding lower-cases and re-dots env-var names.
 
 ### Topic bindings
 

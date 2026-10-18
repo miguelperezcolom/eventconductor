@@ -80,10 +80,16 @@ public class WebhookGatewayProperties {
     @Getter
     @Setter
     public static class Kafka {
-        /** Brokers; empty means {@code spring.kafka.bootstrap-servers}. */
+        /** Brokers; empty means {@code spring.cloud.stream.kafka.binder.brokers}, else {@code spring.kafka.bootstrap-servers}. */
         private String bootstrapServers;
         /** How long a send may take before the webhook is answered with an error. */
         private java.time.Duration sendTimeout = java.time.Duration.ofSeconds(10);
+        /**
+         * Kafka client properties for the gateway's producer only, e.g. {@code sasl.jaas.config}: they
+         * override {@code spring.kafka.*} and the binder's {@code configuration}, but not the brokers,
+         * serializers, {@code acks=all} or idempotence.
+         */
+        private Map<String, String> properties = new LinkedHashMap<>();
     }
 
     @Getter

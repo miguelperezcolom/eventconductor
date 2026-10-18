@@ -73,7 +73,7 @@ class WebhookControllerMvcTest {
         mvc.perform(post("/webhooks/broken").content(PUSH)).andExpect(status().isInternalServerError());
 
         assertThat(published).isEmpty();
-        assertThat(counted).containsExactly("github:unauthorized", "nope:unknown", "broken:error");
+        assertThat(counted).containsExactly("github:unauthorized", "_unknown:unknown", "broken:error");
     }
 
     @Test
@@ -113,8 +113,41 @@ class WebhookControllerMvcTest {
                 .andExpect(status().isUnauthorized());
         mvc.perform(post("/webhooks/nope").content(PUSH)).andExpect(status().isNotFound());
 
-        assertThat(counted).containsExactly("github:rejected", "github:unauthorized", "nope:unknown");
+        assertThat(counted).containsExactly("github:rejected", "github:unauthorized", "_unknown:unknown");
         assertThat(published).isEmpty();
+    }
+
+    @Test
+    void unknownEndpointsShareOneMeterSeriesWhileConfiguredOnesKeepTheirOwn() throws Exception {
+        var registry = new io.micrometer.core.instrument.simple.SimpleMeterRegistry();
+        org.springframework.beans.factory.support.StaticListableBeanFactory beans =
+                new org.springframework.beans.factory.support.StaticListableBeanFactory();
+        beans.addBean("registry", registry);
+        var metrics = new WebhookGatewayAutoConfiguration().webhookMetrics(
+                beans.getBeanProvider(io.micrometer.core.instrument.MeterRegistry.class));
+        var properties = new WebhookGatewayProperties();
+        var github = new WebhookGatewayProperties.Endpoint();
+        github.setProvider(WebhookGatewayProperties.Provider.GITHUB);
+        github.setDestination("github-events");
+        github.setSecret(SECRET);
+        properties.getEndpoints().put("github", github);
+        var metered = MockMvcBuilders.standaloneSetup(new WebhookController(properties,
+                new WebhookGatewayAutoConfiguration().webhookProviders(), (destination, event) -> { }, metrics)).build();
+
+        for (int i = 0; i < 50; i++) {
+            metered.perform(post("/webhooks/made-up-" + i).content(PUSH)).andExpect(status().isNotFound());
+        }
+        metered.perform(post("/webhooks/github").content(PUSH).header("X-GitHub-Event", "push")
+                        .header("X-Hub-Signature-256", "sha256=" + Signatures.hmacSha256Hex(SECRET, PUSH)))
+                .andExpect(status().isAccepted());
+
+        var unknown = registry.find("eventconductor.webhooks.received").tag("outcome", "unknown").counters();
+        assertThat(unknown).hasSize(1);
+        assertThat(unknown.iterator().next().getId().getTag("endpoint")).isEqualTo(WebhookMetrics.UNKNOWN_ENDPOINT);
+        assertThat(unknown.iterator().next().count()).isEqualTo(50.0);
+        assertThat(registry.get("eventconductor.webhooks.received").tag("endpoint", "github")
+                .tag("outcome", "published").counter().count()).isEqualTo(1.0);
+        assertThat(registry.find("eventconductor.webhooks.received").counters()).hasSize(2);
     }
 
     @Test

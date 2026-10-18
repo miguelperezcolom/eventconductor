@@ -43,6 +43,12 @@
             <artifactId>spring-kafka</artifactId>
             <optional>true</optional>
         </dependency>
+        <!-- KafkaProperties: the spring.kafka.* client settings (security, TLS) the producer inherits. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-kafka</artifactId>
+            <optional>true</optional>
+        </dependency>
         <dependency>
             <groupId>io.micrometer</groupId>
             <artifactId>micrometer-core</artifactId>

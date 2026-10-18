@@ -76,7 +76,7 @@ The body is the payload as it came, with its `Content-Type`.
 
 ## Transport
 
-- **`kafka`** (default): the event is written on the destination's topic in binary mode — `ce_*` headers, the payload as the value, the subject as the key — exactly what `PUBLISH_EVENT` writes and the engine's inbound consumer reads. Brokers: `workflow.webhooks.kafka.bootstrap-servers`, else `spring.kafka.bootstrap-servers`. The send is awaited (`acks=all`), so the 202 means the broker has it.
+- **`kafka`** (default): the event is written on the destination's topic in binary mode — `ce_*` headers, the payload as the value, the subject as the key — exactly what `PUBLISH_EVENT` writes and the engine's inbound consumer reads. Brokers: `workflow.webhooks.kafka.bootstrap-servers`, else `spring.cloud.stream.kafka.binder.brokers`, else `spring.kafka.bootstrap-servers`. Authentication and TLS come from the application's Kafka settings — `spring.kafka.security.protocol`, `spring.kafka.ssl.*`, `spring.kafka.properties.*` (e.g. `sasl.mechanism`, `sasl.jaas.config`), the binder's `configuration` map — and `workflow.webhooks.kafka.properties.*` overrides them for the gateway alone; see [Kafka client security](/reference/configuration/#kafka-client-security-sasl-tls). The send is awaited (`acks=all`), so the 202 means the broker has it.
 - **`rest`**: the event is handed to the engine's `POST /workflow/api/events/{destination}` as a structured CloudEvent (`workflow.webhooks.engine.url`, `api-key`), for embedded-mode deployments without a broker, or when the gateway should hold no broker credentials. It authenticates with `X-Api-Key` only, so it targets an **embedded engine with `workflow.message-api.api-key` set**, the same value as the gateway's `workflow.webhooks.engine.api-key` (`ENGINE_API_KEY`) — not the standalone orchestrator, whose Spring Security requires HTTP Basic. Since 2.27.0 the engine's REST API (`/workflow/api/**`) refuses anonymous requests: send an `X-Api-Key` matching `workflow.message-api.api-key`, or authenticate through the application's Spring Security; only `workflow.message-api.allow-anonymous=true` opens it — see [HTTP security](/reference/configuration/#http-security). When the engine cannot be reached or refuses the event, the sender gets a generic `502` to redeliver; the engine's address and its answer are only logged.
 
 ## Starting a workflow on it
@@ -99,7 +99,7 @@ Nothing new on the engine's side: a trigger on the destination, in the definitio
 
 ## Observability
 
-- Counter `eventconductor.webhooks.received{endpoint, outcome}` — `published`, `unauthorized`, `rejected`, `unknown`, `error`.
+- Counter `eventconductor.webhooks.received{endpoint, outcome}` — `published`, `unauthorized`, `rejected`, `unknown`, `error`. A configured endpoint is tagged with its name; every delivery to an endpoint that is not configured is counted under `endpoint="_unknown"` (outcome `unknown`), whatever URL was called, so made-up URLs cannot grow the number of series.
 - The engine's side as for any event: **Workflow → Received events**, `eventconductor.events.received{destination, outcome}`.
 
 ## Embedding
