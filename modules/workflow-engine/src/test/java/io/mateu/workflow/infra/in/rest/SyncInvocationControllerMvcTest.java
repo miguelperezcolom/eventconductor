@@ -412,7 +412,18 @@ class SyncInvocationControllerMvcTest {
         // The slot came back both times: a third caller is still admitted, not refused 429.
         when(service.tick(eq(INVOCATION), any())).thenReturn(new SyncInvocationService.Tick(List.of(),
                 new SyncInvocationService.View(INVOCATION, ProcessReply.replied("r", "{}"), ProcessStatus.COMPLETED), true));
-        var third = mvc.perform(get("/workflow/api/invocations/inv-1").accept("text/event-stream")).andReturn();
+        // A failed stream gives its slot back from the thread that ended it, which can run just after
+        // the request above returned: ask again until the caller is admitted. A refusal takes no
+        // slot, and a slot that never came back still fails here after two seconds.
+        var admitted = new java.util.concurrent.atomic.AtomicReference<org.springframework.test.web.servlet.MvcResult>();
+        org.awaitility.Awaitility.await().atMost(java.time.Duration.ofSeconds(2))
+                .pollInterval(java.time.Duration.ofMillis(20))
+                .until(() -> {
+                    var attempt = mvc.perform(get("/workflow/api/invocations/inv-1").accept("text/event-stream")).andReturn();
+                    admitted.set(attempt);
+                    return attempt.getResponse().getStatus() != 429;
+                });
+        var third = admitted.get();
         assertThat(third.getResponse().getStatus()).isNotEqualTo(429);
         third.getAsyncResult(2_000);
         assertThat(third.getResponse().getContentAsString()).contains("event:reply");
