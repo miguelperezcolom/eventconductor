@@ -177,6 +177,9 @@ Checked when a definition is imported and by the Maven plugin's `validate` goal,
 - two loops must be **nested or apart** — sections that share steps without one containing the other
   are rejected;
 - a compensation step cannot carry `forEach`, `repeat` or `loopBack`.
+- `forEach` cannot be combined with `awaitReply` (every iteration would wait on the same correlation
+  key); start a PROCESS per item whose child does the request/reply instead. `repeat` with
+  `awaitReply` is fine: each run sends its request and waits for its own reply.
 
 ## Caps
 

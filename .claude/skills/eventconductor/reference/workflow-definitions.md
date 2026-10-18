@@ -26,7 +26,7 @@ over on import, and an entry removed from its file is deleted),
 instance; templates and the JEXL filter over the event: `id`, `source`, `type`, `subject`, `key`, `data.x`;
 default business key derived from the event, default variables `data`'s members; one process per event and
 trigger; a WAIT_FOR_MESSAGE can wait for one with `onEvent: {destination, type, correlationKey?, filter?, variables?}`),
-`defaultMaxStepExecutions?` (validated metadata, not enforced at runtime today),
+`defaultMaxStepExecutions?` (default cap on a step's successful runs, enforced when a `repeat`/`loopBack` would run it again),
 `processLock?` (`{name?, key}` — serialize instances by a JEXL key),
 `syncInvocation?` (`{enabled, onFailure: REPLY_IMMEDIATELY|REPLY_AFTER_COMPENSATION, onLockBusy: WAIT|FAIL, defaultDeadlineMs}` —
 lets a caller start an instance over HTTP and wait for its REPLY; `enabled` requires a reachable REPLY), `steps[]`.

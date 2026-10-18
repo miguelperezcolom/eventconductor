@@ -189,6 +189,7 @@ sides. Errors:
 - loopBack on START/END/REPLY; `to` missing, unknown, the step itself (use `repeat`), or not upstream.
 - a section containing a REPLY or an END; a REPLY with `repeat`.
 - two loops whose sections cross (share steps, neither contains the other).
+- `forEach` on an HTTP_CALL/PUBLISH_EVENT with `awaitReply` (every iteration would correlate on the same key; deferred — a PROCESS per item does it today). `repeat` + `awaitReply` is allowed: each pass is its own request and wait.
 
 Warning: a repeat nested in a loop section (multiplied bound).
 

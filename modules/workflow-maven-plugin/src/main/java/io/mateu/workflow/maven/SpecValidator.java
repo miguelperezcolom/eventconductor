@@ -536,7 +536,9 @@ public class SpecValidator {
                 if (id == null) continue;
                 nodes.add(new io.mateu.workflow.analysis.LoopRules.Node(id, text(step, "type"), preconditions(step),
                         text(step, "compensationStepId"), block(step, "forEach"), block(step, "repeat"),
-                        block(step, "loopBack")));
+                        block(step, "loopBack"),
+                        block(step, "awaitReply") != null
+                                && ("HTTP_CALL".equals(text(step, "type")) || "PUBLISH_EVENT".equals(text(step, "type")))));
             }
         }
         return io.mateu.workflow.analysis.LoopRules.analyze(nodes);

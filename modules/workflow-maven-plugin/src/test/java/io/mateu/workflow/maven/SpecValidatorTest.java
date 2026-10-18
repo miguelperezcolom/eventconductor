@@ -217,6 +217,22 @@ class SpecValidatorTest {
                 .anySatisfy(v -> assertThat(v).contains("repeat.until"))
                 .anySatisfy(v -> assertThat(v).contains("maxIterations"))
                 .anySatisfy(v -> assertThat(v).contains("not upstream"));
+
+        var awaiting = new YAMLMapper().readTree("""
+                name: Each awaits
+                steps:
+                  - { id: start, type: START, name: Start }
+                  - id: ask
+                    type: HTTP_CALL
+                    name: Ask
+                    preconditionStepId: start
+                    http: { url: "https://example.com/quotes" }
+                    awaitReply: { messageName: quote, correlationExpression: businessKey }
+                    forEach: { items: suppliers }
+                  - { id: end, type: END, name: End, preconditionStepId: ask }
+                """);
+        assertThat(validator.validate(SpecValidator.Kind.WORKFLOW, awaiting))
+                .anySatisfy(v -> assertThat(v).contains("forEach together with awaitReply"));
     }
 
     @Test

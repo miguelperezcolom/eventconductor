@@ -944,7 +944,8 @@ public record WorkflowDefinition(
                         step.compensationStepId(),
                         step.forEach() == null ? null : mapper.convertValue(step.forEach(), Map.class),
                         step.repeat() == null ? null : mapper.convertValue(step.repeat(), Map.class),
-                        step.loopBack() == null ? null : mapper.convertValue(step.loopBack(), Map.class)))
+                        step.loopBack() == null ? null : mapper.convertValue(step.loopBack(), Map.class),
+                        step.awaitsReply()))
                 .toList();
         return io.mateu.workflow.analysis.LoopRules.analyze(nodes);
     }
