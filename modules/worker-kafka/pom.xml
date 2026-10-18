@@ -13,7 +13,7 @@
     <name>worker-kafka</name>
 
     <properties>
-        <jacoco.line.minimum>0.80</jacoco.line.minimum>
+        <jacoco.line.minimum>0.90</jacoco.line.minimum>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 

@@ -19,7 +19,7 @@
       plugin's hand-mirrored copy of the engine's invariants has already drifted once.
     -->
     <properties>
-        <jacoco.line.minimum>0.90</jacoco.line.minimum>
+        <jacoco.line.minimum>0.96</jacoco.line.minimum>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 

@@ -19,7 +19,7 @@
       optional — add spring-ai-anthropic and/or spring-ai-openai next to this module.
     -->
     <properties>
-        <jacoco.line.minimum>0.70</jacoco.line.minimum>
+        <jacoco.line.minimum>0.97</jacoco.line.minimum>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 

@@ -20,7 +20,7 @@
       dependency is Jackson, to read a contract tree.
     -->
     <properties>
-        <jacoco.line.minimum>0.85</jacoco.line.minimum>
+        <jacoco.line.minimum>0.90</jacoco.line.minimum>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 

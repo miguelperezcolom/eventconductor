@@ -21,7 +21,7 @@
         <!-- Coverage floor for this module, just under the 89.9% it measures today. Raise it when
              the module improves; never lower it. The Mateu pages are excluded at the root, for the
              reason given there. -->
-        <jacoco.line.minimum>0.85</jacoco.line.minimum>
+        <jacoco.line.minimum>0.88</jacoco.line.minimum>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 

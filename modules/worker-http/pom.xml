@@ -18,7 +18,7 @@
       (worker-kafka, e.g. apps/worker-standalone-app). JDK HttpClient; no broker, no engine.
     -->
     <properties>
-        <jacoco.line.minimum>0.80</jacoco.line.minimum>
+        <jacoco.line.minimum>0.86</jacoco.line.minimum>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 

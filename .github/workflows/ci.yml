@@ -24,7 +24,7 @@ jobs:
           distribution: zulu
           cache: maven
 
-      - name: Build, test & verify (JaCoCo enforces 85% line coverage)
+      - name: Build, test & verify (JaCoCo enforces each module's line-coverage floor)
         run: mvn -B -ntp verify
 
       - name: Upload JaCoCo coverage reports

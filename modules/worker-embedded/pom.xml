@@ -13,7 +13,7 @@
     <name>worker-embedded</name>
 
     <properties>
-        <jacoco.line.minimum>0.80</jacoco.line.minimum>
+        <jacoco.line.minimum>0.95</jacoco.line.minimum>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 

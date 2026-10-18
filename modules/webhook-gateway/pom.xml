@@ -21,7 +21,7 @@
       No engine dependency; Kafka and Spring MVC optional, provided by the hosting application.
     -->
     <properties>
-        <jacoco.line.minimum>0.80</jacoco.line.minimum>
+        <jacoco.line.minimum>0.96</jacoco.line.minimum>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 

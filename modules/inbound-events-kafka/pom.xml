@@ -19,7 +19,7 @@
       nothing of how they arrive. An application running the engine in kafka mode adds this module.
     -->
     <properties>
-        <jacoco.line.minimum>0.50</jacoco.line.minimum>
+        <jacoco.line.minimum>0.93</jacoco.line.minimum>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 

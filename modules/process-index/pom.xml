@@ -24,7 +24,7 @@
              The gap is the JPA adapter and its entity, which are exercised by the e2e module
              (ProcessIndexProjectionJpaE2eTest) rather than here — a persistence unit is not something
              this module builds for itself. Raise it when the module improves; never lower it. -->
-        <jacoco.line.minimum>0.62</jacoco.line.minimum>
+        <jacoco.line.minimum>0.98</jacoco.line.minimum>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
