@@ -115,7 +115,7 @@ public class MyApplication {
 }
 ```
 
-To show the engine's UI in this application — your own `@UI` mounts `WorkflowMenu` (or `FormsMenu`, `RulesMenu`) — add `@EnableWorkflowUi` beside `@WorkflowEmbeddedApplication`. The embedded annotations leave the UI layer out, and since Mateu 3.0-alpha.409 nothing else brings it back. Scan your own extra packages through an imported class, not a `@ComponentScan` on the application class: declared there, it replaces the embedded annotation's scans instead of adding to them.
+To show the engine's UI in this application — your own `@UI` mounts `WorkflowMenu` (or `FormsMenu`, `RulesMenu`) — add `@EnableWorkflowUi` beside `@WorkflowEmbeddedApplication`; `workflow.ui.enabled=false` still removes it, and the console access rule still applies (see [Mounting the admin UI](/reference/configuration/#http-security)). Scan your own extra packages through an imported class, not a `@ComponentScan` on the application class: declared there, it replaces the embedded annotation's scans instead of adding to them.
 
 ```java
 @WorkflowEmbeddedApplication

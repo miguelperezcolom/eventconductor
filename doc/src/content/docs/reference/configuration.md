@@ -650,9 +650,16 @@ Calling it from outside: send `X-Api-Key` when the engine has a key; against the
 
 Otherwise it answers `403`, with a page (or a JSON body) that tells the operator what to do. Since 2.28.0: before, an application without Spring Security served them to anyone who could reach the port. The check is made on the handler Spring MVC resolved for the request, not on its path, so no spelling of a URL (encoded characters, `;parameters`, a UI mounted at the application's root) gets past it; the application's own endpoints, the actuator and static resources are not touched, and an application without a console (a worker with Mateu pages of its own) keeps its UIs as they were. The startup line of the engine says how the API and the consoles are protected.
 
+**Mounting the admin UI.** The consoles are the beans in `io.mateu.workflow.infra.in.ui` (pages, adapters and the controllers Mateu generates for them). Whether an application has them depends on two things:
+
+- **Mounted by a scan.** A `@SpringBootApplication` in a package under `io.mateu.workflow` — every standalone app — scans them with everything else. `@WorkflowEmbeddedApplication`, `@FormsEmbeddedApplication` and `@RulesEmbeddedApplication` leave them out on purpose, so a headless or in-memory app never loads them; an embedded application that shows the UI (its own `@UI` mounts `WorkflowMenu`, `FormsMenu` or `RulesMenu`) adds **`@EnableWorkflowUi`** beside the embedded annotation (since 2.28.0: until then Mateu's own scan of all of `io.mateu` swept them in, wanted or not).
+- **Removed by `workflow.ui.enabled=false`.** However they were mounted — scan or `@EnableWorkflowUi` — the property drops them before any is created. It wins over the annotation, so one image can ship the UI and a deployment can still turn it off.
+
+Mounted either way, they sit behind the access rule above: the check is made on the resolved handler, so `@EnableWorkflowUi` changes what is mounted, never who may reach it.
+
 | Property | Type | Default | Description |
 |---|---|---|---|
-| `workflow.ui.enabled` | boolean | `true` | Mount the admin UI. `false` drops every console bean the EventConductor modules contribute (`io.mateu.workflow.infra.in.ui`: the workflow, workflow-admin, rules and forms consoles and the task-project zips) before it is created, so those routes answer `404`. An application whose own Mateu UI mounts `WorkflowMenu` must drop that too |
+| `workflow.ui.enabled` | boolean | `true` | Mount the admin UI. `false` drops every console bean the EventConductor modules contribute (`io.mateu.workflow.infra.in.ui`: the workflow, workflow-admin, rules and forms consoles and the task-project zips) before it is created, so those routes answer `404` — also when `@EnableWorkflowUi` mounted them. An application whose own Mateu UI mounts `WorkflowMenu` must drop that too |
 
 The MCP server is the application's (the `spring-ai-starter-mcp-server-webmvc` starter and the `ToolCallbackProvider` it registers), so it is switched off with Spring AI's own `spring.ai.mcp.server.enabled=false`.
 

@@ -29,6 +29,11 @@ import org.springframework.context.annotation.Import;
  * {@code @SpringBootApplication} in a package under {@code io.mateu.workflow} (the standalone apps)
  * already scans the UI and does not need this.
  *
+ * <p>It decides what is mounted, nothing more. {@code workflow.ui.enabled=false} still removes the
+ * UI however it got there (the switch drops every bean of that package, this scan's included), and
+ * whatever is mounted sits behind the consoles' access rule ({@code ConsoleAccess}): Spring
+ * Security, or {@code workflow.message-api.allow-anonymous=true}, or {@code 403}.
+ *
  * <p>It is an import, not a {@code @ComponentScan} on the application class, because a
  * {@code @ComponentScan} declared there replaces the scans the embedded annotation carries instead
  * of adding to them.
