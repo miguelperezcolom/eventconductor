@@ -148,4 +148,10 @@ class LoopRulesTest {
         assertThat(LoopRules.section("f", "l", successors, null)).containsExactlyInAnyOrder("f", "x", "y", "j", "l");
         assertThat(LoopRules.section("l", "f", successors, null)).isEmpty();
     }
+
+    @Test
+    void forEachCannotAwaitAReply() {
+        var nodes = flow(new LoopRules.Node("a", "HTTP_CALL", List.of("start"), null, map("items", "l"), null, null, true));
+        assertThat(LoopRules.analyze(nodes).errors()).anySatisfy(e -> assertThat(e).contains("awaitReply"));
+    }
 }

@@ -43,11 +43,17 @@ public final class LoopRules {
      * @param forEach            its {@code forEach} block as a map, or null
      * @param repeat             its {@code repeat} block as a map, or null
      * @param loopBack           its {@code loopBack} block as a map, or null
+     * @param awaitsReply        whether it is an HTTP_CALL / PUBLISH_EVENT with an {@code awaitReply}
      */
     public record Node(String id, String type, List<String> preconditions, String compensationStepId,
-                       Map<?, ?> forEach, Map<?, ?> repeat, Map<?, ?> loopBack) {
+                       Map<?, ?> forEach, Map<?, ?> repeat, Map<?, ?> loopBack, boolean awaitsReply) {
         public Node {
             preconditions = preconditions == null ? List.of() : List.copyOf(preconditions);
+        }
+
+        public Node(String id, String type, List<String> preconditions, String compensationStepId,
+                    Map<?, ?> forEach, Map<?, ?> repeat, Map<?, ?> loopBack) {
+            this(id, type, preconditions, compensationStepId, forEach, repeat, loopBack, false);
         }
     }
 
@@ -86,6 +92,11 @@ public final class LoopRules {
             }
             if (node.repeat() != null) {
                 errors.addAll(repeatProblems(node, where));
+            }
+            if (node.forEach() != null && node.awaitsReply()) {
+                errors.add(where + " declares forEach together with awaitReply. Every iteration would wait"
+                        + " for a reply correlated by the same key; one request/reply per item is not supported"
+                        + " yet — run the call in a PROCESS step per item instead.");
             }
             if (node.forEach() != null && node.repeat() != null) {
                 errors.add(where + " declares both forEach and repeat; a step may declare one of them.");
