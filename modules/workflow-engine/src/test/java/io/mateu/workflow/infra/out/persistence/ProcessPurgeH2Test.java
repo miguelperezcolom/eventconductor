@@ -20,4 +20,12 @@ class ProcessPurgeH2Test extends ProcessPurgeContract {
     void dispose(DataSource dataSource) {
         // In-memory; nothing to release.
     }
+
+    @Override
+    DataSource newDatabaseMigratedTo(String version) {
+        var ds = new DriverManagerDataSource(
+                "jdbc:h2:mem:purge-legacy-" + UUID.randomUUID() + ";DB_CLOSE_DELAY=-1;MODE=PostgreSQL", "sa", "");
+        PostgresTestDatabase.migrateTo(ds, version);
+        return ds;
+    }
 }

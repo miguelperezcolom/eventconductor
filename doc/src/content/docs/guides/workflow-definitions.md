@@ -215,6 +215,7 @@ Whatever keeps a tree is looked at again on the next pass.
   process by its definition's retention **as it is now**, whatever version the process ran — shorten
   it and the older processes go on the next pass. Processes of a definition that no longer exists are
   judged by the engine defaults.
+- **Old processes count too.** A process cancelled before 2.28 was not stamped with its end; migration V45 backfills it from its last step's end (else its start or creation), so retention applies to it like to any other.
 - Works with both persistence modes. In memory mode it bounds a long-running embedded engine's heap.
 
 ## Versioning

@@ -102,4 +102,15 @@ final class PostgresTestDatabase {
                 .load()
                 .migrate();
     }
+
+    /** Applies the engine's migrations up to and including {@code version} — a database an older release left. */
+    static void migrateTo(DataSource dataSource, String version) {
+        Flyway.configure()
+                .dataSource(dataSource)
+                .locations("classpath:db/migration/workflow")
+                .table("workflow_schema_history")
+                .target(version)
+                .load()
+                .migrate();
+    }
 }

@@ -204,4 +204,47 @@ abstract class ProcessPurgeContract {
                 + " VALUES ('gone:2', 'gone', 2, 'h', ?)", Timestamp.valueOf(NOW));
         assertThat(repository.knownWorkflowDefinitionIds()).containsExactly("gone");
     }
+
+    /**
+     * Before 2.28 a cancelled process had no end time, so nothing counted from it: V45 backfills one
+     * from the process's steps (or its own start/creation) and the old process becomes purgeable.
+     */
+    @Test
+    void v45BackfillsTheEndOfTerminalProcessesThatHaveNoneSoTheyArePurged() {
+        var legacy = newDatabaseMigratedTo("44");
+        try {
+            var old = new JdbcTemplate(legacy);
+            old.update("INSERT INTO process_entity (id, business_key, status, workflow_definition_id, created, started)"
+                    + " VALUES ('cancelled', 'bk-c', 'CANCELLED', 'orders', ?, ?)",
+                    Timestamp.valueOf(LONG_AGO.minusDays(2)), Timestamp.valueOf(LONG_AGO.minusDays(2)));
+            old.update("INSERT INTO step_execution_entity (id, process_id, step_id, status, started_at, finished_at)"
+                    + " VALUES ('c-a', 'cancelled', 'a', 'CANCELLED', ?, ?)",
+                    Timestamp.valueOf(LONG_AGO.minusDays(1)), Timestamp.valueOf(LONG_AGO));
+            old.update("INSERT INTO process_entity (id, business_key, status, workflow_definition_id, created)"
+                    + " VALUES ('errored', 'bk-e', 'ERROR', 'orders', ?)", Timestamp.valueOf(LONG_AGO));
+            old.update("INSERT INTO process_entity (id, business_key, status, workflow_definition_id, created)"
+                    + " VALUES ('running', 'bk-r', 'RUNNING', 'orders', ?)", Timestamp.valueOf(LONG_AGO));
+
+            PostgresTestDatabase.migrate(legacy);
+
+            assertThat(old.queryForObject("SELECT finished FROM process_entity WHERE id = 'cancelled'", Timestamp.class)
+                    .toLocalDateTime()).isEqualTo(LONG_AGO);   // its last step's end
+            assertThat(old.queryForObject("SELECT finished FROM process_entity WHERE id = 'errored'", Timestamp.class)
+                    .toLocalDateTime()).isEqualTo(LONG_AGO);   // no steps: its creation
+            assertThat(old.queryForObject("SELECT finished FROM process_entity WHERE id = 'running'", Timestamp.class))
+                    .isNull();                                 // not ended: untouched
+
+            var purge = new JdbcProcessPurgeRepository(old,
+                    new TransactionTemplate(new DataSourceTransactionManager(legacy)));
+            var due = purge.findRoots("orders", ProcessStatus.CANCELLED, CUTOFF, null, 10);
+            assertThat(due).extracting(PurgeCandidate::id).containsExactly("cancelled");
+            assertThat(purge.purge(due)).isTrue();
+            assertThat(old.queryForObject("SELECT COUNT(*) FROM process_entity WHERE id = 'cancelled'", Integer.class)).isZero();
+        } finally {
+            dispose(legacy);
+        }
+    }
+
+    /** A database with the engine's migrations applied up to {@code version}, as an older release left it. */
+    abstract DataSource newDatabaseMigratedTo(String version);
 }

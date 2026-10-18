@@ -24,5 +24,20 @@ CREATE INDEX IF NOT EXISTS idx_process_parent_step
 CREATE INDEX IF NOT EXISTS idx_resource_process
     ON resource_entity (process_id);
 
+-- Retention is counted from a process's end, and until 2.28 a cancelled process was not stamped with
+-- one (nor, on some older paths, a process that ended otherwise). Without an end those processes —
+-- the oldest data, precisely what retention is for — would never be purged. Backfill the best
+-- timestamp there is: the last moment any of its steps finished (or started), else when the process
+-- started, else when it was created, else now (it is then counted from this migration). One UPDATE
+-- with a correlated subquery, answered per row by idx_step_exec_process_status; on a very large
+-- table it takes a while, once.
+UPDATE process_entity
+   SET finished = COALESCE(
+           (SELECT MAX(COALESCE(s.finished_at, s.started_at)) FROM step_execution_entity s
+             WHERE s.process_id = process_entity.id),
+           started, created, CURRENT_TIMESTAMP)
+ WHERE finished IS NULL
+   AND status IN ('COMPLETED', 'CANCELLED', 'ERROR', 'COMPENSATED', 'COMPENSATION_FAILED');
+
 -- Plain portable DDL with IF NOT EXISTS, as V29-V44: it also runs over a schema ddl-auto created
 -- from the entities (ProcessEntity, ResourceEntity and WorkflowDefinitionEntity declare the same).

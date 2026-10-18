@@ -16,4 +16,11 @@ class ProcessPurgePostgresTest extends ProcessPurgeContract {
     void dispose(DataSource dataSource) {
         ((HikariDataSource) dataSource).close();
     }
+
+    @Override
+    DataSource newDatabaseMigratedTo(String version) {
+        var ds = PostgresTestDatabase.freshDatabase();
+        PostgresTestDatabase.migrateTo(ds, version);
+        return ds;
+    }
 }
