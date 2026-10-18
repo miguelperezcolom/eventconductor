@@ -23,3 +23,9 @@ forms:
     # Optional: set this to the same secret you configure in GitHub repo settings
     # webhook-secret: mysecret
     repositories: []
+
+workflow:
+  # Development testbench without Spring Security: since 2.28.0 the admin UI, MCP and rule-read
+  # endpoints refuse anonymous requests unless this is set. Never in production.
+  message-api:
+    allow-anonymous: true

@@ -120,6 +120,14 @@
             <artifactId>jakarta.servlet-api</artifactId>
             <optional>true</optional>
         </dependency>
+        <!-- ConsoleAccessInterceptor: the consoles' access rule is a Spring MVC interceptor, so it
+             judges the handler a request reaches rather than its spelling. Optional: only a
+             servlet application has consoles to guard. -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-webmvc</artifactId>
+            <optional>true</optional>
+        </dependency>
         <dependency>
             <!-- ManagedSchema, the runner each engine applies its own migrations with. Optional
                  here so a worker or a DTO consumer does not drag Flyway in; the engine modules
@@ -138,6 +146,12 @@
         <dependency>
             <groupId>org.springframework</groupId>
             <artifactId>spring-jdbc</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <!-- ApplicationContextRunner, for ConsoleAccessAutoConfiguration. -->
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-test</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>

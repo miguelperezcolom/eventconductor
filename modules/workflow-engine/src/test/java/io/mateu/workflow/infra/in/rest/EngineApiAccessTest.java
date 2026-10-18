@@ -80,7 +80,7 @@ class EngineApiAccessTest {
         appender.start();
         logger.addAppender(appender);
         try {
-            new EngineApiAccess(properties, beans).afterSingletonsInstantiated();
+            new EngineApiAccess(properties, beans, FakeFilterChain.class.getName()).afterSingletonsInstantiated();
         } finally {
             logger.detachAppender(appender);
         }
@@ -93,17 +93,28 @@ class EngineApiAccessTest {
         return beans;
     }
 
-    /** At startup the engine says which rule applies, naming the setting that changes it. */
+    /** At startup the engine says, in one line, how the API and the consoles are protected and what changes it. */
     @Test
-    void atStartupTheLogSaysHowTheApiIsProtected() {
+    void atStartupTheLogSaysHowTheApiAndTheConsolesAreProtected() {
         assertThat(startupLog(properties(null, false, false), withControllers())).singleElement().asString()
                 .startsWith("WARN").contains("refuses every request", "workflow.message-api.api-key", "allow-anonymous")
-                .as("says what the key does not guard").contains("admin UI", "MCP", "rule-read", "NOT covered");
+                .as("says how the consoles fare").contains("Consoles", "Refused (403)", "admin UI", "MCP",
+                        "GET /rules", "task-project zips", "Spring Security", "workflow.ui.enabled=false");
         assertThat(startupLog(properties(null, true, false), withControllers())).singleElement().asString()
-                .startsWith("WARN").contains("is OPEN", "NOT covered");
-        assertThat(startupLog(properties("k3y", false, false), withControllers())).isEmpty();
+                .startsWith("WARN").contains("is OPEN", "Consoles — OPEN");
+        assertThat(startupLog(properties("k3y", false, false), withControllers())).singleElement().asString()
+                .as("a key guards the API, not the consoles").startsWith("WARN")
+                .contains("X-Api-Key", "Consoles — Refused (403)");
+
+        var secured = withControllers();
+        secured.addBean("chain", new FakeFilterChain() { });
+        assertThat(startupLog(properties(null, false, false), secured)).singleElement().asString()
+                .startsWith("INFO").contains("protected by the application's Spring Security",
+                        "Consoles — Protected by the application's Spring Security");
+
         assertThat(startupLog(properties(null, false, false), new StaticListableBeanFactory()))
-                .as("no engine API, nothing to say").isEmpty();
+                .as("no engine API: only the consoles").singleElement().asString()
+                .startsWith("WARN").doesNotContain("/workflow/api").contains("Consoles — Refused (403)");
     }
 
     @Test

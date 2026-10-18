@@ -33,7 +33,7 @@ description: Complete reference for all EventConductor configuration properties.
 | `workflow.outbox.purge-max-batches-per-pass` | int | `20` | Batches one pass may delete. Caps how much a pod that has been down while the table grew can do in one go, so catching up happens over several passes instead of one sweep competing with the engine |
 | `workflow.metrics.gauge-ttl` | duration | `PT30S` | How long the two counting gauges (`eventconductor.process.running`, `eventconductor.outbox.pending`) may reuse their last value. Both answer with a `count(*)` against the engine's own database, and counting running processes walks one index entry per running process — the very number being reported — so without this the cost of observing the system grows with the system, once per pod per scrape. `PT0S` restores a query on every scrape |
 | `workflow.message-api.api-key` | string | — | API key required in the `X-Api-Key` header of the engine's REST API (`/workflow/api/**`: messages, events, triggers, schedules, sync invocations). See [HTTP security](#http-security) for what happens when it is blank |
-| `workflow.message-api.allow-anonymous` | boolean | `false` | Accept requests without credentials when no `api-key` is set and no Spring Security filter chain protects the application. Off since 2.27.0; turn it on only for an isolated deployment. Since 2.28.0 it also lets in unsigned git-import webhooks (no `webhook-secret`) |
+| `workflow.message-api.allow-anonymous` | boolean | `false` | Accept requests without credentials when no `api-key` is set and no Spring Security filter chain protects the application — for the REST API (since 2.27.0), for the admin UI, MCP and rule-read endpoints (since 2.28.0; see [HTTP security](#http-security)), and for unsigned git-import webhooks with no `webhook-secret` (since 2.28.0). Turn it on only for an isolated or development deployment |
 | `workflow.rest.max-body-bytes` | bytes | `16777216` (16 MiB) | Request bodies larger than this are cut off unread on `/workflow/api/*` and the git webhooks (`/workflow/webhooks/*`, `/forms/webhooks/*`, `/rules/webhooks/*` — also in the standalone forms and rules apps). Far above the engine's own input limits on purpose: those answer with a message naming the field; this only stops a body too large to read |
 | `workflow.security.flow-authorization.enabled` | boolean | `false` | Enforce definitions' `requiredScopes` / `requiredRoles` against the caller (fail closed: a caller nobody identified holds nothing). Also checked when someone creates or edits a schedule or event trigger, or runs a schedule now |
 | `workflow.security.trust-forwarded-token` | boolean | `false` | Read the caller's identity from a bearer token this application did **not** verify. Only behind something that did (a gateway, a mesh) — on its own it believes whatever the caller typed. The application's own Spring Security authentication is always preferred |
@@ -611,9 +611,18 @@ Otherwise it answers `401`. Since 2.27.0: before, an engine embedded in an appli
 
 Calling it from outside: send `X-Api-Key` when the engine has a key; against the standalone orchestrator (Spring Security, no key) send its HTTP Basic credentials (`eventconductor.security.user` / `.password`) instead.
 
-:::caution[The key covers `/workflow/api/**` only]
-`workflow.message-api.*` guards the engine's REST API and nothing else. The admin UI, the MCP endpoints and the rule-read endpoints are **not** covered by it: an engine embedded without Spring Security serves them to anyone who can reach the port. In an embedded deployment that is reachable on a network, protect the application with Spring Security (the standalone apps do, with the basic authentication below).
-:::
+**The consoles** — the admin UI (`/_workflow`, `/_workflow-admin`, `/_rules`, `/_forms…`, and every other Mateu UI in an application that mounts one of them, since the engine's menus and pages can be mounted in any of them), the MCP endpoints (Mateu's `/mateu/mcp`, and a Spring AI MCP server exposing the engine's tools), the rule-read endpoints (`GET /rules`, `GET /rules/{id}`) and the task-project downloads (`/eventconductor/tasks/{group}/*.zip`) — follow the same rule **without the api key**, which a browser cannot send. A request comes in when:
+
+1. a Spring Security filter chain protects the application; or
+2. `workflow.message-api.allow-anonymous=true`.
+
+Otherwise it answers `403`, with a page (or a JSON body) that tells the operator what to do. Since 2.28.0: before, an application without Spring Security served them to anyone who could reach the port. The check is made on the handler Spring MVC resolved for the request, not on its path, so no spelling of a URL (encoded characters, `;parameters`, a UI mounted at the application's root) gets past it; the application's own endpoints, the actuator and static resources are not touched, and an application without a console (a worker with Mateu pages of its own) keeps its UIs as they were. The startup line of the engine says how the API and the consoles are protected.
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `workflow.ui.enabled` | boolean | `true` | Mount the admin UI. `false` drops every console bean the EventConductor modules contribute (`io.mateu.workflow.infra.in.ui`: the workflow, workflow-admin, rules and forms consoles and the task-project zips) before it is created, so those routes answer `404`. An application whose own Mateu UI mounts `WorkflowMenu` must drop that too |
+
+The MCP server is the application's (the `spring-ai-starter-mcp-server-webmvc` starter and the `ToolCallbackProvider` it registers), so it is switched off with Spring AI's own `spring.ai.mcp.server.enabled=false`.
 
 The standalone apps protect their HTTP endpoints (UI, REST, actuator) with basic authentication, configured via `eventconductor.security.*`:
 

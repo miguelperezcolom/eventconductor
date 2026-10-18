@@ -36,6 +36,8 @@ public class MyApplication {
 }
 ```
 
+**Who can reach it.** An embedded application without Spring Security refuses anonymous requests to the engine's REST API (`401`, since 2.27.0) and to the admin UI, the MCP endpoints, `GET /rules` and the task-project zips (`403`, since 2.28.0). Protect the application with Spring Security, set `workflow.message-api.allow-anonymous=true` for an isolated or development deployment, or leave the admin UI out with `workflow.ui.enabled=false` — see [HTTP security](/reference/configuration/#http-security).
+
 **Characteristics:**
 - Domain events dispatched synchronously on each repository `save()`
 - State held in `ConcurrentHashMap` — lost on restart (with `jpa`, processes carry on where they were: see [Restarting the engine](/guides/reliability/#restarting-the-engine))

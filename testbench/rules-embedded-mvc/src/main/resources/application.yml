@@ -18,6 +18,10 @@ spring:
     show-sql: false
 
 workflow:
+  # Development testbench without Spring Security: since 2.27.0 the engine API, and since 2.28.0 the
+  # admin UI, MCP and rule-read endpoints, refuse anonymous requests unless this is set. Never in production.
+  message-api:
+    allow-anonymous: true
   mode: embedded
   persistence: memory
 

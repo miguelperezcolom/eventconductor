@@ -26,6 +26,14 @@ workflow.mode=embedded
 workflow.persistence=memory
 ```
 
+:::note[An HTTP-facing app without Spring Security]
+This guide starts its process from code, so nothing is served over HTTP. As soon as the application
+serves the engine's REST API (since 2.27.0) or its admin UI, MCP or rule-read endpoints (since
+2.28.0) without Spring Security, those refuse anonymous requests. For a local try-out add
+`workflow.message-api.allow-anonymous=true`; anywhere reachable on a network, protect the
+application with Spring Security instead — see [HTTP security](/reference/configuration/#http-security).
+:::
+
 ## 3. Define a workflow
 
 Create `src/main/resources/workflows/hello-world.yaml`:
