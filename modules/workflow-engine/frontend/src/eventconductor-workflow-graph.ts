@@ -101,6 +101,12 @@ interface WorkflowStep {
     onEvent?: EventSource;
     /** HTTP_CALL / PUBLISH_EVENT only: the reply the step waits for after sending its request. */
     awaitReply?: AwaitReply;
+    /** Multi-instance: run this step once per item of a list. */
+    forEach?: ForEachSpec;
+    /** Run this step again until a condition holds. */
+    repeat?: RepeatSpec;
+    /** An explicit back-edge: run the section from `to` to this step again while `while` holds. */
+    loopBack?: LoopBackSpec;
 }
 
 /** The reply an HTTP_CALL or a PUBLISH_EVENT waits for — the fields of a WAIT_FOR_MESSAGE. */
@@ -119,6 +125,49 @@ function describeAwaitReply(reply: AwaitReply): string {
 function describeAwaitReplyFully(reply: AwaitReply): string {
     return (reply.messageName || "?") + " · key " + (reply.correlationExpression || "?")
         + (reply.onEvent ? " · ⚡ " + describeEventWait(reply.onEvent) : "");
+}
+
+/** A step's `forEach` block (see the engine's ForEach). */
+interface ForEachSpec {
+    items?: string;
+    as?: string;
+    indexAs?: string;
+    mode?: "parallel" | "sequential";
+    maxConcurrency?: number;
+    output?: string;
+    outputElement?: string;
+    completion?: string;
+}
+
+/** A step's `repeat` block. */
+interface RepeatSpec {
+    until?: string;
+    maxIterations?: number;
+    delay?: number | string;
+}
+
+/** A step's `loopBack` block. */
+interface LoopBackSpec {
+    to?: string;
+    while?: string;
+    maxIterations?: number;
+    delay?: number | string;
+}
+
+/** "∥ rooms" for a parallel forEach, "⇣ rooms" for a sequential one — the stacked card's caption. */
+function describeForEach(f: ForEachSpec): string {
+    return (f.mode === "sequential" ? "⇣ " : "∥ ") + (f.items || "items")
+        + (f.maxConcurrency ? " ≤" + f.maxConcurrency : "");
+}
+
+/** "↻ until … · ≤N" for a repeat. */
+function describeRepeat(r: RepeatSpec): string {
+    return "↻ " + (r.until ? "until " + r.until : "repeat") + (r.maxIterations ? " · ≤" + r.maxIterations : "");
+}
+
+/** "↺ while … · ≤N" for a loopBack. */
+function describeLoopBack(l: LoopBackSpec): string {
+    return "↺ " + (l.while ? "while " + l.while : "loop") + (l.maxIterations ? " · ≤" + l.maxIterations : "");
 }
 
 /** Where a domain event comes from and how it is read: a trigger's or a wait's `onEvent`. */
@@ -260,6 +309,10 @@ interface StepOverlay {
     injected?: boolean;
     /** The DYNAMIC step execution that injected it — provenance, for tooling that traces it back. */
     injectedBy?: string;
+    /** Process view, forEach steps: how its iterations stand. */
+    iterations?: {total: number; completed: number; failed: number; active: number};
+    /** Process view, looped steps: how many times the step has run (passes of a repeat/loopBack). */
+    runs?: number;
 }
 
 interface NodePos { x: number; y: number; }
@@ -761,6 +814,8 @@ function bridgedPath(pts: Pt[], prior: [Pt, Pt][], cornerR = 9, bridgeR = 6): st
 
 /** How much of a guard expression the chip shows before the pointer asks for the rest. */
 const GUARD_CHIP_CHARS = 16;
+/** Longest loop condition drawn on a back-edge or a repeat chip before it is cut (the hover has it whole). */
+const LOOP_CHIP_CHARS = 30;
 
 /** A box on the canvas: nodes and already-placed chips, for keeping chips off both. */
 interface Rect {
@@ -2182,10 +2237,10 @@ export class MateuWorkflowElk extends LitElement {
      * node attach at distinct points along that side, so parallel lines never overlap. Sequence
      * edges first, compensation last. The routes are also cached (by "from->to") for the token.
      */
-    private computeEdges(): {key: string; from: string; to: string; comp: boolean; timeout: boolean; pts: Pt[]}[] {
+    private computeEdges(): {key: string; from: string; to: string; comp: boolean; timeout: boolean; loop?: boolean; pts: Pt[]}[] {
         const steps = this.wf.steps ?? [];
         const targets = compTargets(steps);
-        const raw: {from: string; to: string; comp: boolean; timeout: boolean}[] = [];
+        const raw: {from: string; to: string; comp: boolean; timeout: boolean; loop?: boolean}[] = [];
         for (const s of steps) {
             for (const {stepId: f} of flowLinksOf(s, targets)) {
                 if (this.boxForId(f) && this.boxForId(s.id)) raw.push({from: f, to: s.id, comp: false, timeout: false});
@@ -2199,6 +2254,13 @@ export class MateuWorkflowElk extends LitElement {
         for (const s of steps) {
             if (s.onTimeoutStepId && this.boxForId(s.id) && this.boxForId(s.onTimeoutStepId)) {
                 raw.push({from: s.id, to: s.onTimeoutStepId, comp: false, timeout: true});
+            }
+        }
+        // A loopBack is a back-edge, drawn from the step back to the one the loop returns to — not a
+        // precondition, so it is a kind of its own, routed last, with its condition on a chip.
+        for (const s of steps) {
+            if (s.loopBack?.to && this.boxForId(s.id) && this.boxForId(s.loopBack.to)) {
+                raw.push({from: s.id, to: s.loopBack.to, comp: false, timeout: false, loop: true});
             }
         }
 
@@ -2254,8 +2316,8 @@ export class MateuWorkflowElk extends LitElement {
             for (let i = 0; i < pts.length - 1; i++) priorSegs.push([pts[i], pts[i + 1]]);
             // A distinct key per kind so an on-timeout edge to the same target as a precondition
             // does not collide with it in the cache or the DOM.
-            const key = e.timeout ? `${e.from}~t~${e.to}` : `${e.from}->${e.to}`;
-            return {key, from: e.from, to: e.to, comp: e.comp, timeout: e.timeout, pts};
+            const key = e.loop ? `${e.from}~l~${e.to}` : e.timeout ? `${e.from}~t~${e.to}` : `${e.from}->${e.to}`;
+            return {key, from: e.from, to: e.to, comp: e.comp, timeout: e.timeout, loop: e.loop, pts};
         });
     }
 
@@ -2874,6 +2936,10 @@ export class MateuWorkflowElk extends LitElement {
                                         refX="12" refY="5" orient="auto" markerUnits="userSpaceOnUse">
                                     <path d="M0,0 L0,10 L13,5 z"/>
                                 </marker>
+                                <marker id="ec-arrow-loop" markerWidth="15" markerHeight="15"
+                                        refX="12" refY="5" orient="auto" markerUnits="userSpaceOnUse">
+                                    <path d="M0,0 L0,10 L13,5 z"/>
+                                </marker>
                                 <filter id="ec-shadow" x="-20%" y="-20%" width="140%" height="150%">
                                     <feDropShadow dx="0" dy="1" stdDeviation="1.2" flood-color="#0f172a"
                                                   flood-opacity="0.10"/>
@@ -3129,6 +3195,16 @@ export class MateuWorkflowElk extends LitElement {
             const monDim = mon && !(this.isVisited(e.from) && this.isVisited(e.to)) ? "mon-dim" : "";
             const focusDim = this.focusPaint && !this.focusPaint.edges.has(e.key) ? "focus-dim" : "";
             const sel = this.isEdgeSelected(e) ? "sel" : "";
+            if (e.loop) {
+                // The back-edge: violet, dashed, with the loop's condition and bound on a chip. Not a
+                // click target — the loop is edited on its step, not on a line.
+                const src = (this.wf.steps ?? []).find(s => s.id === e.from);
+                out.push(svg`<path class="loop-edge ${monDim} ${focusDim}" data-loop="${e.from}" data-edge="${e.key}"
+                                   d="${d}" marker-end="url(#ec-arrow-loop)"/>`);
+                if (src?.loopBack) out.push(this.renderLoopChip(polylinePointAt(e.pts, 0.5), describeLoopBack(src.loopBack), e.key));
+                for (let i = 0; i < e.pts.length - 1; i++) prior.push([e.pts[i], e.pts[i + 1]]);
+                continue;
+            }
             out.push(e.comp
                 ? svg`<path class="comp-edge ${monDim} ${focusDim} ${sel}" data-comp="${e.from}" data-edge="${e.key}"
                              d="${d}" marker-end="url(#ec-arrow-comp)"/>`
@@ -3272,6 +3348,22 @@ export class MateuWorkflowElk extends LitElement {
         `;
     }
 
+    /** The loop's condition and bound, on its back-edge (or above a repeating step). */
+    private renderLoopChip(at: Pt, label: string, edgeKey: string) {
+        const text = label.length > LOOP_CHIP_CHARS ? label.slice(0, LOOP_CHIP_CHARS - 1) + "…" : label;
+        const w = Math.max(34, text.length * 6.1 + 20);
+        const h = 19;
+        const focusDim = this.focusPaint && !this.focusPaint.edges.has(edgeKey) ? "focus-dim" : "";
+        return svg`
+            <g class="loop-chip ${focusDim}" data-loop-chip="${edgeKey}"
+               transform="translate(${at.x}, ${at.y})">
+                <title>${label}</title>
+                <rect x="${-w / 2}" y="${-h / 2}" width="${w}" height="${h}" rx="9.5"/>
+                <text x="0" y="3.6" text-anchor="middle">${text}</text>
+            </g>
+        `;
+    }
+
     /** A "⏱ 30s" chip on the on-timeout edge, showing the source step's timeout. */
     private renderTimeoutChip(at: Pt, timeoutMs: number, edgeKey: string) {
         const text = "⏱ " + formatTimeout(timeoutMs);
@@ -3285,6 +3377,18 @@ export class MateuWorkflowElk extends LitElement {
                 <text x="0" y="3.6" text-anchor="middle">${text}</text>
             </g>
         `;
+    }
+
+    /** A small violet chip under a task card: what a forEach runs over, or what a repeat waits for. */
+    private renderMiBadge(label: string, w: number, h: number, kind: string) {
+        const text = label.length > LOOP_CHIP_CHARS ? label.slice(0, LOOP_CHIP_CHARS - 1) + "…" : label;
+        const cw = Math.max(30, text.length * 6 + 14);
+        return svg`
+            <g class="mi-badge ${kind}" transform="translate(${w / 2 - cw / 2}, ${h + 4})">
+                <title>${label}</title>
+                <rect width="${cw}" height="16" rx="8"/>
+                <text x="${cw / 2}" y="11.5" text-anchor="middle">${text}</text>
+            </g>`;
     }
 
     private renderNode(step: WorkflowStep) {
@@ -3323,8 +3427,13 @@ export class MateuWorkflowElk extends LitElement {
             // BPMN task: rounded card with a corner glyph, an uppercase caption, title + id.
             const badge = badgeOf(step);
             const badgeText = badge.length > NODE_BADGE_CHARS ? badge.slice(0, NODE_BADGE_CHARS - 1) + "…" : badge;
+            // forEach: two cards peeking out behind this one — BPMN's multi-instance, read at a glance.
+            const stack = step.forEach ? svg`
+                <rect class="node-stack" x="8" y="8" width="${w}" height="${h}" rx="10" stroke="${st.stroke}" opacity=".45"/>
+                <rect class="node-stack" x="4" y="4" width="${w}" height="${h}" rx="10" stroke="${st.stroke}" opacity=".7"/>` : nothing;
             shape = svg`
                 <text class="node-badge" x="2" y="-7">${badgeText}</text>
+                ${stack}
                 <rect class="node-shape" width="${w}" height="${h}" rx="10"
                       fill="${st.fill}" stroke="${st.stroke}" stroke-width="1.4"
                       stroke-dasharray="${st.dashed ? "6 4" : "0"}" style="--ec-tint: ${st.stroke}"/>
@@ -3332,7 +3441,9 @@ export class MateuWorkflowElk extends LitElement {
                    fill="none" stroke="${st.stroke}" stroke-width="1.1" style="--ec-tint: ${st.stroke}"
                    stroke-linejoin="round">${SYMBOLS[st.symbol] ?? svg``}</g>
                 <text class="node-title" x="14" y="${h / 2 - 2}">${label}</text>
-                <text class="node-id" x="14" y="${h / 2 + 14}">${step.id}</text>`;
+                <text class="node-id" x="14" y="${h / 2 + 14}">${step.id}</text>
+                ${step.forEach ? this.renderMiBadge(describeForEach(step.forEach), w, h, "mi-foreach") : nothing}
+                ${step.repeat ? this.renderMiBadge(describeRepeat(step.repeat), w, h, "mi-repeat") : nothing}`;
         }
 
         // Read-only monitoring overlay: state tint / active highlight + a live process-count badge.
@@ -3416,6 +3527,19 @@ export class MateuWorkflowElk extends LitElement {
                 <text text-anchor="middle" dy="3.4">${ov.order}</text>
             </g>` : nothing;
 
+        // A forEach in a process view: "3/5" iterations completed (red when one failed); a looped step:
+        // "×3", the times it ran. Top edge, centred — clear of every corner badge.
+        const it = ov?.iterations;
+        const iterLabel = it ? `${it.completed}/${it.total}` : (ov?.runs && ov.runs > 1 ? `×${ov.runs}` : "");
+        const iterationsBadge = iterLabel ? svg`
+            <g class="ov-iterations" transform="translate(${w / 2}, -2)">
+                <title>${it ? `${it.completed} of ${it.total} iterations completed, ${it.active} in flight, ${it.failed} failed`
+                    : `Ran ${ov!.runs} times`}</title>
+                <rect x="${-(iterLabel.length * 3.4 + 8)}" y="-8" width="${iterLabel.length * 6.8 + 16}" height="16" rx="8"
+                      style="${it && it.failed > 0 ? "fill:#dc2626" : ""}"/>
+                <text text-anchor="middle" dy="3.6">${iterLabel}</text>
+            </g>` : nothing;
+
         // A runtime-injected step wears a ⚡ badge in its top-left corner (clear of the count badge
         // top-right and the done/fail badge bottom-right).
         const injectedBadge = ov?.injected ? svg`
@@ -3454,6 +3578,7 @@ export class MateuWorkflowElk extends LitElement {
                 ${timedOut}
                 ${injectedBadge}
                 ${triggerBadge}
+                ${iterationsBadge}
             </g>
         `;
     }
@@ -3679,6 +3804,7 @@ export class MateuWorkflowElk extends LitElement {
                                   title="Edit the triggers of the definition in the YAML"
                                   .value="${this.wf.triggers.map(t => describeEventSource(t)
                                       + (t.filter ? " · if " + t.filter : "")).join("\n")}"></textarea>`) : ""}
+                    ${this.renderLoopFields(step, field)}
                     ${step.type === "REPLY" ? field("Reply variables", html`
                         <input class="inp" placeholder="bookingId, status" ?readonly="${ro}"
                                .value="${(step.replyVariables ?? []).join(", ")}"
@@ -3693,6 +3819,77 @@ export class MateuWorkflowElk extends LitElement {
                                @change="${ro ? nothing : (e: Event) => this.updateStep(step.id, {replyExpression: (e.target as HTMLInputElement).value || undefined})}"/>`) : ""}
                 </div>
             </div>
+        `;
+    }
+
+    /**
+     * The properties panel's loop and multi-instance fields: forEach and repeat on the step types
+     * that can carry them, loopBack on any step but START, END and REPLY. A block whose fields are
+     * all cleared is dropped from the step.
+     */
+    private renderLoopFields(step: WorkflowStep, field: (label: string, body: unknown) => unknown) {
+        const ro = this.readOnly;
+        const repeatable = ["ACTION", "USER_TASK", "PROCESS", "HTTP_CALL", "LLM_CALL", "RULE"].includes(step.type);
+        const canLoopBack = !["START", "END", "REPLY"].includes(step.type);
+        const clean = <T extends object>(o: T): T | undefined => {
+            const kept = Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined && v !== "" && !(typeof v === "number" && isNaN(v))));
+            return Object.keys(kept).length ? kept as T : undefined;
+        };
+        const setForEach = (patch: Partial<ForEachSpec>) => this.updateStep(step.id, {forEach: clean({...(step.forEach ?? {}), ...patch})});
+        const setRepeat = (patch: Partial<RepeatSpec>) => this.updateStep(step.id, {repeat: clean({...(step.repeat ?? {}), ...patch})});
+        const setLoopBack = (patch: Partial<LoopBackSpec>) => this.updateStep(step.id, {loopBack: clean({...(step.loopBack ?? {}), ...patch})});
+        const text = (value: string | undefined, placeholder: string, onSet: (v: string | undefined) => void, cls = "") => html`
+            <input class="inp ${cls}" placeholder="${placeholder}" ?readonly="${ro}" .value="${value ?? ""}"
+                   @change="${ro ? nothing : (e: Event) => onSet((e.target as HTMLInputElement).value.trim() || undefined)}"/>`;
+        const num = (value: number | undefined, onSet: (v: number | undefined) => void, cls = "") => html`
+            <input class="inp ${cls}" type="number" min="1" ?readonly="${ro}" .value="${value === undefined ? "" : String(value)}"
+                   @change="${ro ? nothing : (e: Event) => {
+                       const raw = (e.target as HTMLInputElement).value;
+                       onSet(raw === "" ? undefined : Number(raw));
+                   }}"/>`;
+        const others = (this.wf.steps ?? []).filter(s => s.id !== step.id).map(s => s.id);
+        return html`
+            ${repeatable && !step.repeat ? html`
+                <div class="loop-section" data-section="forEach">
+                    ${field("For each (items)", text(step.forEach?.items, "rooms", v => setForEach({items: v}), "fe-items"))}
+                    ${step.forEach ? html`
+                        ${field("As / index", html`<div class="pair">
+                            ${text(step.forEach.as, "item", v => setForEach({as: v}), "fe-as")}
+                            ${text(step.forEach.indexAs, "index", v => setForEach({indexAs: v}), "fe-index")}</div>`)}
+                        ${field("Mode", html`
+                            <select class="inp fe-mode" ?disabled="${ro}"
+                                    @change="${ro ? nothing : (e: Event) => setForEach({mode: (e.target as HTMLSelectElement).value as "parallel" | "sequential"})}">
+                                <option value="parallel" ?selected="${step.forEach.mode !== "sequential"}">parallel</option>
+                                <option value="sequential" ?selected="${step.forEach.mode === "sequential"}">sequential</option>
+                            </select>`)}
+                        ${step.forEach.mode !== "sequential" ? field("Max concurrency", num(step.forEach.maxConcurrency, v => setForEach({maxConcurrency: v}), "fe-max")) : nothing}
+                        ${field("Output variable", text(step.forEach.output, "results", v => setForEach({output: v}), "fe-output"))}
+                        ${field("Output element", text(step.forEach.outputElement, "reservationId", v => setForEach({outputElement: v}), "fe-element"))}
+                        ${field("Completion", text(step.forEach.completion, "all | any | condition", v => setForEach({completion: v}), "fe-completion"))}
+                    ` : nothing}
+                </div>` : nothing}
+            ${repeatable && !step.forEach ? html`
+                <div class="loop-section" data-section="repeat">
+                    ${field("Repeat until", text(step.repeat?.until, "status == 'DONE'", v => setRepeat({until: v}), "rp-until"))}
+                    ${step.repeat ? html`
+                        ${field("Max iterations", num(step.repeat.maxIterations, v => setRepeat({maxIterations: v}), "rp-max"))}
+                        ${field("Delay", text(step.repeat.delay === undefined ? undefined : String(step.repeat.delay), "PT30S", v => setRepeat({delay: v}), "rp-delay"))}
+                    ` : nothing}
+                </div>` : nothing}
+            ${canLoopBack ? html`
+                <div class="loop-section" data-section="loopBack">
+                    ${field("Loop back to", html`
+                        <select class="inp lb-to" ?disabled="${ro}"
+                                @change="${ro ? nothing : (e: Event) => setLoopBack({to: (e.target as HTMLSelectElement).value || undefined})}">
+                            <option value="" ?selected="${!step.loopBack?.to}">— no loop —</option>
+                            ${others.map(id => html`<option value="${id}" ?selected="${step.loopBack?.to === id}">${id}</option>`)}
+                        </select>`)}
+                    ${step.loopBack ? html`
+                        ${field("While", text(step.loopBack.while, "always (e.g. on a CHOICE branch)", v => setLoopBack({while: v}), "lb-while"))}
+                        ${field("Max iterations", num(step.loopBack.maxIterations, v => setLoopBack({maxIterations: v}), "lb-max"))}
+                        ${field("Delay", text(step.loopBack.delay === undefined ? undefined : String(step.loopBack.delay), "PT0S", v => setLoopBack({delay: v}), "lb-delay"))}
+                    ` : nothing}
+                </div>` : nothing}
         `;
     }
 
@@ -4137,6 +4334,22 @@ export class MateuWorkflowElk extends LitElement {
         marker#ec-arrow > path {fill: var(--ec-edge);}
         marker#ec-arrow-comp > path {fill: #dc2626;}
         marker#ec-arrow-timeout > path {fill: #d97706;}
+        marker#ec-arrow-loop > path {fill: #7c3aed;}
+        /* loop back-edges: violet dashes with the condition on a chip */
+        .loop-edge {fill: none; stroke: #7c3aed; stroke-width: 1.6; stroke-dasharray: 5 4; stroke-linejoin: round; transition: opacity .2s;}
+        .loop-edge.mon-dim, .loop-edge.focus-dim {opacity: .25;}
+        .loop-chip text {font-size: 10.5px; fill: #5b21b6; font-weight: 600;}
+        .loop-chip rect {fill: #f5f3ff; stroke: #7c3aed; stroke-width: 1;}
+        .loop-chip.focus-dim {opacity: .25;}
+        /* forEach: the card drawn as a stack */
+        .node-stack {fill: var(--ec-surface, #fff); stroke-width: 1.2;}
+        .mi-badge rect {fill: #f5f3ff; stroke: #7c3aed; stroke-width: 1;}
+        .mi-badge text {font-size: 10px; fill: #5b21b6; font-weight: 700;}
+        .ov-iterations rect {fill: #7c3aed;}
+        .ov-iterations text {font-size: 10px; fill: #fff; font-weight: 700;}
+        .loop-section {border-top: 1px dashed var(--ec-border, #e2e8f0); padding-top: 6px; margin-top: 4px;}
+        .pair {display: flex; gap: 6px;}
+        .pair .inp {flex: 1; min-width: 0;}
         .node.link-source .node-shape {stroke: var(--ec-primary) !important;}
         .node.link-target .node-shape {
             stroke: var(--ec-primary) !important; stroke-width: 3 !important; stroke-dasharray: 0 !important;
