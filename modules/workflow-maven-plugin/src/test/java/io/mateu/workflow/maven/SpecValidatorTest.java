@@ -161,6 +161,65 @@ class SpecValidatorTest {
     }
 
     @Test
+    void loopsAndForEachAreValidatedWithTheEnginesRules() throws Exception {
+        var valid = new YAMLMapper().readTree("""
+                name: Loops
+                steps:
+                  - { id: start, type: START, name: Start }
+                  - id: reserve
+                    type: ACTION
+                    name: Reserve
+                    topic: work
+                    preconditionStepId: start
+                    forEach: { items: rooms, as: room, mode: sequential, output: res, completion: "completedIterations > 1" }
+                  - id: poll
+                    type: HTTP_CALL
+                    name: Poll
+                    preconditionStepId: reserve
+                    http: { url: "https://example.com/status" }
+                    repeat: { until: "status == 'DONE'", maxIterations: 5, delay: PT10S }
+                  - id: review
+                    type: ACTION
+                    name: Review
+                    topic: work
+                    preconditionStepId: poll
+                    loopBack: { to: reserve, while: "verdict == 'REWORK'", maxIterations: 3 }
+                  - { id: end, type: END, name: End, preconditionStepId: review }
+                """);
+        assertThat(validator.validate(SpecValidator.Kind.WORKFLOW, valid)).isEmpty();
+
+        var invalid = new YAMLMapper().readTree("""
+                name: Bad loops
+                steps:
+                  - { id: start, type: START, name: Start }
+                  - id: fork
+                    type: FORK
+                    name: Fork
+                    preconditionStepId: start
+                    forEach: { items: "rooms +" }
+                  - id: poll
+                    type: ACTION
+                    name: Poll
+                    topic: work
+                    preconditionStepId: fork
+                    repeat: { until: "x ==", maxIterations: 0 }
+                  - id: review
+                    type: ACTION
+                    name: Review
+                    topic: work
+                    preconditionStepId: poll
+                    loopBack: { to: end, maxIterations: 2 }
+                  - { id: end, type: END, name: End, preconditionStepId: review }
+                """);
+        assertThat(validator.validate(SpecValidator.Kind.WORKFLOW, invalid))
+                .anySatisfy(v -> assertThat(v).contains("FORK step cannot run once per item"))
+                .anySatisfy(v -> assertThat(v).contains("forEach.items"))
+                .anySatisfy(v -> assertThat(v).contains("repeat.until"))
+                .anySatisfy(v -> assertThat(v).contains("maxIterations"))
+                .anySatisfy(v -> assertThat(v).contains("not upstream"));
+    }
+
+    @Test
     void aTriggerWithoutATypeFailsTheSchema() throws Exception {
         var doc = new YAMLMapper().readTree("""
                 name: No type

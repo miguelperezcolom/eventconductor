@@ -137,6 +137,7 @@ public class SpecValidator {
                         isSet(text(step, "correlationExpression"))));
             }
         }
+        warnings.addAll(loopAnalysis(wf).warnings());
         java.util.Map<String, JsonNode> stepsById = new java.util.HashMap<>();
         for (JsonNode step : steps) {
             String id = text(step, "id");
@@ -430,6 +431,24 @@ public class SpecValidator {
                     checkEventReading(replyEvent, "correlationKey", "Step '" + id + "' awaitReply.onEvent", violations);
                 }
             }
+            // forEach / repeat / loopBack: their shape is LoopRules' (below); their expressions here.
+            JsonNode forEach = step.get("forEach");
+            if (forEach != null && forEach.isObject()) {
+                checkJexl(text(forEach, "items"), "step '" + id + "' forEach.items", violations);
+                checkJexl(text(forEach, "outputElement"), "step '" + id + "' forEach.outputElement", violations);
+                String completion = text(forEach, "completion");
+                if (isSet(completion) && !"all".equalsIgnoreCase(completion.trim()) && !"any".equalsIgnoreCase(completion.trim())) {
+                    checkJexl(completion, "step '" + id + "' forEach.completion", violations);
+                }
+            }
+            JsonNode repeat = step.get("repeat");
+            if (repeat != null && repeat.isObject()) {
+                checkJexl(text(repeat, "until"), "step '" + id + "' repeat.until", violations);
+            }
+            JsonNode loopBack = step.get("loopBack");
+            if (loopBack != null && loopBack.isObject() && isSet(text(loopBack, "while"))) {
+                checkJexl(text(loopBack, "while"), "step '" + id + "' loopBack.while", violations);
+            }
             JsonNode event = step.get("event");
             if (event != null && event.isObject()) {
                 checkTemplate(event.get("payload"), "step '" + id + "' event.payload", violations);
@@ -454,6 +473,7 @@ public class SpecValidator {
         // The REPLY rules run the engine's own analysis (definition-analysis), which assumes an
         // acyclic graph — so only once the cycle check found nothing.
         if (violations.size() == violationsBeforeCycles) {
+            violations.addAll(loopAnalysis(wf).errors());
             violations.addAll(replyAnalysis(wf).errors());
         }
     }
@@ -505,6 +525,27 @@ public class SpecValidator {
 
     private static final com.fasterxml.jackson.databind.ObjectMapper TEMPLATE_READER =
             new com.fasterxml.jackson.databind.ObjectMapper();
+
+    /** The shared loop and multi-instance rules (definition-analysis {@code LoopRules}) over this document's steps. */
+    private static io.mateu.workflow.analysis.LoopRules.Report loopAnalysis(JsonNode wf) {
+        JsonNode steps = wf.get("steps");
+        List<io.mateu.workflow.analysis.LoopRules.Node> nodes = new ArrayList<>();
+        if (steps != null && steps.isArray()) {
+            for (JsonNode step : steps) {
+                String id = text(step, "id");
+                if (id == null) continue;
+                nodes.add(new io.mateu.workflow.analysis.LoopRules.Node(id, text(step, "type"), preconditions(step),
+                        text(step, "compensationStepId"), block(step, "forEach"), block(step, "repeat"),
+                        block(step, "loopBack")));
+            }
+        }
+        return io.mateu.workflow.analysis.LoopRules.analyze(nodes);
+    }
+
+    private static java.util.Map<?, ?> block(JsonNode step, String field) {
+        JsonNode value = step.get(field);
+        return value == null || !value.isObject() ? null : TEMPLATE_READER.convertValue(value, java.util.Map.class);
+    }
 
     /** The shared REPLY path analysis over this document's steps. */
     private static io.mateu.workflow.analysis.ReplyPathAnalyzer.Report replyAnalysis(JsonNode wf) {
