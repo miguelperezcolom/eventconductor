@@ -186,4 +186,45 @@ class CompensationServiceTest {
         assertThat(decision.outcome()).isEqualTo(Outcome.WAITING);
         assertThat(decision.next()).isNull();
     }
+
+    @Test
+    void eachCompletedPassOfALoopIsAUnitToUndoNewestFirst() {
+        var first = exec("charge", StepExecutionStatus.COMPLETED, true, "refund", 1, t0.plusSeconds(1));
+        first.supersede(StepExecution.LOOP_LOOPED);
+        var second = exec("charge", StepExecutionStatus.COMPLETED, true, "refund", 1, t0.plusSeconds(3))
+                .toBuilder().id("se-charge-2").iteration(1).build();
+        var decision = service.decide(List.of(first, second,
+                exec("ship", StepExecutionStatus.ERROR, false, null, 2, t0.plusSeconds(4)),
+                comp("refund", StepExecutionStatus.CREATED)));
+
+        assertThat(decision.outcome()).isEqualTo(Outcome.RUN);
+        assertThat(decision.isMultiUnit()).isTrue();
+        assertThat(decision.units()).extracting(StepExecution::getId).containsExactly("se-charge-2", "se-charge");
+    }
+
+    @Test
+    void theCompletedIterationsOfAFailedForEachAreUndoneAndTheContainerIsNot() {
+        var container = exec("reserve", StepExecutionStatus.ERROR, true, "release", 1, t0.plusSeconds(5))
+                .toBuilder().scopeJson("{\"total\":2}").build();
+        var done = exec("reserve", StepExecutionStatus.COMPLETED, true, "release", 1, t0.plusSeconds(2))
+                .toBuilder().id("it-0").parentExecutionId("se-reserve").itemIndex(0).build();
+        var failed = exec("reserve", StepExecutionStatus.ERROR, true, "release", 1, t0.plusSeconds(4))
+                .toBuilder().id("it-1").parentExecutionId("se-reserve").itemIndex(1).build();
+        var decision = service.decide(List.of(container, done, failed, comp("release", StepExecutionStatus.CREATED)));
+
+        assertThat(decision.outcome()).isEqualTo(Outcome.RUN);
+        assertThat(decision.isMultiUnit()).isTrue();
+        assertThat(decision.units()).extracting(StepExecution::getId).containsExactly("it-0");
+    }
+
+    @Test
+    void aCompensationRunningOverSeveralUnitsIsWaitedFor() {
+        var compensation = comp("refund", StepExecutionStatus.PENDING).toBuilder().scopeJson("{\"total\":2,\"compensates\":\"charge\"}").build();
+        var decision = service.decide(List.of(
+                exec("charge", StepExecutionStatus.COMPLETED, true, "refund", 1, t0.plusSeconds(1)),
+                exec("ship", StepExecutionStatus.ERROR, false, null, 2, t0.plusSeconds(2)),
+                compensation));
+        assertThat(decision.outcome()).isEqualTo(Outcome.WAITING);
+        assertThat(compensation.compensatedStepId()).isEqualTo("charge");
+    }
 }

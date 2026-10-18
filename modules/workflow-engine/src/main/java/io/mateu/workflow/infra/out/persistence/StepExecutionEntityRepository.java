@@ -34,6 +34,9 @@ public interface StepExecutionEntityRepository extends JpaRepository<StepExecuti
      * type is a row written before the column existed and is counted, because the alternative is
      * silence about the steps most likely to be stuck — the ones already in flight through an
      * upgrade. Those age out as their processes finish.
+     *
+     * <p>A forEach container is left out: it owes nothing itself — its iterations, which are counted,
+     * are the work — and it has no deadline by design.
      */
     @Query("""
             select count(s) from StepExecutionEntity s
@@ -41,6 +44,7 @@ public interface StepExecutionEntityRepository extends JpaRepository<StepExecuti
               and s.deadlineAt is null
               and s.startedAt < :startedBefore
               and (s.stepType in :types or s.stepType is null)
+              and not (s.parentExecutionId is null and s.scopeJson is not null)
             """)
     long countStalled(@Param("statuses") List<String> statuses,
                       @Param("startedBefore") LocalDateTime startedBefore,

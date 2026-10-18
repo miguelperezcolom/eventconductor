@@ -359,11 +359,6 @@ public record Step(
                 llm, onEvent, awaitReply, null, null, null);
     }
 
-    /** Whether this step runs once per element of a list. */
-    public boolean isMultiInstance() {
-        return forEach != null;
-    }
-
     /** Whether completing this step may send the flow round again (a {@code repeat} or a {@code loopBack}). */
     public boolean loops() {
         return repeat != null || loopBack != null;

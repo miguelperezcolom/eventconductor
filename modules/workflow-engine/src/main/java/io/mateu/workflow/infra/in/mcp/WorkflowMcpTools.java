@@ -78,8 +78,19 @@ public class WorkflowMcpTools implements McpTools, McpSystemContext {
             String id, String name, String businessKey, String status,
             int completionPct, List<String> variables, List<StepSummary> steps) {}
 
+    /**
+     * One step execution. A loop runs a step again as a new execution ({@code iteration} 1, 2…, the
+     * earlier ones {@code superseded}); a forEach iteration names its container
+     * ({@code parentExecutionId}) and its position ({@code itemIndex}).
+     */
     public record StepSummary(
-            String id, String stepId, String status, String workerId, String startedAt) {}
+            String id, String stepId, String status, String workerId, String startedAt,
+            int iteration, boolean superseded, String parentExecutionId, Integer itemIndex) {
+
+        public StepSummary(String id, String stepId, String status, String workerId, String startedAt) {
+            this(id, stepId, status, workerId, startedAt, 0, false, null, null);
+        }
+    }
 
     public record LogEntry(
             String timestamp, String stepExecutionId, String type, String message, String workerId) {}
@@ -105,7 +116,8 @@ public class WorkflowMcpTools implements McpTools, McpSystemContext {
                 .map(s -> new StepSummary(
                         s.getId(), s.getStepId(), s.getStatus().name(),
                         s.getWorkerId(),
-                        s.getStartedAt() != null ? s.getStartedAt().toString() : null))
+                        s.getStartedAt() != null ? s.getStartedAt().toString() : null,
+                        s.getIteration(), s.isSuperseded(), s.getParentExecutionId(), s.getItemIndex()))
                 .toList();
         var vars = process.getVariables() != null
                 ? process.getVariables().stream().map(v -> v.name() + "=" + v.value()).toList()

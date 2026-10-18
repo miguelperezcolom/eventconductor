@@ -220,7 +220,7 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
         this.steps = StepHistory.visible(stepExecutions, process.getStatus()).stream()
                 .map(entry -> {
                     var se = entry.execution();
-                    return new Step(id, se.id(), se.getStepId(), stepRowStatus(entry),
+                    return new Step(id, se.id(), rowName(se), stepRowStatus(entry),
                             Step.format(se.getStartedAt()), Step.format(se.getFinishedAt()));
                 })
                 .toList();
@@ -288,8 +288,10 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
         if (def == null) return null;
         // Collapse retries: keep the most telling execution per step (running/error over completed,
         // and the latest attempt when equally telling) so the overlay reads the current situation.
+        // The node shows the step's CURRENT execution — a loop's earlier passes and a forEach's
+        // iterations are summed up on it (runs, iterations) rather than competing for it.
         var byStep = new HashMap<String, StepExecution>();
-        for (var se : stepExecutions) {
+        for (var se : io.mateu.workflow.domain.services.StepExecutions.current(stepExecutions)) {
             byStep.merge(se.getStepId(), se, (a, b) -> {
                 int ra = statusRank(a.getStatus()), rb = statusRank(b.getStatus());
                 if (rb != ra) return rb > ra ? b : a;
@@ -303,6 +305,7 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
             var entry = overlayEntry(se, latestErrorByExec.get(se.id()));
             var position = order.get(stepId);
             if (position != null) entry.put("order", position);
+            putRunsAndIterations(entry, se, stepExecutions);
             overlay.put(stepId, entry);
         });
         var attrs = new HashMap<String, String>();
@@ -396,6 +399,46 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
         var allSteps = new ArrayList<>(def.steps());
         allSteps.addAll(injectedById.values());
         return def.withSteps(allSteps);
+    }
+
+    /**
+     * How a step's row reads in the Steps tab: its id, and for a loop's later pass or a forEach
+     * iteration which one it is — "reserve · item 2", "poll · run 3".
+     */
+    static String rowName(StepExecution se) {
+        if (se.isIteration()) {
+            return se.getStepId() + " · item " + (se.getItemIndex() == null ? "?" : se.getItemIndex())
+                    + (se.getIteration() > 0 ? " (run " + (se.getIteration() + 1) + ")" : "");
+        }
+        if (se.getIteration() > 0) {
+            return se.getStepId() + " · run " + (se.getIteration() + 1);
+        }
+        return se.getStepId();
+    }
+
+    /**
+     * Adds to a node's overlay how many times its step ran ({@code runs}, for a loop) and how its
+     * forEach's iterations stand ({@code iterations}: total, completed, failed, active).
+     */
+    static void putRunsAndIterations(Map<String, Object> entry, StepExecution current, List<StepExecution> all) {
+        long runs = all.stream()
+                .filter(e -> e.getParentExecutionId() == null && current.getStepId().equals(e.getStepId())
+                        && !io.mateu.workflow.domain.aggregates.StepExecution.LOOP_DISCARDED.equals(e.getLoopDecision())
+                        && (e.getStartedAt() != null || e.getStatus() == StepExecutionStatus.COMPLETED))
+                .count();
+        if (runs > 1) {
+            entry.put("runs", runs);
+        }
+        if (current.isContainer() && current.totalIterations() >= 0) {
+            var iterations = io.mateu.workflow.domain.services.StepExecutions.iterationsOf(current, all);
+            var summary = new HashMap<String, Object>();
+            summary.put("total", current.totalIterations());
+            summary.put("completed", iterations.stream().filter(i -> i.getStatus() == StepExecutionStatus.COMPLETED).count());
+            summary.put("failed", iterations.stream().filter(i -> i.getStatus() == StepExecutionStatus.ERROR
+                    || i.getStatus() == StepExecutionStatus.TIMEOUT).count());
+            summary.put("active", iterations.stream().filter(i -> i.getStatus().keepsTheProcessInFlight()).count());
+            entry.put("iterations", summary);
+        }
     }
 
     /** Overlay state token understood by the graph component. */

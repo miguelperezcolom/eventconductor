@@ -818,6 +818,7 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
     // ------------------------------------------------------------------ loops and multi-instance
 
     /** Whether this is a forEach iteration. */
+    @com.fasterxml.jackson.annotation.JsonIgnore
     public boolean isIteration() {
         return parentExecutionId != null;
     }
@@ -826,6 +827,7 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
      * Whether this is a forEach container: a top-level execution of a step with a {@code forEach}, or
      * one that runs a compensation over several units (it then carries a scope).
      */
+    @com.fasterxml.jackson.annotation.JsonIgnore
     public boolean isContainer() {
         if (parentExecutionId != null) {
             return false;
