@@ -95,6 +95,25 @@ class OutboxRelayBackoffTest {
     }
 
     @Test
+    @DisplayName("a pass whose rows all wait behind another pod's older events is not a stall")
+    void rowsHeldBackForOrderAreNotARefusal() throws Exception {
+        var waits = new CountDownLatch(5);
+        // Claimed rows, settled none — but every one of them was held back to keep its process in
+        // order, not refused by the broker. Pacing that like an outage would delay the very events
+        // that are about to become sendable.
+        relay = relayWhoseEveryPassIs(() -> new OutboxDrain.Result(3, 0, 3));
+        when(signal.awaitWork(anyLong())).thenAnswer(invocation -> {
+            waits.countDown();
+            return false;
+        });
+
+        relay.iterate();
+
+        assertThat(waits.await(5, TimeUnit.SECONDS)).isTrue();
+        verify(metrics, never()).outboxRelayStalled();
+    }
+
+    @Test
     @DisplayName("an empty outbox keeps waiting on the signal, and never backs off")
     void anIdleRelayIsNotAStalledOne() throws Exception {
         var waits = new CountDownLatch(5);

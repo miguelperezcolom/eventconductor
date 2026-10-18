@@ -95,7 +95,9 @@ public class OutboxRelay {
                     boolean stalled;
                     try {
                         var lastPass = drainUntilEmpty();
-                        stalled = lastPass != null && RelayPace.isStall(lastPass.claimed(), lastPass.settled());
+                        // Rows held back behind another pod's older event of their process are not
+                        // a refusal: only what the pass actually tried counts towards a stall.
+                        stalled = lastPass != null && RelayPace.isStall(lastPass.attempted(), lastPass.settled());
                     } catch (Throwable e) {
                         stalled = true;
                         log.error("Error relaying outbox messages", e);
