@@ -33,7 +33,8 @@ public class CompleteMessageStepHandler {
     final MessageSubscriptionService messageSubscriptionService;
     final WorkflowMetrics workflowMetrics;
 
-    public void handle(CompleteMessageStepCommand command) {
+    /** Completes the step if it is still waiting for this message; whether it did. */
+    public boolean handle(CompleteMessageStepCommand command) {
         var processId = stepExecutionRepository.findById(command.stepExecutionId())
                 .orElseThrow().getProcessId();
 
@@ -41,28 +42,30 @@ public class CompleteMessageStepHandler {
         // scheduler re-scans timers, so dropping it here would lose the message for good and leave
         // the step waiting forever. Failing makes the delivery come round again; doHandle is
         // idempotent under redelivery.
-        ProcessLockService.runExclusivelyOrThrow(processLockService, processId, () -> doHandle(command));
+        var completed = new java.util.concurrent.atomic.AtomicBoolean();
+        ProcessLockService.runExclusivelyOrThrow(processLockService, processId, () -> completed.set(doHandle(command)));
+        return completed.get();
     }
 
-    private void doHandle(CompleteMessageStepCommand command) {
+    private boolean doHandle(CompleteMessageStepCommand command) {
         // Re-read inside the lock to avoid TOCTOU: another pod (or a duplicate
         // delivery of the same message) may have already completed the step.
         var stepExecution = stepExecutionRepository.findById(command.stepExecutionId()).orElseThrow();
 
         if (!StepExecutionStatus.PENDING.equals(stepExecution.getStatus())) {
-            return;
+            return false;
         }
 
         var step = pojoFromJson(stepExecution.getStepJson(), Step.class);
 
         if (!StepType.WAIT_FOR_MESSAGE.equals(step.type()) || stepExecution.getStartedAt() == null
                 || !command.messageName().equals(step.messageName())) {
-            return;
+            return false;
         }
 
         var process = processRepository.findById(stepExecution.getProcessId()).orElseThrow();
         if (!MessageCorrelation.matches(step, process, command.correlationKey())) {
-            return;
+            return false;
         }
 
         // The message payload becomes process state before the step completes, so
@@ -93,6 +96,7 @@ public class CompleteMessageStepHandler {
         ));
         // The COMPLETED status change event drives the process forward centrally
         // (StepExecutionStatusUpdatedEventHandler → step over).
+        return true;
     }
 
 }

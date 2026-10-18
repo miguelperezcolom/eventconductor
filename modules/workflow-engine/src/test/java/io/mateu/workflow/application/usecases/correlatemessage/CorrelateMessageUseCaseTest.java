@@ -31,6 +31,7 @@ class CorrelateMessageUseCaseTest {
     @Mock CompleteMessageStepHandler completeMessageStepHandler;
     @Mock io.mateu.workflow.application.services.messagerouting.MessageRoutingMetrics messageRoutingMetrics;
     @Mock io.mateu.workflow.application.services.messagerouting.WaitingMessageFilter waitingMessageFilter;
+    @Mock io.mateu.workflow.application.out.EventReceiptRepository eventReceiptRepository;
 
     // The real no-op, not a mock: a mocked span() would swallow the work it is meant to wrap.
     @org.mockito.Spy
@@ -103,5 +104,69 @@ class CorrelateMessageUseCaseTest {
         verify(stepExecutionRepository, never()).findWaitingForMessage(any(), any());
         verify(messageRoutingMetrics).correlationQuerySkipped();
         verify(messageRoutingMetrics, never()).correlationQuery();
+    }
+
+    private static final io.mateu.workflow.dtos.events.integration.MessageReceived.EventOrigin ORIGIN =
+            new io.mateu.workflow.dtos.events.integration.MessageReceived.EventOrigin("payments", "paid", "psp", "evt-1");
+
+    private static String receiptKey() {
+        return io.mateu.workflow.domain.services.InboundEvents.receiptKey("wait:payment-received/bk-1",
+                new io.mateu.workflow.domain.aggregates.InboundEvent("payments", "evt-1", "psp", "paid", null, null,
+                        null, null, null, null));
+    }
+
+    @Test
+    void anEventMessageThatMatchesNoWaitingStepLeavesNoReceipt() {
+        // So the producer's redelivery, once the step waits, is correlated instead of refused.
+        useCase.handle(new CorrelateMessageCommand("payment-received", "bk-1", List.of(), ORIGIN));
+
+        verify(eventReceiptRepository, never()).save(any());
+    }
+
+    @Test
+    void anEventMessageAStepTookIsReceiptedUnderTheWaitReceiverAndTheEvent() {
+        var se = pending("se-1");
+        when(stepExecutionRepository.findWaitingForMessage("payment-received", "bk-1")).thenReturn(List.of(se));
+        when(completeMessageStepHandler.handle(any())).thenReturn(true);
+
+        useCase.handle(new CorrelateMessageCommand("payment-received", "bk-1", List.of(), ORIGIN));
+
+        var captor = org.mockito.ArgumentCaptor.forClass(io.mateu.workflow.domain.aggregates.EventReceipt.class);
+        verify(eventReceiptRepository).save(captor.capture());
+        org.assertj.core.api.Assertions.assertThat(captor.getValue().receiptKey()).isEqualTo(receiptKey());
+        org.assertj.core.api.Assertions.assertThat(captor.getValue().receiver()).isEqualTo("wait:payment-received/bk-1");
+        org.assertj.core.api.Assertions.assertThat(captor.getValue().eventId()).isEqualTo("evt-1");
+        org.assertj.core.api.Assertions.assertThat(captor.getValue().outcome())
+                .isEqualTo(io.mateu.workflow.domain.aggregates.EventReceipt.Outcome.DELIVERED);
+    }
+
+    @Test
+    void anEventMessageNoStepTookAfterAllLeavesNoReceipt() {
+        when(stepExecutionRepository.findWaitingForMessage("payment-received", "bk-1")).thenReturn(List.of(pending("se-1")));
+        when(completeMessageStepHandler.handle(any())).thenReturn(false);
+
+        useCase.handle(new CorrelateMessageCommand("payment-received", "bk-1", List.of(), ORIGIN));
+
+        verify(eventReceiptRepository, never()).save(any());
+    }
+
+    @Test
+    void anEventMessageAlreadyTakenIsDroppedBeforeItCanCompleteALaterWait() {
+        when(eventReceiptRepository.exists(receiptKey())).thenReturn(true);
+
+        useCase.handle(new CorrelateMessageCommand("payment-received", "bk-1", List.of(), ORIGIN));
+
+        verify(stepExecutionRepository, never()).findWaitingForMessage(any(), any());
+        verify(completeMessageStepHandler, never()).handle(any());
+    }
+
+    @Test
+    void aPlainMessageNeverTouchesReceipts() {
+        when(stepExecutionRepository.findWaitingForMessage("payment-received", "bk-1")).thenReturn(List.of(pending("se-1")));
+        when(completeMessageStepHandler.handle(any())).thenReturn(true);
+
+        useCase.handle(new CorrelateMessageCommand("payment-received", "bk-1", List.of()));
+
+        verifyNoInteractions(eventReceiptRepository);
     }
 }

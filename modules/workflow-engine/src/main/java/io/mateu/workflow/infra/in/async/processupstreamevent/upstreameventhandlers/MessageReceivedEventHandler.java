@@ -28,6 +28,7 @@ public class MessageReceivedEventHandler implements DomainEventHandler<MessageRe
                 e.messageName(),
                 e.correlationKey(),
                 e.variables() == null ? List.of() : e.variables().stream()
-                        .map(variable -> new Variable(variable.name(), variable.value())).toList()));
+                        .map(variable -> new Variable(variable.name(), variable.value())).toList(),
+                e.origin()));
     }
 }

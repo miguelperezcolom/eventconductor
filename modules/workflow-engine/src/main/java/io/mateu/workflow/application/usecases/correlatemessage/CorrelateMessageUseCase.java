@@ -1,11 +1,18 @@
 package io.mateu.workflow.application.usecases.correlatemessage;
 
+import io.mateu.workflow.application.out.EventReceiptRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
+import io.mateu.workflow.domain.aggregates.EventReceipt;
+import io.mateu.workflow.domain.aggregates.InboundEvent;
+import io.mateu.workflow.domain.services.InboundEvents;
+import io.mateu.workflow.dtos.events.integration.MessageReceived;
 import io.mateu.workflow.application.usecases.correlatemessage.completemessagestep.CompleteMessageStepCommand;
 import io.mateu.workflow.application.usecases.correlatemessage.completemessagestep.CompleteMessageStepHandler;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+
+import java.time.Instant;
 
 /**
  * Correlates an incoming {@code MessageReceived} against WAIT_FOR_MESSAGE steps waiting for
@@ -21,6 +28,13 @@ import org.springframework.stereotype.Service;
  * that check is the decision. A message that matches no waiting step is ignored (logged, not
  * buffered): upstream delivery is at-least-once, so the sender simply retries once the process
  * is waiting.
+ *
+ * <p>A message made from a domain event (a {@code WAIT_FOR_MESSAGE}'s {@code onEvent}) carries the
+ * event's origin. Its receipt — what makes a redelivery of the event a duplicate — is written here,
+ * once a waiting step actually took the message, not when the event was received: an event that
+ * arrived before the step was waiting is dropped without a receipt, so its redelivery (the documented
+ * remedy) is correlated again instead of being refused as a duplicate. A redelivery of an event a step
+ * already took is dropped here, before it could complete a later wait on the same message and key.
  */
 @Service
 @RequiredArgsConstructor
@@ -33,6 +47,7 @@ public class CorrelateMessageUseCase {
     final io.mateu.workflow.application.services.ProcessTrace processTrace;
     final io.mateu.workflow.application.services.messagerouting.MessageRoutingMetrics messageRoutingMetrics;
     final io.mateu.workflow.application.services.messagerouting.WaitingMessageFilter waitingMessageFilter;
+    final EventReceiptRepository eventReceiptRepository;
 
     public void handle(CorrelateMessageCommand command) {
         // Layer 3: a broadcast reaches every shard, but the per-shard filter can say — without a
@@ -52,6 +67,13 @@ public class CorrelateMessageUseCase {
         // untraced, and each match is traced inside the trace of the process it turned out to
         // belong to. A span around the lookup would be a root of its own with nothing to attach it
         // to, which is what every span in the engine used to be.
+        var receiver = "wait:" + command.messageName() + "/" + command.correlationKey();
+        var receiptKey = command.origin() == null ? null : InboundEvents.receiptKey(receiver, asEvent(command.origin()));
+        if (receiptKey != null && eventReceiptRepository.exists(receiptKey)) {
+            log.info("Event {} from {} was already taken by a step waiting for message '{}' with key '{}': ignored",
+                    command.origin().id(), command.origin().source(), command.messageName(), command.correlationKey());
+            return;
+        }
         var matched = stepExecutionRepository.findWaitingForMessage(
                 command.messageName(), command.correlationKey());
         if (matched.isEmpty()) {
@@ -59,13 +81,29 @@ public class CorrelateMessageUseCase {
                     command.messageName(), command.correlationKey());
             return;
         }
+        var takenBy = new java.util.concurrent.atomic.AtomicReference<String>();
         matched.forEach(se -> workflowTracing.continuing(
                 processTrace.contextFor(se.getProcessId()),
                 "eventconductor.correlate-message",
                 java.util.Map.of("eventconductor.process.id", String.valueOf(se.getProcessId()),
                         "eventconductor.message.name", String.valueOf(command.messageName())),
-                () -> completeMessageStepHandler.handle(new CompleteMessageStepCommand(
-                        se.id(), command.messageName(), command.correlationKey(), command.variables()))));
+                () -> {
+                    if (completeMessageStepHandler.handle(new CompleteMessageStepCommand(
+                            se.id(), command.messageName(), command.correlationKey(), command.variables()))) {
+                        takenBy.compareAndSet(null, String.valueOf(se.getWorkflowDefinitionId()));
+                    }
+                }));
+        if (receiptKey != null && takenBy.get() != null) {
+            var origin = command.origin();
+            eventReceiptRepository.save(new EventReceipt(receiptKey, receiver, EventReceipt.Kind.WAIT,
+                    origin.destination(), origin.type(), origin.source(), origin.id(), EventReceipt.Outcome.DELIVERED,
+                    takenBy.get(), null, null, command.messageName(), command.correlationKey(), null, Instant.now()));
+        }
+    }
+
+    private static InboundEvent asEvent(MessageReceived.EventOrigin origin) {
+        return new InboundEvent(origin.destination(), origin.id(), origin.source(), origin.type(), null, null, null,
+                null, null, null);
     }
 
 }

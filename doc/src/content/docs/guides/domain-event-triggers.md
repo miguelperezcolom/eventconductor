@@ -112,13 +112,13 @@ An event matching `onEvent` is turned into the step's message — `messageName`,
 
 The default correlation key is the record key: a `PUBLISH_EVENT` keyed by the booking id (`key: "${bookingId}"`) is waited for with `correlationExpression: bookingId` and no `correlationKey` at all.
 
-Like any message, an event that arrives before the step waits is **not buffered**: it correlates with nothing.
+Like any message, an event that arrives before the step waits is **not buffered**: it correlates with nothing. It leaves no receipt either, so a redelivery by the producer once the step waits is correlated as usual.
 
 ## Each event is used once
 
 The same event — the same CloudEvents `source` and `id` — **never starts two processes through one trigger, and is never correlated twice** (not even into a later wait of the same process on the same message), however often it is delivered and through whichever channel:
 
-- After a trigger started a process or a wait got its message, the engine records a **receipt** for that receiver and event (`inbound_event_receipt` with `workflow.persistence=jpa`, in memory otherwise). A redelivery finds it and does nothing — it is reported as a duplicate.
+- After a trigger started a process or a wait got its message, the engine records a **receipt** for that receiver and event (`inbound_event_receipt` with `workflow.persistence=jpa`, in memory otherwise). A redelivery finds it and does nothing — it is reported as a duplicate. A wait's receipt is written when a waiting step actually takes the message, so an event that found no step waiting is not a duplicate on redelivery.
 - The receipt is written after the start or the message was handed over, so a failure to hand over is retried. The short window in between (a crash, two copies at once) is closed by the **default business key**, derived from the event: the second creation collapses into the first.
 - An author-given `businessKey` is honoured as given — so two *different* events that render the same key start one process.
 - A business key is **unique across workflows**, not per workflow: a creation whose key any process already has — of whichever workflow — is ignored. Two triggers of *different* workflows that render the same key (`booking-${data.bookingId}` in both) start one process between them: the first wins. So put the workflow in the template — `booking-onboarding-${data.bookingId}`. The engine logs a WARN when triggers of different workflows share a `businessKey` template (on every import and when a trigger is created or edited), and a trigger whose rendered key another workflow's process already holds records an **error** receipt saying so instead of `STARTED` (best effort: a process created at the same moment, or on another shard, is not seen).

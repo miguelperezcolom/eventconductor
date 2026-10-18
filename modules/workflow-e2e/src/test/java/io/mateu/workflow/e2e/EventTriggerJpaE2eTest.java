@@ -108,4 +108,26 @@ class EventTriggerJpaE2eTest extends AbstractJpaE2eTest {
         triggers.delete("event-file-trigger", "api-cdc");
         assertThat(fileTriggers.findAll()).hasSize(1);
     }
+
+    @Test
+    void anEventThatArrivedBeforeItsWaitIsCorrelatedOnRedeliveryAndOnlyThenDeduplicated() {
+        var payment = new InboundEvent("e2e-payments", "jpa-pay-early", "payments/e2e", "com.acme.payment.captured",
+                null, null, null, "application/json",
+                "{\"bookingId\":\"JW-1\",\"paymentId\":\"JP-1\",\"amount\":10}", Map.of());
+        inbound.receive(payment);
+
+        var businessKey = "jpa-wait-" + java.util.UUID.randomUUID();
+        createProcess("event-wait", businessKey, new io.mateu.workflow.dtos.Variable("bookingId", "JW-1"));
+        org.awaitility.Awaitility.await().atMost(TIMEOUT).until(() -> steps(businessKey).stream().anyMatch(se ->
+                "first-payment".equals(se.getStepId())
+                        && se.getStatus() == io.mateu.workflow.domain.aggregates.StepExecutionStatus.PENDING));
+
+        assertThat(inbound.receive(payment).duplicates()).isEmpty();
+        org.awaitility.Awaitility.await().atMost(TIMEOUT).until(() -> step(businessKey, "first-payment").getStatus()
+                == io.mateu.workflow.domain.aggregates.StepExecutionStatus.COMPLETED);
+        org.awaitility.Awaitility.await().atMost(TIMEOUT).until(() -> receipts.recent(50, "event-wait").stream()
+                .anyMatch(r -> "jpa-pay-early".equals(r.eventId())));
+
+        assertThat(inbound.receive(payment).duplicates()).containsExactly("wait:e2e-payment-captured/JW-1");
+    }
 }

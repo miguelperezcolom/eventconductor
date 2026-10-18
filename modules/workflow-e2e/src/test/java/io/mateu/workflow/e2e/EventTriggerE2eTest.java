@@ -158,6 +158,31 @@ class EventTriggerE2eTest extends AbstractE2eTest {
         assertThat(triggers.received(50, "event-wait")).extracting(EventReceipt::eventId).contains("pay-1", "pay-2");
     }
 
+    @Test
+    void anEventThatArrivedBeforeItsWaitIsNotADuplicateWhenRedeliveredOnceTheStepWaits() {
+        // Nothing waits for W-early yet: the message correlates with nothing and must leave no receipt.
+        var early = inbound.receive(payment("pay-early", "W-early", "P-early", 10));
+        assertThat(early.delivered()).isEqualTo(1);
+        assertThat(triggers.received(50, "event-wait")).extracting(EventReceipt::eventId).doesNotContain("pay-early");
+
+        var businessKey = "wait-" + UUID.randomUUID();
+        createProcess("event-wait", businessKey, new io.mateu.workflow.dtos.Variable("bookingId", "W-early"));
+        assertThat(step(businessKey, "first-payment").getStatus()).isEqualTo(StepExecutionStatus.PENDING);
+
+        // The producer's redelivery — the documented remedy — now completes the wait.
+        var redelivered = inbound.receive(payment("pay-early", "W-early", "P-early", 10));
+        assertThat(redelivered.duplicates()).isEmpty();
+        assertThat(step(businessKey, "first-payment").getStatus()).isEqualTo(StepExecutionStatus.COMPLETED);
+        assertThat(process(businessKey).getVariables()).contains(new Variable("lastPaymentId", "P-early"));
+
+        // Once taken, it is a duplicate, and does not complete the next wait on the same message and key.
+        var again = inbound.receive(payment("pay-early", "W-early", "P-early", 10));
+        assertThat(again.duplicates()).containsExactly("wait:e2e-payment-captured/W-early");
+        assertThat(step(businessKey, "second-payment").getStatus()).isEqualTo(StepExecutionStatus.PENDING);
+        assertThat(triggers.received(50, "event-wait")).filteredOn(r -> "pay-early".equals(r.eventId()))
+                .singleElement().extracting(EventReceipt::outcome).isEqualTo(EventReceipt.Outcome.DELIVERED);
+    }
+
     private static InboundEvent cdc(String id, String op, String customerId, String email) {
         // A Debezium-style record: no CloudEvents type, the change envelope as the payload.
         return new InboundEvent("e2e-customers-cdc", id, "kafka://e2e.public.customers", null, null, null, customerId,

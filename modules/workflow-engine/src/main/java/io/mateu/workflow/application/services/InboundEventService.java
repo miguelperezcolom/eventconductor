@@ -54,7 +54,9 @@ import java.util.Set;
  *
  * <p><b>Idempotency</b>: each receiver ({@code trigger:<workflow>/<trigger>},
  * {@code wait:<message>/<key>}) records a receipt under the event's source and id once it acted, and is
- * skipped for a delivery it already has a receipt for. The receipt is written after the hand-over, so a
+ * skipped for a delivery it already has a receipt for. A wait's receipt is written where the message is
+ * correlated, and only when a waiting step took it ({@code CorrelateMessageUseCase}): an event that
+ * arrives before its step is waiting leaves no receipt, so its redelivery is tried again. The receipt is written after the hand-over, so a
  * failure to hand over leaves the event to be retried; the window between the two (a crash, a concurrent
  * duplicate) is closed by the default business key, derived from the event, and by a wait that, once
  * completed, no longer matches. A filter or template that fails records an ERROR receipt (under a key of
@@ -285,11 +287,15 @@ public class InboundEventService {
             log.info("Event {} ({}) on '{}' delivered as message '{}' with correlation key '{}'", event.id(),
                     event.type(), event.destination(), delivery.messageName(), delivery.correlationKey());
             messageDispatcher.dispatch(new MessageReceived(delivery.messageName(), delivery.correlationKey(),
-                    toVariables(delivery.variables())));
-            var receipt = receipt(receiver, receiver, EventReceipt.Kind.WAIT, event, EventReceipt.Outcome.DELIVERED,
-                    delivery.workflowId(), null, null, delivery.messageName(), delivery.correlationKey(), null);
-            receipts.save(receipt);
-            acted.add(receipt);
+                    toVariables(delivery.variables()),
+                    new MessageReceived.EventOrigin(event.destination(), event.type(), event.source(), event.id())));
+            // Not saved here: whether a step was waiting is only known where the message is correlated
+            // (asynchronously, maybe on another shard), and a receipt for a message nobody took would
+            // refuse the redelivery that is the remedy for an event arriving before its step waits.
+            // CorrelateMessageUseCase writes this receipt when a waiting step takes the message.
+            acted.add(receipt(receiver, receiver, EventReceipt.Kind.WAIT, event, EventReceipt.Outcome.DELIVERED,
+                    delivery.workflowId(), null, null, delivery.messageName(), delivery.correlationKey(),
+                    "dispatched; recorded once a waiting step takes it"));
         }
     }
 
