@@ -129,6 +129,14 @@ public class SpecValidator {
             return;
         }
         warnings.addAll(replyAnalysis(wf).warnings());
+        for (JsonNode step : steps) {
+            String id = text(step, "id");
+            if (id != null) {
+                warnings.addAll(io.mateu.workflow.analysis.AwaitReplyRules.misplacedWaitFieldWarnings(id,
+                        text(step, "type"), isSet(text(step, "messageName")),
+                        isSet(text(step, "correlationExpression"))));
+            }
+        }
         java.util.Map<String, JsonNode> stepsById = new java.util.HashMap<>();
         for (JsonNode step : steps) {
             String id = text(step, "id");
@@ -413,8 +421,6 @@ public class SpecValidator {
                     hasReplyEvent,
                     hasReplyEvent ? text(replyEvent, "destination") : null,
                     hasReplyEvent ? text(replyEvent, "type") : null));
-            violations.addAll(io.mateu.workflow.analysis.AwaitReplyRules.misplacedWaitFieldViolations(id, type,
-                    isSet(text(step, "messageName")), isSet(corrExpr)));
             if (hasAwaitReply) {
                 String replyCorrelation = text(awaitReply, "correlationExpression");
                 if (isSet(replyCorrelation)) {

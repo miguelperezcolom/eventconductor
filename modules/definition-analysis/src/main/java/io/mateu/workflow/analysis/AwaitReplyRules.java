@@ -18,9 +18,10 @@ import java.util.Set;
  *       {@code WAIT_FOR_MESSAGE}.</li>
  *   <li>{@code onEvent}, when present, follows the destination and type rules of an {@code onEvent}
  *       ({@link EventTriggerRules#sourceViolations}).</li>
- *   <li>The step's own {@code onEvent}, {@code messageName} and {@code correlationExpression} are not
- *       read on these step types; declaring them next to an {@code awaitReply} is reported, since the
- *       author almost certainly meant them inside it.</li>
+ *   <li>The step's own {@code messageName} and {@code correlationExpression} are not read on these step
+ *       types. Declaring them is a <em>warning</em>, not an error — they were silently ignored before
+ *       {@code awaitReply} existed, and a definition carrying them must keep loading — pointing at
+ *       {@code awaitReply}, where the author almost certainly meant them.</li>
  * </ul>
  */
 public final class AwaitReplyRules {
@@ -69,16 +70,16 @@ public final class AwaitReplyRules {
     }
 
     /**
-     * The wait fields declared on an {@code HTTP_CALL} / {@code PUBLISH_EVENT} itself rather than inside
-     * its {@code awaitReply}, which the engine does not read there.
+     * Warnings (never errors) for the wait fields declared on an {@code HTTP_CALL} / {@code PUBLISH_EVENT}
+     * itself rather than inside its {@code awaitReply}: the engine ignores them there, as it always has.
      */
-    public static List<String> misplacedWaitFieldViolations(String stepId, String stepType,
+    public static List<String> misplacedWaitFieldWarnings(String stepId, String stepType,
                                                             boolean hasMessageName, boolean hasCorrelationExpression) {
         if (!STEP_TYPES.contains(stepType) || (!hasMessageName && !hasCorrelationExpression)) {
             return List.of();
         }
         return List.of("Step '" + stepId + "' declares " + (hasMessageName ? "messageName" : "correlationExpression")
-                + ", which " + withArticle(stepType) + " does not read; to wait for a reply, put it inside awaitReply.");
+                + ", which " + withArticle(stepType) + " ignores; to wait for a reply, put it inside awaitReply.");
     }
 
     /** "an HTTP_CALL", "a PUBLISH_EVENT". */

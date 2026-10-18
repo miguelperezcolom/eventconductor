@@ -86,8 +86,12 @@ class AwaitReplyTest {
         assertThatThrownBy(() -> definition(step("act", StepType.ACTION, "start").withTopic("t")
                 .withAwaitReply(REPLY)).checkInvariants())
                 .hasMessageContaining("only an HTTP_CALL or a PUBLISH_EVENT awaits a reply");
-        assertThatThrownBy(() -> definition(http(null).withMessageName("quote-ready")).checkInvariants())
-                .hasMessageContaining("declares messageName, which an HTTP_CALL does not read");
+        // Wait fields on the step itself were always ignored: a warning, so the definition keeps loading.
+        var misplaced = definition(http(null).withMessageName("quote-ready").withCorrelationExpression("businessKey"));
+        assertThatNoException().isThrownBy(misplaced::checkInvariants);
+        assertThat(misplaced.topologyWarnings()).contains("Step 'ask' declares messageName, which an HTTP_CALL"
+                + " ignores; to wait for a reply, put it inside awaitReply.");
+        assertThat(misplaced.steps().get(1).awaitsMessage()).isFalse();
         assertThatThrownBy(() -> definition(publish(new AwaitReply("quote-ready", "requestId",
                 new EventWait("quote-replies", "quote.ready", "${data.requestId", null, null)))).checkInvariants())
                 .hasMessageContaining("awaitReply.onEvent");

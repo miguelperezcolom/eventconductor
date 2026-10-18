@@ -43,13 +43,13 @@ class AwaitReplyRulesTest {
 
     @Test
     void waitFieldsOnTheStepItselfAreReportedOnTheTypesThatAwaitReplies() {
-        assertThat(AwaitReplyRules.misplacedWaitFieldViolations("ask", "HTTP_CALL", true, false))
-                .containsExactly("Step 'ask' declares messageName, which an HTTP_CALL does not read; to wait for a reply,"
+        assertThat(AwaitReplyRules.misplacedWaitFieldWarnings("ask", "HTTP_CALL", true, false))
+                .containsExactly("Step 'ask' declares messageName, which an HTTP_CALL ignores; to wait for a reply,"
                         + " put it inside awaitReply.");
-        assertThat(AwaitReplyRules.misplacedWaitFieldViolations("ask", "PUBLISH_EVENT", false, true))
+        assertThat(AwaitReplyRules.misplacedWaitFieldWarnings("ask", "PUBLISH_EVENT", false, true))
                 .singleElement().asString().contains("declares correlationExpression");
-        assertThat(AwaitReplyRules.misplacedWaitFieldViolations("ask", "PUBLISH_EVENT", false, false)).isEmpty();
-        assertThat(AwaitReplyRules.misplacedWaitFieldViolations("w", "WAIT_FOR_MESSAGE", true, true)).isEmpty();
+        assertThat(AwaitReplyRules.misplacedWaitFieldWarnings("ask", "PUBLISH_EVENT", false, false)).isEmpty();
+        assertThat(AwaitReplyRules.misplacedWaitFieldWarnings("w", "WAIT_FOR_MESSAGE", true, true)).isEmpty();
     }
 
     @Test

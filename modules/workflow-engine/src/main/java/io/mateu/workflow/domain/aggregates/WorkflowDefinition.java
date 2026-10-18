@@ -773,9 +773,6 @@ public record WorkflowDefinition(
                         reply != null && reply.onEvent() != null,
                         reply == null || reply.onEvent() == null ? null : reply.onEvent().destination(),
                         reply == null || reply.onEvent() == null ? null : reply.onEvent().type()));
-                problems.addAll(io.mateu.workflow.analysis.AwaitReplyRules.misplacedWaitFieldViolations(step.id(), typeName,
-                        step.messageName() != null && !step.messageName().isBlank(),
-                        step.correlationExpression() != null && !step.correlationExpression().isBlank()));
                 if (problems.isEmpty() && reply != null && reply.onEvent() != null) {
                     problems.addAll(eventTemplateProblems(reply.onEvent().filter(), reply.onEvent().correlationKey(),
                             reply.onEvent().variables(), "Step '" + step.id() + "' awaitReply.onEvent"));
@@ -971,6 +968,15 @@ public record WorkflowDefinition(
         }
         warnings.addAll(choiceWithoutDefaultWarnings());
         warnings.addAll(replyAnalysis().warnings());
+        // Wait fields written on a request step instead of inside its awaitReply: ignored, as they always
+        // were — a warning, so a definition that carries them keeps loading.
+        for (var step : steps) {
+            if (step.id() == null) continue;
+            warnings.addAll(io.mateu.workflow.analysis.AwaitReplyRules.misplacedWaitFieldWarnings(step.id(),
+                    step.type() == null ? null : step.type().name(),
+                    step.messageName() != null && !step.messageName().isBlank(),
+                    step.correlationExpression() != null && !step.correlationExpression().isBlank()));
+        }
         return warnings;
     }
 

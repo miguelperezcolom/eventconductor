@@ -135,8 +135,29 @@ class SpecValidatorTest {
                 .anySatisfy(v -> assertThat(v).contains("awaitReply.correlationExpression"))
                 .anySatisfy(v -> assertThat(v).contains("awaitReply.onEvent: 'quote replies' is not a valid destination name"))
                 .anySatisfy(v -> assertThat(v).contains("awaitReply.onEvent correlationKey"))
-                .anySatisfy(v -> assertThat(v).contains("Step 'ask' declares messageName, which an HTTP_CALL does not read"))
-                .anySatisfy(v -> assertThat(v).contains("only an HTTP_CALL or a PUBLISH_EVENT awaits a reply"));
+                .anySatisfy(v -> assertThat(v).contains("only an HTTP_CALL or a PUBLISH_EVENT awaits a reply"))
+                .noneSatisfy(v -> assertThat(v).contains("declares messageName"));
+
+        // Wait fields on a request step itself were always ignored: a warning, never a build failure.
+        var misplaced = new YAMLMapper().readTree("""
+                name: Old definition
+                steps:
+                  - id: start
+                    type: START
+                    name: Start
+                  - id: ask
+                    type: HTTP_CALL
+                    name: Ask
+                    preconditionStepId: start
+                    messageName: quote-ready
+                    correlationExpression: businessKey
+                    http:
+                      url: https://pricing.example.com/quotes
+                """);
+        assertThat(validator.validate(SpecValidator.Kind.WORKFLOW, misplaced)).isEmpty();
+        assertThat(validator.warnings(SpecValidator.Kind.WORKFLOW, misplaced))
+                .contains("Step 'ask' declares messageName, which an HTTP_CALL ignores; to wait for a reply,"
+                        + " put it inside awaitReply.");
     }
 
     @Test
