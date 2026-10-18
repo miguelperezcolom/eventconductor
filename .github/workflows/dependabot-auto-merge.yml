@@ -1,17 +1,21 @@
 name: Dependabot auto-merge
 
-# Turns on GitHub's auto-merge for every pull request Dependabot opens, so a
-# dependency bump lands on its own once CI agrees with it.
+# Turns on GitHub's auto-merge for Dependabot pull requests that bump a patch or
+# minor version, so routine updates land on their own once CI agrees with them.
+# A major bump — and anything Dependabot cannot classify — waits for a person:
+# majors are where breaking changes live, and two such bumps (Maven 3.10,
+# protobuf past the version Spring Boot manages) once merged green and broke a
+# release image.
 #
 # The waiting is not done here. `--auto` queues the merge and GitHub releases it
 # only when every required status check on `main` has passed, so the gate is the
-# branch protection rule, not this file. Take the required checks off `main` and
-# these merges stop waiting for anything.
+# branch protection rule, not this file.
 #
 # `pull_request_target` is what gives this workflow a token that can merge —
 # Dependabot's own pull_request runs get a read-only one. That trigger runs with
 # the base repository's permissions, so it must never check out or execute the
-# pull request's code. This job does neither: it only calls the API.
+# pull request's code. This job does neither: it reads Dependabot's metadata and
+# calls the API.
 
 on: pull_request_target
 
@@ -26,7 +30,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Queue the merge behind the required checks
+      - name: Read what the bump is
+        id: meta
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Queue the merge behind the required checks (patch and minor only)
+        if: steps.meta.outputs.update-type == 'version-update:semver-patch' || steps.meta.outputs.update-type == 'version-update:semver-minor'
         run: gh pr merge --auto --squash "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
