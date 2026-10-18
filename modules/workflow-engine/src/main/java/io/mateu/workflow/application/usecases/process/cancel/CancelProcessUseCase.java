@@ -39,6 +39,15 @@ public class CancelProcessUseCase {
     private record Cancellation(Process cancelledProcess, List<StepExecution> cancelledSteps, boolean repeated) {
     }
 
+    /**
+     * Whether a process in {@code status} is cancelled by a request: anything but COMPLETED. A process
+     * already CANCELLED is accepted, because the request re-runs its (idempotent) cascade. Shared with
+     * the REST API, which refuses the rest synchronously.
+     */
+    public static boolean acceptsFrom(ProcessStatus status) {
+        return !ProcessStatus.COMPLETED.equals(status);
+    }
+
     public void handle(CancelProcessCommand command) {
         // This process's own read-check-write runs under its lock, like every other writer of it:
         // the cancel can no longer interleave with the relay moving the process (a step-over
@@ -84,7 +93,7 @@ public class CancelProcessUseCase {
      */
     private Cancellation cancelUnderLock(CancelProcessCommand command) {
         var process = processRepository.findById(command.processId()).orElseThrow();
-        if (ProcessStatus.COMPLETED.equals(process.getStatus())) {
+        if (!acceptsFrom(process.getStatus())) {
             return null;
         }
         if (ProcessStatus.CANCELLED.equals(process.getStatus())) {

@@ -5,7 +5,7 @@ description: How to start a workflow process instance — via Kafka or programma
 
 A process instance is created by sending a `ProcessCreationRequested` event. Depending on your deployment mode, you can do this via Kafka or programmatically.
 
-To start a process over HTTP and **wait for its answer**, see [Synchronous Invocation](/guides/synchronous-invocation/).
+To start a process over HTTP, use the [Processes REST API](/reference/processes-rest-api/) (`POST /workflow/api/processes`, idempotent on the business key) — which also reads, lists, cancels, pauses, resumes, retries and restarts processes. To start one and **wait for its answer**, see [Synchronous Invocation](/guides/synchronous-invocation/).
 
 ## Via Kafka (mode: kafka)
 
@@ -159,6 +159,8 @@ Optional<Process> process = processRepository.findById(processId);
 Optional<Process> process = processRepository.findByBusinessKey("order-123");
 ```
 
+Over HTTP: `GET /workflow/api/processes/{id}`, `GET /workflow/api/processes/by-key?businessKey=order-123`, and the filtered, paged listing `GET /workflow/api/processes` — see the [Processes REST API](/reference/processes-rest-api/).
+
 ## Resuming a waiting process (WAIT_FOR_MESSAGE steps)
 
 A process paused on a `WAIT_FOR_MESSAGE` step resumes when a matching message arrives — via `POST /workflow/api/messages`, the `sendMessage` MCP tool, a raw `message-received` event on the Kafka `upstream` topic, or a `SEND_MESSAGE` step in another process (in-engine process-to-process signaling, no worker needed). See [Step Types — WAIT_FOR_MESSAGE](/reference/step-types/#wait_for_message) for correlation and delivery semantics.
@@ -219,6 +221,8 @@ cancelProcessUseCase.handle(new CancelProcessCommand(processId));
 ```
 
 Running step executions will be cancelled (workers are notified via `TaskCancellationRequested`), and the process status will transition to `CANCELLED`. Cancelling an already `COMPLETED` or `CANCELLED` process is a no-op.
+
+Over HTTP the same commands are `POST /workflow/api/processes/{id}/cancel`, `/pause`, `/resume`, `/retry`, `/restart` and `/steps/{stepExecutionId}/retry` (`202`; `409` when the status does not allow it) — see the [Processes REST API](/reference/processes-rest-api/#commands).
 
 In kafka mode the same cancel can be sent as a `process-cancellation-requested` event (with the `processId`) on the `upstream` topic — `CancelProcessRequestedEventHandler` calls `CancelProcessUseCase`. Pause, resume, restart, retry and retry-step have upstream events too; see [Kafka topics — upstream](/reference/kafka-topics/#upstream).
 

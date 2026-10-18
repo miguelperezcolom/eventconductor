@@ -44,23 +44,12 @@ public class SimpleProcessCrudAdapter  {
 
     public ListingData<ProcessRow> search(String searchText, ProcessFilters filters, Pageable pageable, HttpRequest httpRequest) {
         var filter = listingFilter(searchText, filters, httpRequest);
-        // A tag no definition carries lists nothing. Answered here, not by the store: the set it would
-        // be asked to match by has no member, and an empty IN list is not portable SQL.
-        if (filter.workflowDefinitionIds() != null && filter.workflowDefinitionIds().contains(NO_DEFINITION)) {
-            int size = pageable == null || pageable.size() <= 0 ? 1 : pageable.size();
-            return new ListingData<>(new Page<>(searchText, size, 0, 0, List.of()));
-        }
-        // Filtering, ordering and paging all happen in the store. Doing them here meant loading
-        // every process — and with it every process's workflow definition JSON — to paint ten rows.
-        //
-        // From the read model when it can answer, and from this shard's own database when it
-        // cannot. The difference only shows in a sharded fleet, and there it is the difference
-        // between listing the fleet and listing whichever shard served the request.
-        var fromIndex = searchIndex(filter, pageable);
-        if (fromIndex.isPresent()) {
-            return fromIndex.get();
-        }
-        var found = repository.searchSummaries(filter, pageable.page(), pageable.size());
+        // Where the page comes from — the process index when it is on and can answer, this shard's
+        // own database otherwise — is decided by the listing service, which the REST API uses too.
+        // Filtering, ordering and paging all happen in the store: doing them here meant loading every
+        // process, and with it every process's workflow definition JSON, to paint ten rows.
+        var found = listing().search(filter, pageable == null ? 0 : pageable.page(),
+                pageable == null ? 0 : pageable.size());
         List<ProcessRow> page = found.content().stream().map(mapSummaryToRow(dtf)).toList();
         // The page number and size reported back are the ones the store served, not the ones that
         // were asked for. A request past the last page is answered with the last real one, and a
@@ -70,55 +59,10 @@ public class SimpleProcessCrudAdapter  {
                 searchText, found.pageSize(), found.pageNumber(), found.totalElements(), page));
     }
 
-    /**
-     * The listing answered from the process index, when there is one that can answer.
-     *
-     * <p>Empty means "ask the write side", and there are two ways to get it. The read model may be
-     * off — the common case, and the one that matters: its adapter is wired whenever persistence is
-     * jpa, so a listing that trusted the adapter's existence would query an empty table and report
-     * no processes at all. Or the store may not support paging, in which case it says so by
-     * returning empty rather than by returning a page it had to load whole.
-     *
-     * <p>A row whose {@code name} is null was projected before the index carried one. Rather than
-     * render a blank where the operator looks, it falls back to the business key — the other thing
-     * that identifies a process to a person.
-     */
-    private Optional<ListingData<ProcessRow>> searchIndex(
-            io.mateu.workflow.application.out.ProcessListingFilter filter, Pageable pageable) {
-        // The index holds a projection, not the process: it can answer text and the errors toggle
-        // and nothing else. Rather than serve a page that quietly ignores the definition, status or
-        // dates the operator chose, it declines and the write side answers. Slower, and the only
-        // version of this that is not a wrong answer wearing a right answer's clothes.
-        if (filter.hasNarrowingBeyondText()) {
-            return Optional.empty();
-        }
-        // The read model being ON is the question, not the adapter existing. The adapter is wired
-        // whenever persistence is jpa, projector or no projector, so asking it for a listing with
-        // the projector off queries an empty table and answers "no processes" — which is not a
-        // fallback, it is a wrong answer that looks like a right one.
-        if (!readModel.isEnabled()) {
-            return Optional.empty();
-        }
-        var index = processIndex.getIfAvailable();
-        if (index == null) {
-            return Optional.empty();
-        }
-        return index.search(filter.normalisedSearchText(), filter.onlyErrors(),
-                        pageable.page(), pageable.size())
-                .map(found -> {
-                    var rows = found.content().stream()
-                            .map(row -> new ProcessRow(
-                                    row.processId(),
-                                    row.name() != null ? row.name() : row.businessKey(),
-                                    mapProcessStatus(ProcessStatus.valueOf(row.status()),
-                                            row.completionPercentage()),
-                                    row.created() != null ? row.created().format(dtf) : null,
-                                    row.started() != null ? row.started().format(dtf) : null,
-                                    row.finished() != null ? row.finished().format(dtf) : null))
-                            .toList();
-                    return new ListingData<>(new Page<>(filter.searchText(), found.pageSize(),
-                            found.pageNumber(), found.totalElements(), rows));
-                });
+    /** The shared listing, over this adapter's stores. */
+    private io.mateu.workflow.application.services.ProcessListingService listing() {
+        return new io.mateu.workflow.application.services.ProcessListingService(
+                repository, processIndex, readModel, definitions);
     }
 
     /**
@@ -154,19 +98,11 @@ public class SimpleProcessCrudAdapter  {
     }
 
     /** A tag that no definition carries must list nothing: a set no process can match, never "no filter". */
-    static final String NO_DEFINITION = "~no-definition-carries-this-tag~";
+    static final String NO_DEFINITION = io.mateu.workflow.application.services.ProcessListingService.NO_DEFINITION;
 
     /** The ids of the definitions carrying {@code tag}; null for no tag. */
     java.util.Set<String> definitionsTagged(String tag) {
-        if (tag == null) {
-            return null;
-        }
-        var repository = definitions == null ? null : definitions.getIfAvailable();
-        var ids = repository == null ? java.util.Set.<String>of() : repository.findAll().stream()
-                .filter(wd -> wd.hasTag(tag))
-                .map(io.mateu.workflow.domain.aggregates.WorkflowDefinition::id)
-                .collect(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new));
-        return ids.isEmpty() ? java.util.Set.of(NO_DEFINITION) : ids;
+        return listing().definitionsTagged(tag);
     }
 
     private static String blankToNull(String value) {
@@ -243,8 +179,11 @@ public class SimpleProcessCrudAdapter  {
     }
 
     private static Function<ProcessSummary, ProcessRow> mapSummaryToRow(DateTimeFormatter dtf) {
+        // A row projected into the index before it carried a name has none: rather than render a
+        // blank where the operator looks, it shows the business key — the other thing that
+        // identifies a process to a person.
         return summary -> new ProcessRow(summary.id(),
-                summary.name(),
+                summary.name() != null ? summary.name() : summary.businessKey(),
                 mapProcessStatus(summary.status(), summary.completionPercentage()),
                 summary.created() != null ? summary.created().format(dtf) : null,
                 summary.started() != null ? summary.started().format(dtf) : null,

@@ -73,9 +73,14 @@ public class RestartProcessUseCase {
         ProcessLockService.runExclusivelyOrThrow(processLockService, command.processId(), () -> doHandle(command));
     }
 
+    /** Whether a process in {@code status} can be restarted: ERROR or CANCELLED. Shared with the REST API. */
+    public static boolean acceptsFrom(ProcessStatus status) {
+        return status != null && RESTARTABLE.contains(status);
+    }
+
     private void doHandle(RestartProcessCommand command) {
         var process = processRepository.findById(command.processId()).orElseThrow();
-        if (!RESTARTABLE.contains(process.getStatus())) {
+        if (!acceptsFrom(process.getStatus())) {
             log.warn("Process {} cannot be restarted from status {} — ignoring",
                     process.getId(), process.getStatus());
             return;

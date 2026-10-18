@@ -37,10 +37,17 @@ public class PauseProcessUseCase {
         ProcessLockService.runExclusivelyOrThrow(processLockService, command.processId(), () -> doHandle(command));
     }
 
+    /**
+     * Whether a process in {@code status} can be paused: PENDING or RUNNING. Public so a door that
+     * answers synchronously (the REST API) refuses with the same rule the use case applies.
+     */
+    public static boolean acceptsFrom(ProcessStatus status) {
+        return ProcessStatus.PENDING.equals(status) || ProcessStatus.RUNNING.equals(status);
+    }
+
     private void doHandle(PauseProcessCommand command) {
         var process = processRepository.findById(command.processId()).orElseThrow();
-        if (!ProcessStatus.PENDING.equals(process.getStatus())
-                && !ProcessStatus.RUNNING.equals(process.getStatus())) {
+        if (!acceptsFrom(process.getStatus())) {
             log.warn("Process {} cannot be paused from status {} — ignoring",
                     process.getId(), process.getStatus());
             return;

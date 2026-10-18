@@ -51,9 +51,14 @@ public class ResumeProcessUseCase {
         ProcessLockService.runExclusivelyOrThrow(processLockService, command.processId(), () -> doHandle(command));
     }
 
+    /** Whether a process in {@code status} can be resumed: PAUSED only. Shared with the REST API. */
+    public static boolean acceptsFrom(ProcessStatus status) {
+        return ProcessStatus.PAUSED.equals(status);
+    }
+
     private void doHandle(ResumeProcessCommand command) {
         var process = processRepository.findById(command.processId()).orElseThrow();
-        if (!ProcessStatus.PAUSED.equals(process.getStatus())) {
+        if (!acceptsFrom(process.getStatus())) {
             log.warn("Process {} cannot be resumed from status {} — ignoring",
                     process.getId(), process.getStatus());
             return;

@@ -88,6 +88,10 @@ A web UI is provided out of the box for operators and developers:
   `MeterRegistry` (Prometheus scrape at `/actuator/prometheus` in the standalone apps), and the
   standalone apps ship optional OpenTelemetry tracing over OTLP. See the
   [Observability reference](https://miguelperezcolom.github.io/eventconductor/reference/observability/).
+- **Processes REST API** — start (idempotent on the business key), read, list with filters and paging,
+  cancel, pause, resume, retry and restart processes under `/workflow/api/processes`, with an
+  [OpenAPI description](https://miguelperezcolom.github.io/eventconductor/openapi/eventconductor-api.yaml).
+  See the [Processes REST API reference](https://miguelperezcolom.github.io/eventconductor/reference/processes-rest-api/).
 - **REST message delivery** — `POST /workflow/api/messages` (`X-Api-Key` or the app's Spring Security; [HTTP security](https://miguelperezcolom.github.io/eventconductor/reference/configuration/#http-security))
   delivers external messages to waiting `WAIT_FOR_MESSAGE` steps, so webhooks and SaaS callbacks can
   resume processes without producing to Kafka.

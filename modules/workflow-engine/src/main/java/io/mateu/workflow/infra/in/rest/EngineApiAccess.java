@@ -16,7 +16,7 @@ import java.security.MessageDigest;
 
 /**
  * Who may call the engine's REST API (/workflow/api/**: messages, events, triggers, schedules, sync
- * invocations) — one rule for every controller:
+ * invocations, processes) — one rule for every controller:
  *
  * <ul>
  *   <li>{@code workflow.message-api.api-key} set: the {@code X-Api-Key} header must match it.</li>
@@ -77,7 +77,7 @@ public class EngineApiAccess implements SmartInitializingSingleton {
             log.info("The engine's REST API (/workflow/api/**) is protected by the application's Spring Security;"
                     + " no workflow.message-api.api-key is required." + consoles);
         } else if (open) {
-            log.warn("The engine's REST API (/workflow/api/**: messages, events, schedules, sync invocations) is OPEN:"
+            log.warn("The engine's REST API (/workflow/api/**: processes, messages, events, schedules, sync invocations) is OPEN:"
                     + " workflow.message-api.allow-anonymous is true, no api-key is set and no Spring Security filter"
                     + " chain is configured, so anyone who can reach this port can start processes, send messages"
                     + " and create schedules." + consoles);
@@ -126,7 +126,8 @@ public class EngineApiAccess implements SmartInitializingSingleton {
         return beans.getBeanNamesForType(MessageRestController.class, false, false).length > 0
                 || beans.getBeanNamesForType(EventRestController.class, false, false).length > 0
                 || beans.getBeanNamesForType(ScheduleRestController.class, false, false).length > 0
-                || beans.getBeanNamesForType(SyncInvocationController.class, false, false).length > 0;
+                || beans.getBeanNamesForType(SyncInvocationController.class, false, false).length > 0
+                || beans.getBeanNamesForType(ProcessRestController.class, false, false).length > 0;
     }
 
     /** Whether a bean of {@code securityFilterChainType} exists (false when Spring Security is not on the classpath). */

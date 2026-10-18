@@ -36,16 +36,25 @@ public class RetryStepExecutionUseCase {
         ProcessLockService.runExclusivelyOrThrow(processLockService, processId, () -> doHandle(command));
     }
 
+    /** Whether a step execution in {@code status} can be retried: ERROR or TIMEOUT. Shared with the REST API. */
+    public static boolean retriesStepFrom(StepExecutionStatus status) {
+        return StepExecutionStatus.ERROR.equals(status) || StepExecutionStatus.TIMEOUT.equals(status);
+    }
+
+    /** Whether a step of a process in {@code status} can be retried: not once the process is finished. */
+    public static boolean retriesStepOfProcessIn(ProcessStatus status) {
+        return !NOT_REVIVABLE.contains(status);
+    }
+
     private void doHandle(RetryStepExecutionCommand command) {
         var stepExecution = stepExecutionRepository.findById(command.stepExecutionId()).orElseThrow();
 
-        if (!StepExecutionStatus.ERROR.equals(stepExecution.getStatus())
-                && !StepExecutionStatus.TIMEOUT.equals(stepExecution.getStatus())) {
+        if (!retriesStepFrom(stepExecution.getStatus())) {
             return;
         }
 
         var process = processRepository.findById(stepExecution.getProcessId()).orElseThrow();
-        if (NOT_REVIVABLE.contains(process.getStatus())) {
+        if (!retriesStepOfProcessIn(process.getStatus())) {
             // Retrying a step must not revive a finished process: a cancelled one's other steps
             // are already CANCELLED and will never run, a rolled-back saga (COMPENSATED, or
             // COMPENSATION_FAILED half way) already undid what this step would build on, and a

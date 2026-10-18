@@ -162,6 +162,14 @@
             <artifactId>json-schema-validator</artifactId>
             <version>3.0.8</version>
         </dependency>
+        <!-- OpenAPI for the engine's REST API (/workflow/api/**). Optional in workflow-engine: an
+             application that wants /v3/api-docs adds it and sets workflow.api.openapi.enabled=true.
+             3.1.x is the line built against Spring Boot 4.1. -->
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-api</artifactId>
+            <version>3.1.1</version>
+        </dependency>
     </dependencies>
   </dependencyManagement>
 

@@ -118,6 +118,7 @@ export default defineConfig({
 						{ label: 'Step Types', slug: 'reference/step-types' },
 						{ label: 'Process & Step Statuses', slug: 'reference/statuses' },
 						{ label: 'Configuration', slug: 'reference/configuration' },
+						{ label: 'Processes REST API', slug: 'reference/processes-rest-api' },
 						{ label: 'Observability', slug: 'reference/observability' },
 						{ label: 'Task Contracts & Worker Protocol', slug: 'reference/task-contracts' },
 						{ label: 'Maven Plugin (validate & generate)', slug: 'reference/maven-plugin' },

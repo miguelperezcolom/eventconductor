@@ -74,6 +74,15 @@
         </dependency>
 
         <dependency>
+            <!-- OpenAPI description of /workflow/api/** — only when the host app brings springdoc and
+                 sets workflow.api.openapi.enabled=true (see EngineOpenApiConfiguration). The
+                 annotations on the API records are inert without it. -->
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-api</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <dependency>
             <groupId>com.h2database</groupId>
             <artifactId>h2</artifactId>
             <scope>test</scope>

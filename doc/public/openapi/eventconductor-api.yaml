@@ -1,0 +1,1498 @@
+openapi: 3.1.0
+info:
+  description: "The engine's REST API under /workflow/api: processes, messages, events\
+    \ and triggers, schedules and synchronous invocations. Every operation takes the\
+    \ X-Api-Key header when workflow.message-api.api-key is set; with Spring Security\
+    \ the application's own authentication applies instead."
+  license:
+    name: Apache-2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+  title: EventConductor engine API
+  version: v1
+servers:
+- url: /
+security:
+- apiKey: []
+tags:
+- description: "Start, read, list and operate processes."
+  name: Processes
+paths:
+  /workflow/api/definitions/{definitionId}/invocations:
+    get:
+      operationId: getByKey
+      parameters:
+      - in: path
+        name: definitionId
+        required: true
+        schema:
+          type: string
+      - in: query
+        name: idempotencyKey
+        required: true
+        schema:
+          type: string
+      - in: header
+        name: Prefer
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvocationResponse"
+          description: OK
+      tags:
+      - sync-invocation-controller
+    post:
+      operationId: invoke
+      parameters:
+      - in: path
+        name: definitionId
+        required: true
+        schema:
+          type: string
+      - in: header
+        name: Idempotency-Key
+        required: false
+        schema:
+          type: string
+      - in: header
+        name: Prefer
+        required: false
+        schema:
+          type: string
+      - in: header
+        name: Last-Event-ID
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: follow
+        required: false
+        schema:
+          type: boolean
+          default: false
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StartBody"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvocationResponse"
+            text/event-stream:
+              schema:
+                $ref: "#/components/schemas/SseEmitter"
+          description: OK
+      tags:
+      - sync-invocation-controller
+  /workflow/api/events/received:
+    get:
+      operationId: received
+      parameters:
+      - in: query
+        name: workflowId
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: limit
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 100
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EventReceipt"
+          description: OK
+      tags:
+      - event-rest-controller
+  /workflow/api/events/{destination}:
+    post:
+      operationId: publish
+      parameters:
+      - in: path
+        name: destination
+        required: true
+        schema:
+          type: string
+      - in: query
+        name: key
+        required: false
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: {}
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Result"
+          description: OK
+      tags:
+      - event-rest-controller
+  /workflow/api/invocations/{invocationId}:
+    get:
+      operationId: get_1
+      parameters:
+      - in: path
+        name: invocationId
+        required: true
+        schema:
+          type: string
+      - in: header
+        name: Prefer
+        required: false
+        schema:
+          type: string
+      - in: header
+        name: Last-Event-ID
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: follow
+        required: false
+        schema:
+          type: boolean
+          default: false
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvocationResponse"
+            text/event-stream:
+              schema:
+                $ref: "#/components/schemas/SseEmitter"
+          description: OK
+      tags:
+      - sync-invocation-controller
+  /workflow/api/messages:
+    post:
+      operationId: sendMessage
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendMessageRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: string
+          description: OK
+      tags:
+      - message-rest-controller
+  /workflow/api/processes:
+    get:
+      description: "One page of processes, newest first, narrowed by every filter\
+        \ given (ANDed). Served from the process index (workflow.projection.enabled)\
+        \ when only q is given, from the engine's store otherwise — the same rule\
+        \ as the admin console's listing."
+      operationId: listProcesses
+      parameters:
+      - description: Only processes of this definition.
+        in: query
+        name: definitionId
+        required: false
+        schema:
+          type: string
+      - description: Only processes of the definitions carrying this tag (case-insensitive).
+        in: query
+        name: tag
+        required: false
+        schema:
+          type: string
+      - description: Only processes in any of these statuses; repeat it or separate
+          with commas.
+        in: query
+        name: status
+        required: false
+        schema:
+          type: array
+          items:
+            type: string
+      - description: "Created at or after: an ISO date-time, or a date (its first\
+          \ moment)."
+        in: query
+        name: from
+        required: false
+        schema:
+          type: string
+      - description: "Created at or before: an ISO date-time, or a date (its last\
+          \ moment)."
+        in: query
+        name: to
+        required: false
+        schema:
+          type: string
+      - description: Business key contains this (case-insensitive).
+        in: query
+        name: businessKey
+        required: false
+        schema:
+          type: string
+      - description: Name or business key contains this (case-insensitive).
+        in: query
+        name: q
+        required: false
+        schema:
+          type: string
+      - description: Zero-based page.
+        in: query
+        name: page
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 0
+      - description: "Page size, 1–500."
+        in: query
+        name: size
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 20
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProcessPage"
+          description: One page of processes.
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: A malformed filter or page.
+      summary: List processes
+      tags:
+      - Processes
+    post:
+      description: "Starts a process of the definition. Idempotent on the business\
+        \ key: the same key and definition again returns the existing process with\
+        \ 200."
+      operationId: startProcess
+      parameters:
+      - description: "W3C trace context: the process joins the caller's trace."
+        in: header
+        name: traceparent
+        required: false
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StartProcessRequest"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Process"
+          description: A process of this definition already has the business key.
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Process"
+          description: Started; Location names the new process.
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "No definitionId, or over the engine's input limits."
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: The caller may not start the definition.
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such definition.
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "The key is taken by another definition's process, or the definition\
+            \ accepts no new processes."
+      summary: Start a process
+      tags:
+      - Processes
+  /workflow/api/processes/by-key:
+    get:
+      description: Exact match.
+      operationId: getProcessByBusinessKey
+      parameters:
+      - in: query
+        name: businessKey
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Process"
+          description: The process.
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No process has the key.
+      summary: Find a process by its business key
+      tags:
+      - Processes
+  /workflow/api/processes/{id}:
+    get:
+      operationId: getProcess
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Process"
+          description: The process.
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such process.
+      summary: Get a process
+      tags:
+      - Processes
+  /workflow/api/processes/{id}/cancel:
+    post:
+      description: Its live steps are cancelled and the workers told. Not for a COMPLETED
+        process.
+      operationId: cancelProcess
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "202":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandAccepted"
+          description: Accepted.
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such process.
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: The process's status does not allow it.
+      summary: Cancel a process
+      tags:
+      - Processes
+  /workflow/api/processes/{id}/logs:
+    get:
+      description: Oldest first.
+      operationId: getProcessLogs
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LogEntry"
+          description: "Its log, oldest first."
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such process.
+      summary: The process's log
+      tags:
+      - Processes
+  /workflow/api/processes/{id}/pause:
+    post:
+      description: "PENDING or RUNNING: no new steps start and timer/timeout clocks\
+        \ freeze."
+      operationId: pauseProcess
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "202":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandAccepted"
+          description: Accepted.
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such process.
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: The process's status does not allow it.
+      summary: Pause a process
+      tags:
+      - Processes
+  /workflow/api/processes/{id}/restart:
+    post:
+      description: "ERROR or CANCELLED: every step runs again, including the ones\
+        \ that succeeded, with the variables it was created with."
+      operationId: restartProcess
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "202":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandAccepted"
+          description: Accepted.
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such process.
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: The process's status does not allow it.
+      summary: Restart a stopped process from the beginning
+      tags:
+      - Processes
+  /workflow/api/processes/{id}/resume:
+    post:
+      description: "PAUSED only: clocks shift by the pause and the flow moves on."
+      operationId: resumeProcess
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "202":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandAccepted"
+          description: Accepted.
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such process.
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: The process's status does not allow it.
+      summary: Resume a paused process
+      tags:
+      - Processes
+  /workflow/api/processes/{id}/retry:
+    post:
+      description: "ERROR or CANCELLED: the failed (or cancelled) steps run again;\
+        \ the ones that succeeded are left alone."
+      operationId: retryProcess
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "202":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandAccepted"
+          description: Accepted.
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such process.
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: The process's status does not allow it.
+      summary: Retry a stopped process from where it stopped
+      tags:
+      - Processes
+  /workflow/api/processes/{id}/steps:
+    get:
+      description: In the order they were created.
+      operationId: getProcessSteps
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StepExecution"
+          description: Its step executions.
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such process.
+      summary: The process's step executions
+      tags:
+      - Processes
+  /workflow/api/processes/{id}/steps/{stepExecutionId}/retry:
+    post:
+      description: "An ERROR or TIMEOUT step of a process that is not finished (CANCELLED,\
+        \ COMPLETED, COMPENSATED, COMPENSATION_FAILED)."
+      operationId: retryStepExecution
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: stepExecutionId
+        required: true
+        schema:
+          type: string
+      responses:
+        "202":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandAccepted"
+          description: Accepted.
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "No such process, or no such step execution of it."
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "The step did not fail, or the process is finished."
+      summary: Retry one failed step execution
+      tags:
+      - Processes
+  /workflow/api/processes/{id}/variables:
+    get:
+      description: By name; values are strings.
+      operationId: getProcessVariables
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: string
+          description: "Its variables, by name."
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such process.
+      summary: The process's variables
+      tags:
+      - Processes
+  /workflow/api/schedules:
+    get:
+      operationId: list
+      parameters:
+      - in: query
+        name: workflowId
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: q
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ScheduleView"
+          description: OK
+      tags:
+      - schedule-rest-controller
+    post:
+      operationId: create
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScheduleBody"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScheduleView"
+          description: OK
+      tags:
+      - schedule-rest-controller
+  /workflow/api/schedules/{id}:
+    delete:
+      operationId: delete
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+      tags:
+      - schedule-rest-controller
+    get:
+      operationId: get
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScheduleView"
+          description: OK
+      tags:
+      - schedule-rest-controller
+    put:
+      operationId: update
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScheduleBody"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScheduleView"
+          description: OK
+      tags:
+      - schedule-rest-controller
+  /workflow/api/schedules/{id}/pause:
+    post:
+      operationId: pause_1
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScheduleView"
+          description: OK
+      tags:
+      - schedule-rest-controller
+  /workflow/api/schedules/{id}/resume:
+    post:
+      operationId: resume_1
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScheduleView"
+          description: OK
+      tags:
+      - schedule-rest-controller
+  /workflow/api/schedules/{id}/run-now:
+    post:
+      operationId: runNow
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RunNowResult"
+          description: OK
+      tags:
+      - schedule-rest-controller
+  /workflow/api/schedules/{id}/yaml:
+    get:
+      operationId: yaml
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/yaml:
+              schema:
+                type: string
+          description: OK
+      tags:
+      - schedule-rest-controller
+  /workflow/api/triggers:
+    get:
+      operationId: triggers
+      parameters:
+      - in: query
+        name: workflowId
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: q
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TriggerView"
+          description: OK
+      tags:
+      - event-rest-controller
+    post:
+      operationId: createTrigger
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TriggerBody"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TriggerView"
+          description: OK
+      tags:
+      - event-rest-controller
+  /workflow/api/triggers/{workflowId}/{triggerId}:
+    delete:
+      operationId: deleteTrigger
+      parameters:
+      - in: path
+        name: workflowId
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: triggerId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+      tags:
+      - event-rest-controller
+    get:
+      operationId: trigger
+      parameters:
+      - in: path
+        name: workflowId
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: triggerId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TriggerView"
+          description: OK
+      tags:
+      - event-rest-controller
+    put:
+      operationId: updateTrigger
+      parameters:
+      - in: path
+        name: workflowId
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: triggerId
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TriggerBody"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TriggerView"
+          description: OK
+      tags:
+      - event-rest-controller
+  /workflow/api/triggers/{workflowId}/{triggerId}/pause:
+    post:
+      operationId: pause
+      parameters:
+      - in: path
+        name: workflowId
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: triggerId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TriggerView"
+          description: OK
+      tags:
+      - event-rest-controller
+  /workflow/api/triggers/{workflowId}/{triggerId}/resume:
+    post:
+      operationId: resume
+      parameters:
+      - in: path
+        name: workflowId
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: triggerId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TriggerView"
+          description: OK
+      tags:
+      - event-rest-controller
+  /workflow/api/triggers/{workflowId}/{triggerId}/yaml:
+    get:
+      operationId: triggerYaml
+      parameters:
+      - in: path
+        name: workflowId
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: triggerId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/yaml:
+              schema:
+                type: string
+          description: OK
+      tags:
+      - event-rest-controller
+components:
+  schemas:
+    CommandAccepted:
+      type: object
+      description: "A command was accepted (202). It is carried out asynchronously\
+        \ by the node that owns the process: read the process to see the outcome."
+      properties:
+        command:
+          type: string
+          description: "cancel, pause, resume, retry, restart or retry-step."
+        processId:
+          type: string
+        stepExecutionId:
+          type: string
+          description: "The step execution, for retry-step."
+    EventReceipt:
+      type: object
+      properties:
+        businessKey:
+          type: string
+        correlationKey:
+          type: string
+        destination:
+          type: string
+        detail:
+          type: string
+        eventId:
+          type: string
+        eventSource:
+          type: string
+        eventType:
+          type: string
+        kind:
+          type: string
+          enum:
+          - TRIGGER
+          - WAIT
+        messageName:
+          type: string
+        outcome:
+          type: string
+          enum:
+          - STARTED
+          - DELIVERED
+          - ERROR
+        receiptKey:
+          type: string
+        receivedAt:
+          type: string
+          format: date-time
+        receiver:
+          type: string
+        triggerId:
+          type: string
+        workflowId:
+          type: string
+    InvocationResponse:
+      type: object
+      properties:
+        compensation:
+          type: string
+        error:
+          type: string
+        invocationId:
+          type: string
+        location:
+          type: string
+        outcome:
+          type: string
+        processId:
+          type: string
+        processStatus:
+          type: string
+        repliedAt:
+          type: string
+          format: date-time
+        reply:
+          type: string
+    LogEntry:
+      type: object
+      description: A line of the process's log.
+      properties:
+        message:
+          type: string
+        stepExecutionId:
+          type: string
+        timestamp:
+          type: string
+        type:
+          type: string
+          description: "The message type (INFO, ERROR, …)."
+        workerId:
+          type: string
+    ProblemDetail:
+      type: object
+      properties:
+        detail:
+          type: string
+        instance:
+          type: string
+          format: uri
+        properties:
+          type: object
+          additionalProperties: {}
+        status:
+          type: integer
+          format: int32
+        title:
+          type: string
+        type:
+          type: string
+          format: uri
+    Process:
+      type: object
+      description: "A process, with its variables."
+      properties:
+        businessKey:
+          type: string
+        completionPercentage:
+          type: integer
+          format: int32
+          description: 0–100.
+        created:
+          type: string
+        definitionId:
+          type: string
+          description: Id of the workflow definition it runs.
+        definitionVersion:
+          type: integer
+          format: int32
+          description: Version of the definition it was created from.
+        finished:
+          type: string
+        id:
+          type: string
+        name:
+          type: string
+          description: The definition's name.
+        parentStepExecutionId:
+          type: string
+          description: The PROCESS step execution that spawned it; null for a top-level
+            process.
+        pausedAt:
+          type: string
+          description: When it was paused; null unless PAUSED.
+        started:
+          type: string
+        status:
+          type: string
+          description: "PENDING, RUNNING, PAUSED, COMPLETED, CANCELLED, ERROR, COMPENSATED\
+            \ or COMPENSATION_FAILED."
+        variables:
+          type: object
+          additionalProperties:
+            type: string
+    ProcessPage:
+      type: object
+      description: "One page of the listing, newest first."
+      properties:
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProcessSummary"
+        page:
+          type: integer
+          format: int32
+          description: Zero-based number of the page served — the last real page when
+            the one asked for is past the end.
+        size:
+          type: integer
+          format: int32
+          description: Page size applied.
+        totalElements:
+          type: integer
+          format: int64
+          description: How many processes match the filter across every page.
+        totalPages:
+          type: integer
+          format: int32
+    ProcessSummary:
+      type: object
+      description: "A process as the listing shows it: no variables."
+      properties:
+        businessKey:
+          type: string
+        completionPercentage:
+          type: integer
+          format: int32
+        created:
+          type: string
+        definitionId:
+          type: string
+        finished:
+          type: string
+        id:
+          type: string
+        name:
+          type: string
+        started:
+          type: string
+        status:
+          type: string
+    Result:
+      type: object
+      properties:
+        destination:
+          type: string
+        duplicates:
+          type: array
+          items:
+            type: string
+        eventId:
+          type: string
+        eventSource:
+          type: string
+        receipts:
+          type: array
+          items:
+            $ref: "#/components/schemas/EventReceipt"
+    RunNowResult:
+      type: object
+      properties:
+        businessKey:
+          type: string
+        scheduleId:
+          type: string
+        workflowId:
+          type: string
+    ScheduleBody:
+      type: object
+      properties:
+        cron:
+          type: string
+        id:
+          type: string
+        variables:
+          type: object
+          additionalProperties:
+            type: string
+        workflowId:
+          type: string
+        zone:
+          type: string
+    ScheduleView:
+      type: object
+      properties:
+        alsoDeclaredIn:
+          type: array
+          items:
+            type: string
+        cron:
+          type: string
+        declaredIn:
+          type: string
+        description:
+          type: string
+        editable:
+          type: boolean
+        effectiveZone:
+          type: string
+        id:
+          type: string
+        idDeclared:
+          type: boolean
+        nextFires:
+          type: array
+          items:
+            type: string
+        origin:
+          type: string
+        paused:
+          type: boolean
+        pausedAt:
+          type: string
+        pausedBy:
+          type: string
+        source:
+          type: string
+        sourceLabel:
+          type: string
+        state:
+          type: string
+          enum:
+          - ACTIVE
+          - PAUSED
+          - WORKFLOW_INACTIVE
+          - INVALID
+        variables:
+          type: object
+          additionalProperties:
+            type: string
+        workflowId:
+          type: string
+        workflowName:
+          type: string
+        zone:
+          type: string
+    SendMessageRequest:
+      type: object
+      properties:
+        correlationKey:
+          type: string
+          minLength: 1
+        messageName:
+          type: string
+          minLength: 1
+        variables:
+          type: object
+          additionalProperties:
+            type: string
+      required:
+      - correlationKey
+      - messageName
+    SseEmitter:
+      type: object
+      properties:
+        timeout:
+          type: integer
+          format: int64
+    StartBody:
+      type: object
+      properties:
+        businessKey:
+          type: string
+        variables:
+          type: object
+          additionalProperties: {}
+    StartProcessRequest:
+      type: object
+      description: What to start.
+      properties:
+        businessKey:
+          type: string
+          description: "Business identifier, unique across processes. Starting again\
+            \ with the same key and definition returns the existing process (200)\
+            \ instead of a second one."
+          example: ORDER-1001
+        definitionId:
+          type: string
+          description: Id of the workflow definition to run.
+          example: order-fulfilment
+        variables:
+          type: object
+          additionalProperties: {}
+          description: Initial process variables. A non-string value is stored as
+            its JSON.
+      required:
+      - definitionId
+    StepExecution:
+      type: object
+      description: One step execution of a process.
+      properties:
+        attemptCount:
+          type: integer
+          format: int32
+          description: Attempts made so far.
+        awaitingCorrelationKey:
+          type: string
+          description: The correlation key that message must carry.
+        awaitingMessageName:
+          type: string
+          description: "The message the step is waiting for: a WAIT_FOR_MESSAGE step,\
+            \ or an HTTP_CALL / PUBLISH_EVENT step with awaitReply waiting for its\
+            \ reply."
+        deadlineAt:
+          type: string
+          description: "When it times out, when it has a deadline."
+        finishedAt:
+          type: string
+        id:
+          type: string
+          description: "Step execution id — what /steps/{stepExecutionId}/retry takes."
+        order:
+          type: integer
+          format: int64
+          description: Position in the process.
+        startedAt:
+          type: string
+        status:
+          type: string
+          description: "CREATED, PENDING, WAITING_ON_LOCK, RUNNING, AWAITING_RETRY,\
+            \ COMPLETED, ERROR, TIMEOUT or CANCELLED."
+        stepId:
+          type: string
+          description: Id of the step in the definition.
+        workerId:
+          type: string
+          description: "Worker that ran it, when one did."
+    TriggerBody:
+      type: object
+      properties:
+        businessKey:
+          type: string
+        destination:
+          type: string
+        filter:
+          type: string
+        id:
+          type: string
+        type:
+          type: string
+        variables:
+          type: object
+          additionalProperties: {}
+        workflowId:
+          type: string
+    TriggerView:
+      type: object
+      properties:
+        businessKey:
+          type: string
+        declaredIn:
+          type: string
+        destination:
+          type: string
+        duplicateOf:
+          type: string
+        editable:
+          type: boolean
+        filter:
+          type: string
+        origin:
+          type: string
+        paused:
+          type: boolean
+        pausedAt:
+          type: string
+          format: date-time
+        pausedBy:
+          type: string
+        source:
+          type: string
+        sourceLabel:
+          type: string
+        state:
+          type: string
+          enum:
+          - ACTIVE
+          - PAUSED
+          - INACTIVE
+          - DUPLICATE
+        topic:
+          type: string
+        triggerId:
+          type: string
+        type:
+          type: string
+        variables:
+          type: object
+          additionalProperties: {}
+        workflowId:
+          type: string
+        workflowName:
+          type: string
+        workflowPaused:
+          type: boolean
+        workflowStatus:
+          type: string
+  securitySchemes:
+    apiKey:
+      in: header
+      name: X-Api-Key
+      type: apiKey

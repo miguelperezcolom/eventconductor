@@ -22,6 +22,8 @@ ia-agent-service  (port 8095)
 
 ## Available MCP tools
 
+The process tools have REST twins on the same application services — start, read, list, cancel, pause, resume, retry, restart and retry-step under [`/workflow/api/processes`](/reference/processes-rest-api/) — so an operation behaves the same whichever door it comes through: the same status rules, the same idempotency on the business key, and (with `workflow.security.flow-authorization.enabled`) the same definition requirements. The REST API answers synchronously what a tool reports in prose: `404` for an unknown process, `409` for a status that does not allow the command.
+
 ### Workflow engine (`orchestrator`, port 8105)
 
 | Tool | Description |

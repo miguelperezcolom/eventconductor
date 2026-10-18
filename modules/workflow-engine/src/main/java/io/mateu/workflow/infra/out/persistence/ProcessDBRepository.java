@@ -290,7 +290,9 @@ public class ProcessDBRepository implements ProcessRepository {
                         view.getCompletionPercentage(),
                         view.getCreated(),
                         view.getStarted(),
-                        view.getFinished()))
+                        view.getFinished(),
+                        view.getBusinessKey(),
+                        view.getWorkflowDefinitionId()))
                 .toList();
         return new ProcessSummaryPage(content, total, served.number(), served.size());
     }

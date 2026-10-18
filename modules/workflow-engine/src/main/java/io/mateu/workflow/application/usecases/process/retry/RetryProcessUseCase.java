@@ -61,9 +61,14 @@ public class RetryProcessUseCase {
         ProcessLockService.runExclusivelyOrThrow(processLockService, command.processId(), () -> doHandle(command));
     }
 
+    /** Whether a process in {@code status} can be retried: ERROR or CANCELLED. Shared with the REST API. */
+    public static boolean acceptsFrom(ProcessStatus status) {
+        return status != null && RESUMABLE.contains(status);
+    }
+
     private void doHandle(RetryProcessCommand command) {
         var process = processRepository.findById(command.processId()).orElseThrow();
-        if (!RESUMABLE.contains(process.getStatus())) {
+        if (!acceptsFrom(process.getStatus())) {
             log.warn("Process {} cannot be retried from status {} — ignoring",
                     process.getId(), process.getStatus());
             return;

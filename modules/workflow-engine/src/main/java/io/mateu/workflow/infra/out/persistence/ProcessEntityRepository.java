@@ -58,7 +58,8 @@ public interface ProcessEntityRepository extends JpaRepository<ProcessEntity, St
     @Query(value = """
             select p.id as id, p.name as name, p.status as status,
                    p.completionPercentage as completionPercentage,
-                   p.created as created, p.started as started, p.finished as finished
+                   p.created as created, p.started as started, p.finished as finished,
+                   p.businessKey as businessKey, p.workflowDefinitionId as workflowDefinitionId
             from ProcessEntity p
             where (:onlyErrors = false or p.status = 'ERROR')
               and (:pattern is null
@@ -237,7 +238,8 @@ public interface ProcessEntityRepository extends JpaRepository<ProcessEntity, St
         int getCompletionPercentage();
         LocalDateTime getCreated();
         LocalDateTime getStarted();
-        LocalDateTime getFinished();
+        LocalDateTime getFinished();        String getBusinessKey();
+        String getWorkflowDefinitionId();
     }
 
     /** Projection for the grouped-count queries above. */

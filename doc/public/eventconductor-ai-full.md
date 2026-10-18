@@ -412,6 +412,10 @@ Send to the `upstream` topic:
 ```
 `businessKey` is an optional human-readable identifier for later lookup.
 
+### Over REST
+
+Processes over REST: `/workflow/api/processes` — `POST` start `{definitionId, businessKey?, variables?}` (201 + `Location`; same key and definition → 200 with the existing process; a key of another definition → 409; disabled definition → 409; unknown → 404), `GET` list with `definitionId`, `tag`, `status` (repeat or comma-separated), `from`/`to` (ISO date-time or date), `businessKey` (contains), `q`, `page`/`size` (≤500) → `{content, page, size, totalElements, totalPages}`, `GET /by-key?businessKey=`, `GET /{id}` (with variables), `/{id}/steps`, `/{id}/variables`, `/{id}/logs`, and commands `POST /{id}/cancel|pause|resume|retry|restart`, `/{id}/steps/{stepExecutionId}/retry` → 202 (carried out by the owning node; 404 unknown; 409 when the status does not allow it, by the use case's own rule). Same `X-Api-Key` rule as the rest of `/workflow/api/**`; with `workflow.security.flow-authorization.enabled` the definition's `requiredScopes`/`requiredRoles` gate start, reads and commands (403); errors are problem+json. OpenAPI 3.1 at `/openapi/eventconductor-api.yaml` (docs site), served live as `/v3/api-docs/eventconductor` when the app adds springdoc and sets `workflow.api.openapi.enabled=true`.
+
 ### Query
 ```java
 @Autowired ProcessRepository processRepository;

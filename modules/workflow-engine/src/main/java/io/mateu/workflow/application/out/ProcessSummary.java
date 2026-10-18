@@ -19,7 +19,17 @@ public record ProcessSummary(
         int completionPercentage,
         LocalDateTime created,
         LocalDateTime started,
-        LocalDateTime finished) {
+        LocalDateTime finished,
+        /** The business identifier — what an API caller filters and looks processes up by. */
+        String businessKey,
+        /** The definition the process runs. */
+        String workflowDefinitionId) {
+
+    /** The shape before the listing carried the business key and the definition. */
+    public ProcessSummary(String id, String name, ProcessStatus status, int completionPercentage,
+                          LocalDateTime created, LocalDateTime started, LocalDateTime finished) {
+        this(id, name, status, completionPercentage, created, started, finished, null, null);
+    }
 
     public static ProcessSummary from(Process process) {
         return new ProcessSummary(
@@ -29,6 +39,8 @@ public record ProcessSummary(
                 process.getCompletionPercentage(),
                 process.getCreated(),
                 process.getStarted(),
-                process.getFinished());
+                process.getFinished(),
+                process.getBusinessKey(),
+                process.getWorkflowDefinitionId());
     }
 }
