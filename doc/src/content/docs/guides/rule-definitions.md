@@ -90,7 +90,7 @@ Definitions are validated on save against the JSON schema (`rule-schema.json`) p
 ## Storage, API and UI
 
 - `rules.persistence=memory` (default) or `jpa`.
-- Read API for remote runtimes: `GET /rules` (optional `?tag=`), `GET /rules/{id}` — and the same over **gRPC** (`RuleService.GetRule` / `ListRules`) when `rules.grpc.enabled=true` (port `rules.grpc.port`, default 9090).
+- Read API for remote runtimes: `GET /rules` (optional `?tag=`), `GET /rules/{id}` — and the same over **gRPC** (`RuleService.GetRule` / `ListRules`) when `rules.grpc.enabled=true` (port `rules.grpc.port`, default 9090; off by default). The gRPC API is **plaintext and unauthenticated** — anyone who reaches the port reads every rule — so enable it only behind mTLS from a service mesh and a network policy; the REST read API sits behind the application's authentication.
 - Management UI at `/_rules` (Mateu), with the definition editable as JSON/YAML.
 - MCP tools: `listRules`, `getRule`, `saveRule`, `validateRule`, `deleteRule`, `evaluateRule`, `importRulesFromGit`.
 - On every save/delete in Kafka mode the catalog emits `RulePublished` / `RuleDeleted` on the `rules` destination, so remote runtimes refresh their caches instantly.
@@ -121,7 +121,8 @@ plugin's copy of it, and read by neither the engine nor either IDE plugin.
 ```yaml
 rules:
   git-import:
-    # webhook-secret: mysecret   # optional, for the GitHub webhook
+    # webhook-secret: mysecret   # for the GitHub webhook: without it an unsigned webhook is refused (401)
+    #                            # unless Spring Security protects the app or workflow.message-api.allow-anonymous=true
     repositories:
       - url: https://github.com/your-org/your-rules-repo.git
         branch: main

@@ -9,8 +9,8 @@ import java.util.function.Function;
 
 /**
  * Authenticates an inbound git webhook per provider, using the single configured shared
- * secret. All comparisons are constant-time. When no secret is configured, verification is
- * skipped (unchanged from the original GitHub-only behaviour).
+ * secret. All comparisons are constant-time. When no secret is configured, the request is let in
+ * only when the caller says unsigned webhooks are allowed ({@link UnsignedWebhookPolicy}).
  *
  * <ul>
  *   <li>GitHub — HMAC-SHA256 of the body in {@code X-Hub-Signature-256} ({@code sha256=…}).</li>
@@ -43,7 +43,19 @@ public final class WebhookSignatureVerifier {
      */
     public static void verify(WebhookProvider provider, String secret,
                               Function<String, String> headers, byte[] body) {
+        verify(provider, secret, headers, body, null);
+    }
+
+    /**
+     * Like {@link #verify(WebhookProvider, String, Function, byte[])}, but with no secret configured the
+     * request is refused with {@code unsignedRefusal} as the reason — unless that is null, which lets it in.
+     */
+    public static void verify(WebhookProvider provider, String secret,
+                              Function<String, String> headers, byte[] body, String unsignedRefusal) {
         if (secret == null || secret.isBlank()) {
+            if (unsignedRefusal != null) {
+                throw new WebhookVerificationException(unsignedRefusal);
+            }
             return;
         }
         switch (provider) {

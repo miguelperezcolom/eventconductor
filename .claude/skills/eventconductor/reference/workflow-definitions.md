@@ -117,6 +117,8 @@ Add `"$schema"` (JSON) or a `# yaml-language-server: $schema=...` comment (YAML)
   final (no retries, compensation runs). Auth: connection's profile, a named profile
   (`workflow.http.auth.<name>`) or inline with credentials ONLY as `${secret:NAME}` (literal secrets
   fail validation). Absolute URLs: `workflow.http.allowed-hosts`, internal addresses always refused.
+  Credentials on an absolute URL: a named profile needs its host in `workflow.http.auth.<name>.hosts`
+  (or `allowed-hosts` set); inline `${secret:…}` needs `allowed-hosts`; else `HTTP_FORBIDDEN_AUTH`.
 - **LLM_CALL** — `llm: {connection, model?, system?, prompt, temperature?, maxTokens?, responseSchema?,
   output?, outputVariable?, usageVariable?}` (one of output/outputVariable required). Engine renders
   system/prompt (text templates) and dispatches built-in task `llm-call@1` (library `worker-llm`, Spring

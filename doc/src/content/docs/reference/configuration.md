@@ -33,8 +33,8 @@ description: Complete reference for all EventConductor configuration properties.
 | `workflow.outbox.purge-max-batches-per-pass` | int | `20` | Batches one pass may delete. Caps how much a pod that has been down while the table grew can do in one go, so catching up happens over several passes instead of one sweep competing with the engine |
 | `workflow.metrics.gauge-ttl` | duration | `PT30S` | How long the two counting gauges (`eventconductor.process.running`, `eventconductor.outbox.pending`) may reuse their last value. Both answer with a `count(*)` against the engine's own database, and counting running processes walks one index entry per running process — the very number being reported — so without this the cost of observing the system grows with the system, once per pod per scrape. `PT0S` restores a query on every scrape |
 | `workflow.message-api.api-key` | string | — | API key required in the `X-Api-Key` header of the engine's REST API (`/workflow/api/**`: messages, events, triggers, schedules, sync invocations). See [HTTP security](#http-security) for what happens when it is blank |
-| `workflow.message-api.allow-anonymous` | boolean | `false` | Accept requests without credentials when no `api-key` is set and no Spring Security filter chain protects the application. Off since 2.27.0; turn it on only for an isolated deployment |
-| `workflow.rest.max-body-bytes` | bytes | `16777216` (16 MiB) | Request bodies larger than this are cut off unread on `/workflow/api/*` and the git webhooks (`/workflow/webhooks/*`, `/forms/webhooks/*`, `/rules/webhooks/*`). Far above the engine's own input limits on purpose: those answer with a message naming the field; this only stops a body too large to read |
+| `workflow.message-api.allow-anonymous` | boolean | `false` | Accept requests without credentials when no `api-key` is set and no Spring Security filter chain protects the application. Off since 2.27.0; turn it on only for an isolated deployment. Since 2.28.0 it also lets in unsigned git-import webhooks (no `webhook-secret`) |
+| `workflow.rest.max-body-bytes` | bytes | `16777216` (16 MiB) | Request bodies larger than this are cut off unread on `/workflow/api/*` and the git webhooks (`/workflow/webhooks/*`, `/forms/webhooks/*`, `/rules/webhooks/*` — also in the standalone forms and rules apps). Far above the engine's own input limits on purpose: those answer with a message naming the field; this only stops a body too large to read |
 | `workflow.security.flow-authorization.enabled` | boolean | `false` | Enforce definitions' `requiredScopes` / `requiredRoles` against the caller (fail closed: a caller nobody identified holds nothing). Also checked when someone creates or edits a schedule or event trigger, or runs a schedule now |
 | `workflow.security.trust-forwarded-token` | boolean | `false` | Read the caller's identity from a bearer token this application did **not** verify. Only behind something that did (a gateway, a mesh) — on its own it believes whatever the caller typed. The application's own Spring Security authentication is always preferred |
 | `workflow.security.claims.subject` / `.scopes` / `.roles` | csv | `preferred_username,sub` / `scope,scp` / `realm_access.roles,roles` | The token claims a forwarded token's caller id, scopes and roles are read from (first match wins; dotted names reach into nested objects) |
@@ -55,7 +55,7 @@ description: Complete reference for all EventConductor configuration properties.
 | `rules.catalog.grpc-target` | `host:port` | — | Catalog gRPC target for `rules.source=grpc` |
 | `rules.cache.ttl` | ISO-8601 duration | `PT5M` | Remote rule cache TTL (`PT0S` = never expires) |
 | `rules.kafka-refresh` | `true` \| `false` | `false` | Refresh the rule cache from `RulePublished`/`RuleDeleted` events |
-| `rules.grpc.enabled` | `true` \| `false` | `false` | Start the catalog's gRPC read API |
+| `rules.grpc.enabled` | `true` \| `false` | `false` | Start the catalog's gRPC read API. Plaintext and unauthenticated: anyone reaching the port reads every rule — enable it only behind mTLS (service mesh) and a network policy |
 | `rules.grpc.port` | port | `9090` | Catalog gRPC port |
 
 ### Where an embedded worker runs
@@ -97,7 +97,7 @@ Clones Git repositories at startup and imports workflow definition files (`.ec`,
 | `workflow.git-import.repositories[].directory` | — | Subdirectory to scan for definitions (relative to the repo root). Leave blank to scan the whole repository. |
 | `workflow.git-import.repositories[].username` | — | Username for HTTPS authentication |
 | `workflow.git-import.repositories[].password` | — | Password or personal access token |
-| `workflow.git-import.webhook-secret` | — | HMAC-SHA256 secret for verifying GitHub webhook payloads (`X-Hub-Signature-256`). Leave blank to disable signature verification. |
+| `workflow.git-import.webhook-secret` | — | HMAC-SHA256 secret for verifying GitHub webhook payloads (`X-Hub-Signature-256`). Without it (since 2.28.0) an unsigned webhook is refused with `401` while repositories are configured, unless Spring Security protects the application or `workflow.message-api.allow-anonymous=true`. |
 
 The webhook endpoint is `POST /workflow/webhooks/{provider}` (`github`/`gitlab`/`bitbucket`/`generic`); it reloads only the pushed repository/branch and archives definitions removed from the repo. See [Workflow Definitions — Importing from Git](/guides/workflow-definitions/#importing-from-git) for setup instructions.
 
@@ -111,7 +111,7 @@ Clones Git repositories at startup and imports form definition files (`.json`, `
 | `forms.git-import.repositories[].branch` | `main` | Branch to check out |
 | `forms.git-import.repositories[].username` | — | Username for HTTPS authentication |
 | `forms.git-import.repositories[].password` | — | Password or personal access token |
-| `forms.git-import.webhook-secret` | — | HMAC-SHA256 secret for verifying GitHub webhook payloads (`X-Hub-Signature-256`). Leave blank to disable signature verification. |
+| `forms.git-import.webhook-secret` | — | HMAC-SHA256 secret for verifying GitHub webhook payloads (`X-Hub-Signature-256`). Without it (since 2.28.0) an unsigned webhook is refused with `401` while repositories are configured, unless Spring Security protects the application or `workflow.message-api.allow-anonymous=true`. |
 
 The webhook endpoint is `POST /forms/webhooks/{provider}` (`github`/`gitlab`/`bitbucket`/`generic`); it reloads only the pushed repository/branch and deletes forms removed from the repo. See [Form Definitions — Importing from Git](/guides/form-definitions/#importing-from-git) for setup instructions.
 
@@ -125,7 +125,7 @@ Clones Git repositories at startup and imports rule definition files (`.json`, `
 | `rules.git-import.repositories[].branch` | `main` | Branch to check out |
 | `rules.git-import.repositories[].username` | — | Username for HTTPS authentication |
 | `rules.git-import.repositories[].password` | — | Password or personal access token |
-| `rules.git-import.webhook-secret` | — | HMAC-SHA256 secret for verifying GitHub webhook payloads (`X-Hub-Signature-256`). Leave blank to disable signature verification. |
+| `rules.git-import.webhook-secret` | — | HMAC-SHA256 secret for verifying GitHub webhook payloads (`X-Hub-Signature-256`). Without it (since 2.28.0) an unsigned webhook is refused with `401` while repositories are configured, unless Spring Security protects the application or `workflow.message-api.allow-anonymous=true`. |
 
 The webhook endpoint is `POST /rules/webhooks/{provider}` (`github`/`gitlab`/`bitbucket`/`generic`); it reloads only the pushed repository/branch and deletes rules removed from the repo. See [Rule Definitions — Git import](/guides/rule-definitions/#git-import) for setup instructions.
 
@@ -141,7 +141,7 @@ Imports [task contracts](/reference/versioning/#task-contracts) (`.ectask`, and 
 | `tasks.git-import.repositories[].directory` | — | Subdirectory to scan (relative to the repo root). Leave blank to scan the whole clone. |
 | `tasks.git-import.repositories[].username` | — | Username for HTTPS authentication. |
 | `tasks.git-import.repositories[].password` | — | Password or personal access token. |
-| `tasks.git-import.webhook-secret` | — | Secret for verifying push webhooks (GitHub/Bitbucket HMAC, GitLab/generic token). Used only when `workflow.git-import.webhook-secret` is blank. Leave both blank to disable verification. |
+| `tasks.git-import.webhook-secret` | — | Secret for verifying push webhooks (GitHub/Bitbucket HMAC, GitLab/generic token). Used only when `workflow.git-import.webhook-secret` is blank. With both blank, an unsigned webhook is refused (`401`) unless Spring Security protects the application or `workflow.message-api.allow-anonymous=true`. |
 
 Task git import runs at startup and on a **push webhook**: the workflow engine's `POST /workflow/webhooks/{provider}` (`github`/`gitlab`/`bitbucket`/`generic`) reloads the pushed repository/branch from the `tasks.git-import` repositories as well as the `workflow.git-import` ones — contracts first, then workflows, so a step's `task:` reference resolves. Nothing is pruned (contracts are append-only). Contracts also load from `classpath:/tasks/` (memory mode serves them from the heap; jpa mode imports them into the database at startup).
 
@@ -393,6 +393,8 @@ The gateway reads the destinations' topics from the same `workflow.events.destin
 | `workflow.http.connections.<name>.idempotency-header` | `Idempotency-Key` | Header carrying the step execution id; `none` to omit. |
 | `workflow.http.auth.<name>.type` | `none` | `none`, `basic`, `bearer`, `api-key`, `oauth2-client-credentials`. |
 | `workflow.http.auth.<name>.*` | — | `username`/`password`, `token`, `header`/`value`/`in`, `token-uri`/`client-id`/`client-secret`/`scope`. |
+| `workflow.http.auth.<name>.hosts` | *(none)* | Hosts the profile's credentials may be sent to (`api.x.com`, `*.partner.com`). Without it, the profile is used through a connection, or on an absolute URL only when `allowed-hosts` is set; with it, every target (connections too) must match. A refusal fails the step with `HTTP_FORBIDDEN_AUTH`. |
+| `workflow.http.credentials-to-any-host` | `false` | Since 2.28.0, credentials (named profiles, inline `${secret:…}` blocks) are not sent to an absolute URL outside a profile's `hosts` / `allowed-hosts`. `true` restores the earlier behaviour, in which a definition author could send them to any public host. |
 | `workflow.http.secrets.<NAME>` | — | What `${secret:NAME}` resolves to (else, with `secrets-from-environment`, the `NAME` property / env var). |
 | `workflow.http.secrets-from-environment` | `false` | Whether a `${secret:NAME}` not listed under `workflow.http.secrets` falls back to **any** environment variable or Spring property named `NAME`. Off since 2.27.0, so a definition author cannot reach other values of the process (database passwords, cloud credentials); `true` restores the fallback. While `true` and `allowed-hosts` is empty, a WARN at startup says so. |
 | `workflow.http.allowed-hosts` | *(any public host)* | Hosts absolute URLs — and the `token-uri` of an inline OAuth2 block — may target (`api.x.com`, `*.partner.com`). Internal addresses are always refused for them; a host that does not resolve is refused too (a retryable `HTTP_IO`). |
@@ -583,7 +585,7 @@ The standalone apps protect their HTTP endpoints (UI, REST, actuator) with basic
 |---|---|---|---|
 | `eventconductor.security.enabled` | `SECURITY_ENABLED` | `true` | Master switch for HTTP security |
 | `eventconductor.security.user` | `SECURITY_USER` | `admin` | Username |
-| `eventconductor.security.password` | `SECURITY_PASSWORD` | *(blank)* | Password. If left blank, Spring Boot generates a one-shot password at startup and logs it — set it explicitly in production |
+| `eventconductor.security.password` | `SECURITY_PASSWORD` | *(blank)* | Password. If left blank, a random password is generated at startup and — since 2.28.0 — **not** shown, so nobody can log in: set it |
 
 ## Docker / environment variables
 
@@ -647,7 +649,7 @@ The standalone images are fully configured via environment variables. All variab
 | `OTLP_METRICS_ENDPOINT` | `http://localhost:4318/v1/metrics` | `management.otlp.metrics.export.url` |
 | `OTLP_METRICS_INTERVAL` | `60s` | `management.otlp.metrics.export.step` |
 
-The **rule-standalone-app** follows the same variable set with `SERVER_PORT` defaulting to `8107`, plus `RULES_PERSISTENCE` (`jpa`), `RULES_GRPC_ENABLED` (`true`) and `RULES_GRPC_PORT` (`9090`).
+The **rule-standalone-app** follows the same variable set with `SERVER_PORT` defaulting to `8107`, plus `RULES_PERSISTENCE` (`jpa`), `RULES_GRPC_ENABLED` (`false` since 2.28.0: the gRPC read API is plaintext and unauthenticated — enable it only behind mTLS/a network policy) and `RULES_GRPC_PORT` (`9090`).
 
 ### Switching databases via environment variables
 

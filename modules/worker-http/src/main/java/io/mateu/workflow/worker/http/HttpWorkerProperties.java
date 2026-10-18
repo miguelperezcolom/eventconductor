@@ -22,7 +22,8 @@ import java.util.Map;
  *       auth:
  *         payments-oauth: { type: oauth2-client-credentials, token-uri: https://idp/token,
  *                           client-id: ec, client-secret: "${PAYMENTS_SECRET}" }
- *         partner-key:    { type: api-key, header: X-Api-Key, value: "${PARTNER_API_KEY}" }
+ *         partner-key:    { type: api-key, header: X-Api-Key, value: "${PARTNER_API_KEY}",
+ *                           hosts: [ api.partner.com ] }   # where an absolute url may receive it
  *       secrets:
  *         PARTNER_TOKEN: "${PARTNER_TOKEN_FROM_ENV}"      # what ${secret:PARTNER_TOKEN} in a definition resolves to
  *       allowed-hosts: [ "*.partner.com" ]
@@ -58,6 +59,16 @@ public class HttpWorkerProperties {
      * endpoint) are refused for absolute URLs regardless; reach internal services through a connection.
      */
     private List<String> allowedHosts = new ArrayList<>();
+
+    /**
+     * Whether credentials (a named auth profile, or an inline auth block's {@code ${secret:…}} values)
+     * may be sent to an absolute URL on any public host. False — the default since 2.28.0 — sends a
+     * named profile only to the hosts in its {@code hosts} list (or {@code allowed-hosts}, when set) or
+     * through a connection, and an inline block's secrets to an absolute URL only when
+     * {@code allowed-hosts} is set: otherwise a definition author could send the operator's credentials
+     * to a host of their choosing. True restores the earlier behaviour.
+     */
+    private boolean credentialsToAnyHost = false;
 
     /** Largest response body read, in bytes; a larger one fails the step. */
     private long maxResponseBytes = 1_048_576;
@@ -96,5 +107,13 @@ public class HttpWorkerProperties {
         private String clientId;
         private String clientSecret;
         private String scope;
+        /**
+         * Hosts this profile's credentials may be sent to: exact names or {@code *.suffix} patterns. A
+         * profile is applied to an absolute URL only when its host matches this list — or, when the list
+         * is empty, {@code workflow.http.allowed-hosts} is set (the host already passed it). When set, it
+         * also restricts the connections the profile is used on. Empty and used through a connection: the
+         * profile is bound to that connection's base URL.
+         */
+        private List<String> hosts = new ArrayList<>();
     }
 }

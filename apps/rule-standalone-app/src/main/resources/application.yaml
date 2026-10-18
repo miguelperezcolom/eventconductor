@@ -66,7 +66,8 @@ rules:
     table: ${FLYWAY_TABLE:flyway_schema_history_rules}
   source: local
   grpc:
-    enabled: ${RULES_GRPC_ENABLED:true}
+    # Plaintext and unauthenticated: off unless asked for (and then behind mTLS / a network policy).
+    enabled: ${RULES_GRPC_ENABLED:false}
     port: ${RULES_GRPC_PORT:9090}
   git-import:
     repositories:

@@ -5,6 +5,8 @@ import io.mateu.workflow.infra.config.GitImportProperties;
 import io.mateu.workflow.webhook.GitPushPayload;
 import io.mateu.workflow.webhook.GitPushPayloadParser;
 import io.mateu.workflow.webhook.RepositoryUrlMatcher;
+import io.mateu.workflow.webhook.UnsignedWebhookPolicy;
+import io.mateu.workflow.webhook.WebhookBodies;
 import io.mateu.workflow.webhook.WebhookProvider;
 import io.mateu.workflow.webhook.WebhookSignatureVerifier;
 import io.mateu.workflow.webhook.WebhookSignatureVerifier.WebhookVerificationException;
@@ -43,23 +45,56 @@ public class FormGitImportWebhookController {
      */
     io.mateu.workflow.webhook.CoalescingImportRunner importRunner = new io.mateu.workflow.webhook.CoalescingImportRunner();
 
+    /**
+     * Whether an unsigned webhook (no {@code webhook-secret}) may come in: see
+     * {@link UnsignedWebhookPolicy}. False until the application context says otherwise.
+     */
+    java.util.function.BooleanSupplier unsignedAllowed = () -> false;
+
+    /** The most of a body that is read ({@code workflow.rest.max-body-bytes}). */
+    long maxBodyBytes = 16_777_216;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void webhookAccess(org.springframework.core.env.Environment environment,
+                       org.springframework.beans.factory.ListableBeanFactory beans) {
+        this.maxBodyBytes = environment.getProperty("workflow.rest.max-body-bytes", Long.class, 16_777_216L);
+        this.unsignedAllowed = () -> environment.getProperty(UnsignedWebhookPolicy.ALLOW_ANONYMOUS, Boolean.class, false)
+                || UnsignedWebhookPolicy.filterChainPresent(getClass().getClassLoader(),
+                        type -> beans.getBeanNamesForType(type, false, false).length > 0);
+    }
+
     @PostMapping("/{provider}")
     public ResponseEntity<String> webhook(
             @PathVariable String provider,
             @RequestHeader HttpHeaders headers,
-            @RequestBody(required = false) byte[] body) {
+            jakarta.servlet.http.HttpServletRequest request) throws java.io.IOException {
+        byte[] body;
+        try {
+            body = WebhookBodies.read(request.getInputStream(), request.getContentLengthLong(), maxBodyBytes);
+        } catch (WebhookBodies.TooLargeException e) {
+            log.warn("Refused webhook {}: {}", request.getRequestURI(), e.getMessage());
+            throw new ResponseStatusException(HttpStatus.PAYLOAD_TOO_LARGE, e.getMessage());
+        }
+        return webhook(provider, headers, body);
+    }
+
+    /** The webhook, its body already read. */
+    ResponseEntity<String> webhook(String provider, HttpHeaders headers, byte[] body) {
 
         var webhookProvider = WebhookProvider.fromPath(provider);
         var payloadBytes = body == null ? new byte[0] : body;
+        var repositories = gitImportProperties.getRepositories();
 
         try {
+            // Nothing to import, nothing to guard: an unsigned call with no repositories does nothing.
+            var unsignedRefusal = repositories.isEmpty() || unsignedAllowed.getAsBoolean() ? null
+                    : UnsignedWebhookPolicy.refusal("forms.git-import.webhook-secret");
             WebhookSignatureVerifier.verify(webhookProvider, gitImportProperties.getWebhookSecret(),
-                    headers::getFirst, payloadBytes);
+                    headers::getFirst, payloadBytes, unsignedRefusal);
         } catch (WebhookVerificationException e) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, e.getMessage());
         }
 
-        var repositories = gitImportProperties.getRepositories();
         if (repositories.isEmpty()) {
             log.info("Webhook received but no Git repositories configured — nothing to import.");
             return ResponseEntity.accepted().body("no repositories configured");

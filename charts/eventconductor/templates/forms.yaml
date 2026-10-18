@@ -76,11 +76,11 @@ spec:
               value: {{ .Values.forms.security.enabled | quote }}
             - name: SECURITY_USER
               value: {{ .Values.forms.security.user | quote }}
-            {{- if .Values.forms.security.passwordSecret }}
+            {{- if or .Values.forms.security.enabled .Values.forms.security.passwordSecret }}
             - name: SECURITY_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.forms.security.passwordSecret }}
+                  name: {{ include "eventconductor.adminPasswordSecret" (dict "security" .Values.forms.security "root" $) }}
                   key: SECURITY_PASSWORD
             {{- end }}
             - name: SPRING_PROFILES_ACTIVE

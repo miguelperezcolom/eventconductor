@@ -68,7 +68,8 @@ workflow:
     auth:
       payments-oauth: { type: oauth2-client-credentials, token-uri: https://idp/oauth/token,
                         client-id: eventconductor, client-secret: "${PAYMENTS_CLIENT_SECRET}", scope: payments }
-      partner-key:    { type: api-key, header: X-Api-Key, value: "${PARTNER_API_KEY}" }
+      partner-key:    { type: api-key, header: X-Api-Key, value: "${PARTNER_API_KEY}",
+                        hosts: [ "api.partner.com" ] }    # where an absolute url may receive it
       legacy:         { type: basic, username: svc, password: "${LEGACY_PASSWORD}" }
     secrets:
       PARTNER_TOKEN: "${PARTNER_TOKEN_FROM_VAULT}"
@@ -80,6 +81,10 @@ workflow:
 - **No secret literal in a definition.** Definitions live in git. In an inline `auth` block, credential fields (`token`, `password`, `value`, `clientSecret`) accept only `${secret:NAME}`, resolved **in the worker, at call time**, from `workflow.http.secrets.NAME` or the `NAME` property/environment variable. A literal fails the build; a `${secret:…}` anywhere else (a header, the body) fails it too — it would end up in a task variable.
 - **Which values a definition can reach.** Only what is listed under `workflow.http.secrets` (map environment variables into it explicitly: `PARTNER_TOKEN: "${PARTNER_TOKEN}"`). Since 2.27.0 that is the default; before, `${secret:NAME}` fell back to *any* property or environment variable of the worker, so a definition author could send a database password or a cloud credential to a host of their choosing. `workflow.http.secrets-from-environment: true` restores that fallback — then restrict `allowed-hosts`; the worker logs a WARN at startup while the fallback is on and `allowed-hosts` is empty.
 - **Absolute URLs are guarded**: they must match `allowed-hosts` when it is set, and they may never reach an internal address — loopback, private ranges, carrier-grade NAT (`100.64.0.0/10`), benchmarking (`198.18.0.0/15`), link-local (including the cloud metadata endpoint `169.254.169.254`), and the same addresses embedded in IPv6 (IPv4-mapped, NAT64 `64:ff9b::/96`, 6to4 `2002::/16`). A host that does not resolve is refused rather than attempted (a retryable `HTTP_IO`). The `token-uri` of an **inline** `oauth2-client-credentials` block is checked the same way before the client secret is posted to it, and its response is capped at `max-response-bytes`; a named auth profile's `token-uri` is configuration and is trusted. Reach internal services through a **connection**, which is trusted configuration. (Pair it with an egress network policy: DNS rebinding between the check and the connection is not closed by the check alone.)
+- **Credentials are bound to hosts** (since 2.28.0). A step chooses both its URL and its `auth`, so without a binding a definition such as `url: https://attacker.example, auth: payments-oauth` would hand the operator's credentials to anyone. Checked in the worker before any secret is resolved or token fetched; a refusal fails the step with the non-retryable `HTTP_FORBIDDEN_AUTH`:
+  - a **named profile** goes through a **connection** (it is bound to that connection's base URL), or to an absolute URL whose host matches the profile's **`hosts`** (`api.partner.com`, `*.partner.com`). With no `hosts`, an absolute URL may use it only when `allowed-hosts` is set (the host already passed that list). When `hosts` is set it restricts connections too;
+  - an **inline block** whose credentials are `${secret:…}` references goes through a connection, or to an absolute URL only when `allowed-hosts` is set;
+  - `workflow.http.credentials-to-any-host: true` restores the pre-2.28 behaviour (not recommended).
 - Redirects are not followed. URLs are logged without their query string; bodies and headers are not logged.
 
 Metric: `eventconductor.http.calls{target, status}` (timer).

@@ -237,10 +237,14 @@ docker compose up -d
 | `forms` | 8106 | `forms-standalone-app` |
 | `worker` | 8107 | `worker-standalone-app` — the [test worker](/guides/test-worker/); UI at `/_worker` |
 
+The UIs log in as `admin` with the password in `SECURITY_PASSWORD` — `changeme` unless you set
+it, a local-only default. (Without a password the apps generate one and, since 2.28.0, do not show
+it: nobody could log in.)
+
 To override values (e.g. a different image tag):
 
 ```shell
-DB_PASSWORD=mypwd docker compose up -d
+SECURITY_PASSWORD=mypwd DB_PASSWORD=mypwd docker compose up -d
 # or
 docker compose up -d --env-file .env.prod
 ```
@@ -266,6 +270,27 @@ and `POSTGRES_PASSWORD` and name it instead:
 helm install ec charts/eventconductor --set postgres.existingSecret=ec-postgres
 ```
 
+**Admin password.** The three apps run with HTTP Basic on, as user `admin`. Unless you name a
+Secret (key `SECURITY_PASSWORD`) in `orchestrator.security.passwordSecret` /
+`forms.security.passwordSecret` / `rules.security.passwordSecret`, the chart generates one Secret,
+`<release>-eventconductor-admin`, with a random password shared by the apps that have none, and
+reuses it on every upgrade. Read it with:
+
+```shell
+kubectl get secret ec-eventconductor-admin -o jsonpath='{.data.SECURITY_PASSWORD}' | base64 -d
+```
+
+Where the chart is rendered without access to the cluster (`helm template`, some GitOps tools),
+the generated password would change on every render: name your own Secret there. The apps never
+print a password.
+
+**The rules engine's gRPC API** (`rules.grpcEnabled`, port `rules.grpcPort`) is **off** by default
+since 2.28.0: it is plaintext and unauthenticated — anyone who reaches the port can list and read
+every rule. Off, the port is neither opened in the pod nor exposed on the Service. Turn it on only
+for runtimes that read rules over gRPC (`rules.source=grpc`), behind mTLS from a service mesh
+(Istio, Linkerd) and with `networkPolicy.enabled=true` limiting who reaches it; runtimes can read
+the same rules over the REST API (`rules.source=rest`), which is behind the app's authentication.
+
 **Key values (`charts/eventconductor/values.yaml`):**
 
 | Value | Default | Description |
@@ -285,6 +310,9 @@ helm install ec charts/eventconductor --set postgres.existingSecret=ec-postgres
 | `*.image` / `*.imageTag` | see values | Image; the tag defaults to the chart's `appVersion` |
 | `*.flywayTable` | per app | Migration history table for that app's engine. The three apps share one database and must not share one history table |
 | `ingress.enabled` | `false` | Ingress for the three UIs |
+| `*.security.passwordSecret` | `""` | Secret with the app's admin `SECURITY_PASSWORD`; blank uses the generated `<release>-eventconductor-admin` |
+| `rules.grpcEnabled` | `false` | The rule catalog's plaintext gRPC read API (see above) |
+| `networkPolicy.enabled` | `false` | NetworkPolicies limiting ingress to the apps to pods of the release (or `networkPolicy.ingressFromPodSelector`) |
 
 **Upgrade / uninstall:**
 

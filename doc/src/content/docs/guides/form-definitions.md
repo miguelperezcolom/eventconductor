@@ -254,7 +254,7 @@ To re-import form definitions automatically after a push or merge, configure the
 ```yaml
 forms:
   git-import:
-    webhook-secret: mysecret   # optional — same value you set in GitHub repo settings
+    webhook-secret: mysecret   # same value you set in GitHub repo settings; without it, see below
     repositories:
       - url: https://github.com/your-org/form-defs.git
         branch: main
@@ -274,7 +274,8 @@ forms:
 - The endpoint responds **202 Accepted** immediately so GitHub's 10-second delivery timeout is never hit.
 - The import runs in the background; progress is logged at `INFO` level.
 - If `webhook-secret` is set, the `X-Hub-Signature-256` header is verified using HMAC-SHA256. Requests with a missing or invalid signature are rejected with `401 Unauthorized`.
-- If `webhook-secret` is blank, any caller can trigger an import (suitable for internal networks only).
+- If `webhook-secret` is blank, the webhook is refused with `401 Unauthorized` (since 2.28.0) unless the application is protected by Spring Security or `workflow.message-api.allow-anonymous=true` — the same rule as the engine's REST API.
+- A body over `workflow.rest.max-body-bytes` (16 MiB) is refused unread with `413`.
 
 ## Visual form editor
 

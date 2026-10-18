@@ -20,6 +20,8 @@ import java.util.UUID;
 @Configuration
 public class SecurityConfig {
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(SecurityConfig.class);
+
     @Value("${eventconductor.security.enabled:true}")
     private boolean enabled;
 
@@ -39,13 +41,14 @@ public class SecurityConfig {
         String effectivePassword = password;
         if (effectivePassword == null || effectivePassword.isBlank()) {
             effectivePassword = UUID.randomUUID().toString();
-            System.out.println(
-                "\n=========================================================\n" +
-                " EventConductor (forms): no SECURITY_PASSWORD provided —\n" +
-                " generated a random one for user '" + user + "':\n" +
-                "    " + effectivePassword + "\n" +
-                " Set SECURITY_PASSWORD to a stable value in production.\n" +
-                "=========================================================\n");
+            // The password is not shown: stdout ends up in log aggregators, where anyone reading the
+            // logs would hold an admin credential. Nobody can log in until one is set.
+            if (enabled) {
+                log.warn("EventConductor (forms): no SECURITY_PASSWORD (eventconductor.security.password) is set, so user '{}'"
+                        + " got a random password that is not shown anywhere: nobody can log in. Set SECURITY_PASSWORD"
+                        + " to a password of your choosing (in Kubernetes, from a Secret), or SECURITY_ENABLED=false"
+                        + " for local experimentation only.", user);
+            }
         }
         UserDetails admin = User.withUsername(user)
             .password(encoder.encode(effectivePassword))

@@ -86,11 +86,11 @@ spec:
               value: {{ .Values.orchestrator.security.enabled | quote }}
             - name: SECURITY_USER
               value: {{ .Values.orchestrator.security.user | quote }}
-            {{- if .Values.orchestrator.security.passwordSecret }}
+            {{- if or .Values.orchestrator.security.enabled .Values.orchestrator.security.passwordSecret }}
             - name: SECURITY_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.orchestrator.security.passwordSecret }}
+                  name: {{ include "eventconductor.adminPasswordSecret" (dict "security" .Values.orchestrator.security "root" $) }}
                   key: SECURITY_PASSWORD
             {{- end }}
             - name: SPRING_PROFILES_ACTIVE

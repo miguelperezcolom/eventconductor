@@ -30,7 +30,25 @@ public class HttpWorkerAutoConfiguration {
                                            ObjectProvider<io.micrometer.core.instrument.MeterRegistry> registry) {
         var secrets = new SecretResolver(secretLookup(properties, environment), properties.isSecretsFromEnvironment());
         var guard = new HostGuard(properties.getAllowedHosts(), InetAddress::getAllByName);
+        var connectionOnly = connectionOnlyProfiles(properties);
+        if (!connectionOnly.isEmpty()) {
+            log.info("HTTP_CALL auth profile(s) {} have no 'hosts' and workflow.http.allowed-hosts is empty: they are"
+                    + " applied only through a connection; a step using one on an absolute url fails with"
+                    + " HTTP_FORBIDDEN_AUTH. List where each may go in workflow.http.auth.<name>.hosts.", connectionOnly);
+        }
         return new HttpCallHandler(properties, secrets, guard, metricsFor(registry));
+    }
+
+    /** The named profiles that, as configured, can only be used through a connection. */
+    static java.util.List<String> connectionOnlyProfiles(HttpWorkerProperties properties) {
+        if (properties.isCredentialsToAnyHost() || !properties.getAllowedHosts().isEmpty()) {
+            return java.util.List.of();
+        }
+        return properties.getAuth().entrySet().stream()
+                .filter(entry -> entry.getValue().getHosts() == null || entry.getValue().getHosts().isEmpty())
+                .map(Map.Entry::getKey)
+                .sorted()
+                .toList();
     }
 
     /**

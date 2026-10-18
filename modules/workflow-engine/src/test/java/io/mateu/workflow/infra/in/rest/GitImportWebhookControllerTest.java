@@ -59,6 +59,8 @@ class GitImportWebhookControllerTest {
     void setUp() {
         controller = new GitImportWebhookController(properties, importUseCase, taskProperties, taskImportUseCase);
         lenient().when(properties.getWebhookSecret()).thenReturn(null);
+        // Most tests are about routing, not access: let unsigned webhooks in (see the access tests).
+        controller.unsignedAllowed = () -> true;
         lenient().when(taskProperties.getRepositories()).thenReturn(List.of());
         lenient().when(taskImportUseCase.handle(anyList()))
                 .thenReturn(new ImportTasksResult(List.of(), List.of()));
@@ -260,5 +262,41 @@ class GitImportWebhookControllerTest {
         verify(importUseCase, timeout(3000).times(2)).handle(anyList());
         verify(importUseCase, after(300).times(2)).handle(anyList());
         assertThat(maxRunning.get()).isEqualTo(1);
+    }
+
+    @Test
+    void anUnsignedWebhookIsRefusedByDefaultWhenRepositoriesAreConfigured() {
+        controller.unsignedAllowed = () -> false;
+        assertThatThrownBy(() -> controller.webhook("github", new HttpHeaders(),
+                githubPush("master", "https://github.com/org/defs.git")))
+                .isInstanceOfSatisfying(org.springframework.web.server.ResponseStatusException.class, e -> {
+                    assertThat(e.getStatusCode()).isEqualTo(org.springframework.http.HttpStatus.UNAUTHORIZED);
+                    assertThat(e.getReason()).contains("workflow.git-import.webhook-secret")
+                            .contains("workflow.message-api.allow-anonymous");
+                });
+        verify(importUseCase, after(200).never()).handle(any());
+    }
+
+    @Test
+    void anUnsignedWebhookFollowsAllowAnonymous() {
+        var environment = new org.springframework.mock.env.MockEnvironment();
+        var beans = new org.springframework.beans.factory.support.DefaultListableBeanFactory();
+        controller.webhookAccess(environment, beans);
+        assertThat(controller.unsignedAllowed.getAsBoolean()).isFalse();
+        environment.setProperty("workflow.message-api.allow-anonymous", "true");
+        assertThat(controller.unsignedAllowed.getAsBoolean()).isTrue();
+    }
+
+    @Test
+    void aSignedWebhookIsAcceptedWhateverTheAccessRule() throws Exception {
+        controller.unsignedAllowed = () -> false;
+        when(properties.getWebhookSecret()).thenReturn("s3cret");
+        var body = githubPush("master", "https://github.com/org/defs.git");
+        var mac = javax.crypto.Mac.getInstance("HmacSHA256");
+        mac.init(new javax.crypto.spec.SecretKeySpec("s3cret".getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+        var headers = new HttpHeaders();
+        headers.add("X-Hub-Signature-256", "sha256=" + java.util.HexFormat.of().formatHex(mac.doFinal(body)));
+        assertThat(controller.webhook("github", headers, body).getStatusCode().value()).isEqualTo(202);
+        verify(importUseCase, timeout(2000)).handle(anyList());
     }
 }

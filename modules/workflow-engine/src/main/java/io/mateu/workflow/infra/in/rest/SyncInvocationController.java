@@ -367,13 +367,29 @@ public class SyncInvocationController {
         }
     }
 
-    /** {@code Prefer: wait=N} in seconds (RFC 7240), or null when the caller did not say. */
+    /**
+     * Ceiling on what {@code Prefer: wait=N} is read as, before the service caps it at
+     * {@code workflow.sync.max-deadline-ms}: one day, so no caller-supplied number can overflow
+     * (a 20-digit wait was a 500, a {@code Long.MAX_VALUE} one an overflow in {@code toMillis}).
+     */
+    static final long MAX_PREFER_WAIT_SECONDS = 86_400;
+
+    /**
+     * {@code Prefer: wait=N} in seconds (RFC 7240), at most {@link #MAX_PREFER_WAIT_SECONDS}, or null
+     * when the caller did not say. The service then caps it at {@code workflow.sync.max-deadline-ms}.
+     */
     static Duration waitOf(String prefer) {
         if (prefer == null) {
             return null;
         }
         var matcher = PREFER_WAIT.matcher(prefer);
-        return matcher.find() ? Duration.ofSeconds(Long.parseLong(matcher.group(1))) : null;
+        if (!matcher.find()) {
+            return null;
+        }
+        var digits = matcher.group(1).replaceFirst("^0+(?=\\d)", "");
+        var seconds = digits.length() > 6 ? MAX_PREFER_WAIT_SECONDS
+                : Math.min(Long.parseLong(digits), MAX_PREFER_WAIT_SECONDS);
+        return Duration.ofSeconds(seconds);
     }
 
     private static Map<String, String> variablesOf(StartBody body) {

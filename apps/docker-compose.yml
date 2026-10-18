@@ -73,6 +73,9 @@ services:
       DB_PASSWORD: secret
       KAFKA_BROKERS: redpanda:19092
       DDL_AUTO: update
+      # The admin login (user admin). A local-only default: override it with SECURITY_PASSWORD.
+      # Left blank, the app would generate one it does not show, and nobody could log in.
+      SECURITY_PASSWORD: ${SECURITY_PASSWORD:-changeme}
     ports:
       - "8105:8080"
     depends_on:
@@ -97,6 +100,7 @@ services:
       DB_PASSWORD: secret
       KAFKA_BROKERS: redpanda:19092
       DDL_AUTO: update
+      SECURITY_PASSWORD: ${SECURITY_PASSWORD:-changeme}
     ports:
       - "8106:8080"
     depends_on:

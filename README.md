@@ -236,8 +236,9 @@ cd demo/ia-agent-service
 mvn spring-boot:run
 ```
 
-The standalone apps boot with security **on** by default (a password is generated at
-startup); `SECURITY_ENABLED=false` disables it for local experimentation. Note that
+The standalone apps boot with security **on** by default: set the admin password with
+`SECURITY_PASSWORD` (without one, a random password is generated and not shown, so nobody can
+log in); `SECURITY_ENABLED=false` disables it for local experimentation. Note that
 `demo/ia-agent-service` is not built by the root Maven reactor — it lives in the separate
 `demo/` reactor with its own stack (Spring Boot 3.4.1, Spring AI 1.0.0), so run it from
 its own directory as shown.

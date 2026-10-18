@@ -43,6 +43,8 @@ class FormGitImportWebhookControllerTest {
     void setUp() {
         controller = new FormGitImportWebhookController(properties, importUseCase);
         lenient().when(properties.getWebhookSecret()).thenReturn(null);
+        // Most tests are about routing, not access: let unsigned webhooks in (see the access tests).
+        controller.unsignedAllowed = () -> true;
         lenient().when(properties.getRepositories()).thenReturn(List.of(master));
         lenient().when(importUseCase.handle(anyList()))
                 .thenReturn(new ImportFormsResult(List.of(), List.of(), List.of()));
@@ -97,7 +99,7 @@ class FormGitImportWebhookControllerTest {
         var other = repo("https://github.com/org/other.git", "main");
         when(properties.getRepositories()).thenReturn(List.of(master, other));
 
-        var response = controller.webhook("github", new HttpHeaders(), null);
+        var response = controller.webhook("github", new HttpHeaders(), (byte[]) null);
 
         assertThat(response.getBody()).isEqualTo("import scheduled for 2 repository/ies");
         ArgumentCaptor<List<GitImportProperties.GitRepository>> captor = ArgumentCaptor.forClass(List.class);
@@ -177,5 +179,47 @@ class FormGitImportWebhookControllerTest {
         verify(importUseCase, timeout(3000).times(2)).handle(anyList());
         verify(importUseCase, after(300).times(2)).handle(anyList());
         assertThat(maxRunning.get()).isEqualTo(1);
+    }
+
+    @Test
+    void anUnsignedWebhookIsRefusedByDefaultWhenRepositoriesAreConfigured() {
+        controller.unsignedAllowed = () -> false;
+        assertThatThrownBy(() -> controller.webhook("github", new HttpHeaders(),
+                githubPush("master", "https://github.com/org/forms.git")))
+                .isInstanceOfSatisfying(ResponseStatusException.class, e -> {
+                    assertThat(e.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+                    assertThat(e.getReason()).contains("forms.git-import.webhook-secret");
+                });
+        verify(importUseCase, after(200).never()).handle(any());
+    }
+
+    @Test
+    void anUnsignedWebhookWithNoRepositoriesDoesNothingAndIsNotRefused() {
+        controller.unsignedAllowed = () -> false;
+        when(properties.getRepositories()).thenReturn(List.of());
+        assertThat(controller.webhook("github", new HttpHeaders(), (byte[]) null).getStatusCode())
+                .isEqualTo(HttpStatus.ACCEPTED);
+    }
+
+    @Test
+    void theAccessRuleFollowsAllowAnonymous() {
+        var environment = new org.springframework.mock.env.MockEnvironment();
+        var beans = new org.springframework.beans.factory.support.DefaultListableBeanFactory();
+        controller.webhookAccess(environment, beans);
+        assertThat(controller.unsignedAllowed.getAsBoolean()).isFalse();
+        environment.setProperty("workflow.message-api.allow-anonymous", "true");
+        assertThat(controller.unsignedAllowed.getAsBoolean()).isTrue();
+    }
+
+    @Test
+    void anOversizedBodyIsRefusedUnread() throws Exception {
+        controller.maxBodyBytes = 10;
+        var request = new org.springframework.mock.web.MockHttpServletRequest("POST", "/forms/webhooks/github");
+        request.setContent(githubPush("master", "https://github.com/org/forms.git"));
+        assertThatThrownBy(() -> controller.webhook("github", new HttpHeaders(), request))
+                .isInstanceOfSatisfying(ResponseStatusException.class,
+                        e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.PAYLOAD_TOO_LARGE));
+        controller.maxBodyBytes = 10_000;
+        assertThat(controller.webhook("github", new HttpHeaders(), request).getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
     }
 }

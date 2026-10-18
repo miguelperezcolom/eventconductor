@@ -287,7 +287,7 @@ No worker. The event (payload from a structured `payload` template, a text `payl
   "http": { "connection": "payments", "method": "POST", "path": "/charges/${bookingId}",
             "body": { "amount": "${amount * 1}" }, "output": { "chargeId": "body.id" } } }
 ```
-The engine renders the request (templates in url/path, query, headers, body) and dispatches the built-in task `http-call@1` (library `worker-http`: embedded in the engine's pod, or topic `http-calls` served by `http-worker-standalone-app`). `successStatus` (default 2xx) completes and maps `output` (JEXL over `{status, headers, body}`) into variables; otherwise `HTTP_<status>` / `HTTP_IO`, retried only if `retryOn` (default `[5xx, io]`) covers it — a 4xx is final and compensation runs. `Idempotency-Key` = step execution id. Auth: named profile (`workflow.http.auth.<name>`) or inline with `${secret:NAME}` credentials only; absolute URLs subject to `workflow.http.allowed-hosts` and never internal addresses.
+The engine renders the request (templates in url/path, query, headers, body) and dispatches the built-in task `http-call@1` (library `worker-http`: embedded in the engine's pod, or topic `http-calls` served by `http-worker-standalone-app`). `successStatus` (default 2xx) completes and maps `output` (JEXL over `{status, headers, body}`) into variables; otherwise `HTTP_<status>` / `HTTP_IO`, retried only if `retryOn` (default `[5xx, io]`) covers it — a 4xx is final and compensation runs. `Idempotency-Key` = step execution id. Auth: named profile (`workflow.http.auth.<name>`) or inline with `${secret:NAME}` credentials only; absolute URLs subject to `workflow.http.allowed-hosts` and never internal addresses. Credentials are bound to hosts: a named profile reaches an absolute URL only when its host is in the profile's `hosts` (or `allowed-hosts` is set), else only through a connection; inline `${secret:…}` credentials reach an absolute URL only when `allowed-hosts` is set; otherwise `HTTP_FORBIDDEN_AUTH` (`workflow.http.credentials-to-any-host=true` lifts it).
 
 ### LLM_CALL — ask a language model
 ```json
@@ -656,14 +656,14 @@ record Variable(String name, String value) {}
 ```yaml
 workflow:
   git-import:
-    webhook-secret: mysecret        # optional; verifies inbound webhooks (HMAC or token, per provider)
+    webhook-secret: mysecret        # verifies inbound webhooks (HMAC or token, per provider); without it they are refused (401) unless Spring Security protects the app or workflow.message-api.allow-anonymous=true
     repositories:
       - url: https://github.com/your-org/workflow-defs.git
         branch: main
         username: my-user           # optional (token auth)
         password: ghp_xxx           # optional
 ```
-Also triggerable via the MCP tool `importWorkflowDefinitionsFromGit`, or a git webhook to `POST /workflow/webhooks/{provider}` (`github`/`gitlab`/`bitbucket`/`generic`; responds 202, imports in background). The webhook reloads **only the repository and branch named in the push** (payload parsed; unmatched pushes are acknowledged and ignored; an unparseable payload reloads everything). Definitions removed from a repo are **pruned** — workflow definitions are archived, forms/rules deleted (git-imported only; classpath/hand-authored never touched; tracked per instance, resets on restart). Verification per provider using `webhook-secret`: GitHub/Bitbucket HMAC-SHA256 (`X-Hub-Signature-256`/`X-Hub-Signature`), GitLab token (`X-Gitlab-Token`), generic token (`X-Webhook-Token`); blank secret disables it. Forms and rules expose the same at `/forms/webhooks/{provider}` and `/rules/webhooks/{provider}`.
+Also triggerable via the MCP tool `importWorkflowDefinitionsFromGit`, or a git webhook to `POST /workflow/webhooks/{provider}` (`github`/`gitlab`/`bitbucket`/`generic`; responds 202, imports in background). The webhook reloads **only the repository and branch named in the push** (payload parsed; unmatched pushes are acknowledged and ignored; an unparseable payload reloads everything). Definitions removed from a repo are **pruned** — workflow definitions are archived, forms/rules deleted (git-imported only; classpath/hand-authored never touched; tracked per instance, resets on restart). Verification per provider using `webhook-secret`: GitHub/Bitbucket HMAC-SHA256 (`X-Hub-Signature-256`/`X-Hub-Signature`), GitLab token (`X-Gitlab-Token`), generic token (`X-Webhook-Token`); with a blank secret an unsigned webhook is refused (401) unless Spring Security protects the app or `workflow.message-api.allow-anonymous=true`. Bodies over `workflow.rest.max-body-bytes` get 413. Forms and rules expose the same at `/forms/webhooks/{provider}` and `/rules/webhooks/{provider}`.
 
 
 ---

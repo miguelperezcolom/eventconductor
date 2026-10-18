@@ -19,6 +19,17 @@ class SyncInvocationControllerTest {
     }
 
     @Test
+    void aHugeWaitIsBoundedInsteadOfFailing() {
+        var ceiling = Duration.ofSeconds(SyncInvocationController.MAX_PREFER_WAIT_SECONDS);
+        // Before: NumberFormatException (a 500) and, for Long.MAX_VALUE seconds, an overflow in toMillis.
+        assertThat(SyncInvocationController.waitOf("wait=99999999999999999999")).isEqualTo(ceiling);
+        assertThat(SyncInvocationController.waitOf("wait=9223372036854775807")).isEqualTo(ceiling);
+        assertThat(SyncInvocationController.waitOf("wait=9223372036854775807").toMillis()).isPositive();
+        assertThat(SyncInvocationController.waitOf("wait=0000005")).isEqualTo(Duration.ofSeconds(5));
+        assertThat(SyncInvocationController.waitOf("wait=000")).isEqualTo(Duration.ZERO);
+    }
+
+    @Test
     void mapsOutcomesToStatuses() {
         assertThat(SyncInvocationController.statusOf(ProcessReply.replied("r", "{}"))).isEqualTo(HttpStatus.OK);
         assertThat(SyncInvocationController.statusOf(

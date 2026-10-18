@@ -11,7 +11,9 @@ import java.io.IOException;
 
 /**
  * Plain grpc-java server hosting the catalog's RuleService, started with the
- * application lifecycle when rules.grpc.enabled=true. The gRPC reflection
+ * application lifecycle when rules.grpc.enabled=true (off by default). It is
+ * plaintext and unauthenticated — transport security and access control are
+ * left to a service mesh (mTLS) and network policies. The gRPC reflection
  * service is registered when grpc-services is on the classpath (handy for
  * grpcurl).
  */
@@ -37,6 +39,9 @@ public class RuleGrpcServer implements SmartLifecycle {
         try {
             server = builder.build().start();
             log.info("Rule catalog gRPC server listening on port {}", port);
+            log.warn("The rule catalog gRPC server on port {} is plaintext and unauthenticated: anyone who reaches"
+                    + " the port can list and read every rule. Expose it only behind mTLS (a service mesh) and a"
+                    + " network policy, or read rules over REST (rules.source=rest) instead.", port);
         } catch (IOException e) {
             throw new IllegalStateException("Cannot start the rule catalog gRPC server on port " + port, e);
         }

@@ -44,6 +44,11 @@ public final class HostGuard {
     public record Refusal(String reason, boolean unresolved) {
     }
 
+    /** Whether absolute URLs are limited to an {@code allowed-hosts} list. */
+    public boolean restricted() {
+        return !allowedHosts.isEmpty();
+    }
+
     /** Null when the URL may be called; otherwise why not. */
     public String refusal(URI uri) {
         var refusal = check(uri);

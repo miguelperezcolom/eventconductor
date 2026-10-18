@@ -292,8 +292,12 @@ set the Payload URL to `https://your-server/workflow/webhooks/github`, Content t
   and hand-authored ones are never touched. (Pruning is tracked per running instance and
   resets on restart, repopulating on the next import.)
 
-**Authentication** (per provider, using `webhook-secret`; blank disables it — internal
-networks only):
+**Authentication** (per provider, using `webhook-secret`). Since 2.28.0 an **unsigned** webhook
+(no `webhook-secret` set) is refused with `401` while repositories are configured, unless the
+application is protected by Spring Security (the standalone apps are: the provider then sends
+HTTP Basic credentials in the payload URL) or `workflow.message-api.allow-anonymous=true` — the
+same rule as the engine's REST API. A webhook makes the engine clone and replace definitions, so
+set the secret:
 
 | Provider | Endpoint | Verification |
 |---|---|---|
@@ -302,7 +306,8 @@ networks only):
 | Bitbucket | `/workflow/webhooks/bitbucket` | HMAC-SHA256 in `X-Hub-Signature` (Bitbucket Server) |
 | Generic | `/workflow/webhooks/generic` | shared token in `X-Webhook-Token` |
 
-A missing or invalid signature/token is rejected with `401 Unauthorized`.
+A missing or invalid signature/token is rejected with `401 Unauthorized`. A body over
+`workflow.rest.max-body-bytes` (16 MiB) is refused unread with `413`.
 
 The **Forms** and **Rules** engines expose the same webhook under `/forms/webhooks/{provider}`
 and `/rules/webhooks/{provider}` (configured via `forms.git-import.*` / `rules.git-import.*`).

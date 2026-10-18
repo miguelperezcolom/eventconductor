@@ -284,6 +284,96 @@ class HttpCallHandlerTest {
                 });
     }
 
+    /** A handler whose guard sees {@code *.partner.test} / {@code attacker.test} as public hosts (that never answer). */
+    private HttpCallHandler publicHostsHandler(List<String> allowedHosts) throws Exception {
+        var publicAddress = InetAddress.getByAddress(new byte[] {(byte) 203, 0, 113, 7});
+        return new HttpCallHandler(properties, new SecretResolver(properties.getSecrets()::get),
+                new HostGuard(allowedHosts, host -> new InetAddress[] {publicAddress}), null);
+    }
+
+    private HttpWorkerProperties.AuthProfile bearerProfile(String name, List<String> hosts) {
+        var profile = new HttpWorkerProperties.AuthProfile();
+        profile.setType("bearer");
+        profile.setToken("${secret:TOKEN}");
+        profile.setHosts(hosts);
+        properties.getAuth().put(name, profile);
+        return profile;
+    }
+
+    @Test
+    void aNamedProfileIsNotSentToAnArbitraryAbsoluteUrl() throws Exception {
+        bearerProfile("payments", List.of());
+        handler = publicHostsHandler(List.of());
+        assertThatThrownBy(() -> call("{\"url\":\"https://attacker.test/steal\",\"auth\":\"payments\"}"))
+                .isInstanceOfSatisfying(TaskFailure.class, f -> {
+                    assertThat(f.code()).isEqualTo("HTTP_FORBIDDEN_AUTH");
+                    assertThat(f.retryable()).isFalse();
+                    assertThat(f.reason()).contains("workflow.http.auth.payments.hosts").doesNotContain("t0k3n");
+                });
+    }
+
+    @Test
+    void aNamedProfileGoesOnlyToItsHosts() throws Exception {
+        bearerProfile("partner", List.of("*.partner.test"));
+        handler = publicHostsHandler(List.of());
+        assertThatThrownBy(() -> call("{\"url\":\"https://attacker.test/x\",\"auth\":\"partner\"}"))
+                .isInstanceOfSatisfying(TaskFailure.class, f -> assertThat(f.code()).isEqualTo("HTTP_FORBIDDEN_AUTH"));
+        // A matching host passes the credential check: the call is attempted (and fails: nothing answers).
+        assertThatThrownBy(() -> call("{\"url\":\"https://api.partner.test/x\",\"auth\":\"partner\"}"))
+                .isInstanceOfSatisfying(TaskFailure.class, f -> assertThat(f.code()).isEqualTo("HTTP_IO"));
+        // Its hosts restrict connections too.
+        assertThatThrownBy(() -> call("{\"connection\":\"local\",\"path\":\"/x\",\"auth\":\"partner\"}"))
+                .isInstanceOfSatisfying(TaskFailure.class, f -> assertThat(f.code()).isEqualTo("HTTP_FORBIDDEN_AUTH"));
+        assertThat(seen).isEmpty();
+    }
+
+    @Test
+    void aProfileWithoutHostsStillWorksThroughAConnectionAndWithAllowedHosts() throws Exception {
+        bearerProfile("internal", List.of());
+        routes.put("/api/x", (e, b) -> reply(e, 200, "{}"));
+        call("{\"connection\":\"local\",\"path\":\"/x\",\"auth\":\"internal\"}");
+        assertThat(lastHeaders().get("Authorization")).containsExactly("Bearer t0k3n");
+        handler = publicHostsHandler(List.of("*.partner.test"));
+        assertThatThrownBy(() -> call("{\"url\":\"https://api.partner.test/x\",\"auth\":\"internal\"}"))
+                .isInstanceOfSatisfying(TaskFailure.class, f -> assertThat(f.code()).isEqualTo("HTTP_IO"));
+    }
+
+    @Test
+    void inlineSecretsGoToAnAbsoluteUrlOnlyUnderAllowedHosts() throws Exception {
+        var inline = "\"auth\":{\"type\":\"bearer\",\"token\":\"${secret:TOKEN}\"}";
+        handler = publicHostsHandler(List.of());
+        assertThatThrownBy(() -> call("{\"url\":\"https://attacker.test/x\"," + inline + "}"))
+                .isInstanceOfSatisfying(TaskFailure.class, f -> {
+                    assertThat(f.code()).isEqualTo("HTTP_FORBIDDEN_AUTH");
+                    assertThat(f.reason()).contains("workflow.http.allowed-hosts");
+                });
+        handler = publicHostsHandler(List.of("*.partner.test"));
+        assertThatThrownBy(() -> call("{\"url\":\"https://api.partner.test/x\"," + inline + "}"))
+                .isInstanceOfSatisfying(TaskFailure.class, f -> assertThat(f.code()).isEqualTo("HTTP_IO"));
+    }
+
+    @Test
+    void theProfilesLimitedToConnectionsAreNamedAtStartup() {
+        bearerProfile("b-internal", List.of());
+        bearerProfile("a-partner", List.of("api.partner.test"));
+        bearerProfile("c-other", null);
+        assertThat(HttpWorkerAutoConfiguration.connectionOnlyProfiles(properties)).containsExactly("b-internal", "c-other");
+        properties.setAllowedHosts(List.of("*.partner.test"));
+        assertThat(HttpWorkerAutoConfiguration.connectionOnlyProfiles(properties)).isEmpty();
+        properties.setAllowedHosts(List.of());
+        properties.setCredentialsToAnyHost(true);
+        assertThat(HttpWorkerAutoConfiguration.connectionOnlyProfiles(properties)).isEmpty();
+    }
+
+    @Test
+    void credentialsToAnyHostRestoresTheEarlierBehaviour() throws Exception {
+        bearerProfile("payments", List.of());
+        properties.setCredentialsToAnyHost(true);
+        handler = publicHostsHandler(List.of());
+        assertThatThrownBy(() -> call("{\"url\":\"https://attacker.test/x\",\"auth\":\"payments\"}"))
+                .isInstanceOfSatisfying(TaskFailure.class, f -> assertThat(f.code()).isEqualTo("HTTP_IO"));
+    }
+
     @Test
     void anAbsoluteUrlToAnInternalAddressIsRefusedAndAnUnknownConnectionIsAConfigError() {
         assertThatThrownBy(() -> call("{\"url\":\"" + base + "/api/x\"}"))

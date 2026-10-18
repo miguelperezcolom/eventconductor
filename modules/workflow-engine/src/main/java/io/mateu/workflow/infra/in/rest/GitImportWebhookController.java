@@ -7,6 +7,7 @@ import io.mateu.workflow.infra.config.TaskContractGitImportProperties;
 import io.mateu.workflow.webhook.GitPushPayload;
 import io.mateu.workflow.webhook.GitPushPayloadParser;
 import io.mateu.workflow.webhook.RepositoryUrlMatcher;
+import io.mateu.workflow.webhook.UnsignedWebhookPolicy;
 import io.mateu.workflow.webhook.WebhookProvider;
 import io.mateu.workflow.webhook.WebhookSignatureVerifier;
 import io.mateu.workflow.webhook.WebhookSignatureVerifier.WebhookVerificationException;
@@ -37,7 +38,8 @@ import java.util.function.Predicate;
  * workflow step's {@code task:} reference is resolved (and pinned to a version) at import, so the
  * contracts it references must already be there. The signature is checked with
  * {@code workflow.git-import.webhook-secret}, or {@code tasks.git-import.webhook-secret} when only
- * that one is set.
+ * that one is set. With neither set, the webhook is refused (401) unless the application is protected
+ * by Spring Security or {@code workflow.message-api.allow-anonymous} is true.
  *
  * <pre>
  *   workflow:
@@ -63,6 +65,21 @@ public class GitImportWebhookController {
      * stale one finishing last would prune what the newer one added.
      */
     io.mateu.workflow.webhook.CoalescingImportRunner importRunner = new io.mateu.workflow.webhook.CoalescingImportRunner();
+
+    /**
+     * Whether an unsigned webhook (no webhook secret) may come in: only when the engine API rule lets
+     * anonymous callers in or a Spring Security filter chain protects the application
+     * ({@link UnsignedWebhookPolicy}). False until the application context says otherwise.
+     */
+    java.util.function.BooleanSupplier unsignedAllowed = () -> false;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void webhookAccess(org.springframework.core.env.Environment environment,
+                       org.springframework.beans.factory.ListableBeanFactory beans) {
+        this.unsignedAllowed = () -> environment.getProperty(UnsignedWebhookPolicy.ALLOW_ANONYMOUS, Boolean.class, false)
+                || UnsignedWebhookPolicy.filterChainPresent(getClass().getClassLoader(),
+                        type -> beans.getBeanNamesForType(type, false, false).length > 0);
+    }
 
     @org.springframework.beans.factory.annotation.Autowired
     public GitImportWebhookController(GitImportProperties gitImportProperties,
@@ -94,15 +111,18 @@ public class GitImportWebhookController {
         var webhookProvider = WebhookProvider.fromPath(provider);
         var payloadBytes = body == null ? new byte[0] : body;
 
+        var repositories = gitImportProperties.getRepositories();
+        var taskRepositories = taskRepositories();
         try {
+            // Nothing to import, nothing to guard: an unsigned call with no repositories does nothing.
+            var unsignedRefusal = (repositories.isEmpty() && taskRepositories.isEmpty()) || unsignedAllowed.getAsBoolean()
+                    ? null : UnsignedWebhookPolicy.refusal("workflow.git-import.webhook-secret");
             WebhookSignatureVerifier.verify(webhookProvider, webhookSecret(),
-                    headers::getFirst, payloadBytes);
+                    headers::getFirst, payloadBytes, unsignedRefusal);
         } catch (WebhookVerificationException e) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, e.getMessage());
         }
 
-        var repositories = gitImportProperties.getRepositories();
-        var taskRepositories = taskRepositories();
         if (repositories.isEmpty() && taskRepositories.isEmpty()) {
             log.info("Webhook received but no Git repositories configured — nothing to import.");
             return ResponseEntity.accepted().body("no repositories configured");

@@ -98,8 +98,11 @@ orchestrator:
   security:
     enabled: true
     user: admin
-    # Name of an existing Secret with key SECURITY_PASSWORD. If blank a random
-    # password is generated at start-up and logged.
+    # Name of an existing Secret with key SECURITY_PASSWORD. If blank, the chart
+    # generates one Secret, <release>-eventconductor-admin, shared by every app
+    # without its own, and keeps it across upgrades (read it with kubectl; see
+    # deployment docs). Set it explicitly for GitOps tools that render without
+    # cluster access, where the generated password would change on every sync.
     passwordSecret: ""
   resources:
     requests:
@@ -150,7 +153,11 @@ rules:
   replicas: 2
   port: 8080
   servicePort: 8107
-  grpcEnabled: true
+  # The rule catalog's gRPC read API (rules.source=grpc runtimes). Off by default:
+  # it is plaintext and unauthenticated (anyone reaching the port can list and read
+  # every rule). Turn it on only behind mTLS from a service mesh, with networkPolicy
+  # enabled to limit who reaches it. Off, the port is neither opened nor exposed.
+  grpcEnabled: false
   grpcPort: 9090
   ddlAuto: validate
   flywayEnabled: true

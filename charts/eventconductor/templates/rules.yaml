@@ -45,7 +45,9 @@ spec:
           imagePullPolicy: {{ .Values.rules.imagePullPolicy }}
           ports:
             - containerPort: {{ .Values.rules.port }}
+            {{- if .Values.rules.grpcEnabled }}
             - containerPort: {{ .Values.rules.grpcPort }}
+            {{- end }}
           env:
             - name: SERVER_PORT
               value: {{ .Values.rules.port | quote }}
@@ -81,11 +83,11 @@ spec:
               value: {{ .Values.rules.security.enabled | quote }}
             - name: SECURITY_USER
               value: {{ .Values.rules.security.user | quote }}
-            {{- if .Values.rules.security.passwordSecret }}
+            {{- if or .Values.rules.security.enabled .Values.rules.security.passwordSecret }}
             - name: SECURITY_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.rules.security.passwordSecret }}
+                  name: {{ include "eventconductor.adminPasswordSecret" (dict "security" .Values.rules.security "root" $) }}
                   key: SECURITY_PASSWORD
             {{- end }}
             - name: SPRING_PROFILES_ACTIVE
@@ -131,9 +133,11 @@ spec:
     - name: http
       port: {{ .Values.rules.servicePort }}
       targetPort: {{ .Values.rules.port }}
+    {{- if .Values.rules.grpcEnabled }}
     - name: grpc
       port: {{ .Values.rules.grpcPort }}
       targetPort: {{ .Values.rules.grpcPort }}
+    {{- end }}
 {{- if .Values.rules.podDisruptionBudget.enabled }}
 ---
 apiVersion: policy/v1

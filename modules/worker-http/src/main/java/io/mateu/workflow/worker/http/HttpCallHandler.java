@@ -101,6 +101,12 @@ public class HttpCallHandler implements TaskHandler<HttpCallHandler.Input, Map<S
         }
         var method = text(request, "method") == null ? "GET" : text(request, "method");
         var auth = authOf(request, connection);
+        if (auth != null) {
+            var refusal = credentialRefusal(auth, connection, uri);
+            if (refusal != null) {
+                throw new TaskFailure("HTTP_FORBIDDEN_AUTH", refusal, false);
+            }
+        }
         var timeout = connection == null ? properties.getReadTimeout() : connection.getReadTimeout();
         var client = clientFor(connectionName, connection);
         var label = connectionName == null ? uri.getHost() : connectionName;
@@ -216,6 +222,53 @@ public class HttpCallHandler implements TaskHandler<HttpCallHandler.Input, Map<S
         return null;
     }
 
+    /**
+     * Why the credentials of {@code auth} may not go to {@code uri}, or null when they may. Checked before
+     * any secret is resolved, so a refused call sends nothing — not even to a token endpoint.
+     *
+     * <ul>
+     *   <li>A named profile with {@code hosts} goes only to a matching host — absolute URL or connection.</li>
+     *   <li>A named profile without {@code hosts} goes through a connection (bound to its base URL), or to an
+     *       absolute URL only when {@code allowed-hosts} is set (and the host already passed it).</li>
+     *   <li>An inline block that references {@code ${secret:…}} values goes through a connection, or to an
+     *       absolute URL only when {@code allowed-hosts} is set.</li>
+     * </ul>
+     * {@code workflow.http.credentials-to-any-host=true} lifts these limits.
+     */
+    String credentialRefusal(ResolvedAuth auth, HttpWorkerProperties.Connection connection, URI uri) {
+        if (properties.isCredentialsToAnyHost()) {
+            return null;
+        }
+        var host = uri.getHost() == null ? "" : uri.getHost();
+        var allowedHostsSet = hostGuard.restricted();
+        var profile = auth.profile();
+        if (!auth.fromDefinition) {
+            var hosts = profile.getHosts() == null ? List.<String>of() : profile.getHosts();
+            if (!hosts.isEmpty()) {
+                return hosts.stream().anyMatch(pattern -> HostGuard.matches(pattern, host)) ? null
+                        : "auth profile '" + auth.name() + "' may not be sent to host '" + host
+                                + "': it is not in workflow.http.auth." + auth.name() + ".hosts";
+            }
+            if (connection != null || allowedHostsSet) {
+                return null;
+            }
+            return "auth profile '" + auth.name() + "' may not be sent to an absolute URL (host '" + host
+                    + "'): list the hosts it may reach in workflow.http.auth." + auth.name()
+                    + ".hosts (or restrict workflow.http.allowed-hosts), or call through a connection";
+        }
+        if (connection != null || allowedHostsSet || !referencesSecrets(profile)) {
+            return null;
+        }
+        return "an inline auth block's ${secret:…} credentials may not be sent to an absolute URL (host '" + host
+                + "') while workflow.http.allowed-hosts is empty: restrict it, or call through a connection";
+    }
+
+    private static boolean referencesSecrets(HttpWorkerProperties.AuthProfile profile) {
+        return java.util.stream.Stream.of(profile.getUsername(), profile.getPassword(), profile.getToken(),
+                        profile.getValue(), profile.getClientId(), profile.getClientSecret())
+                .anyMatch(value -> value != null && value.contains("${secret:"));
+    }
+
     private ResolvedAuth profile(String name) {
         var profile = properties.getAuth().get(name);
         if (profile == null) {
@@ -226,7 +279,7 @@ public class HttpCallHandler implements TaskHandler<HttpCallHandler.Input, Map<S
     }
 
     /** An auth profile, applied with its secrets resolved at the moment of the call. */
-    private final class ResolvedAuth {
+    final class ResolvedAuth {
         private final String name;
         private final HttpWorkerProperties.AuthProfile profile;
         /** An inline block from the definition: its token endpoint is untrusted, like a URL. */

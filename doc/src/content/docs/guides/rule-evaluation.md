@@ -103,6 +103,6 @@ See `testbench/rules-embedded-mvc` for the complete embedded example, and `testb
 | `rules.catalog.grpc-target` | — | Catalog `host:port` for `grpc`. |
 | `rules.cache.ttl` | `PT5M` | Remote-source cache TTL; `PT0S` never expires. |
 | `rules.kafka-refresh` | `false` | Update the cache from `RulePublished`/`RuleDeleted` events. |
-| `rules.grpc.enabled` | `false` | Start the catalog's gRPC server (rule-engine). |
+| `rules.grpc.enabled` | `false` | Start the catalog's gRPC server (rule-engine). Plaintext and unauthenticated: only behind mTLS and a network policy. (`RULES_GRPC_ENABLED`, also `false` in the standalone app since 2.28.0.) |
 | `rules.grpc.port` | `9090` | Catalog gRPC port. |
 | `rules.git-import.*` | — | Git repositories + webhook secret (rule-engine). |

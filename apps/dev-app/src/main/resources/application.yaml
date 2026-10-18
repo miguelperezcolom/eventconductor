@@ -19,7 +19,8 @@ rules:
   persistence: ${RULES_PERSISTENCE:jpa}
   source: local
   grpc:
-    enabled: ${RULES_GRPC_ENABLED:true}
+    # Plaintext and unauthenticated: off unless asked for (and then behind mTLS / a network policy).
+    enabled: ${RULES_GRPC_ENABLED:false}
     port: ${RULES_GRPC_PORT:9090}
 
 spring:

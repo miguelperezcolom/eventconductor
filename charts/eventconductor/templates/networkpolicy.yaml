@@ -71,8 +71,10 @@ spec:
       ports:
         - port: {{ .Values.rules.port }}
           protocol: TCP
+        {{- if .Values.rules.grpcEnabled }}
         - port: {{ .Values.rules.grpcPort }}
           protocol: TCP
+        {{- end }}
   egress:
     - {}
 {{- end }}
