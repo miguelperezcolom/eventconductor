@@ -2,6 +2,7 @@ package io.mateu.workflow;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.annotation.Import;
 
 /**
  * The test worker: a worker that does no work, and plays back the scenario it was asked for.
@@ -24,6 +25,9 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * producer settings they need without being asked.
  */
 @SpringBootApplication(scanBasePackages = "io.mateu.testworker")
+// This package is not scanned (see above), so its one configuration is imported by name. Until
+// Mateu 3.0-alpha.409 nobody noticed: Mateu's own scan of all of io.mateu picked it up.
+@Import(WorkerJpaPersistenceConfiguration.class)
 public class AppApplication {
 
     public static void main(String[] args) {
