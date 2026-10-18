@@ -103,7 +103,7 @@ GET /workflow/api/definitions/{id}/invocations?idempotencyKey=…         (when 
 
 **Idempotency.** `(definition, Idempotency-Key)` identifies an invocation. A retry with the same key never starts a second process: it joins the running one, or gets the reply already given. The same key with a different body (business key or variables) is refused 422. Invocations are remembered for `workflow.sync.retention` (24 h); after that the key is free again, and the reply is still on the process.
 
-The API uses the same optional `X-Api-Key` as the [message API](/reference/configuration/#http-security), and a definition's `requiredScopes` / `requiredRoles` apply to the caller (403).
+Since 2.27.0 the engine's REST API (`/workflow/api/**`) refuses anonymous requests: send an `X-Api-Key` matching `workflow.message-api.api-key`, or authenticate through the application's Spring Security; only `workflow.message-api.allow-anonymous=true` opens it — see [HTTP security](/reference/configuration/#http-security). A definition's `requiredScopes` / `requiredRoles` apply to the caller (403).
 
 ## 4. Watch it: a progress stream (SSE)
 

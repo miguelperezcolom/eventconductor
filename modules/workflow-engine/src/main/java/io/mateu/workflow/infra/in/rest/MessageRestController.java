@@ -43,7 +43,8 @@ import java.util.Map;
  * <pre>
  *   workflow:
  *     message-api:
- *       api-key: mysecret   # optional — when set, the X-Api-Key header is required
+ *       api-key: mysecret   # sent as X-Api-Key. Without a key, only Spring Security or
+ *                           # allow-anonymous=true lets requests in (401 otherwise, since 2.27.0)
  * </pre>
  */
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)

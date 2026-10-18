@@ -97,9 +97,10 @@ class EngineApiAccessTest {
     @Test
     void atStartupTheLogSaysHowTheApiIsProtected() {
         assertThat(startupLog(properties(null, false, false), withControllers())).singleElement().asString()
-                .startsWith("WARN").contains("refuses every request", "workflow.message-api.api-key", "allow-anonymous");
+                .startsWith("WARN").contains("refuses every request", "workflow.message-api.api-key", "allow-anonymous")
+                .as("says what the key does not guard").contains("admin UI", "MCP", "rule-read", "NOT covered");
         assertThat(startupLog(properties(null, true, false), withControllers())).singleElement().asString()
-                .startsWith("WARN").contains("is OPEN");
+                .startsWith("WARN").contains("is OPEN", "NOT covered");
         assertThat(startupLog(properties("k3y", false, false), withControllers())).isEmpty();
         assertThat(startupLog(properties(null, false, false), new StaticListableBeanFactory()))
                 .as("no engine API, nothing to say").isEmpty();

@@ -18,6 +18,8 @@ Events are serialized as JSON with a `type` property carrying the registered eve
 | `llm-calls` | Outbound | `LLM_CALL` prompts, served by `llm-worker-standalone-app` (a step's `topic` overrides) |
 | `dead-letter` | Outbound | Events the engine can never process, parked unchanged for inspection and replay |
 | `process-index` | Internal | Process status changes for the standalone projector (`workflow.projection.mode=remote` only) |
+| `human-tasks` | Outbound | Every change of a human task (opened, assigned, completed, cancelled), published by `forms-standalone-app` (`FORMS_HUMAN_TASKS_TOPIC`) for inboxes and notification centres; nothing in EventConductor reads it |
+| `rules` | Internal | Rule catalog changes (`rule-published`, `rule-deleted`) published by `rule-standalone-app`, for rule runtimes that keep a local cache (`rules.kafka-refresh=true`, binding `consumeRuleCatalogEvent-in-0`) |
 | *destination topics* | Inbound | Domain events (CloudEvents) on the topics of `workflow.events.destinations.<name>.topic`, for event triggers and `onEvent` waits |
 
 The engine contributes the `outbox`, `upstream`, `downstream`, `dead-letter` and `process-index` bindings (and the orchestrator's two consumer groups) as lowest-precedence defaults, so an application only sets them to change them.
@@ -30,10 +32,12 @@ The engine contributes the `outbox`, `upstream`, `downstream`, `dead-letter` and
 
 **Consumed by:** Orchestrator event handlers (`ProcessCreatedEventHandler`, `StepExecutionStatusUpdatedEventHandler`, etc.)
 
-**Event types:**
+**Event types (among others):**
 - `process-created`
 - `step-execution-status-changed`
-- `step-execution-creation-requested`
+- `task-execution-requested`
+- `process-status-changed`
+- `message-subscription-changed`
 
 ## upstream
 
@@ -95,13 +99,27 @@ The engine contributes the `outbox`, `upstream`, `downstream`, `dead-letter` and
   "type": "timer-check-requested",
   "processId": "process-uuid"
 }
+
+// Operator commands on one process (what the UI, REST and MCP send in kafka mode)
+{ "type": "process-cancellation-requested", "processId": "process-uuid" }
+{ "type": "pause-process-requested",        "processId": "process-uuid" }
+{ "type": "resume-process-requested",       "processId": "process-uuid" }
+{ "type": "restart-process-requested",      "processId": "process-uuid" }
+{ "type": "retry-process-requested",        "processId": "process-uuid" }
+{ "type": "retry-step-execution-requested", "processId": "process-uuid", "stepExecutionId": "exec-uuid" }
+
+// Steps a DYNAMIC step injects into its process
+{
+  "type": "steps-injected",
+  "taskExecutionId": "exec-uuid",
+  "processId": "process-uuid",
+  "stepsJson": "[ { \"id\": \"extra\", \"type\": \"ACTION\", \"topic\": \"svc\" } ]"
+}
 ```
 
 A `message-received` event resumes processes waiting on a `WAIT_FOR_MESSAGE` step with the same `messageName` and correlation key. Alternatives to raw Kafka delivery: `POST /workflow/api/messages`, the `sendMessage` MCP tool, a `SEND_MESSAGE` step in another workflow, or programmatically via `ProcessUpstreamEventUseCase` — see [Step Types — WAIT_FOR_MESSAGE](/reference/step-types/#wait_for_message).
 
-:::note[Cancellation is not an upstream event]
-Publishing a `process-cancellation-requested` event on this topic has no effect — no upstream handler consumes it. To cancel a process, call `CancelProcessUseCase` (or use the management UI / MCP tools) — see [Starting a Process — Cancelling a process](/guides/starting-a-process/#cancelling-a-process).
-:::
+The operator commands are handled by `CancelProcessRequestedEventHandler`, `PauseProcessRequestedEventHandler`, `ResumeProcessRequestedEventHandler`, `RestartProcessRequestedEventHandler`, `RetryProcessRequestedEventHandler` and `RetryStepExecutionRequestedEventHandler`, which call the same use cases as the UI and MCP tools (`CancelProcessUseCase`, …); `steps-injected` is handled by `StepsInjectedEventHandler`. The commands address the process by `processId`; the optional `businessKey` of a `process-cancellation-requested` is not used to find it. See [Starting a Process — Cancelling a process](/guides/starting-a-process/#cancelling-a-process).
 
 ## downstream
 
@@ -174,6 +192,9 @@ Workers consume this topic, perform their work, and publish a `task-status-chang
 | LLM worker (`llm-worker-standalone-app`) | `llm-worker` | `llm-calls` |
 | Workers (`worker-standalone-app`) | `worker-app-group` | `downstream` |
 | Worker embedded in `orchestrator-standalone-app` | `worker-group` | `downstream` |
+| Worker in an application of your own (`worker-kafka`) | `${spring.application.name:eventconductor-worker}` | `downstream` |
+| Forms engine (`forms-standalone-app`) | `forms-engine-group` | `downstream` |
+| Rule runtime (`rule-standalone-app`) | `rule-engine-group` | `downstream` |
 
 The orchestrator's two groups are separate on purpose: one group whose members subscribe to different topics is assigned per topic by the default range assignor, and with mixed subscriptions it leaves partitions with no consumer at all.
 

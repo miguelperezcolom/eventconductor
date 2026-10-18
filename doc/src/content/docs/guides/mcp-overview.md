@@ -30,8 +30,12 @@ ia-agent-service  (port 8095)
 | `getProcessDetails` | Full process detail: variables + all step executions |
 | `findProcessByBusinessKey` | Look up a process by its business key |
 | `getProcessLogs` | Audit trail and log messages for a process |
+| `listInFlightProcesses` | Processes in flight (`PENDING`, `RUNNING`, `PAUSED`) from the process-index read model — one indexed read; empty when `workflow.projection.enabled` is off |
+| `countProcessesByStatus` | Process counts by status across the fleet, from the process-index read model; empty when the projection is off |
 | `retryProcess` | Pick a stopped process up where it stopped: the failed (or cancelled) steps run again, the ones that succeeded are left alone. `ERROR` or `CANCELLED` only |
 | `restartProcess` | Run a stopped process again from the beginning, the steps that already succeeded included, with the variables it was created with. `ERROR` or `CANCELLED` only |
+| `pauseProcess` / `resumeProcess` | Pause a `PENDING` or `RUNNING` process (in-flight work finishes, successors held, clocks frozen) and resume it |
+| `pauseWorkflow` / `resumeWorkflow` | Pause/resume a whole definition: all its processes, with new instances born paused |
 | `sendMessage` | Send an external message to resume processes waiting on a `WAIT_FOR_MESSAGE` step |
 | `getWorkflowAnalytics` | Per-definition analytics: counts by status, rates, throughput per day, avg/p95 durations, bottleneck step ([guide](/guides/analytics/)) |
 | `findBottleneck` | Where processes get stuck: slowest step, steps with waiting instances, steps with failures |

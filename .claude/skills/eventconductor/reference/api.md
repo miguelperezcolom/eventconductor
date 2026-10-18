@@ -94,7 +94,9 @@ Two `Variable` records with that shape exist — import per use:
 
 - `POST /workflow/api/messages` — deliver a message to waiting WAIT_FOR_MESSAGE steps. Body
   `{"messageName": "...", "correlationKey": "...", "variables": {"k": "v"}}`; responds 202.
-  `X-Api-Key` header required when `workflow.message-api.api-key` is set.
+  Since 2.27.0 `/workflow/api/**` refuses anonymous requests (401): send `X-Api-Key` matching
+  `workflow.message-api.api-key`, or authenticate through the app's Spring Security; only
+  `workflow.message-api.allow-anonymous=true` opens it.
 - `POST /workflow/webhooks/github` — GitHub webhook; re-imports configured Git repos (202, async).
 - `POST /workflow/api/definitions/{id}/invocations` — synchronous invocation of a definition with
   `syncInvocation.enabled`. Headers `Idempotency-Key` (required; same key → same process) and

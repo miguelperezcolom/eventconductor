@@ -88,7 +88,7 @@ A web UI is provided out of the box for operators and developers:
   `MeterRegistry` (Prometheus scrape at `/actuator/prometheus` in the standalone apps), and the
   standalone apps ship optional OpenTelemetry tracing over OTLP. See the
   [Observability reference](https://miguelperezcolom.github.io/eventconductor/reference/observability/).
-- **REST message delivery** — `POST /workflow/api/messages` (optional `X-Api-Key` guard)
+- **REST message delivery** — `POST /workflow/api/messages` (`X-Api-Key` or the app's Spring Security; [HTTP security](https://miguelperezcolom.github.io/eventconductor/reference/configuration/#http-security))
   delivers external messages to waiting `WAIT_FOR_MESSAGE` steps, so webhooks and SaaS callbacks can
   resume processes without producing to Kafka.
 - **Broker/DB outage resilience** — the orchestrator boots gracefully with Kafka or PostgreSQL
@@ -162,7 +162,10 @@ and the final answer is returned as plain text or streamed via SSE.
 | `getProcessDetails` | Full process detail: variables + all step executions |
 | `findProcessByBusinessKey` | Look up a process by its business key |
 | `getProcessLogs` | Audit trail and log messages for a process |
-| `retryProcess` | Re-trigger all failed (ERROR) steps in a process |
+| `listInFlightProcesses` | Processes in flight (`PENDING`, `RUNNING`, `PAUSED`) from the process-index read model — one indexed read; empty when `workflow.projection.enabled` is off |
+| `countProcessesByStatus` | Process counts by status across the fleet, from the process-index read model; empty when the projection is off |
+| `retryProcess` | Pick a stopped process up where it stopped: the failed (or cancelled) steps run again. `ERROR` or `CANCELLED` only |
+| `restartProcess` | Run a stopped process again from the beginning, succeeded steps included. `ERROR` or `CANCELLED` only |
 | `pauseProcess` / `resumeProcess` | Pause a process (in-flight work finishes, successors held, clocks frozen) and resume it |
 | `pauseWorkflow` / `resumeWorkflow` | Pause/resume a whole definition: all its processes, with new instances born paused |
 | `sendMessage` | Deliver an external message to processes waiting on a `WAIT_FOR_MESSAGE` step |
@@ -174,6 +177,11 @@ and the final answer is returned as plain text or streamed via SSE.
 | `createSchedule` / `updateSchedule` / `deleteSchedule` | Manage the schedules created through the engine (file-owned ones are changed in their file) |
 | `pauseSchedule` / `resumeSchedule` / `runScheduleNow` | Operate any schedule |
 | `exportScheduleYaml` | The schedule's `cron.yaml` entry, to promote it to git |
+| `listEventTriggers` | Every event trigger (optionally of one workflow): destination and topic, type, filter, business key, source, status |
+| `createEventTrigger` / `updateEventTrigger` / `deleteEventTrigger` | Manage the triggers created through the engine (file-owned ones are changed in their file) |
+| `pauseEventTrigger` / `resumeEventTrigger` / `exportEventTriggerYaml` | Pause or resume any trigger; get its `events.yaml` entry to promote it to git |
+| `listReceivedEvents` | The latest received domain events and what each started or delivered |
+| `publishInboundEvent` | Inject a domain event (CloudEvent) on a destination |
 
 **Forms engine** (`forms-engine`, port 8106)
 
@@ -589,8 +597,8 @@ because nothing would ever start it.
 
 | Type | Description | Required fields |
 |---|---|---|
-| `START` | Entry point; completes instantly at process creation (no worker). Must have no preconditions; several STARTs = concurrent entry branches | — |
-| `ACTION` | Dispatches a task to a worker | `topic` |
+| `START` | Entry point; completes instantly at process creation (no worker). Must have no preconditions; at most one per workflow (for concurrent entry branches, give it several successors or a `FORK`) | — |
+| `ACTION` | Dispatches a task to a worker | — (`topic` defaults to `downstream`) |
 | `USER_TASK` | Pauses the workflow for a human form submission | `formId` |
 | `RULE` | Evaluates a business rule; outputs merge into process variables | `ruleId` |
 | `PROCESS` | Starts a child workflow as a sub-process; the parent step waits for the child and copies back the variables named in `outputVariables` | `childWorkflowDefinitionId` |
@@ -766,8 +774,11 @@ durable home of a schedule, not a precondition for having one:
    stops being in git, it is deleted** — with its pause — like any entry removed from its file; it is
    not handed back to the UI.
 
-REST API (same optional `X-Api-Key` as the message API; put it behind whatever guards
-`/_workflow-admin`, since a schedule starts its workflow as the engine itself):
+REST API — since 2.27.0 the engine's REST API (`/workflow/api/**`) refuses anonymous requests: send an
+`X-Api-Key` matching `workflow.message-api.api-key`, or authenticate through the application's Spring
+Security; only `workflow.message-api.allow-anonymous=true` opens it (see
+[HTTP security](https://miguelperezcolom.github.io/eventconductor/reference/configuration/#http-security)).
+Put it behind whatever guards `/_workflow-admin`, since a schedule starts its workflow as the engine itself:
 
 | Method and path | |
 |---|---|
@@ -831,10 +842,9 @@ verifies each delivery and publishes it as a CloudEvent on a destination (guide 
 
 | Status | Description |
 |---|---|
-| `DRAFT` | Under construction, not executable |
 | `ACTIVE` | Ready to accept new process instances |
 | `DISABLED` | No new instances allowed; running ones continue |
-| `ARCHIVED` | Retired definition |
+| `ARCHIVED` | Retired: as `DISABLED`, and hidden from the listing |
 
 ---
 
@@ -855,7 +865,7 @@ parseability for rules.
 <plugin>
   <groupId>io.mateu.workflow</groupId>
   <artifactId>workflow-maven-plugin</artifactId>
-  <version>1.0-beta.025</version>
+  <version>${eventconductor.version}</version> <!-- latest: see the Maven Central badge above -->
   <executions>
     <execution>
       <goals>
@@ -1047,7 +1057,7 @@ Place workflow definitions under `src/main/resources/workflows/` as JSON or YAML
 <dependency>
     <groupId>io.mateu.workflow</groupId>
     <artifactId>workflow-engine</artifactId>
-    <version>1.0-beta.025</version>
+    <version>${eventconductor.version}</version> <!-- latest: see the Maven Central badge above -->
 </dependency>
 ```
 

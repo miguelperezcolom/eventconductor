@@ -108,8 +108,9 @@ it —
 
 Marks an entry point of the workflow. No worker is involved: the step completes instantly
 when the process is created, which makes all its successors eligible. A `START` step must
-**not** declare preconditions (rejected at load). Declaring **multiple START steps** gives the
-process several entry branches that run concurrently from creation.
+**not** declare preconditions (rejected at load). A workflow has **at most one START** (a second
+one is rejected at load); for several branches that run concurrently from creation, give the START
+several successors or follow it with a `FORK`.
 
 ```json
 {
@@ -313,12 +314,12 @@ curl -X POST http://localhost:8080/workflow/api/messages \
   -d '{"messageName": "payment-received", "correlationKey": "res-123", "variables": {"paymentId": "P-9"}}'
 ```
 
-The endpoint responds `202 Accepted` (fire-and-forget: an unmatched message is ignored, per the delivery semantics above). The `X-Api-Key` header is required when `workflow.message-api.api-key` is configured (see [HTTP security](/reference/configuration/#http-security) for an engine without a key):
+The endpoint responds `202 Accepted` (fire-and-forget: an unmatched message is ignored, per the delivery semantics above). Since 2.27.0 the engine's REST API (`/workflow/api/**`) refuses anonymous requests: send an `X-Api-Key` matching `workflow.message-api.api-key`, or authenticate through the application's Spring Security; only `workflow.message-api.allow-anonymous=true` opens it — see [HTTP security](/reference/configuration/#http-security).:
 
 ```yaml
 workflow:
   message-api:
-    api-key: mysecret   # optional — leave unset to accept unauthenticated messages
+    api-key: mysecret   # sent as X-Api-Key; without it (and without Spring Security) the API answers 401
 ```
 
 :::note[Migration: this type was previously named `MESSAGE`]

@@ -9,8 +9,9 @@ This guide gets you from zero to a running workflow in under 10 minutes using th
 
 ## Prerequisites
 
-- Java 17+
+- Java 21+
 - Maven 3.8+
+- A Spring Boot 4 application — the simplest is a project whose `pom.xml` has `spring-boot-starter-parent` as its parent (step 7 runs it with the Spring Boot Maven plugin)
 
 ## 1. Add the dependency
 
@@ -61,9 +62,15 @@ public class MyApplication {
 
 ## 5. Implement a worker
 
+The engine hands every `ACTION` step to the `EmbeddedTaskExecutor` bean; declare it in a
+`@Configuration` class:
+
 ```java
-@Bean
-public EmbeddedTaskExecutor greetWorker(UpdateStepExecutionUseCase updateStepExecution) {
+@Configuration
+public class WorkerConfig {
+
+  @Bean
+  public EmbeddedTaskExecutor greetWorker(UpdateStepExecutionUseCase updateStepExecution) {
     return request -> {
         String name = request.variables().stream()
             .filter(v -> "name".equals(v.name()))
@@ -79,27 +86,44 @@ public EmbeddedTaskExecutor greetWorker(UpdateStepExecutionUseCase updateStepExe
             StepExecutionStatus.COMPLETED
         ));
     };
+  }
 }
 ```
 
 ## 6. Start a process
 
-```java
-@Autowired
-ProcessUpstreamEventUseCase processUpstreamEventUseCase;
+Something has to start the process — a REST controller, a scheduled job, a message listener. For
+this guide, an `ApplicationRunner` starts one as soon as the application is up (the definitions in
+`classpath:/workflows/` are loaded by then):
 
-public void runWorkflow() {
-    processUpstreamEventUseCase.handle(new ProcessUpstreamEventCommand(
-        new ProcessCreationRequested(
-            "hello-world",
-            "my-first-process",
-            List.of(new Variable("name", "Alice"))
-        )
-    ));
+```java
+@Component
+public class HelloWorldStarter implements ApplicationRunner {
+
+    private final ProcessUpstreamEventUseCase processUpstreamEventUseCase;
+
+    public HelloWorldStarter(ProcessUpstreamEventUseCase processUpstreamEventUseCase) {
+        this.processUpstreamEventUseCase = processUpstreamEventUseCase;
+    }
+
+    @Override
+    public void run(ApplicationArguments args) {
+        processUpstreamEventUseCase.handle(new ProcessUpstreamEventCommand(
+            new ProcessCreationRequested(
+                "hello-world",
+                "my-first-process",
+                List.of(new Variable("name", "Alice"))
+            )
+        ));
+    }
 }
 ```
 
 ## 7. Build and run
+
+`mvn spring-boot:run` needs the Spring Boot Maven plugin: with `spring-boot-starter-parent` as the
+parent, declaring `org.springframework.boot:spring-boot-maven-plugin` under `<build><plugins>` is
+enough (without the parent, give the plugin a version and import `spring-boot-dependencies`).
 
 ```shell
 mvn clean install

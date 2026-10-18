@@ -55,6 +55,16 @@ modes** (embedded + memory, embedded + jpa, kafka + jpa).
 | `eventconductor.process.running` | Gauge | — | Processes currently in `RUNNING` status |
 | `eventconductor.outbox.pending` | Gauge | — | Outbox messages waiting to be relayed (only with `workflow.persistence=jpa`; the in-memory mode has no outbox). Rises during a broker outage and must return to zero |
 | `eventconductor.steps.stalled` | Gauge | — | ACTION and RULE steps with **no deadline** that have been waiting on a worker longer than `workflow.stalled-step-after-ms`. The one gauge to alert on — see below |
+| `eventconductor.processes.stalled` | Gauge | — | `RUNNING` processes with no step left to run and no deadline anywhere, older than `workflow.stalled-process-after-ms` (scanned every `workflow.stalled-process-scan-interval-ms`; the ids are logged at WARN). Usually guards that leave nothing eligible after the last completed step |
+| `eventconductor.process.concurrent.writes.rejected` | Counter | — | Writes refused by optimistic locking because another writer had the process. Events are keyed by process, so outside a rebalance this stays at zero |
+| `eventconductor.events.dead.lettered` | Counter | `source` | Events parked on the dead-letter destination as unprocessable |
+| `eventconductor.events.triggers` | Gauge | `origin` (`definition`, `events_file`) | Event triggers that can start a process, by where they are declared (sampled at most once per `workflow.metrics.gauge-ttl`) |
+| `eventconductor.events.received` | Counter | `destination`, `outcome` (`STARTED`, `DELIVERED`, `ERROR`, `DUPLICATE`) | Domain events received, counted once per receiver (trigger or wait) they reached |
+| `eventconductor.outbox.pickup.latency` | Timer (histogram) | — | `jpa` only: time a message waited in the outbox between commit and being claimed by a relay |
+| `eventconductor.outbox.batch.size` | Summary | — | Messages claimed in one relay batch |
+| `eventconductor.outbox.batch.deliver` | Timer (histogram) | — | Time spent sending one relay batch |
+| `eventconductor.outbox.relay.draining` / `eventconductor.outbox.relay.waiting` | Timer | — | Time per relay cycle spent draining vs waiting for work; their ratio is the relay's duty cycle (near 1: the relay is the ceiling) |
+| `eventconductor.outbox.relay.stalled` | Counter | — | Relay passes that claimed rows and settled none — anything above zero means committed messages are not reaching the broker |
 
 **Alert on `eventconductor.steps.stalled`.** Every other metric here counts something happening;
 this counts work that has stopped happening where nothing in the engine will notice. A step that
@@ -86,6 +96,22 @@ table — there it means "not measured", not "nothing stalled".
 | `eventconductor.sync.wakeups` | counter | `via` | How replies reached waiting callers: `registration`, `local`, `notify`, `poll` — a rising `poll` share means NOTIFY is not working |
 | `eventconductor.sync.inline.steps` | summary | — | Outbox messages handled per inline drive (the fast path) |
 | `eventconductor.sync.inline.fallbacks` | counter | `reason` | Inline drives that stopped early or never started: `saturated`, `budget`, `claim_lost`, `failure` |
+
+#### Message routing (sharded deployments)
+
+| Meter | Type | Tags | Meaning |
+|---|---|---|---|
+| `eventconductor.messages.routed` | counter | `route` (`placement`, `subscription`, `broadcast`) | Messages routed, by how the target shard was found |
+| `eventconductor.messages.placement.lookup.failed` | counter | — | A placement lookup failed; the message fell through to the next layer |
+| `eventconductor.messages.subscription.lookup.failed` | counter | — | A subscription lookup failed; the message fell through to broadcast |
+| `eventconductor.messages.correlation.queries` | counter | — | Correlation queries run on this shard |
+| `eventconductor.messages.correlation.queries.skipped` | counter | — | Broadcast messages dropped without a query because no step on this shard could be waiting for them |
+
+#### Webhook gateway (`webhook-gateway`)
+
+| Meter | Type | Tags | Meaning |
+|---|---|---|---|
+| `eventconductor.webhooks.received` | counter | `endpoint`, `outcome` (`published`, `unauthorized`, `rejected`, `unknown`, `error`) | Every webhook delivery and what became of it |
 
 #### HTTP calls (`worker-http`)
 

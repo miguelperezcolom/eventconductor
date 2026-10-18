@@ -39,6 +39,10 @@ public class EngineApiAccess implements SmartInitializingSingleton {
             + " and send it as X-Api-Key, protect the application with Spring Security, or set"
             + " workflow.message-api.allow-anonymous=true for an isolated deployment.";
 
+    /** What the api key does not guard: without a filter chain these are open to anyone who reaches the port. */
+    static final String NOT_COVERED = "The admin UI, the MCP endpoints and the rule-read endpoints are NOT covered by"
+            + " workflow.message-api.*: protect the application with Spring Security when it is reachable on a network.";
+
     private final MessageApiProperties apiProperties;
     private final ListableBeanFactory beans;
 
@@ -60,12 +64,12 @@ public class EngineApiAccess implements SmartInitializingSingleton {
             log.warn("The engine's REST API (/workflow/api/**: messages, events, schedules, sync invocations) is OPEN:"
                     + " workflow.message-api.allow-anonymous is true, no api-key is set and no Spring Security filter"
                     + " chain is configured, so anyone who can reach this port can start processes, send messages"
-                    + " and create schedules.");
+                    + " and create schedules. " + NOT_COVERED);
         } else {
             log.warn("The engine's REST API (/workflow/api/**) refuses every request: no workflow.message-api.api-key"
                     + " is set and no Spring Security filter chain is configured. Set the key (sent as X-Api-Key),"
                     + " secure the application, or set workflow.message-api.allow-anonymous=true for an isolated"
-                    + " deployment.");
+                    + " deployment. " + NOT_COVERED);
         }
     }
 

@@ -22,7 +22,7 @@ percentiles, bottlenecks) are a separate, always-on feature — see [Process Ana
 
 | Situation | Recommendation |
 |---|---|
-| Small / moderate process volumes, single database | Leave it **off**. `listProcesses` and `findByBusinessKey` over the write tables are fine. |
+| Small / moderate process volumes, single database | Leave it **off**. `listProcesses` and `findProcessByBusinessKey` over the write tables are fine. |
 | Large process volumes, "what's running" / fleet counts on the hot path | Turn it **on**. Queries hit one indexed table, not the write model. |
 | Sharded write side (processes split across databases) | Turn it **on**. It is the only way to list/aggregate across shards. |
 
@@ -104,7 +104,7 @@ Map<String, Long> counts = processIndex.countByStatus();
 ```
 
 With the projection off these return empty (nothing populates the index) — use the write-side
-`listProcesses` / `findByBusinessKey` on deployments that keep it off.
+`listProcesses` / `findProcessByBusinessKey` MCP tools (or `ProcessRepository.findByBusinessKey`) on deployments that keep it off.
 
 ### MCP tools
 
@@ -163,7 +163,7 @@ Set `workflow.projection.mode=remote` and three things change:
   instead of the shard's own `outbox`;
 - the in-process projector is not created (it would never see one anyway — and if it did, it would write
   a second, partial index that looks like a complete one);
-- the engine **reads** the index from a read database instead of its own, so `findByBusinessKey`,
+- the engine **reads** the index from a read database instead of its own, so `ProcessIndex.findByBusinessKey`,
   `listInFlightProcesses`, `countProcessesByStatus` and the command router's `processId → shardId` lookup
   all answer for the whole fleet.
 

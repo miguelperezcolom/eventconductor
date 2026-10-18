@@ -163,12 +163,12 @@ Content-Type: application/json
  "data": {"bookingId": "B-1", "nights": 2, "channel": "web"}}
 ```
 
-The answer says what the event did: `receipts` (each `STARTED` with its business key, `DELIVERED` with the message and key, or `ERROR` with the reason) and `duplicates`. Same optional `X-Api-Key` as the message API. **MCP**: `publishInboundEvent` does the same.
+The answer says what the event did: `receipts` (each `STARTED` with its business key, `DELIVERED` with the message and key, or `ERROR` with the reason) and `duplicates`. Since 2.27.0 the engine's REST API (`/workflow/api/**`) refuses anonymous requests: send an `X-Api-Key` matching `workflow.message-api.api-key`, or authenticate through the application's Spring Security; only `workflow.message-api.allow-anonymous=true` opens it — see [HTTP security](/reference/configuration/#http-security). **MCP**: `publishInboundEvent` does the same.
 
 ## Operating triggers
 
 - **Workflow → Event triggers** lists every trigger — workflow, destination and its topic, type, filter, business key, variables, source (`Definition`, the `events.yaml` it comes from, or `UI/API`), status — pauses or resumes the selected ones, and creates new ones; each trigger has its own page with its `events.yaml` entry. **Workflow → Received events** shows the latest receipts: what each event started, delivered, or why it could not be used. A definition's detail page has a **Triggers** tab.
-- REST: `GET /workflow/api/triggers[?workflowId=]`, `GET /workflow/api/triggers/{workflowId}/{triggerId}`, `POST /workflow/api/triggers`, `PUT`/`DELETE …/{workflowId}/{triggerId}`, `GET …/yaml`, `POST …/pause`, `POST …/resume`, `GET /workflow/api/events/received[?workflowId=&limit=]`. Same optional `X-Api-Key` as the message API.
+- REST: `GET /workflow/api/triggers[?workflowId=]`, `GET /workflow/api/triggers/{workflowId}/{triggerId}`, `POST /workflow/api/triggers`, `PUT`/`DELETE …/{workflowId}/{triggerId}`, `GET …/yaml`, `POST …/pause`, `POST …/resume`, `GET /workflow/api/events/received[?workflowId=&limit=]`. Same access rule as the rest of `/workflow/api/**` ([HTTP security](/reference/configuration/#http-security)).
 - MCP: `listEventTriggers`, `createEventTrigger`, `updateEventTrigger`, `deleteEventTrigger`, `exportEventTriggerYaml`, `pauseEventTrigger`, `resumeEventTrigger`, `listReceivedEvents`, `publishInboundEvent`.
 - Metrics: `eventconductor.events.received{destination, outcome}` (`STARTED`, `DELIVERED`, `ERROR`, `DUPLICATE`), and the gauge `eventconductor.events.triggers{origin}` (`definition`, `events_file`, `api`): how many triggers can fire — a drop after an import means an entry was skipped, removed or taken over.
 - The graph shows a ⚡ on the START node of a triggered workflow, and `⚡ <type> ← <destination>` above a wait fed by an event.

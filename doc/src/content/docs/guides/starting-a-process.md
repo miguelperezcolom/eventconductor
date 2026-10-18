@@ -220,7 +220,7 @@ cancelProcessUseCase.handle(new CancelProcessCommand(processId));
 
 Running step executions will be cancelled (workers are notified via `TaskCancellationRequested`), and the process status will transition to `CANCELLED`. Cancelling an already `COMPLETED` or `CANCELLED` process is a no-op.
 
-Note that publishing a `ProcessCancellationRequested` event on the upstream surface has **no effect** — no handler consumes it.
+In kafka mode the same cancel can be sent as a `process-cancellation-requested` event (with the `processId`) on the `upstream` topic — `CancelProcessRequestedEventHandler` calls `CancelProcessUseCase`. Pause, resume, restart, retry and retry-step have upstream events too; see [Kafka topics — upstream](/reference/kafka-topics/#upstream).
 
 A process in `ERROR` can be retried with `RetryProcessUseCase`, which resets its failed step executions to `CREATED` and puts the process back to `RUNNING`:
 

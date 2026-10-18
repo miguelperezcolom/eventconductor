@@ -28,7 +28,7 @@ public class HttpWorkerAutoConfiguration {
     @ConditionalOnMissingBean
     public HttpCallHandler httpCallHandler(HttpWorkerProperties properties, Environment environment,
                                            ObjectProvider<io.micrometer.core.instrument.MeterRegistry> registry) {
-        var secrets = new SecretResolver(secretLookup(properties, environment));
+        var secrets = new SecretResolver(secretLookup(properties, environment), properties.isSecretsFromEnvironment());
         var guard = new HostGuard(properties.getAllowedHosts(), InetAddress::getAllByName);
         return new HttpCallHandler(properties, secrets, guard, metricsFor(registry));
     }

@@ -34,6 +34,17 @@ description: Complete reference for all EventConductor configuration properties.
 | `workflow.metrics.gauge-ttl` | duration | `PT30S` | How long the two counting gauges (`eventconductor.process.running`, `eventconductor.outbox.pending`) may reuse their last value. Both answer with a `count(*)` against the engine's own database, and counting running processes walks one index entry per running process — the very number being reported — so without this the cost of observing the system grows with the system, once per pod per scrape. `PT0S` restores a query on every scrape |
 | `workflow.message-api.api-key` | string | — | API key required in the `X-Api-Key` header of the engine's REST API (`/workflow/api/**`: messages, events, triggers, schedules, sync invocations). See [HTTP security](#http-security) for what happens when it is blank |
 | `workflow.message-api.allow-anonymous` | boolean | `false` | Accept requests without credentials when no `api-key` is set and no Spring Security filter chain protects the application. Off since 2.27.0; turn it on only for an isolated deployment |
+| `workflow.rest.max-body-bytes` | bytes | `16777216` (16 MiB) | Request bodies larger than this are cut off unread on `/workflow/api/*` and the git webhooks (`/workflow/webhooks/*`, `/forms/webhooks/*`, `/rules/webhooks/*`). Far above the engine's own input limits on purpose: those answer with a message naming the field; this only stops a body too large to read |
+| `workflow.security.flow-authorization.enabled` | boolean | `false` | Enforce definitions' `requiredScopes` / `requiredRoles` against the caller (fail closed: a caller nobody identified holds nothing). Also checked when someone creates or edits a schedule or event trigger, or runs a schedule now |
+| `workflow.security.trust-forwarded-token` | boolean | `false` | Read the caller's identity from a bearer token this application did **not** verify. Only behind something that did (a gateway, a mesh) — on its own it believes whatever the caller typed. The application's own Spring Security authentication is always preferred |
+| `workflow.security.claims.subject` / `.scopes` / `.roles` | csv | `preferred_username,sub` / `scope,scp` / `realm_access.roles,roles` | The token claims a forwarded token's caller id, scopes and roles are read from (first match wins; dotted names reach into nested objects) |
+| `workflow.stalled-step-after-ms` / `workflow.stalled-step-scan-interval-ms` | ms | `900000` / `60000` | How long a live ACTION/RULE step with no deadline may wait before `eventconductor.steps.stalled` counts it, and how often that is checked |
+| `workflow.stalled-process-after-ms` / `workflow.stalled-process-scan-interval-ms` | ms | `1800000` / `300000` | How long a RUNNING process with no step left to run may sit before it is logged (WARN, with up to 20 ids) and counted by `eventconductor.processes.stalled`, and how often that is checked |
+| `workflow.analytics.rollup` | boolean | `false` | `jpa` persistence: keep the analytics read model (daily rollup tables) current in the background instead of computing reports from the raw tables. Each finished process and step is counted once, even across retries and restarts |
+| `workflow.analytics.rollup-interval-ms` | ms | `15000` | How often the rollup folds new facts |
+| `workflow.analytics.rollup-batch-size` | int | `1000` | Rows read per batch |
+| `workflow.analytics.rollup-max-batches-per-cycle` | int | `200` | Batches per stream per cycle — bounds a first-run backfill, which then catches up over several cycles |
+| `workflow.analytics.rollup-ceiling-seconds` | s | `2` | Rows newer than this are left for the next cycle, so a commit in flight at the boundary is not missed |
 | `workflow.embedded.worker-threads` | int | `0` | Embedded mode only. `0` runs the worker on the thread that dispatched the task — which under `jpa` persistence is the single outbox relay thread, the one advancing **every** process in the JVM, so a worker that blocks stops all of them. Above zero the task is handed to a pool of that many threads and the dispatching thread is freed. See the note below before turning it on |
 | `workflow.embedded.worker-queue-capacity` | int | `1000` | How many tasks may wait for a worker thread. A full queue rejects, and the rejection is retryable: the outbox holds the message and offers it again |
 | `workflow.embedded.worker-shutdown-grace-ms` | ms | `10000` | How long shutdown waits for in-flight workers before abandoning them |
@@ -130,8 +141,9 @@ Imports [task contracts](/reference/versioning/#task-contracts) (`.ectask`, and 
 | `tasks.git-import.repositories[].directory` | — | Subdirectory to scan (relative to the repo root). Leave blank to scan the whole clone. |
 | `tasks.git-import.repositories[].username` | — | Username for HTTPS authentication. |
 | `tasks.git-import.repositories[].password` | — | Password or personal access token. |
+| `tasks.git-import.webhook-secret` | — | Secret for verifying push webhooks (GitHub/Bitbucket HMAC, GitLab/generic token). Used only when `workflow.git-import.webhook-secret` is blank. Leave both blank to disable verification. |
 
-Task git import runs at **startup only** — there is no push webhook yet, so a restart re-imports. Contracts also load from `classpath:/tasks/` (memory mode serves them from the heap; jpa mode imports them into the database at startup).
+Task git import runs at startup and on a **push webhook**: the workflow engine's `POST /workflow/webhooks/{provider}` (`github`/`gitlab`/`bitbucket`/`generic`) reloads the pushed repository/branch from the `tasks.git-import` repositories as well as the `workflow.git-import` ones — contracts first, then workflows, so a step's `task:` reference resolves. Nothing is pruned (contracts are append-only). Contracts also load from `classpath:/tasks/` (memory mode serves them from the heap; jpa mode imports them into the database at startup).
 
 ## Application class (embedded modes)
 
@@ -259,6 +271,10 @@ Two things follow from the engine owning its schema:
 
 - **It never writes to `flyway_schema_history`.** That table is yours. Your application's migrations are numbered from V1 and so are the engine's; a shared history would collide them and the second one to run would fail validation on a checksum mismatch. `spring.flyway.*` keeps meaning exactly what it meant before — your migrations, your history — and the engine stays out of it.
 - **It adopts an existing schema.** The migrations baseline at 0 and every `V1` is written `IF NOT EXISTS`, so turning this on over tables `ddl-auto` already created applies the indexes and nothing else.
+
+:::caution[MariaDB/MySQL and Oracle: the migrations are PostgreSQL/H2 only]
+The engines' Flyway migrations are written for **PostgreSQL** and **H2** (the engine ships `flyway-database-postgresql` only). On MariaDB/MySQL or Oracle set `workflow.schema.enabled=false` (and `forms.schema.enabled=false`, `rules.schema.enabled=false` for those engines) and let `spring.jpa.hibernate.ddl-auto=update` create the tables — then create the indexes yourself, taking the `CREATE INDEX` statements from `db/migration/workflow` in the `workflow-engine` jar, since `ddl-auto` emits none.
+:::
 
 Embedding the engine needs `org.flywaydb:flyway-core` on the classpath (plus the driver module, e.g. `flyway-database-postgresql`) — it is an optional dependency, since a run with `workflow.persistence=memory` needs neither. With `persistence=jpa` and no Flyway the engine warns loudly at startup rather than running indexless in silence.
 
@@ -412,11 +428,16 @@ left to the application is the list of functions it composes, because only it kn
 worker or the forms engine is on the classpath too:
 
 ```properties
-spring.cloud.function.definition=consumeOutbox;consumeUpstream;consumeWorkerEvent
+spring.cloud.function.definition=consumeOutbox;consumeUpstream
 
 # Auto-create topics (dev/test only)
 spring.cloud.stream.kafka.binder.auto-create-topics=true
 ```
+
+With `worker-kafka` on the classpath, `consumeWorkerEvent` is **appended** to that list for you
+(merged with whatever the application declares), and its inbound group defaults to
+`${spring.application.name:eventconductor-worker}` — so the worker's group follows the
+application name unless you set one.
 
 :::caution[Don't drop `batch-mode` if you wire the bindings yourself]
 The engine's consumers take a **batch** — `Consumer<Message<List<DomainEvent>>>` — because a poll
@@ -445,9 +466,9 @@ spring.cloud.stream.bindings.consumeUpstream-in-0.group=orchestrator-upstream
 spring.cloud.stream.bindings.consumeUpstream-in-0.consumer.batch-mode=true
 spring.cloud.stream.bindings.upstream.destination=upstream
 
-# Downstream topic (task execution requests to workers) — the worker's own binding
+# Downstream topic (task execution requests to workers) — the worker's own binding, from worker-kafka
 spring.cloud.stream.bindings.consumeWorkerEvent-in-0.destination=downstream
-spring.cloud.stream.bindings.consumeWorkerEvent-in-0.group=worker-group
+spring.cloud.stream.bindings.consumeWorkerEvent-in-0.group=${spring.application.name:eventconductor-worker}
 spring.cloud.stream.bindings.downstream.destination=downstream
 
 # Where events the engine can never process are parked
@@ -528,10 +549,9 @@ spring.jpa.hibernate.ddl-auto=update
 
 spring.kafka.bootstrap-servers=localhost:9092
 
-# The engine's own bindings (destinations, a group each, batch-mode) come as defaults.
-spring.cloud.function.definition=consumeOutbox;consumeUpstream;consumeWorkerEvent
-spring.cloud.stream.bindings.consumeWorkerEvent-in-0.destination=downstream
-spring.cloud.stream.bindings.consumeWorkerEvent-in-0.group=worker-group
+# The engine's own bindings (destinations, a group each, batch-mode) come as defaults;
+# worker-kafka appends consumeWorkerEvent and names its group after spring.application.name.
+spring.cloud.function.definition=consumeOutbox;consumeUpstream
 spring.cloud.stream.kafka.binder.auto-create-topics=true
 ```
 
@@ -550,6 +570,12 @@ the dedicated [Observability](/reference/observability/) page.
 3. no key is set, no filter chain exists, and `workflow.message-api.allow-anonymous=true`.
 
 Otherwise it answers `401`. Since 2.27.0: before, an engine embedded in an application without Spring Security and without a key answered anybody who could reach the port. At startup the engine logs which of the three applies. A filter chain that permits everything (for instance `eventconductor.security.enabled=false` in the standalone apps) counts as protection — set a key if such an engine is reachable on a network.
+
+Calling it from outside: send `X-Api-Key` when the engine has a key; against the standalone orchestrator (Spring Security, no key) send its HTTP Basic credentials (`eventconductor.security.user` / `.password`) instead.
+
+:::caution[The key covers `/workflow/api/**` only]
+`workflow.message-api.*` guards the engine's REST API and nothing else. The admin UI, the MCP endpoints and the rule-read endpoints are **not** covered by it: an engine embedded without Spring Security serves them to anyone who can reach the port. In an embedded deployment that is reachable on a network, protect the application with Spring Security (the standalone apps do, with the basic authentication below).
+:::
 
 The standalone apps protect their HTTP endpoints (UI, REST, actuator) with basic authentication, configured via `eventconductor.security.*`:
 
@@ -572,7 +598,7 @@ The standalone images are fully configured via environment variables. All variab
 | `WORKFLOW_PERSISTENCE` | `jpa` | `workflow.persistence` |
 | `DB_URL` | `jdbc:postgresql://127.0.0.1:5432/workflow` | `spring.datasource.url` |
 | `DB_USERNAME` | `user_app` | `spring.datasource.username` |
-| `DB_PASSWORD` | `user_password` | `spring.datasource.password` |
+| `DB_PASSWORD` | — (no default: set it) | `spring.datasource.password` |
 | `DB_DRIVER` | `org.postgresql.Driver` | `spring.datasource.driver-class-name` |
 | `JPA_DIALECT` | `org.hibernate.dialect.PostgreSQLDialect` | `spring.jpa.database-platform` |
 | `DDL_AUTO` | `update` | `spring.jpa.hibernate.ddl-auto` |
@@ -603,7 +629,7 @@ The standalone images are fully configured via environment variables. All variab
 | `WORKFLOW_PERSISTENCE` | `jpa` | `workflow.persistence` |
 | `DB_URL` | `jdbc:postgresql://127.0.0.1:5432/workflow` | `spring.datasource.url` |
 | `DB_USERNAME` | `user_app` | `spring.datasource.username` |
-| `DB_PASSWORD` | `user_password` | `spring.datasource.password` |
+| `DB_PASSWORD` | — (no default: set it) | `spring.datasource.password` |
 | `DB_DRIVER` | `org.postgresql.Driver` | `spring.datasource.driver-class-name` |
 | `JPA_DIALECT` | `org.hibernate.dialect.PostgreSQLDialect` | `spring.jpa.database-platform` |
 | `DDL_AUTO` | `update` | `spring.jpa.hibernate.ddl-auto` |

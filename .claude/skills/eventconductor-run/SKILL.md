@@ -62,7 +62,10 @@ curl -X POST http://localhost:8080/workflow/api/messages \
   -H 'Content-Type: application/json' \
   -d '{"messageName": "payment-confirmed", "correlationKey": "order-123", "variables": {"paid": "true"}}'
 ```
-Responds 202; add `-H 'X-Api-Key: ...'` if `workflow.message-api.api-key` is set. The MCP
+Responds 202. Since 2.27.0 `/workflow/api/**` refuses anonymous requests: add `-H 'X-Api-Key: ...'`
+matching `workflow.message-api.api-key`, use the app's Spring Security credentials (standalone
+orchestrator: `-u admin:<password>`), or set `workflow.message-api.allow-anonymous=true` for a local run
+(otherwise 401). The MCP
 `sendMessage` tool does the same.
 
 To cancel a process stuck waiting, call

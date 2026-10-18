@@ -196,10 +196,12 @@ is a live branch of the happy path that fires the moment the step it "compensate
 any step fails after exhausting its retries:
 
 1. The process enters `ERROR` and the normal flow is blocked (no new steps start).
-2. The engine collects **every step that has executed** (completed, plus the one that just
-   failed) and declares a `compensationStepId`, and runs their compensations **sequentially,
-   in reverse execution order** — the latest-executed step is undone first. In the example, if
-   `reserve-flight` fails, `cancel-flight` runs first, then `cancel-hotel`.
+2. The engine collects every step that **completed** and is `compensable` with a
+   `compensationStepId`, and runs their compensations **sequentially, in reverse completion
+   order** — the latest-completed step is undone first. The step that failed is **never**
+   compensated: its work did not succeed, so there is nothing of its own to undo. In the example,
+   if `reserve-flight` fails, only `cancel-hotel` runs; if both reservations completed and a later
+   step fails, `cancel-flight` runs first, then `cancel-hotel`.
 3. Each compensation starts only once the previous one has completed, so the order is strict.
 4. When the whole chain completes, the process transitions to the terminal **`COMPENSATED`**
    state (a clean rollback — distinct from a raw `ERROR`). If a compensation step itself fails
@@ -209,8 +211,8 @@ any step fails after exhausting its retries:
    `eventconductor.compensations.failed` metric (the one compensation metric to alert on) and logs
    loudly, so an operator can find the process and resolve the inconsistent state by hand.
 
-A single failed compensable step is just the degenerate case of this cascade: its one
-compensation runs and the process ends `COMPENSATED`.
+If nothing compensable had completed when the step failed (for instance `reserve-hotel` itself
+fails), there is nothing to roll back: no compensation runs and the process stays in plain `ERROR`.
 
 ## Conditional skipping
 

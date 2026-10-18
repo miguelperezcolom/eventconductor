@@ -29,11 +29,18 @@ class SecretResolverTest {
         assertThat(listedOnly.resolve("${secret:PARTNER}")).isEqualTo("p");
         assertThatThrownBy(() -> listedOnly.resolve("${secret:DB_PASSWORD}"))
                 .as("an environment value the operator did not list")
-                .isInstanceOf(SecretResolver.MissingSecretException.class);
+                .isInstanceOf(SecretResolver.MissingSecretException.class)
+                .hasMessageContaining("workflow.http.secrets.DB_PASSWORD")
+                .as("no environment variable suggested when the environment is not consulted")
+                .hasMessageNotContaining("environment variable");
 
         properties.setSecretsFromEnvironment(true);
-        var withFallback = new SecretResolver(HttpWorkerAutoConfiguration.secretLookup(properties, environment));
+        var withFallback = new SecretResolver(HttpWorkerAutoConfiguration.secretLookup(properties, environment), true);
         assertThat(withFallback.resolve("${secret:PARTNER}")).isEqualTo("p");
         assertThat(withFallback.resolve("${secret:DB_PASSWORD}")).as("opted back in").isEqualTo("fake-db-value");
+        assertThatThrownBy(() -> withFallback.resolve("${secret:NOWHERE}"))
+                .isInstanceOf(SecretResolver.MissingSecretException.class)
+                .hasMessageContaining("workflow.http.secrets.NOWHERE")
+                .hasMessageContaining("property/environment variable");
     }
 }
