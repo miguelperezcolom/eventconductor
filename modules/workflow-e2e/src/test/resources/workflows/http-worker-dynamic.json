@@ -1,0 +1,19 @@
+{
+  "id": "http-worker-dynamic",
+  "name": "A DYNAMIC step served by a worker over HTTP",
+  "version": 1,
+  "steps": [
+    {
+      "id": "start",
+      "type": "START",
+      "name": "Start"
+    },
+    {
+      "id": "plan",
+      "type": "DYNAMIC",
+      "name": "Plan (HTTP worker)",
+      "topic": "http-payments",
+      "preconditionStepId": "start"
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "eventconductor-worker"
+version = "0.1.0"
+description = "Serve EventConductor workflow tasks from Python over HTTP long-polling - no Kafka, no JVM."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "Apache-2.0" }
+authors = [{ name = "EventConductor" }]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Typing :: Typed",
+    "Topic :: System :: Distributed Computing",
+]
+# Standard library only, on purpose: a worker should not drag an HTTP stack into the service it lives in.
+dependencies = []
+
+[project.optional-dependencies]
+test = ["pytest>=7"]
+
+[project.urls]
+Homepage = "https://github.com/miguelperezcolom/eventconductor"
+Documentation = "https://github.com/miguelperezcolom/eventconductor/tree/main/sdks/python/eventconductor-worker"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+eventconductor_worker = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

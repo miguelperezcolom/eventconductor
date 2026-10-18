@@ -57,4 +57,13 @@ public class OracleDbLockDialect implements DbLockDialect {
         return "SELECT id FROM (SELECT id FROM outbox_message_entity "
                 + "WHERE status = 'Sent' AND timestamp < ? ORDER BY timestamp) WHERE ROWNUM <= ?";
     }
+
+    /** The {@code ROWNUM}-in-a-subquery shape of the outbox claim, for the same ORA-02014 reason. */
+    @Override
+    public String claimHttpTasksSql(int topicCount) {
+        return "SELECT id FROM http_task WHERE id IN ("
+                + "SELECT id FROM (SELECT id FROM http_task WHERE topic IN (" + DbLockDialect.placeholders(topicCount)
+                + ") AND cancelled = ? AND (lease_until IS NULL OR lease_until < ?) ORDER BY created_at) "
+                + "WHERE ROWNUM <= ?) FOR UPDATE SKIP LOCKED";
+    }
 }

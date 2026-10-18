@@ -128,7 +128,8 @@ public class EngineApiAccess implements SmartInitializingSingleton {
                 || beans.getBeanNamesForType(ScheduleRestController.class, false, false).length > 0
                 || beans.getBeanNamesForType(SyncInvocationController.class, false, false).length > 0
                 || beans.getBeanNamesForType(ProcessRestController.class, false, false).length > 0
-                || beans.getBeanNamesForType(IncidentRestController.class, false, false).length > 0;
+                || beans.getBeanNamesForType(IncidentRestController.class, false, false).length > 0
+                || beans.getBeanNamesForType(WorkerApiController.class, false, false).length > 0;
     }
 
     /** Whether a bean of {@code securityFilterChainType} exists (false when Spring Security is not on the classpath). */

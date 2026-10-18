@@ -373,6 +373,26 @@ Only relevant to definitions that declare `syncInvocation`; see [Synchronous Inv
 | `workflow.sync.inline.sweep-interval-ms` | `5000` | How often lapsed inline claims are handed back. |
 | `workflow.sync.notify.enabled` | `true` | PostgreSQL `LISTEN/NOTIFY` wake-up across nodes (needs a direct connection, not PgBouncer in transaction mode). |
 
+### Workers over HTTP (`workflow.workers.http.*`)
+
+Serve the tasks of some topics to workers in any language that long-poll `/workflow/api/workers`. See [Workers over HTTP](/guides/http-workers/) and the [HTTP worker API](/reference/http-worker-api/).
+
+| Property | Default | Description |
+|---|---|---|
+| `workflow.workers.http.enabled` | `false` | Turns the transport (queue, endpoints, routing) on. |
+| `workflow.workers.http.topics` | `[]` | Step topics served over HTTP (`downstream` for steps that name none). `*` = every topic except the built-in tasks' (USER_TASK, RULE, HTTP_CALL, LLM_CALL), which naming their topic still routes. Other topics keep going to the embedded or Kafka workers. |
+| `workflow.workers.http.api-keys.<name>` | — | Worker credentials sent as `X-Api-Key`; they open the worker API only. The engine's `workflow.message-api.api-key` (or Spring Security, or allow-anonymous) is accepted too. |
+| `workflow.workers.http.max-wait` | `PT30S` | The longest an activation may long-poll. |
+| `workflow.workers.http.default-lease` | `PT60S` | The lease of an activation (or heartbeat) that asks for none. |
+| `workflow.workers.http.max-lease` | `PT30M` | The longest lease or heartbeat extension. |
+| `workflow.workers.http.max-tasks` | `100` | The most tasks one activation gets. |
+| `workflow.workers.http.max-waiting` | `200` | Activations waiting per node; past it, 429. |
+| `workflow.workers.http.poll-interval` | `PT1S` | How often waiting activations look at the queue when nothing woke them (tasks queued on another node, expired leases). A task queued on the same node wakes them at once. |
+| `workflow.workers.http.maintenance-interval` | `PT30S` | How often cancelled and orphaned tasks are purged and the queue gauges refreshed. |
+| `workflow.workers.http.orphan-retention` | `P7D` | A queued task older than this is purged (its step moved on without a cancellation). |
+
+With `workflow.persistence=jpa` the queue is the `http_task` table (migration `V50`), shared by every node; in memory mode it is in the heap.
+
 ### Domain events (`workflow.events.*`)
 
 | Property | Default | Description |

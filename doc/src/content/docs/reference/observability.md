@@ -99,6 +99,21 @@ table — there it means "not measured", not "nothing stalled".
 | `eventconductor.sync.inline.steps` | summary | — | Outbox messages handled per inline drive (the fast path) |
 | `eventconductor.sync.inline.fallbacks` | counter | `reason` | Inline drives that stopped early or never started: `saturated`, `budget`, `claim_lost`, `failure` |
 
+#### Workers over HTTP
+
+| Meter | Type | Tags | Meaning |
+|---|---|---|---|
+| `eventconductor.workers.http.enqueued` | counter | `topic` | Tasks queued for HTTP workers |
+| `eventconductor.workers.http.activated` | counter | `topic` | Tasks handed to a worker (leased) |
+| `eventconductor.workers.http.redelivered` | counter | `topic` | Hand-outs after a lease expired — a worker crashed, stalled or forgot to heartbeat |
+| `eventconductor.workers.http.replies` | counter | `outcome` (`completed`, `failed`, `injected`, `stale`, `gone`, `cancelled`) | Worker replies and what became of them; `stale` and `gone` are refused late replies |
+| `eventconductor.workers.http.cancelled` | counter | `outcome` (`removed`, `flagged`, `delivered`) | Engine cancellations: dropped from the queue, flagged on a leased task, heard by its worker's heartbeat |
+| `eventconductor.workers.http.rejected` | counter | `reason` (`overloaded`) | Activations refused with 429 |
+| `eventconductor.workers.http.waiting` | gauge | — | Activations long-polling on this node |
+| `eventconductor.workers.http.queued` | gauge | `state` (`available`, `leased`) | Tasks in the queue — cluster-wide with JPA, so alert on the max across nodes, never the sum |
+
+A task waiting for an HTTP worker keeps its step `PENDING`, so `eventconductor.steps.stalled` keeps counting the ones without a timeout.
+
 #### Message routing (sharded deployments)
 
 | Meter | Type | Tags | Meaning |

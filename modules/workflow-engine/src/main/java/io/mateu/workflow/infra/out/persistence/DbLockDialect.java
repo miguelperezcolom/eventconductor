@@ -60,4 +60,23 @@ public interface DbLockDialect {
 
     default void releaseRelayGate(Connection con) throws SQLException {
     }
+
+    /**
+     * Selects the ids of at most {@code ?} available HTTP worker tasks of the given topics, oldest
+     * first, locking each and skipping the ones another node's claim holds — the outbox claim's shape,
+     * so concurrent activations on any number of nodes take disjoint tasks.
+     *
+     * <p>Parameters, in order: the {@code topicCount} topics, {@code cancelled} (bound to false — a
+     * parameter rather than a literal, because boolean literals are not portable), {@code now} (a
+     * lease before it has expired), and the limit.
+     */
+    default String claimHttpTasksSql(int topicCount) {
+        return "SELECT id FROM http_task WHERE topic IN (" + placeholders(topicCount) + ") AND cancelled = ? "
+                + "AND (lease_until IS NULL OR lease_until < ?) ORDER BY created_at LIMIT ? FOR UPDATE SKIP LOCKED";
+    }
+
+    /** {@code ?, ?, ?} — {@code count} JDBC placeholders. */
+    static String placeholders(int count) {
+        return String.join(", ", java.util.Collections.nCopies(Math.max(1, count), "?"));
+    }
 }

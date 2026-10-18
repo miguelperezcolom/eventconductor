@@ -10,7 +10,7 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 @EnableConfigurationProperties({GitImportProperties.class, DirectoryImportProperties.class, MessageApiProperties.class,
         TaskContractDirectoryImportProperties.class, TaskContractGitImportProperties.class,
-        EventDestinationsProperties.class, ProcessRetentionProperties.class})
+        EventDestinationsProperties.class, ProcessRetentionProperties.class, HttpWorkersProperties.class})
 public class WorkflowEngineConfiguration {
 
     /**

@@ -26,8 +26,19 @@ public class KafkaDownstreamEventPublisher implements DownstreamEventPublisher {
     private final StreamBridge streamBridge;
     private final io.mateu.workflow.application.out.WorkflowTracing workflowTracing;
 
+    /** Workers over HTTP: asked first, takes the tasks of the topics served over HTTP. */
+    private org.springframework.beans.factory.ObjectProvider<HttpWorkerRouter> httpWorkers;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    void httpWorkers(org.springframework.beans.factory.ObjectProvider<HttpWorkerRouter> httpWorkers) {
+        this.httpWorkers = httpWorkers;
+    }
+
     @Override
     public void publish(DomainEvent event, String topic) {
+        if (HttpWorkerRouter.taken(httpWorkers, event, topic)) {
+            return;
+        }
         PartitionedEvents.send(streamBridge, DownstreamEventPublisher.destinationFor(topic), event,
                 workflowTracing.currentTraceContext());
     }

@@ -86,6 +86,14 @@ public class EmbeddedDownstreamEventPublisher implements DownstreamEventPublishe
     /** Null when dispatch is inline, which is the default. */
     private volatile ThreadPoolExecutor executor;
 
+    /** Workers over HTTP: asked first, takes the tasks of the topics served over HTTP. */
+    private org.springframework.beans.factory.ObjectProvider<HttpWorkerRouter> httpWorkers;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    void httpWorkers(org.springframework.beans.factory.ObjectProvider<HttpWorkerRouter> httpWorkers) {
+        this.httpWorkers = httpWorkers;
+    }
+
     public EmbeddedDownstreamEventPublisher(
             EmbeddedTaskExecutor embeddedTaskExecutor,
             // @Lazy because the host's worker is itself built with the use case this publisher
@@ -148,7 +156,10 @@ public class EmbeddedDownstreamEventPublisher implements DownstreamEventPublishe
 
     @Override
     public void publish(DomainEvent event, String topic) {
-        // topic is ignored, and that is the mode rather than an omission: embedded dispatch has
+        if (HttpWorkerRouter.taken(httpWorkers, event, topic)) {
+            return;
+        }
+        // Otherwise topic is ignored, and that is the mode rather than an omission: embedded dispatch has
         // one EmbeddedTaskExecutor and no transport to route over, so every task goes to it
         // whatever its step names. Routing to several in-process pools would be a different
         // feature from naming a destination.

@@ -152,3 +152,8 @@ interface and the typed errors, and provide a small runtime that consumes `TaskE
 binds the variables, invokes the handler, and publishes `TaskStatusChanged` with the same
 retry-or-fail discipline. The JVM implementation (`worker-api`, `worker-kafka`, `worker-embedded`)
 is the reference.
+
+A worker that would rather not speak Kafka at all can serve the same tasks over HTTP: the engine
+queues them and the worker long-polls — see [Workers over HTTP](/guides/http-workers/) and the
+[HTTP worker API](/reference/http-worker-api/). The Python SDK in `sdks/python/eventconductor-worker`
+is the reference client.

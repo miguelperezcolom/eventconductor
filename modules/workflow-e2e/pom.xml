@@ -78,6 +78,14 @@
             <artifactId>spring-webmvc</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- A real servlet container for HttpWorkerOverTheWireE2eTest: workers over HTTP exercised
+             through Tomcat and the application's own message converters, as a non-Java worker meets
+             them. Every other test keeps spring.main.web-application-type=none. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webmvc</artifactId>
+            <scope>test</scope>
+        </dependency>
         <!-- The built-in http-call task, driven through the engine against a local server. -->
         <dependency>
             <groupId>io.mateu.workflow</groupId>

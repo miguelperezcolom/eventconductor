@@ -1,0 +1,46 @@
+# Tests the Python worker SDK (sdks/python/eventconductor-worker) on every pull request that touches
+# it. Standard library only, so there is nothing to install but pytest; the oldest and a current
+# supported Python both run. Not published to PyPI from here.
+name: Python SDK
+
+on:
+  pull_request:
+    paths:
+      - 'sdks/python/**'
+      - '.github/workflows/python-sdk.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'sdks/python/**'
+      - '.github/workflows/python-sdk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: python-sdk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.9', '3.13']
+    defaults:
+      run:
+        working-directory: sdks/python/eventconductor-worker
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install
+        run: python -m pip install --upgrade pip && python -m pip install -e '.[test]'
+      - name: Test
+        run: python -m pytest -v

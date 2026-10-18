@@ -5,7 +5,7 @@ description: How to implement workers that handle ACTION steps in your workflows
 
 A worker performs the business logic of an `ACTION` step: it is handed the process variables, does its work, and reports the outcome and any output variables back to the engine. Workers are **stateless** — the orchestrator handles retries, timeouts and error tracking.
 
-There are two ways to write one. The **recommended** way is to declare a *task contract* and let EventConductor generate the typed interface you implement — you write only the business logic, and the same handler runs unchanged over Kafka or embedded in the engine. Underneath it sits a **low-level protocol** (`WorkerReply`, `EmbeddedTaskExecutor`) that you can still use directly when you need to; it is documented in full further down.
+Workers run embedded in the engine, consume a Kafka topic, or — in any language — [long-poll the engine over HTTP](/guides/http-workers/). There are two ways to write a Java one. The **recommended** way is to declare a *task contract* and let EventConductor generate the typed interface you implement — you write only the business logic, and the same handler runs unchanged over Kafka or embedded in the engine. Underneath it sits a **low-level protocol** (`WorkerReply`, `EmbeddedTaskExecutor`) that you can still use directly when you need to; it is documented in full further down.
 
 ## Generating a worker from a task contract
 

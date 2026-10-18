@@ -1,0 +1,33 @@
+{
+  "id": "http-worker",
+  "name": "An ACTION served by a worker over HTTP",
+  "version": 1,
+  "steps": [
+    {
+      "id": "start",
+      "type": "START",
+      "name": "Start"
+    },
+    {
+      "id": "charge",
+      "type": "ACTION",
+      "name": "Charge (HTTP worker)",
+      "topic": "http-payments",
+      "retries": 1,
+      "preconditionStepId": "start"
+    },
+    {
+      "id": "ship",
+      "type": "ACTION",
+      "name": "Ship (embedded worker)",
+      "topic": "work",
+      "preconditionStepId": "charge"
+    },
+    {
+      "id": "end",
+      "type": "END",
+      "name": "End",
+      "preconditionStepId": "ship"
+    }
+  ]
+}
