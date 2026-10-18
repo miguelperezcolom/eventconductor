@@ -91,4 +91,14 @@ public class ProcessIndexDBRepository implements ProcessIndexRepository {
                 e.getWorkflowDefinitionVersion(), e.getStatus(), e.getCompletionPercentage(),
                 e.getCreated(), e.getStarted(), e.getFinished(), e.getUpdatedAt(), e.getShardId());
     }
+
+    @Override
+    public int deleteByProcessIds(java.util.Collection<String> processIds) {
+        if (processIds.isEmpty()) {
+            return 0;
+        }
+        var present = repository.findAllById(processIds);
+        repository.deleteAll(present);
+        return present.size();
+    }
 }

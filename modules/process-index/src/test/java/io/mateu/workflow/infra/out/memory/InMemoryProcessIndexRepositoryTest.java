@@ -21,6 +21,16 @@ class InMemoryProcessIndexRepositoryTest {
     }
 
     @Test
+    void forgetsPurgedProcesses() {
+        store.upsert(row("p1", "k1", "orders", "COMPLETED", T0));
+        store.upsert(row("p2", "k2", "orders", "RUNNING", T0));
+
+        assertThat(store.deleteByProcessIds(List.of("p1", "gone"))).isEqualTo(1);
+        assertThat(store.findByProcessId("p1")).isEmpty();
+        assertThat(store.findByProcessId("p2")).isPresent();
+    }
+
+    @Test
     void keepsTheNewestStateWhateverOrderEventsArriveIn() {
         store.upsert(row("p1", "k1", "orders", "COMPLETED", T0.plusMinutes(1)));
         store.upsert(row("p1", "k1", "orders", "RUNNING", T0));   // late

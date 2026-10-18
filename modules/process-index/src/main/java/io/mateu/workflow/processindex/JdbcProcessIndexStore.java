@@ -135,6 +135,28 @@ public class JdbcProcessIndexStore implements ProcessIndexRepository {
     }
 
     @Override
+    public int deleteByProcessIds(Collection<String> processIds) {
+        if (processIds.isEmpty()) {
+            return 0;
+        }
+        return withConnection(connection -> {
+            var deleted = 0;
+            var ids = List.copyOf(processIds);
+            for (int from = 0; from < ids.size(); from += 500) {
+                var chunk = ids.subList(from, Math.min(ids.size(), from + 500));
+                try (var delete = connection.prepareStatement("DELETE FROM process_index WHERE process_id IN ("
+                        + String.join(",", java.util.Collections.nCopies(chunk.size(), "?")) + ")")) {
+                    for (int i = 0; i < chunk.size(); i++) {
+                        delete.setString(i + 1, chunk.get(i));
+                    }
+                    deleted += delete.executeUpdate();
+                }
+            }
+            return deleted;
+        });
+    }
+
+    @Override
     public List<ProcessIndexRow> findByStatusIn(Collection<String> statuses) {
         if (statuses.isEmpty()) {
             return List.of();

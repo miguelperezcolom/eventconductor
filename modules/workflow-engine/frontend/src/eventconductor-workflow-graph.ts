@@ -176,6 +176,11 @@ interface WorkflowDefinition {
     limitConcurrentExecutions?: boolean;
     maxConcurrentExecutions?: number;
     enqueueOnLimit?: boolean;
+    /**
+     * How long a finished process is kept before the engine purges it: one ISO-8601 duration
+     * ("P30D") or "forever", or one per terminal status ({completed: "P30D", error: "P180D"}).
+     */
+    retention?: string | Record<string, string>;
     steps: WorkflowStep[];
     /**
      * Where each node sits, by step id — the arrangement someone made by hand. The only key here
@@ -3049,6 +3054,25 @@ export class MateuWorkflowElk extends LitElement {
                                 <span>${text}</span>
                             </label>`)}
                     </div>
+                    <label title="How long a finished process is kept before the engine purges it, counted from its end: an ISO-8601 duration (P30D, PT12H) or 'forever'. Empty: the engine defaults decide.">Retention</label>
+                    ${wf.retention !== undefined && typeof wf.retention !== "string" ? html`
+                        <span class="inp" title="One retention per terminal status — edit it in the file.">${
+                            Object.entries(wf.retention).map(([k, v]) => `${k} ${v}`).join(" · ")}</span>
+                    ` : html`
+                        <input class="inp" placeholder="engine default (e.g. P30D)" .value="${wf.retention ?? ""}"
+                               @change="${(e: Event) => {
+                                   const value = (e.target as HTMLInputElement).value.trim();
+                                   if (value !== "") {
+                                       this.updateWf({retention: value});
+                                       return;
+                                   }
+                                   // Cleared: drop the key (an undefined value is not something a
+                                   // YAML writer can put in a file).
+                                   const {retention: _dropped, ...rest} = this.wf;
+                                   this.wf = rest as WorkflowDefinition;
+                                   this.emit();
+                               }}"/>
+                    `}
                     <label>Limit concurrent</label>
                     <input type="checkbox" ?checked="${wf.limitConcurrentExecutions}"
                            @change="${(e: Event) => this.updateWf({limitConcurrentExecutions: (e.target as HTMLInputElement).checked})}"/>

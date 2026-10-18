@@ -108,4 +108,11 @@ public class WorkflowDefinitionEntity {
     @Column(columnDefinition = "TEXT")
     String tagsJson;
 
+    /**
+     * The definition's {@code retention} as the file writes it — a JSON string ({@code "P30D"}) or an
+     * object per terminal status — or null when it declares none (V45). Metadata, like the tags.
+     */
+    @Column(columnDefinition = "TEXT")
+    String retentionJson;
+
 }

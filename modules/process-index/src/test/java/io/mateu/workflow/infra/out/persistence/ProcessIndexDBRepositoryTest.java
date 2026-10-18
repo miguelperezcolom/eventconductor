@@ -38,6 +38,17 @@ class ProcessIndexDBRepositoryTest {
     }
 
     @Test
+    void forgetsPurgedProcesses() {
+        store.upsert(row("p1", "order-1", "Order", "orders", "COMPLETED", T0, T0));
+        store.upsert(row("p2", "order-2", "Order", "orders", "RUNNING", T0, T0));
+
+        assertThat(store.deleteByProcessIds(java.util.List.of("p1", "gone"))).isEqualTo(1);
+        assertThat(store.findByProcessId("p1")).isEmpty();
+        assertThat(store.findByProcessId("p2")).isPresent();
+        assertThat(store.deleteByProcessIds(java.util.List.of())).isZero();
+    }
+
+    @Test
     void roundTripsTheWholeRow() {
         var row = new ProcessIndexRow("p1", "order-1", "Order 1", "orders", 3, "COMPLETED", 100, T0,
                 T0.plusSeconds(1), T0.plusMinutes(2), T0.plusMinutes(2), "s7");

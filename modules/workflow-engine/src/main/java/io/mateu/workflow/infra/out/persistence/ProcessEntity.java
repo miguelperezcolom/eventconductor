@@ -11,6 +11,11 @@ import lombok.Setter;
 import java.time.LocalDateTime;
 
 @Entity
+// Declared here as well as in V45, so a schema ddl-auto creates has the purge's indexes too.
+@jakarta.persistence.Table(name = "process_entity", indexes = {
+        @jakarta.persistence.Index(name = "idx_process_retention", columnList = "workflowDefinitionId, status, finished"),
+        @jakarta.persistence.Index(name = "idx_process_parent_step", columnList = "parentStepExecutionId")
+})
 @Getter@Setter
 @NoArgsConstructor@AllArgsConstructor
 public class ProcessEntity {

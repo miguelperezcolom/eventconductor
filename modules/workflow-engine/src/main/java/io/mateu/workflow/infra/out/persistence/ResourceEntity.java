@@ -11,6 +11,8 @@ import lombok.Setter;
 import java.time.LocalDateTime;
 
 @Entity
+@jakarta.persistence.Table(name = "resource_entity", indexes =
+        @jakarta.persistence.Index(name = "idx_resource_process", columnList = "processId"))
 @Getter@Setter
 @NoArgsConstructor@AllArgsConstructor
 public class ResourceEntity {

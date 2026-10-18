@@ -14,7 +14,9 @@ import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -224,6 +226,15 @@ public class SpecValidator {
             List<String> values = new ArrayList<>();
             tags.forEach(t -> values.add(t.isTextual() ? t.asText() : t.toString()));
             violations.addAll(io.mateu.workflow.analysis.TagRules.violations(values, "tags"));
+        }
+        JsonNode retention = wf.get("retention");
+        if (retention != null && retention.isTextual()) {
+            violations.addAll(io.mateu.workflow.analysis.RetentionRules.violations(retention.asText(), null, "retention"));
+        } else if (retention != null && retention.isObject()) {
+            Map<String, String> byStatus = new LinkedHashMap<>();
+            retention.fields().forEachRemaining(e -> byStatus.put(e.getKey(),
+                    e.getValue().isTextual() ? e.getValue().asText() : e.getValue().toString()));
+            violations.addAll(io.mateu.workflow.analysis.RetentionRules.violations(null, byStatus, "retention"));
         }
         JsonNode cron = wf.get("cronExpression");
         if (cron != null && cron.isTextual() && !cron.asText().isBlank()

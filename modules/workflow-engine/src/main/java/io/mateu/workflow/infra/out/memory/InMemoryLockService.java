@@ -89,6 +89,15 @@ public class InMemoryLockService implements LockService {
         return reassignOrFree(id, lockName, lockKey);
     }
 
+    /**
+     * Whether any of these processes holds a lock or waits in a lock's queue — what the retention
+     * purge asks before deleting a process (a terminal one never should; if it does, it is kept).
+     */
+    public synchronized boolean holdsOrAwaitsAny(java.util.Collection<String> processIds) {
+        return held.values().stream().anyMatch(h -> processIds.contains(h.processId()))
+                || queues.values().stream().flatMap(Deque::stream).anyMatch(w -> processIds.contains(w.processId()));
+    }
+
     @Override
     public synchronized List<Grant> releaseAll(String processId) {
         List<Grant> grants = new ArrayList<>();

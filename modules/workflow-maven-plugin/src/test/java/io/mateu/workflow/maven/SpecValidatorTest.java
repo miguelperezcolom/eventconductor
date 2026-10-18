@@ -150,6 +150,45 @@ class SpecValidatorTest {
     }
 
     @Test
+    void definitionRetentionFollowsTheEnginesRules() throws Exception {
+        var mapper = new com.fasterxml.jackson.dataformat.yaml.YAMLMapper();
+        for (var retention : new String[]{"P30D", "forever", "{completed: P30D, error: P180D, compensationFailed: forever}"}) {
+            var good = mapper.readTree("""
+                    id: kept
+                    name: Kept
+                    retention: %s
+                    steps:
+                      - {id: start, type: START, name: Start}
+                    """.formatted(retention));
+            assertThat(validator.validate(SpecValidator.Kind.WORKFLOW, good)).as(retention).isEmpty();
+        }
+
+        // The schema's pattern lets these through; the shared rules do not.
+        for (var retention : new String[]{"P0D", "PT", "P"}) {
+            var bad = mapper.readTree("""
+                    id: kept
+                    name: Kept
+                    retention: %s
+                    steps:
+                      - {id: start, type: START, name: Start}
+                    """.formatted(retention));
+            assertThat(validator.validate(SpecValidator.Kind.WORKFLOW, bad)).as(retention)
+                    .anySatisfy(v -> assertThat(v).contains("retention"));
+        }
+        // And the schema refuses what is not even shaped like a duration, or a status that never ends.
+        for (var retention : new String[]{"30d", "P1M", "{running: P1D}", "{error: P1M}", "{}"}) {
+            var bad = mapper.readTree("""
+                    id: kept
+                    name: Kept
+                    retention: %s
+                    steps:
+                      - {id: start, type: START, name: Start}
+                    """.formatted(retention));
+            assertThat(validator.validate(SpecValidator.Kind.WORKFLOW, bad)).as(retention).isNotEmpty();
+        }
+    }
+
+    @Test
     void cronFilesValidateInBothForms() throws Exception {
         assertThat(validate(SpecValidator.Kind.CRON, "/valid/workflows/cron.yaml")).isEmpty();
         var keyed = new YAMLMapper().readTree("""

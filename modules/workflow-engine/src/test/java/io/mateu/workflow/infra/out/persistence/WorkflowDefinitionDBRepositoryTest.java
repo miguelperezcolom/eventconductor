@@ -77,6 +77,27 @@ class WorkflowDefinitionDBRepositoryTest {
     }
 
     @Test
+    void retentionSurvivesTheRoundTripInBothShapesAndAbsentLeavesTheColumnEmpty() {
+        for (var retention : List.of(
+                io.mateu.workflow.domain.aggregates.ProcessRetention.of("P30D"),
+                io.mateu.workflow.domain.aggregates.ProcessRetention.perStatus(java.util.Map.of("error", "P180D", "completed", "forever")))) {
+            org.mockito.Mockito.clearInvocations(entities);
+            var entity = savedEntity(definition().withRetention(retention));
+            when(entities.findById("wf-1")).thenReturn(Optional.of(entity));
+            assertThat(repository.findById("wf-1")).hasValueSatisfying(loaded ->
+                    assertThat(loaded.retention()).isEqualTo(retention));
+        }
+        org.mockito.Mockito.clearInvocations(entities);
+        assertThat(savedEntity(definition()).getRetentionJson()).isNull();
+        org.mockito.Mockito.clearInvocations(entities);
+        assertThat(savedEntity(definition().withRetention(
+                io.mateu.workflow.domain.aggregates.ProcessRetention.of("P30D"))).getRetentionJson()).isEqualTo("\"P30D\"");
+        // Unreadable: the engine defaults decide rather than the definition failing to load.
+        assertThat(WorkflowDefinitionDBRepository.retentionFromJson("{not json")).isNull();
+        assertThat(WorkflowDefinitionDBRepository.retentionFromJson(" ")).isNull();
+    }
+
+    @Test
     void absentTagsLeaveTheColumnEmpty() {
         assertThat(savedEntity(definition()).getTagsJson()).isNull();
     }

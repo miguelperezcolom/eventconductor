@@ -90,6 +90,16 @@ class PostgresReadStoresTest {
     }
 
     @Test
+    void forgetsPurgedProcessesOnPostgres() {
+        var store = new JdbcProcessIndexStore(dataSource);
+        store.upsert(row("p1", "order-1", "COMPLETED", T0, T0));
+        store.upsert(row("p2", "order-2", "RUNNING", T0, T0));
+        assertThat(store.deleteByProcessIds(java.util.List.of("p1", "gone"))).isEqualTo(1);
+        assertThat(store.findByProcessId("p1")).isEmpty();
+        assertThat(store.findByProcessId("p2")).isPresent();
+    }
+
+    @Test
     void anEventWithoutAStampAlwaysWinsOnTheAtomicPath() {
         var store = new JdbcProcessIndexStore(dataSource);
         store.upsert(row("p1", "order-1", "RUNNING", T0, T0.plusMinutes(5)));

@@ -201,4 +201,11 @@ public interface WorkflowMetrics {
      * another pod) or {@code poll} (the fallback — a high share means notification is not working).
      */
     default void syncWakeup(String via) {}
+
+    /**
+     * The retention purge deleted {@code count} processes of this definition that had ended in
+     * {@code status} — {@code eventconductor.processes.purged}.
+     */
+    default void processesPurged(String workflowDefinitionId, io.mateu.workflow.domain.aggregates.ProcessStatus status,
+                                 int count) {}
 }

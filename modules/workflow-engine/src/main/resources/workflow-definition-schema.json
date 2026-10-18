@@ -58,6 +58,51 @@
       },
       "description": "Tags: short labels for finding and grouping definitions — and the processes of those definitions — in the console (billing, team:payments, eu). Letters, digits, '.', '_', ':', '/' and '-', starting with a letter or digit, at most 50 characters, each once. Metadata: changing them mints no version. The Definitions page shows and searches them; the Processes page filters by Tag."
     },
+    "retention": {
+      "description": "How long a finished process of this workflow is kept before the purge job deletes it, counted from when it ended: one ISO-8601 duration for every terminal status (P30D), or an object with one per terminal status ({ completed: P30D, error: P180D }; a status not listed falls back to the engine's workflow.processes.retention defaults). 'forever' keeps them whatever the defaults say. Unset: the engine defaults decide, and they are off unless configured. The whole process tree goes together — a child is purged with its root, never before. An ERROR process cannot be retried once purged, and its business key can be used again. Metadata: changing it mints no version.",
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "pattern": "^(forever|P([0-9]+D)?(T([0-9]+H)?([0-9]+M)?([0-9]+(\\.[0-9]+)?S)?)?)$",
+          "description": "An ISO-8601 duration in days, hours, minutes or seconds counted from the process end (P30D, PT12H, P1DT12H — months and years are not durations: write P365D), or 'forever'."
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "minProperties": 1,
+          "properties": {
+            "completed": {
+              "type": "string",
+              "pattern": "^(forever|P([0-9]+D)?(T([0-9]+H)?([0-9]+M)?([0-9]+(\\.[0-9]+)?S)?)?)$",
+              "description": "An ISO-8601 duration in days, hours, minutes or seconds counted from the process end (P30D, PT12H, P1DT12H — months and years are not durations: write P365D), or 'forever'."
+            },
+            "cancelled": {
+              "type": "string",
+              "pattern": "^(forever|P([0-9]+D)?(T([0-9]+H)?([0-9]+M)?([0-9]+(\\.[0-9]+)?S)?)?)$",
+              "description": "An ISO-8601 duration in days, hours, minutes or seconds counted from the process end (P30D, PT12H, P1DT12H — months and years are not durations: write P365D), or 'forever'."
+            },
+            "error": {
+              "type": "string",
+              "pattern": "^(forever|P([0-9]+D)?(T([0-9]+H)?([0-9]+M)?([0-9]+(\\.[0-9]+)?S)?)?)$",
+              "description": "An ISO-8601 duration in days, hours, minutes or seconds counted from the process end (P30D, PT12H, P1DT12H — months and years are not durations: write P365D), or 'forever'."
+            },
+            "compensated": {
+              "type": "string",
+              "pattern": "^(forever|P([0-9]+D)?(T([0-9]+H)?([0-9]+M)?([0-9]+(\\.[0-9]+)?S)?)?)$",
+              "description": "An ISO-8601 duration in days, hours, minutes or seconds counted from the process end (P30D, PT12H, P1DT12H — months and years are not durations: write P365D), or 'forever'."
+            },
+            "compensationFailed": {
+              "type": "string",
+              "pattern": "^(forever|P([0-9]+D)?(T([0-9]+H)?([0-9]+M)?([0-9]+(\\.[0-9]+)?S)?)?)$",
+              "description": "An ISO-8601 duration in days, hours, minutes or seconds counted from the process end (P30D, PT12H, P1DT12H — months and years are not durations: write P365D), or 'forever'."
+            }
+          }
+        }
+      ]
+    },
     "limitConcurrentExecutions": {
       "type": [
         "boolean",

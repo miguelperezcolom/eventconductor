@@ -117,6 +117,10 @@ public class WorkflowDefinitionVersioningService {
         // dragging a node on the diagram changes nothing a process could run differently, so it must
         // not mint one. Tidying the two lists into agreement would make every re-arrangement a new
         // version of the workflow.
+        // `tags` and `retention` are absent for the same reason: they say how the console groups a
+        // workflow and how long its finished processes are kept, nothing a process runs differently.
+        // A retention change must not mint a version — and the purge reads the current definition's
+        // retention for every process anyway, whatever version it ran.
         return sha256(toJson(canonical));
     }
 

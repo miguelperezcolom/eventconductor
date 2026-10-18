@@ -70,6 +70,7 @@ steps: [...]
 | `version` | integer | **Ignored for numbering.** The engine assigns versions itself on each content change (see [Versioning](#versioning)); any value here is not authoritative and is overwritten |
 | `description` | string | Optional description |
 | `tags` | array | Optional tags, short labels for finding and grouping definitions and their processes in the console (`[billing, team:payments]`; letters, digits, `.`, `_`, `:`, `/`, `-`). Metadata: changing them mints no version. The Definitions page lists and searches them; the Processes page filters by **Tag** |
+| `retention` | string \| object | How long a finished process is kept before the purge deletes it, counted from its end: `P30D` for every terminal status, or one per status (`{completed: P30D, error: P180D}`); `forever` keeps them. Unset: the engine defaults decide, and they are off unless configured. Metadata: changing it mints no version. See [Process retention](#process-retention) |
 | `paused` | boolean | Runtime flag — **not authored in the `.ec`**. Toggled at runtime (UI, `PauseWorkflowUseCase`/`ResumeWorkflowUseCase`, MCP). While `true`, all the definition's processes are held and new instances (cron included) are created born-`PAUSED`. Kept in the schema (default `false`) only so exported definitions round-trip |
 | `status` | string | `ACTIVE` (default), `DISABLED` or `ARCHIVED`. **Authored in the `.ec`**, and a floor: an operator can take a workflow out of service at runtime, but cannot put one into service that its own definition closes. This is how a definition lives in the repository without being live |
 | `disabled`, `archived` | boolean | The older way of saying the same thing, still read: `disabled: true` means `status: DISABLED`, `archived: true` means `status: ARCHIVED` |
@@ -147,6 +148,74 @@ re-import replaces the declaration and leaves the runtime state alone, so it no 
 into service anything that had been disabled; and **Enable** is refused — and not offered — for a
 workflow whose own definition says `DISABLED` or `ARCHIVED`. Change that in the file and import it
 again.
+
+### Process retention
+
+Nothing deletes a finished process by default: the database keeps every process, with its steps,
+variables and history, forever. A definition can say how long its finished processes are worth
+keeping, and the engine purges them once that has passed:
+
+```yaml
+retention: P30D            # every terminal status, 30 days after the process ended
+```
+
+```yaml
+retention:                 # or one per terminal status
+  completed: P30D
+  cancelled: P30D
+  error: P180D             # failures are kept longer, for the post-mortem
+  compensated: P30D
+  compensationFailed: forever
+```
+
+Each value is an ISO-8601 duration in days, hours, minutes or seconds (`P30D`, `PT12H`, `P1DT12H`),
+counted from the moment the process **ended**, or `forever`. Months and years are not durations —
+their length depends on the calendar — so write `P365D`. Zero and negative values are refused, both
+by the engine and by the [Maven plugin](/reference/maven-plugin/).
+
+**Which retention applies** — the first that says something:
+
+1. the definition's `retention` for that status (a status the per-status form does not list falls
+   through), `forever` included — it keeps the process whatever the defaults say;
+2. `workflow.processes.retention-by-status.<status>`;
+3. `workflow.processes.retention`;
+4. nothing: kept forever.
+
+The engine defaults are off unless configured (see [Configuration](/reference/configuration/#process-retention)),
+so upgrading purges nothing a definition did not ask to purge. A definition's detail page shows the
+retention its processes get, and where it comes from.
+
+**What is purged.** A purge job runs every `workflow.processes.purge.interval` (10 minutes), on one
+pod at a time, and deletes the process with everything that belongs to it: its step executions
+(variables and message subscriptions included), history, resources, trace context, the synchronous
+invocation that started it, its row in the process index and its entries in the analytics ledger.
+The analytics **daily rollups are kept**: the report still counts the process on the days it ran.
+Each purged process is counted in `eventconductor.processes.purged` and each pass is logged.
+
+**What is never purged:**
+
+- a process that has not ended — `PENDING`, `RUNNING`, `PAUSED`;
+- a process with a step still at work, waiting out a retry backoff (`AWAITING_RETRY`) or queued on a
+  lock, one that holds a lock or waits for one, or one with an outbox message not yet sent;
+- a child process on its own. A process tree — a process and every process its `PROCESS` steps
+  started, recursively — is purged **together**, in one transaction, when its **root**'s retention
+  has passed and every process in it has ended. The root's definition and status decide; a child
+  whose own retention is longer goes with its root, and a child whose parent is still running stays
+  however old it is.
+
+Whatever keeps a tree is looked at again on the next pass.
+
+**Consequences worth knowing:**
+
+- **`ERROR` is purgeable**, by its own retention. Once purged, an `ERROR` process can no longer be
+  retried or restarted — keep `error` long enough for someone to look at it.
+- **The business key is free again.** A new process may be started with the key of a purged one
+  (until then, the key is taken).
+- **Retention is metadata, not versioned.** Changing it mints no version, and the purge judges every
+  process by its definition's retention **as it is now**, whatever version the process ran — shorten
+  it and the older processes go on the next pass. Processes of a definition that no longer exists are
+  judged by the engine defaults.
+- Works with both persistence modes. In memory mode it bounds a long-running embedded engine's heap.
 
 ## Versioning
 

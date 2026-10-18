@@ -297,6 +297,7 @@ public class ImportWorkflowDefinitionsFromDirectoryUseCase {
                     .withSchedules(definition.schedules())
                     .withTriggers(definition.triggers())
                     .withTags(definition.tags())
+                    .withRetention(definition.retention())
                     // The narrower constructor above declares ACTIVE: keep what the file says.
                     .withDeclaredStatus(definition.declaredStatus());
         }
@@ -378,7 +379,8 @@ public class ImportWorkflowDefinitionsFromDirectoryUseCase {
                 .withSyncInvocation(fromFile.syncInvocation())
                 .withSchedules(fromFile.schedules())
                 .withTriggers(fromFile.triggers())
-                .withTags(fromFile.tags());
+                .withTags(fromFile.tags())
+                .withRetention(fromFile.retention());
     }
 
     /**

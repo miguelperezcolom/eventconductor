@@ -54,7 +54,8 @@ public class WorkflowDefinitionDBRepository implements WorkflowDefinitionReposit
                 .withSyncInvocation(syncInvocationFromJson(entity.getSyncInvocationJson()))
                 .withSchedules(schedulesFromJson(entity.getSchedulesJson()))
                 .withTriggers(triggersFromJson(entity.getTriggersJson()))
-                .withTags(tagsFromJson(entity.getTagsJson()));
+                .withTags(tagsFromJson(entity.getTagsJson()))
+                .withRetention(retentionFromJson(entity.getRetentionJson()));
     }
 
     /** The stored process-level lock, or null when the definition declares none (read leniently). */
@@ -116,6 +117,29 @@ public class WorkflowDefinitionDBRepository implements WorkflowDefinitionReposit
         }
     }
 
+    /** The stored retention, or null when there is none (read leniently, like the tags). */
+    static io.mateu.workflow.domain.aggregates.ProcessRetention retentionFromJson(String json) {
+        if (json == null || json.isBlank()) {
+            return null;
+        }
+        try {
+            return io.mateu.workflow.domain.aggregates.ProcessRetention.fromJson(LAYOUT_MAPPER.readValue(json, Object.class));
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    static String retentionToJson(io.mateu.workflow.domain.aggregates.ProcessRetention retention) {
+        if (retention == null) {
+            return null;
+        }
+        try {
+            return LAYOUT_MAPPER.writeValueAsString(retention.toJson());
+        } catch (Exception e) {
+            throw new IllegalStateException("Could not serialise the retention " + retention, e);
+        }
+    }
+
     private static String processLockToJson(ProcessLock processLock) {
         return processLock == null ? null : toJson(processLock);
     }
@@ -170,7 +194,8 @@ public class WorkflowDefinitionDBRepository implements WorkflowDefinitionReposit
                 workflowDefinition.syncInvocation() == null ? null : toJson(workflowDefinition.syncInvocation()),
                 workflowDefinition.schedules() == null ? null : toJson(workflowDefinition.schedules()),
                 workflowDefinition.triggers() == null ? null : toJson(workflowDefinition.triggers()),
-                workflowDefinition.tags() == null ? null : toJson(workflowDefinition.tags())
+                workflowDefinition.tags() == null ? null : toJson(workflowDefinition.tags()),
+                retentionToJson(workflowDefinition.retention())
         ));
         return workflowDefinition.id();
     }

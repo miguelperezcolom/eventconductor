@@ -123,6 +123,10 @@ public class WorkflowDefinitionDetailView implements VisibilitySupplier {
     String tags;
 
     @Tab("Summary")
+    @Label("Retention")
+    String retention;
+
+    @Tab("Summary")
     @Label("Concurrency")
     String concurrency;
 
@@ -170,6 +174,24 @@ public class WorkflowDefinitionDetailView implements VisibilitySupplier {
     @Hidden
     boolean versionsAvailable;
 
+    /**
+     * How long this definition's finished processes are kept, as the purge will apply it: the
+     * definition's own {@code retention}, else the engine defaults — {@code kept forever} when neither
+     * says.
+     */
+    static String retentionOf(io.mateu.workflow.domain.aggregates.WorkflowDefinition def) {
+        try {
+            var service = io.mateu.uidl.di.MateuBeanProvider.getBean(
+                    io.mateu.workflow.application.services.ProcessRetentionService.class);
+            if (service != null) {
+                return service.policy().describe(def);
+            }
+        } catch (RuntimeException e) {
+            // No engine around this view (a test, a slice): say what the definition says.
+        }
+        return def.retention() == null ? "—" : def.retention().toString();
+    }
+
     public WorkflowDefinitionDetailView load(String workflowId) {
         var def = repository.findById(workflowId).orElseThrow();
         this.id = def.id();
@@ -182,6 +204,7 @@ public class WorkflowDefinitionDetailView implements VisibilitySupplier {
         this.version = "v" + def.version();
         this.description = def.description() == null || def.description().isBlank() ? "—" : def.description();
         this.tags = WorkflowDefinitionRow.tagsOf(def);
+        this.retention = retentionOf(def);
         this.concurrency = def.limitConcurrentExecutions()
                 ? "limited to " + def.maxConcurrentExecutions()
                         + (def.enqueueOnLimit() ? " (enqueue on limit)" : " (reject on limit)")

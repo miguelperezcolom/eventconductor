@@ -16,6 +16,24 @@ class MicrometerWorkflowMetricsTest {
     private final MicrometerWorkflowMetrics metrics = new MicrometerWorkflowMetrics(registry);
 
     @Test
+    void purgedProcessesAreCountedByDefinitionAndStatus() {
+        metrics.processesPurged("orders", io.mateu.workflow.domain.aggregates.ProcessStatus.COMPLETED, 3);
+        metrics.processesPurged("orders", io.mateu.workflow.domain.aggregates.ProcessStatus.COMPLETED, 2);
+        metrics.processesPurged("orders", io.mateu.workflow.domain.aggregates.ProcessStatus.ERROR, 1);
+        metrics.processesPurged(null, null, 0);
+
+        assertThat(registry.get(MicrometerWorkflowMetrics.PROCESSES_PURGED)
+                .tag(MicrometerWorkflowMetrics.TAG_WORKFLOW_DEFINITION_ID, "orders")
+                .tag(MicrometerWorkflowMetrics.TAG_STATUS, "COMPLETED")
+                .counter().count()).isEqualTo(5);
+        assertThat(registry.get(MicrometerWorkflowMetrics.PROCESSES_PURGED)
+                .tag(MicrometerWorkflowMetrics.TAG_STATUS, "ERROR")
+                .counter().count()).isEqualTo(1);
+        assertThat(registry.find(MicrometerWorkflowMetrics.PROCESSES_PURGED)
+                .tag(MicrometerWorkflowMetrics.TAG_WORKFLOW_DEFINITION_ID, "unknown").counter()).isNull();
+    }
+
+    @Test
     void processStartedIncrementsCounterTaggedByWorkflowDefinitionId() {
         metrics.processStarted("wd-1");
         metrics.processStarted("wd-1");

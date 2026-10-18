@@ -58,6 +58,17 @@ public class InMemoryProcessIndexRepository implements ProcessIndexRepository {
     }
 
     @Override
+    public int deleteByProcessIds(java.util.Collection<String> processIds) {
+        var removed = 0;
+        for (var id : processIds) {
+            if (byProcessId.remove(id) != null) {
+                removed++;
+            }
+        }
+        return removed;
+    }
+
+    @Override
     public Map<String, Long> countByStatus() {
         return byProcessId.values().stream()
                 .collect(Collectors.groupingBy(ProcessIndexRow::status, Collectors.counting()));

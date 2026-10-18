@@ -58,7 +58,14 @@ public class ScheduleMcpTools implements McpTools, McpSystemContext {
     }
 
     public record WorkflowDefinitionSummary(String id, String name, String status, boolean acceptsNewInstances,
-                                            String description, java.util.List<String> tags) {}
+                                            String description, java.util.List<String> tags, Object retention) {
+
+        /** The shape before retention was listed: no retention declared. */
+        public WorkflowDefinitionSummary(String id, String name, String status, boolean acceptsNewInstances,
+                                         String description, java.util.List<String> tags) {
+            this(id, name, status, acceptsNewInstances, description, tags, null);
+        }
+    }
 
     @Tool(description = "List every schedule (one per id) with its workflow, cron, zone, variables, source (Definition,"
             + " cron.yaml (git|directory|classpath) or UI/API), whether it is editable here, whether it is paused, its"
@@ -135,13 +142,16 @@ public class ScheduleMcpTools implements McpTools, McpSystemContext {
     }
 
     @Tool(description = "List the workflow definitions (id, name, status, whether it accepts new instances,"
-            + " description) — the workflows a schedule can start.")
+            + " description, tags, and the retention it declares for its finished processes — a duration such as"
+            + " P30D, one per terminal status, or null when the engine defaults decide) — the workflows a schedule"
+            + " can start.")
     public List<WorkflowDefinitionSummary> listWorkflowDefinitions() {
         return workflowDefinitionRepository.findAll().stream()
                 .filter(d -> d.id() != null)
                 .sorted(Comparator.comparing(d -> d.id()))
                 .map(d -> new WorkflowDefinitionSummary(d.id(), d.name(), d.status().name(),
-                        d.status().accceptsNewInstances(), d.description(), d.tagsOrEmpty()))
+                        d.status().accceptsNewInstances(), d.description(), d.tagsOrEmpty(),
+                        d.retention() == null ? null : d.retention().toJson()))
                 .toList();
     }
 }

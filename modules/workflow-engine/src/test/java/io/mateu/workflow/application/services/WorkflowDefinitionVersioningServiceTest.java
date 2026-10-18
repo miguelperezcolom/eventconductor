@@ -88,4 +88,13 @@ class WorkflowDefinitionVersioningServiceTest {
         assertThat(service.contentHash(def.withArchived(true))).isEqualTo(service.contentHash(def));
         assertThat(service.contentHash(def.withVersion(99))).isEqualTo(service.contentHash(def));
     }
+
+    @Test
+    void retentionIsMetadataAndMintsNoVersion() throws Exception {
+        var def = def(TWO_STEPS);
+        assertThat(service.contentHash(def.withRetention(io.mateu.workflow.domain.aggregates.ProcessRetention.of("P30D"))))
+                .isEqualTo(service.contentHash(def));
+        assertThat(service.contentHash(def.withRetention(io.mateu.workflow.domain.aggregates.ProcessRetention.perStatus(
+                java.util.Map.of("error", "P180D"))))).isEqualTo(service.contentHash(def));
+    }
 }

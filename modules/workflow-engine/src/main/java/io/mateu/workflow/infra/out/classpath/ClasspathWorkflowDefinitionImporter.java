@@ -90,6 +90,7 @@ public class ClasspathWorkflowDefinitionImporter implements ApplicationRunner {
                                 .withSchedules(def.schedules())
                                 .withTriggers(def.triggers())
                                 .withTags(def.tags())
+                                .withRetention(def.retention())
                                 // The narrower constructor above declares ACTIVE: keep what the file says.
                                 .withDeclaredStatus(def.declaredStatus());
                     }

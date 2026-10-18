@@ -59,6 +59,8 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
     public static final String SYNC_INLINE_STEPS = "eventconductor.sync.inline.steps";
     public static final String SYNC_INLINE_FALLBACKS = "eventconductor.sync.inline.fallbacks";
     public static final String TAG_REASON = "reason";
+    public static final String PROCESSES_PURGED = "eventconductor.processes.purged";
+    public static final String TAG_STATUS = "status";
 
     public static final String TAG_WORKFLOW_DEFINITION_ID = "workflowDefinitionId";
     public static final String TAG_OUTCOME = "outcome";
@@ -186,6 +188,19 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
                 .description("Writes rejected by optimistic locking because another writer had the process")
                 .register(registry)
                 .increment();
+    }
+
+    @Override
+    public void processesPurged(String workflowDefinitionId, io.mateu.workflow.domain.aggregates.ProcessStatus status,
+                                int count) {
+        var registry = registry();
+        if (registry == null || count <= 0) return;
+        Counter.builder(PROCESSES_PURGED)
+                .description("Finished processes deleted by the retention purge, with everything that belonged to them")
+                .tag(TAG_WORKFLOW_DEFINITION_ID, tagValue(workflowDefinitionId))
+                .tag(TAG_STATUS, status == null ? UNKNOWN : status.name())
+                .register(registry)
+                .increment(count);
     }
 
     @Override

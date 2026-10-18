@@ -60,6 +60,54 @@ class ImportWorkflowDefinitionsFromDirectoryTest {
     }
 
     @Test
+    void retentionIsImportedAndABadOneRefusesTheFile(@TempDir Path dir) throws Exception {
+        Files.writeString(dir.resolve("kept.yaml"), """
+                id: kept
+                name: Kept
+                version: 1
+                retention: {completed: P30D, error: P180D}
+                steps:
+                  - id: start
+                    type: START
+                    name: Start
+                """);
+        Files.writeString(dir.resolve("zero.yaml"), """
+                id: zero
+                name: Zero
+                version: 1
+                retention: P0D
+                steps:
+                  - id: start
+                    type: START
+                    name: Start
+                """);
+        Files.writeString(dir.resolve("month.yaml"), """
+                id: month
+                name: Month
+                version: 1
+                retention: P1M
+                steps:
+                  - id: start
+                    type: START
+                    name: Start
+                """);
+
+        var result = useCase.handle(List.of(dir.toString()));
+
+        assertThat(saved()).extracting(WorkflowDefinition::id).contains("kept").doesNotContain("month");
+        var kept = saved().stream().filter(d -> d.id().equals("kept")).findFirst().orElseThrow();
+        assertThat(kept.retention()).isEqualTo(io.mateu.workflow.domain.aggregates.ProcessRetention.perStatus(
+                java.util.Map.of("completed", "P30D", "error", "P180D")));
+        // P1M is refused by the file's schema before anything is bound; P0D passes the pattern and is
+        // refused by the shared rules when the repository validates the definition it saves.
+        assertThat(result.errors()).anySatisfy(e -> assertThat(e).contains("month.yaml").contains("/retention"));
+        new WorkflowDefinitionValidator().validate(kept);
+        var zero = saved().stream().filter(d -> d.id().equals("zero")).findFirst().orElseThrow();
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> new WorkflowDefinitionValidator().validate(zero))
+                .hasMessageContaining("longer than zero");
+    }
+
+    @Test
     void tagsAreImportedAndABadTagRefusesTheFile(@TempDir Path dir) throws Exception {
         Files.writeString(dir.resolve("tagged.yaml"), """
                 id: tagged

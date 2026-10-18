@@ -55,7 +55,9 @@ class ScheduleMcpToolsTest {
                 new WorkflowDefinition("report", "Report", 1, "Daily report", false, 0, false, null, 0, List.of())
                         .withSchedules(List.of(new CronSchedule("eom", "0 0 23 L * ?", null, null))),
                 new WorkflowDefinition("old", "Old", 1, null, false, 0, false, null, 0, List.of())
-                        .withRuntimeStatus(WorkflowStatus.DISABLED)));
+                        .withRuntimeStatus(WorkflowStatus.DISABLED)
+                        .withRetention(io.mateu.workflow.domain.aggregates.ProcessRetention.perStatus(
+                                java.util.Map.of("error", "P180D")))));
         var service = new ScheduleService(definitions, new InMemoryCronScheduleRepository(),
                 new InMemorySchedulePauseRepository(), started::add)
                 .withClock(() -> Instant.parse("2026-10-14T10:00:00Z"));
@@ -109,7 +111,8 @@ class ScheduleMcpToolsTest {
     @Test
     void listsTheWorkflowsASchedulesCanStart() {
         assertThat(tools.listWorkflowDefinitions()).containsExactly(
-                new ScheduleMcpTools.WorkflowDefinitionSummary("old", "Old", "DISABLED", false, null, java.util.List.of()),
+                new ScheduleMcpTools.WorkflowDefinitionSummary("old", "Old", "DISABLED", false, null, java.util.List.of(),
+                        java.util.Map.of("error", "P180D")),
                 new ScheduleMcpTools.WorkflowDefinitionSummary("report", "Report", "ACTIVE", true, "Daily report", java.util.List.of()));
     }
 

@@ -72,6 +72,13 @@ class WorkflowSchemaAutoConfigurationTest {
             // The relays' per-key ordering probe (V44), replacing V33's (partition_key, status).
             assertThat(indexExists(dataSource, "idx_outbox_key_status_ts")).isTrue();
             assertThat(indexExists(dataSource, "idx_outbox_partition_status")).isFalse();
+
+            // Process retention (V45): the purge's (definition, status, finished) range, replacing V1's
+            // (workflow_definition_id); the children of a process; a process's resources.
+            assertThat(indexExists(dataSource, "idx_process_retention")).isTrue();
+            assertThat(indexExists(dataSource, "idx_process_wf_def")).isFalse();
+            assertThat(indexExists(dataSource, "idx_process_parent_step")).isTrue();
+            assertThat(indexExists(dataSource, "idx_resource_process")).isTrue();
         });
     }
 

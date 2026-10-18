@@ -56,6 +56,16 @@ public class InMemoryInvocationRepository implements InvocationRepository {
         }
     }
 
+    /** Forgets the invocations that started these processes — the retention purge deleted them. */
+    public synchronized int deleteByProcessIds(java.util.Collection<String> processIds) {
+        var gone = byId.values().stream().filter(invocation -> processIds.contains(invocation.processId())).toList();
+        gone.forEach(invocation -> {
+            byId.remove(invocation.id());
+            idByKey.remove(key(invocation.workflowDefinitionId(), invocation.idempotencyKey()));
+        });
+        return gone.size();
+    }
+
     @Override
     public int purgeExpired(LocalDateTime now) {
         var expired = byId.values().stream().filter(invocation -> invocation.expiresAt().isBefore(now)).toList();

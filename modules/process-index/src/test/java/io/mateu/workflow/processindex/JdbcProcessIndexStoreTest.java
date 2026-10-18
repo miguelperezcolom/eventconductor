@@ -41,6 +41,18 @@ class JdbcProcessIndexStoreTest {
     }
 
     @Test
+    void forgetsPurgedProcesses() {
+        store.upsert(row("p1", "k1", "COMPLETED", 100, T0, "s0"));
+        store.upsert(row("p2", "k2", "COMPLETED", 100, T0, "s0"));
+        store.upsert(row("p3", "k3", "RUNNING", 10, T0, "s0"));
+
+        assertThat(store.deleteByProcessIds(List.of("p1", "p2", "gone"))).isEqualTo(2);
+        assertThat(store.findByProcessId("p1")).isEmpty();
+        assertThat(store.findByProcessId("p3")).isPresent();
+        assertThat(store.deleteByProcessIds(List.of())).isZero();
+    }
+
+    @Test
     void upsertsAndReadsTheWholeRow() {
         store.upsert(row("p1", "order-4711", "RUNNING", 40, T0, "s2"));
 

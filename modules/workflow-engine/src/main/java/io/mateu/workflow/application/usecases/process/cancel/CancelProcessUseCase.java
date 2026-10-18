@@ -81,6 +81,11 @@ public class CancelProcessUseCase {
         // the orchestration loop, which must see the process as cancelled and not
         // dispatch any still-CREATED step in the middle of the cancellation.
         var cancelledProcess = process.withStatus(ProcessStatus.CANCELLED);
+        // A cancelled process has ended: stamp when, as every other terminal transition does, so the
+        // retention purge (counted from the end) and the duration metrics have something to count from.
+        if (cancelledProcess.getFinished() == null) {
+            cancelledProcess = cancelledProcess.withFinished(java.time.LocalDateTime.now());
+        }
         processRepository.save(cancelledProcess);
         workflowMetrics.processCancelled(process.getWorkflowDefinitionId(), WorkflowMetrics.durationOf(process));
 

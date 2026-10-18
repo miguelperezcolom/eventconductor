@@ -71,6 +71,21 @@ class CancelProcessUseCaseTest {
     }
 
     @Test
+    void aCancelledProcessIsStampedWithWhenItEnded() {
+        // Retention is counted from the end: a cancelled process without one would never be purged.
+        var process = process("p-1");
+        when(processRepository.findById("p-1")).thenReturn(Optional.of(process));
+        when(stepExecutionRepository.findByProcess(process)).thenReturn(List.of());
+
+        useCase.handle(new CancelProcessCommand("p-1"));
+
+        var saved = org.mockito.ArgumentCaptor.forClass(Process.class);
+        verify(processRepository, org.mockito.Mockito.atLeastOnce()).save(saved.capture());
+        assertThat(saved.getAllValues().getFirst().getStatus()).isEqualTo(ProcessStatus.CANCELLED);
+        assertThat(saved.getAllValues().getFirst().getFinished()).isNotNull();
+    }
+
+    @Test
     void anAlreadyFinishedProcessReleasesNothingAgain() {
         when(processRepository.findById("p-1")).thenReturn(Optional.of(
                 Process.builder().id("p-1").status(ProcessStatus.COMPLETED).build()));

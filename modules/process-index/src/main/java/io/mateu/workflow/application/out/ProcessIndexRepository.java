@@ -18,6 +18,15 @@ public interface ProcessIndexRepository {
     /** Insert or update the row for a process. Last write by the projector wins. */
     void upsert(ProcessIndexRow row);
 
+    /**
+     * Removes the rows of processes that no longer exist — the retention purge deleted them. Returns
+     * how many rows went. A store that cannot delete keeps them (default): a listing then shows a
+     * process that cannot be opened, which is a stale read model, not lost data.
+     */
+    default int deleteByProcessIds(Collection<String> processIds) {
+        return 0;
+    }
+
     /** Processes currently in any of the given statuses — e.g. RUNNING/PENDING for "what is running". */
     List<ProcessIndexRow> findByStatusIn(Collection<String> statuses);
 

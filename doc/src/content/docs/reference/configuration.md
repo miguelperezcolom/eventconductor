@@ -310,6 +310,21 @@ A definition can serialize processes by a key — [`LOCK`/`UNLOCK`](/reference/s
 
 Only relevant to definitions that declare locks; one that uses none pays nothing. See [Step types — LOCK / UNLOCK](/reference/step-types/#lock).
 
+### Process retention
+
+`workflow.processes.*`: how long finished processes are kept when their definition does not say, and
+how the purge job runs. A definition's own `retention` wins over these; see
+[Process retention](/guides/workflow-definitions/#process-retention) for what is purged and what never is.
+
+| Property | Default | Description |
+|---|---|---|
+| `workflow.processes.retention` | — (off) | How long a finished process is kept, counted from its end, for every terminal status (`30d`, `P30D`). Unset keeps them forever — the historical behaviour: nothing is deleted that a definition did not ask to delete. |
+| `workflow.processes.retention-by-status.<status>` | — | Per terminal status, over the above: `completed`, `cancelled`, `error`, `compensated`, `compensation-failed` (any case or separator). |
+| `workflow.processes.purge.enabled` | `true` | Run the purge job at all. `false` stops every deletion, whatever the retentions say. |
+| `workflow.processes.purge.interval` | `PT10M` | How often it looks for processes past their retention. One pod at a time (`jpa`: an advisory lock). |
+| `workflow.processes.purge.batch-size` | `100` | Process trees read per query. Each tree is deleted in its own transaction. |
+| `workflow.processes.purge.max-per-pass` | `10000` | Processes one pass may delete — a backlog (retention just switched on over years of history) is worked off over several passes. |
+
 ### Synchronous invocation (`workflow.sync.*`)
 
 Only relevant to definitions that declare `syncInvocation`; see [Synchronous Invocation](/guides/synchronous-invocation/).
