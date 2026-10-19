@@ -161,7 +161,8 @@ mvn spring-boot:run             # with webmvc: http://localhost:8080/workflow/ap
 
 Normal noise, safe to ignore: `Unknown keyword $defs` / `Unknown keyword deprecated` (schema
 validator), `No task contracts found at classpath:/tasks/`, Mateu's "found no UI to serve" in a
-headless app. Validation messages come in the JVM's language; `MAVEN_OPTS=-Duser.language=en` for English.
+headless app (its paragraph about annotation processors needs no action), `MemoryPersistenceWarning`
+with `workflow.persistence=memory`. Validation messages come in the JVM's language; `MAVEN_OPTS=-Duser.language=en` for English.
 
 ## Why nothing runs
 

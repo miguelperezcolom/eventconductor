@@ -18,7 +18,7 @@ clock you move. Canonical: `doc/src/content/docs/guides/testing-workflows.md`,
 </plugin>
 ```
 
-- `mvn eventconductor:validate` on demand; bound to `process-resources`, so `mvn test`/`verify` run it.
+- `mvn eventconductor:validate` on demand (prints `N definition(s) validated successfully` — not with `-q`); bound to `process-resources`, so `mvn test`/`verify` run it.
 - Reads `src/main/resources/{workflows,forms,rules,tasks}/**` (`.ec .ecform .ecrule .ectask .json .yaml .yml`),
   plus `workflows/cron.yaml` and `workflows/events.yaml`.
 - Checks: the JSON schema (unknown keys are errors — a typo like `retires` fails), roots/START rule,
@@ -123,7 +123,7 @@ the Spring context (and its processes) is shared across tests.
 | `.thenTimeout()` | never answers; the step's `timeout` fires under `advanceTime` |
 | `.thenAnswer(inv -> TaskOutcome.complete(...))` | decide from `inv.variable("x")`, `inv.attempt()` |
 | chain `.thenFail("X").thenComplete()` | consecutive answers; the last repeats |
-| `whenHttpCall("step").thenRespond(status, body)` / `.thenIoError()` | stubs HTTP_CALL (unstubbed calls fail); `.lastRequest()` |
+| `whenHttpCall("step").thenRespond(status, body)` / `.thenIoError()` | stubs HTTP_CALL (`body` a JSON/text `String`; unstubbed calls fail); `.lastRequest()`. No `worker-http`/`worker-embedded` or `workflow.http.connections` needed in tests — those are runtime-only |
 | `whenLlmCall("step").thenAnswer(text)` | stubs LLM_CALL |
 | `whenAgent("step").thenCallTool(name, args).thenAnswer(json)` | scripts AGENT_CALL turns; tool `x` of agent `a` stubbed as `whenHttpCall("a.x")` |
 
