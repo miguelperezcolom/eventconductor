@@ -218,17 +218,16 @@ class ImportWorkflowDefinitionsFromGitUseCaseTest {
     void theCloneIsRemovedAfterTheImport() throws Exception {
         git.push(files("order.yaml", definition("order", "Order")));
         repo(git.url(), null);
-        var tmpRoot = Path.of(System.getProperty("java.io.tmpdir"));
-        List<Path> before;
-        try (var s = Files.list(tmpRoot)) {
-            before = s.filter(p -> p.getFileName().toString().startsWith("workflow-git-import-")).toList();
-        }
+        // Clones go to a directory of this test's own: the shared system temp directory is also used by
+        // other builds on the machine, whose clones come and go while this one runs.
+        var clones = Files.createDirectories(tmp.resolve("clones"));
+        useCase.cloneRoot = clones;
 
         useCase.handle();
 
-        try (var s = Files.list(tmpRoot)) {
-            assertThat(s.filter(p -> p.getFileName().toString().startsWith("workflow-git-import-")))
-                    .containsExactlyInAnyOrderElementsOf(before);
+        assertThat(definitions.findById("order")).isPresent();
+        try (var s = Files.list(clones)) {
+            assertThat(s).as("the clone made for the import is deleted").isEmpty();
         }
     }
 

@@ -29,6 +29,13 @@ public class ImportWorkflowDefinitionsFromGitUseCase {
     final GitImportProperties gitImportProperties;
     final ImportWorkflowDefinitionsFromDirectoryUseCase directoryImport;
 
+    /**
+     * Where clones are made; null = the system temp directory. A test points it at a directory of its
+     * own, so it can check that every clone is removed without racing other builds on the machine that
+     * use the shared temp directory too.
+     */
+    Path cloneRoot;
+
     /** Re-imports every configured repository. */
     public ImportWorkflowDefinitionsResult handle() {
         return handle(gitImportProperties.getRepositories());
@@ -61,7 +68,9 @@ public class ImportWorkflowDefinitionsFromGitUseCase {
                                       List<String> imported,
                                       List<String> errors,
                                       List<String> pruned) throws IOException, GitAPIException {
-        Path tempDir = Files.createTempDirectory("workflow-git-import-");
+        Path tempDir = cloneRoot == null
+                ? Files.createTempDirectory("workflow-git-import-")
+                : Files.createTempDirectory(cloneRoot, "workflow-git-import-");
         try {
             cloneRepository(repo, tempDir);
             // A clone is a directory, so from here on it is the same import.
