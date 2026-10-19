@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.31.0] - 2026-10-19
+
+### Upgrading
+- **Forms engine migration V8** runs on start (the forms engine's own Flyway sequence): assignment columns and candidate tables. The workflow engine adds no migration.
+- **Rolling upgrade with escalations:** upgrade forms engines and workers before any definition uses `escalation` — consumers older than 2.31 do not know the `human-task-escalation-requested` message on `downstream` (#553).
+- **Claimed tasks are `ASSIGNED`** (they stayed `PENDING` with a holder), and a cancellation no longer rewrites an already-completed task to `CANCELLED` (#553). Inbox filters or reports that read task status should account for `ASSIGNED`.
+
+### Added
+- Migrate running processes to another version of their definition: `MigrateProcessUseCase` with a step mapping, variable mapping and dry run; tasks in flight kept or re-dispatched, timers and message waits re-armed, forEach/loops moved; refused while a saga rolls back. (#551)
+- `POST /workflow/api/processes/{id}/migrate` and `/migrate/dry-run`; MCP `migrateProcess`, `dryRunProcessMigration`, `migrateProcessesInBatch`; Kafka `migrate-process-requested`; domain event `process-migrated`. (#551)
+- Batch operation type `MIGRATE` (`targetVersion`, `fromVersion`, step mapping, variables). (#551)
+- Console: process "Migrate…" with preview, definition "Migrate instances…". (#551)
+- Maven goal `eventconductor:check-migration` (from a git ref or path) for CI. (#551)
+- Guide "Migrating running processes". (#551)
+- **USER_TASK assignment** — `assignment: {assignee, candidateUsers, candidateGroups, priority, dueDate, followUpDate}`, templates rendered from the process (forEach item included) at task creation; a task that names people is visible/claimable only by them, their groups and task admins (`forms.tasks.admin-roles`). (#553)
+- **USER_TASK escalation** — `escalation: [{after, action: reassign|notify|escalateTo, to, escalateTo, publishEvent}]`, timer-driven on the deadline scan (test kit `advanceTime` skips to them), once each, audited on the timeline; `escalateTo` routes like `onTimeoutStepId`. Metric `eventconductor.tasks.escalations`. (#553)
+- **Task inbox** — filters mine / claimable / my groups / overdue / priority / process / business key, sort by priority or due date, overdue and escalated badges in the forms UI; new REST API `/forms/api/tasks` (list, get, claim, release, complete, assign) and MCP tool `searchTasks`. (#553)
+- **Task lifecycle events** — `created/assigned/claimed/released/completed/cancelled/escalated` published as CloudEvents (`io.eventconductor.task.*`) on `human-tasks`, counted as `eventconductor.tasks.events`; usable by event triggers for notifications. (#553)
+- **Forms schema V8** — assignment columns and candidate tables (forms engine's own Flyway sequence). (#553)
+
+### Fixed
+- **Migration without JPA:** the migration planner reads definition history through a port, so apps without JPA on the classpath (the test kit, memory mode) start (#551).
+
+### Security
+- **Docs build:** `postcss-selector-parser` overridden to 7.1.6 (GHSA-rj75-hqrm-r3gf, Dependabot alert 73); build-time only (#554).
+
 ## [2.30.0] - 2026-10-19
 
 ### Upgrading
