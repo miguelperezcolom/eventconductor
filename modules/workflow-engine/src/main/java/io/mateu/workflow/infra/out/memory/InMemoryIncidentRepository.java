@@ -35,7 +35,10 @@ public class InMemoryIncidentRepository implements IncidentRepository {
                     || (workflowDefinitionId != null && !workflowDefinitionId.equals(process.getWorkflowDefinitionId()))) {
                 continue;
             }
-            var failed = stepExecutionRepository.findByProcessId(process.getId()).stream()
+            // The current executions: a loop's superseded passes are history, and a forEach's failure is
+            // its container's (retrying the container re-runs the failed iterations).
+            var failed = io.mateu.workflow.domain.services.StepExecutions.current(
+                            stepExecutionRepository.findByProcessId(process.getId())).stream()
                     .filter(se -> StepExecutionStatus.ERROR.equals(se.getStatus())
                             || StepExecutionStatus.TIMEOUT.equals(se.getStatus()))
                     .toList();

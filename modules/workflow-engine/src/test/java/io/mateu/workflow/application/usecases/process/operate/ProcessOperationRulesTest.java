@@ -89,6 +89,25 @@ class ProcessOperationRulesTest {
         assertThat(rules.rollbackUnderway(process(ProcessStatus.RUNNING), steps)).isFalse();
     }
 
+    @Test
+    void iterationsAndPassesFollowTheCurrentView() {
+        var running = process(ProcessStatus.RUNNING);
+        var container = se("line", "ACTION", Map.of("forEach", Map.of("items", "lines")), StepExecutionStatus.PENDING);
+        var iteration = se("line", "ACTION", Map.of(), StepExecutionStatus.PENDING).toBuilder()
+                .id("it-0").parentExecutionId(container.getId()).itemIndex(0).build();
+        var oldPass = se("poll", "ACTION", Map.of(), StepExecutionStatus.COMPLETED).toBuilder()
+                .id("poll-0").superseded(true).build();
+        var all = List.of(container, iteration, oldPass);
+
+        assertThat(rules.whyNotCompleteStep(running, iteration, all)).isNull();
+        assertThat(rules.whyNotCompleteStep(running, oldPass, all)).contains("history");
+        container.updateStatus(StepExecutionStatus.ERROR);
+        assertThat(rules.whyNotCompleteStep(running, iteration, all)).contains("forEach step");
+        // Planned over the current view: the iteration is not a step of its own.
+        assertThat(rules.planRetryFrom(process(ProcessStatus.ERROR), "line", all).executions())
+                .containsExactly(container);
+    }
+
     static Process process(ProcessStatus status) {
         return Process.builder().id("p").workflowDefinitionId("w").status(status).variables(List.of()).build();
     }

@@ -88,7 +88,7 @@ public class OperatorAudit {
     private void write(String processId, String stepExecutionId, String requestedBy, String line) {
         logMessageRepository.save(new LogMessage(
                 UUID.randomUUID().toString(),
-                LocalDateTime.now(),
+                io.mateu.workflow.time.EngineClock.now(),
                 processId,
                 stepExecutionId,
                 MessageType.Info.name(),

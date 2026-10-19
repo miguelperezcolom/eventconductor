@@ -7,6 +7,7 @@ import io.mateu.workflow.domain.aggregates.StepExecution;
 import io.mateu.workflow.domain.aggregates.StepExecutionStatus;
 import io.mateu.workflow.domain.aggregates.StepType;
 import io.mateu.workflow.domain.services.CompensationService;
+import io.mateu.workflow.domain.services.StepExecutions;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -39,6 +40,14 @@ import static io.mateu.core.infra.JsonSerializer.pojoFromJson;
  *       build on. Once it ends the process is COMPENSATED or COMPENSATION_FAILED, finished either way.
  *       Setting variables is the exception, and is allowed: it moves no step.</li>
  * </ul>
+ *
+ * <h2>Loops and forEach</h2>
+ *
+ * <p>The operations reason over the process's <b>current</b> executions, as the orchestrator does
+ * ({@link StepExecutions#current}): a loop's earlier passes are history (superseded) and are never
+ * operated on; a forEach is one step, its container, whose iterations it drives. An iteration can be
+ * completed by hand while its container is still running it; a whole forEach is completed, or run
+ * again from, through its container.
  */
 @Component
 @RequiredArgsConstructor
@@ -74,8 +83,19 @@ public class ProcessOperationRules {
         if (rollbackUnderway(process, steps)) {
             return "its saga rollback is under way";
         }
+        if (target.isSuperseded()) {
+            return "this execution is history: a later pass of the loop replaced it";
+        }
         if (StepExecutionStatus.COMPLETED.equals(target.getStatus())) {
             return "the step is already COMPLETED";
+        }
+        if (target.isIteration()) {
+            var container = steps.stream().filter(se -> se.getId().equals(target.getParentExecutionId()))
+                    .findFirst().orElse(null);
+            if (container == null || !StepExecutionStatus.PENDING.equals(container.getStatus())) {
+                return "its forEach step is " + (container == null ? "gone" : container.getStatus())
+                        + "; complete or retry the forEach step itself";
+            }
         }
         if (!COMPLETABLE.contains(target.getStatus())) {
             return "the step is " + target.getStatus() + "; only a PENDING, RUNNING, AWAITING_RETRY, ERROR or"
@@ -104,16 +124,18 @@ public class ProcessOperationRules {
      * The steps a retry from {@code stepId} reopens — that step and everything downstream of it — or
      * the reason it cannot be done (thrown as {@link Refused}).
      */
-    public RetryPlan planRetryFrom(Process process, String stepId, List<StepExecution> steps) {
+    public RetryPlan planRetryFrom(Process process, String stepId, List<StepExecution> allSteps) {
         var notLive = live(process);
         if (notLive != null) {
             throw new Refused(notLive);
         }
+        // The current view: a loop's earlier passes are history, and a forEach is its container.
+        var steps = StepExecutions.current(allSteps);
         var targets = steps.stream().filter(se -> stepId.equals(se.getStepId())).toList();
         if (targets.isEmpty()) {
             throw new Refused("the process has no step '" + stepId + "'");
         }
-        if (rollbackUnderway(process, steps)) {
+        if (rollbackUnderway(process, allSteps)) {
             throw new Refused("its saga rollback is under way");
         }
         if (targets.stream().anyMatch(target -> isCompensation(target, steps))) {

@@ -69,6 +69,19 @@ The definition's `processLock` is taken again the way a [restart](/guides/starti
 
 A step-level critical section (`LOCK` … `UNLOCK`) is different, because the `LOCK` step that opened it is upstream and is not re-run. When the reopened steps include work inside a section the process no longer holds (its `UNLOCK` is reopened too, or there is none), the lock is taken again, without queueing. If another process holds it by now, the retry point **moves back to the section's `LOCK` step**, which re-runs and queues for the lock like any `LOCK`. The audit line says which happened. The re-run never enters a critical section without its lock.
 
+## Loops and forEach
+
+The operations see a process the way the orchestrator runs it: one **current** execution per step. A loop's earlier passes (`repeat`, `loopBack`) are history, and a forEach is one step whose iterations its container drives.
+
+| Target | Complete step | Retry from step |
+|---|---|---|
+| A loop step's **current pass** | Completes it as if its worker had answered; its `until`/`while` is then decided | Reopens it (and what follows); it runs again as the same pass and decides again — no new pass is added |
+| An **earlier, superseded pass** | Refused: it is history | Not a target: a retry is planned over current executions |
+| A forEach **iteration** | Allowed while its container is still running it. The outputs are recorded on the iteration, never on the process, and the container collects them into its `output` | Not a target — retry from the forEach step |
+| A forEach **container** (the step) | Stops its iterations (those in flight are told to), completes the step; the outputs go onto the process. Its `output` collection is not produced — pass it as an output variable if what follows needs it | Discards its iterations (those in flight told to stop) and evaluates `items` afresh when it runs again. To re-run only the failed iterations, retry the step instead |
+
+An iteration of a forEach that has already failed is refused ("complete or retry the forEach step itself"). Earlier passes kept as history still count against the loop's caps (`maxIterations`, `maxSuccessfulExecutions`); restart the process to start a loop's count over. Incidents list the current executions too: a failed forEach is one incident on its step, not one per iteration.
+
 ## Compensations and terminal processes
 
 None of the operations applies to a finished process: `COMPLETED`, `CANCELLED` (use retry or restart, which revive what the cancel stopped), `COMPENSATED` and `COMPENSATION_FAILED`. A failed process whose **saga rollback is under way** — a compensation is about to run or is running — is refused for complete-step and retry-from-step: the rollback is undoing exactly what they would build on. Once it ends the process is `COMPENSATED` or `COMPENSATION_FAILED`, finished either way. Setting variables is allowed during a rollback; it moves no step.

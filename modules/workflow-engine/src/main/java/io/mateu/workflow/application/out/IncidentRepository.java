@@ -12,7 +12,9 @@ import java.util.List;
  * <p>An <em>incident</em> is a failure an operator can act on — a step execution in ERROR (or in a
  * TIMEOUT that does not route anywhere) of a process that is ERROR, i.e. stopped on it and waiting for
  * someone. A failed saga that has rolled back (COMPENSATED) or halted (COMPENSATION_FAILED) is
- * finished and is not one; neither is a step that failed and was retried since.
+ * finished and is not one; neither is a step that failed and was retried since. Only current
+ * executions count: a loop's superseded pass is history, and a failed forEach is one incident on its
+ * container (its failing iteration's message is the container's error line), not one per iteration.
  *
  * <p>Two implementations, chosen by {@code workflow.persistence}: the in-memory one walks the store; the
  * JPA one is one indexed join (failed processes → their failed steps) plus one look-up of their error

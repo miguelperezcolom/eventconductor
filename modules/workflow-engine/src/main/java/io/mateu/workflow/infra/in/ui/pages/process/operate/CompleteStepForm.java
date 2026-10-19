@@ -15,6 +15,7 @@ import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.services.ProcessOperationsService;
 import io.mateu.workflow.application.usecases.process.operate.ProcessOperationRules;
 import io.mateu.workflow.domain.aggregates.StepExecution;
+import io.mateu.workflow.domain.aggregates.StepExecutionStatus;
 import io.mateu.workflow.domain.aggregates.Variable;
 import jakarta.validation.constraints.NotEmpty;
 
@@ -63,7 +64,10 @@ public class CompleteStepForm implements OptionsSupplier {
             return List.of();
         }
         return candidates().stream()
-                .map(se -> new Option(se.getId(), se.getStepId() + " — " + se.getStatus()))
+                .map(se -> new Option(se.getId(), se.getStepId()
+                        + (se.isIteration() ? " [item " + se.getItemIndex() + "]" : "")
+                        + (se.getIteration() > 0 ? " (run " + (se.getIteration() + 1) + ")" : "")
+                        + " — " + se.getStatus()))
                 .toList();
     }
 
@@ -72,8 +76,13 @@ public class CompleteStepForm implements OptionsSupplier {
         if (processId == null) {
             return List.of();
         }
-        return OperationForms.bean(StepExecutionRepository.class).findByProcessId(processId).stream()
+        var all = OperationForms.bean(StepExecutionRepository.class).findByProcessId(processId);
+        // A loop's earlier passes are history; an iteration only while its forEach is running it.
+        return all.stream()
+                .filter(se -> !se.isSuperseded())
                 .filter(se -> ProcessOperationRules.COMPLETABLE.contains(se.getStatus()))
+                .filter(se -> !se.isIteration() || all.stream().anyMatch(c -> c.getId().equals(se.getParentExecutionId())
+                        && StepExecutionStatus.PENDING.equals(c.getStatus())))
                 .sorted(Comparator.comparingLong(StepExecution::getOrder))
                 .toList();
     }

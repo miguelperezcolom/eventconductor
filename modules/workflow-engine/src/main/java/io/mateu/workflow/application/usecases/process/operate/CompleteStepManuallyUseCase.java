@@ -51,6 +51,21 @@ import java.util.concurrent.atomic.AtomicReference;
  *
  * <p>A step completed by hand is completed: if the saga later fails, its compensation runs like any
  * other completed step's. That is the point of saying it completed.
+ *
+ * <h2>Loops and forEach</h2>
+ *
+ * <ul>
+ *   <li>A loop step's <b>current pass</b> completes like any step, and its {@code repeat}/{@code loopBack}
+ *       condition is then decided as if its worker had answered. An earlier, superseded pass is history
+ *       and is refused.</li>
+ *   <li>A forEach <b>iteration</b> is completed while its container is still running it: the outputs are
+ *       recorded on the iteration — as an iteration's worker report is, never on the process — and the
+ *       container collects them into its {@code output} when it completes.</li>
+ *   <li>A forEach <b>container</b> completed by hand stops its iterations (those in flight are told to)
+ *       and completes the step; its outputs are written onto the process like any step's. Its
+ *       {@code output} collection is not produced — give it as an output variable if what follows
+ *       needs it. Iterations that had completed stay completed, and are compensated if the saga fails.</li>
+ * </ul>
  */
 @Service
 @RequiredArgsConstructor
@@ -83,6 +98,20 @@ public class CompleteStepManuallyUseCase {
                                 step.id(), child.getId());
                         cancelProcessUseCase.getObject().handle(new CancelProcessCommand(child.getId()));
                     });
+        }
+    }
+
+    /** A container completed by hand: its iterations still to run, or running, will not. */
+    private void stopIterations(StepExecution container, List<StepExecution> steps) {
+        for (var iteration : io.mateu.workflow.domain.services.StepExecutions.iterationsOf(container, steps)) {
+            if (iteration.getStatus().isTerminal()) {
+                continue;
+            }
+            if (iteration.getStatus().isInFlightAtAWorker()) {
+                downstreamEventPublisher.publish(new TaskCancellationRequested(iteration.getId()), iteration.topic());
+            }
+            iteration.cancelQuietly();
+            stepExecutionRepository.save(iteration);
         }
     }
 
@@ -121,16 +150,25 @@ public class CompleteStepManuallyUseCase {
 
         // Reopen a failed process before its step is completed — the status pipeline the completion
         // drives would otherwise keep ERROR (it is sticky there) and hold the successors.
-        var otherFailures = steps.stream()
+        var otherFailures = io.mateu.workflow.domain.services.StepExecutions.current(steps).stream()
                 .filter(se -> !se.getId().equals(target.getId()))
                 .anyMatch(ProcessOperationRules::blocksTheFlow);
         var updated = process;
-        if (ProcessStatus.ERROR.equals(process.getStatus()) && !otherFailures) {
+        var reopens = ProcessStatus.ERROR.equals(process.getStatus()) && !otherFailures && !target.isIteration();
+        if (reopens) {
             updated = process.withStatus(ProcessStatus.RUNNING).withFinished(null);
         }
         var outputs = command.outputVariables() == null ? List.<Variable>of() : command.outputVariables();
-        updated.updateVariables(outputs);
+        if (target.isIteration()) {
+            // An iteration's report stays on the iteration; its container collects it.
+            target.recordOutput(outputs);
+        } else {
+            updated.updateVariables(outputs);
+        }
         processRepository.save(updated);
+        if (target.isContainer()) {
+            stopIterations(target, steps);
+        }
 
         target.logInfo("Step " + target.getStepId() + " completed by hand (was " + wasStatus + ").");
         target.updateStatus(StepExecutionStatus.COMPLETED);
@@ -141,7 +179,8 @@ public class CompleteStepManuallyUseCase {
                 "completed step " + target.getStepId() + " (was " + wasStatus + ")"
                         + (outputs.isEmpty() ? "" : " with "
                         + String.join(", ", outputs.stream().map(v -> v.name() + " = " + OperatorAudit.quote(v.value())).toList()))
-                        + (ProcessStatus.ERROR.equals(process.getStatus()) && !otherFailures ? "; the process is running again" : ""));
+                        + (target.isIteration() ? " (iteration " + target.getItemIndex() + " of its forEach)" : "")
+                        + (reopens ? "; the process is running again" : ""));
 
         if (!ProcessStatus.PAUSED.equals(updated.getStatus())) {
             stepOverProcessUseCase.handle(new StepOverProcessCommand(process.getId()));

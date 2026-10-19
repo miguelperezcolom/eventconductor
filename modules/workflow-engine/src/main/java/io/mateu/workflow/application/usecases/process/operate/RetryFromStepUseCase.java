@@ -60,6 +60,15 @@ import java.util.concurrent.atomic.AtomicReference;
  * failure from the analytics read model, as a retry or a restart does. A PAUSED one stays paused, the
  * reopened steps waiting for the resume.
  *
+ * <h2>Loops and forEach</h2>
+ *
+ * <p>Planned over the process's current executions, as the orchestrator runs it. A loop step's
+ * current pass is reopened and its {@code repeat}/{@code loopBack} condition decided again when it
+ * completes; its earlier passes stay as history and still count against the loop's caps. A forEach is
+ * reopened through its container: its iterations are discarded (those in flight told to stop) and it
+ * evaluates its items afresh when it runs again — to re-run only the failed iterations, retry the
+ * step instead.
+ *
  * <h2>Locks</h2>
  *
  * <p>The definition's {@code processLock} is taken again the way a restart takes it: a failed process
@@ -119,7 +128,8 @@ public class RetryFromStepUseCase {
 
         var reacquired = new ArrayList<String>();
         var movedBackTo = new ArrayList<String>();
-        plan = withCriticalSections(process, plan, steps, reacquired, movedBackTo);
+        plan = withCriticalSections(process, plan, io.mateu.workflow.domain.services.StepExecutions.current(steps),
+                reacquired, movedBackTo);
 
         var reopened = new ArrayList<String>();
         var children = new ArrayList<String>();
@@ -135,6 +145,9 @@ public class RetryFromStepUseCase {
                     children.add(stepExecution.getId());
                 }
             }
+            if (stepExecution.isContainer()) {
+                discardIterations(stepExecution, steps, children);
+            }
             reopened.add(stepExecution.getStepId() + " (was " + stepExecution.getStatus() + ")");
             stepExecution.resetForRerun("Step " + stepExecution.getStepId() + " reset to run again from step "
                     + command.stepId());
@@ -144,7 +157,8 @@ public class RetryFromStepUseCase {
         var reopenedProcess = ProcessStatus.ERROR.equals(process.getStatus())
                 ? process.withStatus(ProcessStatus.RUNNING).withFinished(null)
                 : process;
-        reopenedProcess = reopenedProcess.withCompletionPercentage(completion(steps));
+        reopenedProcess = reopenedProcess.withCompletionPercentage(
+                completion(io.mateu.workflow.domain.services.StepExecutions.current(steps)));
         processRepository.save(reopenedProcess);
         workflowMetrics.retryPerformed(process.getWorkflowDefinitionId(), WorkflowMetrics.RetryTrigger.MANUAL);
 
@@ -217,6 +231,24 @@ public class RetryFromStepUseCase {
         }
         return new ProcessOperationRules.RetryPlan(Set.copyOf(stepIds),
                 steps.stream().filter(se -> stepIds.contains(se.getStepId())).toList());
+    }
+
+    /** A reopened forEach starts over: its iterations are history, those in flight told to stop. */
+    private void discardIterations(StepExecution container, List<StepExecution> steps, List<String> children) {
+        for (var iteration : io.mateu.workflow.domain.services.StepExecutions.iterationsOf(container, steps)) {
+            if (iteration.getStatus().isInFlightAtAWorker()) {
+                downstreamEventPublisher.publish(new TaskCancellationRequested(iteration.getId()), iteration.topic());
+                var step = ProcessOperationRules.stepOf(iteration);
+                if (step != null && StepType.PROCESS.equals(step.type())) {
+                    children.add(iteration.getId());
+                }
+            }
+            if (!iteration.getStatus().isTerminal()) {
+                iteration.cancelQuietly();
+            }
+            iteration.supersede(StepExecution.LOOP_DISCARDED);
+            stepExecutionRepository.save(iteration);
+        }
     }
 
     /** Whether an UNLOCK of the same lock, not reopened, has already closed the section. */

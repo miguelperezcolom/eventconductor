@@ -271,6 +271,8 @@ public interface StepExecutionEntityRepository extends JpaRepository<StepExecuti
             join ProcessEntity p on p.id = s.processId
             where p.status = 'ERROR'
               and s.status in ('ERROR', 'TIMEOUT')
+              and s.parentExecutionId is null
+              and (s.superseded is null or s.superseded = false)
               and (:anyDefinition = true or s.workflowDefinitionId = :definitionId)
             order by s.finishedAt desc nulls last, s.id
             """)

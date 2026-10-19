@@ -54,7 +54,8 @@ public class RetryFromStepForm implements OptionsSupplier {
         }
         // The steps the process has reached, in the order it reached them — one option per step.
         var reached = new LinkedHashMap<String, StepExecution>();
-        OperationForms.bean(StepExecutionRepository.class).findByProcessId(processId).stream()
+        io.mateu.workflow.domain.services.StepExecutions.current(
+                        OperationForms.bean(StepExecutionRepository.class).findByProcessId(processId)).stream()
                 .filter(se -> se.getStartedAt() != null || (se.getStatus() != StepExecutionStatus.CREATED
                         && se.getStatus() != StepExecutionStatus.CANCELLED))
                 .sorted(Comparator.comparingLong(StepExecution::getOrder))

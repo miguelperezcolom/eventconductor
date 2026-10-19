@@ -105,6 +105,28 @@ class InstanceOperationsJpaE2eTest extends AbstractJpaE2eTest {
                 .isInstanceOf(ProcessStateConflictException.class);
     }
 
+    @Test
+    void anIterationCompletedByHandIsCollectedByItsForEach() {
+        worker.on("line", (request, callback, n) -> {
+            if (n > 1) {
+                callback.complete(List.of(TestWorker.var("ok", "worker")));
+            }
+        });
+        createProcess("foreach-sequential", "jpa-ops-5",
+                new io.mateu.workflow.dtos.Variable("order", "{\"lines\":[{\"sku\":\"A\"},{\"sku\":\"B\"}]}"));
+        await().atMost(TIMEOUT).untilAsserted(() -> assertThat(steps("jpa-ops-5")).anyMatch(se -> se.isIteration()
+                && se.getStatus() == StepExecutionStatus.PENDING));
+        var first = steps("jpa-ops-5").stream().filter(se -> se.isIteration()
+                && se.getStatus() == StepExecutionStatus.PENDING).findFirst().orElseThrow();
+
+        operations.completeStep(process("jpa-ops-5").getId(), first.getId(), List.of(new Variable("ok", "manual")),
+                "Handled by hand", BOB);
+
+        awaitStatus("jpa-ops-5", ProcessStatus.COMPLETED);
+        assertThat(process("jpa-ops-5").getVariables())
+                .contains(new Variable("handled", "[{\"ok\":\"manual\"},{\"ok\":\"worker\"}]"));
+    }
+
     private List<String> audit(String businessKey) {
         return logMessageRepository.findByProcessId(process(businessKey).getId()).stream()
                 .filter(OperatorAudit::isOperatorLine)
