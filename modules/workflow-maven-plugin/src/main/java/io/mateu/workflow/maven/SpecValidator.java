@@ -262,6 +262,23 @@ public class SpecValidator {
         }
         violations.addAll(io.mateu.workflow.analysis.SensitiveVariableRules.keyViolations(
                 text(wf.get("processLock"), "key"), sensitive, "processLock.key"));
+        // Flow-control and business keys (2.33) are stored in clear too.
+        violations.addAll(io.mateu.workflow.analysis.FlowControlRules.sensitiveKeyViolations(
+                text(wf.get("startPolicy"), "key"), sensitive, "startPolicy.key"));
+        JsonNode triggers = wf.get("triggers");
+        if (triggers != null && triggers.isArray()) {
+            for (int i = 0; i < triggers.size(); i++) {
+                JsonNode trigger = triggers.get(i);
+                JsonNode mapped = trigger.get("variables");
+                @SuppressWarnings("unchecked")
+                Map<String, Object> variables = mapped == null || mapped.isNull() ? null
+                        : mapper.convertValue(mapped, LinkedHashMap.class);
+                violations.addAll(io.mateu.workflow.analysis.FlowControlRules.triggerKeyViolations(
+                        text(trigger, "businessKey"), variables, sensitive, "triggers[" + i + "].businessKey"));
+                violations.addAll(io.mateu.workflow.analysis.FlowControlRules.triggerKeyViolations(
+                        text(trigger.get("startPolicy"), "key"), variables, sensitive, "triggers[" + i + "].startPolicy.key"));
+            }
+        }
         if (steps != null && steps.isArray()) {
             for (JsonNode step : steps) {
                 String where = "step '" + text(step, "id") + "'";

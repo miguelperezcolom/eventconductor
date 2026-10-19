@@ -103,4 +103,20 @@ class FlowControlDeclarationsTest {
         assertThat(new ContinueAsNew("latest", null).latest()).isTrue();
         assertThat(new ContinueAsNew(null, null).asMap()).isEmpty();
     }
+
+    @Test
+    void flowControlAndBusinessKeysMayNotReadSensitiveVariables() {
+        var steps = List.of(step("start", StepType.START, null), step("call", StepType.ACTION, "start"));
+        var sealedCard = definition(steps).withSensitiveVariables(List.of("card*"));
+        assertThatThrownBy(() -> sealedCard.withStartPolicy(new StartPolicy("${cardNumber}", null, null, "skip"))
+                .checkInvariants()).hasMessageContaining("startPolicy.key reads the sensitive variable(s) cardNumber");
+        var trigger = new EventTrigger("t", "d", "x", null, "order-${data.card}", Map.of("cardNumber", "${data.card}"),
+                new StartPolicy("${data.card}", null, null, "skip"));
+        assertThatThrownBy(() -> sealedCard.withTriggers(List.of(trigger)).checkInvariants())
+                .hasMessageContaining("triggers[0].businessKey reads the event field(s)")
+                .hasMessageContaining("triggers[0].startPolicy.key");
+        sealedCard.withStartPolicy(new StartPolicy("${customerId}", null, null, "skip")).checkInvariants();
+        assertThat(definition(steps).sensitiveMatcher()).isNull();
+        assertThat(sealedCard.sensitiveMatcher().test("cardNumber")).isTrue();
+    }
 }

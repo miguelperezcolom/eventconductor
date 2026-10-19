@@ -320,8 +320,16 @@ public class EventTriggerService {
         var workflowId = draft.workflowId() == null ? null : draft.workflowId().trim();
         if (workflowId == null || workflowId.isEmpty()) {
             violations.add("a trigger needs the id of the workflow it starts ('workflowId')");
-        } else if (workflowDefinitionRepository.findById(workflowId).isEmpty()) {
-            violations.add("unknown workflow '" + workflowId + "'");
+        } else {
+            var definition = workflowDefinitionRepository.findById(workflowId);
+            if (definition.isEmpty()) {
+                violations.add("unknown workflow '" + workflowId + "'");
+            } else if (definition.get().sensitiveMatcher() != null) {
+                // Its keys are stored in clear: they may not read what the workflow keeps sealed.
+                violations.addAll(io.mateu.workflow.domain.aggregates.WorkflowDefinition.sensitiveTriggerKeyViolations(
+                        new EventTrigger(id, draft.destination(), draft.type(), draft.filter(), draft.businessKey(),
+                                draft.variables(), draft.startPolicy()), definition.get().sensitiveMatcher(), "the trigger"));
+            }
         }
         violations.addAll(EventTriggerRules.triggerViolations(id, draft.destination(), draft.type(), null));
         // The same template check a definition's triggers get: a filter or template that does not parse

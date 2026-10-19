@@ -1050,4 +1050,19 @@ class SpecValidatorTest {
         assertThat(violations).anyMatch(v -> v.contains("priority applies to steps that dispatch a task"));
         assertThat(violations).anyMatch(v -> v.contains("no step may follow it"));
     }
+
+    @Test
+    void flowControlAndTriggerKeysMayNotReadSensitiveVariables() throws Exception {
+        var bad = json("""
+                {"id": "a", "name": "A", "version": 1, "sensitiveVariables": ["card*"],
+                 "startPolicy": {"key": "${cardNumber}", "singleton": "skip"},
+                 "triggers": [{"destination": "orders", "type": "x", "businessKey": "o-${data.card}",
+                   "variables": {"cardNumber": "${data.card}"}}],
+                 "steps": [{"id": "start", "type": "START", "name": "Start"},
+                   {"id": "end", "type": "END", "name": "End", "preconditionStepId": "start"}]}
+                """);
+        var violations = validator.validate(SpecValidator.Kind.WORKFLOW, bad);
+        assertThat(violations).anyMatch(v -> v.contains("startPolicy.key reads the sensitive variable(s) cardNumber"));
+        assertThat(violations).anyMatch(v -> v.contains("triggers[0].businessKey reads the event field(s)"));
+    }
 }

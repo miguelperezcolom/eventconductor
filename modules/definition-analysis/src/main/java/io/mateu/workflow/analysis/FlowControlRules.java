@@ -245,6 +245,84 @@ public final class FlowControlRules {
         return violations;
     }
 
+    // ── sensitive variables ──────────────────────────────────────────────────────────────────────
+
+    /**
+     * A definition's {@code startPolicy.key} is rendered over the start's variables and kept in clear (the key's
+     * row, logs, receipts): it cannot read a sensitive variable — the rule lock and correlation keys follow
+     * ({@link SensitiveVariableRules#keyViolations}).
+     */
+    public static List<String> sensitiveKeyViolations(String key, java.util.function.Predicate<String> sensitive,
+                                                      String where) {
+        if (key == null || key.isBlank() || sensitive == null) {
+            return List.of();
+        }
+        var read = TemplateSyntax.isTemplate(key) ? SensitiveVariableRules.templateReferences(key, sensitive)
+                : SensitiveVariableRules.sensitiveReferences(key, sensitive);
+        if (read.isEmpty()) {
+            return List.of();
+        }
+        return List.of(where + " reads the sensitive variable(s) " + String.join(", ", read)
+                + ": a flow-control or business key is stored in clear, so it cannot be computed from a sensitive variable");
+    }
+
+    /**
+     * A trigger's {@code businessKey} and {@code startPolicy.key} are templates over the <em>event</em>; they read a
+     * sensitive variable when they read the event field the trigger maps into one — an expression of a sensitive
+     * variable's template, or, with no {@code variables} declared (data's top-level members become variables),
+     * {@code data.<a sensitive name>}.
+     *
+     * @param variables the trigger's variable templates by name; null means data's top-level members
+     */
+    public static List<String> triggerKeyViolations(String keyTemplate, Map<String, ?> variables,
+                                                    java.util.function.Predicate<String> sensitive, String where) {
+        if (keyTemplate == null || keyTemplate.isBlank() || sensitive == null || !TemplateSyntax.isTemplate(keyTemplate)) {
+            return List.of();
+        }
+        List<Map.Entry<String, String>> keyExpressions;
+        try {
+            keyExpressions = TemplateSyntax.expressions(keyTemplate, where);
+        } catch (TemplateSyntax.TemplateSyntaxException e) {
+            return List.of();   // reported by the template checks
+        }
+        var read = new java.util.LinkedHashSet<String>();
+        if (variables == null) {
+            for (var expression : keyExpressions) {
+                var stripped = expression.getValue().replaceAll("\\s+", "");
+                var matcher = java.util.regex.Pattern.compile("\\bdata\\.([A-Za-z_][A-Za-z0-9_]*)").matcher(stripped);
+                while (matcher.find()) {
+                    if (sensitive.test(matcher.group(1))) {
+                        read.add(matcher.group(1));
+                    }
+                }
+            }
+        } else {
+            for (var mapping : variables.entrySet()) {
+                if (!sensitive.test(mapping.getKey())) {
+                    continue;
+                }
+                List<Map.Entry<String, String>> mapped;
+                try {
+                    mapped = TemplateSyntax.expressions(mapping.getValue(), where);
+                } catch (TemplateSyntax.TemplateSyntaxException e) {
+                    continue;
+                }
+                for (var source : mapped) {
+                    var field = source.getValue().replaceAll("\\s+", "");
+                    if (keyExpressions.stream().anyMatch(k -> k.getValue().replaceAll("\\s+", "").contains(field))) {
+                        read.add(mapping.getKey());
+                    }
+                }
+            }
+        }
+        if (read.isEmpty()) {
+            return List.of();
+        }
+        return List.of(where + " reads the event field(s) the trigger maps into the sensitive variable(s) "
+                + String.join(", ", read) + ": a flow-control or business key is stored in clear, so it cannot be"
+                + " computed from a sensitive variable");
+    }
+
     // ── durations ────────────────────────────────────────────────────────────────────────────────
 
     /** The duration a value means. @throws IllegalArgumentException if it is not a positive ISO-8601 duration */

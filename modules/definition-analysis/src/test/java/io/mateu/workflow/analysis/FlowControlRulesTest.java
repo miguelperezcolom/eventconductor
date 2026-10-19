@@ -127,4 +127,28 @@ class FlowControlRulesTest {
         assertThat(FlowControlRules.integer("x")).isNull();
         assertThat(FlowControlRules.integer(true)).isNull();
     }
+
+    @Test
+    void keysMayNotReadSensitiveVariables() {
+        var sensitive = SensitiveVariableRules.matcher(List.of("card*", "ssn"));
+        assertThat(FlowControlRules.sensitiveKeyViolations("${customerId}", sensitive, "startPolicy.key")).isEmpty();
+        assertThat(FlowControlRules.sensitiveKeyViolations("${cardNumber}-${x}", sensitive, "startPolicy.key"))
+                .singleElement().asString().startsWith("startPolicy.key reads the sensitive variable(s) cardNumber")
+                .contains("stored in clear");
+        assertThat(FlowControlRules.sensitiveKeyViolations("ssn", sensitive, "k")).hasSize(1);
+        assertThat(FlowControlRules.sensitiveKeyViolations(null, sensitive, "k")).isEmpty();
+        assertThat(FlowControlRules.sensitiveKeyViolations("${ssn}", null, "k")).isEmpty();
+
+        // A trigger: its keys are over the event; they read a sensitive variable through the field mapped into it.
+        var mapped = Map.<String, Object>of("cardNumber", "${data.card}", "customer", "${data.customer}");
+        assertThat(FlowControlRules.triggerKeyViolations("${data.customer}", mapped, sensitive, "t.businessKey")).isEmpty();
+        assertThat(FlowControlRules.triggerKeyViolations("c-${data.card}", mapped, sensitive, "t.businessKey"))
+                .singleElement().asString().contains("maps into the sensitive variable(s) cardNumber");
+        // No mapping: data's top-level members are the variables.
+        assertThat(FlowControlRules.triggerKeyViolations("${data.ssn}", null, sensitive, "t.startPolicy.key")).hasSize(1);
+        assertThat(FlowControlRules.triggerKeyViolations("${data.id}", null, sensitive, "t")).isEmpty();
+        assertThat(FlowControlRules.triggerKeyViolations("plain", null, sensitive, "t")).isEmpty();
+        assertThat(FlowControlRules.triggerKeyViolations("${(", mapped, sensitive, "t")).isEmpty();
+        assertThat(FlowControlRules.triggerKeyViolations("${data.card}", Map.of("cardNumber", "${(" ), sensitive, "t")).isEmpty();
+    }
 }

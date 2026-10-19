@@ -895,6 +895,7 @@ public record WorkflowDefinition(
                 violations.addAll(io.mateu.workflow.analysis.SensitiveVariableRules.keyViolations(
                         processLock.key(), sensitive, "processLock.key"));
             }
+            violations.addAll(sensitiveStartKeyViolations(sensitive));
             if (steps != null) {
                 for (var step : steps) {
                     if (step == null) continue;
@@ -985,6 +986,44 @@ public record WorkflowDefinition(
         if (!violations.isEmpty()) {
             throw new IllegalStateException(String.join("; ", violations) + ".");
         }
+    }
+
+    /**
+     * Flow-control and business keys are stored in clear: the definition's {@code startPolicy.key} may not read a
+     * sensitive variable, nor may a trigger's {@code businessKey} or {@code startPolicy.key} read the event field it
+     * maps into one (FlowControlRules). Shared with the UI/API triggers (EventTriggerService) and events.yaml.
+     */
+    public List<String> sensitiveStartKeyViolations(java.util.function.Predicate<String> sensitive) {
+        var violations = new java.util.ArrayList<String>();
+        if (startPolicy != null) {
+            violations.addAll(io.mateu.workflow.analysis.FlowControlRules.sensitiveKeyViolations(
+                    startPolicy.key(), sensitive, "startPolicy.key"));
+        }
+        if (triggers != null) {
+            for (int i = 0; i < triggers.size(); i++) {
+                violations.addAll(sensitiveTriggerKeyViolations(triggers.get(i), sensitive, "triggers[" + i + "]"));
+            }
+        }
+        return violations;
+    }
+
+    /** A trigger's keys against this definition's sensitive variables; {@code where} prefixes each message. */
+    public static List<String> sensitiveTriggerKeyViolations(EventTrigger trigger,
+                                                            java.util.function.Predicate<String> sensitive, String where) {
+        var violations = new java.util.ArrayList<String>();
+        violations.addAll(io.mateu.workflow.analysis.FlowControlRules.triggerKeyViolations(
+                trigger.businessKey(), trigger.variables(), sensitive, where + ".businessKey"));
+        if (trigger.startPolicy() != null) {
+            violations.addAll(io.mateu.workflow.analysis.FlowControlRules.triggerKeyViolations(
+                    trigger.startPolicy().key(), trigger.variables(), sensitive, where + ".startPolicy.key"));
+        }
+        return violations;
+    }
+
+    /** This definition's sensitive-variable matcher, or null when it declares none. */
+    public java.util.function.Predicate<String> sensitiveMatcher() {
+        var patterns = sensitiveVariablePatterns();
+        return patterns.isEmpty() ? null : io.mateu.workflow.analysis.SensitiveVariableRules.matcher(patterns);
     }
 
     private void checkTriggers() {

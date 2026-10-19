@@ -70,6 +70,11 @@ class UpdatesE2eTest extends AbstractE2eTest {
     }
 
     @Test
+    void updateWithStartFollowsTheBusinessKeyPolicy() throws Exception {
+        scenario.updateWithStartFollowsTheBusinessKeyPolicy(cancelProcessUseCase);
+    }
+
+    @Test
     void compensationSeesUpdatesAndAFailedProcessRefusesThem() throws Exception {
         scenario.compensationSeesUpdatesAndAFailedProcessRefusesThem();
     }

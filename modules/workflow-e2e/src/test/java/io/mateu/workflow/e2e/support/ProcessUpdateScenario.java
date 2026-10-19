@@ -269,6 +269,49 @@ public class ProcessUpdateScenario {
     }
 
     /** With no process for the key, the update starts one (its set seeds the variables); with one, it goes there. */
+    /**
+     * Update-with-start under businessKeyPolicy (2.33): while the holder runs, the update goes to it; once it has
+     * ended, a definition that reuses keys starts a new run with the update, while a {@code unique} one sends the
+     * update to the ended process, which refuses it.
+     */
+    public void updateWithStartFollowsTheBusinessKeyPolicy(
+            io.mateu.workflow.application.usecases.process.cancel.CancelProcessUseCase cancel) throws Exception {
+        var first = http.updateWithStart("order-updates-reuse", """
+                {"businessKey": "uws-reuse-1", "variables": {"address": "Initial 1"}, "update": "changeAddress",
+                 "payload": {"address": "First 2"}}""", null);
+        assertThat(first.getStatus()).isEqualTo(200);
+        var firstId = json(first).path("processId").asText();
+        waitingOrder("uws-reuse-1");
+        var toRunning = http.updateWithStart("order-updates-reuse", """
+                {"businessKey": "uws-reuse-1", "update": "changeAddress", "payload": {"address": "Second 3"}}""", null);
+        assertThat(json(toRunning).path("processId").asText()).isEqualTo(firstId);
+
+        cancel.handle(new io.mateu.workflow.application.usecases.process.cancel.CancelProcessCommand(firstId));
+        await().atMost(TIMEOUT).until(() -> processes.findById(firstId).orElseThrow().getStatus() == ProcessStatus.CANCELLED);
+        var restarted = http.updateWithStart("order-updates-reuse", """
+                {"businessKey": "uws-reuse-1", "variables": {"address": "Again 1"}, "update": "changeAddress",
+                 "payload": {"address": "Again 2"}}""", null);
+        assertThat(restarted.getStatus()).isEqualTo(200);
+        assertThat(json(restarted).path("started").asBoolean()).isTrue();
+        var secondId = json(restarted).path("processId").asText();
+        assertThat(secondId).isNotEqualTo(firstId);
+        assertThat(processes.findByBusinessKey("uws-reuse-1").orElseThrow().getId()).isEqualTo(secondId);
+        assertThat(processes.findAllByBusinessKey("uws-reuse-1")).hasSize(2);
+
+        // unique (order-updates): the ended holder is the target, and it refuses.
+        var kept = http.updateWithStart(DEFINITION, """
+                {"businessKey": "uws-unique-1", "variables": {"address": "Initial 1"}, "update": "changeAddress",
+                 "payload": {"address": "First 2"}}""", null);
+        var keptId = json(kept).path("processId").asText();
+        waitingOrder("uws-unique-1");
+        cancel.handle(new io.mateu.workflow.application.usecases.process.cancel.CancelProcessCommand(keptId));
+        await().atMost(TIMEOUT).until(() -> processes.findById(keptId).orElseThrow().getStatus() == ProcessStatus.CANCELLED);
+        var refused = http.updateWithStart(DEFINITION, """
+                {"businessKey": "uws-unique-1", "update": "changeAddress", "payload": {"address": "Again 2"}}""", null);
+        assertThat(refused.getStatus()).isEqualTo(409);
+        assertThat(processes.findAllByBusinessKey("uws-unique-1")).hasSize(1);
+    }
+
     public void updateWithStartStartsOrUpdates() throws Exception {
         var started = http.updateWithStart(DEFINITION, """
                 {"businessKey": "uws-1", "variables": {"address": "Initial 1"}, "update": "changeAddress",

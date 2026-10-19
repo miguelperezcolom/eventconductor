@@ -128,7 +128,18 @@ public class EventTriggerImporter {
                             + entry.workflow() + "' in " + source + " — the later entry is skipped");
                     continue;
                 }
-                if (workflowDefinitionRepository.findById(entry.workflow()).isEmpty()) {
+                var workflow = workflowDefinitionRepository.findById(entry.workflow());
+                var sensitive = workflow.map(io.mateu.workflow.domain.aggregates.WorkflowDefinition::sensitiveMatcher).orElse(null);
+                if (sensitive != null) {
+                    var refused = io.mateu.workflow.domain.aggregates.WorkflowDefinition.sensitiveTriggerKeyViolations(
+                            entry.trigger(), sensitive, file.name() + " trigger '" + entry.trigger().type() + "' for '"
+                                    + entry.workflow() + "'");
+                    if (!refused.isEmpty()) {
+                        errors.addAll(refused);
+                        continue;
+                    }
+                }
+                if (workflow.isEmpty()) {
                     // Kept: another source (a directory, a git clone) may import it after this one.
                     warnings.add(file.name() + ": trigger on '" + entry.trigger().destination() + "' for type '"
                             + entry.trigger().type() + "': workflow '" + entry.workflow()

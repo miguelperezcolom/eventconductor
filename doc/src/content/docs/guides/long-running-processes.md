@@ -86,6 +86,21 @@ invocation, event triggers, cron, the console, upstream records. A key held by *
 process is never reused (409 on REST, an `ERROR` receipt for a trigger, as before). `CONTINUE_AS_NEW` always
 reuses its own key, whatever the policy.
 
+### Update-with-start
+
+`POST …/updates/{name}` with start (2.33) follows the same policy: while the key's holder runs, the update goes to
+it (`terminateRunning` included — an update-with-start talks to the running process, it does not replace it; for a
+`CONTINUE_AS_NEW` chain that is the latest run). Once the holder has ended, a definition whose policy reuses keys
+starts a new run with the update as its first act; under `unique` the update goes to the ended process, which
+refuses it (409 `NOT_ACCEPTING`), as before.
+
+### Sensitive variables
+
+A business key and a flow-control key are stored in clear (the key column, receipts, logs), so — like lock and
+correlation keys — they may not be computed from a sensitive variable: a definition's `startPolicy.key` reading
+one, or a trigger's `businessKey` / `startPolicy.key` reading the event field the trigger maps into one, is refused
+when the definition (or the trigger, or the `events.yaml` entry) is loaded, and by the Maven plugin.
+
 ### Storage
 
 `process_entity.business_key` **stays `UNIQUE`**: it names the run that holds a key *now*. A run that hands its key

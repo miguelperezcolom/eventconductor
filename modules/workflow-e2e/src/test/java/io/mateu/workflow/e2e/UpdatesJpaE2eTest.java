@@ -70,6 +70,17 @@ class UpdatesJpaE2eTest extends AbstractJpaE2eTest {
     }
 
     @Test
+    void updateWithStartFollowsTheBusinessKeyPolicy() throws Exception {
+        scenario.updateWithStartFollowsTheBusinessKeyPolicy(cancelProcessUseCase);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    io.mateu.workflow.application.usecases.process.cancel.CancelProcessUseCase cancelProcessUseCase;
+
+    void unused() {
+    }
+
+    @Test
     void compensationSeesUpdatesAndAFailedProcessRefusesThem() throws Exception {
         scenario.compensationSeesUpdatesAndAFailedProcessRefusesThem();
     }
