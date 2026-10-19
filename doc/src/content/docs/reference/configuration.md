@@ -616,6 +616,22 @@ spring.cloud.stream.bindings.downstream.destination=downstream
 spring.cloud.stream.bindings.deadLetter.destination=dead-letter
 ```
 
+### Consumer redelivery (`workflow.consumer.retry.*`)
+
+A Kafka consumer that fails with a **retryable** error — an optimistic-lock conflict or a deadlock between two consumers writing the same process, the database or the broker being away — has the record redelivered with exponential back-off, **without limit**, until it succeeds. It is never discarded and its offset is not committed until it has been processed, or deliberately parked on the `dead-letter` topic. Only a failure that will fail the same way forever (a defective event, a record that cannot be converted) is parked. Batches are retried from the failed record: the records before it are committed, so a conflict on one process does not redo the whole poll.
+
+The engine names this error handler on every one of its consumer bindings (`consumeOutbox-in-0`, `consumeUpstream-in-0`, `consumeMessages-in-0`) itself, with `spring.cloud.stream.kafka.bindings.<binding>.consumer.common-error-handler-bean-name=eventconductorEngineErrorHandler` and `spring.cloud.stream.bindings.<binding>.consumer.max-attempts=1` (so the binder's own in-memory retry, which ends in a discard, is not in front of it). Both are lowest-precedence defaults: an application that names its own handler still wins.
+
+| Property | Default | Description |
+|---|---|---|
+| `workflow.consumer.retry.initial-interval` | `100ms` | First pause before a failed record is redelivered |
+| `workflow.consumer.retry.multiplier` | `2.0` | Growth of the pause from one attempt to the next |
+| `workflow.consumer.retry.max-interval` | `10s` | Longest pause; an outage is retried at this rate for as long as it lasts |
+| `workflow.consumer.retry.max-attempts` | `0` | `0` = no limit. A positive value bounds the deliveries of one record, after which it is parked on `dead-letter` (never discarded) — for operators who prefer a dead letter to a partition stalled behind a failure that will not clear |
+| `workflow.consumer.retry.warn-after` | `10` | A record still failing after this many attempts is logged at WARN, and again every this many attempts |
+
+Each redelivery is counted in `eventconductor.events.redelivered` (tags `topic`, `cause`) — see [Observability](/reference/observability/). The same behaviour, with the same properties under `eventconductor.worker.consumer.retry.*`, applies to every consumer that answers tasks — `consumeWorkerEvent-in-0` (`worker-kafka`, the standalone, HTTP and LLM workers), `consumeWorkerEventForRuleRuntime-in-0` (rule runtime) and `consumeWorkerEventForFormsEngine-in-0` (forms engine), whose handler `eventconductorWorkerErrorHandler` comes from the `shared` module: a task whose reply the broker refused is redelivered rather than committed unanswered, counted in `eventconductor.worker.tasks.redelivered`. The projector's consumer uses `projector.consumer.retry.*`. The inbound domain-event consumer keeps its own fixed back-off (`workflow.events.consumer.retry-backoff`), also unlimited.
+
 ### Startup resilience (broker down at startup)
 
 The standalone apps set the following so an unreachable broker at startup fails fast and consumers bind as soon as the broker comes up, instead of blocking the context for ~2 minutes:

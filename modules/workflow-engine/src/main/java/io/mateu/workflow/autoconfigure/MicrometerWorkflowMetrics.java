@@ -34,6 +34,7 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
     public static final String COMPENSATIONS_FAILED = "eventconductor.compensations.failed";
     public static final String CONCURRENT_WRITES_REJECTED = "eventconductor.process.concurrent.writes.rejected";
     public static final String EVENTS_DEAD_LETTERED = "eventconductor.events.dead.lettered";
+    public static final String EVENTS_REDELIVERED = "eventconductor.events.redelivered";
 
     public static final String STALLED_STEPS = "eventconductor.steps.stalled";
     public static final String STALLED_PROCESSES = "eventconductor.processes.stalled";
@@ -266,6 +267,18 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
         Counter.builder(EVENTS_DEAD_LETTERED)
                 .description("Events parked on the dead-letter destination as unprocessable")
                 .tag("source", tagValue(source))
+                .register(registry)
+                .increment();
+    }
+
+    @Override
+    public void eventRedelivered(String topic, String cause, int attempt) {
+        var registry = registry();
+        if (registry == null) return;
+        Counter.builder(EVENTS_REDELIVERED)
+                .description("Kafka records redelivered by the consumer error handler after a retryable failure")
+                .tag("topic", tagValue(topic))
+                .tag("cause", tagValue(cause))
                 .register(registry)
                 .increment();
     }

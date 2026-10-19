@@ -26,6 +26,11 @@ import static org.mockito.Mockito.verify;
 class KafkaDeadLetterPublisherTest {
 
     private final StreamBridge streamBridge = mock(StreamBridge.class);
+
+    {
+        // The broker takes it, as it does when nothing is wrong.
+        org.mockito.Mockito.when(streamBridge.send(any(), any())).thenReturn(true);
+    }
     private final WorkflowMetrics metrics = mock(WorkflowMetrics.class);
     private final KafkaDeadLetterPublisher publisher = new KafkaDeadLetterPublisher(streamBridge, metrics);
 
@@ -113,5 +118,16 @@ class KafkaDeadLetterPublisherTest {
         assertThat(headers.get("x-dead-letter-message")).isEqualTo("the record could not be converted to an event");
         verify(metrics).eventDeadLettered("outbox");
         verify(streamBridge).send(eq("deadLetter"), any(Message.class));
+    }
+
+    @Test
+    void aDeadLetterTheBrokerRefusesIsAnExceptionSoTheRecordIsNotCommitted() {
+        org.mockito.Mockito.when(streamBridge.send(any(), any())).thenReturn(false);
+        var publisher = new KafkaDeadLetterPublisher(streamBridge, metrics);
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> publisher.parkUnreadable(
+                        "not json".getBytes(java.nio.charset.StandardCharsets.UTF_8), new IllegalStateException("x"), "upstream"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("did not accept a dead letter");
     }
 }

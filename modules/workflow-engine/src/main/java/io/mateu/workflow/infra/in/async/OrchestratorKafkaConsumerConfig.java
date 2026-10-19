@@ -7,6 +7,8 @@ import io.mateu.workflow.infra.in.async.processupstreamevent.ProcessUpstreamEven
 import io.mateu.workflow.ddd.DomainEvent;
 import io.mateu.workflow.dtos.TraceContext;
 import io.mateu.workflow.dtos.events.integration.ProcessCreationRequested;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.springframework.kafka.listener.BatchListenerFailedException;
 import org.springframework.kafka.support.KafkaHeaders;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -92,7 +94,7 @@ public class OrchestratorKafkaConsumerConfig {
 
     @Bean
     public Consumer<Message<List<DomainEvent>>> consumeOutbox() {
-        return message -> perProcess(message.getPayload(), event ->
+        return message -> perProcess(message.getPayload(), RecordPositions.of(message), event ->
                 processDomainEventUseCase.handle(new ProcessDomainEventCommand(event)), "outbox");
     }
 
@@ -105,7 +107,7 @@ public class OrchestratorKafkaConsumerConfig {
      */
     @Bean
     public Consumer<Message<List<DomainEvent>>> consumeUpstream() {
-        return message -> perProcess(withRecordTraceContexts(message), event ->
+        return message -> perProcess(withRecordTraceContexts(message), RecordPositions.of(message), event ->
                 processUpstreamEventUseCase.handle(new ProcessUpstreamEventCommand(event)), "upstream");
     }
 
@@ -166,8 +168,8 @@ public class OrchestratorKafkaConsumerConfig {
      * deployments); an unlisted function bean is inert, so single-cluster deployments are unaffected.
      */
     @Bean
-    public Consumer<List<DomainEvent>> consumeMessages() {
-        return events -> perProcess(events, event ->
+    public Consumer<Message<List<DomainEvent>>> consumeMessages() {
+        return message -> perProcess(message.getPayload(), RecordPositions.of(message), event ->
                 processUpstreamEventUseCase.handle(new ProcessUpstreamEventCommand(event)), "messages");
     }
 
@@ -187,37 +189,59 @@ public class OrchestratorKafkaConsumerConfig {
      * partition, and the grouping preserves encounter order. Events with no process of their own
      * each get their own transaction.
      *
-     * <p>With {@link #processParallelism} above 1 the groups commit concurrently; a retryable
-     * failure in any of them still surfaces so the binder redelivers the whole batch (handlers are
-     * idempotent, so the groups that already committed are simply redone).
+     * <p><b>A retryable failure names the record to resume from.</b> It is thrown as a
+     * {@link BatchListenerFailedException} pointing at the first record of the earliest group that
+     * failed. The container's error handler ({@link KafkaConsumerErrorHandling}) then commits every
+     * record before it and redelivers from it, with back-off and without limit — the conflict is
+     * retried, not discarded, and the groups that already committed are not redone wholesale. That
+     * position is safe because groups run in order of their first record: every record before the
+     * failed group's first belongs to a group that has already committed or parked. Records after it
+     * that did commit are redone, which the handlers' idempotence makes harmless.
+     *
+     * <p>With {@link #processParallelism} above 1 the groups commit concurrently; every group runs
+     * before the failure is reported, and the earliest failed group is the one named.
      */
-    private void perProcess(List<DomainEvent> events, Consumer<DomainEvent> handle) {
-        perProcess(events, handle, "unknown");
-    }
-
-    private void perProcess(List<DomainEvent> events, Consumer<DomainEvent> handle, String source) {
-        var byProcess = new LinkedHashMap<String, List<DomainEvent>>();
-        for (var event : events) {
+    void perProcess(List<DomainEvent> events, RecordPositions positions, Consumer<DomainEvent> handle,
+                    String source) {
+        var byProcess = new LinkedHashMap<String, Group>();
+        for (int i = 0; i < events.size(); i++) {
+            var event = events.get(i);
             var key = event.partitionKey() == null
                     // No process: give it a group of its own so it neither drags others down nor
                     // is dragged down by them.
-                    ? " unkeyed-" + System.identityHashCode(event)
+                    ? " unkeyed-" + i
                     : event.partitionKey();
-            byProcess.computeIfAbsent(key, k -> new ArrayList<>()).add(event);
+            var index = i;
+            byProcess.computeIfAbsent(key, k -> new Group(index)).events.add(event);
         }
         if (processExecutor == null) {
             for (var group : byProcess.values()) {
-                processGroup(group, handle, source);
+                try {
+                    processGroup(group.events, handle, source);
+                } catch (RuntimeException retryable) {
+                    throw positions.failedAt(group.firstIndex, retryable, source);
+                }
             }
             return;
         }
-        processGroupsInParallel(byProcess.values(), handle, source);
+        processGroupsInParallel(byProcess.values(), positions, handle, source);
+    }
+
+    /** One process's slice of a batch, and where in the batch it starts. */
+    static final class Group {
+        final int firstIndex;
+        final List<DomainEvent> events = new ArrayList<>();
+
+        Group(int firstIndex) {
+            this.firstIndex = firstIndex;
+        }
     }
 
     /**
      * Runs one process's slice of the batch in its own transaction. A retryable failure is thrown so
-     * the caller can let the binder redeliver the batch; anything else is parked and swallowed so a
-     * single poison process cannot stall the partition for good.
+     * the caller can have the record redelivered; anything else is parked and swallowed so a single
+     * poison process cannot stall the partition for good. A park the broker refuses is thrown too:
+     * the record is then the only copy of those events, and it is redelivered rather than committed.
      */
     private void processGroup(List<DomainEvent> group, Consumer<DomainEvent> handle, String source) {
         try {
@@ -228,9 +252,9 @@ public class OrchestratorKafkaConsumerConfig {
                     }));
         } catch (RuntimeException e) {
             if (io.mateu.workflow.application.services.EventFailures.isRetryable(e)) {
-                // The environment, not the event: let it out so the binder redelivers the batch
-                // rather than committing over work that never happened. Handlers are idempotent,
-                // so repeating the slices that did commit is harmless.
+                // The environment, not the event: let it out so the record is redelivered rather
+                // than committed over work that never happened. Handlers are idempotent, so
+                // repeating the slices that did commit is harmless.
                 throw e;
             }
             // This slice will fail the same way forever. Park its events where someone can look at
@@ -242,33 +266,74 @@ public class OrchestratorKafkaConsumerConfig {
 
     /**
      * Submits every group to the shared pool, waits for all of them, and — only after they have all
-     * run — rethrows a retryable failure if any group hit one. Waiting for the whole batch rather than
-     * failing fast keeps the outcome identical to the serial path: a retryable error redelivers the
-     * entire batch regardless, and the groups that committed in the meantime are redone idempotently.
+     * run — reports the earliest group that failed, so the batch resumes from there. Waiting for the
+     * whole batch rather than failing fast means every group that can commit does, and only the
+     * failed ones (and whatever follows the earliest of them) are redelivered.
      */
-    private void processGroupsInParallel(
-            Iterable<List<DomainEvent>> groups, Consumer<DomainEvent> handle, String source) {
-        var futures = new ArrayList<Future<?>>();
+    private void processGroupsInParallel(Iterable<Group> groups, RecordPositions positions,
+                                         Consumer<DomainEvent> handle, String source) {
+        var futures = new LinkedHashMap<Group, Future<?>>();
         for (var group : groups) {
-            futures.add(processExecutor.submit(() -> processGroup(group, handle, source)));
+            futures.put(group, processExecutor.submit(() -> processGroup(group.events, handle, source)));
         }
-        RuntimeException retryable = null;
-        for (var future : futures) {
+        Group earliest = null;
+        RuntimeException failure = null;
+        for (var entry : futures.entrySet()) {
+            RuntimeException thrown = null;
             try {
-                future.get();
+                entry.getValue().get();
             } catch (ExecutionException e) {
-                // processGroup only propagates retryable RuntimeExceptions (it parks the rest), so a
-                // completed-exceptionally future means the batch must be redelivered. Keep one to
-                // rethrow after every group has had its chance to commit or park.
                 var cause = e.getCause();
-                retryable = cause instanceof RuntimeException re ? re : new RuntimeException(cause);
+                thrown = cause instanceof RuntimeException re ? re : new RuntimeException(cause);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                retryable = new RuntimeException("Interrupted while processing a poll batch", e);
+                thrown = new RuntimeException("Interrupted while processing a poll batch", e);
+            }
+            if (thrown != null && (earliest == null || entry.getKey().firstIndex < earliest.firstIndex)) {
+                earliest = entry.getKey();
+                failure = thrown;
             }
         }
-        if (retryable != null) {
-            throw retryable;
+        if (earliest != null) {
+            throw positions.failedAt(earliest.firstIndex, failure, source);
+        }
+    }
+
+    /**
+     * Where each event of a batch came from, so a failure can name its record — read from the
+     * per-record {@code kafka_receivedTopic}/{@code kafka_receivedPartitionId}/{@code kafka_offset}
+     * header lists, which the binder keeps aligned with the payload even when it drops a record it
+     * could not convert.
+     *
+     * <p>When the lists are missing or do not line up, the failure names the payload index instead;
+     * that is right whenever no record was dropped, and if the error handler cannot find it in the
+     * batch it redelivers the whole batch — later, with back-off, never discarded.
+     */
+    record RecordPositions(List<?> topics, List<?> partitions, List<?> offsets, int size) {
+
+        static final RecordPositions NONE = new RecordPositions(null, null, null, 0);
+
+        static RecordPositions of(Message<? extends List<?>> message) {
+            var headers = message.getHeaders();
+            return new RecordPositions(
+                    headers.get(KafkaHeaders.RECEIVED_TOPIC) instanceof List<?> t ? t : null,
+                    headers.get(KafkaHeaders.RECEIVED_PARTITION) instanceof List<?> p ? p : null,
+                    headers.get(KafkaHeaders.OFFSET) instanceof List<?> o ? o : null,
+                    message.getPayload().size());
+        }
+
+        BatchListenerFailedException failedAt(int index, RuntimeException cause, String source) {
+            var text = "A retryable failure processing a batch from " + source
+                    + "; redelivering from the failed record";
+            if (topics != null && partitions != null && offsets != null
+                    && topics.size() == size && partitions.size() == size && offsets.size() == size
+                    && index < size
+                    && partitions.get(index) instanceof Number partition
+                    && offsets.get(index) instanceof Number offset) {
+                return new BatchListenerFailedException(text, cause, new ConsumerRecord<>(
+                        String.valueOf(topics.get(index)), partition.intValue(), offset.longValue(), null, null));
+            }
+            return new BatchListenerFailedException(text, cause, index);
         }
     }
 

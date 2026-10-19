@@ -64,6 +64,20 @@ public interface WorkflowMetrics {
     default void eventDeadLettered(String source) {}
 
     /**
+     * A Kafka record (or a whole poll batch, when the listener could not say which record failed) failed
+     * with a retryable error and is being redelivered by the consumer's error handler.
+     *
+     * <p>Contention makes a steady trickle of these normal — two consumers writing one process, one of
+     * them loses and goes again. A rate that keeps climbing, or one topic that never stops, is a failure
+     * that is not clearing and is holding its partition.
+     *
+     * @param topic   the topic the record came from
+     * @param cause   the simple class name of the innermost cause
+     * @param attempt the delivery attempt that failed (1 for the first)
+     */
+    default void eventRedelivered(String topic, String cause, int attempt) {}
+
+    /**
      * How many live steps are waiting on a worker with no deadline that could ever fire.
      *
      * <p>The one gauge to alert on. Everything else here counts things happening; this counts

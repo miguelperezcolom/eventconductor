@@ -1,2 +1,3 @@
 io.mateu.workflow.security.console.ConsoleAccessAutoConfiguration
 io.mateu.workflow.crypto.VariableEncryptionAutoConfiguration
+io.mateu.workflow.kafka.TaskConsumerRedelivery$AutoConfig

@@ -172,6 +172,10 @@ public class InboundEventKafkaConsumer {
                 new FixedBackOff(properties.getConsumer().getRetryBackoff().toMillis(), FixedBackOff.UNLIMITED_ATTEMPTS));
         handler.addNotRetryableExceptions(IllegalArgumentException.class, Templates.TemplateException.class,
                 JsonProcessingException.class);
+        // Unlimited already; what it lacked was a voice. A record still failing after ten attempts
+        // is warned about (and again every ten), like the engine's own consumers.
+        handler.setRetryListeners(io.mateu.workflow.kafka.KafkaRedelivery.reporting("inbound-events",
+                io.mateu.workflow.kafka.KafkaRedelivery.Settings.DEFAULTS, null));
         return handler;
     }
 

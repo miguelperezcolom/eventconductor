@@ -90,6 +90,25 @@
             <optional>true</optional>
         </dependency>
         <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <!-- Optional: the task consumers' redelivery counters, when the application has Micrometer. -->
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-core</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <!-- Optional for the same reason: only KafkaRedelivery needs it, and only the Kafka
+                 consumers (engine, worker-kafka, the projector) call it; each of those already has
+                 spring-kafka through the binder. -->
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
             <!-- Optional for the same reason: only SynchronousProducerDefaults needs it, and it
                  is an EnvironmentPostProcessor, so it is loaded by Boot or not at all. -->
             <groupId>org.springframework.boot</groupId>

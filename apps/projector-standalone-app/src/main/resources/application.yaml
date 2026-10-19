@@ -37,6 +37,10 @@ spring:
           configuration:
             default.api.timeout.ms: 15000
             request.timeout.ms: 10000
+        bindings:
+          consumeProcessIndex-in-0:
+            consumer:
+              common-error-handler-bean-name: eventconductorProjectorErrorHandler
       bindings:
         consumeProcessIndex-in-0:
           destination: ${PROJECTION_TOPIC:process-index}
@@ -51,7 +55,9 @@ spring:
             # From the beginning of a compacted topic, so a projector starting against an empty read
             # database rebuilds the whole index rather than indexing only what happens next.
             start-offset: earliest
-            max-attempts: 3
+            # The container error handler owns retries (see ProjectorConfiguration): a failed batch
+            # is redelivered with back-off until it succeeds instead of being discarded.
+            max-attempts: 1
 
 management:
   endpoints:

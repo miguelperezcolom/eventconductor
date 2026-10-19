@@ -9,12 +9,16 @@ import io.mateu.workflow.schema.ManagedSchema;
 import io.mateu.workflow.schema.ManagedSchemaInitializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import io.mateu.workflow.kafka.KafkaRedelivery;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.kafka.listener.CommonErrorHandler;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.DependsOn;
 
 import javax.sql.DataSource;
+import java.time.Duration;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -44,6 +48,25 @@ public class ProjectorConfiguration {
     @DependsOn("processIndexSchemaInitializer")
     public ProcessIndexRepository processIndexStore(DataSource dataSource) {
         return new JdbcProcessIndexStore(dataSource);
+    }
+
+    /**
+     * The projection consumer's error handler, named on its binding in {@code application.yaml}. A
+     * batch that fails (the read database away) is redelivered with back-off until it succeeds, rather
+     * than retried nine times and discarded — which left processes missing from the index for good.
+     * The projection is an idempotent upsert, so redoing a batch is harmless. Settings under
+     * {@code projector.consumer.retry.*}.
+     */
+    @Bean("eventconductorProjectorErrorHandler")
+    public CommonErrorHandler eventconductorProjectorErrorHandler(
+            @Value("${projector.consumer.retry.initial-interval:100ms}") Duration initialInterval,
+            @Value("${projector.consumer.retry.multiplier:2.0}") double multiplier,
+            @Value("${projector.consumer.retry.max-interval:10s}") Duration maxInterval,
+            @Value("${projector.consumer.retry.max-attempts:0}") long maxAttempts,
+            @Value("${projector.consumer.retry.warn-after:10}") int warnAfter) {
+        return KafkaRedelivery.errorHandler("projector",
+                new KafkaRedelivery.Settings(initialInterval, multiplier, maxInterval, maxAttempts, warnAfter),
+                null, KafkaRedelivery.Observer.NONE);
     }
 
     /**

@@ -21,6 +21,7 @@ import java.util.function.Consumer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import org.springframework.kafka.listener.BatchListenerFailedException;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -121,7 +122,7 @@ class OrchestratorKafkaConsumerConfigTest {
     }
 
     @Test
-    void aRetryableFailureIsRethrownSoTheWholeBatchIsRedelivered() {
+    void aRetryableFailureNamesTheRecordToRedeliverFrom() {
         doAnswer(invocation -> {
             var key = invocation.getArgument(0, ProcessUpstreamEventCommand.class).event().partitionKey();
             if ("A".equals(key)) {
@@ -131,8 +132,10 @@ class OrchestratorKafkaConsumerConfigTest {
         }).when(upstream).handle(any());
 
         assertThatThrownBy(() -> config(4).consumeUpstream().accept(org.springframework.messaging.support.MessageBuilder.withPayload(List.of(event("A", "a0"), event("B", "b0"))).build()))
-                .isInstanceOf(RecoverableDataAccessException.class);
-        // A retryable failure never parks: the binder redelivers and idempotent handlers redo the rest.
+                .isInstanceOf(BatchListenerFailedException.class)
+                .hasCauseInstanceOf(RecoverableDataAccessException.class)
+                .satisfies(e -> assertThat(((BatchListenerFailedException) e).getIndex()).isZero());
+        // A retryable failure never parks: the error handler redelivers and idempotent handlers redo the rest.
         verify(deadLetters, never()).park(any(), any(), any());
     }
 
@@ -168,5 +171,98 @@ class OrchestratorKafkaConsumerConfigTest {
 
         verify(upstream, times(3)).handle(any());
         assertThat(seen).containsExactly("a0", "a1", "b0");
+    }
+
+    /** A batch as the binder delivers it: payloads plus the per-record position header lists. */
+    private static org.springframework.messaging.Message<List<DomainEvent>> batch(List<DomainEvent> events, long firstOffset) {
+        var topics = new java.util.ArrayList<String>();
+        var partitions = new java.util.ArrayList<Integer>();
+        var offsets = new java.util.ArrayList<Long>();
+        for (int i = 0; i < events.size(); i++) {
+            topics.add("upstream");
+            partitions.add(3);
+            offsets.add(firstOffset + i);
+        }
+        return org.springframework.messaging.support.MessageBuilder.withPayload(events)
+                .setHeader(org.springframework.kafka.support.KafkaHeaders.RECEIVED_TOPIC, topics)
+                .setHeader(org.springframework.kafka.support.KafkaHeaders.RECEIVED_PARTITION, partitions)
+                .setHeader(org.springframework.kafka.support.KafkaHeaders.OFFSET, offsets)
+                .build();
+    }
+
+    @Test
+    void serially_aConflictStopsTheBatchAndNamesTheFirstRecordOfTheFailedProcess() {
+        var seen = new CopyOnWriteArrayList<String>();
+        doAnswer(invocation -> {
+            var event = invocation.getArgument(0, ProcessUpstreamEventCommand.class).event();
+            seen.add(event.toString());
+            if ("B".equals(event.partitionKey())) {
+                throw new org.springframework.orm.ObjectOptimisticLockingFailureException("process", "B");
+            }
+            return null;
+        }).when(upstream).handle(any());
+
+        // Groups in order of first appearance: A (0, 2), B (1), C (3). B fails at offset 101.
+        var events = List.of(event("A", "a0"), event("B", "b0"), event("A", "a1"), event("C", "c0"));
+        assertThatThrownBy(() -> config(1).consumeUpstream().accept(batch(events, 100)))
+                .isInstanceOfSatisfying(BatchListenerFailedException.class, e -> {
+                    assertThat(e.getRecord()).isNotNull();
+                    assertThat(e.getRecord().topic()).isEqualTo("upstream");
+                    assertThat(e.getRecord().partition()).isEqualTo(3);
+                    assertThat(e.getRecord().offset()).isEqualTo(101);
+                });
+        // C never ran: it is after the failed record and will be redelivered with it.
+        assertThat(seen).containsExactly("a0", "a1", "b0");
+        verify(deadLetters, never()).park(any(), any(), any());
+    }
+
+    @Test
+    void inParallel_everyGroupRunsAndTheEarliestFailedGroupIsNamed() {
+        var seen = new CopyOnWriteArrayList<String>();
+        doAnswer(invocation -> {
+            var event = invocation.getArgument(0, ProcessUpstreamEventCommand.class).event();
+            seen.add(event.toString());
+            if ("B".equals(event.partitionKey()) || "D".equals(event.partitionKey())) {
+                throw new org.springframework.dao.CannotAcquireLockException("deadlock detected");
+            }
+            return null;
+        }).when(upstream).handle(any());
+
+        var events = List.of(event("A", "a0"), event("D", "d0"), event("C", "c0"), event("B", "b0"));
+        assertThatThrownBy(() -> config(4).consumeUpstream().accept(batch(events, 7)))
+                .isInstanceOfSatisfying(BatchListenerFailedException.class,
+                        e -> assertThat(e.getRecord().offset()).as("D, at index 1, is the earliest failure").isEqualTo(8));
+        assertThat(seen).containsExactlyInAnyOrder("a0", "d0", "c0", "b0");
+    }
+
+    @Test
+    void aParkTheBrokerRefusesIsRedeliveredNotSwallowed() {
+        doAnswer(invocation -> {
+            throw new IllegalStateException("defective forever");
+        }).when(upstream).handle(any());
+        org.mockito.Mockito.doThrow(new IllegalStateException("dead-letter refused"))
+                .when(deadLetters).park(any(), any(), any());
+
+        assertThatThrownBy(() -> config(1).consumeUpstream().accept(batch(List.of(event("A", "a0")), 0)))
+                .isInstanceOf(BatchListenerFailedException.class)
+                .hasRootCauseMessage("dead-letter refused");
+    }
+
+    @Test
+    void withoutPositionHeadersTheFailureFallsBackToThePayloadIndex() {
+        doAnswer(invocation -> {
+            var key = invocation.getArgument(0, ProcessUpstreamEventCommand.class).event().partitionKey();
+            if ("B".equals(key)) {
+                throw new RecoverableDataAccessException("db blipped");
+            }
+            return null;
+        }).when(upstream).handle(any());
+
+        assertThatThrownBy(() -> config(1).consumeUpstream().accept(org.springframework.messaging.support.MessageBuilder
+                        .withPayload(List.of(event("A", "a0"), event("B", "b0"))).build()))
+                .isInstanceOfSatisfying(BatchListenerFailedException.class, e -> {
+                    assertThat(e.getRecord()).isNull();
+                    assertThat(e.getIndex()).isEqualTo(1);
+                });
     }
 }

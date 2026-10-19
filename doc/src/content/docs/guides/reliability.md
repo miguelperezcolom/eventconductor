@@ -81,7 +81,7 @@ No hybrids, in either run of this test.
 
 ## Why work is not lost
 
-Three mechanisms carry the guarantees above through an outage. Each is engine default behaviour on
+Four mechanisms carry the guarantees above through an outage and under contention. Each is engine default behaviour on
 the current version.
 
 **Workers never drop a reply.** `StreamBridge.send` reports failure by returning `false`. Replies go
@@ -107,6 +107,20 @@ counts live steps with no deadline that have waited too long, and `workflow.defa
 gives ACTION and RULE steps a fallback deadline that hands them to the existing retry path. The
 fallback is off by default, and never applied to USER_TASK, PROCESS or WAIT_FOR_MESSAGE, whose
 waiting is unbounded on purpose.
+
+<a id="a-retryable-failure-is-redelivered-not-discarded"></a>
+**A retryable failure is redelivered, not discarded.**
+The engine rethrows a retryable failure — an optimistic-lock conflict, a deadlock, the database
+away — precisely so Kafka redelivers it, and every engine consumer now runs with an error handler
+that does: exponential back-off from 100 ms to 10 s, without limit, from the record that failed.
+Up to and including 2.32.0 the consumers ran with Spring Kafka's default batch error handler, which retried a
+batch nine times with no pause and then discarded it. Two consumers contending for one process
+exhaust that in milliseconds, and a parallel `forEach` makes them contend constantly: a process's
+iterations complete together, their replies arrive on `upstream` while the engine's own step events
+for the same process arrive on `outbox`. The local benchmark lost 12–19% of its fan-out processes
+that way, stuck with iterations `PENDING` and nothing in the outbox. DIST-37 now runs that shape
+(100 processes × 50 parallel items) on every build and requires all of them to finish with no
+record discarded. See [Consumer redelivery](/reference/configuration/#consumer-redelivery-workflowconsumerretry).
 
 ## The two that were dead-lettered
 
@@ -231,7 +245,8 @@ embedded worker (`InlineCrashRecoveryE2eTest`).
 |---|---|
 | `eventconductor.steps.stalled` | Live steps with no deadline that nothing will time out. Any sustained non-zero value is work that will never finish. |
 | `eventconductor.events.dead.lettered` | The engine gave up on a specific event and said so. Always worth a look. |
-| `eventconductor.process.concurrent.writes.rejected` | Optimistic-lock conflicts. Expected briefly during a rebalance, flat otherwise. |
+| `eventconductor.process.concurrent.writes.rejected` | Optimistic-lock conflicts. Expected during a rebalance and under bursts of replies for one process (a parallel `forEach`); each one is redelivered. |
+| `eventconductor.events.redelivered` | Records the consumers' error handler is redelivering. A trickle under contention is normal; a rate that keeps climbing on one topic — with the WARN line `has failed N times and is still being retried` — is a failure that is not clearing and is holding its partition. |
 | Outbox rows not `Sent` | Normal during a broker outage and should return to zero. A sustained backlog is not normal. |
 
 ## What is deliberately not tuned

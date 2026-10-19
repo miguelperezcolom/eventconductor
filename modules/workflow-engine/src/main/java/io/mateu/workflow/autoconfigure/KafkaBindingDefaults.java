@@ -51,6 +51,12 @@ public class KafkaBindingDefaults implements EnvironmentPostProcessor, Ordered {
 
     private static final String PREFIX = "spring.cloud.stream.bindings.";
 
+    private static final String KAFKA_PREFIX = "spring.cloud.stream.kafka.bindings.";
+
+    /** The engine's consumer bindings; {@code consumeMessages-in-0} is bound only in sharded deployments. */
+    static final java.util.List<String> ENGINE_CONSUMERS =
+            java.util.List.of("consumeOutbox-in-0", "consumeUpstream-in-0", "consumeMessages-in-0");
+
     @Override
     public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {
         var sources = environment.getPropertySources();
@@ -66,6 +72,20 @@ public class KafkaBindingDefaults implements EnvironmentPostProcessor, Ordered {
         defaults.put(PREFIX + "consumeUpstream-in-0.destination", "upstream");
         defaults.put(PREFIX + "consumeUpstream-in-0.group", "orchestrator-upstream");
         defaults.put(PREFIX + "consumeUpstream-in-0.consumer.batch-mode", "true");
+
+        // Every engine consumer redelivers a retryable failure until it succeeds, rather than
+        // discarding it. The binder otherwise leaves Spring Kafka's default in place — nine
+        // immediate retries, then the batch is thrown away and its offsets committed — and two
+        // consumers contending for one process exhaust that in milliseconds: the step event or
+        // worker reply is gone and the process never moves again. max-attempts 1 hands every
+        // failure straight to that error handler, so a binding switched to record mode does not
+        // fall back to the binder's own in-memory retry-then-discard either.
+        // See KafkaConsumerErrorHandling.
+        for (var binding : ENGINE_CONSUMERS) {
+            defaults.put(KAFKA_PREFIX + binding + ".consumer.common-error-handler-bean-name",
+                    "eventconductorEngineErrorHandler");
+            defaults.put(PREFIX + binding + ".consumer.max-attempts", "1");
+        }
 
         // Producers (StreamBridge targets), including where unprocessable events are parked.
         defaults.put(PREFIX + "outbox.destination", "outbox");

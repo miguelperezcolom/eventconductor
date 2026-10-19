@@ -199,6 +199,12 @@ A USER_TASK's request carries its rendered assignment in the `__task` variable (
 
 **Consumed by:** The inbound domain-event consumer, which is in the `io.mateu.workflow:inbound-events-kafka` module (included in `orchestrator-standalone-app`). See [Starting on and waiting for domain events](/guides/domain-event-triggers/).
 
+## Redelivery and offsets
+
+Every EventConductor consumer commits a record's offset only once it has been processed, or deliberately parked on [`dead-letter`](#dead-letter). A retryable failure (an optimistic-lock conflict between two consumers writing one process, a deadlock, the database or broker away) is redelivered with exponential back-off and no limit; the engine's batch consumers name the record they failed on, so the records before it are committed and the rest are redelivered from it. Nothing is discarded. Settings: [Consumer redelivery](/reference/configuration/#consumer-redelivery-workflowconsumerretry).
+
+Up to and including 2.32.0, the engine's batch consumers ran with Spring Kafka's default batch error handler, which retried a failed batch nine times with no pause and then discarded it (`FallbackBatchErrorHandler: Records discarded: …`), and record consumers (the `worker-kafka` task consumer) gave up after the binder's `max-attempts` (3). See [Reliability](/guides/reliability/#a-retryable-failure-is-redelivered-not-discarded).
+
 ## Consumer groups
 
 | Consumer | Group | Topic |

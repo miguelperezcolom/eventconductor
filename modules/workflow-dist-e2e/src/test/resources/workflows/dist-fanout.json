@@ -1,0 +1,11 @@
+{
+  "id": "dist-fanout",
+  "name": "Distributed parallel forEach (the benchmark's fan-out)",
+  "version": 1,
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "each", "type": "ACTION", "name": "Once per item", "topic": "work", "preconditionStepId": "start",
+      "forEach": { "items": "items", "as": "item", "mode": "parallel", "maxConcurrency": 10 } },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "each" }
+  ]
+}

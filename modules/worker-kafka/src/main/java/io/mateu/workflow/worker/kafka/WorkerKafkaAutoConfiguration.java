@@ -14,6 +14,7 @@ import io.mateu.workflow.worker.api.TransactionAwareReplySink;
 import io.mateu.workflow.worker.api.WorkerApiAutoConfiguration;
 import io.mateu.workflow.worker.api.WorkerProperties;
 import java.util.function.Consumer;
+
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
@@ -34,9 +35,11 @@ import org.springframework.messaging.Message;
  * reply is published (synchronously, see {@code WorkerReply}) on the listener thread, <em>before</em>
  * the consumer returns, and the binder commits the record's offset only after it returns. A crash
  * anywhere before the reply is published leaves the offset uncommitted, so the task is redelivered
- * (handlers must be idempotent). A reply the broker refuses surfaces as an exception, which the
- * binder retries ({@code max-attempts}) and then hands to its error handling — configure a DLQ
- * ({@code enable-dlq}) if a task must survive a prolonged broker outage. For parallelism use the
+ * (handlers must be idempotent). A reply the broker refuses surfaces as an exception, and the
+ * container's error handler ({@link io.mateu.workflow.kafka.TaskConsumerRedelivery}, from {@code shared}) redelivers the task with exponential
+ * back-off, without limit, until the reply goes through: a lost reply is a process that never moves
+ * again, so it is never discarded. (Before, the binder's in-memory retry gave up after
+ * {@code max-attempts}, three by default, and committed the record.) For parallelism use the
  * binding's {@code consumer.concurrency} (at most one thread per partition).
  *
  * <p>Bean names are namespaced ({@code eventconductor...}) and every bean backs off when the
@@ -47,6 +50,7 @@ import org.springframework.messaging.Message;
 @AutoConfigureAfter(WorkerApiAutoConfiguration.class)
 @ConditionalOnClass(StreamOperations.class)
 public class WorkerKafkaAutoConfiguration {
+
 
     @Bean("eventconductorCancelledTasks")
     @ConditionalOnMissingBean(CancelledTasks.class)

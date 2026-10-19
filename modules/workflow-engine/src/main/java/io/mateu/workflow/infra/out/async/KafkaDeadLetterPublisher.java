@@ -60,7 +60,19 @@ public class KafkaDeadLetterPublisher implements DeadLetterPublisher {
             message.setHeader(org.springframework.kafka.support.KafkaHeaders.KEY,
                     key.getBytes(java.nio.charset.StandardCharsets.UTF_8));
         }
-        streamBridge.send(BINDING, message.build());
+        sent(streamBridge.send(BINDING, message.build()), source);
+    }
+
+    /**
+     * A refused dead letter is an exception, not a shrug: the caller swallows the original failure
+     * because it believes the event is parked, so if the broker did not take it the only copy left is
+     * the uncommitted record — and that is kept only if this throws.
+     */
+    private static void sent(boolean accepted, String source) {
+        if (!accepted) {
+            throw new IllegalStateException("The broker did not accept a dead letter from " + source
+                    + " on the '" + BINDING + "' binding; the record stays uncommitted and will be redelivered");
+        }
     }
 
     /**
@@ -74,7 +86,7 @@ public class KafkaDeadLetterPublisher implements DeadLetterPublisher {
         log.error("Parking an unreadable record from {} on the dead-letter topic ({} bytes)",
                 source, payload.length, cause);
         workflowMetrics.eventDeadLettered(source);
-        streamBridge.send(BINDING, MessageBuilder.withPayload(payload)
+        sent(streamBridge.send(BINDING, MessageBuilder.withPayload(payload)
                 // Octet stream, or the JSON converter would re-encode bytes it has every right to
                 // treat as a value — and a dead letter that has been base64'd is not replayable.
                 .setHeader(org.springframework.messaging.MessageHeaders.CONTENT_TYPE,
@@ -85,6 +97,6 @@ public class KafkaDeadLetterPublisher implements DeadLetterPublisher {
                 .setHeader("x-dead-letter-message", cause == null
                         ? "the record could not be converted to an event" : String.valueOf(cause.getMessage()))
                 .setHeader("x-dead-letter-unreadable", "true")
-                .build());
+                .build()), source);
     }
 }

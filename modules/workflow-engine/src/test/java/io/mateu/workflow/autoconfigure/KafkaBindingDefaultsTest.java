@@ -109,4 +109,33 @@ class KafkaBindingDefaultsTest {
 
         assertThat(environment.getProperty("spring.cloud.function.definition")).isNull();
     }
+
+    @Test
+    void everyEngineConsumerRedeliversThroughTheEngineErrorHandlerInsteadOfDiscarding() {
+        var environment = environment();
+
+        defaults.postProcessEnvironment(environment, null);
+
+        for (var binding : java.util.List.of("consumeOutbox-in-0", "consumeUpstream-in-0", "consumeMessages-in-0")) {
+            assertThat(environment.getProperty(
+                    "spring.cloud.stream.kafka.bindings." + binding + ".consumer.common-error-handler-bean-name"))
+                    .as(binding).isEqualTo(io.mateu.workflow.infra.in.async.KafkaConsumerErrorHandling.ERROR_HANDLER);
+            // No in-memory binder retry in front of it, which would discard after its own attempts.
+            assertThat(environment.getProperty("spring.cloud.stream.bindings." + binding + ".consumer.max-attempts"))
+                    .as(binding).isEqualTo("1");
+        }
+    }
+
+    @Test
+    void anApplicationCanStillNameItsOwnErrorHandler() {
+        var environment = environment();
+        environment.setProperty(
+                "spring.cloud.stream.kafka.bindings.consumeOutbox-in-0.consumer.common-error-handler-bean-name", "mine");
+
+        defaults.postProcessEnvironment(environment, null);
+
+        assertThat(environment.getProperty(
+                "spring.cloud.stream.kafka.bindings.consumeOutbox-in-0.consumer.common-error-handler-bean-name"))
+                .isEqualTo("mine");
+    }
 }
