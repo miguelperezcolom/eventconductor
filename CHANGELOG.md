@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.29.0] - 2026-10-19
+
+### Upgrading
+- **Migration V47** runs on start (Flyway): seven nullable columns on `step_execution_entity` for iterations and loop passes; no backfill.
+
+### Added
+- **Loops and multi-instance** in the workflow DSL: `forEach` runs a step once per item of a list (parallel or sequential, `maxConcurrency`, `output` collected in item order, `completion: all | any | <condition>`); `repeat` runs a step again until a condition holds (`until`, `maxIterations`, `delay`); `loopBack` re-runs the section from `to` to a step while `while` holds — an explicit back-edge, so precondition cycles stay an error. Validated at import and by the Maven plugin (shared `LoopRules`). New guide "Loops and Multi-Instance". (#543)
+- Graph editor: forEach drawn as stacked cards, repeat/loopBack chips and a back-edge; the properties panel edits the three blocks. Process diagram shows iteration and run counts. (#543)
+- Configuration: `workflow.foreach.max-items` (1000), `workflow.loops.max-iterations` (1000). (#543)
+- Processes REST API `/steps` and MCP `getProcessDetails` steps carry `iteration`, `superseded`, `parentExecutionId`, `itemIndex`. (#543)
+- Processes REST API — `/workflow/api/processes`: start (idempotent on the business key: 201, or 200 with the existing process; 409 for a key of another definition), read (`/{id}`, `/by-key`, `/steps`, `/variables`, `/logs`), list with `definitionId`, `tag`, `status`, `from`/`to`, `businessKey`, `q` and paging, and `cancel`/`pause`/`resume`/`retry`/`restart`/step `retry` (202; 404/409 answered synchronously). Same `X-Api-Key` rule as the rest of `/workflow/api/**`; flow authorization gates start, reads and commands; errors are problem+json. (#527)
+- OpenAPI description of `/workflow/api/**`: published at `/openapi/eventconductor-api.yaml` on the docs site (checked against the controllers by the build), and served live as `/v3/api-docs/eventconductor` when the application adds springdoc (optional dependency, 3.1.1) and sets `workflow.api.openapi.enabled=true`. (#527)
+- `workflow-test` (test scope): test your own workflow definitions in plain JUnit 5 — `@EventConductorTest`, `WorkflowTestRuntime` with time skipping (`advanceTime` fires TIMERs, timeouts, retry backoffs and cron occurrences in milliseconds), task mocks (`whenTask/whenStep … thenComplete/thenFail/thenAnswer/thenTimeout`), `HTTP_CALL`/`LLM_CALL` stubs, and AssertJ process assertions (`isCompensated`, `hasPassedSteps`, `isWaitingAt`, `hasReplied` …). Guide: Testing Workflows. (#548)
+- Engine: `eventconductorClock` bean / `EngineClock` — the single source of business time; every scheduler implements `SchedulerPass.runOnce()`; `workflow.schedulers.background` (default `true`). (#548)
+
+### Changed
+- `maxSuccessfulExecutions` / `defaultMaxStepExecutions` are now enforced (a loop that would exceed them fails the step). (#543)
+- Compensation of a step that ran several times (forEach iterations, loop passes) runs once per completed run, newest first. (#543)
+- Analytics count forEach iterations and loop passes as runs of their step; a forEach's container is not counted. (#543)
+- Schema: migration V47 adds `iteration`, `superseded`, `loop_decision`, `parent_execution_id`, `item_index`, `scope_json`, `output_json` to `step_execution_entity`. (#543)
+- The console's process listing and the REST listing share one `ProcessListingService`; `ProcessSummary` (and the JPA listing projection) now carry `businessKey` and `workflowDefinitionId`. (#527)
+- No behaviour change: business-time reads go through the engine clock, which defaults to the system clock in the default zone. (#548)
+- **Dependabot** auto-merges only patch and minor bumps; majors wait for review (#542). The local Dockerfiles' builder stage is back on `maven:3.9-eclipse-temurin-21` and Dependabot leaves the builder image alone (#549).
+- **Dependencies:** gRPC 1.85.0, Tomcat 11.0.27, GitHub Actions `checkout` 7, `ghaction-import-gpg` 7 and `setup-helm` 5 (Node 24 runtimes), Astro markdown-remark 7.3.3.
+
+### Fixed
+- The stalled-step count and the definition graph's live count no longer count a forEach container, nor a process twice at one step. (#543)
+- **A flaky git-import test** no longer races other builds over the shared temp directory: clones go to a configurable root (#546).
+
 ## [2.28.0] - 2026-10-18
 
 ### Breaking
