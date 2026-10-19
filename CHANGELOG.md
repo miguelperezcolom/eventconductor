@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.33.1] - 2026-10-20
+
+A patch release: upgrade every kafka-mode deployment. Under concurrent writes to one process (e.g. a parallel `forEach`), versions up to 2.33.0 could discard whole batches of engine events and leave processes stuck forever. No migrations.
+
+### Fixed
+- **Critical — kafka mode lost events under contention, leaving processes stuck forever** (all released
+  versions up to and including 2.33.0). A retryable failure in an engine consumer (an optimistic-lock
+  conflict or deadlock between the outbox and upstream consumers writing the same process — constant
+  under a parallel `forEach`) was retried 9 times with no back-off by Spring Kafka's default batch error
+  handler and then discarded; 12–19% of fan-out processes never finished. Every engine consumer now
+  redelivers retryable failures from the failed record with exponential back-off and no limit
+  (`workflow.consumer.retry.*`), parks only non-retryable records on `dead-letter`, and counts
+  redeliveries in `eventconductor.events.redelivered`. (#565)
+- **Task replies refused by the broker were discarded after 3 attempts** (worker-kafka, standalone/HTTP/LLM
+  workers, rule runtime; all released versions): the task's offset was committed unanswered and its
+  process waited forever. Task consumers now redeliver until the reply is accepted
+  (`eventconductor.worker.consumer.retry.*`, `eventconductor.worker.tasks.redelivered`). (#565)
+- The process-index projector no longer discards a batch it failed to write (`projector.consumer.retry.*`). (#565)
+- A dead letter the broker refused was silently lost; it now fails the record so it is redelivered. (#565)
+- memory persistence no longer slows down as history accumulates: step executions are indexed by process, processes by business key and invocations by process (throughput had fallen ~20× across five batches of 4,000 processes). (#563)
+- memory persistence: synchronous invocations with different idempotency keys no longer run one at a time. (#563)
+- embedded/JPA: the outbox relay thread stops when the engine's context closes instead of polling a closed connection pool forever. (#563)
+
+### Added
+- `scripts/benchmark.sh`: a reproducible local benchmark (six scenarios × embedded/memory, embedded/JPA, kafka 1 and 2 pods, Testcontainers PostgreSQL + Redpanda) writing JSON + Markdown; results published in *Reference → Benchmarks (local)*. (#563)
+- `AiReferenceExamplesTest` (workflow-maven-plugin) and `AiReferenceExamplesEngineTest` (workflow-engine): every JSON/YAML example in the skills and AI reference files is validated against the schemas and the engine's rules on every build. (#566)
+
+### Docs
+- **AI material for 2.33** (#566): the Claude Code skills (`eventconductor`, `eventconductor-scaffold`, `eventconductor-run`) and `doc/public/eventconductor-ai-{compact,full}.md` / `llms.txt` cover everything since 2.26 — secure defaults, request/response and `awaitReply`, loops, test kit, operations, incidents, search and batch operations, HTTP workers, migration, human-task assignment, `AGENT_CALL`, sensitive variables, updates, flow control, `CONTINUE_AS_NEW`, Kafka redelivery — with a decision guide, twelve validated patterns, validation errors and upgrade notes 2.27 → 2.33.
+- Embedded `HTTP_CALL`/`LLM_CALL` need `worker-embedded` beside `worker-http`/`worker-llm` (http-calls, llm-calls guides); maven-plugin version; workers guide fixes. (#566)
+
 ## [2.33.0] - 2026-10-19
 
 ### Upgrading
