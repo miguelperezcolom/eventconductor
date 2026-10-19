@@ -1,0 +1,16 @@
+{
+  "id": "guest-confirmation",
+  "name": "Wait up to a day for the guest, then chase them",
+  "version": 1,
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "await-guest", "type": "WAIT_FOR_MESSAGE", "name": "Guest confirms", "messageName": "guest-confirmed",
+      "correlationExpression": "businessKey", "timeout": 86400000, "retries": 0, "onTimeoutStepId": "chase",
+      "preconditionStepId": "start" },
+    { "id": "confirm", "type": "ACTION", "name": "Confirm", "topic": "confirm",
+      "preconditions": [ { "stepId": "await-guest", "expression": "confirmed == 'yes'" } ] },
+    { "id": "chase", "type": "ACTION", "name": "Chase the guest", "topic": "chase" },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "confirm" },
+    { "id": "end-chased", "type": "END", "name": "End (chased)", "preconditionStepId": "chase" }
+  ]
+}

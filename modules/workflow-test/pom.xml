@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>io.mateu.workflow</groupId>
+        <artifactId>eventconductor</artifactId>
+        <version>1.0-SNAPSHOT</version>
+        <relativePath>../../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>workflow-test</artifactId>
+    <packaging>jar</packaging>
+    <name>workflow-test</name>
+    <description>Workflow test kit: run your own EventConductor definitions in plain JUnit 5, in memory, with a
+        clock you move (time skipping), task mocks, HTTP_CALL / LLM_CALL stubs and AssertJ-style process
+        assertions. Add it with test scope.</description>
+
+    <properties>
+        <jacoco.line.minimum>0.90</jacoco.line.minimum>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
+    <dependencies>
+        <!-- The engine the kit boots, in embedded mode with memory persistence. -->
+        <dependency>
+            <groupId>io.mateu.workflow</groupId>
+            <artifactId>workflow-engine</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+        <!-- The engine jar references mateu UI/uidl types at class level (CrudStore among them). -->
+        <dependency>
+            <groupId>io.mateu</groupId>
+            <artifactId>mvc-core</artifactId>
+            <version>${mateu.version}</version>
+        </dependency>
+        <!-- The engine's request filters and the Mateu MVC configuration are parsed as configuration
+             classes even with no server, so the servlet API and Spring MVC must resolve (as in
+             workflow-e2e). Nothing is served. -->
+        <dependency>
+            <groupId>jakarta.servlet</groupId>
+            <artifactId>jakarta.servlet-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-webmvc</artifactId>
+        </dependency>
+        <!-- Likewise JdbcTemplate: schedulers take it as an optional ObjectProvider (memory mode has none). -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-jdbc</artifactId>
+        </dependency>
+        <!-- The worker SDK: when a test application registers real TaskHandlers (worker-embedded on the
+             classpath), an un-mocked task runs them, exactly as in the application. -->
+        <dependency>
+            <groupId>io.mateu.workflow</groupId>
+            <artifactId>worker-api</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+
+        <!-- A test library: JUnit 5, Spring's test context and AssertJ are part of its API, so they are
+             compile dependencies here and arrive in the user's test scope with the kit. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- Real handlers behind un-mocked tasks, exercised by the kit's own tests. -->
+        <dependency>
+            <groupId>io.mateu.workflow</groupId>
+            <artifactId>worker-embedded</artifactId>
+            <version>1.0-SNAPSHOT</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>

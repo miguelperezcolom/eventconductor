@@ -1,0 +1,11 @@
+{
+  "id": "approval",
+  "name": "A manager approves",
+  "version": 1,
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "approve", "type": "USER_TASK", "name": "Approve", "formId": "approval-form", "preconditionStepId": "start" },
+    { "id": "notify", "type": "ACTION", "name": "Notify", "topic": "notify", "preconditionStepId": "approve" },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "notify" }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "id": "slow-supplier",
+  "name": "A supplier that may never answer",
+  "version": 1,
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "order", "type": "ACTION", "name": "Order from the supplier", "topic": "supplier", "timeout": 3600000,
+      "retries": 0, "preconditionStepId": "start" },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "order" }
+  ]
+}

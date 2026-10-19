@@ -1,0 +1,16 @@
+{
+  "id": "http-charge",
+  "name": "Charge over HTTP",
+  "version": 1,
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "charge", "type": "HTTP_CALL", "name": "Charge", "preconditionStepId": "start", "retries": 2,
+      "http": {
+        "url": "https://payments.example.com/charges/${bookingId}",
+        "method": "POST",
+        "body": { "amount": "${amount * 1}" },
+        "output": { "chargeId": "body.id", "chargeStatus": "status" }
+      } },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "charge" }
+  ]
+}

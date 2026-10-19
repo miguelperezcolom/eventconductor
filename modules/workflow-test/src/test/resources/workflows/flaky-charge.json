@@ -1,0 +1,11 @@
+{
+  "id": "flaky-charge",
+  "name": "A charge that may need retries",
+  "version": 1,
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "charge", "type": "ACTION", "name": "Charge", "topic": "charge-card", "retries": 3,
+      "preconditionStepId": "start" },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "charge" }
+  ]
+}

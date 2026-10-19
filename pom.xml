@@ -35,6 +35,7 @@
     <module>modules/process-index</module>
     <module>modules/workflow-engine</module>
       <module>modules/workflow-e2e</module>
+      <module>modules/workflow-test</module>
       <module>modules/forms-engine</module>
       <module>modules/rule-runtime</module>
       <module>modules/rule-engine</module>

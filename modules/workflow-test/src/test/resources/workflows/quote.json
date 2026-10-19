@@ -1,0 +1,12 @@
+{
+  "id": "quote",
+  "name": "Synchronous quote",
+  "version": 1,
+  "syncInvocation": { "enabled": true },
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "price", "type": "ACTION", "name": "Price", "topic": "price", "preconditionStepId": "start" },
+    { "id": "reply", "type": "REPLY", "name": "Reply", "replyVariables": ["roomType", "price"], "preconditionStepId": "price" },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "reply" }
+  ]
+}

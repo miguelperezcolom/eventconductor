@@ -1,0 +1,19 @@
+{
+  "id": "booking-saga",
+  "name": "Booking with a three-day cooling-off period",
+  "version": 1,
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "reserve", "type": "ACTION", "name": "Reserve the room", "topic": "reserve-room",
+      "compensable": true, "compensationStepId": "release", "preconditionStepId": "start" },
+    { "id": "charge", "type": "ACTION", "name": "Charge the card", "topic": "charge-card", "retries": 2,
+      "compensable": true, "compensationStepId": "refund", "preconditionStepId": "reserve" },
+    { "id": "cooling-off", "type": "TIMER", "name": "Three days to change your mind", "duration": "P3D",
+      "preconditionStepId": "charge" },
+    { "id": "capture", "type": "ACTION", "name": "Capture the payment", "topic": "capture-payment", "retries": 0,
+      "preconditionStepId": "cooling-off" },
+    { "id": "release", "type": "ACTION", "name": "Release the room", "topic": "release-room" },
+    { "id": "refund", "type": "ACTION", "name": "Refund the card", "topic": "refund" },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "capture" }
+  ]
+}

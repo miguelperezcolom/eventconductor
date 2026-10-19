@@ -1,0 +1,19 @@
+{
+  "id": "booking-events",
+  "name": "Started by a booking event, waits for its payment event",
+  "version": 1,
+  "triggers": [
+    { "destination": "bookings", "type": "com.acme.booking.created", "businessKey": "booking-${data.bookingId}",
+      "variables": { "bookingId": "${data.bookingId}" } }
+  ],
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "paid", "type": "WAIT_FOR_MESSAGE", "name": "Paid", "preconditionStepId": "start",
+      "messageName": "payment-captured", "correlationExpression": "bookingId",
+      "onEvent": { "destination": "payments", "type": "com.acme.payment.captured",
+        "correlationKey": "${data.bookingId}", "variables": { "paymentId": "${data.paymentId}" } } },
+    { "id": "announce", "type": "PUBLISH_EVENT", "name": "Announce", "preconditionStepId": "paid",
+      "event": { "destination": "bookings-out", "type": "com.acme.booking.paid", "payload": { "bookingId": "${bookingId}" } } },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "announce" }
+  ]
+}

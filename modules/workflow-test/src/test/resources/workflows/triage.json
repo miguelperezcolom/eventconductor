@@ -1,0 +1,17 @@
+{
+  "id": "triage",
+  "name": "Triage a complaint with a model",
+  "version": 1,
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "triage", "type": "LLM_CALL", "name": "Triage", "preconditionStepId": "start", "retries": 1,
+      "llm": {
+        "connection": "claude",
+        "prompt": "${guest} wrote: ${complaint}",
+        "responseSchema": { "type": "object", "required": ["category"] },
+        "outputVariable": "answer",
+        "output": { "category": "json.category" }
+      } },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "triage" }
+  ]
+}

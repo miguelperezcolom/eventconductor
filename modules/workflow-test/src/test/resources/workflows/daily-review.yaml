@@ -1,0 +1,20 @@
+id: daily-review
+name: Two checks in parallel, again the next morning while asked
+version: 1
+steps:
+  - { id: start, type: START, name: Start }
+  - { id: fork, type: FORK, name: Fork, preconditionStepId: start }
+  - { id: a, type: ACTION, name: Check A, topic: check-a, preconditionStepId: fork }
+  - { id: b, type: ACTION, name: Check B, topic: check-b, preconditionStepId: fork }
+  - { id: join, type: JOIN, name: Join, preconditionStepIds: [a, b] }
+  - id: review
+    type: ACTION
+    name: Review
+    topic: review
+    preconditionStepId: join
+    loopBack:
+      to: fork
+      while: "again == 'yes'"
+      maxIterations: 5
+      delay: PT6H
+  - { id: end, type: END, name: End, preconditionStepId: review }

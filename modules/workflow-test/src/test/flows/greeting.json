@@ -1,0 +1,10 @@
+{
+  "id": "greeting",
+  "name": "Greets a guest (imported from a file, not the classpath)",
+  "version": 1,
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "greet", "type": "ACTION", "name": "Greet", "preconditionStepId": "start" },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "greet" }
+  ]
+}

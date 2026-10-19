@@ -1,0 +1,11 @@
+{
+  "id": "nightly-report",
+  "name": "Every morning at nine",
+  "version": 1,
+  "schedules": [ { "cron": "0 0 9 * * *", "zone": "UTC", "variables": { "kind": "daily" } } ],
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "report", "type": "ACTION", "name": "Build the report", "topic": "report", "preconditionStepId": "start" },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "report" }
+  ]
+}

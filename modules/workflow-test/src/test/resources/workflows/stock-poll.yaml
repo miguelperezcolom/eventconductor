@@ -1,0 +1,15 @@
+id: stock-poll
+name: Ask the supplier every hour until the stock arrives
+version: 1
+steps:
+  - { id: start, type: START, name: Start }
+  - id: poll
+    type: ACTION
+    name: Ask the supplier
+    topic: stock-check
+    preconditionStepId: start
+    repeat:
+      until: "inStock == 'yes'"
+      maxIterations: 10
+      delay: PT1H
+  - { id: end, type: END, name: End, preconditionStepId: poll }
