@@ -1405,10 +1405,24 @@ components:
         id:
           type: string
           description: "Step execution id — what /steps/{stepExecutionId}/retry takes."
+        itemIndex:
+          type: integer
+          format: int32
+          description: "For a forEach iteration, its 0-based position in the list;\
+            \ null otherwise."
+        iteration:
+          type: integer
+          format: int32
+          description: "The loop pass this execution belongs to: 0 for a step's first\
+            \ run, one more each time a repeat or loopBack runs it again."
         order:
           type: integer
           format: int64
           description: Position in the process.
+        parentExecutionId:
+          type: string
+          description: "For a forEach iteration, the id of the step execution it belongs\
+            \ to (its container); null for every other execution."
         startedAt:
           type: string
         status:
@@ -1418,6 +1432,10 @@ components:
         stepId:
           type: string
           description: Id of the step in the definition.
+        superseded:
+          type: boolean
+          description: "True when a later pass of a loop replaced this execution (or\
+            \ a restart discarded it): history, not the step's current execution."
         workerId:
           type: string
           description: "Worker that ran it, when one did."

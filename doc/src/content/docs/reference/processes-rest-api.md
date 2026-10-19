@@ -25,6 +25,8 @@ The machine-readable description is published with these docs: **[`/openapi/even
 | `POST /workflow/api/processes/{id}/restart` | Run an `ERROR` or `CANCELLED` process again from the beginning | `202` |
 | `POST /workflow/api/processes/{id}/steps/{stepExecutionId}/retry` | Run one `ERROR`/`TIMEOUT` step execution again | `202` |
 
+A step that ran more than once has a row per run in `/steps`: a [forEach](/guides/loops-and-multi-instance/) iteration carries `parentExecutionId` (its container's id) and `itemIndex`; a loop pass carries `iteration` (0 for the first run) and `superseded: true` once a later pass replaced it. Retrying an iteration retries its forEach, which re-runs only the failed and cancelled items.
+
 What retry, restart, pause and resume do is described in [Starting a process](/guides/starting-a-process/#pausing-and-resuming); the statuses in [Process & Step Statuses](/reference/statuses/).
 
 ### Starting

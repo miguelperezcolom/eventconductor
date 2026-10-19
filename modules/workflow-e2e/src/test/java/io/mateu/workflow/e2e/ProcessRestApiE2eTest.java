@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.time.Duration;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
@@ -64,5 +65,28 @@ class ProcessRestApiE2eTest extends AbstractE2eTest {
 
         assertThat(http.get("/no-such-process").getStatus()).isEqualTo(404);
         assertThat(ProcessesHttp.json(http.get("?q=rest-mem&size=10")).path("totalElements").asLong()).isEqualTo(2);
+    }
+
+    @Test
+    void stepsListForEachIterationsAndLoopPassesWithTheirPlace() throws Exception {
+        var http = new ProcessesHttp(processOperationsService);
+        worker.on("poll", (req, cb, n) -> cb.complete(List.of(TestWorker.var("paymentStatus", n < 2 ? "PENDING" : "SETTLED"))));
+
+        var each = ProcessesHttp.json(http.start("{\"definitionId\": \"foreach-rooms\", \"businessKey\": \"rest-fe-1\","
+                + " \"variables\": {\"rooms\": \"[\\\"101\\\",\\\"102\\\"]\"}}")).path("id").asText();
+        await().atMost(TIMEOUT).untilAsserted(() -> assertThat(http.status(each)).isEqualTo("COMPLETED"));
+        var reserve = java.util.stream.StreamSupport.stream(ProcessesHttp.json(http.get("/" + each + "/steps")).spliterator(), false)
+                .filter(step -> "reserve".equals(step.path("stepId").asText())).toList();
+        assertThat(reserve).hasSize(3);
+        var container = reserve.stream().filter(step -> step.path("parentExecutionId").isNull()).findFirst().orElseThrow();
+        assertThat(reserve.stream().filter(step -> container.path("id").asText().equals(step.path("parentExecutionId").asText()))
+                .map(step -> step.path("itemIndex").asInt())).containsExactlyInAnyOrder(0, 1);
+
+        var poll = ProcessesHttp.json(http.start("{\"definitionId\": \"repeat-poll\", \"businessKey\": \"rest-rp-1\"}")).path("id").asText();
+        await().atMost(TIMEOUT).untilAsserted(() -> assertThat(http.status(poll)).isEqualTo("COMPLETED"));
+        var passes = java.util.stream.StreamSupport.stream(ProcessesHttp.json(http.get("/" + poll + "/steps")).spliterator(), false)
+                .filter(step -> "poll".equals(step.path("stepId").asText())).toList();
+        assertThat(passes).extracting(step -> step.path("iteration").asInt() + ":" + step.path("superseded").asBoolean())
+                .containsExactlyInAnyOrder("0:true", "1:false");
     }
 }

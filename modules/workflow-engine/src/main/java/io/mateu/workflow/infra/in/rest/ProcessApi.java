@@ -117,13 +117,22 @@ public final class ProcessApi {
             @Schema(description = "When it times out, when it has a deadline.") String deadlineAt,
             @Schema(description = "The message the step is waiting for: a WAIT_FOR_MESSAGE step, or an"
                     + " HTTP_CALL / PUBLISH_EVENT step with awaitReply waiting for its reply.") String awaitingMessageName,
-            @Schema(description = "The correlation key that message must carry.") String awaitingCorrelationKey) {
+            @Schema(description = "The correlation key that message must carry.") String awaitingCorrelationKey,
+            @Schema(description = "For a forEach iteration, the id of the step execution it belongs to (its"
+                    + " container); null for every other execution.") String parentExecutionId,
+            @Schema(description = "For a forEach iteration, its 0-based position in the list; null otherwise.")
+            Integer itemIndex,
+            @Schema(description = "The loop pass this execution belongs to: 0 for a step's first run, one more"
+                    + " each time a repeat or loopBack runs it again.") int iteration,
+            @Schema(description = "True when a later pass of a loop replaced this execution (or a restart"
+                    + " discarded it): history, not the step's current execution.") boolean superseded) {
 
         static StepView of(StepExecution step) {
             return new StepView(step.getId(), step.getStepId(), nameOf(step.getStatus()), step.getOrder(),
                     step.getWorkerId(), step.getAttemptCount(), format(step.getStartedAt()),
                     format(step.getFinishedAt()), format(step.getDeadlineAt()), step.getAwaitingMessageName(),
-                    step.getAwaitingCorrelationKey());
+                    step.getAwaitingCorrelationKey(), step.getParentExecutionId(), step.getItemIndex(),
+                    step.getIteration(), step.isSuperseded());
         }
     }
 
