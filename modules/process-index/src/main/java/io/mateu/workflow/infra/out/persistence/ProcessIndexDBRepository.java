@@ -21,6 +21,9 @@ public class ProcessIndexDBRepository implements ProcessIndexRepository {
     private final ProcessIndexSearchAttributeEntityRepository attributes;
 
     /** The engine's own persistence unit — where the embedded index lives. */
+    // Never serialized: the admin UI writes the views holding this repository as JSON, and an
+    // EntityManager is a JDK proxy no serializer can read.
+    @com.fasterxml.jackson.annotation.JsonIgnore
     @jakarta.persistence.PersistenceContext
     private jakarta.persistence.EntityManager entityManager;
 

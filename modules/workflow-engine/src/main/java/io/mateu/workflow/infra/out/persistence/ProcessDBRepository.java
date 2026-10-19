@@ -46,6 +46,9 @@ public class ProcessDBRepository implements ProcessRepository {
     final io.mateu.workflow.application.services.SearchAttributeIndexer searchAttributeIndexer;
 
     /** For the listing queries built per filter (search attributes, the batch walk). */
+    // Never serialized: the admin UI writes the views holding this repository as JSON, and an
+    // EntityManager is a JDK proxy no serializer can read.
+    @com.fasterxml.jackson.annotation.JsonIgnore
     @jakarta.persistence.PersistenceContext
     jakarta.persistence.EntityManager entityManager;
 

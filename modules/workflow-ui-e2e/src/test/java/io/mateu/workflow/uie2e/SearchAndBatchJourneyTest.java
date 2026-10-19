@@ -50,6 +50,6 @@ class SearchAndBatchJourneyTest extends AbstractUiE2eTest {
                 .isEqualTo(ProcessStatus.RUNNING);
 
         page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("Refresh")).first().click();
-        assertThat(page.getByLabel("Succeeded").first()).hasValue("2");
+        assertThat(page.getByText("100% — 2 of 2 processes").first()).isVisible();
     }
 }

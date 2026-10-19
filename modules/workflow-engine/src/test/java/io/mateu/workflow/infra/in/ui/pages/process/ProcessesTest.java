@@ -70,7 +70,10 @@ class ProcessesTest {
         var batches = mock(io.mateu.workflow.application.services.BatchOperationService.class);
         var adapter = new io.mateu.workflow.infra.in.ui.adapters.SimpleProcessCrudAdapter(null, null, null, null, null, null);
         io.mateu.workflow.security.CallerResolver caller = () -> new io.mateu.workflow.security.AuthorizationContext("ana", List.of(), List.of());
-        var page = new Processes(adapter, commandDispatcher, null, null, caller, batches);
+        var beans = new org.springframework.beans.factory.support.StaticListableBeanFactory();
+        beans.addBean("batches", batches);
+        var page = new Processes(adapter, commandDispatcher, null, null, caller,
+                beans.getBeanProvider(io.mateu.workflow.application.services.BatchOperationService.class));
         var state = new java.util.HashMap<String, Object>();
         state.put("workflowDefinitionId", "orders");
         state.put("status", "ERROR,CANCELLED");

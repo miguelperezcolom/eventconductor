@@ -48,7 +48,9 @@ public class Processes extends Crud<Object, Object, CreateProcessForm, ProcessFi
     final RetryProcessUseCase retryProcessUseCase;
     final CreateProcessUseCase createProcessUseCase;
     final CallerResolver callerResolver;
-    final io.mateu.workflow.application.services.BatchOperationService batchOperations;
+    // A provider, as Schedules holds its resolver: the page's own state must not reach into the service
+    // (its repositories are proxies the page's serializer cannot write).
+    final org.springframework.beans.factory.ObjectProvider<io.mateu.workflow.application.services.BatchOperationService> batchOperations;
 
     @Override
     public Class<ProcessFilters> filtersClass() {
@@ -229,7 +231,7 @@ public class Processes extends Crud<Object, Object, CreateProcessForm, ProcessFi
 
     private io.mateu.uidl.data.Message batch(io.mateu.workflow.domain.batch.BatchOperationType type, HttpRequest httpRequest) {
         try {
-            var created = batchOperations.create(type, processCrudAdapter.batchFilter(httpRequest), null,
+            var created = batchOperations.getObject().create(type, processCrudAdapter.batchFilter(httpRequest), null,
                     callerResolver.current());
             return io.mateu.uidl.data.Message.builder()
                     .variant(io.mateu.uidl.data.NotificationVariant.success)
