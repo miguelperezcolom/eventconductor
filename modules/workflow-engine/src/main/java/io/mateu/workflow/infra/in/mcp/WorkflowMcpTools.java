@@ -189,9 +189,9 @@ public class WorkflowMcpTools implements McpTools, McpSystemContext {
                         s.getIteration(), s.isSuperseded(), s.getParentExecutionId(), s.getItemIndex(),
                         io.mateu.workflow.domain.services.AgentTranscripts.summary(s)))
                 .toList();
-        var vars = process.getVariables() != null
-                ? process.getVariables().stream().map(v -> v.name() + "=" + v.value()).toList()
-                : List.<String>of();
+        // A sensitive variable's value reads as the mask: revealing it is revealProcessVariable, audited.
+        var vars = io.mateu.workflow.application.services.SensitiveVariableMasking.variables(process).stream()
+                .map(v -> v.name() + "=" + v.value()).toList();
         return new ProcessDetail(
                 process.getId(), process.getName(), process.getBusinessKey(),
                 process.getStatus().name(), process.getCompletionPercentage(), vars, steps);

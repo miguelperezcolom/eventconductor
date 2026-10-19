@@ -39,11 +39,18 @@ public final class TaskDispatcher {
     private final VariableBinding binding;
     private final boolean strict;
     private final TaskTracing tracing;
+    private final WorkerVariableEncryption encryption;
 
     /** A dispatcher binding variables with the SDK's own mapper (see {@code VariableBinding}). */
     public TaskDispatcher(TaskRegistry registry, TaskReplySink sink, Cancellations cancellations,
                           boolean strict, TaskTracing tracing) {
         this(registry, sink, cancellations, null, strict, tracing);
+    }
+
+    /** {@link #TaskDispatcher(TaskRegistry, TaskReplySink, Cancellations, boolean, TaskTracing)} with the worker's keys. */
+    public TaskDispatcher(TaskRegistry registry, TaskReplySink sink, Cancellations cancellations,
+                          boolean strict, TaskTracing tracing, WorkerVariableEncryption encryption) {
+        this(registry, sink, cancellations, null, strict, tracing, encryption);
     }
 
     /**
@@ -58,6 +65,17 @@ public final class TaskDispatcher {
 
     public TaskDispatcher(TaskRegistry registry, TaskReplySink sink, Cancellations cancellations,
                           ObjectMapper mapper, boolean strict, TaskTracing tracing) {
+        this(registry, sink, cancellations, mapper, strict, tracing, WorkerVariableEncryption.NONE);
+    }
+
+    /**
+     * With the worker's keys: sealed inputs are opened before the handler binds them, and the outputs named
+     * like them (or configured sensitive) sealed before the reply (see {@link WorkerVariableEncryption}).
+     */
+    public TaskDispatcher(TaskRegistry registry, TaskReplySink sink, Cancellations cancellations,
+                          ObjectMapper mapper, boolean strict, TaskTracing tracing,
+                          WorkerVariableEncryption encryption) {
+        this.encryption = encryption == null ? WorkerVariableEncryption.NONE : encryption;
         this.registry = registry;
         this.sink = sink;
         this.cancellations = cancellations == null ? Cancellations.NONE : cancellations;
@@ -100,9 +118,11 @@ public final class TaskDispatcher {
         }
 
         Object input;
+        WorkerVariableEncryption.Opened opened;
         try {
-            input = binding.toInput(task.variables(), registration.inputType());
-        } catch (VariableBinding.BindingException e) {
+            opened = encryption.open(task.variables());
+            input = binding.toInput(opened.variables(), registration.inputType());
+        } catch (VariableBinding.BindingException | io.mateu.workflow.crypto.VariableDecryptionException e) {
             sink.failed(task, List.of(), e.getMessage());
             return;
         }
@@ -132,7 +152,7 @@ public final class TaskDispatcher {
             log.info("Task {} was cancelled while it ran — not reporting it done.", task.taskExecutionId());
             return;
         }
-        sink.completed(task, variables);
+        sink.completed(task, encryption.seal(variables, opened.sealedNames()));
     }
 
     @SuppressWarnings("unchecked")

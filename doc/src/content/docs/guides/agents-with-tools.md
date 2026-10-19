@@ -109,6 +109,7 @@ its arguments and each result — values under keys like `password`, `token`, `s
 | `maxDuration` | | ISO-8601 wall clock for the whole loop (`PT10M`) |
 | `toolConcurrency` | | How many tool calls of one turn run at once; default `1` |
 | `onToolError` | | `fail` (default) or `report` — see [Failures](#failures) |
+| `allowSensitiveVariables` | | `true` to let `system`, `goal` and the tools' templates read the definition's [sensitive variables](/guides/sensitive-data-and-encryption/) — see [Sensitive variables](#sensitive-variables) |
 
 The step's own `timeout` and `retries` apply to **each model call**; each tool has its own.
 
@@ -140,6 +141,16 @@ as JSON (at most 16 000 characters). Only the final answer's `output` writes the
 creates a `USER_TASK` on that form (with the tool's arguments as its variables) through the forms
 engine. When it is completed, its `approved` field decides: truthy, the tool runs; otherwise it does
 not, and the model is told so — with the form's `comment`, if any.
+
+## Sensitive variables
+
+What an agent renders (`system`, `goal`) and what its tools return reach the model provider. So, as for `LLM_CALL`, an agent whose `system`, `goal` or tool templates (an `http` tool's url, headers, query, body) read one of the definition's [sensitive variables](/guides/sensitive-data-and-encryption/) is **refused at load** — by the engine and by the Maven plugin — unless the block says `allowSensitiveVariables: true`:
+
+```
+step 'dispute': the agent reads the sensitive variable(s) cardNumber; an AGENT_CALL only receives sensitive values with agent.allowSensitiveVariables: true
+```
+
+Whatever the setting, the transcript the console, REST and MCP show masks the process's sensitive values (`••••`).
 
 ## How it runs
 

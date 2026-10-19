@@ -1,0 +1,11 @@
+{
+  "id": "dist-sensitive",
+  "name": "Distributed card payment with a sensitive card number",
+  "version": 1,
+  "sensitiveVariables": ["cardNumber"],
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "charge", "type": "ACTION", "name": "Charge", "topic": "work", "preconditionStepId": "start" },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "charge" }
+  ]
+}

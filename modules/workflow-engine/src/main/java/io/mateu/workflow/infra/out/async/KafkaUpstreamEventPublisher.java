@@ -14,9 +14,11 @@ public class KafkaUpstreamEventPublisher implements UpstreamEventPublisher {
 
     private final StreamBridge streamBridge;
     private final io.mateu.workflow.application.out.WorkflowTracing workflowTracing;
+    /** Seals the sensitive variables an event carries before it reaches the broker. */
+    private final io.mateu.workflow.application.services.VariableProtection protection;
 
     @Override
     public void publish(DomainEvent event) {
-        PartitionedEvents.send(streamBridge, "upstream", event, workflowTracing.currentTraceContext());
+        PartitionedEvents.send(streamBridge, "upstream", VariableProtectionSupport.seal(protection, event), workflowTracing.currentTraceContext());
     }
 }

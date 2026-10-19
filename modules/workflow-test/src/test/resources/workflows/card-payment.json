@@ -1,0 +1,12 @@
+{
+  "id": "card-payment",
+  "name": "A charge whose card number is sensitive",
+  "version": 1,
+  "sensitiveVariables": ["cardNumber"],
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "charge", "type": "ACTION", "name": "Charge", "topic": "charge-card", "preconditionStepId": "start",
+      "outputVariables": ["authCode"], "sensitiveOutputs": true },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "charge" }
+  ]
+}

@@ -28,6 +28,8 @@ public class KafkaCommandPublisher implements CommandPublisher {
     private final StreamBridge streamBridge;
     private final io.mateu.workflow.application.out.WorkflowTracing workflowTracing;
     private final ProcessIndexRepository processIndexRepository;
+    /** Seals the sensitive variables a command carries before it reaches the broker. */
+    private final io.mateu.workflow.application.services.VariableProtection protection;
 
     @Override
     public void publish(DomainEvent command) {
@@ -35,6 +37,6 @@ public class KafkaCommandPublisher implements CommandPublisher {
         var shardId = processId == null ? null
                 : processIndexRepository.findByProcessId(processId).map(ProcessIndexRow::shardId).orElse(null);
         var binding = (shardId == null || shardId.isBlank()) ? "upstream" : "upstream-" + shardId;
-        PartitionedEvents.send(streamBridge, binding, command, workflowTracing.currentTraceContext());
+        PartitionedEvents.send(streamBridge, binding, VariableProtectionSupport.seal(protection, command), workflowTracing.currentTraceContext());
     }
 }

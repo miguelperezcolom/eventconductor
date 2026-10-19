@@ -89,6 +89,14 @@ public class EmbeddedDownstreamEventPublisher implements DownstreamEventPublishe
     /** Workers over HTTP: asked first, takes the tasks of the topics served over HTTP. */
     private org.springframework.beans.factory.ObjectProvider<HttpWorkerRouter> httpWorkers;
 
+    private io.mateu.workflow.application.services.VariableProtection protection =
+            io.mateu.workflow.application.services.VariableProtection.none();
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void protection(io.mateu.workflow.application.services.VariableProtection protection) {
+        this.protection = protection;
+    }
+
     @org.springframework.beans.factory.annotation.Autowired
     void httpWorkers(org.springframework.beans.factory.ObjectProvider<HttpWorkerRouter> httpWorkers) {
         this.httpWorkers = httpWorkers;
@@ -156,7 +164,9 @@ public class EmbeddedDownstreamEventPublisher implements DownstreamEventPublishe
 
     @Override
     public void publish(DomainEvent event, String topic) {
-        if (HttpWorkerRouter.taken(httpWorkers, event, topic)) {
+        // An HTTP worker is out of process: what it leases is sealed. The embedded executor below is this
+        // JVM — the engine's own trust boundary — and gets the task in clear.
+        if (HttpWorkerRouter.taken(httpWorkers, event, topic, protection::sealEvent)) {
             return;
         }
         // Otherwise topic is ignored, and that is the mode rather than an omission: embedded dispatch has

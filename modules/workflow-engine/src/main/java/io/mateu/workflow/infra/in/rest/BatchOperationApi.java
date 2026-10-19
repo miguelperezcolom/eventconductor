@@ -96,7 +96,7 @@ public final class BatchOperationApi {
             return new BatchOperationView(op.id(), op.type().name(), op.status().name(), op.filter(),
                     op.filter().describe(), op.matched(), op.processed(), op.succeeded(), op.failed(), op.skipped(),
                     op.skippedByReason(), op.percent(), op.errors(), op.createdBy(), text(op.createdAt()),
-                    text(op.startedAt()), text(op.finishedAt()), op.failure(), op.parameters());
+                    text(op.startedAt()), text(op.finishedAt()), op.failure(), maskSealed(op.parameters()));
         }
 
         private static String text(java.time.LocalDateTime moment) {
@@ -115,5 +115,16 @@ public final class BatchOperationApi {
             throw new IllegalArgumentException("Unknown batch operation type '" + raw + "'; one of "
                     + java.util.Arrays.toString(BatchOperationType.values()) + ".");
         }
+    }
+
+    /** A sealed value (a sensitive variable a SET_VARIABLES batch sets) reads as the mask. */
+    static java.util.Map<String, String> maskSealed(java.util.Map<String, String> parameters) {
+        if (parameters == null) {
+            return null;
+        }
+        var shown = new java.util.LinkedHashMap<String, String>();
+        parameters.forEach((key, value) -> shown.put(key, io.mateu.workflow.crypto.VariableEnvelope.isSealed(value)
+                ? io.mateu.workflow.application.services.SensitiveVariableMasking.MASK : value));
+        return shown;
     }
 }

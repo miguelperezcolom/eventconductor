@@ -310,4 +310,21 @@ class AgentLoopTest {
         assertThat(transcript.toString().length()).isLessThanOrEqualTo(AgentLoop.MAX_TRANSCRIPT_CHARS + 100);
         assertThat(transcript.path("transcript").get(0).path("role").asText()).isEqualTo("user");
     }
+
+    @Test
+    void theTranscriptKeepsTheProcesssSensitiveValuesOut() throws Exception {
+        definition(DEFINITION.replace("\"version\": 1,", "\"version\": 1, \"sensitiveVariables\": [\"name\"],")
+                        .replace("\"maxSteps\": 4,", "\"maxSteps\": 4, \"allowSensitiveVariables\": true,"),
+                new Variable("name", "Ferdinand"));
+        stepOver();
+        answer(lastTurn(), "Looking Ferdinand up", call("lookup", "{\"id\":\"1\",\"name\":\"Ferdinand\"}"));
+        var step = JsonSerializer.pojoFromJson(agent().getStepJson(), Step.class);
+        var history = List.of(new AgentLoop.Turn(0, "Looking Ferdinand up", null,
+                List.of(new AgentLoop.Call("c1", "lookup", "{\"id\":\"1\",\"name\":\"Ferdinand\"}")), 1, 1, null, null));
+
+        var shown = AgentLoop.transcript(agent(), step, children(), history, "running", process);
+        assertThat(shown).doesNotContain("Ferdinand").contains("••••").contains("lookup");
+        // Without the process (nothing known to be sensitive) it is as before.
+        assertThat(AgentLoop.transcript(agent(), step, children(), history, "running")).contains("Ferdinand");
+    }
 }

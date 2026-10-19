@@ -212,6 +212,88 @@ public class SpecValidator {
                 io.mateu.workflow.analysis.EventTriggerRules.duplicateIdViolations(ids, "workflow '" + workflow + "'")));
     }
 
+    /**
+     * Sensitive variables: the engine's own SensitiveVariableRules — the patterns, a step's sensitiveOutputs,
+     * no search attribute over one, no LLM prompt reading one without llm.allowSensitiveVariables. Whether
+     * the engine has an encryption key is configuration, judged when it loads the definition.
+     */
+    private void addSensitiveVariableSemantics(JsonNode wf, List<String> violations) {
+        var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        List<String> patterns = new ArrayList<>();
+        JsonNode declared = wf.get("sensitiveVariables");
+        if (declared != null && declared.isArray()) {
+            List<Object> raw = new ArrayList<>();
+            declared.forEach(node -> raw.add(node.isTextual() ? node.asText() : null));
+            violations.addAll(io.mateu.workflow.analysis.SensitiveVariableRules.violations(raw, "sensitiveVariables"));
+            declared.forEach(node -> {
+                if (node.isTextual()) patterns.add(node.asText());
+            });
+        }
+        List<List<String>> stepOutputs = new ArrayList<>();
+        JsonNode steps = wf.get("steps");
+        if (steps != null && steps.isArray()) {
+            for (JsonNode step : steps) {
+                JsonNode flag = step.get("sensitiveOutputs");
+                List<String> outputs = new ArrayList<>();
+                JsonNode declaredOutputs = step.get("outputVariables");
+                if (declaredOutputs != null && declaredOutputs.isArray()) {
+                    declaredOutputs.forEach(node -> {
+                        if (node.isTextual()) outputs.add(node.asText());
+                    });
+                }
+                Boolean sensitiveOutputs = flag != null && flag.isBoolean() ? flag.asBoolean() : null;
+                violations.addAll(io.mateu.workflow.analysis.SensitiveVariableRules.stepViolations(
+                        sensitiveOutputs, outputs, "step '" + text(step, "id") + "'"));
+                if (Boolean.TRUE.equals(sensitiveOutputs)) {
+                    stepOutputs.add(outputs);
+                }
+            }
+        }
+        var effective = io.mateu.workflow.analysis.SensitiveVariableRules.effectivePatterns(patterns, stepOutputs);
+        if (effective.isEmpty()) {
+            return;
+        }
+        var sensitive = io.mateu.workflow.analysis.SensitiveVariableRules.matcher(effective);
+        JsonNode searchAttributes = wf.get("searchAttributes");
+        if (searchAttributes != null && searchAttributes.isObject()) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> attributes = mapper.convertValue(searchAttributes, LinkedHashMap.class);
+            violations.addAll(io.mateu.workflow.analysis.SensitiveVariableRules.searchAttributeViolations(attributes, sensitive));
+        }
+        violations.addAll(io.mateu.workflow.analysis.SensitiveVariableRules.keyViolations(
+                text(wf.get("processLock"), "key"), sensitive, "processLock.key"));
+        if (steps != null && steps.isArray()) {
+            for (JsonNode step : steps) {
+                String where = "step '" + text(step, "id") + "'";
+                violations.addAll(io.mateu.workflow.analysis.SensitiveVariableRules.keyViolations(
+                        text(step, "correlationExpression"), sensitive, where + " correlationExpression"));
+                violations.addAll(io.mateu.workflow.analysis.SensitiveVariableRules.keyViolations(
+                        text(step, "lockKey"), sensitive, where + " lockKey"));
+                violations.addAll(io.mateu.workflow.analysis.SensitiveVariableRules.keyViolations(
+                        text(step.get("onEvent"), "correlationKey"), sensitive, where + " onEvent.correlationKey"));
+                JsonNode awaitReply = step.get("awaitReply");
+                violations.addAll(io.mateu.workflow.analysis.SensitiveVariableRules.keyViolations(
+                        text(awaitReply, "correlationExpression"), sensitive, where + " awaitReply.correlationExpression"));
+                violations.addAll(io.mateu.workflow.analysis.SensitiveVariableRules.keyViolations(
+                        text(awaitReply == null ? null : awaitReply.get("onEvent"), "correlationKey"), sensitive,
+                        where + " awaitReply.onEvent.correlationKey"));
+                JsonNode agent = step.get("agent");
+                if (agent != null && agent.isObject()) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> agentMap = mapper.convertValue(agent, LinkedHashMap.class);
+                    violations.addAll(io.mateu.workflow.analysis.SensitiveVariableRules.agentViolations(agentMap, sensitive, where));
+                }
+                JsonNode llm = step.get("llm");
+                if (llm != null && llm.isObject() && "LLM_CALL".equals(text(step, "type"))) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> llmMap = mapper.convertValue(llm, LinkedHashMap.class);
+                    violations.addAll(io.mateu.workflow.analysis.SensitiveVariableRules.llmViolations(
+                            llmMap, sensitive, "step '" + text(step, "id") + "'"));
+                }
+            }
+        }
+    }
+
     private void addCronSemantics(JsonNode document, List<String> violations) {
         List<JsonNode> entries = cronEntries(document);
         for (int i = 0; i < entries.size(); i++) {
@@ -256,6 +338,7 @@ public class SpecValidator {
                 violations.addAll(io.mateu.workflow.analysis.SearchAttributeRules.violations(declared, "searchAttributes"));
             }
         }
+        addSensitiveVariableSemantics(wf, violations);
         JsonNode cron = wf.get("cronExpression");
         if (cron != null && cron.isTextual() && !cron.asText().isBlank()
                 && !CronExpression.isValidExpression(cron.asText().trim())) {

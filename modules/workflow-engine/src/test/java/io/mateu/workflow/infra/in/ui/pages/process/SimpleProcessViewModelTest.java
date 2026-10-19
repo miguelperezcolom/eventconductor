@@ -172,6 +172,20 @@ class SimpleProcessViewModelTest {
     }
 
     @Test
+    void theDiagramShowsAStepsSensitiveVariablesMasked() {
+        var se = mock(StepExecution.class);
+        when(se.getStatus()).thenReturn(StepExecutionStatus.COMPLETED);
+        when(se.getVariables()).thenReturn(java.util.List.of(
+                new io.mateu.workflow.domain.aggregates.Variable("cardNumber", "4111111111111111"),
+                new io.mateu.workflow.domain.aggregates.Variable("amount", "120")));
+
+        var entry = SimpleProcessViewModel.overlayEntry(se, null,
+                io.mateu.workflow.crypto.SensitiveNames.of(java.util.List.of("cardNumber")));
+
+        assertThat(entry.get("variables").toString()).doesNotContain("4111111111111111").contains("••••").contains("120");
+    }
+
+    @Test
     void aListedStepNotYetDispatchedReadsAsNextOrPendingNeverCreated() {
         var view = view(null);
         var ahead = se("charge", StepExecutionStatus.CREATED);

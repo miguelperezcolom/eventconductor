@@ -94,8 +94,20 @@ public class WorkflowDefinitionValidator {
         }
     }
 
+    /**
+     * The encryption the engine runs with — what a definition declaring sensitive variables needs. Absent
+     * (a validator built by hand) means none is configured.
+     */
+    private io.mateu.workflow.crypto.VariableEncryption encryption = io.mateu.workflow.crypto.VariableEncryption.DISABLED;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void encryption(io.mateu.workflow.crypto.VariableEncryption encryption) {
+        this.encryption = encryption == null ? io.mateu.workflow.crypto.VariableEncryption.DISABLED : encryption;
+    }
+
     public void validate(WorkflowDefinition definition) {
         definition.checkInvariants();
+        requireKeysFor(definition, encryption);
         // Non-fatal guidance toward the FORK/JOIN gateway model (compensation-aware).
         definition.topologyWarnings().forEach(w ->
                 log.warn("Workflow definition '{}': {}", definition.name(), w));
@@ -119,6 +131,22 @@ public class WorkflowDefinitionValidator {
         } catch (Exception e) {
             throw new WorkflowDefinitionValidationException(
                     "Could not validate workflow definition: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * A definition that declares sensitive variables is refused by an engine with no encryption key: it would
+     * store and transport them in clear, which is exactly what declaring them is meant to prevent. Checked at
+     * every door a definition comes in through — the classpath and directory imports at startup, the git
+     * import, the REST API and the console.
+     */
+    public static void requireKeysFor(WorkflowDefinition definition, io.mateu.workflow.crypto.VariableEncryption encryption) {
+        if (definition.declaresSensitiveVariables() && (encryption == null || !encryption.enabled())) {
+            throw new WorkflowDefinitionValidationException("Workflow definition '" + definition.name()
+                    + "' declares sensitive variables " + definition.sensitiveVariablePatterns()
+                    + " but no encryption key is configured: set workflow.encryption.keys.<id> (base64 of 32 bytes,"
+                    + " e.g. openssl rand -base64 32) and, with several keys, workflow.encryption.active-key —"
+                    + " or provide a VariableCodec / EncryptionKeySource bean.");
         }
     }
 

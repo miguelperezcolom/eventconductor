@@ -427,6 +427,77 @@ class SpecValidatorTest {
     }
 
     @Test
+    void sensitiveVariablesFollowTheEnginesRules() throws Exception {
+        var mapper = new com.fasterxml.jackson.dataformat.yaml.YAMLMapper();
+        var good = mapper.readTree("""
+                id: payment
+                name: Payment
+                sensitiveVariables: [cardNumber, "patient.*"]
+                searchAttributes:
+                  customerId: "${customerId}"
+                steps:
+                  - {id: start, type: START, name: Start}
+                  - {id: charge, type: ACTION, name: Charge, preconditionStepId: start, outputVariables: [authCode], sensitiveOutputs: true}
+                  - id: summary
+                    type: LLM_CALL
+                    name: Summary
+                    preconditionStepId: charge
+                    llm: {connection: claude, prompt: "Summarise ${patient.history}", outputVariable: s, allowSensitiveVariables: true}
+                """);
+        assertThat(validator.validate(SpecValidator.Kind.WORKFLOW, good)).isEmpty();
+
+        var bad = mapper.readTree("""
+                id: payment
+                name: Payment
+                sensitiveVariables: ["card number", cardNumber]
+                searchAttributes:
+                  card: "${cardNumber}"
+                steps:
+                  - {id: start, type: START, name: Start}
+                  - {id: charge, type: ACTION, name: Charge, preconditionStepId: start, sensitiveOutputs: true}
+                  - id: summary
+                    type: LLM_CALL
+                    name: Summary
+                    preconditionStepId: charge
+                    llm: {connection: claude, prompt: "Card ${cardNumber}", outputVariable: s}
+                """);
+        assertThat(validator.validate(SpecValidator.Kind.WORKFLOW, bad))
+                .anySatisfy(v -> assertThat(v).contains("'card number' is not a variable name or a glob"))
+                .anySatisfy(v -> assertThat(v).contains("declares no outputVariables"))
+                .anySatisfy(v -> assertThat(v).contains("searchAttributes.card reads the sensitive variable"))
+                .anySatisfy(v -> assertThat(v).contains("llm.allowSensitiveVariables: true"));
+
+        var keyed = mapper.readTree("""
+                id: payment
+                name: Payment
+                sensitiveVariables: [cardNumber]
+                steps:
+                  - {id: start, type: START, name: Start}
+                  - {id: paid, type: WAIT_FOR_MESSAGE, name: Paid, preconditionStepId: start, messageName: paid, correlationExpression: cardNumber}
+                """);
+        assertThat(validator.validate(SpecValidator.Kind.WORKFLOW, keyed))
+                .anySatisfy(v -> assertThat(v).contains("correlationExpression reads the sensitive variable"));
+
+        var agent = mapper.readTree("""
+                id: payment
+                name: Payment
+                sensitiveVariables: [cardNumber]
+                steps:
+                  - {id: start, type: START, name: Start}
+                  - id: dispute
+                    type: AGENT_CALL
+                    name: Dispute
+                    preconditionStepId: start
+                    agent: {connection: claude, goal: "Dispute ${cardNumber}", maxSteps: 2, tools: [{name: look, description: Look, http: {method: GET, url: "https://x.example/c"}}]}
+                """);
+        assertThat(validator.validate(SpecValidator.Kind.WORKFLOW, agent))
+                .anySatisfy(v -> assertThat(v).contains("the agent reads the sensitive variable(s) cardNumber"));
+        ((com.fasterxml.jackson.databind.node.ObjectNode) agent.get("steps").get(1).get("agent")).put("allowSensitiveVariables", true);
+        assertThat(validator.validate(SpecValidator.Kind.WORKFLOW, agent))
+                .noneSatisfy(v -> assertThat(v).contains("sensitive"));
+    }
+
+    @Test
     void definitionRetentionFollowsTheEnginesRules() throws Exception {
         var mapper = new com.fasterxml.jackson.dataformat.yaml.YAMLMapper();
         for (var retention : new String[]{"P30D", "forever", "{completed: P30D, error: P180D, compensationFailed: forever}"}) {

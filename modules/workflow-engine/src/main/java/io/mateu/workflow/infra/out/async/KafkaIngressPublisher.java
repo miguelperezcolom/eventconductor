@@ -18,10 +18,12 @@ public class KafkaIngressPublisher implements IngressPublisher {
 
     private final StreamBridge streamBridge;
     private final io.mateu.workflow.application.out.WorkflowTracing workflowTracing;
+    /** Seals the sensitive variables an event carries before it reaches the broker. */
+    private final io.mateu.workflow.application.services.VariableProtection protection;
 
     @Override
     public void publishToShard(DomainEvent event, String shardId) {
         var binding = (shardId == null || shardId.isBlank()) ? "upstream" : "upstream-" + shardId;
-        PartitionedEvents.send(streamBridge, binding, event, workflowTracing.currentTraceContext());
+        PartitionedEvents.send(streamBridge, binding, VariableProtectionSupport.seal(protection, event), workflowTracing.currentTraceContext());
     }
 }

@@ -42,7 +42,7 @@ public class InvocationEntity {
     @Column(name = "idempotency_key", nullable = false, length = 255)
     private String idempotencyKey;
 
-    @Column(name = "request_hash", length = 64)
+    @Column(name = "request_hash", length = 255)
     private String requestHash;
 
     @Column(name = "process_id", nullable = false)

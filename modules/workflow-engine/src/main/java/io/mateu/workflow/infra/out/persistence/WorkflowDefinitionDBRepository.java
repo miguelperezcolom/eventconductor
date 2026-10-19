@@ -85,7 +85,13 @@ public class WorkflowDefinitionDBRepository implements WorkflowDefinitionReposit
                 .withTriggers(triggersFromJson(entity.getTriggersJson()))
                 .withTags(tagsFromJson(entity.getTagsJson()))
                 .withRetention(retentionFromJson(entity.getRetentionJson()))
-                .withSearchAttributes(searchAttributesFromJson(entity.getSearchAttributesJson()));
+                .withSearchAttributes(searchAttributesFromJson(entity.getSearchAttributesJson()))
+                .withSensitiveVariables(sensitiveVariablesFromJson(entity.getSensitiveVariablesJson()));
+    }
+
+    /** The stored sensitive variables, or null when the definition declares none (read leniently, like the tags). */
+    private static List<String> sensitiveVariablesFromJson(String json) {
+        return tagsFromJson(json);
     }
 
     /** The stored process-level lock, or null when the definition declares none (read leniently). */
@@ -250,7 +256,8 @@ public class WorkflowDefinitionDBRepository implements WorkflowDefinitionReposit
                 workflowDefinition.triggers() == null ? null : toJson(workflowDefinition.triggers()),
                 workflowDefinition.tags() == null ? null : toJson(workflowDefinition.tags()),
                 retentionToJson(workflowDefinition.retention()),
-                searchAttributesToJson(workflowDefinition.searchAttributes())
+                searchAttributesToJson(workflowDefinition.searchAttributes()),
+                workflowDefinition.sensitiveVariables() == null ? null : toJson(workflowDefinition.sensitiveVariables())
         ));
         triggerCleanup().definitionSaved(workflowDefinition);
         return workflowDefinition.id();

@@ -338,6 +338,20 @@ A definition can serialize processes by a key — [`LOCK`/`UNLOCK`](/reference/s
 
 Only relevant to definitions that declare locks; one that uses none pays nothing. See [Step types — LOCK / UNLOCK](/reference/step-types/#lock).
 
+### Sensitive variables (`workflow.encryption.*`)
+
+Keys for the variables a definition declares in `sensitiveVariables`; see [Sensitive data and encryption](/guides/sensitive-data-and-encryption/). Read by the engine, the forms engine and any worker that must open sealed values — give them all the same keys.
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `workflow.encryption.keys.<id>` | base64 string | — (off) | An AES-256 key: the base64 of 32 bytes (`openssl rand -base64 32`). Several for rotation — every configured key opens what it sealed. Without any, a definition declaring `sensitiveVariables` is refused, and an engine whose store holds one does not start |
+| `workflow.encryption.active-key` | string | the only key | The key new values are sealed with; required when several are configured |
+| `workflow.security.sensitive.reveal-roles` | list | — (nobody) | Roles that may reveal a sensitive variable's value (REST, MCP, console); every reveal is audited in the process log |
+| `eventconductor.worker.encryption.enabled` | boolean | `true` | In a worker with keys: open sealed inputs before binding, re-seal the outputs named like them |
+| `eventconductor.worker.encryption.sensitive-variables` | list | — | In a worker: output names (or globs) to seal even when no input of that name came sealed |
+
+A `VariableCodec` bean replaces AES-GCM (a KMS or Vault transit call per value); an `EncryptionKeySource` bean supplies the keys from elsewhere (Vault, unwrapped KMS data keys).
+
 ### Process retention
 
 `workflow.processes.*`: how long finished processes are kept when their definition does not say, and

@@ -19,11 +19,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -60,6 +57,17 @@ public class SyncInvocationService {
     final io.mateu.workflow.application.out.LogMessageRepository logMessageRepository;
     final io.mateu.workflow.application.out.LockService lockService;
     final org.springframework.beans.factory.ObjectProvider<io.mateu.workflow.application.out.InlineExecution> inlineExecution;
+
+    /**
+     * Keys the request fingerprint: with encryption configured it is an HMAC under a key derived from the
+     * active key, never a plain digest a card number could be guessed back from (see {@code Fingerprints}).
+     */
+    private io.mateu.workflow.crypto.VariableEncryption encryption = io.mateu.workflow.crypto.VariableEncryption.DISABLED;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void encryption(io.mateu.workflow.crypto.VariableEncryption encryption) {
+        this.encryption = encryption == null ? io.mateu.workflow.crypto.VariableEncryption.DISABLED : encryption;
+    }
     final org.springframework.beans.factory.ObjectProvider<io.mateu.workflow.application.out.ProcessPlacementRepository> placement;
     final org.springframework.beans.factory.ObjectProvider<io.mateu.workflow.application.services.ProcessTrace> processTrace;
 
@@ -111,11 +119,11 @@ public class SyncInvocationService {
                     "Workflow '" + definition.id() + "' is " + definition.status() + " and accepts no new instances.");
         }
         var wait = waitFor(definition, request.requestedWait());
-        var hash = hashOf(request);
+        var hash = encryption.fingerprint(canonicalOf(request));
 
         var existing = invocationRepository.findByKey(definition.id(), request.idempotencyKey());
         if (existing.isPresent()) {
-            return retried(existing.get(), hash, wait);
+            return retried(existing.get(), request, wait);
         }
 
         placeOnThisShardOrRefuse(definition.id(), request);
@@ -151,7 +159,7 @@ public class SyncInvocationService {
             // invocation is the one; this request joins it.
             var winner = invocationRepository.findByKey(definition.id(), request.idempotencyKey())
                     .orElseThrow(() -> e);
-            return retried(winner, hash, wait);
+            return retried(winner, request, wait);
         } catch (RuntimeException e) {
             if (slot != null) slot.abandon();
             throw e;
@@ -229,8 +237,10 @@ public class SyncInvocationService {
         return waitFor(null, requested == null ? Duration.ZERO : requested);
     }
 
-    private Started retried(Invocation existing, String hash, Duration wait) {
-        if (!existing.requestHash().equals(hash)) {
+    private Started retried(Invocation existing, StartRequest request, Duration wait) {
+        // Verified under the key the stored fingerprint names: a key rotation inside the invocation's
+        // retention does not turn a genuine retry into a "key reused" refusal.
+        if (!encryption.fingerprintMatches(existing.requestHash(), canonicalOf(request))) {
             throw reject(existing.workflowDefinitionId(), SyncInvocationRejectedException.Reason.IDEMPOTENCY_KEY_REUSED,
                     "Idempotency key '" + existing.idempotencyKey() + "' was already used for a different request.");
         }
@@ -348,15 +358,15 @@ public class SyncInvocationService {
      * differently and is still the same request).
      */
     static String hashOf(StartRequest request) {
+        return io.mateu.workflow.crypto.Fingerprints.of(canonicalOf(request), null);
+    }
+
+    /** The request in the canonical form its fingerprint is computed over. */
+    static String canonicalOf(StartRequest request) {
         var canonical = new StringBuilder();
         canonical.append("bk=").append(request.businessKey() == null ? "" : request.businessKey()).append('\n');
         new TreeMap<>(request.variables() == null ? Map.<String, String>of() : request.variables())
                 .forEach((name, value) -> canonical.append(name).append('=').append(value).append('\n'));
-        try {
-            var digest = MessageDigest.getInstance("SHA-256").digest(canonical.toString().getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(digest);
-        } catch (java.security.NoSuchAlgorithmException e) {
-            throw new IllegalStateException(e);
-        }
+        return canonical.toString();
     }
 }

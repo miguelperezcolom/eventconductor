@@ -108,8 +108,13 @@ public class CheckMigrationMojo extends AbstractMojo {
                 continue;
             }
             checked++;
-            for (var problem : MigrationRules.checkDefinitions(steps(entry.getValue()), steps(next),
-                    mappings.getOrDefault(id, Map.of()))) {
+            var problems = new ArrayList<>(MigrationRules.checkDefinitions(steps(entry.getValue()), steps(next),
+                    mappings.getOrDefault(id, Map.of())));
+            // Sensitive variables added or removed: the migration re-encodes the stored values (a warning).
+            problems.addAll(MigrationRules.sensitivityProblems(
+                    io.mateu.workflow.analysis.SensitiveVariableRules.patternsOf(entry.getValue()),
+                    io.mateu.workflow.analysis.SensitiveVariableRules.patternsOf(next), null));
+            for (var problem : problems) {
                 (problem.severity() == MigrationRules.Severity.ERROR ? errors : warnings).add(id + ": " + problem);
             }
         }

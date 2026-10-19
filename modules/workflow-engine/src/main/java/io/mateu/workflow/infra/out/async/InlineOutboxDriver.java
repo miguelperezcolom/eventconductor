@@ -69,6 +69,15 @@ public class InlineOutboxDriver implements InlineExecution {
     final OutboxSignal outboxSignal;
     final WorkflowMetrics workflowMetrics;
 
+    /** Opens the sealed variables of a row before it is delivered. */
+    io.mateu.workflow.application.services.VariableProtection protection =
+            io.mateu.workflow.application.services.VariableProtection.none();
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void protection(io.mateu.workflow.application.services.VariableProtection protection) {
+        this.protection = protection;
+    }
+
     @org.springframework.beans.factory.annotation.Value("${workflow.sync.inline.enabled:true}")
     boolean enabled = true;
 
@@ -184,7 +193,7 @@ public class InlineOutboxDriver implements InlineExecution {
                 }
                 DomainEvent event;
                 try {
-                    event = (DomainEvent) pojoFromJson(row.payload(), OutboxMessages.messageClass(row.messageType()));
+                    event = (DomainEvent) pojoFromJson(protection.openPayload(row.payload()), OutboxMessages.messageClass(row.messageType()));
                 } catch (Exception e) {
                     log.error("Outbox message {} cannot be deserialized, marking as Error", row.id(), e);
                     mark(row.id(), OutboxMessageStatus.Error);

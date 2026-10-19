@@ -53,6 +53,14 @@ public class MigrationPlanner {
         this.defaultStepTimeoutMillis = defaultStepTimeoutMillis;
     }
 
+    /** Whether stored values can be encrypted: a target that declares sensitive variables needs it. */
+    private io.mateu.workflow.crypto.VariableEncryption encryption = io.mateu.workflow.crypto.VariableEncryption.DISABLED;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void encryption(io.mateu.workflow.crypto.VariableEncryption encryption) {
+        this.encryption = encryption == null ? io.mateu.workflow.crypto.VariableEncryption.DISABLED : encryption;
+    }
+
     /** A plan, with the two versions it was made between. */
     public record Planned(WorkflowDefinition source, WorkflowDefinition target, MigrationRules.Plan plan) {
 
@@ -115,7 +123,34 @@ public class MigrationPlanner {
                 source == null || source.processLock() == null ? null : generic(toJson(source.processLock())),
                 targetSteps, target.processLock() == null ? null : generic(toJson(target.processLock())),
                 stepMapping, variableMapping, states, facts));
-        return new Planned(source, target, plan);
+        return new Planned(source, target, withSensitivity(plan, source, target, process, variableMapping));
+    }
+
+    /**
+     * The sensitivity changes between the two versions, for this process's variables (warnings: the
+     * migration re-encodes the stored values as the target declares), and a refusal when the target declares
+     * sensitive variables and this engine has no key to encrypt them with. Names only, never values.
+     */
+    private MigrationRules.Plan withSensitivity(MigrationRules.Plan plan, WorkflowDefinition source,
+                                                WorkflowDefinition target, Process process,
+                                                Map<String, String> variableMapping) {
+        var sourcePatterns = source == null ? List.<String>of() : source.sensitiveVariablePatterns();
+        var targetPatterns = target.sensitiveVariablePatterns();
+        if (sourcePatterns.isEmpty() && targetPatterns.isEmpty()) {
+            return plan;
+        }
+        var names = new java.util.LinkedHashSet<String>();
+        process.getVariables().forEach(variable -> names.add(variable.name()));
+        if (variableMapping != null) {
+            names.addAll(variableMapping.keySet());
+        }
+        var problems = new ArrayList<>(plan.problems());
+        problems.addAll(MigrationRules.sensitivityProblems(sourcePatterns, targetPatterns, names));
+        if (!targetPatterns.isEmpty() && !encryption.enabled()) {
+            problems.add(new MigrationRules.Problem(MigrationRules.Severity.ERROR, null, "the target declares sensitive"
+                    + " variables " + targetPatterns + " but no encryption key is configured (workflow.encryption.keys.<id>)"));
+        }
+        return new MigrationRules.Plan(plan.mapping(), plan.steps(), List.copyOf(problems));
     }
 
     /**

@@ -21,8 +21,19 @@ public class InMemoryLogMessageRepository implements LogMessageRepository {
         return Optional.ofNullable(store.get(id));
     }
 
+    /** Masks the process's sensitive values in a line before it is stored. */
+    io.mateu.workflow.application.services.SensitiveLogRedaction redaction;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void redaction(@org.springframework.context.annotation.Lazy io.mateu.workflow.application.services.SensitiveLogRedaction redaction) {
+        this.redaction = redaction;
+    }
+
     @Override
     public String save(LogMessage message) {
+        if (redaction != null) {
+            message = redaction.redact(message);
+        }
         store.put(message.id(), message);
         return message.id();
     }

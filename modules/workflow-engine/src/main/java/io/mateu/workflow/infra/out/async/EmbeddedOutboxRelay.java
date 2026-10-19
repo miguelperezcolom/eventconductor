@@ -49,6 +49,15 @@ public class EmbeddedOutboxRelay {
     @org.springframework.beans.factory.annotation.Value("${workflow.outbox-poll-interval-ms:500}")
     long pollIntervalMs;
 
+    /** Opens the sealed variables of a row before it is delivered. */
+    io.mateu.workflow.application.services.VariableProtection protection =
+            io.mateu.workflow.application.services.VariableProtection.none();
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void protection(io.mateu.workflow.application.services.VariableProtection protection) {
+        this.protection = protection;
+    }
+
     @org.springframework.beans.factory.annotation.Value("${workflow.outbox.batch-size:100}")
     int batchSize;
 
@@ -67,7 +76,7 @@ public class EmbeddedOutboxRelay {
                                     log.debug("Processing embedded outbox message {}", m.getId());
                                     DomainEvent event;
                                     try {
-                                        event = (DomainEvent) pojoFromJson(m.getPayload(), OutboxMessages.messageClass(m.getMessageType()));
+                                        event = (DomainEvent) pojoFromJson(protection.openPayload(m.getPayload()), OutboxMessages.messageClass(m.getMessageType()));
                                     } catch (Exception e) {
                                         // Poison message: retrying can never succeed, park it as Error.
                                         log.error("Outbox message {} cannot be deserialized, marking as Error", m.getId(), e);

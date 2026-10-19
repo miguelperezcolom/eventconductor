@@ -41,7 +41,16 @@ public class ClasspathWorkflowDefinitionRepository implements WorkflowDefinition
 
     public ClasspathWorkflowDefinitionRepository(
             io.mateu.workflow.application.services.TaskReferenceResolver taskReferenceResolver) {
+        this(taskReferenceResolver, io.mateu.workflow.crypto.VariableEncryption.DISABLED);
+    }
+
+    /** With the engine's encryption, which a definition declaring sensitive variables needs as it loads. */
+    @org.springframework.beans.factory.annotation.Autowired
+    public ClasspathWorkflowDefinitionRepository(
+            io.mateu.workflow.application.services.TaskReferenceResolver taskReferenceResolver,
+            io.mateu.workflow.crypto.VariableEncryption encryption) {
         this.taskReferenceResolver = taskReferenceResolver;
+        this.encryption = encryption == null ? io.mateu.workflow.crypto.VariableEncryption.DISABLED : encryption;
         loadFromClasspath();
     }
 
@@ -59,6 +68,9 @@ public class ClasspathWorkflowDefinitionRepository implements WorkflowDefinition
         this.eventTriggers = eventTriggers;
         this.triggerPauses = triggerPauses;
     }
+
+    /** What a definition declaring sensitive variables needs: refused (logged, skipped) without a key. */
+    private final io.mateu.workflow.crypto.VariableEncryption encryption;
 
     /** See {@link io.mateu.workflow.application.services.DefinitionTriggerCleanup}. */
     private io.mateu.workflow.application.services.DefinitionTriggerCleanup triggerCleanup() {
@@ -106,10 +118,12 @@ public class ClasspathWorkflowDefinitionRepository implements WorkflowDefinition
                                 .withTags(def.tags())
                                 .withRetention(def.retention())
                                 .withSearchAttributes(def.searchAttributes())
+                                .withSensitiveVariables(def.sensitiveVariables())
                                 // The narrower constructor above declares ACTIVE: keep what the file says.
                                 .withDeclaredStatus(def.declaredStatus());
                     }
                     def = taskReferenceResolver.resolve(def);
+                    io.mateu.workflow.application.services.WorkflowDefinitionValidator.requireKeysFor(def, encryption);
                     definitions.put(def.id(), def);
                     log.info("Loaded workflow definition '{}' from classpath:{}", def.id(), resource.getFilename());
                 } catch (Exception e) {
@@ -128,6 +142,7 @@ public class ClasspathWorkflowDefinitionRepository implements WorkflowDefinition
 
     @Override
     public String save(WorkflowDefinition def) {
+        io.mateu.workflow.application.services.WorkflowDefinitionValidator.requireKeysFor(def, encryption);
         definitions.put(def.id(), def);
         triggerCleanup().definitionSaved(def);
         return def.id();

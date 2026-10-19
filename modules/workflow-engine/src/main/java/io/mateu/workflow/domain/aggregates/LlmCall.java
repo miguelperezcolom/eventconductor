@@ -18,6 +18,9 @@ import java.util.Map;
  * @param output         process variable → JEXL over {@code {text, json, usage, model, finishReason}}
  * @param outputVariable the variable that receives the text (with a responseSchema, the JSON document)
  * @param usageVariable  the variable that receives {@code {model, inputTokens, outputTokens, totalTokens}}
+ * @param allowSensitiveVariables true to let the prompts read the definition's sensitive variables —
+ *                       without it a prompt that names one is refused at load, and the prompt context
+ *                       leaves them out (the values would leave the trust boundary for the model provider)
  */
 public record LlmCall(
         String connection,
@@ -29,6 +32,21 @@ public record LlmCall(
         Map<String, Object> responseSchema,
         Map<String, String> output,
         String outputVariable,
-        String usageVariable
+        String usageVariable,
+        @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+        Boolean allowSensitiveVariables
 ) {
+
+    /** The shape before {@code allowSensitiveVariables}: the step does not opt in. */
+    public LlmCall(String connection, String model, String system, String prompt, Double temperature,
+                   Integer maxTokens, Map<String, Object> responseSchema, Map<String, String> output,
+                   String outputVariable, String usageVariable) {
+        this(connection, model, system, prompt, temperature, maxTokens, responseSchema, output, outputVariable,
+                usageVariable, null);
+    }
+
+    /** Whether the prompts may read sensitive variables. */
+    public boolean allowsSensitiveVariables() {
+        return Boolean.TRUE.equals(allowSensitiveVariables);
+    }
 }

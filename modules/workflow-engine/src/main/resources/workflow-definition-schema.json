@@ -103,6 +103,21 @@
         }
       ]
     },
+    "sensitiveVariables": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "maxItems": 100,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128,
+        "pattern": "^[A-Za-z_$*?][A-Za-z0-9_$.*?\\-]*$"
+      },
+      "description": "Variables whose values are sensitive: names or globs (* any run of characters, ? one; \"patient.*\" also covers patient). Stored and transported only encrypted (workflow.encryption.keys.<id> must be configured), masked in the console, REST and MCP, never a search attribute, kept out of LLM prompts unless the step sets llm.allowSensitiveVariables. Part of the version."
+    },
     "searchAttributes": {
       "type": "object",
       "maxProperties": 20,
@@ -809,7 +824,14 @@
           "items": {
             "type": "string"
           },
-          "description": "PROCESS only: names of the child process variables copied back into the parent when the child completes. Empty or absent means none."
+          "description": "PROCESS: names of the child process variables copied back into the parent when the child completes. Empty or absent means none. Any step: the names sensitiveOutputs marks sensitive."
+        },
+        "sensitiveOutputs": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "True: this step's outputVariables are sensitive — added to the definition's sensitiveVariables (encrypted at rest and in transit, masked in the console, REST and MCP). Requires outputVariables."
         },
         "replyVariables": {
           "type": [
@@ -1022,6 +1044,13 @@
                 "null"
               ],
               "description": "The variable that receives the token usage: {model, inputTokens, outputTokens, totalTokens}."
+            },
+            "allowSensitiveVariables": {
+              "type": [
+                "boolean",
+                "null"
+              ],
+              "description": "True to let system and prompt read the definition's sensitive variables (their values then leave the engine for the model provider). Without it, a prompt naming one is refused at load and the prompt context leaves them out."
             }
           },
           "required": [
@@ -1239,6 +1268,13 @@
                 null
               ],
               "description": "fail (default): a tool that fails for good fails the step. report: the error is the model's tool result."
+            },
+            "allowSensitiveVariables": {
+              "type": [
+                "boolean",
+                "null"
+              ],
+              "description": "True to let system, goal and the tools' templates read the definition's sensitive variables (their values then reach the model provider). Without it, an agent reading one is refused at load."
             }
           },
           "required": [

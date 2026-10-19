@@ -70,9 +70,13 @@ public class WorkerKafkaAutoConfiguration {
     @ConditionalOnMissingBean(TaskDispatcher.class)
     public TaskDispatcher taskDispatcher(TaskRegistry registry, TaskReplySink sink,
                                          Cancellations cancellations, WorkerProperties properties,
-                                         ObjectProvider<TaskTracing> tracing) {
+                                         ObjectProvider<TaskTracing> tracing,
+                                         ObjectProvider<io.mateu.workflow.crypto.VariableEncryption> keys) {
+        // A Kafka worker receives the engine's sensitive variables sealed: with the same keys it opens them
+        // (and seals its answer); without, its handlers see the ec:enc:v1:… strings.
         return new TaskDispatcher(registry, sink, cancellations, properties.isStrict(),
-                tracing.getIfAvailable(() -> TaskTracing.NOOP));
+                tracing.getIfAvailable(() -> TaskTracing.NOOP),
+                properties.workerEncryption(keys.getIfAvailable()));
     }
 
     /**

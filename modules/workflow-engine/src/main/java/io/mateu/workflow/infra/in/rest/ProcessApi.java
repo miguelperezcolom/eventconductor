@@ -40,7 +40,7 @@ public final class ProcessApi {
             Map<String, Object> variables) {
     }
 
-    @Schema(name = "Process", description = "A process, with its variables.")
+    @Schema(name = "Process", description = "A process, with its variables (a sensitive variable's value reads as ••••).")
     public record ProcessView(
             String id,
             @Schema(description = "Id of the workflow definition it runs.") String definitionId,
@@ -272,12 +272,21 @@ public final class ProcessApi {
         return value == null ? null : value.name();
     }
 
-    /** By name, in the order the engine holds them; a repeated name keeps its last value. */
+    /**
+     * By name, in the order the engine holds them; a repeated name keeps its last value. A sensitive
+     * variable's value reads as the mask — see {@code POST /processes/{id}/variables/{name}/reveal}.
+     */
     static Map<String, String> variablesOf(Process process) {
-        var variables = new LinkedHashMap<String, String>();
-        if (process.getVariables() != null) {
-            process.getVariables().forEach(variable -> variables.put(variable.name(), variable.value()));
-        }
-        return variables;
+        return io.mateu.workflow.application.services.SensitiveVariableMasking.asMap(process);
+    }
+
+    @Schema(name = "RevealRequest", description = "Why a sensitive variable's value is needed — recorded in the process's audit trail.")
+    public record RevealRequest(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, example = "Chargeback investigation CB-1182")
+            String reason) {
+    }
+
+    @Schema(name = "RevealedVariable", description = "A sensitive variable's value, in clear.")
+    public record RevealedVariable(String processId, String name, String value) {
     }
 }

@@ -32,8 +32,16 @@ public class HttpWorkerRouter {
 
     /** @return true when the event was taken here and the mode's publisher must not send it */
     public boolean route(DomainEvent event, String topic) {
+        return route(event, topic, java.util.function.UnaryOperator.identity());
+    }
+
+    /**
+     * {@link #route(DomainEvent, String)}, sealing a task's sensitive variables before it is queued: an
+     * HTTP worker is outside the engine, and the queue is a table.
+     */
+    public boolean route(DomainEvent event, String topic, java.util.function.UnaryOperator<TaskExecutionRequested> seal) {
         if (event instanceof TaskExecutionRequested task && routing.routesTask(topic, task.taskId())) {
-            inbox.dispatched(task, topic);
+            inbox.dispatched(seal.apply(task), topic);
             return true;
         }
         if (event instanceof TaskCancellationRequested cancellation) {
@@ -44,10 +52,15 @@ public class HttpWorkerRouter {
 
     /** The publishers' one line: whether a router exists and took the event. */
     static boolean taken(ObjectProvider<HttpWorkerRouter> router, DomainEvent event, String topic) {
+        return taken(router, event, topic, java.util.function.UnaryOperator.identity());
+    }
+
+    static boolean taken(ObjectProvider<HttpWorkerRouter> router, DomainEvent event, String topic,
+                         java.util.function.UnaryOperator<TaskExecutionRequested> seal) {
         if (router == null) {
             return false;
         }
         var found = router.getIfAvailable();
-        return found != null && found.route(event, topic);
+        return found != null && found.route(event, topic, seal);
     }
 }

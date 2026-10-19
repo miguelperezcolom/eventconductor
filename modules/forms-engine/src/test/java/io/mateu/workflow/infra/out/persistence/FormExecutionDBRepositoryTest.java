@@ -59,6 +59,26 @@ class FormExecutionDBRepositoryTest {
     }
 
     @Test
+    void with_an_encryption_key_every_variable_is_stored_sealed_and_read_back_in_clear() {
+        var key = new byte[32];
+        new java.security.SecureRandom().nextBytes(key);
+        var keys = new io.mateu.workflow.crypto.VariableEncryption(
+                new io.mateu.workflow.crypto.AesGcmVariableCodec("forms", java.util.Map.of("forms", key)));
+        repository.encryption(keys);
+        var alreadySealed = keys.seal("123-45-6789");
+        repository.save(execution("fe-9", FormExecutionStatus.PENDING,
+                List.of(new Variable("cardNumber", "4111111111111111"), new Variable("ssn", alreadySealed)), List.of()));
+
+        var row = entities.findById("fe-9").orElseThrow().getVariables();
+        assertThat(row).doesNotContain("4111111111111111").contains("ec:enc:v1:forms:").contains(alreadySealed);
+        assertThat(repository.findById("fe-9").orElseThrow().variables()).containsExactly(
+                new Variable("cardNumber", "4111111111111111"), new Variable("ssn", "123-45-6789"));
+        // Without the key, the sealed values are handed on as they are rather than failing the inbox.
+        repository.encryption(null);
+        assertThat(repository.findById("fe-9").orElseThrow().variables().getFirst().value()).startsWith("ec:enc:v1:");
+    }
+
+    @Test
     void an_execution_with_nothing_filled_in_yet_round_trips_as_empty_rather_than_null() {
         repository.save(execution("fe-2", FormExecutionStatus.PENDING, List.of(), List.of()));
 

@@ -26,6 +26,9 @@ import java.util.Map;
  * @param toolConcurrency how many tool calls of one turn run at once; default 1
  * @param onToolError     {@code fail} (default): a tool that fails for good fails the step;
  *                        {@code report}: the error becomes the model's tool result
+ * @param allowSensitiveVariables true to let {@code system}, {@code goal} and the tools' templates read the
+ *                        definition's sensitive variables — without it such an agent is refused at load (the
+ *                        values would reach the model provider), as an LLM_CALL is
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record AgentCall(
@@ -40,8 +43,14 @@ public record AgentCall(
         Integer maxTokens,
         String maxDuration,
         Integer toolConcurrency,
-        String onToolError
+        String onToolError,
+        Boolean allowSensitiveVariables
 ) {
+
+    /** Whether the agent may read sensitive variables. */
+    public boolean allowsSensitiveVariables() {
+        return Boolean.TRUE.equals(allowSensitiveVariables);
+    }
 
     public static final String FAIL = "fail";
     public static final String REPORT = "report";

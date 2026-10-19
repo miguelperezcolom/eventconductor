@@ -1182,6 +1182,56 @@ paths:
       summary: Change a live process's variables
       tags:
       - Processes
+  /workflow/api/processes/{id}/variables/{name}/reveal:
+    post:
+      description: "The value of one of the process's sensitive variables, in clear.\
+        \ Needs one of workflow.security.sensitive.reveal-roles and a reason; every\
+        \ reveal (and every refusal) is recorded in the process's audit trail."
+      operationId: revealProcessVariable
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: name
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RevealRequest"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RevealedVariable"
+          description: The value.
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "No reason, or the variable is not sensitive."
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "The caller holds no reveal role, or may not read the process."
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No such process or variable.
+      summary: Reveal a sensitive variable
+      tags:
+      - Processes
   /workflow/api/schedules:
     get:
       operationId: list
@@ -2367,7 +2417,8 @@ components:
           format: uri
     Process:
       type: object
-      description: "A process, with its variables."
+      description: "A process, with its variables (a sensitive variable's value reads\
+        \ as ••••)."
       properties:
         businessKey:
           type: string
@@ -2477,6 +2528,26 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/EventReceipt"
+    RevealRequest:
+      type: object
+      description: Why a sensitive variable's value is needed — recorded in the process's
+        audit trail.
+      properties:
+        reason:
+          type: string
+          example: Chargeback investigation CB-1182
+      required:
+      - reason
+    RevealedVariable:
+      type: object
+      description: "A sensitive variable's value, in clear."
+      properties:
+        name:
+          type: string
+        processId:
+          type: string
+        value:
+          type: string
     RunNowResult:
       type: object
       properties:

@@ -23,7 +23,6 @@ import org.springframework.stereotype.Service;
  */
 @Service
 @ConditionalOnProperty(name = "workflow.mode", havingValue = "kafka")
-@RequiredArgsConstructor
 @Slf4j
 public class KafkaDeadLetterPublisher implements DeadLetterPublisher {
 
@@ -31,10 +30,25 @@ public class KafkaDeadLetterPublisher implements DeadLetterPublisher {
 
     final StreamBridge streamBridge;
     final WorkflowMetrics workflowMetrics;
+    /** A parked event keeps its sensitive values sealed, and the log line never prints them. */
+    final io.mateu.workflow.application.services.VariableProtection protection;
+
+    public KafkaDeadLetterPublisher(StreamBridge streamBridge, WorkflowMetrics workflowMetrics) {
+        this(streamBridge, workflowMetrics, io.mateu.workflow.application.services.VariableProtection.none());
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public KafkaDeadLetterPublisher(StreamBridge streamBridge, WorkflowMetrics workflowMetrics,
+                                    io.mateu.workflow.application.services.VariableProtection protection) {
+        this.streamBridge = streamBridge;
+        this.workflowMetrics = workflowMetrics;
+        this.protection = protection;
+    }
 
     @Override
     public void park(DomainEvent event, Throwable cause, String source) {
-        log.error("Parking unprocessable event from {} on the dead-letter topic: {}", source, event, cause);
+        log.error("Parking unprocessable event from {} on the dead-letter topic: {}", source, protection.describe(event), cause);
+        event = protection.sealEvent(event);
         workflowMetrics.eventDeadLettered(source);
         var message = MessageBuilder.withPayload(event)
                 .setHeader("x-dead-letter-source", source)

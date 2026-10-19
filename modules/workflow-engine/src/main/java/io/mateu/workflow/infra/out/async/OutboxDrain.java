@@ -92,6 +92,15 @@ public class OutboxDrain {
     @org.springframework.beans.factory.annotation.Value("${workflow.outbox.relay-concurrency:0}")
     int relayConcurrency;
 
+    /** Opens the sealed variables of a row (sealed by the repository that wrote it) before it is delivered. */
+    io.mateu.workflow.application.services.VariableProtection protection =
+            io.mateu.workflow.application.services.VariableProtection.none();
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void protection(io.mateu.workflow.application.services.VariableProtection protection) {
+        this.protection = protection;
+    }
+
     private volatile ExecutorService sendPool;
 
     /**
@@ -226,7 +235,7 @@ public class OutboxDrain {
             }
             final DomainEvent payload;
             try {
-                payload = (DomainEvent) pojoFromJson(message.getPayload(),
+                payload = (DomainEvent) pojoFromJson(protection.openPayload(message.getPayload()),
                         OutboxMessages.messageClass(message.getMessageType()));
             } catch (Exception e) {
                 log.error("Outbox message {} cannot be deserialized, marking as Error",

@@ -29,7 +29,10 @@ public class FormsEngineKafkaConsumerConfig {
     @Bean
     public Consumer<DomainEvent> consumeWorkerEventForFormsEngine() {
         return event -> {
-            log.info("Received event: " + event);
+            // Type and task only: the event may carry variable values (sensitive ones arrive sealed, but a
+            // log line is no place for either).
+            log.info("Received event: {}", event == null ? null : event.getClass().getSimpleName()
+                    + (event instanceof TaskExecutionRequested task ? " " + task.taskExecutionId() : ""));
             if (event instanceof TaskExecutionRequested(
                     String taskExecutionId, String processId, String workflowDefinitionId, String stepId, String taskId,
                     java.util.List<io.mateu.workflow.dtos.Variable> variables, Integer attempt

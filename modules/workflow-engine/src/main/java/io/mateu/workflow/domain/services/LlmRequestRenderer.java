@@ -37,6 +37,17 @@ public final class LlmRequestRenderer {
         if (llm == null) {
             throw new IllegalArgumentException("LLM_CALL step '" + step.id() + "' has no llm block.");
         }
+        // A prompt leaves the engine for the model provider: sensitive variables stay out of its context
+        // unless the step opts in (llm.allowSensitiveVariables). A prompt naming one is refused at load; this
+        // also keeps them out of a prompt that reaches them indirectly.
+        if (!llm.allowsSensitiveVariables()) {
+            var sensitive = io.mateu.workflow.application.services.SensitiveVariableMasking.namesOf(process);
+            if (!sensitive.isEmpty() && process.getVariables() != null) {
+                process = process.withVariables(process.getVariables().stream()
+                        .filter(variable -> variable == null || !sensitive.test(variable.name()))
+                        .toList());
+            }
+        }
         var context = TemplateContext.of(process, step, stepExecutionId, scope);
         var request = new LinkedHashMap<String, Object>();
         request.put("connection", llm.connection());

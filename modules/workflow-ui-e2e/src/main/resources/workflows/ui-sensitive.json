@@ -1,0 +1,11 @@
+{
+  "id": "ui-sensitive",
+  "name": "UI Sensitive",
+  "version": 1,
+  "sensitiveVariables": ["cardNumber"],
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "wait", "type": "TIMER", "name": "Wait a long while", "duration": 600000, "preconditionStepId": "start" },
+    { "id": "end", "type": "END", "name": "Done", "preconditionStepId": "wait" }
+  ]
+}

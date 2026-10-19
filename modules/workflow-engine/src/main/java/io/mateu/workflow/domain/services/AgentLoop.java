@@ -661,7 +661,7 @@ public final class AgentLoop {
             return;
         }
         pass.process(process);
-        container.completeIterations(transcript(container, step, childrenOf(container, pass.working()), history, "answered"),
+        container.completeIterations(transcript(container, step, childrenOf(container, pass.working()), history, "answered", pass.process()),
                 "Agent " + step.id() + " answered after " + history.size() + (history.size() == 1 ? " turn" : " turns")
                         + " and " + usage.get("toolCalls") + " tool calls (" + (usage.get("inputTokens")) + " in / "
                         + usage.get("outputTokens") + " out tokens).");
@@ -675,7 +675,7 @@ public final class AgentLoop {
         try {
             var step = pojoFromJson(container.getStepJson(), Step.class);
             var turns = children.stream().filter(child -> KIND_TURN.equals(child.scope().get(KIND))).toList();
-            container.recordAgentState(transcript(container, step, children, history(turns, children), "failed: " + code));
+            container.recordAgentState(transcript(container, step, children, history(turns, children), "failed: " + code, pass.process()));
         } catch (RuntimeException unreadable) {
             // the failure below matters more than its transcript
         }
@@ -707,7 +707,7 @@ public final class AgentLoop {
 
     private void recordTranscript(StepExecution container, Step step, List<StepExecution> children, List<Turn> history,
                                   Pass pass) {
-        var json = transcript(container, step, children, history, "running");
+        var json = transcript(container, step, children, history, "running", pass.process());
         if (!json.equals(container.getOutputJson())) {
             container.recordAgentState(json);
             pass.save(container);
@@ -731,6 +731,23 @@ public final class AgentLoop {
      */
     public static String transcript(StepExecution container, Step step, List<StepExecution> children, List<Turn> history,
                                     String state) {
+        return transcript(container, step, children, history, state, null);
+    }
+
+    /**
+     * {@link #transcript(StepExecution, Step, List, List, String)}, with the process's sensitive variables kept
+     * out of it: a value under a key named like one, and any occurrence of one of their current values in a
+     * message, an argument or a result, reads as {@code ••••} — the transcript is shown in the console, REST
+     * and MCP, where a sensitive value is never shown.
+     */
+    public static String transcript(StepExecution container, Step step, List<StepExecution> children, List<Turn> history,
+                                    String state, Process process) {
+        return io.mateu.workflow.application.services.SensitiveVariableMasking.redactDocument(
+                transcriptOf(container, step, children, history, state), process);
+    }
+
+    private static String transcriptOf(StepExecution container, Step step, List<StepExecution> children, List<Turn> history,
+                                       String state) {
         var entries = new ArrayList<Map<String, Object>>();
         entries.add(entry(-1, "user", cap(container.scope().getOrDefault("goal", ""), MAX_TRANSCRIPT_ENTRY_CHARS), null));
         for (var turn : history) {

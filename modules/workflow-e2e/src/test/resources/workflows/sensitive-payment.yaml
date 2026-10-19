@@ -1,0 +1,27 @@
+id: sensitive-payment
+name: A card payment whose card number never leaves the engine in clear
+version: 1
+sensitiveVariables: [cardNumber, "patient.*"]
+steps:
+  - id: start
+    type: START
+    name: Start
+  - id: charge
+    type: ACTION
+    name: Charge the card
+    topic: work
+    preconditionStepId: start
+    outputVariables: [authCode]
+    sensitiveOutputs: true
+  # The guard reads the card number: expressions see plaintext inside the engine.
+  - id: visa
+    type: ACTION
+    name: Visa bookkeeping
+    topic: work
+    preconditions:
+      - stepId: charge
+        expression: "cardNumber.startsWith('4')"
+  - id: end
+    type: END
+    name: End
+    preconditionStepId: visa

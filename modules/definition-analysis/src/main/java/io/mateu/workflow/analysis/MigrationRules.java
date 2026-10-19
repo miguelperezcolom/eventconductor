@@ -546,6 +546,53 @@ public final class MigrationRules {
         return problems;
     }
 
+    /**
+     * What a change of sensitive variables between two versions means for a migration — warnings, never a
+     * refusal: the engine re-encodes the values it stores as the target declares (a variable that becomes
+     * sensitive is encrypted, one that stops being so is stored in clear from then on).
+     *
+     * @param variables the variables concerned — a process's (and the migration's mapping), or null to
+     *                  compare the declarations themselves (the definitions-only check)
+     */
+    public static List<Problem> sensitivityProblems(Collection<String> sourcePatterns, Collection<String> targetPatterns,
+                                                    Collection<String> variables) {
+        var problems = new ArrayList<Problem>();
+        var source = SensitiveVariableRules.matcher(sourcePatterns == null ? List.of() : List.copyOf(sourcePatterns));
+        var target = SensitiveVariableRules.matcher(targetPatterns == null ? List.of() : List.copyOf(targetPatterns));
+        if (variables == null) {
+            var before = new java.util.LinkedHashSet<>(sourcePatterns == null ? List.<String>of() : sourcePatterns);
+            var after = new java.util.LinkedHashSet<>(targetPatterns == null ? List.<String>of() : targetPatterns);
+            var added = after.stream().filter(p -> !before.contains(p)).toList();
+            var removed = before.stream().filter(p -> !after.contains(p)).toList();
+            if (!added.isEmpty()) {
+                problems.add(warning(null, "sensitive variables " + added + " are added: a migrated process has their"
+                        + " stored values encrypted (the engine needs workflow.encryption.keys)"));
+            }
+            if (!removed.isEmpty()) {
+                problems.add(warning(null, "sensitive variables " + removed + " are removed: a migrated process stores"
+                        + " their values in clear from then on"));
+            }
+            return problems;
+        }
+        var becoming = new java.util.TreeSet<String>();
+        var ceasing = new java.util.TreeSet<String>();
+        for (var name : variables) {
+            if (name == null) continue;
+            boolean was = source.test(name), is = target.test(name);
+            if (is && !was) becoming.add(name);
+            if (was && !is) ceasing.add(name);
+        }
+        if (!becoming.isEmpty()) {
+            problems.add(warning(null, "variables " + becoming + " become sensitive: their stored values are"
+                    + " encrypted by the migration"));
+        }
+        if (!ceasing.isEmpty()) {
+            problems.add(warning(null, "variables " + ceasing + " stop being sensitive: their values are stored in"
+                    + " clear from the migration on"));
+        }
+        return problems;
+    }
+
     /** The default mapping between two versions: same id, compatible type. */
     public static Map<String, String> defaultMapping(List<? extends Map<?, ?>> sourceSteps,
                                                      List<? extends Map<?, ?>> targetSteps) {

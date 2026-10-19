@@ -1,1 +1,2 @@
 io.mateu.workflow.security.console.ConsoleAccessAutoConfiguration
+io.mateu.workflow.crypto.VariableEncryptionAutoConfiguration

@@ -400,6 +400,12 @@ public final class DistInfra {
                 + " partitions=" + tune("partitions", "6");
     }
 
+    /** The broker's bootstrap servers, for a test that reads a topic raw. */
+    public static String bootstrapServers() {
+        ensureStarted();
+        return kafka.getBootstrapServers();
+    }
+
     public static JdbcTemplate jdbc() {
         ensureStarted();
         return jdbc;

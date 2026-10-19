@@ -39,6 +39,7 @@ The process tools have REST twins on the same application services — start, re
 | `retryProcess` | Pick a stopped process up where it stopped: the failed (or cancelled) steps run again, the ones that succeeded are left alone. `ERROR` or `CANCELLED` only |
 | `restartProcess` | Run a stopped process again from the beginning, the steps that already succeeded included, with the variables it was created with. `ERROR` or `CANCELLED` only |
 | `setProcessVariables` | Change a live process's variables (`set`, `remove`) — an audited admin operation; `reason` mandatory ([guide](/guides/operating-running-processes/)) |
+| `revealProcessVariable` | The value of one sensitive variable (shown as `••••` by every other tool) — needs a `workflow.security.sensitive.reveal-roles` role and a `reason`; audited ([guide](/guides/sensitive-data-and-encryption/)) |
 | `completeStepManually` | Complete a step execution by hand with output variables, as if its worker had answered; the flow carries on |
 | `retryProcessFromStep` | Run a live process again from one of its steps: it and everything downstream start over |
 | `dryRunProcessMigration` / `migrateProcess` | Plan, then carry out, moving a live process onto another version of its definition — a step mapping, variables, the reason ([guide](/guides/migrating-running-processes/)) |

@@ -175,10 +175,11 @@ public class CompleteStepManuallyUseCase {
         stepExecutionRepository.save(target);
         messageSubscriptionService.rearm(updated);
 
+        final var audited = updated;
         audit.performed(updated, target.id(), OperatorAudit.COMPLETE_STEP, command.requestedBy(), command.reason(),
                 "completed step " + target.getStepId() + " (was " + wasStatus + ")"
                         + (outputs.isEmpty() ? "" : " with "
-                        + String.join(", ", outputs.stream().map(v -> v.name() + " = " + OperatorAudit.quote(v.value())).toList()))
+                        + String.join(", ", outputs.stream().map(v -> v.name() + " = " + OperatorAudit.quote(audited, v.name(), v.value())).toList()))
                         + (target.isIteration() ? " (iteration " + target.getItemIndex() + " of its forEach)" : "")
                         + (reopens ? "; the process is running again" : ""));
 

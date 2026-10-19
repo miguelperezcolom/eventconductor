@@ -25,6 +25,8 @@ public class KafkaDownstreamEventPublisher implements DownstreamEventPublisher {
 
     private final StreamBridge streamBridge;
     private final io.mateu.workflow.application.out.WorkflowTracing workflowTracing;
+    /** Seals the sensitive variables an event carries before it reaches the broker or an HTTP worker's queue. */
+    private final io.mateu.workflow.application.services.VariableProtection protection;
 
     /** Workers over HTTP: asked first, takes the tasks of the topics served over HTTP. */
     private org.springframework.beans.factory.ObjectProvider<HttpWorkerRouter> httpWorkers;
@@ -36,6 +38,8 @@ public class KafkaDownstreamEventPublisher implements DownstreamEventPublisher {
 
     @Override
     public void publish(DomainEvent event, String topic) {
+        // Sealed once: a Kafka worker and an HTTP worker are outside the engine alike.
+        event = VariableProtectionSupport.seal(protection, event);
         if (HttpWorkerRouter.taken(httpWorkers, event, topic)) {
             return;
         }

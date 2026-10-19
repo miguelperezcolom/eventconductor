@@ -121,6 +121,10 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
     @Hidden
     ProcessStatus processStatus;
 
+    /** Whether the process's definition declares sensitive variables — what shows the Reveal action. */
+    @Hidden
+    boolean hasSensitiveVariables;
+
     /**
      * Where the "back" action goes, carried in from the query string. Plumbing, like
      * {@link #processStatus} above it — it says nothing about the process, and read-only it was
@@ -232,6 +236,7 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
         Process process = processRepository.findById(id).orElse(processRepository.findByBusinessKey(id).orElse(null));
         this.name = process.getName();
         this.processStatus = process.getStatus();
+        this.hasSensitiveVariables = !io.mateu.workflow.application.services.SensitiveVariableMasking.namesOf(process).isEmpty();
         this.status = mapProcessStatus(process.getStatus(), process.getCompletionPercentage());
         var stepExecutions = stepExecutionRepository.findByProcess(process);
         // What ran and the certain path ahead, not every step the process was created with — see StepHistory.
@@ -266,7 +271,8 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
         this.resources = resourceRepository.findByProcessId(id).stream()
                 .map(r -> new Resource(id, r.id(), r.getName(), r.getUrl()))
                 .toList();
-        this.variables = process.getVariables().stream().map(variable -> new Variable(variable.name(), variable.value())).toList();
+        // Sensitive values read as the mask; the Reveal action is the audited way to read one.
+        this.variables = io.mateu.workflow.application.services.SensitiveVariableMasking.variables(process).stream().map(variable -> new Variable(variable.name(), variable.value())).toList();
         loadReply(process);
         this.returnTo = httpRequest.getParameterValue("returnTo");
 
@@ -326,7 +332,7 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
             this.repliedAt = reply.repliedAt();
             this.replyStep = reply.stepId();
             this.replyError = reply.error();
-            this.replyPayload = reply.payload();
+            this.replyPayload = io.mateu.workflow.application.services.SensitiveVariableMasking.json(reply.payload(), io.mateu.workflow.application.services.SensitiveVariableMasking.namesOf(process));
         }
     }
 
@@ -352,8 +358,9 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
         var latestErrorByExec = latestErrorByStepExecution(logs);
         var order = executionOrder(byStep.values());
         var overlay = new HashMap<String, Object>();
+        var sensitive = io.mateu.workflow.application.services.SensitiveVariableMasking.namesOf(process);
         byStep.forEach((stepId, se) -> {
-            var entry = overlayEntry(se, latestErrorByExec.get(se.id()));
+            var entry = overlayEntry(se, latestErrorByExec.get(se.id()), sensitive);
             var position = order.get(stepId);
             if (position != null) entry.put("order", position);
             putRunsAndIterations(entry, se, stepExecutions);
@@ -548,6 +555,11 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
      * reason, the last error, retry count, what it awaits, deadlines and its variable snapshot.
      */
     static Map<String, Object> overlayEntry(StepExecution se, String error) {
+        return overlayEntry(se, error, io.mateu.workflow.crypto.SensitiveNames.NONE);
+    }
+
+    /** {@link #overlayEntry(StepExecution, String)}, the step's sensitive variables masked. */
+    static Map<String, Object> overlayEntry(StepExecution se, String error, io.mateu.workflow.crypto.SensitiveNames sensitive) {
         var step = safeStep(se.getStepJson());
         var status = se.getStatus();
         var entry = new HashMap<String, Object>();
@@ -580,7 +592,7 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
             entry.put("variables", vars.stream()
                     .limit(12)
                     .map(v -> Map.of("name", v.name() == null ? "" : v.name(),
-                            "value", v.value() == null ? "" : v.value()))
+                            "value", v.value() == null ? "" : io.mateu.workflow.application.services.SensitiveVariableMasking.shown(v.name(), v.value(), sensitive)))
                     .toList());
         }
         return entry;
@@ -772,6 +784,19 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
     }
 
     /**
+     * Reveals one sensitive variable's value — for a caller holding a reveal role, with a reason, audited.
+     * Opens a dialog; see {@code SensitiveVariableRevealService}.
+     */
+    @Toolbar(buttonStyle = ButtonStyle.secondary)
+    @Label("Reveal variable")
+    @Action
+    public Object revealVariable() {
+        return io.mateu.workflow.infra.in.ui.pages.process.operate.OperationForms.dialog("Reveal a sensitive variable",
+                new io.mateu.workflow.infra.in.ui.pages.process.operate.RevealVariableForm()
+                        .forProcess(id));
+    }
+
+    /**
      * Completes a step by hand, as if its worker had answered — an admin operation, recorded with the
      * reason. Opens a dialog; see {@code CompleteStepManuallyUseCase}.
      */
@@ -852,7 +877,7 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
                 process.getBusinessKey(),
                 process.getStatus().name(),
                 process.getCompletionPercentage(),
-                process.getVariables().stream()
+                io.mateu.workflow.application.services.SensitiveVariableMasking.variables(process).stream()
                         .map(v -> new Variable(v.name(), v.value())).toList(),
                 stepExecutions.stream()
                         .map(se -> new StepStateSnapshot(se.getStepId(), se.getStatus().name(),
@@ -948,6 +973,10 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
         }
         if ("agent".equals(memberName)) {
             return agent == null || agent.isEmpty();
+        }
+        if ("revealVariable".equals(memberName)) {
+            // Only where there is something to reveal.
+            return !hasSensitiveVariables;
         }
         if ("operations".equals(memberName)) {
             return operations == null || operations.isEmpty();

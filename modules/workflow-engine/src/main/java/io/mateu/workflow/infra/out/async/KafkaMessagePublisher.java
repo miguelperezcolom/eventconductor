@@ -19,9 +19,11 @@ public class KafkaMessagePublisher implements MessagePublisher {
 
     private final StreamBridge streamBridge;
     private final io.mateu.workflow.application.out.WorkflowTracing workflowTracing;
+    /** Seals the sensitive variables a message carries before it reaches the broker. */
+    private final io.mateu.workflow.application.services.VariableProtection protection;
 
     @Override
     public void publish(MessageReceived message) {
-        PartitionedEvents.send(streamBridge, "messages", message, workflowTracing.currentTraceContext());
+        PartitionedEvents.send(streamBridge, "messages", VariableProtectionSupport.seal(protection, message), workflowTracing.currentTraceContext());
     }
 }

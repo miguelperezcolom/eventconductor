@@ -10,7 +10,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class SyncInvocationServiceHashTest {
 
-    private static SyncInvocationService.StartRequest request(String businessKey, Map<String, String> variables,
+    static SyncInvocationService.StartRequest request(String businessKey, Map<String, String> variables,
                                                               Duration wait) {
         return new SyncInvocationService.StartRequest("wd", "k", businessKey, variables, wait, null);
     }

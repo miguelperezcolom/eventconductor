@@ -38,6 +38,14 @@ public class StepExecutionDBRepository implements StepExecutionRepository {
     final org.springframework.beans.factory.ObjectProvider<
             io.mateu.workflow.application.out.RollupAnalyticsPort> rollupAnalytics;
 
+    /** Seals the sensitive variables of a step's row and of the events it emits; opens them on the way back. */
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    final io.mateu.workflow.application.services.VariableProtection protection;
+
+    private io.mateu.workflow.application.services.VariableProtection protection() {
+        return protection == null ? io.mateu.workflow.application.services.VariableProtection.none() : protection;
+    }
+
     @Override
     public Optional<StepExecution> findById(String id) {
         return stepExecutionEntityRepository.findById(id).map(this::map);
@@ -50,7 +58,7 @@ public class StepExecutionDBRepository implements StepExecutionRepository {
                 entity.getWorkflowDefinitionId(),
                 entity.getStepId(),
                 entity.getStepJson(),
-                listFromJson(entity.getVariables(), Variable.class),
+                protection().variablesFromJson(entity.getVariables()),
                 StepExecutionStatus.valueOf(entity.getStatus()),
                 entity.getWorkerId(),
                 entity.getOrder(),
@@ -69,13 +77,15 @@ public class StepExecutionDBRepository implements StepExecutionRepository {
                 entity.getLoopDecision(),
                 entity.getParentExecutionId(),
                 entity.getItemIndex(),
-                entity.getScopeJson(),
-                entity.getOutputJson()
+                protection().openBlob(entity.getScopeJson()),
+                protection().openBlob(entity.getOutputJson())
         );
     }
 
     @Override
     public String save(StepExecution stepExecution) {
+        // The policy of the step's process: its rendered requests, forEach scope and collected output too.
+        var sensitive = protection().policies().ofProcessId(stepExecution.getProcessId());
         var entity = new StepExecutionEntity(
             stepExecution.id(),
                 stepExecution.getProcessId(),
@@ -83,7 +93,7 @@ public class StepExecutionDBRepository implements StepExecutionRepository {
                 stepExecution.getStepId(),
                 stepExecution.getStepJson(),
                 stepExecution.stepTypeName(),
-                toJson(stepExecution.getVariables()),
+                protection().variablesJson(stepExecution.getVariables(), sensitive),
                 stepExecution.getStatus().name(),
                 stepExecution.getWorkerId(),
                 stepExecution.getOrder(),
@@ -102,8 +112,8 @@ public class StepExecutionDBRepository implements StepExecutionRepository {
         entity.setLoopDecision(stepExecution.getLoopDecision());
         entity.setParentExecutionId(stepExecution.getParentExecutionId());
         entity.setItemIndex(stepExecution.getItemIndex());
-        entity.setScopeJson(stepExecution.getScopeJson());
-        entity.setOutputJson(stepExecution.getOutputJson());
+        entity.setScopeJson(protection().sealBlob(stepExecution.getScopeJson(), sensitive));
+        entity.setOutputJson(protection().sealBlob(stepExecution.getOutputJson(), sensitive));
         stepExecutionEntityRepository.save(entity);
 
         // Captured here, at the one moment the event and the context that produced it are both
@@ -112,6 +122,7 @@ public class StepExecutionDBRepository implements StepExecutionRepository {
         var outbox = stepExecution.popEvents().stream()
                 .map(event -> {
                     var row = new OutboxMessageEntity(event, traceContext);
+                    row.setPayload(protection().sealPayload(row.getPayload(), sensitive));
                     // Driving this process inline (the synchronous fast path): its own rows are
                     // written already claimed by this pod, so no relay races the driver for them.
                     var claim = io.mateu.workflow.infra.out.async.InlineDrive.claimFor(event);

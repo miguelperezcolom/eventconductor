@@ -55,6 +55,18 @@ public class ProcessDBRepository implements ProcessRepository {
     @com.fasterxml.jackson.annotation.JsonIgnore
     final jakarta.persistence.EntityManager entityManager;
 
+    /**
+     * Seals the sensitive variables (and the reply, and the outbox rows) on the way to the database and
+     * opens them on the way back — see VARIABLE-ENCRYPTION-PLAN.md. Final and constructor-injected like
+     * the rest, for the reason given on {@link #entityManager}.
+     */
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    final io.mateu.workflow.application.services.VariableProtection protection;
+
+    private io.mateu.workflow.application.services.VariableProtection protection() {
+        return protection == null ? io.mateu.workflow.application.services.VariableProtection.none() : protection;
+    }
+
     @Override
     public Optional<Process> findById(String id) {
         return processEntityRepository.findById(id)
@@ -62,14 +74,14 @@ public class ProcessDBRepository implements ProcessRepository {
     }
 
     private Process map(ProcessEntity entity) {
-        return new Process(
+        var process = new Process(
                 entity.getId(),
                 entity.getName(),
                 entity.getWorkflowDefinitionId(),
                 entity.getWorkflowDefinitionVersion(),
                 entity.getWorkflowDefinitionJson(),
                 entity.getBusinessKey(),
-                listFromJson(entity.getVariables(), Variable.class),
+                protection().variablesFromJson(entity.getVariables()),
                 ProcessStatus.valueOf(entity.getStatus()),
                 entity.getCompletionPercentage(),
                 entity.getCreated(),
@@ -78,18 +90,27 @@ public class ProcessDBRepository implements ProcessRepository {
                 entity.getPausedAt(),
                 entity.getParentStepExecutionId(),
                 entity.getVersion(),
-                replyOf(entity)
+                replyOf(entity, protection())
         );
+        // Registered, so its step executions and events find the process's policy without loading it again.
+        protection().policies().of(process);
+        return process;
     }
 
     /** The recorded reply, or null while the process has not replied (no outcome stored). */
     static io.mateu.workflow.domain.aggregates.ProcessReply replyOf(ProcessEntity entity) {
+        return replyOf(entity, io.mateu.workflow.application.services.VariableProtection.none());
+    }
+
+    /** The recorded reply, opened (it is sealed whole when the process has sensitive variables). */
+    static io.mateu.workflow.domain.aggregates.ProcessReply replyOf(ProcessEntity entity,
+            io.mateu.workflow.application.services.VariableProtection protection) {
         if (entity.getReplyOutcome() == null) {
             return null;
         }
         return new io.mateu.workflow.domain.aggregates.ProcessReply(
                 entity.getReplyStepId(),
-                entity.getReplyJson(),
+                protection.openBlob(entity.getReplyJson()),
                 io.mateu.workflow.domain.aggregates.ProcessReply.Outcome.valueOf(entity.getReplyOutcome()),
                 entity.getReplyCompensation() == null ? null
                         : io.mateu.workflow.domain.aggregates.ProcessReply.Compensation.valueOf(entity.getReplyCompensation()),
@@ -123,11 +144,14 @@ public class ProcessDBRepository implements ProcessRepository {
         // Read before the save: afterwards the row says replied either way.
         boolean newlyReplied = reply != null && processEntityRepository.findById(process.getId())
                 .map(entity -> entity.getRepliedAt() == null).orElse(true);
+        // What this process's definition version declares sensitive: sealed in its row, its reply and the
+        // events it emits; everything else as it was.
+        var sensitive = protection().policies().of(process);
         processEntityRepository.save(new ProcessEntity(
                 process.getId(),
                 businessKey,
                 process.getName(),
-                toJson(process.getVariables()),
+                protection().variablesJson(process.getVariables(), sensitive),
                 process.getStatus().name(),
                 process.getCompletionPercentage(),
                 "log",
@@ -141,7 +165,7 @@ public class ProcessDBRepository implements ProcessRepository {
                 process.getParentStepExecutionId(),
                 process.getVersion(),
                 reply == null ? null : reply.stepId(),
-                reply == null ? null : reply.payload(),
+                reply == null ? null : protection().sealBlob(reply.payload(), sensitive),
                 reply == null ? null : reply.outcome().name(),
                 reply == null ? null : reply.compensation().name(),
                 reply == null ? null : reply.error(),
@@ -153,6 +177,7 @@ public class ProcessDBRepository implements ProcessRepository {
         var outbox = process.popEvents().stream()
                 .map(event -> {
                     var row = new OutboxMessageEntity(event, traceContext);
+                    row.setPayload(protection().sealPayload(row.getPayload(), sensitive));
                     // Driving this process inline (the synchronous fast path): its own rows are
                     // written already claimed by this pod, so no relay races the driver for them.
                     var claim = io.mateu.workflow.infra.out.async.InlineDrive.claimFor(event);

@@ -148,6 +148,15 @@ booking:
 
 A step without one fails the build (`-Deventconductor.migration.failOnError=false` only reports it). Instantaneous steps (START, END, FORK, JOIN, CHOICE, REPLY, SEND_MESSAGE, UNLOCK, a PUBLISH_EVENT that awaits nothing) and changed task contracts, forEach items, locks and fewer escalation levels are warnings. See the [Maven plugin reference](/reference/maven-plugin/#checking-a-migration-the-check-migration-goal).
 
+## Sensitive variables
+
+Migration follows the target's [sensitive variables](/guides/sensitive-data-and-encryption/):
+
+* A variable the target declares sensitive and the source did not is **encrypted** by the migration — in the process row and in **every** step row of the process, history included; one the source declared and the target does not is stored **in clear** from then on. The dry run and `check-migration` report both as warnings (names only).
+* A target that declares sensitive variables on an engine without encryption keys is refused (an error in the plan).
+* Values the `variableMapping` sets are encrypted like any other write when the target declares them sensitive — also in the `MigrateProcessRequested` command on the broker and in a MIGRATE batch's stored parameters. The audit line names them and shows `••••`; the dry run never quotes a value.
+* Rows written before the migration that the engine no longer rewrites — sent outbox rows, earlier log lines — are left as they were; the [outbox retention](/reference/configuration/) and the process retention bound how long.
+
 ## Audit, metrics and security
 
 Every migration leaves a line in the process log — the **Operations** tab:

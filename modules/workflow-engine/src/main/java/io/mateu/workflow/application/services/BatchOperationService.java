@@ -72,6 +72,17 @@ public class BatchOperationService {
     private final Map<BatchOperationType, BatchAction> actions = new EnumMap<>(BatchOperationType.class);
     private long lastItemAt;
 
+    /**
+     * Seals the SET_VARIABLES values a batch stores whose names any definition declares sensitive (a batch
+     * spans definitions, so it goes by their union), and opens them when the batch applies them.
+     */
+    private VariableProtection protection = VariableProtection.none();
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void protection(VariableProtection protection) {
+        this.protection = protection == null ? VariableProtection.none() : protection;
+    }
+
     public BatchOperationService(BatchOperationRepository repository, ProcessRepository processRepository,
                                  ProcessListingService listing, ProcessOperationsService processes,
                                  BatchOperationProperties properties, ObjectProvider<WorkflowMetrics> metrics) {
@@ -97,7 +108,7 @@ public class BatchOperationService {
         // The manual operations (2.30): their own use cases, authorization and audit — the batch's creator
         // is the operator each process's audit line names, with the batch's reason.
         actions.put(BatchOperationType.SET_VARIABLES, (id, batch) -> processes.setVariables(id,
-                variablesToSet(batch.parameters()), variablesToRemove(batch.parameters()),
+                protection.open(variablesToSet(batch.parameters())), variablesToRemove(batch.parameters()),
                 reasonOf(batch), batch.caller()));
         actions.put(BatchOperationType.RETRY_FROM_STEP, (id, batch) -> {
             try {
@@ -127,9 +138,39 @@ public class BatchOperationService {
             processes.migrate(id, io.mateu.workflow.domain.batch.BatchOperationParameters.version(parameters,
                             BatchOperationType.TARGET_VERSION),
                     io.mateu.workflow.domain.batch.BatchOperationParameters.prefixed(parameters, BatchOperationType.MAP_PREFIX),
-                    io.mateu.workflow.domain.batch.BatchOperationParameters.prefixed(parameters, BatchOperationType.VAR_PREFIX),
+                    opened(io.mateu.workflow.domain.batch.BatchOperationParameters.prefixed(parameters, BatchOperationType.VAR_PREFIX)),
                     reasonOf(batch), batch.caller());
         });
+    }
+
+    /** A MIGRATE batch's variable mapping, opened (stored sealed by {@link #sealed}). */
+    private Map<String, String> opened(Map<String, String> mapping) {
+        var opened = new java.util.LinkedHashMap<String, String>();
+        mapping.forEach((name, value) -> opened.put(name, protection.policies().encryption().open(value)));
+        return opened;
+    }
+
+    /**
+     * The parameters as stored: a {@code set.<name>} (SET_VARIABLES) or {@code var.<name>} (MIGRATE) value
+     * sealed when {@code <name>} is sensitive anywhere.
+     */
+    private Map<String, String> sealed(Map<String, String> parameters) {
+        if (parameters == null || !protection.policies().enabled()) {
+            return parameters;
+        }
+        var names = protection.policies().global();
+        if (names.isEmpty()) {
+            return parameters;
+        }
+        var sealed = new java.util.LinkedHashMap<String, String>();
+        parameters.forEach((key, value) -> {
+            var variable = key.startsWith(BatchOperationType.SET_PREFIX)
+                    ? key.substring(BatchOperationType.SET_PREFIX.length())
+                    : key.startsWith(BatchOperationType.VAR_PREFIX) ? key.substring(BatchOperationType.VAR_PREFIX.length()) : null;
+            sealed.put(key, variable != null && value != null && names.test(variable)
+                    ? protection.policies().encryption().seal(value) : value);
+        });
+        return sealed;
     }
 
     /** SET_VARIABLES: the variables to set, from {@code set.<name>} parameters. */
@@ -240,7 +281,7 @@ public class BatchOperationService {
         var matched = filter.incident() != null
                 ? incidentMembers(filter.incident()).keySet().size()
                 : processRepository.searchSummaries(listingFilter, 0, 1).totalElements();
-        var batch = BatchOperation.create(UUID.randomUUID().toString(), type, normalised(filter), parameters, matched,
+        var batch = BatchOperation.create(UUID.randomUUID().toString(), type, normalised(filter), sealed(parameters), matched,
                 caller, io.mateu.workflow.time.EngineClock.now());
         repository.create(batch);
         log.info("Batch operation {} created: {} over {} process(es) ({}) by {}", batch.id(), type, matched,

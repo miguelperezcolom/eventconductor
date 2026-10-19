@@ -108,4 +108,47 @@ class MigrationJpaE2eTest extends AbstractJpaE2eTest {
                 new MessageReceived("payment-settled", "INV-1", List.of())));
         awaitStatus("jpa-mig-2", ProcessStatus.COMPLETED);
     }
+
+    /**
+     * A target that declares sensitive variables the source did not: the migration encrypts what is already
+     * stored (process and step rows, history included) and the values its mapping sets; the dry run and the
+     * audit line name them, never quote them.
+     */
+    @Test
+    void migratingToAVersionThatDeclaresSensitiveVariablesEncryptsTheStoredValues() {
+        var card = "4111111111111111";
+        worker.on("b", (request, callback, n) -> held.put("b", callback));
+        createProcess("mig-linear", "jpa-mig-sensitive", new Variable("cardNumber", card), new Variable("amount", "120"));
+        await().atMost(TIMEOUT).untilAsserted(() -> assertThat(held).containsKey("b"));
+        var jdbc = new org.springframework.jdbc.core.JdbcTemplate(dataSource);
+        var id = process("jpa-mig-sensitive").getId();
+        assertThat(jdbc.queryForObject("select variables from process_entity where id = ?", String.class, id))
+                .as("v1 declares nothing sensitive").contains(card);
+
+        var v2 = new MigrationScenario(definitions).deploy("mig-linear.v2-sensitive.json").version();
+        var plan = operations.dryRunMigration(id, v2, Map.of(), Map.of("pin", "9876"), BOB);
+        assertThat(plan.plan().executable()).isTrue();
+        assertThat(plan.plan().warnings()).extracting(io.mateu.workflow.analysis.MigrationRules.Problem::message)
+                .anySatisfy(m -> assertThat(m).contains("[cardNumber, pin] become sensitive"))
+                .allSatisfy(m -> assertThat(m).doesNotContain(card).doesNotContain("9876"));
+
+        operations.migrate(id, v2, Map.of(), Map.of("pin", "9876"), "card data is PCI scope now", BOB);
+        await().atMost(TIMEOUT).untilAsserted(() -> assertThat(process("jpa-mig-sensitive").getWorkflowDefinitionVersion()).isEqualTo(v2));
+
+        var row = jdbc.queryForObject("select variables from process_entity where id = ?", String.class, id);
+        assertThat(row).contains("ec:enc:v1:e2e-test:").doesNotContain(card).doesNotContain("9876").contains("120");
+        assertThat(jdbc.queryForList("select variables from step_execution_entity where process_id = ?", String.class, id))
+                .isNotEmpty().allSatisfy(stepRow -> assertThat(String.valueOf(stepRow)).doesNotContain(card));
+        assertThat(process("jpa-mig-sensitive").getVariables())
+                .contains(new io.mateu.workflow.domain.aggregates.Variable("cardNumber", card),
+                        new io.mateu.workflow.domain.aggregates.Variable("pin", "9876"));
+        assertThat(logMessageRepository.findByProcessId(id).stream().map(line -> line.getMessage()).toList())
+                .anySatisfy(line -> assertThat(line).contains("migrated from v").contains("pin = '••••'"))
+                .allSatisfy(line -> assertThat(line).doesNotContain(card).doesNotContain("9876"));
+
+        held.get("b").complete();
+        awaitStatus("jpa-mig-sensitive", ProcessStatus.COMPLETED);
+    }
+
+    @Autowired javax.sql.DataSource dataSource;
 }

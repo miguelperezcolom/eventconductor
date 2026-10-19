@@ -81,6 +81,19 @@ public class MigrateProcessUseCase {
     final MessageSubscriptionService messageSubscriptionService;
     final ObjectProvider<CancelProcessUseCase> cancelProcessUseCase;
 
+    /**
+     * Sensitive variables follow the target: the process's policy is switched to the target's before any of
+     * its rows is written, so the step rows, the process row and the events carry the values encoded as the
+     * target declares — encrypted when it adds a sensitive variable, in clear when it removes one.
+     */
+    private io.mateu.workflow.application.services.SensitiveVariablePolicies policies =
+            io.mateu.workflow.application.services.SensitiveVariablePolicies.none();
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void policies(io.mateu.workflow.application.services.SensitiveVariablePolicies policies) {
+        this.policies = policies == null ? io.mateu.workflow.application.services.SensitiveVariablePolicies.none() : policies;
+    }
+
     public void handle(MigrateProcessCommand command) {
         var childrenOf = new AtomicReference<List<String>>(List.of());
         ProcessLockService.runExclusivelyOrThrow(processLockService, command.processId(),
@@ -126,6 +139,8 @@ public class MigrateProcessUseCase {
             migrated.updateVariables(new TreeMap<>(command.variableMapping()).entrySet().stream()
                     .map(e -> new Variable(e.getKey(), e.getValue())).toList());
         }
+        var sourceSensitive = policies.of(process);
+        var targetSensitive = policies.of(migrated);
 
         var to = "v" + planned.target().version();
         var current = StepExecutions.current(executions);
@@ -204,6 +219,12 @@ public class MigrateProcessUseCase {
                 saved.add(history);
             }
         }
+        if (!sourceSensitive.equals(targetSensitive)) {
+            // The sensitivity changed: every row of the process is re-encoded as the target declares, history
+            // included — not only the executions the migration moved.
+            executions.stream().filter(execution -> saved.stream().noneMatch(s -> s.id().equals(execution.id())))
+                    .forEach(saved::add);
+        }
         saved.forEach(stepExecutionRepository::save);
 
         var after = stepExecutionRepository.findByProcess(process);
@@ -218,7 +239,8 @@ public class MigrateProcessUseCase {
         }
 
         audit.performed(migrated, null, OperatorAudit.MIGRATE, command.requestedBy(), command.reason(),
-                summary(process.getWorkflowDefinitionVersion(), planned, done, command.variableMapping()));
+                summary(process.getWorkflowDefinitionVersion(), planned, done,
+                        shownMapping(command.variableMapping(), sourceSensitive, targetSensitive)));
         if (ProcessStatus.RUNNING.equals(migrated.getStatus())) {
             stepOverProcessUseCase.handle(new StepOverProcessCommand(process.getId()));
         }
@@ -276,6 +298,15 @@ public class MigrateProcessUseCase {
             return fate.sourceStepId();
         }
         return fate.sourceStepId() + "→" + fate.targetStepId();
+    }
+
+    /** The mapping as the audit line quotes it: a value sensitive in either version reads as the mask. */
+    static Map<String, String> shownMapping(Map<String, String> mapping, io.mateu.workflow.crypto.SensitiveNames source,
+                                            io.mateu.workflow.crypto.SensitiveNames target) {
+        var shown = new java.util.LinkedHashMap<String, String>();
+        mapping.forEach((name, value) -> shown.put(name, source.test(name) || target.test(name)
+                ? io.mateu.workflow.application.services.SensitiveVariableMasking.MASK : value));
+        return shown;
     }
 
     static String summary(int fromVersion, MigrationPlanner.Planned planned, Map<MigrationRules.Action, List<String>> done,

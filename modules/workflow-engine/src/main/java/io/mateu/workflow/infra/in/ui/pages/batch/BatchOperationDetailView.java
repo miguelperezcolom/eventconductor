@@ -94,7 +94,9 @@ public class BatchOperationDetailView implements VisibilitySupplier {
         this.filter = op.filter().describe();
         this.parameters = op.parameters().isEmpty() ? "—" : op.parameters().entrySet().stream()
                 .sorted(Map.Entry.comparingByKey())
-                .map(e -> e.getValue() == null || e.getValue().isEmpty() ? e.getKey() : e.getKey() + " = " + e.getValue())
+                .map(e -> e.getValue() == null || e.getValue().isEmpty() ? e.getKey() : e.getKey() + " = "
+                        + (io.mateu.workflow.crypto.VariableEnvelope.isSealed(e.getValue())
+                                ? io.mateu.workflow.application.services.SensitiveVariableMasking.MASK : e.getValue()))
                 .collect(Collectors.joining("; "));
         this.progress = BatchOperationFormats.progress(op);
         this.succeeded = String.valueOf(op.succeeded());

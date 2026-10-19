@@ -115,6 +115,14 @@ public class WorkflowDefinitionVersioningService {
         if (d.searchAttributes() != null) {
             canonical.put("searchAttributes", io.mateu.core.infra.JsonSerializer.toJson(d.searchAttributes()));
         }
+        // Sensitive variables too: they decide how a process of this version is stored and transported
+        // (sealed or in clear), they ride in its definition snapshot, and an operator reading vN must see
+        // exactly what vN's processes protect. Turning protection on is therefore a new version — older
+        // processes keep the policy they started with. Only written when present, so a definition without
+        // them hashes as before; a step's sensitiveOutputs rides inside the serialized steps below.
+        if (d.sensitiveVariables() != null) {
+            canonical.put("sensitiveVariables", io.mateu.core.infra.JsonSerializer.toJson(d.sensitiveVariables()));
+        }
         canonical.put("defaultMaxStepExecutions", d.defaultMaxStepExecutions());
         canonical.put("steps", d.steps().stream()
                 .sorted(Comparator.comparing(Step::id, Comparator.nullsLast(Comparator.naturalOrder())))

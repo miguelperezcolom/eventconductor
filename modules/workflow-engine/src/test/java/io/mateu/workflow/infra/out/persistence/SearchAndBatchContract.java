@@ -74,7 +74,7 @@ abstract class SearchAndBatchContract {
         batches = (io.mateu.workflow.application.out.BatchOperationRepository) beans.createBean(JpaBatchOperationRepository.class);
         processes = new ProcessDBRepository(context.getBean(ProcessEntityRepository.class), null, null, null, null,
                 null, null, null, null, null, null,
-                SharedEntityManagerCreator.createSharedEntityManager(context.getBean(EntityManagerFactory.class)));
+                SharedEntityManagerCreator.createSharedEntityManager(context.getBean(EntityManagerFactory.class)), null);
     }
 
     @AfterEach

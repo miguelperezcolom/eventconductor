@@ -41,10 +41,43 @@ public class FormExecutionDBRepository implements FormExecutionRepository {
     @Override
     public Optional<FormExecution> findById(String id) {
         return formExecutionEntityRepository.findById(id)
-                .map(FormExecutionDBRepository::map);
+                .map(this::map);
     }
 
-    static FormExecution map(FormExecutionEntity entity) {
+    /**
+     * The forms engine is a worker: it does not know which variables a definition declares sensitive. So,
+     * when an encryption key is configured (the same workflow.encryption.* as the engine), it seals every
+     * variable value a task carries before storing it — a value already sealed by the engine stays as it
+     * came — and opens them when it reads a task back for its form.
+     */
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    io.mateu.workflow.crypto.VariableEncryption encryption = io.mateu.workflow.crypto.VariableEncryption.DISABLED;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void encryption(io.mateu.workflow.crypto.VariableEncryption encryption) {
+        this.encryption = encryption == null ? io.mateu.workflow.crypto.VariableEncryption.DISABLED : encryption;
+    }
+
+    private java.util.List<Variable> sealAll(java.util.List<Variable> variables) {
+        if (variables == null || !encryption.enabled()) {
+            return variables;
+        }
+        return variables.stream()
+                .map(v -> v == null ? null : new Variable(v.name(), encryption.seal(v.value())))
+                .toList();
+    }
+
+    private java.util.List<Variable> openAll(java.util.List<Variable> variables) {
+        if (variables == null) {
+            return null;
+        }
+        return variables.stream()
+                .map(v -> v == null || !io.mateu.workflow.crypto.VariableEnvelope.isSealed(v.value()) ? v
+                        : new Variable(v.name(), encryption.openIfPossible(v.value())))
+                .toList();
+    }
+
+    FormExecution map(FormExecutionEntity entity) {
         return new FormExecution(
                 entity.getId(),
                 entity.getFormId(),
@@ -54,7 +87,7 @@ public class FormExecutionDBRepository implements FormExecutionRepository {
                 FormExecutionStatus.valueOf(entity.getStatus()),
                 entity.getUserId(),
                 entity.getUserGroup(),
-                listFromJson(entity.getVariables(), Variable.class),
+                openAll(listFromJson(entity.getVariables(), Variable.class)),
                 listFromJson(entity.getValues(), Value.class),
                 entity.getCandidateUsers() == null ? List.of() : List.copyOf(entity.getCandidateUsers()),
                 entity.getCandidateGroups() == null ? List.of() : List.copyOf(entity.getCandidateGroups()),
@@ -77,7 +110,7 @@ public class FormExecutionDBRepository implements FormExecutionRepository {
                 execution.processId(),
                 execution.stepId(),
                 execution.stepExecutionId(),
-                toJson(execution.variables()),
+                toJson(sealAll(execution.variables())),
                 toJson(execution.values()),
                 execution.status().name(),
                 execution.userId(),
@@ -99,7 +132,7 @@ public class FormExecutionDBRepository implements FormExecutionRepository {
 
     @Override
     public List<FormExecution> findAll() {
-        return formExecutionEntityRepository.findAll().stream().map(FormExecutionDBRepository::map).toList();
+        return formExecutionEntityRepository.findAll().stream().map(this::map).toList();
     }
 
     @Override
@@ -110,7 +143,7 @@ public class FormExecutionDBRepository implements FormExecutionRepository {
     @Override
     public List<FormExecution> findByStepExecutionId(String stepExecutionId) {
         return formExecutionEntityRepository.findByStepExecutionId(stepExecutionId).stream()
-                .map(FormExecutionDBRepository::map)
+                .map(this::map)
                 .toList();
     }
 
@@ -168,7 +201,7 @@ public class FormExecutionDBRepository implements FormExecutionRepository {
             return cb.and(predicates.toArray(Predicate[]::new));
         };
         var page = formExecutionEntityRepository.findAll(specification, PageRequest.of(query.page(), query.size()));
-        return new TaskPage(page.getContent().stream().map(FormExecutionDBRepository::map).toList(),
+        return new TaskPage(page.getContent().stream().map(this::map).toList(),
                 page.getTotalElements(), query.page(), query.size());
     }
 

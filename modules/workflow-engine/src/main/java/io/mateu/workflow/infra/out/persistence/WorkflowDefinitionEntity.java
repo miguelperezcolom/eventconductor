@@ -122,4 +122,11 @@ public class WorkflowDefinitionEntity {
     @Column(columnDefinition = "TEXT")
     String searchAttributesJson;
 
+    /**
+     * The sensitive variables, as the file writes them (a JSON array of names or globs), or null when it
+     * declares none (V53). Part of the version.
+     */
+    @Column(columnDefinition = "TEXT")
+    String sensitiveVariablesJson;
+
 }

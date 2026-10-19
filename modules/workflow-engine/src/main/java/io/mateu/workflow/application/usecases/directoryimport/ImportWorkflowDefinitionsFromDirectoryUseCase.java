@@ -299,6 +299,7 @@ public class ImportWorkflowDefinitionsFromDirectoryUseCase {
                     .withTags(definition.tags())
                     .withRetention(definition.retention())
                     .withSearchAttributes(definition.searchAttributes())
+                    .withSensitiveVariables(definition.sensitiveVariables())
                     // The narrower constructor above declares ACTIVE: keep what the file says.
                     .withDeclaredStatus(definition.declaredStatus());
         }
@@ -382,7 +383,8 @@ public class ImportWorkflowDefinitionsFromDirectoryUseCase {
                 .withTriggers(fromFile.triggers())
                 .withTags(fromFile.tags())
                 .withRetention(fromFile.retention())
-                .withSearchAttributes(fromFile.searchAttributes());
+                .withSearchAttributes(fromFile.searchAttributes())
+                .withSensitiveVariables(fromFile.sensitiveVariables());
     }
 
     /**

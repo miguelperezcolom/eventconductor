@@ -73,9 +73,9 @@ public class SetProcessVariablesUseCase {
                 }
                 written.add(variable);
                 changes.add(had
-                        ? "set " + variable.name() + " = " + OperatorAudit.quote(variable.value())
-                                + " (was " + OperatorAudit.quote(before) + ")"
-                        : "added " + variable.name() + " = " + OperatorAudit.quote(variable.value()));
+                        ? "set " + variable.name() + " = " + OperatorAudit.quote(process, variable.name(), variable.value())
+                                + " (was " + OperatorAudit.quote(process, variable.name(), before) + ")"
+                        : "added " + variable.name() + " = " + OperatorAudit.quote(process, variable.name(), variable.value()));
             }
         }
         var removed = new ArrayList<String>();
@@ -83,7 +83,7 @@ public class SetProcessVariablesUseCase {
             for (var name : command.remove()) {
                 if (name != null && current.containsKey(name) && written.stream().noneMatch(v -> name.equals(v.name()))) {
                     removed.add(name);
-                    changes.add("removed " + name + " (was " + OperatorAudit.quote(current.get(name)) + ")");
+                    changes.add("removed " + name + " (was " + OperatorAudit.quote(process, name, current.get(name)) + ")");
                 }
             }
         }

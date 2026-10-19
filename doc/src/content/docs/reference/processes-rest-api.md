@@ -16,7 +16,8 @@ The machine-readable description is published with these docs: **[`/openapi/even
 | `GET /workflow/api/processes/by-key?businessKey=…` | The process with that business key (exact) | `200` `Process` |
 | `GET /workflow/api/processes/{id}` | The process, with its variables | `200` `Process` |
 | `GET /workflow/api/processes/{id}/steps` | Its step executions, in creation order | `200` `StepExecution[]` |
-| `GET /workflow/api/processes/{id}/variables` | Its variables, by name | `200` `{name: value}` |
+| `GET /workflow/api/processes/{id}/variables` | Its variables, by name (a [sensitive](/guides/sensitive-data-and-encryption/) one reads `••••`) | `200` `{name: value}` |
+| `POST /workflow/api/processes/{id}/variables/{name}/reveal` | One sensitive variable's value `{reason}` — needs a `workflow.security.sensitive.reveal-roles` role; audited | `200` `RevealedVariable`; `403` without the role |
 | `GET /workflow/api/processes/{id}/logs` | Its log, oldest first | `200` `LogEntry[]` |
 | `POST /workflow/api/processes/{id}/cancel` | Cancel (not a `COMPLETED` process) | `202` |
 | `POST /workflow/api/processes/{id}/pause` | Pause a `PENDING` or `RUNNING` process | `202` |
@@ -101,6 +102,8 @@ Before accepting, the API checks what a synchronous caller needs to know: the pr
 ### Manual operations
 
 Set variables, complete a step and retry from a step change a live (`RUNNING`, `PAUSED` or `ERROR`) process by hand. Each needs a `reason` (`400` without one), answers `202` with `{processId, command, stepExecutionId, stepId}`, and is carried out — and recorded, with the caller and the reason, in the process log — by the node that owns the process. Before accepting, the API checks with the engine's own rules: `404` for an unknown process, step execution or step; `409` with the reason when the process or the step is not in a status the operation is done from, when a saga rollback is under way, for a retry from a step that has not run yet, or when another failure is not downstream of it. Semantics, locks and compensations: [Operating running processes](/guides/operating-running-processes/).
+
+A [sensitive variable](/guides/sensitive-data-and-encryption/) reads `••••` in every view; reading one is `POST …/variables/{name}/reveal` with a `reason`, for a caller holding one of `workflow.security.sensitive.reveal-roles` — `400` without a reason or for a variable that is not sensitive, `403` without the role (an API key alone never reveals), and every reveal and refusal is recorded in the process log.
 
 ### Migration
 

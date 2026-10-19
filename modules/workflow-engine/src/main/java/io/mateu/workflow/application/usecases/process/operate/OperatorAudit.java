@@ -106,6 +106,17 @@ public class OperatorAudit {
         return reason == null || reason.isBlank() ? "" : " — reason: " + reason.strip();
     }
 
+    /**
+     * A variable's value as an audit line quotes it: the mask when the process's definition declares it
+     * sensitive (an audit trail is read by more people than may see the value), else {@link #quote(String)}.
+     */
+    static String quote(Process process, String name, String value) {
+        if (value != null && io.mateu.workflow.application.services.SensitiveVariableMasking.isSensitive(process, name)) {
+            return io.mateu.workflow.application.services.SensitiveVariableMasking.MASK;
+        }
+        return quote(value);
+    }
+
     /** A value as an audit line quotes it: bounded, and null spelled out. */
     static String quote(String value) {
         if (value == null) {

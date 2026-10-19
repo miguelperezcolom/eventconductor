@@ -165,7 +165,18 @@ public record WorkflowDefinition(
          */
         @Hidden
         @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
-        Map<String, Object> searchAttributes
+        Map<String, Object> searchAttributes,
+        /**
+         * The variables whose values are sensitive — names or globs, {@code [cardNumber, "patient.*"]}
+         * (see {@code SensitiveVariableRules}): stored and transported only encrypted, masked in the
+         * console, REST and MCP, never a search attribute, kept out of LLM prompts unless a step opts in.
+         * Null — the default — means none (a step can still mark its outputs with
+         * {@code sensitiveOutputs}). Part of the version: a process protects what the version it runs
+         * declares.
+         */
+        @Hidden
+        @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+        List<String> sensitiveVariables
 ) implements Identifiable, SearchableText, LookupOptionsSupplier, VisibilitySupplier {
 
     /**
@@ -194,6 +205,28 @@ public record WorkflowDefinition(
         // Order kept (it is the order the console shows them in); null kept apart from empty, as the layout.
         searchAttributes = searchAttributes == null ? null
                 : java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(searchAttributes));
+        // Trimmed, as written; null kept apart from empty so a definition without them exports and hashes as before.
+        sensitiveVariables = sensitiveVariables == null ? null
+                : sensitiveVariables.stream().map(v -> v == null ? null : v.trim()).toList();
+    }
+
+    /**
+     * The canonical shape before sensitive variables existed, so every caller of the full constructor
+     * keeps compiling and the definition declares none.
+     */
+    public WorkflowDefinition(String id, String name, int version, String description,
+                              boolean limitConcurrentExecutions, int maxConcurrentExecutions,
+                              boolean enqueueOnLimit, String cronExpression, int defaultMaxStepExecutions,
+                              List<Step> steps, boolean paused, WorkflowStatus declaredStatus,
+                              WorkflowStatus runtimeStatus, List<String> requiredScopes,
+                              List<String> requiredRoles, int maxSteps, Map<String, NodePosition> layout,
+                              ProcessLock processLock, SyncInvocation syncInvocation, List<CronSchedule> schedules,
+                              List<EventTrigger> triggers, List<String> tags, ProcessRetention retention,
+                              Map<String, Object> searchAttributes) {
+        this(id, name, version, description, limitConcurrentExecutions, maxConcurrentExecutions,
+                enqueueOnLimit, cronExpression, defaultMaxStepExecutions, steps, paused, declaredStatus,
+                runtimeStatus, requiredScopes, requiredRoles, maxSteps, layout, processLock, syncInvocation,
+                schedules, triggers, tags, retention, searchAttributes, null);
     }
 
     /**
@@ -391,21 +424,21 @@ public record WorkflowDefinition(
     public WorkflowDefinition withPaused(boolean newPaused) {
         return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
-                steps, newPaused, declaredStatus, runtimeStatus, requiredScopes, requiredRoles, maxSteps, layout, processLock, syncInvocation, schedules, triggers, tags, retention, searchAttributes);
+                steps, newPaused, declaredStatus, runtimeStatus, requiredScopes, requiredRoles, maxSteps, layout, processLock, syncInvocation, schedules, triggers, tags, retention, searchAttributes, sensitiveVariables);
     }
 
     /** Returns a copy with a different runtime status — what an operator decided. */
     public WorkflowDefinition withRuntimeStatus(WorkflowStatus newStatus) {
         return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
-                steps, paused, declaredStatus, newStatus, requiredScopes, requiredRoles, maxSteps, layout, processLock, syncInvocation, schedules, triggers, tags, retention, searchAttributes);
+                steps, paused, declaredStatus, newStatus, requiredScopes, requiredRoles, maxSteps, layout, processLock, syncInvocation, schedules, triggers, tags, retention, searchAttributes, sensitiveVariables);
     }
 
     /** Returns a copy with a different declared status — what the definition file says. */
     public WorkflowDefinition withDeclaredStatus(WorkflowStatus newStatus) {
         return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
-                steps, paused, newStatus, runtimeStatus, requiredScopes, requiredRoles, maxSteps, layout, processLock, syncInvocation, schedules, triggers, tags, retention, searchAttributes);
+                steps, paused, newStatus, runtimeStatus, requiredScopes, requiredRoles, maxSteps, layout, processLock, syncInvocation, schedules, triggers, tags, retention, searchAttributes, sensitiveVariables);
     }
 
     /** Kept for callers written against the boolean API. */
@@ -422,21 +455,21 @@ public record WorkflowDefinition(
     public WorkflowDefinition withRuntimeStateOf(WorkflowDefinition existing) {
         return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
-                steps, existing.paused(), declaredStatus, existing.runtimeStatus(), requiredScopes, requiredRoles, maxSteps, layout, processLock, syncInvocation, schedules, triggers, tags, retention, searchAttributes);
+                steps, existing.paused(), declaredStatus, existing.runtimeStatus(), requiredScopes, requiredRoles, maxSteps, layout, processLock, syncInvocation, schedules, triggers, tags, retention, searchAttributes, sensitiveVariables);
     }
 
     /** Returns a copy carrying a different step list, every other field unchanged. */
     public WorkflowDefinition withSteps(List<Step> newSteps) {
         return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
-                newSteps, paused, declaredStatus, runtimeStatus, requiredScopes, requiredRoles, maxSteps, layout, processLock, syncInvocation, schedules, triggers, tags, retention, searchAttributes);
+                newSteps, paused, declaredStatus, runtimeStatus, requiredScopes, requiredRoles, maxSteps, layout, processLock, syncInvocation, schedules, triggers, tags, retention, searchAttributes, sensitiveVariables);
     }
 
     /** Returns a copy carrying the given per-process step cap ({@code maxSteps}). */
     public WorkflowDefinition withMaxSteps(int newMaxSteps) {
         return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
-                steps, paused, declaredStatus, runtimeStatus, requiredScopes, requiredRoles, newMaxSteps, layout, processLock, syncInvocation, schedules, triggers, tags, retention, searchAttributes);
+                steps, paused, declaredStatus, runtimeStatus, requiredScopes, requiredRoles, newMaxSteps, layout, processLock, syncInvocation, schedules, triggers, tags, retention, searchAttributes, sensitiveVariables);
     }
 
     /**
@@ -450,7 +483,7 @@ public record WorkflowDefinition(
         return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
                 steps, paused, declaredStatus, runtimeStatus, requiredScopes, requiredRoles, maxSteps,
-                newLayout, processLock, syncInvocation, schedules, triggers, tags, retention, searchAttributes);
+                newLayout, processLock, syncInvocation, schedules, triggers, tags, retention, searchAttributes, sensitiveVariables);
     }
 
     /**
@@ -464,7 +497,7 @@ public record WorkflowDefinition(
         return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
                 steps, paused, declaredStatus, runtimeStatus, requiredScopes, requiredRoles, maxSteps,
-                layout, newProcessLock, syncInvocation, schedules, triggers, tags, retention, searchAttributes);
+                layout, newProcessLock, syncInvocation, schedules, triggers, tags, retention, searchAttributes, sensitiveVariables);
     }
 
     /**
@@ -475,7 +508,7 @@ public record WorkflowDefinition(
         return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
                 steps, paused, declaredStatus, runtimeStatus, requiredScopes, requiredRoles, maxSteps,
-                layout, processLock, newSyncInvocation, schedules, triggers, tags, retention, searchAttributes);
+                layout, processLock, newSyncInvocation, schedules, triggers, tags, retention, searchAttributes, sensitiveVariables);
     }
 
     /**
@@ -486,7 +519,7 @@ public record WorkflowDefinition(
         return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
                 steps, paused, declaredStatus, runtimeStatus, requiredScopes, requiredRoles, maxSteps,
-                layout, processLock, syncInvocation, newSchedules, triggers, tags, retention, searchAttributes);
+                layout, processLock, syncInvocation, newSchedules, triggers, tags, retention, searchAttributes, sensitiveVariables);
     }
 
     /**
@@ -497,7 +530,7 @@ public record WorkflowDefinition(
         return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
                 steps, paused, declaredStatus, runtimeStatus, requiredScopes, requiredRoles, maxSteps,
-                layout, processLock, syncInvocation, schedules, newTriggers, tags, retention, searchAttributes);
+                layout, processLock, syncInvocation, schedules, newTriggers, tags, retention, searchAttributes, sensitiveVariables);
     }
 
     /** Returns a copy carrying different tags — chained wherever a definition is rebuilt, like {@link #withTriggers}. */
@@ -505,7 +538,7 @@ public record WorkflowDefinition(
         return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
                 steps, paused, declaredStatus, runtimeStatus, requiredScopes, requiredRoles, maxSteps,
-                layout, processLock, syncInvocation, schedules, triggers, newTags, retention, searchAttributes);
+                layout, processLock, syncInvocation, schedules, triggers, newTags, retention, searchAttributes, sensitiveVariables);
     }
 
     /**
@@ -516,7 +549,7 @@ public record WorkflowDefinition(
         return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
                 steps, paused, declaredStatus, runtimeStatus, requiredScopes, requiredRoles, maxSteps,
-                layout, processLock, syncInvocation, schedules, triggers, tags, newRetention, searchAttributes);
+                layout, processLock, syncInvocation, schedules, triggers, tags, newRetention, searchAttributes, sensitiveVariables);
     }
 
     /**
@@ -527,7 +560,37 @@ public record WorkflowDefinition(
         return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
                 steps, paused, declaredStatus, runtimeStatus, requiredScopes, requiredRoles, maxSteps,
-                layout, processLock, syncInvocation, schedules, triggers, tags, retention, newSearchAttributes);
+                layout, processLock, syncInvocation, schedules, triggers, tags, retention, newSearchAttributes, sensitiveVariables);
+    }
+
+    /**
+     * Returns a copy carrying different sensitive variables — chained wherever a definition is rebuilt, like
+     * {@link #withSearchAttributes}: a copy that forgot them would store its processes' values in clear.
+     */
+    public WorkflowDefinition withSensitiveVariables(List<String> newSensitiveVariables) {
+        return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
+                maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
+                steps, paused, declaredStatus, runtimeStatus, requiredScopes, requiredRoles, maxSteps,
+                layout, processLock, syncInvocation, schedules, triggers, tags, retention, searchAttributes,
+                newSensitiveVariables);
+    }
+
+    /**
+     * Every pattern this definition protects: {@code sensitiveVariables} plus the {@code outputVariables}
+     * of each step marked {@code sensitiveOutputs}. Empty when it protects nothing.
+     */
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    public List<String> sensitiveVariablePatterns() {
+        var stepOutputs = steps == null ? List.<List<String>>of() : steps.stream()
+                .filter(step -> step != null && Boolean.TRUE.equals(step.sensitiveOutputs()) && step.outputVariables() != null)
+                .map(Step::outputVariables)
+                .toList();
+        return io.mateu.workflow.analysis.SensitiveVariableRules.effectivePatterns(sensitiveVariables, stepOutputs);
+    }
+
+    /** Whether this definition declares any sensitive variable. */
+    public boolean declaresSensitiveVariables() {
+        return !sensitiveVariablePatterns().isEmpty();
     }
 
     /** The declared search attributes, parsed (name, value template, type); empty when none. */
@@ -568,7 +631,7 @@ public record WorkflowDefinition(
     public WorkflowDefinition withVersion(int newVersion) {
         return new WorkflowDefinition(id, name, newVersion, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
-                steps, paused, declaredStatus(), runtimeStatus(), requiredScopes, requiredRoles, maxSteps, layout, processLock, syncInvocation, schedules, triggers, tags, retention, searchAttributes);
+                steps, paused, declaredStatus(), runtimeStatus(), requiredScopes, requiredRoles, maxSteps, layout, processLock, syncInvocation, schedules, triggers, tags, retention, searchAttributes, sensitiveVariables);
     }
 
     // ── Detail-view lifecycle buttons (conditional on state via VisibilitySupplier) ──
@@ -687,6 +750,73 @@ public record WorkflowDefinition(
         }
     }
 
+    /**
+     * The sensitive variables must be names or globs ({@code SensitiveVariableRules}); a step's
+     * {@code sensitiveOutputs} needs outputs; no search attribute may read one, and no LLM_CALL may put one
+     * in its prompt without {@code llm.allowSensitiveVariables: true}.
+     */
+    private void checkSensitiveVariables() {
+        var violations = new java.util.ArrayList<>(
+                io.mateu.workflow.analysis.SensitiveVariableRules.violations(sensitiveVariables, "sensitiveVariables"));
+        if (steps != null) {
+            for (var step : steps) {
+                if (step == null) continue;
+                violations.addAll(io.mateu.workflow.analysis.SensitiveVariableRules.stepViolations(
+                        step.sensitiveOutputs(), step.outputVariables(), "step '" + step.id() + "'"));
+            }
+        }
+        var patterns = sensitiveVariablePatterns();
+        if (violations.isEmpty() && !patterns.isEmpty()) {
+            var sensitive = io.mateu.workflow.analysis.SensitiveVariableRules.matcher(patterns);
+            violations.addAll(io.mateu.workflow.analysis.SensitiveVariableRules.searchAttributeViolations(searchAttributes, sensitive));
+            if (processLock != null) {
+                violations.addAll(io.mateu.workflow.analysis.SensitiveVariableRules.keyViolations(
+                        processLock.key(), sensitive, "processLock.key"));
+            }
+            if (steps != null) {
+                for (var step : steps) {
+                    if (step == null) continue;
+                    var where = "step '" + step.id() + "'";
+                    violations.addAll(io.mateu.workflow.analysis.SensitiveVariableRules.keyViolations(
+                            step.correlationExpression(), sensitive, where + " correlationExpression"));
+                    violations.addAll(io.mateu.workflow.analysis.SensitiveVariableRules.keyViolations(
+                            step.lockKey(), sensitive, where + " lockKey"));
+                    if (step.onEvent() != null) {
+                        violations.addAll(io.mateu.workflow.analysis.SensitiveVariableRules.keyViolations(
+                                step.onEvent().correlationKey(), sensitive, where + " onEvent.correlationKey"));
+                    }
+                    if (step.awaitReply() != null) {
+                        violations.addAll(io.mateu.workflow.analysis.SensitiveVariableRules.keyViolations(
+                                step.awaitReply().correlationExpression(), sensitive, where + " awaitReply.correlationExpression"));
+                        if (step.awaitReply().onEvent() != null) {
+                            violations.addAll(io.mateu.workflow.analysis.SensitiveVariableRules.keyViolations(
+                                    step.awaitReply().onEvent().correlationKey(), sensitive, where + " awaitReply.onEvent.correlationKey"));
+                        }
+                    }
+                }
+                for (var step : steps) {
+                    if (step != null && step.agent() != null) {
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> agent = new com.fasterxml.jackson.databind.ObjectMapper()
+                                .convertValue(step.agent(), Map.class);
+                        violations.addAll(io.mateu.workflow.analysis.SensitiveVariableRules.agentViolations(
+                                agent, sensitive, "step '" + step.id() + "'"));
+                    }
+                    if (step == null || step.llm() == null || !StepType.LLM_CALL.equals(step.type())) continue;
+                    var llm = new java.util.HashMap<String, Object>();
+                    llm.put("system", step.llm().system());
+                    llm.put("prompt", step.llm().prompt());
+                    llm.put("allowSensitiveVariables", step.llm().allowSensitiveVariables());
+                    violations.addAll(io.mateu.workflow.analysis.SensitiveVariableRules.llmViolations(
+                            llm, sensitive, "step '" + step.id() + "'"));
+                }
+            }
+        }
+        if (!violations.isEmpty()) {
+            throw new IllegalStateException(String.join("; ", violations) + ".");
+        }
+    }
+
     private void checkTriggers() {
         if (triggers == null) return;
         var violations = new java.util.ArrayList<String>();
@@ -734,6 +864,7 @@ public record WorkflowDefinition(
         checkTags();
         checkRetention();
         checkSearchAttributes();
+        checkSensitiveVariables();
         if (steps == null) return;
         // Reachability below is judged against these: a compensation is declared on the step it
         // undoes and started by the rollback pipeline, so it needs no way in of its own.
