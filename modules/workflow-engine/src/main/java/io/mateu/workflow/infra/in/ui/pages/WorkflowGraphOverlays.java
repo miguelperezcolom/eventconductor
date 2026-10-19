@@ -30,7 +30,7 @@ public final class WorkflowGraphOverlays {
         // once, and they are one process waiting at that step.
         var seen = new java.util.HashSet<String>();
         for (var se : live) {
-            if (seen.add(se.getStepId() + "\u0000" + (se.getProcessId() == null ? se.getId() : se.getProcessId()))) {
+            if (se.getProcessId() == null || seen.add(se.getStepId() + "\u0000" + se.getProcessId())) {
                 counts.merge(se.getStepId(), 1, Integer::sum);
             }
         }
@@ -47,7 +47,7 @@ public final class WorkflowGraphOverlays {
         var heat = new HashMap<String, int[]>();
         var seen = new java.util.HashSet<String>();
         for (var se : live) {
-            if (!seen.add(se.getStepId() + "\u0000" + (se.getProcessId() == null ? se.getId() : se.getProcessId()))) {
+            if (se.getProcessId() != null && !seen.add(se.getStepId() + "\u0000" + se.getProcessId())) {
                 continue;
             }
             heat.computeIfAbsent(se.getStepId(), k -> new int[HEAT_WINDOW_DAYS])[bucketOf(se.getStartedAt(), now)]++;
