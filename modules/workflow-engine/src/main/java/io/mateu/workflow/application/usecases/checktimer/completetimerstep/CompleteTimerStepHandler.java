@@ -1,5 +1,6 @@
 package io.mateu.workflow.application.usecases.checktimer.completetimerstep;
 
+import io.mateu.workflow.time.EngineClock;
 import io.mateu.workflow.application.out.LogMessageRepository;
 import io.mateu.workflow.application.out.ProcessLockService;
 import io.mateu.workflow.application.out.StepExecutionRepository;
@@ -54,7 +55,7 @@ public class CompleteTimerStepHandler {
         // As the engine holds it now — a moment that followed the process's data included. Null for
         // a misconfigured timer, which already failed at start(): nothing to fire here.
         LocalDateTime dueAt = stepExecution.currentDeadline();
-        if (dueAt == null || LocalDateTime.now().isBefore(dueAt)) {
+        if (dueAt == null || EngineClock.now().isBefore(dueAt)) {
             return;
         }
 
@@ -63,11 +64,11 @@ public class CompleteTimerStepHandler {
 
         workflowMetrics.stepExecutionFinished(stepExecution.getWorkflowDefinitionId(),
                 StepExecutionStatus.COMPLETED,
-                java.time.Duration.between(stepExecution.getStartedAt(), LocalDateTime.now()));
+                java.time.Duration.between(stepExecution.getStartedAt(), EngineClock.now()));
 
         logMessageRepository.save(new LogMessage(
                 UUID.randomUUID().toString(),
-                LocalDateTime.now(),
+                EngineClock.now(),
                 stepExecution.getProcessId(),
                 stepExecution.id(),
                 MessageType.Info.name(),

@@ -128,6 +128,28 @@ class CronStarts {
         lastFireTimes.keySet().retainAll(seen);
     }
 
+    /**
+     * The earliest next occurrence across the schedules {@link #fireDue} would fire — after the last
+     * one fired for a tracked schedule, after {@code now} for one not tracked yet.
+     */
+    static Optional<Instant> nextOccurrence(WorkflowDefinitionRepository workflowDefinitionRepository,
+                                            CronScheduleRepository cronScheduleRepository,
+                                            SchedulePauseRepository schedulePauseRepository,
+                                            Map<String, ZonedDateTime> lastFireTimes,
+                                            Instant now) {
+        Instant earliest = null;
+        for (var start : scheduledStarts(workflowDefinitionRepository.findAll(),
+                cronScheduleRepository == null ? List.of() : cronScheduleRepository.findAll(),
+                schedulePauseRepository == null ? Set.of() : schedulePauseRepository.findAll().keySet())) {
+            var last = lastFireTimes.getOrDefault(start.trackingKey(), now.atZone(start.zone()));
+            var next = start.next(last);
+            if (next.isPresent() && (earliest == null || next.get().toInstant().isBefore(earliest))) {
+                earliest = next.get().toInstant();
+            }
+        }
+        return Optional.ofNullable(earliest);
+    }
+
     private static void fire(ScheduledStart start, Consumer<ProcessCreationRequested> sink,
                              Map<String, ZonedDateTime> lastFireTimes, Instant now) {
         var nowZoned = now.atZone(start.zone());

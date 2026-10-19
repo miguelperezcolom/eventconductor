@@ -1,5 +1,6 @@
 package io.mateu.workflow.application.services;
 
+import io.mateu.workflow.time.EngineClock;
 import io.mateu.workflow.application.out.EventReceiptRepository;
 import io.mateu.workflow.application.out.EventTriggerRepository;
 import io.mateu.workflow.application.out.TriggerPauseRepository;
@@ -329,7 +330,7 @@ public class EventTriggerService {
     /** Pauses a trigger: events that arrive while it is paused start nothing, and are not replayed on resume. */
     public TriggerView pause(String workflowId, String triggerId, String by) {
         get(workflowId, triggerId);
-        pauses.save(new TriggerPause(TriggerPause.keyOf(workflowId, triggerId), Instant.now(), by));
+        pauses.save(new TriggerPause(TriggerPause.keyOf(workflowId, triggerId), EngineClock.instant(), by));
         return get(workflowId, triggerId);
     }
 

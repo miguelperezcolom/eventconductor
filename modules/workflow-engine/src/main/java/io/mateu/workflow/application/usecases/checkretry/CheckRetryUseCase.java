@@ -1,5 +1,6 @@
 package io.mateu.workflow.application.usecases.checkretry;
 
+import io.mateu.workflow.time.EngineClock;
 import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.usecases.process.stepover.StepOverProcessCommand;
@@ -29,7 +30,7 @@ public class CheckRetryUseCase {
     final StepOverProcessUseCase stepOverProcessUseCase;
 
     public void handle(CheckRetryCommand command) {
-        var now = LocalDateTime.now();
+        var now = EngineClock.now();
         var due = stepExecutionRepository.findDueRetriesByProcessId(command.processId(), now);
         if (due.isEmpty()) {
             return;

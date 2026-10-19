@@ -1,5 +1,6 @@
 package io.mateu.workflow.infra.in.ui.pages.analytics;
 
+import io.mateu.workflow.time.EngineClock;
 import io.mateu.uidl.annotations.Hidden;
 import io.mateu.uidl.annotations.ReadOnly;
 import io.mateu.uidl.annotations.Title;
@@ -121,7 +122,7 @@ public class Analytics implements PostHydrationHandler {
     private HorizontalLayout buildThroughputChart(List<DefinitionAnalytics> analytics) {
         var days = new ArrayList<LocalDate>();
         for (int i = THROUGHPUT_DAYS - 1; i >= 0; i--) {
-            days.add(LocalDate.now().minusDays(i));
+            days.add(EngineClock.today().minusDays(i));
         }
         var datasets = analytics.stream()
                 .filter(definition -> definition.totalInstances() > 0)

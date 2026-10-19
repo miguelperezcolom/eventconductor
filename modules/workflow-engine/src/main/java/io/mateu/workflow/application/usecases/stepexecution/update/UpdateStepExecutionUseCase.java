@@ -1,5 +1,6 @@
 package io.mateu.workflow.application.usecases.stepexecution.update;
 
+import io.mateu.workflow.time.EngineClock;
 import io.mateu.workflow.application.out.LogMessageRepository;
 import io.mateu.workflow.application.out.ProcessLockService;
 import io.mateu.workflow.application.out.ProcessRepository;
@@ -114,7 +115,7 @@ public class UpdateStepExecutionUseCase {
             // complete only when its reply is correlated. It keeps waiting — armed since it started —
             // under the same timeout; a reply that came first already completed it (terminal, above).
             messageSubscriptionService.rearm(process);
-            logMessageRepository.save(new LogMessage(UUID.randomUUID().toString(), LocalDateTime.now(),
+            logMessageRepository.save(new LogMessage(UUID.randomUUID().toString(), EngineClock.now(),
                     execution.getProcessId(), execution.id(), MessageType.Info.name(),
                     "Request answered; waiting for reply '" + execution.getAwaitingMessageName() + "'", "system"));
             return;
@@ -136,7 +137,7 @@ public class UpdateStepExecutionUseCase {
         // The terminal-status guard above makes this idempotent under redelivery.
         if (METERED_OUTCOMES.contains(command.status())) {
             var duration = execution.getStartedAt() != null
-                    ? Duration.between(execution.getStartedAt(), LocalDateTime.now()) : null;
+                    ? Duration.between(execution.getStartedAt(), EngineClock.now()) : null;
             workflowMetrics.stepExecutionFinished(execution.getWorkflowDefinitionId(), command.status(), duration);
         }
 
@@ -171,7 +172,7 @@ public class UpdateStepExecutionUseCase {
                 || StepExecutionStatus.TIMEOUT.equals(command.status());
         logMessageRepository.save(new LogMessage(
                 UUID.randomUUID().toString(),
-                LocalDateTime.now(),
+                EngineClock.now(),
                 execution.getProcessId(),
                 execution.id(),
                 (failed ? MessageType.Error : MessageType.Info).name(),

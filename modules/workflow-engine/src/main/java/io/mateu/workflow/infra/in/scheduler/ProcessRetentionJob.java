@@ -1,5 +1,6 @@
 package io.mateu.workflow.infra.in.scheduler;
 
+import io.mateu.workflow.time.EngineClock;
 import io.mateu.workflow.application.services.ProcessRetentionService;
 import io.mateu.workflow.infra.config.ProcessRetentionProperties;
 import io.mateu.workflow.infra.out.persistence.DbLockDialect;
@@ -31,7 +32,7 @@ import java.util.concurrent.TimeUnit;
  */
 @Component
 @Slf4j
-public class ProcessRetentionJob {
+public class ProcessRetentionJob implements SchedulerPass {
 
     // Advisory lock ids in use: 222333444 (CronStartScheduler), 333444555 (AnalyticsRollupProjector),
     // 444555666 (EmbeddedOutboxRelay), 777888999 (TimeoutScheduler), 888999111 (LockLeaseReaper),
@@ -44,6 +45,9 @@ public class ProcessRetentionJob {
     final ObjectProvider<DbLockDialect> dbLockDialect;
 
     private ScheduledExecutorService purger;
+
+    @org.springframework.beans.factory.annotation.Value("${" + BACKGROUND_PROPERTY + ":true}")
+    boolean background = true;
 
     public ProcessRetentionJob(ProcessRetentionService service, ProcessRetentionProperties properties,
                                ObjectProvider<JdbcTemplate> jdbcTemplate, ObjectProvider<DbLockDialect> dbLockDialect) {
@@ -58,6 +62,9 @@ public class ProcessRetentionJob {
         var interval = properties.getPurge().getInterval();
         if (!properties.getPurge().isEnabled() || interval == null || interval.isZero() || interval.isNegative()) {
             log.info("Process retention purge is off (workflow.processes.purge)");
+            return;
+        }
+        if (!background) {
             return;
         }
         if (service.policy().hasDefaults()) {
@@ -103,9 +110,37 @@ public class ProcessRetentionJob {
         }
     }
 
+    /**
+     * One purge pass on the calling thread, as the background loop runs it (under the advisory lock
+     * when there is a database). Does nothing when the purge is off.
+     */
+    @Override
+    public int runOnce() {
+        if (!properties.getPurge().isEnabled()) {
+            return 0;
+        }
+        var purged = new java.util.concurrent.atomic.AtomicInteger();
+        var jdbc = jdbcTemplate.getIfAvailable();
+        var dialect = dbLockDialect.getIfAvailable();
+        if (jdbc == null || dialect == null) {
+            return (int) purgeOnce().total();
+        }
+        jdbc.execute((ConnectionCallback<Void>) con -> {
+            if (dialect.tryLock(con, LOCK_ID)) {
+                try {
+                    purged.set((int) purgeOnce().total());
+                } finally {
+                    dialect.unlock(con, LOCK_ID);
+                }
+            }
+            return null;
+        });
+        return purged.get();
+    }
+
     /** One pass, logged when it deleted or kept anything. */
     ProcessRetentionService.PurgeReport purgeOnce() {
-        var report = service.purgeDue(LocalDateTime.now());
+        var report = service.purgeDue(EngineClock.now());
         if (report.total() > 0 || report.treesKept() > 0) {
             log.info("Purged {} finished processes past their retention {}{}", report.total(), report.purged(),
                     report.treesKept() > 0

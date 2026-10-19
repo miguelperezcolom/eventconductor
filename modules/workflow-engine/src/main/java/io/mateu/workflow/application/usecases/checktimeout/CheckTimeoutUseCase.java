@@ -1,5 +1,6 @@
 package io.mateu.workflow.application.usecases.checktimeout;
 
+import io.mateu.workflow.time.EngineClock;
 import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.usecases.checktimeout.checksteptimeout.CheckStepTimeoutCommand;
@@ -22,7 +23,7 @@ public class CheckTimeoutUseCase {
     final CheckStepTimeoutHandler checkTimeoutUseCase;
 
     public void handle(CheckTimeoutCommand command) {
-        var now = LocalDateTime.now();
+        var now = EngineClock.now();
         // Only the steps whose materialised deadline has already passed are candidates — the same
         // filter the global scan used to find this process. This avoids loading every live step and
         // deserialising its JSON just to recompute a deadline already on the row; the timeout()>0

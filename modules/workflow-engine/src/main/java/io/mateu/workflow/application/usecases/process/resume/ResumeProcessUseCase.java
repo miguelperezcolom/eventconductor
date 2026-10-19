@@ -1,5 +1,6 @@
 package io.mateu.workflow.application.usecases.process.resume;
 
+import io.mateu.workflow.time.EngineClock;
 import io.mateu.workflow.application.out.LogMessageRepository;
 import io.mateu.workflow.application.out.ProcessLockService;
 import io.mateu.workflow.application.out.ProcessRepository;
@@ -66,7 +67,7 @@ public class ResumeProcessUseCase {
 
         var pauseDuration = process.getPausedAt() == null
                 ? Duration.ZERO
-                : Duration.between(process.getPausedAt(), LocalDateTime.now());
+                : Duration.between(process.getPausedAt(), EngineClock.now());
 
         // Shift the in-flight step clocks BEFORE the process becomes RUNNING again, so a
         // concurrent scheduler scan cannot fire a timer/timeout in between with the stale
@@ -83,7 +84,7 @@ public class ResumeProcessUseCase {
 
         logMessageRepository.save(new LogMessage(
                 UUID.randomUUID().toString(),
-                LocalDateTime.now(),
+                EngineClock.now(),
                 process.getId(),
                 null,
                 MessageType.Info.name(),

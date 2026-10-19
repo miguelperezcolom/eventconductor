@@ -1,5 +1,6 @@
 package io.mateu.workflow.application.usecases.correlatemessage;
 
+import io.mateu.workflow.time.EngineClock;
 import io.mateu.workflow.application.out.EventReceiptRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.domain.aggregates.EventReceipt;
@@ -97,7 +98,7 @@ public class CorrelateMessageUseCase {
             var origin = command.origin();
             eventReceiptRepository.save(new EventReceipt(receiptKey, receiver, EventReceipt.Kind.WAIT,
                     origin.destination(), origin.type(), origin.source(), origin.id(), EventReceipt.Outcome.DELIVERED,
-                    takenBy.get(), null, null, command.messageName(), command.correlationKey(), null, Instant.now()));
+                    takenBy.get(), null, null, command.messageName(), command.correlationKey(), null, EngineClock.instant()));
         }
     }
 

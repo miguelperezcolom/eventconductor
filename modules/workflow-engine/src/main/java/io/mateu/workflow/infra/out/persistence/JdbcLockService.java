@@ -1,5 +1,6 @@
 package io.mateu.workflow.infra.out.persistence;
 
+import io.mateu.workflow.time.EngineClock;
 import io.mateu.workflow.application.out.LockService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -110,7 +111,7 @@ public class JdbcLockService implements LockService {
     }
 
     private Timestamp newLease() {
-        return Timestamp.valueOf(LocalDateTime.now().plusNanos(leaseMs * 1_000_000));
+        return Timestamp.valueOf(EngineClock.now().plusNanos(leaseMs * 1_000_000));
     }
 
     @Override
@@ -246,7 +247,7 @@ public class JdbcLockService implements LockService {
             jdbcTemplate.update(
                     "UPDATE process_lock SET holder_process_id = ?, holder_step_execution_id = ?, "
                             + "acquired_at = ?, lease_deadline_at = ? WHERE id = ?",
-                    waiterProcess, waiterStep, Timestamp.valueOf(LocalDateTime.now()), newLease(), id);
+                    waiterProcess, waiterStep, Timestamp.valueOf(EngineClock.now()), newLease(), id);
             return Optional.of(new Grant(lockName, lockKey, waiterProcess, waiterStep));
         }
         jdbcTemplate.update("DELETE FROM process_lock WHERE id = ?", id);
@@ -268,7 +269,7 @@ public class JdbcLockService implements LockService {
                 ps.setString(3, lockKey);
                 ps.setString(4, processId);
                 ps.setString(5, stepExecutionId);
-                ps.setTimestamp(6, Timestamp.valueOf(LocalDateTime.now()));
+                ps.setTimestamp(6, Timestamp.valueOf(EngineClock.now()));
                 ps.setTimestamp(7, newLease());
                 ps.executeUpdate();
             } catch (java.sql.SQLException e) {
@@ -317,6 +318,6 @@ public class JdbcLockService implements LockService {
                 "INSERT INTO process_lock_waiter (id, lock_name, lock_key, process_id, step_execution_id, "
                         + "enqueued_at) VALUES (?, ?, ?, ?, ?, ?)",
                 UUID.randomUUID().toString(), lockName, lockKey, processId, stepExecutionId,
-                Timestamp.valueOf(LocalDateTime.now()));
+                Timestamp.valueOf(EngineClock.now()));
     }
 }

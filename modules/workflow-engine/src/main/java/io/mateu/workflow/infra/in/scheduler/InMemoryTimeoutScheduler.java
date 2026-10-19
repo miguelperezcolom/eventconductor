@@ -1,10 +1,8 @@
 package io.mateu.workflow.infra.in.scheduler;
 
+import io.mateu.workflow.time.EngineClock;
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.out.UpstreamEventPublisher;
-import io.mateu.workflow.dtos.events.integration.RetryDueCheckRequested;
-import io.mateu.workflow.dtos.events.integration.TimeoutCheckRequested;
-import io.mateu.workflow.dtos.events.integration.TimerCheckRequested;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
@@ -12,7 +10,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -27,13 +24,16 @@ import java.util.concurrent.TimeUnit;
 @ConditionalOnProperty(name = "workflow.persistence", havingValue = "memory", matchIfMissing = true)
 @RequiredArgsConstructor
 @Slf4j
-public class InMemoryTimeoutScheduler {
+public class InMemoryTimeoutScheduler implements SchedulerPass {
 
     final StepExecutionRepository stepExecutionRepository;
     final UpstreamEventPublisher upstreamEventPublisher;
 
     @org.springframework.beans.factory.annotation.Value("${workflow.timeout-scan-interval-ms:10000}")
     long scanIntervalMs;
+
+    @org.springframework.beans.factory.annotation.Value("${" + BACKGROUND_PROPERTY + ":true}")
+    boolean background = true;
 
     private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor(r -> {
         var thread = new Thread(r, "workflow-timeout-scheduler");
@@ -43,6 +43,9 @@ public class InMemoryTimeoutScheduler {
 
     @PostConstruct
     public void start() {
+        if (!background) {
+            return;
+        }
         executor.scheduleWithFixedDelay(this::scan, scanIntervalMs, scanIntervalMs, TimeUnit.MILLISECONDS);
     }
 
@@ -53,16 +56,15 @@ public class InMemoryTimeoutScheduler {
 
     private void scan() {
         try {
-            var now = LocalDateTime.now();
-            var deadlines = StepDeadlines.classify(stepExecutionRepository.findDue(now));
-            deadlines.timedOutProcessIds().forEach(processId ->
-                    upstreamEventPublisher.publish(new TimeoutCheckRequested(processId)));
-            deadlines.dueTimerProcessIds().forEach(processId ->
-                    upstreamEventPublisher.publish(new TimerCheckRequested(processId)));
-            deadlines.dueRetryProcessIds().forEach(processId ->
-                    upstreamEventPublisher.publish(new RetryDueCheckRequested(processId)));
+            runOnce();
         } catch (Throwable e) {
             log.error("Error checking step timeouts and timers", e);
         }
+    }
+
+    /** One deadline scan: signals every process with an expired timeout, a due TIMER or a due retry. */
+    @Override
+    public int runOnce() {
+        return StepDeadlines.signal(stepExecutionRepository.findDue(EngineClock.now()), upstreamEventPublisher);
     }
 }

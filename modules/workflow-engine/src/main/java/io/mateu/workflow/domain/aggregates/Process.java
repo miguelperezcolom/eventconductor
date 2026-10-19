@@ -1,5 +1,6 @@
 package io.mateu.workflow.domain.aggregates;
 
+import io.mateu.workflow.time.EngineClock;
 import io.mateu.uidl.annotations.Hidden;
 import io.mateu.uidl.annotations.ReadOnly;
 import io.mateu.uidl.interfaces.Identifiable;
@@ -112,7 +113,7 @@ public class Process extends AggregateRoot implements Identifiable {
                 .businessKey(businessKey)
                 .variables(variables)
                 .status(ProcessStatus.PENDING)
-                .created(LocalDateTime.now())
+                .created(EngineClock.now())
                 .parentStepExecutionId(parentStepExecutionId)
                 .build();
         process.send(new ProcessCreated(processId, variables.stream()

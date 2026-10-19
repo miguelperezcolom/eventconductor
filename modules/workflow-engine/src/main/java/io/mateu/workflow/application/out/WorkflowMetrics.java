@@ -1,5 +1,6 @@
 package io.mateu.workflow.application.out;
 
+import io.mateu.workflow.time.EngineClock;
 import io.mateu.workflow.domain.aggregates.Process;
 import io.mateu.workflow.domain.aggregates.StepExecutionStatus;
 
@@ -164,7 +165,7 @@ public interface WorkflowMetrics {
         if (start == null) {
             return null;
         }
-        var end = process.getFinished() != null ? process.getFinished() : LocalDateTime.now();
+        var end = process.getFinished() != null ? process.getFinished() : EngineClock.now();
         return Duration.between(start, end);
     }
 

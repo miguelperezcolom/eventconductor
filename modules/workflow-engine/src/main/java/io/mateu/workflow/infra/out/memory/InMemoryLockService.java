@@ -1,5 +1,6 @@
 package io.mateu.workflow.infra.out.memory;
 
+import io.mateu.workflow.time.EngineClock;
 import io.mateu.workflow.application.out.LockService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -46,7 +47,7 @@ public class InMemoryLockService implements LockService {
     }
 
     private LocalDateTime newLease() {
-        return LocalDateTime.now().plusNanos(leaseMs * 1_000_000);
+        return EngineClock.now().plusNanos(leaseMs * 1_000_000);
     }
 
     @Override

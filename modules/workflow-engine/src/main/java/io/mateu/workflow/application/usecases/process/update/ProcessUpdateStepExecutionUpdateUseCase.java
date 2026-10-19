@@ -1,5 +1,6 @@
 package io.mateu.workflow.application.usecases.process.update;
 
+import io.mateu.workflow.time.EngineClock;
 import io.mateu.workflow.application.out.LogMessageRepository;
 import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
@@ -127,12 +128,12 @@ public class ProcessUpdateStepExecutionUpdateUseCase {
                 || status.equals(ProcessStatus.COMPLETED)
                 || status.equals(ProcessStatus.CANCELLED)
                 || status.equals(ProcessStatus.ERROR))) {
-            process = process.withStarted(LocalDateTime.now());
+            process = process.withStarted(EngineClock.now());
         }
         if (process.getFinished() == null && (status.equals(ProcessStatus.COMPLETED)
                 || status.equals(ProcessStatus.CANCELLED)
                 || status.equals(ProcessStatus.ERROR))) {
-            process = process.withFinished(LocalDateTime.now());
+            process = process.withFinished(EngineClock.now());
         }
         repository.save(process);
 

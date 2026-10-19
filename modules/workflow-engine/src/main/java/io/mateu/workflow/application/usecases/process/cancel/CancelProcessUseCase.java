@@ -1,5 +1,6 @@
 package io.mateu.workflow.application.usecases.process.cancel;
 
+import io.mateu.workflow.time.EngineClock;
 import io.mateu.workflow.application.out.ProcessLockService;
 import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
@@ -110,7 +111,7 @@ public class CancelProcessUseCase {
         // A cancelled process has ended: stamp when, as every other terminal transition does, so the
         // retention purge (counted from the end) and the duration metrics have something to count from.
         if (cancelledProcess.getFinished() == null) {
-            cancelledProcess = cancelledProcess.withFinished(java.time.LocalDateTime.now());
+            cancelledProcess = cancelledProcess.withFinished(EngineClock.now());
         }
         processRepository.save(cancelledProcess);
         workflowMetrics.processCancelled(process.getWorkflowDefinitionId(), WorkflowMetrics.durationOf(process));

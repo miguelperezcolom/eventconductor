@@ -1,5 +1,6 @@
 package io.mateu.workflow.application.services;
 
+import io.mateu.workflow.time.EngineClock;
 import io.mateu.workflow.analysis.EventTriggerRules;
 import io.mateu.workflow.application.out.EventReceiptRepository;
 import io.mateu.workflow.application.out.EventTriggerRepository;
@@ -313,7 +314,7 @@ public class InboundEventService {
                                         String businessKey, String messageName, String correlationKey, String detail) {
         return new EventReceipt(InboundEvents.receiptKey(keyReceiver, event), receiver, kind, event.destination(),
                 event.type(), event.source(), event.id(), outcome, workflowId, triggerId, businessKey, messageName,
-                correlationKey, detail, Instant.now());
+                correlationKey, detail, EngineClock.instant());
     }
 
     private static List<Variable> toVariables(Map<String, String> variables) {

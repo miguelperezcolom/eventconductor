@@ -1,5 +1,6 @@
 package io.mateu.workflow.application.sync;
 
+import io.mateu.workflow.time.EngineClock;
 import io.mateu.workflow.domain.aggregates.LogMessage;
 import io.mateu.workflow.domain.aggregates.Process;
 import io.mateu.workflow.domain.aggregates.ProcessStatus;
@@ -8,7 +9,6 @@ import io.mateu.workflow.domain.aggregates.StepExecution;
 import io.mateu.workflow.domain.aggregates.StepExecutionStatus;
 
 import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -66,7 +66,7 @@ public final class InvocationProgress {
             data.put("key", "status:" + process.getStatus());
             data.put("processId", process.getId());
             data.put("processStatus", process.getStatus() == null ? null : process.getStatus().name());
-            events.add(event("status", System.currentTimeMillis(), data));
+            events.add(event("status", EngineClock.millis(), data));
         }
         var changed = new ArrayList<Pending>();
         for (var execution : executions) {
@@ -120,7 +120,7 @@ public final class InvocationProgress {
 
     /** An event for something the stream decides itself (the reply, the deadline), stamped now. */
     public Event now(String name, Object data) {
-        return event(name, System.currentTimeMillis(), data);
+        return event(name, EngineClock.millis(), data);
     }
 
     private record Pending(String name, long millis, Object data) {
@@ -142,7 +142,7 @@ public final class InvocationProgress {
     }
 
     private static long millisOf(LocalDateTime at) {
-        return at == null ? System.currentTimeMillis() : at.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+        return at == null ? EngineClock.millis() : at.atZone(EngineClock.zone()).toInstant().toEpochMilli();
     }
 
     private static long millisOf(String lastEventId) {

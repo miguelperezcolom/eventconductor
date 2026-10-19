@@ -1,5 +1,6 @@
 package io.mateu.workflow.domain.services;
 
+import io.mateu.workflow.time.EngineClock;
 import io.mateu.workflow.domain.aggregates.Process;
 import io.mateu.workflow.domain.aggregates.Step;
 import io.mateu.workflow.dtos.events.integration.ExternalEventRequested;
@@ -75,7 +76,7 @@ public final class ExternalEventRenderer {
         }
         return new ExternalEventRequested(stepExecutionId, event.destination(), event.type(), key, event.format(),
                 data, process.getId(), process.getWorkflowDefinitionId(), step.id(), process.getBusinessKey(),
-                Instant.now().toString());
+                EngineClock.instant().toString());
     }
 
     private static boolean blank(String s) {

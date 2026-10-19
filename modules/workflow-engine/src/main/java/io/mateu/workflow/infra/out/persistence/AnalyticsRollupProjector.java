@@ -1,5 +1,6 @@
 package io.mateu.workflow.infra.out.persistence;
 
+import io.mateu.workflow.time.EngineClock;
 import io.mateu.workflow.application.out.analytics.DurationHistogram;
 import io.mateu.workflow.application.out.analytics.RollupFolder;
 import io.mateu.workflow.application.out.analytics.RollupModel.CreatedRow;
@@ -75,7 +76,7 @@ import java.util.stream.Collectors;
 @ConditionalOnProperty(name = "workflow.analytics.rollup", havingValue = "true")
 @RequiredArgsConstructor
 @Slf4j
-public class AnalyticsRollupProjector {
+public class AnalyticsRollupProjector implements io.mateu.workflow.infra.in.scheduler.SchedulerPass {
 
     // Advisory lock ids in use: 111222333 (the outbox relay gate, held shared by every relay while it
     // drains), 222333444 (cron), 444555666 (embedded relay), 777888999 (timeouts), 888999111 (lock
@@ -129,6 +130,9 @@ public class AnalyticsRollupProjector {
     @Value("${workflow.analytics.rollup-lookback-seconds:120}")
     long lookbackSeconds;
 
+    @Value("${" + BACKGROUND_PROPERTY + ":true}")
+    boolean background = true;
+
     private TransactionTemplate tx;
     private volatile boolean running = true;
     private Thread thread;
@@ -136,21 +140,14 @@ public class AnalyticsRollupProjector {
     @PostConstruct
     public void start() {
         this.tx = new TransactionTemplate(transactionManager);
+        if (!background) {
+            return;
+        }
         var thread = new Thread(() -> {
             try {
                 while (running) {
                     try {
-                        jdbcTemplate.execute((ConnectionCallback<Void>) con -> {
-                            if (!dbLockDialect.tryLock(con, LOCK_ID)) {
-                                return null;
-                            }
-                            try {
-                                projectOnce();
-                            } finally {
-                                dbLockDialect.unlock(con, LOCK_ID);
-                            }
-                            return null;
-                        });
+                        runOnce();
                     } catch (Throwable e) {
                         log.error("Error projecting analytics rollup", e);
                     }
@@ -177,8 +174,25 @@ public class AnalyticsRollupProjector {
         }
     }
 
+    /** One projection pass under the cluster-wide advisory lock (always reports zero: it folds, it does not count). */
+    @Override
+    public int runOnce() {
+        jdbcTemplate.execute((ConnectionCallback<Void>) con -> {
+            if (!dbLockDialect.tryLock(con, LOCK_ID)) {
+                return null;
+            }
+            try {
+                projectOnce();
+            } finally {
+                dbLockDialect.unlock(con, LOCK_ID);
+            }
+            return null;
+        });
+        return 0;
+    }
+
     void projectOnce() {
-        var ceiling = LocalDateTime.now().minusSeconds(ceilingSeconds);
+        var ceiling = EngineClock.now().minusSeconds(ceilingSeconds);
         retractReopenedProcesses();
         retractReopenedSteps();
         foldCreated(ceiling);

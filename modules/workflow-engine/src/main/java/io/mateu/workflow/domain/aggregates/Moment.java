@@ -1,5 +1,6 @@
 package io.mateu.workflow.domain.aggregates;
 
+import io.mateu.workflow.time.EngineClock;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -80,7 +81,7 @@ public record Moment(String date, String offset, String at, String zone, String 
         if (variables != null) {
             variables.forEach(variable -> context.put(variable.name(), variable.value()));
         }
-        context.put("now", java.time.Instant.now().toString());
+        context.put("now", EngineClock.instant().toString());
         return context;
     }
 }

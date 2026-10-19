@@ -1,5 +1,6 @@
 package io.mateu.workflow.application.services;
 
+import io.mateu.workflow.time.EngineClock;
 import io.mateu.workflow.domain.aggregates.Process;
 import io.mateu.workflow.domain.aggregates.ProcessStatus;
 import io.mateu.workflow.dtos.events.domain.ProcessStatusChanged;
@@ -70,7 +71,7 @@ public class ProcessStatusAnnouncer {
                 process.getFinished(),
                 // Stamp the emit time here, in causal order — this, not the projector's consume time,
                 // is what orders the read model (see ProcessStatusChanged#occurredAt).
-                java.time.LocalDateTime.now(),
+                EngineClock.now(),
                 // The owning shard, stamped here rather than read by the projector, so a fanned-out
                 // projector still records where the process lives (see ProcessStatusChanged#shardId).
                 shardId));

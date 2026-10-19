@@ -1,5 +1,6 @@
 package io.mateu.workflow.application.usecases.process.pause;
 
+import io.mateu.workflow.time.EngineClock;
 import io.mateu.workflow.application.out.LogMessageRepository;
 import io.mateu.workflow.application.out.ProcessLockService;
 import io.mateu.workflow.application.out.ProcessRepository;
@@ -53,12 +54,12 @@ public class PauseProcessUseCase {
             return;
         }
 
-        var paused = process.withStatus(ProcessStatus.PAUSED).withPausedAt(LocalDateTime.now());
+        var paused = process.withStatus(ProcessStatus.PAUSED).withPausedAt(EngineClock.now());
         processRepository.save(paused);
 
         logMessageRepository.save(new LogMessage(
                 UUID.randomUUID().toString(),
-                LocalDateTime.now(),
+                EngineClock.now(),
                 process.getId(),
                 null,
                 MessageType.Info.name(),

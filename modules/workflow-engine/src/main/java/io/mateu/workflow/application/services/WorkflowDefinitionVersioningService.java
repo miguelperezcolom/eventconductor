@@ -1,5 +1,6 @@
 package io.mateu.workflow.application.services;
 
+import io.mateu.workflow.time.EngineClock;
 import io.mateu.workflow.domain.aggregates.Step;
 import io.mateu.workflow.domain.aggregates.WorkflowDefinition;
 import io.mateu.workflow.infra.out.persistence.WorkflowDefinitionVersionEntity;
@@ -62,7 +63,7 @@ public class WorkflowDefinitionVersioningService {
                     definition.name(),
                     toJson(stamped),
                     hash,
-                    LocalDateTime.now()));
+                    EngineClock.now()));
             log.info("Recorded workflow definition '{}' version {} (content changed)", definition.id(), next);
             return next;
         } catch (DataIntegrityViolationException race) {

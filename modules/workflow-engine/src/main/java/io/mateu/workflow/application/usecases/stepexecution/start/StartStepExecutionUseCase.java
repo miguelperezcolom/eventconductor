@@ -1,5 +1,6 @@
 package io.mateu.workflow.application.usecases.stepexecution.start;
 
+import io.mateu.workflow.time.EngineClock;
 import io.mateu.workflow.application.out.DownstreamEventPublisher;
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.domain.aggregates.Step;
@@ -69,7 +70,7 @@ public class StartStepExecutionUseCase {
         // The engine already holds this principle elsewhere: pausing a process shifts startedAt by
         // the pause duration, precisely so that time a step could not be running does not count
         // against it. Queue time is the same thing, and was the case left out.
-        stepExecution = stepExecution.withStartedAt(java.time.LocalDateTime.now());
+        stepExecution = stepExecution.withStartedAt(EngineClock.now());
         stepExecutionRepository.save(stepExecution);
 
         var taskId = "";

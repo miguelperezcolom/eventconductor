@@ -1,5 +1,6 @@
 package io.mateu.workflow.application.usecases.checktimeout.checksteptimeout;
 
+import io.mateu.workflow.time.EngineClock;
 import io.mateu.workflow.application.out.LogMessageRepository;
 import io.mateu.workflow.application.out.ProcessLockService;
 import io.mateu.workflow.application.out.StepExecutionRepository;
@@ -56,7 +57,7 @@ public class CheckStepTimeoutHandler {
         }
 
         var timeoutAt = stepExecution.currentDeadline();
-        if (timeoutAt == null || LocalDateTime.now().isBefore(timeoutAt)) {
+        if (timeoutAt == null || EngineClock.now().isBefore(timeoutAt)) {
             return;
         }
         // Which limit was reached, for the log: the timeout counted from the start, or the deadline.
@@ -73,11 +74,11 @@ public class CheckStepTimeoutHandler {
 
         workflowMetrics.stepExecutionFinished(stepExecution.getWorkflowDefinitionId(),
                 StepExecutionStatus.TIMEOUT,
-                Duration.between(stepExecution.getStartedAt(), LocalDateTime.now()));
+                Duration.between(stepExecution.getStartedAt(), EngineClock.now()));
 
         logMessageRepository.save(new LogMessage(
                 UUID.randomUUID().toString(),
-                LocalDateTime.now(),
+                EngineClock.now(),
                 stepExecution.getProcessId(),
                 stepExecution.id(),
                 MessageType.Error.name(),

@@ -1,6 +1,7 @@
 package io.mateu.workflow.application.usecases.lock;
 
 import io.mateu.workflow.application.out.LockService;
+import io.mateu.workflow.time.EngineClock;
 import io.mateu.workflow.application.usecases.process.stepover.StepOverProcessCommand;
 import io.mateu.workflow.application.usecases.process.stepover.StepOverProcessUseCase;
 import io.mateu.workflow.application.usecases.stepexecution.update.UpdateStepExecutionCommand;
@@ -32,7 +33,7 @@ public class ExpireLockLeasesUseCase {
     final ObjectProvider<StepOverProcessUseCase> stepOverProcessUseCase;
 
     public void handle() {
-        var grants = lockService.expireLeases(LocalDateTime.now());
+        var grants = lockService.expireLeases(EngineClock.now());
         if (!grants.isEmpty()) {
             log.warn("Reaped {} expired lock lease(s); admitting the next waiter for each", grants.size());
         }

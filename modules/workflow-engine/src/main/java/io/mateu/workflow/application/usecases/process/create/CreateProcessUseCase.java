@@ -1,5 +1,6 @@
 package io.mateu.workflow.application.usecases.process.create;
 
+import io.mateu.workflow.time.EngineClock;
 import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.out.UnknownWorkflowDefinitionException;
@@ -174,7 +175,7 @@ public class CreateProcessUseCase {
             // everything until the definition (or the process) is resumed. The @With copies
             // start with an empty event list, so carry the ProcessCreated event over.
             var events = process.popEvents();
-            process = process.withStatus(ProcessStatus.PAUSED).withPausedAt(LocalDateTime.now());
+            process = process.withStatus(ProcessStatus.PAUSED).withPausedAt(EngineClock.now());
             events.forEach(process::send);
             log.info("Workflow definition '{}' is paused — process {} created PAUSED",
                     workflowDefinition.id(), process.getId());

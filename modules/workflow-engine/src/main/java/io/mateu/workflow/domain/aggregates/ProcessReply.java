@@ -1,5 +1,6 @@
 package io.mateu.workflow.domain.aggregates;
 
+import io.mateu.workflow.time.EngineClock;
 import java.time.LocalDateTime;
 
 /**
@@ -33,12 +34,12 @@ public record ProcessReply(
 
     /** A REPLY step's answer. */
     public static ProcessReply replied(String stepId, String payload) {
-        return new ProcessReply(stepId, payload, Outcome.REPLIED, Compensation.NONE, null, LocalDateTime.now());
+        return new ProcessReply(stepId, payload, Outcome.REPLIED, Compensation.NONE, null, EngineClock.now());
     }
 
     /** An answer the engine gives on the process's behalf. */
     public static ProcessReply of(Outcome outcome, Compensation compensation, String error) {
-        return new ProcessReply(null, null, outcome, compensation, error, LocalDateTime.now());
+        return new ProcessReply(null, null, outcome, compensation, error, EngineClock.now());
     }
 
     /** True for every outcome in which the process did not get to answer successfully. */

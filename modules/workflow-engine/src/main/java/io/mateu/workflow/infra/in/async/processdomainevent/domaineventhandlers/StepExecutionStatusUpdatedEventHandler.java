@@ -1,5 +1,6 @@
 package io.mateu.workflow.infra.in.async.processdomainevent.domaineventhandlers;
 
+import io.mateu.workflow.time.EngineClock;
 import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.out.WorkflowMetrics;
@@ -202,7 +203,7 @@ public class StepExecutionStatusUpdatedEventHandler implements DomainEventHandle
         cancelStepsThatNeverRan(executions);
         var compensated = process.withStatus(ProcessStatus.COMPENSATED).withCompletionPercentage(100);
         if (compensated.getFinished() == null) {
-            compensated = compensated.withFinished(LocalDateTime.now());
+            compensated = compensated.withFinished(EngineClock.now());
         }
         processRepository.save(compensated);
     }
@@ -228,7 +229,7 @@ public class StepExecutionStatusUpdatedEventHandler implements DomainEventHandle
         cancelStepsThatNeverRan(executions);
         var failed = process.withStatus(ProcessStatus.COMPENSATION_FAILED);
         if (failed.getFinished() == null) {
-            failed = failed.withFinished(LocalDateTime.now());
+            failed = failed.withFinished(EngineClock.now());
         }
         processRepository.save(failed);
         workflowMetrics.compensationFailed(process.getWorkflowDefinitionId());

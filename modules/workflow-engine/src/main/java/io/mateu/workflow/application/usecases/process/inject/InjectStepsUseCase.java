@@ -1,5 +1,6 @@
 package io.mateu.workflow.application.usecases.process.inject;
 
+import io.mateu.workflow.time.EngineClock;
 import io.mateu.workflow.application.out.LogMessageRepository;
 import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
@@ -289,7 +290,7 @@ public class InjectStepsUseCase {
                 injectingStep.getStepId(), injectingStep.getProcessId(), reason);
         logMessageRepository.save(new LogMessage(
                 UUID.randomUUID().toString(),
-                LocalDateTime.now(),
+                EngineClock.now(),
                 injectingStep.getProcessId(),
                 injectingStep.id(),
                 MessageType.Error.name(),

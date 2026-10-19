@@ -1,5 +1,6 @@
 package io.mateu.workflow.application.sync;
 
+import io.mateu.workflow.time.EngineClock;
 import io.mateu.workflow.application.out.InvocationRepository;
 import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.UnknownWorkflowDefinitionException;
@@ -119,7 +120,7 @@ public class SyncInvocationService {
 
         placeOnThisShardOrRefuse(definition.id(), request);
 
-        var now = LocalDateTime.now();
+        var now = EngineClock.now();
         var invocation = new Invocation(UUID.randomUUID().toString(), definition.id(), request.idempotencyKey(),
                 hash, UUID.randomUUID().toString(), now.plus(wait), now, now.plus(retention),
                 workflowTracing.currentTraceParent());

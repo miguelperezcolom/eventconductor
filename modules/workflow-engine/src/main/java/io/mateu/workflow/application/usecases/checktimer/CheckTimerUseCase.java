@@ -1,5 +1,6 @@
 package io.mateu.workflow.application.usecases.checktimer;
 
+import io.mateu.workflow.time.EngineClock;
 import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.usecases.checktimer.completetimerstep.CompleteTimerStepCommand;
@@ -26,7 +27,7 @@ public class CheckTimerUseCase {
     final CompleteTimerStepHandler completeTimerStepHandler;
 
     public void handle(CheckTimerCommand command) {
-        var now = LocalDateTime.now();
+        var now = EngineClock.now();
         var due = stepExecutionRepository.findPendingOrRunningByProcessId(command.processId()).stream()
                 .filter(se -> se.getStartedAt() != null)
                 .filter(se -> isDue(se, now))

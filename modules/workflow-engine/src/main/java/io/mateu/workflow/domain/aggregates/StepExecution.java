@@ -1,5 +1,6 @@
 package io.mateu.workflow.domain.aggregates;
 
+import io.mateu.workflow.time.EngineClock;
 import io.mateu.uidl.annotations.HiddenInList;
 import io.mateu.uidl.interfaces.Identifiable;
 import io.mateu.workflow.ddd.AggregateRoot;
@@ -311,7 +312,7 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
         send(new TaskLogEmitted(id, MessageType.Info,
                 what + " of step " + step.name() + " moved with the process's data: now due " + now + " (was " + was + ")."));
         if (StepType.TIMER.equals(step.type()) && step.until() != null && step.until().timesOutIfPast()
-                && StepExecutionStatus.PENDING.equals(status) && !now.isAfter(LocalDateTime.now())) {
+                && StepExecutionStatus.PENDING.equals(status) && !now.isAfter(EngineClock.now())) {
             send(new TaskLogEmitted(id, MessageType.Error,
                     "Timer " + step.name() + ": its moment (" + step.until().describe() + ") moved into the past ("
                             + now + ")."));
@@ -410,7 +411,7 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
         }
         var variables = process.getVariables() == null ? List.<Variable>of() : process.getVariables();
         this.variables = variables;
-        this.startedAt = LocalDateTime.now();
+        this.startedAt = EngineClock.now();
         var step = pojoFromJson(stepJson, Step.class);
         if (parentExecutionId == null && step.forEach() != null) {
             // A forEach container runs no task of its own: the orchestrator materialises its
@@ -719,7 +720,7 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
         }
         this.status = status;
         if (status.isTerminal()) {
-            this.finishedAt = LocalDateTime.now();
+            this.finishedAt = EngineClock.now();
         } else {
             this.finishedAt = null;
         }
@@ -786,7 +787,7 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
         this.finishedAt = null;
         this.workerId = null;
         var delay = backoff == null || backoff.isNegative() ? java.time.Duration.ZERO : backoff;
-        this.deadlineAt = LocalDateTime.now().plus(delay);
+        this.deadlineAt = EngineClock.now().plus(delay);
         send(new TaskLogEmitted(id, MessageType.Info,
                 "Auto-retry attempt " + attemptCount + " for step " + stepId
                         + " scheduled in " + delay.toMillis() + " ms (at " + deadlineAt + ")"));
@@ -888,7 +889,7 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
     public void beginIterations(Process process, int total, String compensates) {
         this.dispatchCount++;
         this.variables = process.getVariables() == null ? List.of() : process.getVariables();
-        this.startedAt = LocalDateTime.now();
+        this.startedAt = EngineClock.now();
         this.finishedAt = null;
         this.deadlineAt = null;
         var scope = new java.util.LinkedHashMap<String, Object>();
@@ -977,7 +978,7 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
     /** Cancels a step that never started, with no event: nothing was dispatched, nobody to tell. */
     public void cancelQuietly() {
         this.status = StepExecutionStatus.CANCELLED;
-        this.finishedAt = LocalDateTime.now();
+        this.finishedAt = EngineClock.now();
     }
 
     /** Records what this iteration reported, merged over what it reported before. */

@@ -1,5 +1,6 @@
 package io.mateu.workflow.infra.in.scheduler;
 
+import io.mateu.workflow.time.EngineClock;
 import io.mateu.workflow.application.services.IngressRouter;
 import io.mateu.workflow.application.out.WorkflowDefinitionRepository;
 import jakarta.annotation.PostConstruct;
@@ -27,7 +28,7 @@ import java.util.concurrent.TimeUnit;
 @ConditionalOnProperty(name = "workflow.persistence", havingValue = "memory", matchIfMissing = true)
 @RequiredArgsConstructor
 @Slf4j
-public class InMemoryCronStartScheduler {
+public class InMemoryCronStartScheduler implements SchedulerPass {
 
     final WorkflowDefinitionRepository workflowDefinitionRepository;
     final io.mateu.workflow.application.out.CronScheduleRepository cronScheduleRepository;
@@ -40,6 +41,9 @@ public class InMemoryCronStartScheduler {
     @org.springframework.beans.factory.annotation.Value("${workflow.cron-enabled:true}")
     boolean enabled;
 
+    @org.springframework.beans.factory.annotation.Value("${" + BACKGROUND_PROPERTY + ":true}")
+    boolean background = true;
+
     private final Map<String, ZonedDateTime> lastFireTimes = new ConcurrentHashMap<>();
 
     private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor(r -> {
@@ -50,7 +54,7 @@ public class InMemoryCronStartScheduler {
 
     @PostConstruct
     public void start() {
-        if (!enabled) {
+        if (!enabled || !background) {
             return;
         }
         executor.scheduleWithFixedDelay(this::scan, scanIntervalMs, scanIntervalMs, TimeUnit.MILLISECONDS);
@@ -63,10 +67,41 @@ public class InMemoryCronStartScheduler {
 
     private void scan() {
         try {
-            CronStarts.fireDue(workflowDefinitionRepository, cronScheduleRepository, schedulePauseRepository, ingressRouter::route,
-                    lastFireTimes, Instant.now());
+            runOnce();
         } catch (Throwable e) {
             log.error("Error checking cron process starts", e);
         }
+    }
+
+    /**
+     * One cron scan: starts a process for every occurrence elapsed since the last scan. Does nothing
+     * when cron starts are off ({@code workflow.cron-enabled=false}).
+     */
+    @Override
+    public int runOnce() {
+        if (!enabled) {
+            return 0;
+        }
+        var started = new java.util.concurrent.atomic.AtomicInteger();
+        CronStarts.fireDue(workflowDefinitionRepository, cronScheduleRepository, schedulePauseRepository,
+                request -> {
+                    started.incrementAndGet();
+                    ingressRouter.route(request);
+                },
+                lastFireTimes, EngineClock.instant());
+        return started.get();
+    }
+
+    /**
+     * The earliest occurrence of any tracked schedule strictly after the last one this scheduler
+     * fired, or empty when there is none — what a caller skipping time needs in order to stop the
+     * clock at each occurrence instead of jumping past it.
+     */
+    public java.util.Optional<Instant> nextOccurrence() {
+        if (!enabled) {
+            return java.util.Optional.empty();
+        }
+        return CronStarts.nextOccurrence(workflowDefinitionRepository, cronScheduleRepository, schedulePauseRepository,
+                lastFireTimes, EngineClock.instant());
     }
 }

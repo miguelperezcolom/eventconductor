@@ -1,5 +1,6 @@
 package io.mateu.workflow.domain.services;
 
+import io.mateu.workflow.time.EngineClock;
 import io.mateu.workflow.domain.aggregates.Process;
 import io.mateu.workflow.domain.aggregates.Step;
 
@@ -42,7 +43,7 @@ public final class TemplateContext {
         stepInfo.put("name", step == null ? null : step.name());
         stepInfo.put("executionId", stepExecutionId);
         context.put("step", stepInfo);
-        context.put("now", Instant.now().toString());
+        context.put("now", EngineClock.instant().toString());
         // Last, so the canonical value wins over a variable of the same name.
         context.put("businessKey", process.getBusinessKey());
         return context;

@@ -1,5 +1,6 @@
 package io.mateu.workflow.application.usecases.stepexecution.update;
 
+import io.mateu.workflow.time.EngineClock;
 import io.mateu.workflow.application.out.LogMessageRepository;
 import io.mateu.workflow.application.out.ProcessRepository;
 import io.mateu.workflow.application.out.StepExecutionRepository;
@@ -24,7 +25,7 @@ public class RegisterLogMessageUseCase {
 
         logMessageRepository.save(new LogMessage(
                 UUID.randomUUID().toString(),
-                LocalDateTime.now(),
+                EngineClock.now(),
                 execution.getProcessId(),
                 execution.id(),
                 command.messageType().name(),

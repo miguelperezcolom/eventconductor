@@ -1,5 +1,6 @@
 package io.mateu.workflow.infra.in.scheduler;
 
+import io.mateu.workflow.time.EngineClock;
 import io.mateu.workflow.application.out.InvocationRepository;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -25,7 +26,7 @@ import java.util.concurrent.TimeUnit;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-public class InvocationRetention {
+public class InvocationRetention implements SchedulerPass {
 
     final InvocationRepository invocationRepository;
 
@@ -34,8 +35,14 @@ public class InvocationRetention {
 
     private ScheduledExecutorService purger;
 
+    @org.springframework.beans.factory.annotation.Value("${" + BACKGROUND_PROPERTY + ":true}")
+    boolean background = true;
+
     @PostConstruct
     void start() {
+        if (!background) {
+            return;
+        }
         purger = Executors.newSingleThreadScheduledExecutor(runnable -> {
             var thread = new Thread(runnable, "sync-invocation-retention");
             thread.setDaemon(true);
@@ -52,12 +59,19 @@ public class InvocationRetention {
         }
     }
 
+    /** One pass: forgets the synchronous invocations whose retention has run out. */
+    @Override
+    public int runOnce() {
+        var purged = invocationRepository.purgeExpired(EngineClock.now());
+        if (purged > 0) {
+            log.info("Forgot {} expired synchronous invocations", purged);
+        }
+        return purged;
+    }
+
     void purgeQuietly() {
         try {
-            var purged = invocationRepository.purgeExpired(LocalDateTime.now());
-            if (purged > 0) {
-                log.info("Forgot {} expired synchronous invocations", purged);
-            }
+            runOnce();
         } catch (Exception e) {
             log.warn("Synchronous invocation retention pass failed, will try again: {}", e.getMessage());
         }

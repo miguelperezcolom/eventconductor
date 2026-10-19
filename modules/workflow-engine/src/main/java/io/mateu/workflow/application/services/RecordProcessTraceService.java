@@ -1,5 +1,6 @@
 package io.mateu.workflow.application.services;
 
+import io.mateu.workflow.time.EngineClock;
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.out.WorkflowTracing;
 import io.mateu.workflow.domain.aggregates.Process;
@@ -63,7 +64,7 @@ public class RecordProcessTraceService {
 
     private void record(Process process) {
         var startedAt = process.getStarted() != null ? process.getStarted() : process.getCreated();
-        var finishedAt = process.getFinished() != null ? process.getFinished() : LocalDateTime.now();
+        var finishedAt = process.getFinished() != null ? process.getFinished() : EngineClock.now();
         if (startedAt == null) {
             return;
         }
@@ -108,7 +109,7 @@ public class RecordProcessTraceService {
         }
         // Still in flight when the process ended — a branch abandoned at an END step. Its span ends
         // where the process did, which is when it stopped mattering.
-        var finishedAt = execution.getFinishedAt() != null ? execution.getFinishedAt() : LocalDateTime.now();
+        var finishedAt = execution.getFinishedAt() != null ? execution.getFinishedAt() : EngineClock.now();
 
         var tags = new LinkedHashMap<String, String>();
         tags.put("eventconductor.step.id", execution.getStepId());

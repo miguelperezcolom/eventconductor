@@ -1,9 +1,13 @@
 package io.mateu.workflow.infra.in.scheduler;
 
+import io.mateu.workflow.application.out.UpstreamEventPublisher;
 import io.mateu.workflow.domain.aggregates.Step;
 import io.mateu.workflow.domain.aggregates.StepExecution;
 import io.mateu.workflow.domain.aggregates.StepExecutionStatus;
 import io.mateu.workflow.domain.aggregates.StepType;
+import io.mateu.workflow.dtos.events.integration.RetryDueCheckRequested;
+import io.mateu.workflow.dtos.events.integration.TimeoutCheckRequested;
+import io.mateu.workflow.dtos.events.integration.TimerCheckRequested;
 
 import java.util.Collection;
 import java.util.LinkedHashSet;
@@ -46,6 +50,21 @@ class StepDeadlines {
             }
         }
         return new Result(timedOut, dueTimers, dueRetries);
+    }
+
+    /**
+     * Classifies {@code due} and publishes the check each process needs — the body of one deadline
+     * scan, shared by both scheduler variants.
+     *
+     * @return how many checks were published
+     */
+    static int signal(Collection<StepExecution> due, UpstreamEventPublisher publisher) {
+        var deadlines = classify(due);
+        deadlines.timedOutProcessIds().forEach(processId -> publisher.publish(new TimeoutCheckRequested(processId)));
+        deadlines.dueTimerProcessIds().forEach(processId -> publisher.publish(new TimerCheckRequested(processId)));
+        deadlines.dueRetryProcessIds().forEach(processId -> publisher.publish(new RetryDueCheckRequested(processId)));
+        return deadlines.timedOutProcessIds().size() + deadlines.dueTimerProcessIds().size()
+                + deadlines.dueRetryProcessIds().size();
     }
 
     private StepDeadlines() {

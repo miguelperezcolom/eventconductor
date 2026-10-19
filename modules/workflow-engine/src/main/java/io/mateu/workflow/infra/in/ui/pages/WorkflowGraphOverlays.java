@@ -1,5 +1,6 @@
 package io.mateu.workflow.infra.in.ui.pages;
 
+import io.mateu.workflow.time.EngineClock;
 import io.mateu.workflow.domain.aggregates.StepExecution;
 
 import java.time.Duration;
@@ -43,7 +44,7 @@ public final class WorkflowGraphOverlays {
      * live count. Keyed by step id; steps with no live task are absent.
      */
     public static Map<String, int[]> heatByStep(List<StepExecution> live) {
-        var now = LocalDateTime.now();
+        var now = EngineClock.now();
         var heat = new HashMap<String, int[]>();
         var seen = new java.util.HashSet<String>();
         for (var se : live) {

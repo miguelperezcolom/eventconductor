@@ -1,5 +1,6 @@
 package io.mateu.workflow.application.usecases.correlatemessage.completemessagestep;
 
+import io.mateu.workflow.time.EngineClock;
 import io.mateu.workflow.application.out.LogMessageRepository;
 import io.mateu.workflow.application.out.ProcessLockService;
 import io.mateu.workflow.application.out.ProcessRepository;
@@ -86,11 +87,11 @@ public class CompleteMessageStepHandler {
 
         workflowMetrics.stepExecutionFinished(stepExecution.getWorkflowDefinitionId(),
                 StepExecutionStatus.COMPLETED,
-                java.time.Duration.between(stepExecution.getStartedAt(), LocalDateTime.now()));
+                java.time.Duration.between(stepExecution.getStartedAt(), EngineClock.now()));
 
         logMessageRepository.save(new LogMessage(
                 UUID.randomUUID().toString(),
-                LocalDateTime.now(),
+                EngineClock.now(),
                 stepExecution.getProcessId(),
                 stepExecution.id(),
                 MessageType.Info.name(),

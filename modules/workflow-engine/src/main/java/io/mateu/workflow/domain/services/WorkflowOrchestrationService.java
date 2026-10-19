@@ -1,5 +1,6 @@
 package io.mateu.workflow.domain.services;
 
+import io.mateu.workflow.time.EngineClock;
 import io.mateu.workflow.domain.aggregates.*;
 import io.mateu.workflow.domain.aggregates.Process;
 import lombok.Value;
@@ -400,7 +401,7 @@ public class WorkflowOrchestrationService {
             pass.save(execution);
             return;
         }
-        var wakeAt = delayOf(step) > 0 ? LocalDateTime.now().plus(java.time.Duration.ofMillis(delayOf(step))) : null;
+        var wakeAt = delayOf(step) > 0 ? EngineClock.now().plus(java.time.Duration.ofMillis(delayOf(step))) : null;
         if (step.repeat() != null) {
             execution.supersede(StepExecution.LOOP_LOOPED);
             execution.logInfo("Step " + step.id() + " runs again (run " + (runs + 1) + "): '" + condition + "' is false.");
@@ -863,7 +864,7 @@ public class WorkflowOrchestrationService {
         // the engine with no time on it at all — against what the field itself documents ("set when
         // the step reaches a terminal status"). It read as a step that never ran wherever the
         // record is shown by time, the process diagram's step numbers included.
-        var now = java.time.LocalDateTime.now();
+        var now = EngineClock.now();
         endSteps.stream()
                 .map(stepExecution -> stepExecution.withStatus(StepExecutionStatus.COMPLETED)
                         .withFinishedAt(now))
@@ -996,10 +997,10 @@ public class WorkflowOrchestrationService {
     private Process completeProcess(Process process) {
         var completed = process.withCompletionPercentage(100).withStatus(ProcessStatus.COMPLETED);
         if (completed.getStarted() == null) {
-            completed = completed.withStarted(LocalDateTime.now());
+            completed = completed.withStarted(EngineClock.now());
         }
         if (completed.getFinished() == null) {
-            completed = completed.withFinished(LocalDateTime.now());
+            completed = completed.withFinished(EngineClock.now());
         }
         return completed;
     }

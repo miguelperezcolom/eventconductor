@@ -25,7 +25,7 @@ import org.springframework.stereotype.Service;
 @ConditionalOnProperty(name = "workflow.persistence", havingValue = "jpa")
 @RequiredArgsConstructor
 @Slf4j
-public class LockLeaseReaper {
+public class LockLeaseReaper implements SchedulerPass {
 
     // Advisory lock ids in use: 222333444 (CronStartScheduler), 444555666 (EmbeddedOutboxRelay),
     // 777888999 (TimeoutScheduler), 888999111 (here). Keep them distinct.
@@ -38,24 +38,22 @@ public class LockLeaseReaper {
     @Value("${workflow.lock.lease-scan-interval-ms:60000}")
     long scanIntervalMs;
 
+    @org.springframework.beans.factory.annotation.Value("${" + BACKGROUND_PROPERTY + ":true}")
+    boolean background = true;
+
     private volatile boolean running = true;
     private Thread thread;
 
     @PostConstruct
     public void start() {
+        if (!background) {
+            return;
+        }
         thread = new Thread(() -> {
             try {
                 while (running) {
                     try {
-                        jdbcTemplate.execute((ConnectionCallback<Void>) con -> {
-                            if (!dbLockDialect.tryLock(con, LOCK_ID)) return null;
-                            try {
-                                expireLockLeasesUseCase.handle();
-                            } finally {
-                                dbLockDialect.unlock(con, LOCK_ID);
-                            }
-                            return null;
-                        });
+                        runOnce();
                     } catch (Throwable e) {
                         if (running) {
                             log.error("Error reaping expired lock leases", e);
@@ -71,6 +69,21 @@ public class LockLeaseReaper {
         }, "workflow-lock-lease-reaper");
         thread.setDaemon(true);
         thread.start();
+    }
+
+    /** One reaping pass under the cluster-wide advisory lock (reports zero: the use case logs what it reaped). */
+    @Override
+    public int runOnce() {
+        jdbcTemplate.execute((ConnectionCallback<Void>) con -> {
+            if (!dbLockDialect.tryLock(con, LOCK_ID)) return null;
+            try {
+                expireLockLeasesUseCase.handle();
+            } finally {
+                dbLockDialect.unlock(con, LOCK_ID);
+            }
+            return null;
+        });
+        return 0;
     }
 
     @PreDestroy

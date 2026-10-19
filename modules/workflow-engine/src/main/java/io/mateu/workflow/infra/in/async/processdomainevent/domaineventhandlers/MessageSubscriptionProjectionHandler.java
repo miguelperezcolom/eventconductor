@@ -1,5 +1,6 @@
 package io.mateu.workflow.infra.in.async.processdomainevent.domaineventhandlers;
 
+import io.mateu.workflow.time.EngineClock;
 import io.mateu.workflow.application.out.MessageSubscriptionRepository;
 import io.mateu.workflow.application.readmodel.MessageSubscription;
 import io.mateu.workflow.application.services.messagerouting.WaitingMessageFilter;
@@ -60,7 +61,7 @@ public class MessageSubscriptionProjectionHandler implements DomainEventHandler<
         }
         if (event.waiting()) {
             store.subscribe(new MessageSubscription(event.stepExecutionId(), event.messageName(),
-                    event.correlationKey(), shardId, LocalDateTime.now()));
+                    event.correlationKey(), shardId, EngineClock.now()));
         } else {
             store.unsubscribe(event.stepExecutionId());
         }

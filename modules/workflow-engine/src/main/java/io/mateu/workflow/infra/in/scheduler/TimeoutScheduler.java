@@ -1,11 +1,9 @@
 package io.mateu.workflow.infra.in.scheduler;
 
+import io.mateu.workflow.time.EngineClock;
 import io.mateu.workflow.application.out.StepExecutionRepository;
 import io.mateu.workflow.application.out.UpstreamEventPublisher;
 import io.mateu.workflow.application.out.WorkflowMetrics;
-import io.mateu.workflow.dtos.events.integration.RetryDueCheckRequested;
-import io.mateu.workflow.dtos.events.integration.TimeoutCheckRequested;
-import io.mateu.workflow.dtos.events.integration.TimerCheckRequested;
 import io.mateu.workflow.infra.out.persistence.DbLockDialect;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -30,7 +28,7 @@ import org.springframework.stereotype.Service;
 @ConditionalOnProperty(name = "workflow.persistence", havingValue = "jpa")
 @RequiredArgsConstructor
 @Slf4j
-public class TimeoutScheduler {
+public class TimeoutScheduler implements SchedulerPass {
 
     // Advisory lock ids in use: 222333444 (CronStartScheduler),
     // 444555666 (EmbeddedOutboxRelay), 777888999 (here). Keep them distinct.
@@ -70,6 +68,9 @@ public class TimeoutScheduler {
     @org.springframework.beans.factory.annotation.Value("${workflow.stalled-process-scan-interval-ms:300000}")
     long stalledProcessScanIntervalMs;
 
+    @org.springframework.beans.factory.annotation.Value("${" + BACKGROUND_PROPERTY + ":true}")
+    boolean background = true;
+
     /** Ceiling on the ids one report names; see ProcessRepository#findStalled. */
     private static final int STALLED_PROCESS_REPORT_LIMIT = 20;
 
@@ -80,26 +81,14 @@ public class TimeoutScheduler {
 
     @PostConstruct
     public void start() {
+        if (!background) {
+            return;
+        }
         timeoutSchedulerThread = new Thread(() -> {
             try {
                 while (running) {
                     try {
-                        jdbcTemplate.execute((org.springframework.jdbc.core.ConnectionCallback<Void>) con -> {
-                            if (!dbLockDialect.tryLock(con, LOCK_ID)) return null;
-                            try {
-                                var now = java.time.LocalDateTime.now();
-                                var deadlines = StepDeadlines.classify(stepExecutionRepository.findDue(now));
-                                deadlines.timedOutProcessIds().forEach(processId ->
-                                        upstreamEventPublisher.publish(new TimeoutCheckRequested(processId)));
-                                deadlines.dueTimerProcessIds().forEach(processId ->
-                                        upstreamEventPublisher.publish(new TimerCheckRequested(processId)));
-                                deadlines.dueRetryProcessIds().forEach(processId ->
-                                        upstreamEventPublisher.publish(new RetryDueCheckRequested(processId)));
-                            } finally {
-                                dbLockDialect.unlock(con, LOCK_ID);
-                            }
-                            return null;
-                        });
+                        runOnce();
                     } catch (Throwable e) {
                         if (running) {
                             log.error("Error checking step timeouts", e);
@@ -117,6 +106,25 @@ public class TimeoutScheduler {
         timeoutSchedulerThread.start();
         startStalledStepWatch();
         startStalledProcessWatch();
+    }
+
+    /**
+     * One deadline scan under the cluster-wide advisory lock: signals every process with an expired
+     * timeout, a due TIMER or a due retry. Zero when another pod holds the lock.
+     */
+    @Override
+    public int runOnce() {
+        var signalled = new java.util.concurrent.atomic.AtomicInteger();
+        jdbcTemplate.execute((org.springframework.jdbc.core.ConnectionCallback<Void>) con -> {
+            if (!dbLockDialect.tryLock(con, LOCK_ID)) return null;
+            try {
+                signalled.set(StepDeadlines.signal(stepExecutionRepository.findDue(EngineClock.now()), upstreamEventPublisher));
+            } finally {
+                dbLockDialect.unlock(con, LOCK_ID);
+            }
+            return null;
+        });
+        return signalled.get();
     }
 
     /**
@@ -147,16 +155,7 @@ public class TimeoutScheduler {
             while (running) {
                 try {
                     Thread.sleep(stalledScanIntervalMs);
-                    var stalled = stepExecutionRepository.countStalled(
-                            java.time.LocalDateTime.now().minusNanos(stalledAfterMs * 1_000_000));
-                    workflowMetrics.stalledStepsObserved(stalled);
-                    if (stalled > 0) {
-                        log.warn("{} ACTION/RULE step execution(s) have been waiting more than {} ms "
-                                        + "for a worker with no deadline: nothing will ever time them "
-                                        + "out. Give those steps a timeout, or set "
-                                        + "workflow.default-step-timeout-ms.",
-                                stalled, stalledAfterMs);
-                    }
+                    reportStalledSteps();
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     return;
@@ -193,25 +192,27 @@ public class TimeoutScheduler {
      * shared table, so every pod reports the same number. Alert on the maximum across replicas,
      * never the sum.
      */
+    /** One stalled-step report, now: publishes the gauge and warns when it is not zero. */
+    public long reportStalledSteps() {
+        var stalled = stepExecutionRepository.countStalled(
+                EngineClock.now().minusNanos(stalledAfterMs * 1_000_000));
+        workflowMetrics.stalledStepsObserved(stalled);
+        if (stalled > 0) {
+            log.warn("{} ACTION/RULE step execution(s) have been waiting more than {} ms "
+                            + "for a worker with no deadline: nothing will ever time them "
+                            + "out. Give those steps a timeout, or set "
+                            + "workflow.default-step-timeout-ms.",
+                    stalled, stalledAfterMs);
+        }
+        return stalled;
+    }
+
     private void startStalledProcessWatch() {
         stalledProcessWatchThread = new Thread(() -> {
             while (running) {
                 try {
                     Thread.sleep(stalledProcessScanIntervalMs);
-                    var stalled = processRepository.findStalled(
-                            java.time.LocalDateTime.now().minusNanos(stalledProcessAfterMs * 1_000_000),
-                            STALLED_PROCESS_REPORT_LIMIT);
-                    workflowMetrics.stalledProcessesObserved(stalled.size());
-                    if (!stalled.isEmpty()) {
-                        log.warn("{} process(es) have been RUNNING with no step left to run for more "
-                                        + "than {} ms. Nothing will time them out, because a step that "
-                                        + "never started has no deadline: the last step completed and "
-                                        + "no branch after it was eligible. Check the guards on what "
-                                        + "follows the last completed step. Ids{}: {}",
-                                stalled.size(), stalledProcessAfterMs,
-                                stalled.size() == STALLED_PROCESS_REPORT_LIMIT ? " (first " + STALLED_PROCESS_REPORT_LIMIT + ")" : "",
-                                String.join(", ", stalled));
-                    }
+                    reportStalledProcesses();
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     return;
@@ -224,6 +225,25 @@ public class TimeoutScheduler {
         }, "workflow-stalled-process-watch");
         stalledProcessWatchThread.setDaemon(true);
         stalledProcessWatchThread.start();
+    }
+
+    /** One stalled-process report, now: publishes the gauge and names the ids when there are any. */
+    public java.util.List<String> reportStalledProcesses() {
+        var stalled = processRepository.findStalled(
+                EngineClock.now().minusNanos(stalledProcessAfterMs * 1_000_000),
+                STALLED_PROCESS_REPORT_LIMIT);
+        workflowMetrics.stalledProcessesObserved(stalled.size());
+        if (!stalled.isEmpty()) {
+            log.warn("{} process(es) have been RUNNING with no step left to run for more "
+                            + "than {} ms. Nothing will time them out, because a step that "
+                            + "never started has no deadline: the last step completed and "
+                            + "no branch after it was eligible. Check the guards on what "
+                            + "follows the last completed step. Ids{}: {}",
+                    stalled.size(), stalledProcessAfterMs,
+                    stalled.size() == STALLED_PROCESS_REPORT_LIMIT ? " (first " + STALLED_PROCESS_REPORT_LIMIT + ")" : "",
+                    String.join(", ", stalled));
+        }
+        return stalled;
     }
 
     @PreDestroy
