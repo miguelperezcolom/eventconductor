@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.32.0] - 2026-10-19
+
+### Upgrading
+- **Migration V53** runs on start: `workflow_definition_entity.sensitive_variables_json`, and `request_hash` of sync invocations widened to 255.
+- **Sensitive variables need keys:** a definition declaring `sensitiveVariables` is refused without `workflow.encryption.keys.<id>` and `workflow.encryption.active-key`, and an engine whose store already holds encrypted values does not start without them. Nothing changes for definitions that declare none.
+- **Workers over Kafka or HTTP** receive sensitive values encrypted unless they are configured with the same keys (`worker-api` decrypts inputs and re-encrypts outputs). Embedded workers get plaintext.
+
+### Added
+- **`AGENT_CALL`** (#556): a language model works towards a `goal` with an allowlist of tools (`step`, `http`, `process`, `task`), each with an `inputSchema` and an optional human `approval`. Every model turn and every tool call is a step execution with its own retries, timeouts, compensation and audit; the conversation is rebuilt from the stored executions, so it survives restarts. Bounded by `maxSteps`, `maxTokens` and `maxDuration`; answer mapped through `output`. Agent tab and diagram in the console. Built-in task `agent-turn@1` in `worker-llm` (Anthropic, OpenAI-compatible).
+- **Test kit:** `whenAgent(stepId)` scripts an agent's model turns (`thenCallTool`, `thenCallTools`, `thenAnswer`, `thenFail`, `costing`) — real providers are never called (#556).
+- **Sensitive variables** (#557): `sensitiveVariables: [cardNumber, "patient.*"]` on a definition and `sensitiveOutputs: true` on a step. Values are sealed with AES-256-GCM (`ec:enc:v1:<keyId>:…`, key rotation: encrypt with the active key, decrypt with any configured one; an `EncryptionKeySource` SPI for KMS/Vault) in process and step variables, sync replies, forEach data, the outbox, Kafka, the HTTP task queue, forms rows, batch parameters, rendered HTTP/LLM requests and migration mappings.
+- **Masking and audited reveal** (#557): sensitive values show as `••••` in the console, REST and MCP; revealing one needs a role in `workflow.security.sensitive.reveal-roles` and a reason (`POST /workflow/api/processes/{id}/variables/{name}/reveal`, MCP `revealProcessVariable`), and every reveal or refusal is audited. Process logs and agent transcripts are scrubbed.
+- **Opt-ins for model steps** (#557): `LLM_CALL` (`llm.allowSensitiveVariables`) and `AGENT_CALL` (`agent.allowSensitiveVariables`) are refused when they read a sensitive variable unless they opt in.
+
+### Changed
+- **Sync invocation fingerprints** are HMAC-SHA256 with a key derived from the active encryption key when keys are configured (`h1:<keyId>:…`), so a request's fingerprint cannot be brute-forced back to its sensitive values (#557).
+- **Instance migration** follows the target version's declaration: values that become sensitive are encrypted in place (history included), values that stop being sensitive are stored in clear from then on; dry run and `check-migration` warn without showing values (#557).
+- The INFO "Processing domain event" lines and the forms consumer log no longer print variable values (#557).
+
+### Security
+- Search attributes, correlation keys and lock keys computed from a sensitive variable are refused at definition load (engine and Maven plugin) (#557).
+
 ## [2.31.0] - 2026-10-19
 
 ### Upgrading
