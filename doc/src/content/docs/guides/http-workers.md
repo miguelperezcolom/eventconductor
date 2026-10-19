@@ -110,8 +110,10 @@ retries. The engine protects itself:
 - within one attempt, the first reply wins; a second finds the task gone (`404`).
 
 **Cancellation.** When the engine gives up on a task — the step timed out, the process was
-cancelled, a saga rolled back — a task nobody holds is dropped, and a held one is flagged: the
-worker's next heartbeat answers `{"cancelled": true}`. Stop and report nothing.
+cancelled, a saga rolled back, an operator [completed the step by hand or retried from an earlier
+step](/guides/operating-running-processes/) — a task nobody holds is dropped, and a held one is flagged: the
+worker's next heartbeat answers `{"cancelled": true}`. Stop and report nothing: a reply sent anyway
+is refused (`409 CANCELLED`, or `404` once the heartbeat has dropped the task) and never reaches the process.
 
 **Failures.** `fail` with `retryable: true` spends the step's `retries` (with their back-off); with
 `retryable: false` the step fails at once and compensation, if any, runs. The `code` and `message`

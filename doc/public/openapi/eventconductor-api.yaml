@@ -14,6 +14,8 @@ servers:
 security:
 - apiKey: []
 tags:
+- description: "Workers over HTTP: long-poll for tasks and answer them, in any language."
+  name: Workers
 - description: "Failures waiting for an operator, grouped by definition, step and\
     \ error family."
   name: Incidents
@@ -1309,8 +1311,288 @@ paths:
           description: OK
       tags:
       - event-rest-controller
+  /workflow/api/workers/activate:
+    post:
+      description: Waits up to waitMs (capped by workflow.workers.http.max-wait) for
+        tasks of the given topics and leases them to the caller. An empty list means
+        the wait ran out.
+      operationId: activateTasks
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ActivateRequest"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Activation"
+          description: "The leased tasks, possibly none."
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No workerId or topics.
+        "429":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Too many activations waiting on this node (Retry-After).
+      summary: Long-poll for tasks
+      tags:
+      - Workers
+  /workflow/api/workers/tasks/{id}/complete:
+    post:
+      description: Reports the task done with its output variables; echo the attempt
+        it was activated with.
+      operationId: completeTask
+      parameters:
+      - description: The task id (the step execution id) from the activation.
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompleteRequest"
+      responses:
+        "204":
+          description: Taken.
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Malformed request (for example a missing attempt).
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "No such task waiting for a reply: answered already, cancelled\
+            \ and dropped, or never served over HTTP."
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "STALE_ATTEMPT (the step ran again), or CANCELLED: drop the\
+            \ task."
+        "503":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: The engine could not take the reply; retry it (Retry-After).
+      summary: Complete a task
+      tags:
+      - Workers
+  /workflow/api/workers/tasks/{id}/fail:
+    post:
+      description: "Reports a failure: code and message become the reason; retryable=false\
+        \ fails the step without spending its retries."
+      operationId: failTask
+      parameters:
+      - description: The task id (the step execution id) from the activation.
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FailRequest"
+      responses:
+        "204":
+          description: Taken.
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Malformed request (for example a missing attempt).
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "No such task waiting for a reply: answered already, cancelled\
+            \ and dropped, or never served over HTTP."
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "STALE_ATTEMPT (the step ran again), or CANCELLED: drop the\
+            \ task."
+        "503":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: The engine could not take the reply; retry it (Retry-After).
+      summary: Fail a task
+      tags:
+      - Workers
+  /workflow/api/workers/tasks/{id}/heartbeat:
+    post:
+      description: "Extends the lease of a running task; cancelled=true means the\
+        \ engine cancelled it: stop and report nothing."
+      operationId: heartbeatTask
+      parameters:
+      - description: The task id (the step execution id) from the activation.
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HeartbeatRequest"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HeartbeatResponse"
+          description: "The new deadline, or cancelled."
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: No leaseToken.
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: The task is gone.
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "LEASE_LOST: the lease expired and the task was given to another\
+            \ worker."
+      summary: Extend a task's lease
+      tags:
+      - Workers
+  /workflow/api/workers/tasks/{id}/inject:
+    post:
+      description: Adds steps to the process of a DYNAMIC step's task; complete the
+        task afterwards.
+      operationId: injectSteps
+      parameters:
+      - description: The task id (the step execution id) from the activation.
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InjectRequest"
+      responses:
+        "204":
+          description: Taken.
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: Malformed request (for example a missing attempt).
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "No such task waiting for a reply: answered already, cancelled\
+            \ and dropped, or never served over HTTP."
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "STALE_ATTEMPT (the step ran again), or CANCELLED: drop the\
+            \ task."
+        "503":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: The engine could not take the reply; retry it (Retry-After).
+      summary: Inject steps (DYNAMIC)
+      tags:
+      - Workers
 components:
   schemas:
+    ActivateRequest:
+      type: object
+      properties:
+        leaseMs:
+          type: integer
+          format: int64
+        maxTasks:
+          type: integer
+          format: int32
+        topics:
+          type: array
+          items:
+            type: string
+        waitMs:
+          type: integer
+          format: int64
+        workerId:
+          type: string
+    ActivatedTask:
+      type: object
+      properties:
+        attempt:
+          type: integer
+          format: int32
+        deadline:
+          type: string
+        delivery:
+          type: integer
+          format: int32
+        id:
+          type: string
+        leaseToken:
+          type: string
+        processId:
+          type: string
+        stepId:
+          type: string
+        taskId:
+          type: string
+        topic:
+          type: string
+        variables:
+          type: object
+          additionalProperties:
+            type: string
+        workflowDefinitionId:
+          type: string
+    Activation:
+      type: object
+      properties:
+        tasks:
+          type: array
+          items:
+            $ref: "#/components/schemas/ActivatedTask"
     CommandAccepted:
       type: object
       description: "A command was accepted (202). It is carried out asynchronously\
@@ -1328,6 +1610,15 @@ components:
         stepId:
           type: string
           description: "The definition's step, for retry-from-step."
+    CompleteRequest:
+      type: object
+      properties:
+        attempt:
+          type: integer
+          format: int32
+        variables:
+          type: object
+          additionalProperties: {}
     CompleteStepRequest:
       type: object
       description: A manual completion of a step execution.
@@ -1383,6 +1674,33 @@ components:
         triggerId:
           type: string
         workflowId:
+          type: string
+    FailRequest:
+      type: object
+      properties:
+        attempt:
+          type: integer
+          format: int32
+        code:
+          type: string
+        message:
+          type: string
+        retryable:
+          type: boolean
+    HeartbeatRequest:
+      type: object
+      properties:
+        extendMs:
+          type: integer
+          format: int64
+        leaseToken:
+          type: string
+    HeartbeatResponse:
+      type: object
+      properties:
+        cancelled:
+          type: boolean
+        deadline:
           type: string
     Incident:
       type: object
@@ -1468,6 +1786,13 @@ components:
           type: boolean
           description: Whether the group held more than workflow.incidents.retry.max-steps;
             retry again for the rest.
+    InjectRequest:
+      type: object
+      properties:
+        attempt:
+          type: integer
+          format: int32
+        steps: {}
     InvocationResponse:
       type: object
       properties:

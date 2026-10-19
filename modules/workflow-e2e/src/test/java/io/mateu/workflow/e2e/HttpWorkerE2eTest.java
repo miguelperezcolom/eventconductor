@@ -38,6 +38,8 @@ class HttpWorkerE2eTest extends AbstractE2eTest {
     @Autowired HttpTaskWaiters waiters;
     @Autowired HttpWorkersProperties properties;
 
+    @Autowired io.mateu.workflow.application.usecases.process.operate.CompleteStepManuallyUseCase completeStepManually;
+
     HttpWorkerClient http;
 
     @BeforeEach
@@ -169,6 +171,41 @@ class HttpWorkerE2eTest extends AbstractE2eTest {
 
         assertThat(process("hw-7").getStatus()).isEqualTo(ProcessStatus.COMPLETED);
         assertThat(processVariable("hw-7", "reservations")).isEqualTo("[\"R-101\",\"R-102\",\"R-103\"]");
+    }
+
+    @Test
+    void completingAStepManuallyInvalidatesTheLeasedTaskAndTheWorkersLateReplyIsRefused() throws Exception {
+        worker.on("ship", TestWorker.succeed());
+        createProcess("http-worker", "hw-8");
+        var task = http.next("py-1", "http-payments", 2_000);
+
+        completeStepManually.handle(new io.mateu.workflow.application.usecases.process.operate.CompleteStepManuallyCommand(
+                process("hw-8").getId(), task.path("id").asText(),
+                List.of(new io.mateu.workflow.domain.aggregates.Variable("chargeId", "manual")), "paid by phone", "ops"));
+        assertThat(process("hw-8").getStatus()).isEqualTo(ProcessStatus.COMPLETED);
+
+        // The worker that still holds the task hears it on its heartbeat…
+        var beat = http.heartbeat(task, 60_000);
+        assertThat(HttpWorkerClient.json(beat).path("cancelled").asBoolean()).isTrue();
+        // …and a reply sent anyway never reaches the process.
+        assertThat(http.complete(task, Map.of("chargeId", "late"))).isEqualTo(404);
+        assertThat(processVariable("hw-8", "chargeId")).isEqualTo("manual");
+    }
+
+    @Test
+    void aLateCompleteWithoutAHeartbeatAfterAManualCompletionIs409Cancelled() throws Exception {
+        worker.on("ship", TestWorker.succeed());
+        createProcess("http-worker", "hw-9");
+        var task = http.next("py-1", "http-payments", 2_000);
+
+        completeStepManually.handle(new io.mateu.workflow.application.usecases.process.operate.CompleteStepManuallyCommand(
+                process("hw-9").getId(), task.path("id").asText(), List.of(), "skipped", "ops"));
+
+        var late = http.completeResult(task, Map.of("chargeId", "late"));
+        assertThat(late.getResponse().getStatus()).isEqualTo(409);
+        assertThat(HttpWorkerClient.json(late).path("reason").asText()).isEqualTo("CANCELLED");
+        assertThat(processVariable("hw-9", "chargeId")).isNull();
+        assertThat(process("hw-9").getStatus()).isEqualTo(ProcessStatus.COMPLETED);
     }
 
     private String processVariable(String businessKey, String name) {

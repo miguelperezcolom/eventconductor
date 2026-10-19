@@ -58,6 +58,11 @@ public class HttpWorkerClient {
                 Map.of("attempt", task.path("attempt").asInt(), "variables", variables)).getResponse().getStatus();
     }
 
+    public MvcResult completeResult(JsonNode task, Map<String, Object> variables) throws Exception {
+        return call("/tasks/" + task.path("id").asText() + "/complete",
+                Map.of("attempt", task.path("attempt").asInt(), "variables", variables));
+    }
+
     public int completeWithAttempt(String id, int attempt) throws Exception {
         return call("/tasks/" + id + "/complete", Map.of("attempt", attempt, "variables", Map.of()))
                 .getResponse().getStatus();
