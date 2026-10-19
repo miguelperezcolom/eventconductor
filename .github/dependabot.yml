@@ -58,8 +58,11 @@ updates:
     ignore:
       - dependency-name: "eclipse-temurin"
         update-types: ["version-update:semver-major"]
+      # The builder image's tag (maven:3.9-eclipse-temurin-21) floats: every build already pulls the
+      # latest Maven 3.9.x. Its only other "update" is the JDK in the tag's suffix, which Dependabot
+      # does not see as a major bump (the version it reads is 3.9), so it once moved the builders to
+      # a JDK out of support (#538). The builder JDK is chosen by hand, with the code's target.
       - dependency-name: "maven"
-        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: npm
     directory: "/doc"
