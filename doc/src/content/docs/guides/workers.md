@@ -111,9 +111,9 @@ The host decides the transport; the handler does not change:
   synchronously, on the listener thread; the binder commits the task's offset only after that
   returns. A crash before the reply is out leaves the offset uncommitted and the task is
   redelivered — handlers must be idempotent. A reply the broker still refuses after the runtime's
-  own retries is rethrown, so the binder retries it (`max-attempts`) and then applies its error
-  handling; set `enable-dlq` on the `consumeWorkerEvent-in-0` binding if a task must survive a
-  prolonged broker outage. Tasks run one at a time per consumer thread: raise
+  own retries is rethrown, and the task is redelivered with exponential back-off, without limit,
+  until the reply goes out (`eventconductor.worker.consumer.retry.*`, see
+  [Consumer redelivery](/reference/configuration/#consumer-redelivery-workflowconsumerretry)). Tasks run one at a time per consumer thread: raise
   `spring.cloud.stream.bindings.consumeWorkerEvent-in-0.consumer.concurrency` (up to the task
   topic's partition count) for parallelism, and keep a handler under the consumer's
   `max.poll.interval.ms` (5 minutes by default) — use an [asynchronous worker](#asynchronous-workers)
@@ -292,7 +292,7 @@ public EmbeddedTaskExecutor taskExecutor(UpdateStepExecutionUseCase updateStepEx
 }
 ```
 
-A working example with two sequential steps is available in `demo/embedded-headless`.
+A working example with two sequential steps is available in `testbench/workflow-embedded-headless`.
 
 ### The thread the worker runs on
 

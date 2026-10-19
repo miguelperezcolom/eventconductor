@@ -1,90 +1,96 @@
 ---
 name: eventconductor-run
-description: Build and run an EventConductor app to see a workflow actually execute — fully embedded (no deps) or full distributed (Docker Compose with Postgres + Redpanda/Kafka). Use when asked to run the engine, start a demo, reproduce a process end to end, or verify a change against a real running process (not just tests). Triggers on run the app, start the orchestrator, spring-boot:run, docker compose up, verify the workflow runs.
+description: Build and run an EventConductor app to see a workflow actually execute — your own embedded app (spring-boot:run), a repo testbench, or the full distributed stack (docker compose with Postgres + Redpanda/Kafka + orchestrator, forms, workers) — then drive and inspect a process over REST, MCP or the admin UI. Use when asked to run the engine, start a demo, reproduce a process end to end, or verify a change against a real running process (not just tests). Triggers on run the app, start the orchestrator, spring-boot:run, docker compose up, verify the workflow runs, 401/403 from the engine.
 ---
 
 # Running & verifying an EventConductor process
 
-This is the EventConductor-specific version of the generic `run`/`verify` skills. Pick the
-smallest topology that exercises your change.
+Pick the smallest topology that exercises the change. For definition logic, a `workflow-test` test
+(`eventconductor` skill, `reference/testing.md`) is faster and deterministic — run the app when you need
+the real transport, persistence, UI or an external system.
 
-## Fastest: fully embedded (no external dependencies)
+## A. Your own embedded app
 
 ```bash
-cd apps/orchestrator-standalone-app
-WORKFLOW_MODE=embedded WORKFLOW_PERSISTENCE=memory SECURITY_ENABLED=false mvn spring-boot:run
+mvn spring-boot:run          # app from the eventconductor-scaffold skill; port 8080
 ```
+- Local access: `workflow.message-api.allow-anonymous=true` (or `workflow.message-api.api-key=dev-key`
+  and send `X-Api-Key: dev-key`). Without either, `/workflow/api/**` answers 401 and `/_workflow` 403.
+- The REST API, UI and MCP need `spring-boot-starter-webmvc` on the classpath.
+- Admin UI: `http://localhost:8080/_workflow` (needs the UI layer: a `@SpringBootApplication` under
+  `io.mateu.workflow`, or `@EnableWorkflowUi` + your own Mateu UI mounting `WorkflowMenu`).
 
-The standalone apps default to `eventconductor.security.enabled=true` (`SECURITY_ENABLED`);
-set `SECURITY_ENABLED=false` for local runs or the UI/REST endpoints will demand login.
-
-Or run a headless testbench that starts a process on boot and logs the run — the quickest way
-to see orchestration without any wiring:
-
+Start and inspect a process:
 ```bash
-# testbench/ is a separate Maven reactor — run from inside the module, not with -pl from the root
-cd testbench/workflow-embedded-headless && mvn spring-boot:run      # embedded + memory
+E=http://localhost:8080/workflow/api
+curl -s -X POST "$E/processes" -H 'X-Api-Key: dev-key' -H 'Content-Type: application/json' \
+     -d '{"definitionId":"order-processing","businessKey":"order-1","variables":{"amount":"99.90"}}'
+curl -s "$E/processes/by-key?businessKey=order-1" -H 'X-Api-Key: dev-key'
+curl -s "$E/processes/<id>/steps" -H 'X-Api-Key: dev-key'
+curl -s "$E/processes/<id>/logs"  -H 'X-Api-Key: dev-key'
+```
+Resume a `WAIT_FOR_MESSAGE` / `awaitReply`:
+```bash
+curl -s -X POST "$E/messages" -H 'X-Api-Key: dev-key' -H 'Content-Type: application/json' \
+     -d '{"messageName":"payment-confirmed","correlationKey":"order-1","variables":{"paid":"true"}}'   # 202
+```
+Inject a domain event (triggers / `onEvent`): `POST $E/events/<destination>` with a structured CloudEvent
+(`{"specversion":"1.0","id":"e-1","source":"test","type":"com.acme.booking.created","data":{...}}`).
+
+## B. Repo testbenches (no wiring)
+
+`testbench/` is a separate Maven reactor that depends on the `modules/` SNAPSHOT jars — build those
+first (`mvn -q -pl modules/workflow-engine -am install -DskipTests`; the jacoco gate may need
+`-Djacoco.skip=true`).
+```bash
+cd testbench/workflow-embedded-headless && mvn spring-boot:run      # embedded + memory, starts a process on boot
 cd testbench/workflow-embedded-db-headless && mvn spring-boot:run   # embedded + jpa (H2)
+cd apps/orchestrator-standalone-app && WORKFLOW_MODE=embedded WORKFLOW_PERSISTENCE=memory \
+   SECURITY_PASSWORD=changeme mvn spring-boot:run                   # full console, login admin/changeme
 ```
 
-The `*-headless` testbenches use `@WorkflowEmbeddedApplication` + an `ApplicationRunner` that
-creates a process at startup; watch the logs for step transitions to `COMPLETED`.
-
-## Full distributed (Kafka + PostgreSQL)
+## C. Full distributed stack (docker compose)
 
 ```bash
-docker compose -f apps/docker-compose.yml up -d     # Postgres + Redpanda + the 3 standalone apps
+SECURITY_PASSWORD=changeme docker compose -f apps/docker-compose.yml up -d
 ```
-This brings up `orchestrator` (`WORKFLOW_MODE=kafka`), `forms`, and `worker`. To run the
-orchestrator from source against those infra services instead:
-```bash
-cd apps/orchestrator-standalone-app && mvn spring-boot:run   # picks up kafka/jpa config
-```
+| Service | Port | Notes |
+|---|---|---|
+| postgres-db | 5432 | db `workflow` / `workflow` / `secret` |
+| redpanda (Kafka) | 9092 (host), 19092 (in network) | console on 8888 |
+| orchestrator | 8105 | `WORKFLOW_MODE=kafka`, `WORKFLOW_PERSISTENCE=jpa`; HTTP Basic `admin:$SECURITY_PASSWORD` |
+| forms | 8106 | forms engine + task inbox |
+| worker | 8107 | test worker (scenarios from a `TEST_CONFIG` variable; UI `/_worker`) |
+| http-worker | 8108 | serves `HTTP_CALL` (`http-calls` topic) |
+| webhook-gateway | 8109 | webhooks → CloudEvents |
 
-**Two compose files, two broker ports.** `apps/docker-compose.yml` exposes Redpanda on
-`localhost:9092` (the standalone apps). The `demo/` services instead expect the dev infra from
-`.dev/docker-compose.yml`, which exposes the broker on `localhost:9192` — start that one before
-running a `demo/` service, or it will hang looking for `localhost:9192`.
+Load your definitions into the orchestrator: mount a directory and set `WORKFLOW_DEFINITIONS_DIRS`
+(directory import at startup), or a git import (`workflow.git-import.repositories`), or the admin UI.
+Call it with Basic auth: `curl -u admin:changeme http://localhost:8105/workflow/api/processes`.
+In Kafka mode you can also start a process with a `ProcessCreationRequested` JSON on `upstream`
+(produce with `rpk ... --compression none`).
 
-## Drive a process to verify
+`demo/` services expect the dev infra of `.dev/docker-compose.yml` (broker on `localhost:9192`).
 
-Embedded/from-source with the UI or REST up, or programmatically via
-`ProcessUpstreamEventUseCase` (see the `eventconductor` skill). In Kafka mode, send a
-`ProcessCreationRequested` to the `upstream` topic. Then confirm:
+## MCP
 
-- process reaches `COMPLETED` (or the expected `ERROR`/`CANCELLED`);
-- each `StepExecution` transitions `CREATED → PENDING → RUNNING → COMPLETED`;
-- output variables were merged (query `ProcessRepository.findByBusinessKey(...)` — returns `Optional`).
-
-To resume a process waiting on a **WAIT_FOR_MESSAGE** step in a live run, POST the message over REST:
-```bash
-curl -X POST http://localhost:8080/workflow/api/messages \
-  -H 'Content-Type: application/json' \
-  -d '{"messageName": "payment-confirmed", "correlationKey": "order-123", "variables": {"paid": "true"}}'
-```
-Responds 202. Since 2.27.0 `/workflow/api/**` refuses anonymous requests: add `-H 'X-Api-Key: ...'`
-matching `workflow.message-api.api-key`, use the app's Spring Security credentials (standalone
-orchestrator: `-u admin:<password>`), or set `workflow.message-api.allow-anonymous=true` for a local run
-(otherwise 401). The MCP
-`sendMessage` tool does the same.
-
-To cancel a process stuck waiting, call
-`cancelProcessUseCase.handle(new CancelProcessCommand(processId))` (or the UI): the process and
-its pending/running steps go `CANCELLED`, and late worker reports are ignored.
+The engine exposes MCP tools (Spring AI MCP server; Mateu `/mateu/mcp`) — `listProcesses`,
+`getProcessDetails`, `sendMessage`, `listIncidents`, `retryIncident`, `createBatchOperation`,
+`updateProcess`… (no start-process tool: start over REST, a trigger, or `updateWithStart`). Needs
+Spring Security or `allow-anonymous` (403 otherwise). Claude Desktop: `doc/src/content/docs/guides/mcp-claude-desktop.md`.
 
 ## What to check when it "doesn't run"
 
-- Nothing happens after start → in embedded mode, is there an `EmbeddedTaskExecutor` bean? In
-  Kafka mode, is the worker consuming `downstream` and publishing to `upstream`?
-- Step stuck in `PENDING` → the worker isn't reporting back, or is reporting with the wrong
-  `taskExecutionId`.
-- Process never `COMPLETED` → missing `END`, or parallel branches without a `JOIN`.
-- Definition ignored → not under `classpath:/workflows/`, or it doesn't parse (check the
-  startup log). The classpath loader imports every parseable file regardless of `status`; the
-  `name`+`steps` minimum applies only to the Git importer.
-
-## Build order
-
-Standalone apps and testbenches depend on the `modules/` jars. If you changed a module, build
-it first (`mvn -q -pl modules/workflow-engine -am install`) or run with `-am` so Maven builds
-the reactor dependencies.
+- **401 / 403** → secure defaults (see A).
+- **Nothing happens after start** → embedded: no `EmbeddedTaskExecutor`/`TaskHandler` for the step
+  (the step stays `PENDING`); Kafka: no worker consuming `downstream` / the step's `topic`.
+- **Step stuck `PENDING`** → the worker never reported, or reported with the wrong `taskExecutionId`;
+  give steps a `timeout`. `eventconductor.steps.stalled` counts them.
+- **Process never completes** → an AND-JOIN waiting on a branch that was not taken, or a step waiting on
+  a message nobody sends (messages are not buffered).
+- **Definition ignored** → not under `classpath:/workflows/` (or the configured import dirs), or invalid
+  (startup log; `mvn eventconductor:validate`).
+- **HTTP_CALL fails `HTTP_FORBIDDEN_AUTH` / `HTTP_FORBIDDEN_HOST`** → host binding / allowed hosts
+  (`eventconductor` skill, `reference/security.md`).
+- Process states to expect: `COMPLETED`, `COMPENSATED` (saga rolled back), `ERROR`, `CANCELLED`; steps
+  `CREATED → PENDING → RUNNING → COMPLETED`, `AWAITING_RETRY` between attempts.

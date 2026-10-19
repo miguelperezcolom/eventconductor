@@ -1,120 +1,113 @@
 ---
 name: eventconductor
-description: Design and run business processes with EventConductor — the Java/Spring event-driven workflow & saga orchestration engine (io.mateu.workflow). Use when defining a workflow (JSON/YAML steps), implementing workers, starting/cancelling/querying processes, adding retries/timeouts/compensation (sagas), human USER_TASK forms, durable waits (TIMER), message waits and sends (WAIT_FOR_MESSAGE, SEND_MESSAGE), business rules (RULE), or child (PROCESS) workflows. Triggers on workflow-engine, WorkflowDefinition, ProcessUpstreamEventUseCase, UpdateStepExecutionUseCase, EmbeddedTaskExecutor, TaskExecutionRequested, START/ACTION/USER_TASK/RULE/TIMER/WAIT_FOR_MESSAGE/SEND_MESSAGE/FORK/JOIN/PROCESS steps, workflow.mode, workflow.persistence.
+description: Design, test and operate business processes with EventConductor — the Java/Spring event-driven workflow & saga orchestration engine (io.mateu.workflow). Use when writing a workflow definition (YAML/JSON steps), choosing a step type or pattern (saga/compensation, human approval, HTTP integration, event-triggered flows, request/response, forEach fan-out, agents with tools, process updates), implementing workers (embedded, Kafka, HTTP/Python), testing definitions with the workflow-test kit, validating them with the Maven plugin, calling the engine over REST/MCP, or operating running processes (incidents, retries, batch operations, migration). Triggers on workflow-engine, WorkflowDefinition, EmbeddedTaskExecutor, UpdateStepExecutionUseCase, ProcessUpstreamEventUseCase, @EventConductorTest, WorkflowTestRuntime, eventconductor:validate, /workflow/api, START/ACTION/USER_TASK/RULE/TIMER/WAIT_FOR_MESSAGE/HTTP_CALL/LLM_CALL/AGENT_CALL/PUBLISH_EVENT/REPLY/CHOICE/FORK/JOIN/PROCESS/CONTINUE_AS_NEW steps, workflow.mode, workflow.persistence.
 ---
 
-# Orchestrating processes with EventConductor
+# EventConductor
 
-EventConductor turns a **workflow definition** (JSON or YAML) into a running state
-machine. You write **what the process is** — a list of steps and their preconditions —
-and the engine schedules steps, enforces retries/timeouts, and runs compensation.
-**Business logic lives in workers**, never in the engine.
+A **workflow definition** (YAML or JSON) is the process as data: steps and the preconditions between
+them. The engine schedules steps, enforces retries/timeouts/deadlines and runs compensation.
+**Business logic lives in stateless workers** (or in built-in steps: HTTP_CALL, LLM_CALL, AGENT_CALL,
+PUBLISH_EVENT…). Never hand-roll a state machine, scheduler or retry loop — declare it on the step.
 
-## The one rule
+Current release: **2.33.0** (`io.mateu.workflow:*`, Spring Boot 4.1, Java 21) — if Maven Central does not
+serve it yet, use the newest `<release>` in
+`https://repo1.maven.org/maven2/io/mateu/workflow/workflow-engine/maven-metadata.xml` (2.33-only
+features: `updates`, `startPolicy`, `businessKeyPolicy`, `CONTINUE_AS_NEW`, `priority`, rate limits).
 
-Describe the process as **data** (a definition with `steps`), and put logic in **workers**
-(stateless). The engine owns orchestration; workers own work. Never hand-roll a state
-machine, a scheduler, or retry/timeout loops — declare them on the step.
+## Workflow for a newcomer
 
-## Pick the pattern
+1. **Scaffold** the project → `eventconductor-scaffold` skill (pom, main class, properties).
+2. **Write the definition** in `src/main/resources/workflows/<id>.workflow.yaml` → [patterns.md](reference/patterns.md) (copy-paste examples), [workflow-definitions.md](reference/workflow-definitions.md) (every field).
+3. **Validate** → `mvn eventconductor:validate` (also runs in `mvn verify`).
+4. **Test** with `workflow-test` (`@EventConductorTest`, mocks, `advanceTime`) → [testing.md](reference/testing.md).
+5. **Implement workers** → [workers.md](reference/workers.md).
+6. **Run** embedded or with docker-compose → `eventconductor-run` skill.
+7. **Call & operate** over REST/MCP/Java (start, messages, updates, incidents, batch, migration) → [operations.md](reference/operations.md), [api.md](reference/api.md).
+8. **Secure** it (API key, Spring Security, HTTP credentials, sensitive variables) → [security.md](reference/security.md).
+9. **Before shipping / upgrading** → [gotchas.md](reference/gotchas.md) (rules, validation errors, breaking changes, modes).
 
-| You want | Use | Reference |
-|---|---|---|
-| a sequence of automated steps | `ACTION` steps chained by `preconditionStepId` | [workflow-definitions.md](reference/workflow-definitions.md) |
-| a step that calls your code | a worker (`EmbeddedTaskExecutor` or Kafka consumer) | [workers.md](reference/workers.md) |
-| a human approval / data entry | `USER_TASK` step + a form (`formId`) | [workflow-definitions.md](reference/workflow-definitions.md) |
-| a business rule / decision table | `RULE` step + a rule (`ruleId`) evaluated by rule-runtime | [workflow-definitions.md](reference/workflow-definitions.md) |
-| a durable wait (delay / until a date) | `TIMER` step (`duration` or `untilVariable`) | [workflow-definitions.md](reference/workflow-definitions.md) |
-| wait for an external event/callback | `WAIT_FOR_MESSAGE` step (`messageName` + `correlationExpression`, both required) | [workflow-definitions.md](reference/workflow-definitions.md) |
-| signal another process (no worker) | `SEND_MESSAGE` step (`messageName` + `correlationExpression`, optional `messageVariables`) | [workflow-definitions.md](reference/workflow-definitions.md) |
-| parallel work then a barrier | `FORK` fan-out + `JOIN` with `preconditionStepIds` (all must complete) | [workflow-definitions.md](reference/workflow-definitions.md) |
-| a reusable child workflow (sub-process) | `PROCESS` step (`childWorkflowDefinitionId`, optional `outputVariables`) | [workflow-definitions.md](reference/workflow-definitions.md) |
-| undo-on-failure (saga) | `rollbackable: true` + `compensationStepId` | [workflow-definitions.md](reference/workflow-definitions.md) |
-| start / cancel / query a process | `ProcessUpstreamEventUseCase`, `ProcessRepository` | [api.md](reference/api.md) |
-| call a REST endpoint without writing a worker | `HTTP_CALL` step (+ `worker-http` / `http-worker-standalone-app`, `workflow.http.*`) | [workflow-definitions.md](reference/workflow-definitions.md) |
-| classify / extract / summarize with an LLM without writing a worker | `LLM_CALL` step (+ `worker-llm` / `llm-worker-standalone-app`, `workflow.llm.connections.*`) | [workflow-definitions.md](reference/workflow-definitions.md) |
-| let a model choose and call tools (each call an audited step, bounded by budgets) | `AGENT_CALL` step (`agent: {goal, tools, maxSteps}`; same `worker-llm` connections) | [workflow-definitions.md](reference/workflow-definitions.md) |
-| debounce / throttle / keep one per key the starts of a workflow | `startPolicy: {key, debounce, throttle: {limit, period, onLimit}, singleton}` on a trigger or the definition | [workflow-definitions.md](reference/workflow-definitions.md) |
-| rate-limit a worker topic, prioritise tasks | `workflow.workers.rate-limits.<topic>.{permits,period}`, step `priority` 0–100 | [workflow-definitions.md](reference/workflow-definitions.md) |
-| keep a long-lived process's history bounded / reuse a business key | `CONTINUE_AS_NEW` step (`continueAsNew: {version, variables}`), definition `businessKeyPolicy` | [workflow-definitions.md](reference/workflow-definitions.md) |
-| run a step at / by a date from the process ("3 days before check-in") | TIMER `until` / any waiting step's `deadline` (moments, follow variable changes; `workflow.time.zone`) | [workflow-definitions.md](reference/workflow-definitions.md) |
-| emit a domain event for other services | `PUBLISH_EVENT` step (+ `workflow.events.destinations`) | [workflow-definitions.md](reference/workflow-definitions.md) |
-| call a process over HTTP and wait for its answer | `REPLY` step + definition `syncInvocation.enabled` + `POST /workflow/api/definitions/{id}/invocations` | [workflow-definitions.md](reference/workflow-definitions.md), [api.md](reference/api.md) |
-| conditional / skipped steps | `preconditionExpression` (JEXL over variables) | [workflow-definitions.md](reference/workflow-definitions.md) |
-| the same step once per item of a list | `forEach` on the step (`items`, `as`, `mode`, `output`, `completion`) | [workflow-definitions.md](reference/workflow-definitions.md) |
-| poll / retry-until a condition | `repeat: {until, maxIterations, delay}` on the step | [workflow-definitions.md](reference/workflow-definitions.md) |
-| go back and redo a section (rework loop) | `loopBack: {to, while?, maxIterations}` — never a precondition cycle | [workflow-definitions.md](reference/workflow-definitions.md) |
+## Which step type / pattern?
 
-Common mistakes: [gotchas.md](reference/gotchas.md). Deployment topology & config:
-use the `eventconductor-scaffold` skill. Running/verifying a change: `eventconductor-run`.
+| You want | Use |
+|---|---|
+| automated work in your code | `ACTION` (+ a worker; `topic` routes it, `task` names a contract) |
+| call a REST API without a worker | `HTTP_CALL` (`http: {connection, path, …}`; needs `worker-http`) |
+| classify / extract / summarize with a model | `LLM_CALL` (`llm: {connection, prompt, …}`; needs `worker-llm`) |
+| a model that picks and calls tools, bounded | `AGENT_CALL` (`agent: {goal, tools, maxSteps}`) |
+| human approval / data entry | `USER_TASK` (`formId`, `assignment`, `escalation`; forms-engine) |
+| pick ONE branch by data | `CHOICE` + guarded `preconditions` links, converge with `JOIN joinType: XOR` |
+| run branches in parallel, then wait for all | `FORK` … `JOIN` (`preconditionStepIds` = branch ends) |
+| run only when a condition holds | `preconditions: [{stepId, expression, onFalse}]` or `preconditionExpression` |
+| undo completed work on failure (saga) | `compensable: true` + `compensationStepId` (compensation step has no preconditions) |
+| wait a duration / until a date | `TIMER` (`duration`, `untilVariable`, or `until: {date, offset, at, zone}`) |
+| finish by a date or route elsewhere | `deadline` / `timeout` + `onTimeoutStepId` |
+| wait for a callback / external signal | `WAIT_FOR_MESSAGE` (`messageName` + `correlationExpression`; `onEvent` for a domain event) |
+| send a request AND wait for its reply | `awaitReply` on `HTTP_CALL` / `PUBLISH_EVENT` (never request → separate WAIT_FOR_MESSAGE) |
+| emit a domain event | `PUBLISH_EVENT` (`event: {destination, type, payload}`) |
+| start on a domain event / webhook | definition `triggers` (or `events.yaml`) |
+| start on a schedule | `schedules` / `cronExpression` (or `cron.yaml`) |
+| caller waits for the answer over HTTP | `syncInvocation.enabled` + a `REPLY` step |
+| change a running process with validation and an answer | definition `updates` (+ update-with-start) |
+| same step once per list item | `forEach` (parallel/sequential, `output`) |
+| poll until a condition | `repeat: {until, maxIterations, delay}` |
+| redo a section (rework loop) | `loopBack: {to, while, maxIterations}` — never a precondition cycle |
+| reusable sub-process | `PROCESS` (`childWorkflowDefinitionId`, `outputVariables`) |
+| one process at a time per entity | `LOCK`/`UNLOCK` or definition `processLock` |
+| business rule / decision table | `RULE` (`ruleId`) |
+| debounce/throttle/singleton starts per key | definition or trigger `startPolicy` |
+| endless / very long process | `CONTINUE_AS_NEW` + `businessKeyPolicy` |
+| find processes by business data | `searchAttributes` + `query=` |
+| delete finished processes | `retention` |
+| protect PII | `sensitiveVariables` + `workflow.encryption.keys.*` |
 
-## Skeleton — a process is a definition + workers
+## Minimal definition
 
-`classpath:/workflows/order.json`:
-```json
-{
-  "id": "order-processing", "name": "Order Processing", "version": 1,
-  "steps": [
-    { "id": "start",    "type": "START",  "name": "Start" },
-    { "id": "validate", "type": "ACTION", "name": "Validate", "topic": "order-validator",
-      "preconditionStepId": "start" },
-    { "id": "charge",   "type": "ACTION", "name": "Charge",   "topic": "payment-service",
-      "preconditionStepId": "validate", "timeout": "PT30S", "retries": 2 },
-    { "id": "end", "type": "END", "name": "Done", "preconditionStepId": "charge" }
-  ]
-}
+```yaml
+id: order-processing
+name: Order processing
+version: 1
+steps:
+  - id: start
+    type: START
+    name: Start
+  - id: validate
+    type: ACTION
+    name: Validate the order
+    topic: order-validator
+    preconditionStepId: start
+  - id: charge
+    type: ACTION
+    name: Charge the card
+    topic: payments
+    preconditionStepId: validate
+    timeout: PT30S
+    retries: 2
+  - id: end
+    type: END
+    name: Done
+    preconditionStepId: charge
 ```
 
-A worker for a step (embedded mode). Import
-`io.mateu.workflow.domain.aggregates.Variable` here (`UpdateStepExecutionCommand`); the events
-(`TaskExecutionRequested`, `ProcessCreationRequested`, `TaskStatusChanged`) use
-`io.mateu.workflow.dtos.Variable` instead:
-```java
-@Bean
-EmbeddedTaskExecutor taskExecutor(UpdateStepExecutionUseCase update) {
-    return req -> update.handle(new UpdateStepExecutionCommand(
-        req.taskExecutionId(),                       // report with taskExecutionId, NOT stepId
-        List.of(new Variable("charged", "true")),    // outputs merge into process variables
-        "", StepExecutionStatus.COMPLETED));         // RUNNING | COMPLETED | ERROR
-}
-```
+## Non-negotiable rules
 
-Start it:
-```java
-processUpstreamEventUseCase.handle(new ProcessUpstreamEventCommand(
-    new ProcessCreationRequested("order-processing", "order-123",
-        List.of(new Variable("amount", "99.90")))));
-```
+- **Every step has `id`, `type` and `name`** (the schema requires `name`).
+- **Exactly one `START`; every other step needs a precondition** — except compensation steps,
+  steps used only as an agent's tool, and a `WAIT_FOR_MESSAGE` beginning a flow.
+- **Order is data flow, not array order.** A step runs when ALL its preconditions completed (and its
+  guards hold); all eligible steps run concurrently. `parallel` is ignored.
+- **No precondition cycles** — use `repeat` / `loopBack`.
+- **One `END`**; funnel branches through a `JOIN` (`AND` after FORK, `XOR` after CHOICE).
+- **Variables are strings** (JSON text for structures); worker outputs merge into the process.
+- **Compensation steps declare no preconditions**; the step they undo sets `compensable: true`
+  (`rollbackable` is the old spelling).
+- **Report worker results with `taskExecutionId`**, never the step id.
+- **No secrets in definitions**: HTTP credentials via named profiles / `${secret:NAME}`, LLM keys in config.
+- **Secure by default**: the REST API needs `X-Api-Key`/Spring Security (401), the consoles need
+  Spring Security (403); `workflow.message-api.allow-anonymous=true` only for local dev.
 
-## Conventions for generated code
-
-- **Steps run by pure data flow, not array order.** A step starts when ALL its preconditions
-  (`preconditionStepIds`, or the singular `preconditionStepId`) have completed; every eligible
-  step starts concurrently. `parallel` is deprecated and ignored.
-- **Every flow enters through a `START` (or `WAIT_FOR_MESSAGE`).** A step with no
-  preconditions of any other type is rejected at load — add one `START` step and point the
-  first steps at it.
-- **Exactly one `END`.** With parallel branches, funnel them through a `JOIN` (its
-  `preconditionStepIds` listing all branch ends) before `END`.
-- **Variables are `(name, value)` strings.** Worker outputs are merged in and readable by
-  later steps and by JEXL `preconditionExpression`s (`"amount > 1000"`).
-- **Report with `taskExecutionId`** (from `TaskExecutionRequested`), never the `stepId`.
-- **Embedded mode ignores `topic`** (one `EmbeddedTaskExecutor`, branch on `stepId`, or use
-  per-`topic` named beans). **Kafka mode requires `topic`** on every `ACTION`.
-- **Declare, don't code, resilience:** `timeout` (ISO-8601 `PT30S` or ms), `retries: N`,
-  and `rollbackable`+`compensationStepId` for sagas.
-- Keep business logic in workers / use cases; the definition only expresses orchestration.
-
-## Why this is good for AI codegen
-
-The process is data (few tokens, reviewable in a PR, schema-validated), and the only code
-is small, stateless workers with a single responsibility. Given the definition, execution
-is deterministic. Generate the definition; implement thin workers; let the engine drive.
-
-## Canonical references
-
-This skill is self-contained, but the always-current sources of truth in this repo are
-`doc/public/eventconductor-ai-compact.md` and `doc/public/eventconductor-ai-full.md`, the
-docs under `doc/src/content/docs/`, and the JSON Schema at
-`modules/workflow-engine/src/main/resources/workflow-definition-schema.json`. Prefer them
-if anything here looks out of date.
+Canonical sources (prefer them if anything here looks stale): the docs site
+(`doc/src/content/docs/` in https://github.com/miguelperezcolom/eventconductor), the schema
+https://raw.githubusercontent.com/miguelperezcolom/eventconductor/main/modules/workflow-engine/src/main/resources/workflow-definition-schema.json,
+and https://raw.githubusercontent.com/miguelperezcolom/eventconductor/main/doc/public/eventconductor-ai-full.md. The examples in this skill are validated by
+`AiReferenceExamplesTest` (workflow-maven-plugin).

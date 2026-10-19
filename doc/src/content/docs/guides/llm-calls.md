@@ -70,7 +70,7 @@ One of `output` and `outputVariable` is required — an answer nobody keeps is a
 
 The engine renders `system` and `prompt` from the process as it stands and dispatches them to the built-in task **`llm-call@1`**. So everything a worker step has applies: `timeout` (the default step timeout too), `retries` with backoff, `deadline`, compensation, cancellation, the stalled-step watch. The call itself is made by **`worker-llm`**, on [Spring AI](https://docs.spring.io/spring-ai/reference/)'s chat models:
 
-- **embedded mode**: add `io.mateu.workflow:worker-llm` and a provider — `org.springframework.ai:spring-ai-anthropic` and/or `spring-ai-openai` — to the application; the call runs in the engine's pod.
+- **embedded mode**: add `io.mateu.workflow:worker-llm`, `io.mateu.workflow:worker-embedded` (which runs the built-in task in-process) and a provider — `org.springframework.ai:spring-ai-anthropic` and/or `spring-ai-openai` — to the application; the call runs in the engine's pod. As for HTTP calls, don't declare your own `EmbeddedTaskExecutor` bean alongside it.
 - **kafka mode**: the task goes to topic **`llm-calls`** (a step's `topic` overrides), served by **`llm-worker-standalone-app`** (image `llm-worker-standalone-app`, both providers included) or any worker with `worker-llm` on its classpath — so the pods that hold the API keys and talk to the providers scale and are network-policed apart from the engine.
 
 ## Structured output

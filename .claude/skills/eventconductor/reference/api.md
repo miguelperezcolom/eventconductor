@@ -1,119 +1,79 @@
-# Java API
+# Java API (in-process)
 
-Inject these Spring beans anywhere in the application context.
+Spring beans of the engine; inject them anywhere. For HTTP/MCP see [operations.md](operations.md).
 
-## Entry points
+## Start, cancel, retry, pause
 
 ```java
-// Start a process (any deployment mode)
-@Autowired ProcessUpstreamEventUseCase processUpstreamEventUseCase;
+import io.mateu.workflow.dtos.Variable;                                  // events use dtos.Variable
+import io.mateu.workflow.dtos.events.integration.ProcessCreationRequested;
+import io.mateu.workflow.infra.in.async.processupstreamevent.ProcessUpstreamEventCommand;
+import io.mateu.workflow.infra.in.async.processupstreamevent.ProcessUpstreamEventUseCase;
 
 processUpstreamEventUseCase.handle(new ProcessUpstreamEventCommand(
-    new ProcessCreationRequested("workflow-id", "business-key",
-        List.of(new Variable("k", "v")))));
-
-// Cancel / retry a process by id
-@Autowired CancelProcessUseCase cancelProcess;
-@Autowired RetryProcessUseCase retryProcess;
-
-cancelProcess.handle(new CancelProcessCommand(processId));  // running/pending steps → CANCELLED, process → CANCELLED
-retryProcess.handle(new RetryProcessCommand(processId));    // ERROR process → back to RUNNING
-
-// Pause / resume a process by id
-@Autowired PauseProcessUseCase pauseProcess;
-@Autowired ResumeProcessUseCase resumeProcess;
-
-pauseProcess.handle(new PauseProcessCommand(processId));    // PENDING/RUNNING → PAUSED; in-flight work still accepted, successors held, clocks frozen
-resumeProcess.handle(new ResumeProcessCommand(processId));  // PAUSED → RUNNING; step startedAt shifted by the pause duration
-
-// Pause / resume a whole definition by id (bulk; new instances born PAUSED, cron included)
-@Autowired PauseWorkflowUseCase pauseWorkflow;
-@Autowired ResumeWorkflowUseCase resumeWorkflow;
-
-pauseWorkflow.handle(workflowDefinitionId);
-resumeWorkflow.handle(workflowDefinitionId);
-
-// Report worker progress
-@Autowired UpdateStepExecutionUseCase updateStepExecution;
-
-updateStepExecution.handle(new UpdateStepExecutionCommand(
-    taskExecutionId,                    // from TaskExecutionRequested
-    List.of(new Variable("result","ok")),
-    "optional log",
-    StepExecutionStatus.COMPLETED));    // RUNNING | COMPLETED | ERROR
+    new ProcessCreationRequested("order-processing", "order-123",
+        List.of(new Variable("amount", "99.90")))));
 ```
 
-## Repositories
+Package `io.mateu.workflow.application.usecases.process.*` — each `handle(command)`:
 
-All extend `CrudStore<T>`: `findById` → `Optional<T>`, `save`, `findAll`, `deleteAllById`, `find`.
-There is **no `findByStatus`** on any of them.
-```java
-ProcessRepository:            findByBusinessKey(String) → Optional<Process>, countByStatus(ProcessStatus)
-StepExecutionRepository:      findByProcess(Process), findPendingOrRunning()
-WorkflowDefinitionRepository: (bare CrudStore)
+| Use case | Command | Effect |
+|---|---|---|
+| `cancel.CancelProcessUseCase` | `CancelProcessCommand(processId)` | steps and process → `CANCELLED`; children cascade |
+| `retry.RetryProcessUseCase` | `RetryProcessCommand(processId)` | rerun the failed steps of an `ERROR`/`CANCELLED` process |
+| `restart.RestartProcessUseCase` | `RestartProcessCommand(processId)` | rerun from the top with the original variables |
+| `pause.PauseProcessUseCase` / `resume.ResumeProcessUseCase` | `PauseProcessCommand` / `ResumeProcessCommand` | hold the frontier; in-flight work still lands; clocks freeze |
 
-Process p = processRepository.findByBusinessKey("order-123").orElseThrow();
-```
+`io.mateu.workflow.application.usecases.lifecycle.PauseWorkflowUseCase.handle(definitionId)` /
+`ResumeWorkflowUseCase` pause a whole definition (new instances are born `PAUSED`; use `DISABLED` to refuse them).
 
-## Records & interfaces
+Live-process operations (`application.usecases.process.operate`): `SetProcessVariablesUseCase`,
+`CompleteStepManuallyUseCase`, `RetryFromStepUseCase`, `MigrateProcessUseCase` — each command carries a
+`reason` and `requestedBy`. Higher level: `io.mateu.workflow.application.services.ProcessOperationsService`
+(what REST/MCP use; `start(...)` honours `startPolicy`/`businessKeyPolicy`).
+
+Synchronous invocation in code: `SyncInvocationService.start(...)` / `.await(...)`.
+Inbound domain events (embedded): `InboundEventService.receive(...)` or publish a Spring `InboundEvent`.
+
+## Reporting worker results
 
 ```java
-record Variable(String name, String value) {}
-
-@FunctionalInterface
-interface EmbeddedTaskExecutor { void execute(TaskExecutionRequested request); }
+updateStepExecutionUseCase.handle(new UpdateStepExecutionCommand(
+    taskExecutionId,                                   // from TaskExecutionRequested
+    List.of(new io.mateu.workflow.domain.aggregates.Variable("result", "ok")),
+    "optional log line",
+    StepExecutionStatus.COMPLETED));                   // RUNNING | COMPLETED | ERROR
+// 5th arg `nonRetryable` (boolean): fail without spending retries
 ```
 
-Two `Variable` records with that shape exist — import per use:
-`io.mateu.workflow.dtos.Variable` for events (`TaskExecutionRequested`, `TaskStatusChanged`,
-`ProcessCreationRequested`); `io.mateu.workflow.domain.aggregates.Variable` for
-`UpdateStepExecutionCommand`.
+Two `Variable` records exist: `io.mateu.workflow.dtos.Variable` (events: `TaskExecutionRequested`,
+`TaskStatusChanged`, `ProcessCreationRequested`) and `io.mateu.workflow.domain.aggregates.Variable`
+(`UpdateStepExecutionCommand`). Mixing them does not compile.
 
-## Domain model (selected fields)
+## Reading state
 
-- `Process`: `id`, `name`, `workflowDefinitionId`, `workflowDefinitionVersion`, `workflowDefinitionJson`, `businessKey`, `variables`, `status`, `completionPercentage`, `created`, `started`, `finished`, `pausedAt` (set while `PAUSED`; drives the clock shift on resume), `parentStepExecutionId` (set on children started by a parent `PROCESS` step; child businessKey is `parent:<stepExecutionId>`).
-- `StepExecution`: `id`, `processId`, `workflowDefinitionId`, `stepId`, `stepJson`, `variables`, `status`, `workerId`, `startedAt`, `finishedAt`, `attemptCount`. The step-execution `id` **is** the `taskExecutionId` (no separate field; no `retryCount`/`completedAt`/`log`).
-- `WorkflowDefinition`: `id`, `name`, `version`, `description`, `status`, `paused` (runtime pause flag, orthogonal to `status`), `draftOfId`, `limitConcurrentExecutions`, `maxConcurrentExecutions`, `enqueueOnLimit`, `cronExpression`, `defaultMaxStepExecutions`, `steps`.
+`ProcessRepository.findById(id)` / `findByBusinessKey(key)` → `Optional<Process>` (the run holding the
+key now), `countByStatus(status)`; `StepExecutionRepository.findByProcess(process)`,
+`findPendingOrRunning()`; `WorkflowDefinitionRepository` (CrudStore). No `findByStatus`. For listings
+use `ProcessListingService` / REST `GET /workflow/api/processes`. Analytics: `ProcessAnalyticsService`.
+
+Selected fields — `Process`: `id`, `workflowDefinitionId`, `workflowDefinitionVersion`, `businessKey`,
+`variables`, `status`, `created/started/finished`, `parentStepExecutionId`. `StepExecution`: `id` (= the
+`taskExecutionId`), `stepId`, `status`, `attemptCount`, `startedAt`, `finishedAt`.
 
 ## Statuses
 
-- **Process**: `PENDING → RUNNING → COMPLETED | ERROR`; `→ CANCELLED`. `ERROR` is retriable.
-  `PENDING`/`RUNNING → PAUSED → RUNNING` (pause/resume; `PAUSED → CANCELLED` also works).
-  While `PAUSED`: worker reports and messages are still accepted, successors are held,
-  timeout/timer scans skip the process, blocking-error handling is deferred.
-- **StepExecution**: `CREATED → PENDING → RUNNING → COMPLETED | ERROR`; `TIMEOUT → CREATED (retry) | ERROR`; `CANCELLED`. No `SKIPPED`: a step with a falsy precondition guard stays `CREATED` and is cancelled when `END` fires.
+- **Process**: `PENDING`, `RUNNING`, `PAUSED`, `COMPLETED`, `ERROR`, `CANCELLED`, `COMPENSATED`
+  (saga rolled back cleanly), `COMPENSATION_FAILED` (rollback halted — alert on it). `ERROR` and
+  `CANCELLED` can be retried/restarted.
+- **Step**: `CREATED → PENDING → RUNNING → COMPLETED | ERROR | TIMEOUT`, plus `AWAITING_RETRY`
+  (backoff before the next attempt), `WAITING_ON_LOCK`, `CANCELLED`. No `SKIPPED`: a branch not taken
+  ends `CANCELLED` when the process completes.
 
-## Kafka (mode: kafka)
+## Kafka topics (mode: kafka)
 
-- `upstream` — inbound: `ProcessCreationRequested`, `TaskStatusChanged`, `MessageReceived`
-  (`{"type": "message-received", "messageName": "...", "correlationKey": "...", "variables": [{"name": "k", "value": "v"}]}`).
-- `downstream` — outbound to workers: `TaskExecutionRequested`.
-- `outbox` — internal relay.
-
-## REST
-
-- `POST /workflow/api/messages` — deliver a message to waiting WAIT_FOR_MESSAGE steps. Body
-  `{"messageName": "...", "correlationKey": "...", "variables": {"k": "v"}}`; responds 202.
-  Since 2.27.0 `/workflow/api/**` refuses anonymous requests (401): send `X-Api-Key` matching
-  `workflow.message-api.api-key`, or authenticate through the app's Spring Security; only
-  `workflow.message-api.allow-anonymous=true` opens it.
-- `POST /workflow/webhooks/github` — GitHub webhook; re-imports configured Git repos (202, async).
-- `POST /workflow/api/definitions/{id}/invocations` — synchronous invocation of a definition with
-  `syncInvocation.enabled`. Headers `Idempotency-Key` (required; same key → same process) and
-  `Prefer: wait=N` (seconds, capped by `workflow.sync.max-deadline-ms`). Body
-  `{"businessKey"?: "...", "variables": {...}}`. Answers 200 `{outcome: REPLIED, reply: {...}, processStatus, ...}`;
-  202 + `Location` when the deadline passes first (process continues); 502 when it failed/was
-  cancelled before replying (`outcome` FAILED/COMPENSATED/COMPENSATION_FAILED/CANCELLED, `compensation`
-  NONE/IN_PROGRESS/DONE/FAILED, `error`); 409/422/429 refusals. `Accept: text/event-stream` streams
-  `status`/`step`/`log` events ending in `reply` or `timeout`.
-- `GET /workflow/api/invocations/{id}` (optionally `Prefer: wait=N`) and
-  `GET /workflow/api/definitions/{id}/invocations?idempotencyKey=...` — read the answer later.
-- In code: `SyncInvocationService.start(...)` / `.await(...)`.
-
-## MCP (workflow tools)
-
-`listProcesses`, `getProcessDetails`, `findProcessByBusinessKey`, `getProcessLogs`,
-`retryProcess`, `pauseProcess` / `resumeProcess` (pause/resume a process),
-`pauseWorkflow` / `resumeWorkflow` (pause/resume a whole definition), `sendMessage`,
-`getWorkflowAnalytics` / `findBottleneck`, `importWorkflowDefinitionsFromGit`.
-There is no start-process tool.
+`upstream` (in: `ProcessCreationRequested`, `TaskStatusChanged`, `MessageReceived` as
+`{"type":"message-received","messageName":"…","correlationKey":"…","variables":[{"name":"k","value":"v"}]}`,
+operations commands), `downstream` (out: `TaskExecutionRequested`, cancellations; or the step's
+`topic`), `outbox` (internal), `http-calls`, `llm-calls`, `dead-letter`, `human-tasks`. Canonical:
+`doc/src/content/docs/reference/kafka-topics.md`.

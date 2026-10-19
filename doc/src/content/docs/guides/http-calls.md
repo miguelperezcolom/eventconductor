@@ -43,7 +43,7 @@ Or with an absolute URL:
 
 The engine renders the request — URL/path, query, headers and body are [payload templates](/guides/payload-templates/) — and dispatches it to the built-in task **`http-call@1`**. So everything a worker step has applies: `timeout`, `retries` with backoff, compensation, cancellation. The call itself is made by **`worker-http`**:
 
-- **embedded mode**: add `io.mateu.workflow:worker-http` to the application; the call runs in the engine's pod (and on the synchronous fast path).
+- **embedded mode**: add `io.mateu.workflow:worker-http` and `io.mateu.workflow:worker-embedded` (which runs the built-in task in-process) to the application; the call runs in the engine's pod (and on the synchronous fast path). Don't declare your own `EmbeddedTaskExecutor` bean then — it replaces `worker-embedded`'s and would receive the HTTP tasks too; write your workers as [task handlers](/guides/workers/).
 - **kafka mode**: the task goes to topic **`http-calls`** (a step's `topic` overrides), served by **`http-worker-standalone-app`** (image `http-worker-standalone-app`) or any worker with `worker-http` on its classpath — so HTTP egress scales and is network-policed apart from the engine.
 
 ## Responses, failures and retries

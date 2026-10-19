@@ -1,127 +1,139 @@
-# Common mistakes
+# Gotchas, validation errors, upgrades, modes
 
-- **Expecting a `SKIPPED` status.** There is none. A step whose `preconditionExpression` is
-  falsy is simply never run: it stays `CREATED` and is flipped to `CANCELLED` when the `END`
-  step fires. **Trap:** dependent steps require their `preconditionStepId` step to be
-  `COMPLETED`, so a never-run step permanently blocks every step chained after it — that whole
-  branch dies silently. Give conditional branches an alternative path to `END`.
+## Definition mistakes
 
-- **Importing the wrong `Variable`.** Two records share the name and shape:
-  `io.mateu.workflow.dtos.Variable` (events: `TaskExecutionRequested`, `TaskStatusChanged`,
-  `ProcessCreationRequested`) vs `io.mateu.workflow.domain.aggregates.Variable`
-  (`UpdateStepExecutionCommand`). Mixing them fails to compile; check the import.
+- **Missing `name` on a step** — the schema requires `id`, `type` AND `name` on every step (the Maven
+  plugin and the engine's import refuse the file). Unknown keys are refused too (`retires: 3` fails).
+- **Two `START`s** — at most one START per definition; branch after it with a FORK.
+- **A step with no way in** — every non-START step needs a precondition, except a compensation step,
+  a step used only as an agent tool, and a `WAIT_FOR_MESSAGE` that begins a flow.
+- **Array order means nothing** — steps run by preconditions; all eligible steps run concurrently.
+  `parallel` is ignored.
+- **Cycles** — rejected; use `repeat` (one step) or `loopBack` (a section).
+- **AND-JOIN after a CHOICE or guarded branch** — the branches not taken never complete, the JOIN never
+  fires, and the process completes implicitly, cancelling everything after it. Use `joinType: XOR`
+  after a CHOICE; the plugin warns about JOINs on guarded steps.
+- **CHOICE without a default** — if no guard holds, no branch runs. Leave one link unguarded.
+- **Guarded chain with no alternative** — a step whose `DISCARD` guard is false is skipped, and so is
+  everything that depends on it. `onFalse: WAIT` instead holds the step and keeps the process open.
+- **Compensation step with preconditions** — compensation steps must have none (older definitions use
+  `preconditionExpression: "false"`; still works). Without `compensable: true` on the step being undone
+  nothing is compensated. The failing step itself is never compensated.
+- **`onTimeoutStepId` target reachable on the happy path** — guard it with
+  `preconditions: [{stepId: <origin>, expression: "false"}]` so only the timeout route reaches it.
+- **Request then WAIT_FOR_MESSAGE** — a fast reply arrives before the wait is armed and is dropped
+  (messages are not buffered). Use `awaitReply` on the request step (or FORK the wait and the request).
+  `messageName`/`correlationExpression` written directly on an HTTP_CALL/PUBLISH_EVENT are ignored (warning).
+- **Correlating on an id the other side returns** — choose the correlation id before sending (business key).
+- **Business keys are unique across ALL workflows** — include the workflow in trigger keys
+  (`booking-onboarding-${data.bookingId}`). Reusing a key needs `businessKeyPolicy`.
+- **Variables are strings** — JEXL coerces numbers (`amount > 1000`); structures are JSON text; a template
+  leaf that is exactly `${expr}` keeps its type.
+- **forEach outputs are not on the process** — read the `output` variable.
+- **`maxIterations` is required** on `repeat`/`loopBack`; exceeding any cap fails the step.
+- **PROCESS children** get ALL parent variables and return only `outputVariables`; their business key is
+  `parent:<stepExecutionId>`.
+- **USER_TASK** needs forms-engine with the form loaded from `forms.directory-import.directories` or git —
+  forms are NOT read from the classpath. In tests, `completeUserTask` needs no forms-engine.
+- **Secrets in definitions** — literal HTTP credentials, `${secret:}` outside an inline `auth` block, or an
+  LLM key in a definition fail validation.
+- **Embedded `topic`** — ignored; one `EmbeddedTaskExecutor` gets every task (no per-topic beans).
+  A hand-written executor also receives the built-in HTTP/LLM tasks — use `TaskHandler`s (worker-embedded) then.
+- **Reporting with `stepId`** instead of `taskExecutionId` silently does nothing.
+- **Throwing in a Kafka worker** instead of replying `ERROR` — use `WorkerReply.failed(…, reason)`.
+- **A paused definition still creates instances** (born `PAUSED`); `DISABLE` it to refuse them.
 
-- **The roots rule breaks old definitions.** A step with no preconditions does not run — it
-  must be a `START`, a `WAIT_FOR_MESSAGE` beginning a flow, or another step's
-  `compensationStepId` (the rollback pipeline starts that one). Anything else with no
-  preconditions is **rejected at load**: nothing would ever start it. Migration: add one
-  `START` step and point the old first steps at it (`"preconditionStepId": "start"`). A
-  `START` itself must have NO preconditions.
+## Common validation errors → fix
 
-- **`parallel` is ignored.** It is deprecated (kept only for deserialization): every step
-  whose preconditions are met starts concurrently, always. Don't emit it in new definitions;
-  removing it changes nothing.
+Messages from the JSON schema come in the JVM's language (e.g. Spanish `no se encontró la propiedad
+requerida 'name'`); set `MAVEN_OPTS=-Duser.language=en` to get English. The engine's own messages are English.
 
-- **JOIN without `preconditionStepIds` is no barrier.** JOIN's barrier IS its multiple
-  preconditions: list every branch end in `preconditionStepIds`. A JOIN with a single
-  precondition (or the singular `preconditionStepId`) waits for that one step only.
+| Message (engine / `mvn eventconductor:validate`) | Fix |
+|---|---|
+| `/steps/N: required property 'name' not found` (localized) | add `name` to the step |
+| `/steps/N: property 'x' is not defined in the schema` (localized) | typo / field on the wrong level (check the schema) |
+| `A workflow can have at most one START step, but found N.` | keep one START |
+| `Step 'X' has no preconditions and is not a START, a WAIT_FOR_MESSAGE, another step's compensation or an agent's tool — nothing would ever start it.` | add `preconditionStepId` |
+| `Step 'X' references unknown precondition step 'Y'.` / `unknown compensation step` | fix the id |
+| `Duplicate step id 'X'.` | rename |
+| `START step 'X' cannot have preconditions.` | remove them |
+| `Timer step 'X' must define a duration, an untilVariable or an until.` | add one (not `0`) |
+| `Message step 'X' must define a messageName.` / `a correlationExpression.` | add both (`correlationExpression: businessKey`) |
+| `Process step 'X' must define a childWorkflowDefinitionId.` | add it (≠ own id) |
+| `Step 'X' declares a deadline, but a <TYPE> step does not wait for anything that could miss it.` | remove `deadline` |
+| `HTTP_CALL step 'X' must define exactly one of connection and url.` / `path is only for a connection; put it in the url.` | pick one |
+| `retryOn value 'v' is not 4xx, 5xx, io or a status code.` | fix `retryOn` |
+| `Step 'X' awaitReply: only an HTTP_CALL or a PUBLISH_EVENT awaits a reply.` | move to a WAIT_FOR_MESSAGE |
+| `Step 'X' declares forEach together with awaitReply…` | run a PROCESS per item |
+| `Step 'X' loopBack must define maxIterations…` / `goes back to 'Y', which is not upstream of it` | add the cap / point upstream |
+| `AGENT_CALL step 'X' maxSteps is required: an agent must be bounded.` | add `maxSteps` |
+| `… must declare exactly one of step, http, process and task.` | one kind per tool |
+| `Step 'X' declares both a deadline and an escalation` | keep one |
+| `REPLY step 'X' declares more than one of replyVariables, replyExpression and replyTemplate` | keep one |
+| `…sync-invocable (syncInvocation.enabled) but no REPLY step…` | add a reachable REPLY |
+| `Unterminated ${ at position N` | close the template |
+| `'expr' is not a valid cron expression` | Spring cron has 6 fields (`0 0 9 * * *`) |
+| `…declares sensitive variables […] but no encryption key is configured` | set `workflow.encryption.keys.<id>` |
+| search attribute / correlation / lock / startPolicy key computed from a sensitive variable | use a non-sensitive variable |
 
-- **Compensation steps declare no preconditions.** They are named by the step they undo and
-  started directly by the rollback pipeline, so they need no way in — and must not be given
-  one. (Older definitions anchor them to the step they compensate with
-  `"preconditionExpression": "false"`; that still works. An anchor written *without* the
-  guard does not: it is a live branch of the happy path.)
+## What each mode supports
 
-- **PROCESS cancellation propagates both ways.** Child ERROR/CANCELLED → parent PROCESS step
-  `ERROR`; and a parent step ending CANCELLED/ERROR/TIMEOUT (retries exhausted) cancels a
-  still-running child, cascading to grandchildren. While retries remain the child is NOT
-  cancelled — a retried PROCESS step re-attaches to the same child via the businessKey dedupe.
+| | embedded + memory | embedded + jpa | kafka + jpa | sharded (kafka + jpa per shard) |
+|---|---|---|---|---|
+| use for | tests, local, embedding | single node, durable | multi-pod production | very large scale |
+| state survives restart | no | yes | yes | yes |
+| definitions from classpath / directory / git | yes | yes (+ versions history) | yes | yes |
+| migration to older/other versions | current version only | yes | yes | yes |
+| search attributes | computed on read | stored (V48) | stored | per shard |
+| batch operations, retention purge | in heap | yes, one node at a time | yes | per shard |
+| HTTP workers | yes | yes (`http_task`) | yes | per shard |
+| event triggers consumed from Kafka | — (REST/embedded/loopback) | — | needs `inbound-events-kafka` | yes |
+| sync invocation across nodes | — | PostgreSQL NOTIFY | PostgreSQL NOTIFY (else polling) | `ON_ANOTHER_SHARD` refusal |
 
-- **A JOIN on a guarded branch can be cancelled silently.** If any branch feeding a JOIN
-  carries a falsy `preconditionExpression`, the JOIN never fires and implicit completion
-  cancels it and everything after it — the process still completes successfully. The Maven
-  plugin emits a build-time warning for JOINs whose direct precondition steps carry guards.
+Flyway migrations target PostgreSQL and H2; MariaDB/Oracle use `ddl-auto` and hand-made indexes.
+With jpa always add `flyway-core` (without it the engine warns and runs without indexes).
 
-- **Child processes get the businessKey `parent:<stepExecutionId>`**, not the parent's
-  business key — it is deterministic so redelivered creation events are deduped. Look up
-  children by that convention (or by `Process.parentStepExecutionId`). Only the child
-  variables named in `outputVariables` come back to the parent; absent = none.
+## Kafka consumer behaviour (on main after 2.33.0 — #565, next release)
 
-- **Precondition cycles are rejected at load.** `WorkflowDefinition.checkInvariants()` runs a
-  DFS over the multi-edge precondition graph (steps may declare several preconditions) and
-  throws on any cycle (A waits for B waits for … A would deadlock), plus duplicate step ids,
-  self-preconditions/self-compensation, unknown referenced step ids, the roots rule, TIMER
-  without `duration`/`untilVariable`, WAIT_FOR_MESSAGE / SEND_MESSAGE without `messageName` or
-  `correlationExpression`, and PROCESS without a `childWorkflowDefinitionId` (or with itself
-  as the child).
+- A retryable failure (optimistic-lock conflict, deadlock, DB/broker away) is **redelivered with
+  exponential back-off, without limit**, from the failed record; earlier records of the batch are
+  committed. Nothing is discarded; only permanently defective records go to `dead-letter`.
+- Engine: `workflow.consumer.retry.{initial-interval: 100ms, multiplier: 2.0, max-interval: 10s,
+  max-attempts: 0 (=unlimited; >0 parks on dead-letter), warn-after: 10}`. Workers / rule runtime / forms
+  engine: `eventconductor.worker.consumer.retry.*`. Projector: `projector.consumer.retry.*`. Inbound
+  events: `workflow.events.consumer.retry-backoff`.
+- Watch `eventconductor.events.redelivered{topic,cause}` (a trickle is normal under parallel forEach;
+  a climbing rate holds a partition) and `eventconductor.worker.tasks.redelivered`.
+- Up to 2.32.0 the default batch error handler discarded a batch after 9 instant retries — fan-out
+  processes could get stuck with iterations `PENDING`.
+- Don't rewire the engine's bindings; if you do: `batch-mode=true` and a distinct group for
+  `consumeUpstream-in-0` and `consumeOutbox-in-0`.
 
-- **`correlationExpression` is required on both message step types.** The old
-  defaults-to-businessKey behavior is gone for new definitions — write
-  `"correlationExpression": "businessKey"` explicitly. (Only legacy steps persisted
-  before the `MESSAGE` → `WAIT_FOR_MESSAGE` rename keep the businessKey fallback.)
+## Breaking changes and upgrade notes (2.27 → 2.33)
 
-- **SEND_MESSAGE fails loud, not closed.** A missing `messageName`/`correlationExpression` or
-  a correlation key that cannot be evaluated puts the step in `ERROR` (normal retry/
-  compensation pipeline) — unlike precondition guards, which fail closed silently. And
-  messages are still **not buffered**: a sent message matching no waiting process is
-  discarded, so sequence the sender after the receiver is already waiting.
+| Version | What changed | Action |
+|---|---|---|
+| 2.27.0 | `${secret:NAME}` resolves only from `workflow.http.secrets.<NAME>` | list secrets, or `workflow.http.secrets-from-environment=true` |
+| 2.27.0 | `/workflow/api/**` refuses anonymous (401) | `workflow.message-api.api-key` / Spring Security / `allow-anonymous=true` (dev); webhook gateway `rest` transport needs `ENGINE_API_KEY` |
+| 2.27.0 | migrations V43 (analytics), V44 (outbox index, not concurrent) | with `workflow.analytics.rollup=true` stop all 2.26 pods first (Recreate); big outbox: pre-create `idx_outbox_key_status_ts` |
+| 2.28.0 | admin UI, MCP, rule reads refuse anonymous (403); `workflow.ui.enabled` | Spring Security or `allow-anonymous=true`; `spring.ai.mcp.server.enabled=false` if unused |
+| 2.28.0 | embedded apps mounting the console need `@EnableWorkflowUi` (Mateu no longer scans `io.mateu`) | add it; no `@ComponentScan` on the app class |
+| 2.28.0 | HTTP_CALL credentials bound to hosts (`HTTP_FORBIDDEN_AUTH`) | `workflow.http.auth.<name>.hosts`, `allowed-hosts`, or call via a `connection` |
+| 2.28.0 | unsigned git-import webhooks refused | set `workflow.git-import.webhook-secret` (and `forms.`/`rules.`/`tasks.` ones) |
+| 2.28.0 | standalone apps no longer print a generated admin password | set `SECURITY_PASSWORD` |
+| 2.28.0 | rules gRPC off by default | `rules.source=rest`, or `RULES_GRPC_ENABLED=true` behind mTLS |
+| 2.28.0 | forms trust a forwarded bearer token only with `workflow.security.trust-forwarded-token=true` | set it on the forms pod behind a verifying gateway |
+| 2.28.0 | V45 backfills `process_entity.finished` (row locks), V46 | run in a quiet window |
+| 2.28.0 | `TaskExecutionRequested.attempt` / `TaskStatusChanged.attempt` appended | record patterns must add the component |
+| 2.29.0 | V47; `maxSuccessfulExecutions`/`defaultMaxStepExecutions` now enforced | check loops against the caps |
+| 2.30.0 | V48–V50; incident "Retry all" is an async batch | — |
+| 2.31.0 | forms V8; claimed tasks are `ASSIGNED` | **rolling: upgrade forms engines and workers before any definition uses `escalation`**; inbox filters read `ASSIGNED` |
+| 2.32.0 | V53; `sensitiveVariables` needs encryption keys; Kafka/HTTP workers get ciphertext unless they share keys | configure `workflow.encryption.*` on engine (and workers that read them) |
+| 2.33.0 | V55, V56 (brief exclusive lock per ALTER), V56.1 (concurrent indexes) | busy DB: `lock_timeout` or off-peak |
+| 2.33.0 | `TaskExecutionRequested.priority` appended | record patterns add the component |
+| 2.33.0 | rolling from 2.32 | **don't import definitions using `CONTINUE_AS_NEW` or a reusing `businessKeyPolicy` until every pod runs 2.33** |
+| 2.26.x | own kafka-mode apps using triggers/`onEvent` | add `io.mateu.workflow:inbound-events-kafka` |
 
-- **Pause does not stop in-flight work — only successors are held.** A `PAUSED` process
-  still accepts worker reports (steps complete, output variables merge) and correlated
-  messages (WAIT_FOR_MESSAGE steps complete); what freezes is the frontier — no successor
-  starts until resume — plus the timer/timeout clocks and blocking-error handling. And the
-  clock freeze is implemented by **shifting `startedAt` forward** by the pause duration on
-  resume, so don't treat a step's `startedAt` as an immutable audit timestamp: on a
-  process that was paused it has moved.
-
-- **A paused definition still creates instances — born `PAUSED`.** Pausing a workflow
-  definition (runtime `paused` flag, orthogonal to `DRAFT`/`ACTIVE`/...) does NOT reject
-  new instances: creation requests — cron occurrences included — still create the process
-  and its steps, in status `PAUSED`, and they only start when the definition is resumed.
-  If you want new instances rejected, `DISABLE` the definition instead of pausing it.
-
-- **Ordering by array position.** Steps run by preconditions (`preconditionStepIds` /
-  `preconditionStepId`), not the order in the array — and ALL eligible steps start
-  concurrently. Sequencing only exists where you declare it.
-
-- **Missing or multiple `END`.** Exactly one `END` per workflow. If you have parallel
-  branches, funnel them through a `JOIN` (listing all branch ends in `preconditionStepIds`)
-  before the `END`, or the process never completes.
-
-- **Reporting with `stepId` instead of `taskExecutionId`.** `UpdateStepExecutionCommand` and
-  `TaskStatusChanged` take the `taskExecutionId` from the `TaskExecutionRequested`, not the
-  workflow `stepId`. Using the wrong id silently fails to advance the step.
-
-- **Expecting typed variables.** Variables are strings. JEXL comparisons operate on the
-  string value — `"amount > 1000"` works because JEXL coerces, but `"amount"` must be numeric
-  text. Don't rely on booleans/objects.
-
-- **Omitting `topic` in Kafka mode.** `ACTION` steps need a `topic` in Kafka mode. In embedded
-  mode `topic` is ignored (single `EmbeddedTaskExecutor`, or per-topic named beans).
-
-- **USER_TASK without forms-engine.** `USER_TASK` steps require the `forms-engine` dependency
-  and a form whose id matches `formId`.
-
-- **Worker throws instead of reporting ERROR.** Catch exceptions and report
-  `StepExecutionStatus.ERROR` / `TaskStatus.ERROR` with a log message, so retries and error
-  tracking work. An unhandled throw is not the same as a reported failure — in embedded mode the
-  engine now fails the step for you rather than leaving it `PENDING` for ever, but with no
-  variables and a message you did not choose. In Kafka mode nobody catches it at all.
-
-- **An embedded worker that blocks stops the engine.** Embedded dispatch is inline by default,
-  and under `jpa` persistence the calling thread is the single `embedded-outbox-relay` — the only
-  thread advancing every process in the JVM. A worker waiting on an HTTP call with no timeout
-  freezes all of them, and processes created afterwards show every step in `CREATED`
-  ("waiting for its preconditions"). Set `workflow.embedded.worker-threads` to hand tasks to a
-  pool, and give ACTION steps a `timeout` before you do.
-
-- **Forgetting `RUNNING` on long tasks.** Report `RUNNING` periodically to reset the timeout
-  clock, or configure a `timeout` large enough for the work.
-
-- **Compensation misconfigured.** `compensationStepId` requires `rollbackable: true` on the
-  step; the compensation step itself is a normal `ACTION` with no preconditions at all (see
-  the compensation bullet above).
-
-- **Wrong default mode assumption.** Defaults are `workflow.mode=embedded` +
-  `workflow.persistence=memory` (in-process, no external deps). Set `kafka`/`jpa` explicitly
-  for distributed/persistent deployments.
+General rolling-upgrade order: database migrations run on the first new engine pod; upgrade **forms
+engines and workers before engines start emitting new message types**, and **all engine pods before
+importing definitions that use new DSL features**.

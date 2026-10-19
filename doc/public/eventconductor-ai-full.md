@@ -8,25 +8,40 @@ It scales from a single JVM with no external dependencies up to a multi-pod Kube
 
 ## 1. Maven dependencies
 
+All artifacts are under `io.mateu.workflow` and share one version (2.33.0 at the time of writing —
+check Maven Central / `CHANGELOG.md` for the newest). Spring Boot 4.1, Java 21. There is no archetype
+or BOM: a project is a Spring Boot app with these dependencies.
+
 ```xml
-<!-- workflow orchestration engine -->
-<dependency>
+<dependency>  <!-- the engine -->
   <groupId>io.mateu.workflow</groupId>
   <artifactId>workflow-engine</artifactId>
-  <version>2.1.1</version>
+  <version>${eventconductor.version}</version>
 </dependency>
-
-<!-- only if you use USER_TASK steps (human forms) -->
-<dependency>
+<dependency>  <!-- test kit: JUnit 5 + Spring test + AssertJ + @EventConductorTest -->
   <groupId>io.mateu.workflow</groupId>
-  <artifactId>forms-engine</artifactId>
-  <version>2.1.1</version>
+  <artifactId>workflow-test</artifactId>
+  <version>${eventconductor.version}</version>
+  <scope>test</scope>
 </dependency>
+<!-- build plugin: <plugin> io.mateu.workflow:workflow-maven-plugin, goal `validate` (see §16) -->
 ```
 
-2.1.1 is the latest release at the time of writing — check the Maven Central badge in the README / `CHANGELOG.md` for the newest one (artifacts under `io.mateu.workflow`).
+| Add | When |
+|---|---|
+| `org.springframework.boot:spring-boot-starter-webmvc` | to serve the REST API, admin UI or MCP (optional in workflow-engine) |
+| `forms-engine` | `USER_TASK` steps (forms, task inbox) |
+| `rule-engine` / `rule-runtime` | `RULE` steps |
+| `worker-embedded` | typed `TaskHandler`s in the engine's JVM (needed for the built-in tasks below when embedded) |
+| `worker-http` | `HTTP_CALL` in-process (+ `worker-embedded`) |
+| `worker-llm` + `spring-ai-anthropic` / `spring-ai-openai` | `LLM_CALL` / `AGENT_CALL` in-process (+ `worker-embedded`) |
+| `worker-kafka` | a worker service over Kafka |
+| `inbound-events-kafka` | kafka mode with event `triggers` / `onEvent` waits |
+| `flyway-core` (+ `flyway-database-postgresql`) | `workflow.persistence=jpa` (the engine runs its own migrations) |
 
-Prebuilt standalone Docker images exist: `orchestrator-standalone-app`, `forms-standalone-app`, `worker-standalone-app`, `rule-standalone-app`.
+Prebuilt images (Docker Hub `miguelperezcolom/*`): `orchestrator-standalone-app`, `forms-standalone-app`,
+`worker-standalone-app` (test worker), `http-worker-standalone-app`, `llm-worker-standalone-app`,
+`rule-standalone-app`, `webhook-gateway-standalone-app`, `projector-standalone-app`.
 
 ---
 
@@ -63,9 +78,11 @@ workflow.persistence=jpa
 spring.datasource.url=jdbc:postgresql://localhost:5432/workflow
 spring.datasource.username=workflow
 spring.datasource.password=secret
-spring.jpa.hibernate.ddl-auto=update
+spring.jpa.hibernate.ddl-auto=validate   # with flyway-core the engine applies its own migrations
 ```
 
+- Main class: `@WorkflowEmbeddedApplication` plus `@EnableJpaRepositories(basePackages = "io.mateu.workflow.infra.out.persistence")` and `@AutoConfigurationPackage(basePackages = "io.mateu.workflow.infra.out.persistence")`.
+- Without `flyway-core` the engine warns and runs without indexes (`ddl-auto` creates none). Migrations target PostgreSQL and H2.
 - Events dispatched in-process via `EmbeddedOutboxRelay` (polls the outbox table).
 - Definitions in `classpath:/workflows/` are imported to the DB at startup; can also be imported from Git.
 
@@ -78,7 +95,8 @@ workflow.mode=kafka
 workflow.persistence=jpa
 spring.kafka.bootstrap-servers=localhost:9092
 spring.datasource.url=jdbc:postgresql://localhost:5432/workflow
-# ... datasource + cloud stream bindings, see §10
+spring.cloud.function.definition=consumeOutbox;consumeUpstream   # + consumeWorkerEvent if a worker runs here
+# ... datasource as above; bindings are contributed by the engine, see §10
 ```
 
 - Domain events flow through Kafka topics (`outbox`, `upstream`, `downstream`).
@@ -86,6 +104,24 @@ spring.datasource.url=jdbc:postgresql://localhost:5432/workflow
 - Use a normal `@SpringBootApplication`.
 
 The philosophy: **start fully embedded, grow into JPA and then Kafka** as scale demands.
+
+### Secure by default (2.27 / 2.28)
+
+- `/workflow/api/**` (REST) lets a request in when `X-Api-Key` matches `workflow.message-api.api-key`,
+  or no key is set and a Spring Security filter chain exists, or `workflow.message-api.allow-anonymous=true`;
+  otherwise **401**.
+- The consoles — admin UI (`/_workflow`, `/_workflow-admin`, `/_forms…`, `/_rules`), MCP (`/mateu/mcp`),
+  rule reads, task-project zips — need Spring Security or `allow-anonymous=true` (the api key does not
+  open them); otherwise **403**. `workflow.ui.enabled=false` unmounts the admin UI.
+- An embedded app that mounts the engine's UI (`WorkflowMenu`/`FormsMenu`/`RulesMenu`) adds
+  `@EnableWorkflowUi` beside `@WorkflowEmbeddedApplication` (since 2.28).
+- Standalone apps use HTTP Basic: `SECURITY_ENABLED` (default true), `SECURITY_USER` (`admin`),
+  `SECURITY_PASSWORD` (set it — a generated one is never printed).
+- Local development: `workflow.message-api.allow-anonymous=true`. Production: Spring Security, or an api
+  key + `workflow.ui.enabled=false`.
+- More: flow authorization (`workflow.security.flow-authorization.enabled` + definition `requiredRoles`/
+  `requiredScopes`), `workflow.security.operations.required-roles`, `workflow.security.sensitive.reveal-roles`,
+  `workflow.security.trust-forwarded-token` (§17).
 
 ---
 
@@ -115,7 +151,14 @@ Written in JSON or YAML (`.json`, `.yaml`, `.yml`); version-controlled and PR-re
 | `processLock` | object | `{name, key}` — serialize every instance of this definition by a JEXL `key` (e.g. `bookingId`): instances resolving to the same key run one at a time, the rest wait FIFO. The process-level counterpart of a `LOCK`/`UNLOCK` section |
 | `startPolicy` | object | `{key?, debounce?, throttle?: {limit, period, onLimit?: queue\|drop}, singleton?: skip\|replace}` — per-key flow control of starts (2.33): `key` a template over the start's variables (+`businessKey`, `workflowId`); applies to `POST /workflow/api/processes` (201 / 200 skipped / 202 held back / 429 dropped, header `EventConductor-Flow-Control`), sync invocation (409 `SINGLETON_RUNNING`, 429 `THROTTLED`; no definition-level `debounce` when `syncInvocation` is set) and triggers without their own. A trigger can carry its own `startPolicy` (key over the event); receipts then say `DEBOUNCED`/`THROTTLED`/`DROPPED`/`SKIPPED`/`REPLACED`. Order debounce → singleton → throttle; durable (`flow_control_key`/`flow_control_pending`, row lock per key), released by a scheduler pass. Not applied to cron, PROCESS children, raw upstream creations, the console |
 | `businessKeyPolicy` | string | `unique` (default) \| `allowAfterFinished` \| `allowAfterFailed` \| `terminateRunning` — whether a start may take over a business key a run of this definition holds (2.33); every start path; never a key of another definition. A key then names a chain of runs; lookup by key answers the current holder (the UNIQUE `business_key`; earlier runs keep it in `released_business_key`) |
-| `steps` | array | The step definitions |
+| `status` | string | `DRAFT` \| `ACTIVE` \| `DISABLED` \| `ARCHIVED` (see Definition status) |
+| `tags` | string[] | Labels (`billing`, `team:payments`); metadata, no new version; Processes page filters by tag |
+| `retention` | string \| object | `P30D`, or per terminal status `{completed, cancelled, error, compensated, compensationFailed}` (days-to-seconds ISO durations or `forever`), counted from the process end; a purge job deletes finished process trees (root + children) past it. Engine defaults `workflow.processes.retention` / `retention-by-status.<status>` are off unless set; metadata, no new version |
+| `searchAttributes` | object | `{name: "${expr}"}` or `{name: {value: "${expr}", type: keyword\|text\|number\|date\|bool}}`, ≤ 20; recomputed on every save; filter with `query=` / `attr.<name>` (§6) |
+| `sensitiveVariables` | string[] | Names or globs sealed with AES-256-GCM; needs `workflow.encryption.keys.<id>` (§17) |
+| `updates` | array | Named, validated writes to a running process that answer with a result (§6b) |
+| `requiredRoles` / `requiredScopes` | string[] | Enforced with `workflow.security.flow-authorization.enabled=true` |
+| `steps` | array | The step definitions (**every step needs `id`, `type` and `name`**) |
 
 ### Runtime state
 
@@ -142,21 +185,61 @@ YAML (first line):
 | `disabled`, `archived` | boolean | The older spelling, still read: `true` means the corresponding status |
 | `paused` | boolean | A different axis: a paused workflow still accepts instances (born `PAUSED`); a disabled one accepts none. A workflow can be both |
 
+### Which step type / pattern?
+
+| You want | Use |
+|---|---|
+| automated work in your code | `ACTION` (+ a worker; `topic` routes it, `task` names a contract) |
+| call a REST API without a worker | `HTTP_CALL` (`http: {connection, path, …}`; needs `worker-http`) |
+| classify / extract / summarize with a model | `LLM_CALL` (`llm: {connection, prompt, …}`; needs `worker-llm`) |
+| a model that picks and calls tools, bounded | `AGENT_CALL` (`agent: {goal, tools, maxSteps}`) |
+| human approval / data entry | `USER_TASK` (`formId`, `assignment`, `escalation`; forms-engine) |
+| pick ONE branch by data | `CHOICE` + guarded `preconditions` links, converge with `JOIN joinType: XOR` |
+| run branches in parallel, then wait for all | `FORK` … `JOIN` (`preconditionStepIds` = branch ends) |
+| run only when a condition holds | `preconditions: [{stepId, expression, onFalse}]` or `preconditionExpression` |
+| undo completed work on failure (saga) | `compensable: true` + `compensationStepId` (compensation step has no preconditions) |
+| wait a duration / until a date | `TIMER` (`duration`, `untilVariable`, or `until: {date, offset, at, zone}`) |
+| finish by a date or route elsewhere | `deadline` / `timeout` + `onTimeoutStepId` |
+| wait for a callback / external signal | `WAIT_FOR_MESSAGE` (`messageName` + `correlationExpression`; `onEvent` for a domain event) |
+| send a request AND wait for its reply | `awaitReply` on `HTTP_CALL` / `PUBLISH_EVENT` (never request → separate WAIT_FOR_MESSAGE) |
+| emit a domain event | `PUBLISH_EVENT` (`event: {destination, type, payload}`) |
+| start on a domain event / webhook | definition `triggers` (or `events.yaml`) |
+| start on a schedule | `schedules` / `cronExpression` (or `cron.yaml`) |
+| caller waits for the answer over HTTP | `syncInvocation.enabled` + a `REPLY` step |
+| change a running process with validation and an answer | definition `updates` (+ update-with-start) |
+| same step once per list item | `forEach` (parallel/sequential, `output`) |
+| poll until a condition | `repeat: {until, maxIterations, delay}` |
+| redo a section (rework loop) | `loopBack: {to, while, maxIterations}` — never a precondition cycle |
+| reusable sub-process | `PROCESS` (`childWorkflowDefinitionId`, `outputVariables`) |
+| one process at a time per entity | `LOCK`/`UNLOCK` or definition `processLock` |
+| business rule / decision table | `RULE` (`ruleId`) |
+| debounce/throttle/singleton starts per key | definition or trigger `startPolicy` |
+| endless / very long process | `CONTINUE_AS_NEW` + `businessKeyPolicy` |
+| find processes by business data | `searchAttributes` + `query=` |
+| delete finished processes | `retention` |
+| protect PII | `sensitiveVariables` + `workflow.encryption.keys.*` |
+
+Complete, validated examples of each pattern (saga with timer, human approval, HTTP integration, event-triggered
+flow, request/response, forEach fan-out, polling, agent with tools, updates, long-lived flow control, child
+process, sensitive data): https://raw.githubusercontent.com/miguelperezcolom/eventconductor/main/.claude/skills/eventconductor/reference/patterns.md
+
 ## 4. Step types
 
 Steps run as a **pure dataflow**: a step starts when all its preconditions have `COMPLETED`
 and its JEXL guard holds, concurrently with every other eligible step — array order is
 irrelevant and the `parallel` flag is deprecated and ignored. **Roots rule:** a step with no
-preconditions does not run; it must be a `START`, a `WAIT_FOR_MESSAGE` beginning a flow, or
-another step's `compensationStepId` (rejected at load otherwise).
+preconditions does not run; it must be the `START`, a `WAIT_FOR_MESSAGE` beginning a flow,
+another step's `compensationStepId`, or a step used only as an agent's tool (rejected at load otherwise).
+**Every step needs `id`, `type` and `name`** (schema).
 
 ### START — entry point
 ```json
 { "id": "start", "type": "START", "name": "Start" }
 ```
 No worker: completes instantly at process creation, making its successors eligible. Must have
-**no** preconditions. Several `START` steps = concurrent entry branches. To migrate an old
-definition, add one `START` and point the old first steps at it.
+**no** preconditions. **At most one** `START` per definition (`A workflow can have at most one START
+step`) — fan out after it with a `FORK`. To migrate an old definition, add one `START` and point the
+old first steps at it.
 
 ### ACTION — dispatch a task to a worker
 ```json
@@ -164,8 +247,8 @@ definition, add one `START` and point the old first steps at it.
   "preconditionStepId": "start",
   "timeout": "PT30S", "retries": 3, "compensable": true, "compensationStepId": "refund" }
 ```
-- **Kafka mode:** `topic` is the destination; a `TaskExecutionRequested` is published there. Required.
-- **Embedded mode:** `topic` is ignored — all ACTION steps route to the single `EmbeddedTaskExecutor` bean. May be omitted.
+- **Kafka mode:** `topic` is the destination a `TaskExecutionRequested` is published to; optional, defaulting to `downstream`.
+- **Embedded mode:** `topic` is ignored — every task goes to the single `EmbeddedTaskExecutor` bean (there are no per-topic beans). May be omitted.
 - **Task contract (optional):** set `"task": "<id>"` or `"<id>@<version>"` to reference a task contract (below). A bare id is pinned to the latest version at import; the contract's `topic` becomes the step's default (an explicit `topic` still wins); the pinned `<id>@<version>` is sent to the worker as its `taskId`.
 
 #### Task contracts (`.ectask`)
@@ -182,7 +265,7 @@ output:
 errors:
   - { code: SOLD_OUT }  # each becomes a typed exception; code is a valid Java identifier
 ```
-Types: `string`/`integer`/`number`/`boolean`/`date`/`datetime`/`object`/`array` (array carries `items`). Contracts are **versioned and append-only** — a backward-incompatible change is a new `version`, and nothing prunes an old one because an in-flight process may be pinned to it. Imported alongside workflows (classpath, `tasks.directory-import`, `tasks.git-import`) **ahead of** them so references resolve. The `workflow-maven-plugin` `validateTasks` goal checks the schema, one group per id, unique `id@version`, and that every referenced task exists. (The worker runtime that turns a contract into interfaces to implement is upcoming; today the engine dispatches the pinned `taskId` and workers still read it themselves.)
+Types: `string`/`integer`/`number`/`boolean`/`date`/`datetime`/`object`/`array` (array carries `items`). Contracts are **versioned and append-only** — a backward-incompatible change is a new `version`, and nothing prunes an old one because an in-flight process may be pinned to it. Imported alongside workflows (classpath, `tasks.directory-import`, `tasks.git-import`) **ahead of** them so references resolve. The `workflow-maven-plugin` `validateTasks` goal checks the schema, one group per id, unique `id@version`, and that every referenced task exists. The `generate-worker-sources` goal of the Maven plugin generates `<Id>V<n>Input/Output` records and a `<Id>V<n>Task` interface (a `TaskHandler`) per contract version; implement it as a bean and run it with `worker-embedded` or `worker-kafka`.
 
 ### USER_TASK — pause for a human form
 ```json
@@ -247,26 +330,44 @@ parent step waits `PENDING`. On child `COMPLETED`, the parent step completes and
 grandchildren; while retries remain the child keeps running (a retried step re-attaches to it
 via the deterministic business key).
 
-### FORK / JOIN — parallel branches
-```json
-{ "id": "fork", "type": "FORK", "name": "Notify", "preconditionStepId": "process-order" },
-{ "id": "email", "type": "ACTION", "topic": "email-service", "preconditionStepId": "fork" },
-{ "id": "sms",   "type": "ACTION", "topic": "sms-service",   "preconditionStepId": "fork" },
-{ "id": "join",  "type": "JOIN",  "name": "Sent", "preconditionStepIds": ["email", "sms"] }
+### FORK / JOIN / CHOICE — gateways
+```yaml
+- { id: fork,  type: FORK,   name: Notify, preconditionStepId: process-order }
+- { id: email, type: ACTION, name: Email,  topic: email-service, preconditionStepId: fork }
+- { id: sms,   type: ACTION, name: SMS,    topic: sms-service,   preconditionStepId: fork }
+- { id: join,  type: JOIN,   name: Sent,   preconditionStepIds: [email, sms] }
 ```
 Both are no-worker nodes that complete instantly. FORK is the explicit fan-out: every step
 preconditioned on it starts concurrently (any step type fans out the same way — FORK just
 makes it visible). JOIN is the barrier/converge point: its **multiple preconditions**
-(`preconditionStepIds`) must ALL complete before it runs. Do not use `parallel: true` — it is
-deprecated and ignored.
+(`preconditionStepIds`) must ALL complete before it runs (`joinType: AND`, the default) — or, with
+`joinType: XOR`, the first one to complete. Do not use `parallel: true` — it is deprecated and ignored.
+
+**CHOICE** is the exclusive split: it takes exactly ONE successor — the first whose link guard holds,
+evaluated from the longest guard expression to the shortest; a link with no guard is the default (tried
+last). The pick latches. Converge its branches with a `JOIN joinType: XOR` (an `AND` join would wait for
+branches that never run, and the process would complete implicitly, cancelling what follows). A CHOICE
+with no default takes no branch when every guard is false (the plugin warns).
+```yaml
+- { id: decide, type: CHOICE, name: "Approved?", preconditionStepId: approve }
+- id: pay
+  type: ACTION
+  name: Pay
+  topic: payments
+  preconditions: [ { stepId: decide, expression: "decision == 'APPROVE'" } ]
+- id: reject
+  type: ACTION
+  name: Notify rejection
+  topic: notifications
+  preconditions: [ { stepId: decide } ]          # default branch
+- { id: done, type: JOIN, name: Done, joinType: XOR, preconditionStepIds: [pay, reject] }
+```
 
 ### LOCK / UNLOCK — serialize a critical section by a key
-```json
-{ "id": "lock",   "type": "LOCK",   "name": "Take booking lock",
-  "lockName": "booking", "lockKey": "bookingId", "preconditionStepId": "start" },
-{ "id": "work",   "type": "ACTION", "topic": "booking", "preconditionStepId": "lock" },
-{ "id": "unlock", "type": "UNLOCK", "name": "Release booking lock",
-  "lockName": "booking", "lockKey": "bookingId", "preconditionStepId": "work" }
+```yaml
+- { id: lock,   type: LOCK,   name: Take booking lock,    lockName: booking, lockKey: bookingId, preconditionStepId: start }
+- { id: work,   type: ACTION, name: Work on the booking,  topic: booking, preconditionStepId: lock }
+- { id: unlock, type: UNLOCK, name: Release booking lock, lockName: booking, lockKey: bookingId, preconditionStepId: work }
 ```
 No worker. `LOCK` takes the named per-key lock — `lockName` (the domain, defaults to the definition id) plus `lockKey` (a **required** JEXL expression over the process variables, e.g. `bookingId`). If it is free the step completes and the flow proceeds; if another process holds it, the step parks in the `WAITING_ON_LOCK` status and is admitted in **arrival order (FIFO)** when the lock frees. A parked step is active work — the process neither completes nor errors around it. `UNLOCK` releases it and admits the next waiter. Everything between them is serialized against every process sharing that key; the lock is not held during work outside the section. Released by `UNLOCK`, on the process reaching a terminal state (all held locks freed), or — the crash backstop — by a lease reaper (`workflow.lock.lease-ms`, default 15 min). For serializing a **whole** instance instead of a section, set the definition-level `processLock` (a Top-level field, §3).
 
@@ -334,6 +435,7 @@ The precondition graph stays acyclic (a cycle is still an error); repetition is 
 ```yaml
 - id: reserve            # once per item
   type: ACTION
+  name: Reserve a room
   topic: booking
   preconditionStepId: start
   compensable: true
@@ -342,11 +444,13 @@ The precondition graph stays acyclic (a cycle is still an error); repetition is 
              output: reservations, outputElement: reservationId, completion: all }
 - id: poll               # until a condition
   type: HTTP_CALL
+  name: Poll the payment
   preconditionStepId: reserve
   http: { connection: pay, path: "/p/${paymentId}", output: { paymentStatus: "body.status" } }
   repeat: { until: "paymentStatus == 'SETTLED'", maxIterations: 20, delay: PT30S }
 - id: rework             # back-edge, on a CHOICE branch (no `while` = always)
   type: ACTION
+  name: Ask for rework
   topic: notify
   preconditions: [ { stepId: decide, expression: "verdict == 'REWORK'" } ]
   loopBack: { to: draft, maxIterations: 5 }
@@ -372,7 +476,7 @@ Ends the run as END does (COMPLETED, outcome `continued`, other branches cancell
 ```json
 { "id": "end", "type": "END", "name": "Done", "preconditionStepId": "last-step" }
 ```
-Exactly one per workflow. Transitions the process to `COMPLETED`. With parallel branches, precede it with a JOIN.
+One per workflow (recommended; the process also completes when nothing is runnable). Transitions the process to `COMPLETED`. With parallel branches, precede it with a JOIN.
 
 ### Common step fields
 
@@ -381,8 +485,8 @@ Exactly one per workflow. Transitions the process to `COMPLETED`. With parallel 
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `id` | string | — | Unique within the workflow |
-| `type` | enum | — | `START`/`ACTION`/`USER_TASK`/`RULE`/`TIMER`/`WAIT_FOR_MESSAGE`/`SEND_MESSAGE`/`PROCESS`/`FORK`/`JOIN`/`LOCK`/`UNLOCK`/`REPLY`/`PUBLISH_EVENT`/`HTTP_CALL`/`LLM_CALL`/`END` |
-| `name` | string | — | Human-readable |
+| `type` | enum | — | `START`/`ACTION`/`USER_TASK`/`RULE`/`TIMER`/`WAIT_FOR_MESSAGE`/`SEND_MESSAGE`/`PROCESS`/`FORK`/`JOIN`/`CHOICE`/`LOCK`/`UNLOCK`/`REPLY`/`PUBLISH_EVENT`/`HTTP_CALL`/`LLM_CALL`/`AGENT_CALL`/`DYNAMIC`/`CONTINUE_AS_NEW`/`END` |
+| `name` | string | — | Human-readable; **required by the schema** |
 | `description` | string | — | Optional |
 | `preconditionStepId` | string | — | Single step that must complete first |
 | `preconditionStepIds` | string[] | — | Steps that must ALL complete first; wins over the singular form when non-empty |
@@ -418,7 +522,16 @@ Exactly one per workflow. Transitions the process to `COMPLETED`. With parallel 
 | `event` | object | — | PUBLISH_EVENT: `{destination, type, key?, payload \| payloadTemplate \| payloadVariables, format?}` |
 | `awaitReply` | object | — | HTTP_CALL / PUBLISH_EVENT: `{messageName, correlationExpression, onEvent?}` — wait for the reply to the request in the same step, armed before the request leaves |
 | `http` | object | — | HTTP_CALL: `{connection + path \| url, method, query, headers, body \| bodyTemplate, successStatus, output, auth, retryOn}` |
-| `llm` | object | — | LLM_CALL: `{connection, model, system, prompt, temperature, maxTokens, responseSchema, output, outputVariable, usageVariable}` |
+| `llm` | object | — | LLM_CALL: `{connection, model, system, prompt, temperature, maxTokens, responseSchema, output, outputVariable, usageVariable, allowSensitiveVariables}` |
+| `agent` | object | — | AGENT_CALL: `{connection, goal, tools, maxSteps, system?, model?, output?, maxTokens?, maxDuration?, toolConcurrency?, onToolError?, allowSensitiveVariables?}` |
+| `continueAsNew` | object | — | CONTINUE_AS_NEW: `{version?: same\|latest, variables?}` |
+| `onTimeoutStepId` | string | — | On timeout route to this step instead of failing (guard the target with `preconditions: [{stepId: <this>, expression: "false"}]`) |
+| `onEvent` | object | — | WAIT_FOR_MESSAGE: `{destination, type, correlationKey?, filter?, variables?}` |
+| `joinType` | enum | `AND` | JOIN: `AND` \| `XOR` |
+| `assignment` / `escalation` | object / array | — | USER_TASK: who may claim it, priority, due dates / timed reassign, notify, escalateTo |
+| `priority` | integer | `50` | 0–100; ACTION, HTTP_CALL, LLM_CALL, RULE, AGENT_CALL |
+| `sensitiveOutputs` | boolean | `false` | PROCESS: its `outputVariables` are sensitive |
+| `rollbackable` | boolean | — | Old spelling of `compensable` |
 
 ---
 
@@ -429,7 +542,7 @@ Exactly one per workflow. Transitions the process to `COMPLETED`. With parallel 
 - JEXL numeric comparisons run on the string representation: `"amount > 1000"`, `"approved == 'true'"`.
 
 ```json
-{ "id": "review", "type": "USER_TASK", "formId": "review-form",
+{ "id": "review", "type": "USER_TASK", "name": "Review", "formId": "review-form",
   "preconditionStepId": "check", "preconditionExpression": "amount > 1000" }
 ```
 
@@ -450,9 +563,11 @@ processUpstreamEventUseCase.handle(new ProcessUpstreamEventCommand(
 @Autowired CancelProcessUseCase cancelProcessUseCase;
 cancelProcessUseCase.handle(new CancelProcessCommand(processId));
 
-// retry a process in ERROR — transitions back to RUNNING
+// retry the failed steps of an ERROR/CANCELLED process; restart = from the top
 @Autowired RetryProcessUseCase retryProcessUseCase;
 retryProcessUseCase.handle(new RetryProcessCommand(processId));
+@Autowired RestartProcessUseCase restartProcessUseCase;
+restartProcessUseCase.handle(new RestartProcessCommand(processId));
 
 // pause a PENDING/RUNNING process → PAUSED; resume → back to RUNNING
 @Autowired PauseProcessUseCase pauseProcessUseCase;
@@ -487,7 +602,66 @@ Send to the `upstream` topic:
 
 ### Over REST
 
-Processes over REST: `/workflow/api/processes` — `POST` start `{definitionId, businessKey?, variables?}` (201 + `Location`; same key and definition → 200 with the existing process; a key of another definition → 409; disabled definition → 409; unknown → 404), `GET` list with `definitionId`, `tag`, `status` (repeat or comma-separated), `from`/`to` (ISO date-time or date), `businessKey` (contains), `q`, `page`/`size` (≤500) → `{content, page, size, totalElements, totalPages}`, `GET /by-key?businessKey=`, `GET /{id}` (with variables), `/{id}/steps`, `/{id}/variables`, `/{id}/logs`, and commands `POST /{id}/cancel|pause|resume|retry|restart`, `/{id}/steps/{stepExecutionId}/retry` → 202 (carried out by the owning node; 404 unknown; 409 when the status does not allow it, by the use case's own rule). Same `X-Api-Key` rule as the rest of `/workflow/api/**`; with `workflow.security.flow-authorization.enabled` the definition's `requiredScopes`/`requiredRoles` gate start, reads and commands (403); errors are problem+json. OpenAPI 3.1 at `/openapi/eventconductor-api.yaml` (docs site), served live as `/v3/api-docs/eventconductor` when the app adds springdoc and sets `workflow.api.openapi.enabled=true`.
+Every `/workflow/api/**` call needs `X-Api-Key` (= `workflow.message-api.api-key`), the app's Spring
+Security credentials, or `workflow.message-api.allow-anonymous=true` (§2).
+
+```bash
+curl -X POST http://localhost:8080/workflow/api/processes -H 'X-Api-Key: dev-key' \
+     -H 'Content-Type: application/json' \
+     -d '{"definitionId":"booking-saga","businessKey":"B-1","variables":{"amount":120}}'
+```
+
+Processes over REST: `/workflow/api/processes` — `POST` start `{definitionId, businessKey?, variables?}` (201 + `Location`; same key and definition → 200 with the existing process; a key of another definition → 409; disabled definition → 409; unknown → 404), `GET` list with `definitionId`, `tag`, `status` (repeat or comma-separated), `from`/`to` (ISO date-time or date), `businessKey` (contains), `q`, `page`/`size` (≤500) → `{content, page, size, totalElements, totalPages}`, `GET /by-key?businessKey=`, `GET /{id}` (with variables), `/{id}/steps`, `/{id}/variables`, `/{id}/logs`, and commands `POST /{id}/cancel|pause|resume|retry|restart`, `/{id}/steps/{stepExecutionId}/retry` → 202 (carried out by the owning node; 404 unknown; 409 when the status does not allow it, by the use case's own rule). Same `X-Api-Key` rule as the rest of `/workflow/api/**`; with `workflow.security.flow-authorization.enabled` the definition's `requiredScopes`/`requiredRoles` gate start, reads and commands (403); errors are problem+json. A `startPolicy` can make `POST` answer 202 (held back) or 429 (dropped). OpenAPI 3.1 at `/openapi/eventconductor-api.yaml` (docs site), served live as `/v3/api-docs/eventconductor` when the app adds springdoc (`springdoc-openapi-starter-webmvc-api`) and sets `workflow.api.openapi.enabled=true`.
+
+Search: `GET /workflow/api/processes?query=customerId = "C-9" AND amount > 100` (URL-encoded) or
+`attr.<name>=v`, `attr.<name>.gt|gte|lt|lte=v` over the definition's `searchAttributes`. The query
+language is `name op value (AND …)*`, ops `= > >= < <=`, values bare or quoted; no OR, parentheses or
+negation; ≤ 10 conditions.
+
+### 6b. Messages, updates, operations
+
+- **Messages** — `POST /workflow/api/messages {messageName, correlationKey, variables}` → 202; resumes a
+  waiting `WAIT_FOR_MESSAGE`/`awaitReply`; dropped when nothing waits.
+- **Updates** — a definition's `updates: [{name, accepts (JSON Schema), acceptedWhile: [stepIds],
+  validate: [{expression, message}], set: {var: JEXL}, completes: <WAIT_FOR_MESSAGE id>, reply | replyTemplate,
+  sensitive: [fields]}]` are validated writes answered with a result, any number of times:
+  `POST /workflow/api/processes/{id}/updates/{name}` (or `/processes/by-key/updates/{name}?businessKey=`),
+  optional `Idempotency-Key`, `Prefer: wait=N` → 200 `{status: COMPLETED, result}` / 202 + Location /
+  400 payload / 404 / 409 not accepting / 422 refused / 500 expression failed (nothing changed).
+  `POST /workflow/api/definitions/{id}/update-with-start {businessKey, variables, update, payload}` starts the
+  process when the key is free (the update is its first act) or updates it (follows `businessKeyPolicy`).
+  MCP `updateProcess`, `updateWithStart`, `listProcessUpdates`.
+  ```yaml
+  updates:
+    - name: changeAddress
+      accepts: { type: object, required: [address], properties: { address: { type: string, minLength: 5 } } }
+      acceptedWhile: [awaitShipping]
+      validate:
+        - { expression: "payload.address != address", message: That is already the shipping address. }
+      set: { address: payload.address }
+      reply: "{'address': address}"
+  ```
+- **Manual operations** (audited, `reason` required, roles `workflow.security.operations.required-roles`):
+  `POST /processes/{id}/variables {set, remove, reason}`, `POST /processes/{id}/steps/{stepExecutionId}/complete
+  {variables, reason}`, `POST /processes/{id}/retry-from/{stepId} {reason}`; MCP `setProcessVariables`,
+  `completeStepManually`, `retryProcessFromStep`. Refused on finished processes and during a rollback.
+- **Incidents** — failed steps grouped by definition + step + error family: `GET /workflow/api/incidents`,
+  `GET /incidents/{key}/processes`, `POST /incidents/{key}/retry {reason}` (a RETRY batch); MCP
+  `listIncidents`, `getIncidentProcesses`, `retryIncident`.
+- **Batch operations** — `POST /workflow/api/batch-operations {type, filter, variables?, remove?, stepId?, reason?,
+  targetVersion?, fromVersion?, stepMapping?}`; types `CANCEL`, `RETRY`, `RESTART`, `PAUSE`, `RESUME`,
+  `SET_VARIABLES` (reason), `RETRY_FROM_STEP` (stepId, reason), `MIGRATE` (targetVersion, stepMapping,
+  variables, reason); non-empty `filter {definitionId, tag, status[], from, to, businessKey, q, onlyErrors,
+  query, attributes}`. Runs in the background on one node, throttled (`workflow.batch-operations.*`),
+  resumable, cancellable (`POST /batch-operations/{id}/cancel`); each process authorized and status-checked.
+  MCP `createBatchOperation`, `migrateProcessesInBatch`, `listBatchOperations`, `getBatchOperation`, `cancelBatchOperation`.
+- **Migration** — move running processes to another version: `POST /processes/{id}/migrate/dry-run
+  {targetVersion?, stepMapping?, variableMapping?}` (plan + problems) and `POST /processes/{id}/migrate {…, reason}`;
+  `MigrateProcessUseCase`; batch `MIGRATE`; MCP `dryRunProcessMigration`, `migrateProcess`. In CI:
+  `mvn eventconductor:check-migration -Dfrom=<git ref|path|current> [-Dto=…] [-Dmapping=file] [-Dworkflow=id]`
+  fails when a step a process can wait in has no compatible counterpart. Memory persistence has no
+  version history (migrate to the current version only).
+- **Reveal** a sensitive value: `POST /processes/{id}/variables/{name}/reveal {reason}` (§17).
 
 ### Query
 ```java
@@ -511,12 +685,19 @@ record TaskExecutionRequested(
     String workflowDefinitionId,
     String stepId,
     String taskId,
-    List<Variable> variables) {}  // process variables at this point (incl. prior outputs)
+    List<Variable> variables,     // process variables at this point (incl. prior outputs)
+    Integer attempt,              // echo it back (late replies of an abandoned attempt are dropped)
+    Integer priority) {}          // 2.33; record patterns must list all 8 components
 ```
+
+Ways to write one: an `EmbeddedTaskExecutor` bean (below); typed `TaskHandler`s (generated from a
+task contract, or a hand-made `TaskRegistration<In, Out>` bean matched by task id or, for an ACTION with
+no `task`, its step id) run by `worker-embedded` or `worker-kafka`; a Kafka consumer replying through
+`WorkerReply`; or any language over HTTP (`/workflow/api/workers`, Python SDK in `sdks/python`, §7b).
 
 ### Embedded worker (mode: embedded)
 
-Register one `EmbeddedTaskExecutor` bean; branch on `stepId`. (You may also register per-topic beans named after the step `topic`.)
+Register ONE `EmbeddedTaskExecutor` bean; branch on `stepId` (the `topic` is ignored in embedded mode). A hand-written executor replaces `worker-embedded`'s, so it would also receive the built-in `HTTP_CALL`/`LLM_CALL`/`AGENT_CALL` tasks — when you use those embedded, write your workers as `TaskHandler`s instead.
 
 Mind the two `Variable` records: `UpdateStepExecutionCommand` takes `io.mateu.workflow.domain.aggregates.Variable`, while the events (`TaskExecutionRequested`, `TaskStatusChanged`, `ProcessCreationRequested`) use `io.mateu.workflow.dtos.Variable` — import the right one per use.
 
@@ -544,36 +725,27 @@ EmbeddedTaskExecutor taskExecutor(UpdateStepExecutionUseCase update) {
 }
 ```
 
-Per-topic bean form (bean name = step `topic`):
-```java
-@Bean("payment-service")
-EmbeddedTaskExecutor payment(UpdateStepExecutionUseCase update) { return request -> { /* ... */ }; }
-```
 
 ### Kafka worker (Spring Cloud Stream)
 
-Consume `TaskExecutionRequested` from `downstream`; publish `TaskStatusChanged` to `upstream`.
+Consume `TaskExecutionRequested` from `downstream` (or the step's `topic`); reply with a `TaskStatusChanged`
+on `upstream` through `io.mateu.workflow.worker.WorkerReply`, which retries a refused send and then throws
+(so the task is redelivered) instead of silently dropping the reply as a bare `bridge.send` would:
 
 ```java
-// io.mateu.workflow.dtos.events.integration
-record TaskStatusChanged(String taskExecutionId, TaskStatus status,
-                         List<Variable> variables) {}
-
 @Bean
 Consumer<TaskExecutionRequested> myWorkerTopic(StreamBridge bridge) {
     return req -> {
         try {
             String result = doWork(req.variables());
-            bridge.send("upstream", new TaskStatusChanged(
-                req.taskExecutionId(), TaskStatus.COMPLETED,
-                List.of(new Variable("result", result))));
+            WorkerReply.completed(bridge, req, List.of(new Variable("result", result)));
         } catch (Exception e) {
-            bridge.send("upstream", new TaskStatusChanged(
-                req.taskExecutionId(), TaskStatus.ERROR, List.of()));
+            WorkerReply.failed(bridge, req, List.of(), e.toString());   // the reason reaches the process log
         }
     };
 }
 ```
+Handlers must be idempotent (at-least-once).
 
 There is no log component on `TaskStatusChanged`; task logs are emitted through the separate `TaskLogEmitted(String taskExecutionId, MessageType messageType, String message)` event.
 
@@ -584,7 +756,28 @@ There is no log component on `TaskStatusChanged`; task logs are emitted through 
 
 ### Output variables
 
-Worker outputs are **merged into process variables** (overwriting same-named ones), and become available to all later steps and JEXL expressions.
+Worker outputs are **merged into process variables** (overwriting same-named ones), and become available to all later steps and JEXL expressions (forEach iterations excepted: see `output`).
+
+### 7b. Workers over HTTP, any language
+
+`workflow.workers.http.enabled=true`, `workflow.workers.http.topics=payments` (tasks of those topics are
+queued — `http_task` with jpa — and leased), `workflow.workers.http.api-keys.<name>=<key>`. Endpoints under
+`/workflow/api/workers` (header `X-Api-Key`): `POST /activate {workerId, topics, maxTasks, leaseMs, waitMs}`
+(long poll), `POST /tasks/{id}/complete {attempt, variables}`, `/fail {attempt, code, message, retryable}`,
+`/heartbeat {leaseToken, extendMs}` → `{cancelled, deadline}`, `/inject`. An expired lease redelivers; a reply
+for an old attempt is refused (409). Python SDK (`sdks/python/eventconductor-worker`, stdlib only, not on PyPI):
+```python
+from eventconductor_worker import Worker, TaskError
+worker = Worker("http://localhost:8080", api_key="my-worker-key", concurrency=4)
+
+@worker.task("payments")
+def charge(task):
+    if task.variables["amount"] == "0":
+        raise TaskError("ZERO_AMOUNT", "nothing to charge", retryable=False)
+    return {"chargeId": f"ch-{task.process_id}"}
+
+worker.run()
+```
 
 ### The test worker (`worker-standalone-app`, module `modules/test-worker`)
 
@@ -649,22 +842,22 @@ class BookingSagaTest {
 
 - `retries: N` — retry a step up to N times on `ERROR` or `TIMEOUT`.
 - `timeout` — on expiry the step goes `TIMEOUT`, then retries if attempts remain, else `ERROR`. A process in `ERROR` (after retries exhausted) can be retried, transitioning back to `RUNNING`.
-- **Saga**: mark steps `compensable: true` with a `compensationStepId`. When any step fails after exhausting retries, the engine runs the compensations of **every executed compensable step** (completed steps plus the one that just failed) **sequentially, in reverse execution order** — latest-executed undone first, each starting only once the previous compensation completes. When the whole chain finishes the process ends in the terminal **`COMPENSATED`** state; if a compensation itself fails after its own retries, the chain halts and the process stays `ERROR`. Define compensation steps as ordinary `ACTION` steps with **no preconditions** — being named as a `compensationStepId` is what makes them reachable, and the dataflow never starts a step that has nothing to wait for. (Older definitions anchor them with `"preconditionExpression": "false"`; still supported. An anchor without the guard is a live branch of the happy path.)
+- **Saga**: mark steps `compensable: true` with a `compensationStepId`. When any step fails after exhausting retries, the engine runs the compensations of **every completed compensable step** (never the step that failed — its work did not happen) **sequentially, in reverse completion order** — latest undone first, each starting only once the previous compensation completes; a step that ran several times (forEach iterations, loop passes) is compensated once per completed run, newest first. When the whole chain finishes the process ends in the terminal **`COMPENSATED`** state; if a compensation itself fails after its own retries, the chain halts and the process ends **`COMPENSATION_FAILED`** (partially rolled back — alert on `eventconductor.compensations.failed`). If nothing compensable had completed, the process stays `ERROR`. Define compensation steps as ordinary `ACTION` steps with **no preconditions** — being named as a `compensationStepId` is what makes them reachable, and the dataflow never starts a step that has nothing to wait for. (Older definitions anchor them with `"preconditionExpression": "false"`; still supported. An anchor without the guard is a live branch of the happy path.)
 
 ```json
 {
   "id": "booking-saga", "name": "Booking Saga", "version": 1,
   "steps": [
     { "id": "start", "type": "START", "name": "Start" },
-    { "id": "reserve-hotel",  "type": "ACTION", "topic": "hotel-service",
+    { "id": "reserve-hotel",  "type": "ACTION", "name": "Reserve the hotel", "topic": "hotel-service",
       "preconditionStepId": "start",
       "compensable": true, "compensationStepId": "cancel-hotel", "retries": 2 },
-    { "id": "reserve-flight", "type": "ACTION", "topic": "flight-service",
+    { "id": "reserve-flight", "type": "ACTION", "name": "Reserve the flight", "topic": "flight-service",
       "preconditionStepId": "reserve-hotel",
       "compensable": true, "compensationStepId": "cancel-flight" },
-    { "id": "cancel-hotel",  "type": "ACTION", "topic": "hotel-service" },
-    { "id": "cancel-flight", "type": "ACTION", "topic": "flight-service" },
-    { "id": "end", "type": "END", "preconditionStepId": "reserve-flight" }
+    { "id": "cancel-hotel",  "type": "ACTION", "name": "Cancel the hotel", "topic": "hotel-service" },
+    { "id": "cancel-flight", "type": "ACTION", "name": "Cancel the flight", "topic": "flight-service" },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "reserve-flight" }
   ]
 }
 ```
@@ -674,7 +867,7 @@ class BookingSagaTest {
 ## 9. Statuses
 
 ### Process
-`PENDING` (created) → `RUNNING` → `COMPLETED` | `ERROR`; `RUNNING`/`PENDING` → `CANCELLED`. `ERROR` is retriable. A failed process that fully rolls back via saga compensation ends in the terminal `COMPENSATED` state (`ERROR` → `COMPENSATED`); both `ERROR` and `COMPENSATED` are sticky failure states, distinguished by whether the side effects were undone (see §8). `PENDING`/`RUNNING` → `PAUSED` → `RUNNING` on resume (`PAUSED` → `CANCELLED` also works); see §6 for pause semantics.
+`PENDING` (created) → `RUNNING` → `COMPLETED` | `ERROR`; `RUNNING`/`PENDING` → `CANCELLED`. `ERROR` and `CANCELLED` can be retried / restarted. A failed process that fully rolls back via saga compensation ends in the terminal `COMPENSATED` state; a rollback that halts on a failed compensation ends `COMPENSATION_FAILED` (see §8). A `CONTINUE_AS_NEW` run ends `COMPLETED` with outcome `continued`. `PENDING`/`RUNNING` → `PAUSED` → `RUNNING` on resume (`PAUSED` → `CANCELLED` also works); see §6 for pause semantics.
 
 ### Step execution
 | Status | Meaning |
@@ -685,12 +878,13 @@ class BookingSagaTest {
 | `COMPLETED` | Worker reported success |
 | `ERROR` | Worker reported failure, or timeout with no retries left |
 | `TIMEOUT` | Exceeded `timeout` — retries if attempts remain |
+| `AWAITING_RETRY` | Failed with retries left, waiting out its backoff (`workflow.retry.backoff-*`) before re-dispatch |
 | `WAITING_ON_LOCK` | A `LOCK` step parked behind another holder, admitted FIFO on release — active work (the process does not complete or error around it), no worker involved |
 | `CANCELLED` | Process cancellation, saga compensation, or step never run when `END` fired |
 
 A step runs more than once only through `forEach` (child executions with `parentExecutionId`/`itemIndex`) or `repeat`/`loopBack` (a new execution per pass, `iteration` 1, 2…, the replaced one `superseded`); the process status and percentage read the current execution of each step.
 
-There is **no `SKIPPED` status**. A step whose `preconditionExpression` is falsy is simply never run: it stays `CREATED` and is flipped to `CANCELLED` when the `END` step fires. Because dependent steps require their `preconditionStepId` step to be `COMPLETED`, a never-run step permanently blocks its dependents — give conditional chains an alternative path to `END`.
+There is **no `SKIPPED` status**. A step whose `preconditionExpression` (a `DISCARD` guard) is falsy is simply never run: it stays `CREATED` and is flipped to `CANCELLED` when the process completes. Because dependent steps require their `preconditionStepId` step to be `COMPLETED`, a never-run step permanently blocks its dependents — give conditional chains an alternative path to `END`.
 
 Workers may only report `RUNNING`, `COMPLETED`, `ERROR`.
 
@@ -706,6 +900,22 @@ Workers may only report `RUNNING`, `COMPLETED`, `ERROR`.
 | `upstream` | into the orchestrator | `ProcessCreationRequested`, `TaskStatusChanged`, `MessageReceived` (`{"type":"message-received","messageName":"...","correlationKey":"...","variables":[{"name":"...","value":"..."}]}`) |
 | `downstream` | orchestrator → workers | `TaskExecutionRequested` (per ACTION step `topic`) |
 | `outbox` | internal | orchestrator outbox relay |
+| `http-calls` / `llm-calls` | orchestrator → built-in workers | `HTTP_CALL` / `LLM_CALL` + `AGENT_CALL` tasks |
+| `dead-letter` | out | records parked as permanently unprocessable |
+| `human-tasks` | forms engine → out | task lifecycle CloudEvents `io.eventconductor.task.*` |
+| destinations | in / out | `workflow.events.destinations.<name>.topic` for PUBLISH_EVENT, triggers, `onEvent` (consumer in `inbound-events-kafka`) |
+
+**Redelivery (main after 2.33.0, #565):** every consumer commits a record only once processed or parked on
+`dead-letter`. A retryable failure (optimistic-lock conflict, deadlock, database/broker away) is redelivered
+with exponential back-off, without limit, from the failed record — `workflow.consumer.retry.{initial-interval
+100ms, multiplier 2.0, max-interval 10s, max-attempts 0 = unlimited (>0 parks on dead-letter), warn-after 10}`;
+task consumers (workers, rule runtime, forms engine) `eventconductor.worker.consumer.retry.*`; projector
+`projector.consumer.retry.*`; inbound events `workflow.events.consumer.retry-backoff`. Metrics
+`eventconductor.events.redelivered{topic,cause}`, `eventconductor.worker.tasks.redelivered`. Up to 2.32.0 the
+default batch handler discarded a batch after nine instant retries (fan-out processes could stick).
+Kafka clients of `inbound-events-kafka` and the webhook gateway inherit `spring.kafka.security.*`,
+`spring.kafka.ssl.*`, `spring.kafka.properties.*` and the binder configuration; per-client overrides
+`workflow.events.consumer.properties.*`, `workflow.webhooks.kafka.properties.*`.
 
 Spring Cloud Stream bindings. The engine contributes its own as lowest-precedence defaults —
 destinations, a consumer group per binding, and `consumer.batch-mode=true`, which its batch
@@ -725,7 +935,10 @@ spring.cloud.stream.kafka.binder.auto-create-topics=true
 
 ### Entry points
 - `ProcessUpstreamEventUseCase.handle(ProcessUpstreamEventCommand)` — wraps `ProcessCreationRequested` and other upstream events.
-- `CancelProcessUseCase.handle(CancelProcessCommand)` / `RetryProcessUseCase.handle(RetryProcessCommand)` — cancel / retry a process by id.
+- `CancelProcessUseCase.handle(CancelProcessCommand)` / `RetryProcessUseCase.handle(RetryProcessCommand)` / `RestartProcessUseCase.handle(RestartProcessCommand)` — cancel / retry / restart a process by id.
+- `SetProcessVariablesUseCase`, `CompleteStepManuallyUseCase`, `RetryFromStepUseCase`, `MigrateProcessUseCase` (`application.usecases.process.operate`) — audited operations, each command with a `reason`.
+- `ProcessOperationsService` — what REST and MCP call (start honouring `startPolicy`/`businessKeyPolicy`, operations).
+- `SyncInvocationService` — synchronous invocations in code; `InboundEventService.receive(...)` — inject a domain event (embedded).
 - `PauseProcessUseCase.handle(PauseProcessCommand)` / `ResumeProcessUseCase.handle(ResumeProcessCommand)` — pause / resume a process by id (see §6).
 - `PauseWorkflowUseCase.handle(String)` / `ResumeWorkflowUseCase.handle(String)` — pause / resume a whole definition by id (bulk + born-paused new instances).
 - `UpdateStepExecutionUseCase.handle(UpdateStepExecutionCommand)` — report worker progress.
@@ -790,7 +1003,19 @@ Also triggerable via the MCP tool `importWorkflowDefinitionsFromGit`, or a git w
 
 ## 14. AI / MCP integration
 
-The engine exposes an MCP server so AI agents can operate it in natural language. Workflow tools: `listProcesses`, `getProcessDetails`, `findProcessByBusinessKey`, `getProcessLogs`, `retryProcess`, `pauseProcess` / `resumeProcess` (pause/resume a process — see §6 semantics), `pauseWorkflow` / `resumeWorkflow` (pause/resume a whole definition), `sendMessage` (resume WAIT_FOR_MESSAGE steps), `getWorkflowAnalytics` / `findBottleneck` (per-definition analytics and bottleneck detection), `importWorkflowDefinitionsFromGit`. There is no start-process tool. Plus forms tools and rule catalog tools (`listRules`, `evaluateRule`, ...). See `doc/src/content/docs/guides/mcp-overview.md`.
+The engine exposes MCP tools (Spring AI MCP server; Mateu `/mateu/mcp`) so AI agents can operate it. Like the
+admin UI, MCP needs Spring Security or `workflow.message-api.allow-anonymous=true` (403 otherwise);
+`spring.ai.mcp.server.enabled=false` switches it off.
+
+- Processes: `listProcesses` (with `query`), `getProcessDetails`, `getAgentTranscript`, `findProcessByBusinessKey`, `listRunsOfBusinessKey`, `listInFlightProcesses`, `countProcessesByStatus`, `getProcessLogs`, `retryProcess`, `restartProcess`, `pauseProcess`, `resumeProcess`, `pauseWorkflow`, `resumeWorkflow`, `sendMessage`, `getWorkflowAnalytics`, `findBottleneck`, `importWorkflowDefinitionsFromGit`.
+- Operations: `setProcessVariables`, `completeStepManually`, `retryProcessFromStep`, `dryRunProcessMigration`, `migrateProcess`, `listIncidents`, `getIncidentProcesses`, `retryIncident`, `revealProcessVariable`.
+- Batch: `createBatchOperation`, `migrateProcessesInBatch`, `listBatchOperations`, `getBatchOperation`, `cancelBatchOperation` (no `cancelProcess` tool — a CANCEL batch does it).
+- Updates: `updateProcess`, `updateWithStart`, `listProcessUpdates`.
+- Schedules: `listSchedules`, `getSchedule`, `createSchedule`, `updateSchedule`, `deleteSchedule`, `pauseSchedule`, `resumeSchedule`, `runScheduleNow`, `exportScheduleYaml`, `listWorkflowDefinitions`.
+- Events: `listEventTriggers`, `pauseEventTrigger`, `resumeEventTrigger`, `createEventTrigger`, `updateEventTrigger`, `deleteEventTrigger`, `exportEventTriggerYaml`, `listReceivedEvents`, `publishInboundEvent`.
+- Forms: `searchTasks`, `listForms`, `listFormExecutions`, `getFormExecution`, `importFormsFromGit`. Rules: `listRules`, `getRule`, `saveRule`, `validateRule`, `deleteRule`, `evaluateRule`, `importRulesFromGit`.
+
+There is no start-process tool: start over REST, with a trigger (`publishInboundEvent`) or `updateWithStart`. See `doc/src/content/docs/guides/mcp-overview.md`.
 
 ---
 
@@ -805,7 +1030,7 @@ The engine exposes an MCP server so AI agents can operate it in natural language
 - Both go through ports with no-op defaults (`WorkflowMetrics`, `WorkflowTracing`), so the engine
   libraries run with no observability dependencies at all.
 
-## 15. Minimal fully-embedded example
+## 15. Minimal fully-embedded example (needs `spring-boot-starter-webmvc` only to serve HTTP)
 
 `src/main/resources/application.properties`:
 ```properties
@@ -837,11 +1062,111 @@ public class App {
 
 ---
 
+## 16. Validating and testing definitions
+
+**Maven plugin** — `io.mateu.workflow:workflow-maven-plugin`, goal `validate` (prefix `eventconductor`, bound
+to `process-resources`):
+```xml
+<plugin>
+  <groupId>io.mateu.workflow</groupId>
+  <artifactId>workflow-maven-plugin</artifactId>
+  <version>${eventconductor.version}</version>
+  <executions><execution><goals><goal>validate</goal></goals></execution></executions>
+</plugin>
+```
+`mvn eventconductor:validate` checks `src/main/resources/{workflows,forms,rules,tasks}` (plus `cron.yaml`,
+`events.yaml`) against the engine's schemas (unknown keys are errors) and its semantic rules (roots, dangling
+ids, cycles, JEXL, loops, HTTP/LLM/agent blocks, triggers, schedules, retention, sensitive-variable rules,
+task contracts); warnings for JOINs on guarded steps and CHOICEs without a default. Only at engine load:
+TIMER `duration: 0`, blank message fields, missing encryption keys. Schema messages are in the JVM's language
+(`MAVEN_OPTS=-Duser.language=en`). Other goals: `check-migration` (§6b), `generate-worker-sources` (§4 ACTION).
+
+Frequent errors: a step without `name`; `A workflow can have at most one START step`; `Step 'X' has no
+preconditions and is not a START, a WAIT_FOR_MESSAGE, another step's compensation or an agent's tool — nothing
+would ever start it.`; `Step 'X' references unknown precondition step 'Y'.`; `Timer step 'X' must define a
+duration, an untilVariable or an until.`; `Message step 'X' must define a correlationExpression.`;
+`HTTP_CALL step 'X' must define exactly one of connection and url.`; `Step 'X' loopBack must define
+maxIterations…`; `AGENT_CALL step 'X' maxSteps is required: an agent must be bounded.`
+
+**Test kit** — see §7 *Testing definitions in JUnit*. A complete saga test:
+```java
+@EventConductorTest
+class BookingSagaTest {
+    @Test
+    void capturesAfterTheCoolingOffPeriod(WorkflowTestRuntime runtime) {
+        runtime.whenTask("reserve-room").thenComplete(Map.of("roomId", "R-12"));
+        runtime.whenTask("charge-card").thenComplete(Map.of("chargeId", "ch_1"));
+        runtime.whenTask("capture-payment").thenComplete();
+        var booking = runtime.start("booking-saga", "B-1", Map.of("amount", 120));
+        assertThat(booking).isWaitingAt("cooling-off");
+        runtime.advanceTime(Duration.ofDays(3));
+        assertThat(booking).isCompleted().hasPassedSteps("reserve", "charge", "cooling-off", "capture");
+    }
+}
+```
+(`import static io.mateu.workflow.test.WorkflowAssertions.assertThat;`). Also `whenAgent(step)`, `update(...)`,
+`updateWithStart(...)`, `hasAppliedUpdates(...)`; `advanceTime` also stops at escalations, flow-control windows
+and rate-limit permits.
+
+## 17. Security, credentials and sensitive data
+
+- **Access** — see §2 *Secure by default*.
+- **HTTP_CALL credentials** — named profiles `workflow.http.auth.<name>` (`basic`, `bearer`, `api-key`,
+  `oauth2-client-credentials`) or inline `auth` with `${secret:NAME}` only, resolved from
+  `workflow.http.secrets.<NAME>` (since 2.27; `workflow.http.secrets-from-environment=true` restores env lookup).
+  Since 2.28 credentials are **bound to hosts**: a profile applies through a `connection`, or on an absolute
+  `url` only when the host is in `workflow.http.auth.<name>.hosts` (or `workflow.http.allowed-hosts` is set);
+  inline `${secret:…}` on an absolute URL needs `allowed-hosts`; else the step fails `HTTP_FORBIDDEN_AUTH`
+  (non-retryable). Internal addresses are always refused for absolute URLs (`HTTP_FORBIDDEN_HOST`).
+  ```yaml
+  workflow:
+    http:
+      connections:
+        payments: { base-url: "https://payments.example.com", auth: payments-key }
+      auth:
+        payments-key: { type: api-key, header: X-Api-Key, value: "${PAYMENTS_API_KEY}" }
+        partner: { type: bearer, token: "${PARTNER_TOKEN}", hosts: [ "api.partner.com" ] }
+      secrets:
+        PARTNER_TOKEN: "${PARTNER_TOKEN}"
+  ```
+- **LLM keys** only in `workflow.llm.connections.<name>.api-key`.
+- **Sensitive variables** (2.32) — `sensitiveVariables: [cardNumber, "patient.*"]` (and a PROCESS step's
+  `sensitiveOutputs: true`) require `workflow.encryption.keys.<id>` (base64 of 32 bytes, `openssl rand -base64 32`)
+  and `workflow.encryption.active-key` (with several keys); otherwise the definition is refused. Values are
+  sealed with AES-256-GCM (`ec:enc:v1:<keyId>:…`) in the database, outbox, Kafka and HTTP task queue; masked
+  `••••` in console/REST/MCP; revealed by `POST /workflow/api/processes/{id}/variables/{name}/reveal {reason}` /
+  MCP `revealProcessVariable` for `workflow.security.sensitive.reveal-roles` (audited). Embedded workers see
+  plaintext; Kafka/HTTP workers see ciphertext unless configured with the same keys. Refused at load when
+  computed from a sensitive variable: search attributes, correlation expressions, lock keys, `startPolicy.key`,
+  trigger business keys. `LLM_CALL`/`AGENT_CALL`/update replies reading one need `allowSensitiveVariables: true`.
+- **Webhooks** — git-import webhooks need `workflow.git-import.webhook-secret` (2.28); the `webhook-gateway` verifies
+  GitHub / HMAC signatures (`workflow.webhooks.endpoints.<name>.{provider, destination, secret}`); its `rest`
+  transport needs `workflow.webhooks.engine.api-key`.
+
+## 18. Upgrade notes 2.27 → 2.33 (breaking changes and rolling order)
+
+- **2.27** — `${secret:}` only from `workflow.http.secrets`; `/workflow/api/**` refuses anonymous (401). With
+  `workflow.analytics.rollup=true`, stop all 2.26 pods before the first 2.27 pod (V43).
+- **2.28** — consoles/MCP refuse anonymous (403), `workflow.ui.enabled`; `@EnableWorkflowUi` for embedded apps
+  mounting the UI; HTTP credentials bound to hosts; unsigned git webhooks refused; standalone apps need
+  `SECURITY_PASSWORD`; rules gRPC off; `trust-forwarded-token`; V45 backfill (quiet window);
+  `TaskExecutionRequested.attempt` / `TaskStatusChanged.attempt` appended (record patterns).
+- **2.29** — loops; `maxSuccessfulExecutions` / `defaultMaxStepExecutions` enforced; V47.
+- **2.30** — search attributes, batch operations, HTTP workers, incidents; V48–V50.
+- **2.31** — migration, human-task assignment/escalation; forms V8; claimed tasks are `ASSIGNED`. **Upgrade forms
+  engines and workers before any definition uses `escalation`.**
+- **2.32** — `AGENT_CALL`; sensitive variables need encryption keys; V53.
+- **2.33** — updates, flow control, priority, `CONTINUE_AS_NEW`, `businessKeyPolicy`; V55, V56 (brief lock per
+  ALTER), V56.1 (concurrent indexes); `TaskExecutionRequested.priority` appended. **Don't import definitions using
+  `CONTINUE_AS_NEW` or a reusing `businessKeyPolicy` until every pod runs 2.33.**
+- Own kafka-mode apps with triggers/`onEvent` need `inbound-events-kafka` (since 2.26).
+
 ## Canonical sources of truth (this repo)
 
 - `doc/public/eventconductor-ai-compact.md` — the compact version of this file.
-- `doc/src/content/docs/guides/` — workflow-definitions, starting-a-process, workers, retries-timeouts-compensation, form-definitions, user-tasks, mcp-*.
-- `doc/src/content/docs/reference/` — step-types, statuses, configuration, kafka-topics, java-api.
+- `doc/src/content/docs/guides/` — workflow-definitions, starting-a-process, workers, http-workers, retries-timeouts-compensation, testing-workflows, request-response, loops-and-multi-instance, operating-running-processes, searching-and-bulk-operations, migrating-running-processes, updating-running-processes, flow-control, long-running-processes, sensitive-data-and-encryption, human-tasks-assignment-and-escalation, agents-with-tools, http-calls, llm-calls, domain-event-triggers, webhooks, mcp-*.
+- `.claude/skills/eventconductor*/` — the Claude Code skills (progressive: SKILL.md → reference/*.md), whose examples are validated by the build.
+- `doc/src/content/docs/reference/` — step-types, statuses, configuration, kafka-topics, java-api, processes-rest-api, http-worker-api, maven-plugin.
 - `modules/workflow-engine/src/main/resources/workflow-definition-schema.json` — the JSON Schema for definitions.
 
 Prefer these if anything here looks out of date.

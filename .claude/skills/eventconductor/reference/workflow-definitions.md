@@ -1,258 +1,129 @@
-# Workflow definitions
+# Workflow definition reference
 
-A definition is JSON or YAML (`.json`/`.yaml`/`.yml`, or `.ec` holding either). Name it
-`order.workflow.yaml` or `order.ec.yaml` to keep a `.yaml` extension and still have the IDE
-plugins open it as a graph with schema validation; with no `id`, directory/repository import names
-it `order` (the compound suffix is stripped). In `embedded`+`memory` mode it loads
-from `classpath:/workflows/`; in `jpa` mode it can also be imported from Git.
+A definition is YAML or JSON (`.yaml`/`.yml`/`.json`, or `.ec` holding either). Name files
+`order.workflow.yaml` or `order.ec.yaml` so the IDE plugins open them as a graph with schema
+validation; without an `id`, import names it `order`. Loaded from `classpath:/workflows/` (every mode),
+`workflow.directory-import.directories`, or git import. Schema:
+`modules/workflow-engine/src/main/resources/workflow-definition-schema.json` — add
+`# yaml-language-server: $schema=https://raw.githubusercontent.com/miguelperezcolom/eventconductor/main/modules/workflow-engine/src/main/resources/workflow-definition-schema.json`
+for autocomplete. The schema forbids unknown keys. Examples: [patterns.md](patterns.md).
 
 ## Top-level fields
 
-`id`, `name`, `version` (int), `description?`, `status` (`DRAFT`|`ACTIVE`|`DISABLED`|`ARCHIVED`),
-`paused?` (runtime pause flag, orthogonal to `status` and NOT an authoring decision —
-toggled by pause/resume at runtime; while true all the definition's processes are held and
-new instances, cron included, are created born-`PAUSED`; in the schema, default `false`,
-only so exports round-trip),
-`draftOfId?`, `limitConcurrentExecutions?`, `maxConcurrentExecutions?`, `enqueueOnLimit?`,
-`cronExpression?` (Spring cron: start a new instance per occurrence, multi-pod safe),
-`schedules?` (`[{id?, cron, zone?, variables?: {name: value}}]` — several scheduled starts, each with an
-optional `id` (slug, one schedule per id across the engine), an IANA zone (default `workflow.time.zone`)
-and initial variables; coexists with `cronExpression`.
-Entries may instead live in `cron.yaml` beside the definitions — `[{id?, cron, workflow, zone?, variables?}]`,
-never read as a definition; unknown `workflow` → logged and skipped. Schedules can also be created from
-the admin UI / `/workflow/api/schedules` / MCP; a file entry with the same `id` takes such a schedule
-over on import, and an entry removed from its file is deleted),
-`triggers?` (`[{id?, destination, type, filter?, businessKey?, variables?}]` — domain events that start an
-instance; templates and the JEXL filter over the event: `id`, `source`, `type`, `subject`, `key`, `data.x`;
-default business key derived from the event, default variables `data`'s members; one process per event and
-trigger; a WAIT_FOR_MESSAGE can wait for one with `onEvent: {destination, type, correlationKey?, filter?, variables?}`),
-`defaultMaxStepExecutions?` (default cap on a step's successful runs, enforced when a `repeat`/`loopBack` would run it again),
-`processLock?` (`{name?, key}` — serialize instances by a JEXL key),
-`syncInvocation?` (`{enabled, onFailure: REPLY_IMMEDIATELY|REPLY_AFTER_COMPENSATION, onLockBusy: WAIT|FAIL, defaultDeadlineMs}` —
-lets a caller start an instance over HTTP and wait for its REPLY; `enabled` requires a reachable REPLY), `startPolicy?` (`{key?, debounce?, throttle?: {limit, period, onLimit?: queue|drop}, singleton?: skip|replace}` —
-per-key flow control of REST starts, sync invocations and triggers without their own; a trigger may carry its
-own `startPolicy` with `key` over the event; order debounce → singleton → throttle; receipts DEBOUNCED/
-THROTTLED/DROPPED/SKIPPED/REPLACED; REST 202 held back / 429 dropped; no definition-level debounce with
-syncInvocation; not for cron/children/console),
-`businessKeyPolicy?` (`unique` default | `allowAfterFinished` | `allowAfterFailed` | `terminateRunning` — may a
-start take over a key a run of this definition holds; every start path; lookup by key = current holder), `steps[]`.
-
-Worker side: `workflow.workers.rate-limits.<topic>.{permits, period}` caps dispatch per topic (task waits PENDING,
-its timeout not running; released by priority, then round-robin per process); step `priority` 0–100 (default 50)
-orders the HTTP queue, the embedded pool and that queue — Kafka keeps topic order.
-
-Add `"$schema"` (JSON) or a `# yaml-language-server: $schema=...` comment (YAML) pointing at
-`modules/workflow-engine/src/main/resources/workflow-definition-schema.json` for autocomplete.
+| Field | Notes |
+|---|---|
+| `id`, `name` (required), `version`, `description` | `version` is an int; JPA mode versions content automatically |
+| `status` | `DRAFT` \| `ACTIVE` \| `DISABLED` \| `ARCHIVED` |
+| `steps` (required) | the step list |
+| `tags` | `[billing, "team:payments"]` — metadata, no new version; Processes page filters by tag |
+| `cronExpression` / `schedules` | Spring cron; `schedules: [{id?, cron, zone?, variables?}]` (or `cron.yaml` with `workflow:` per entry) |
+| `triggers` | `[{id?, destination, type, filter?, businessKey?, variables?, startPolicy?}]` domain events that start an instance (or `events.yaml` with `workflow:` per entry) |
+| `syncInvocation` | `{enabled, onFailure: REPLY_IMMEDIATELY\|REPLY_AFTER_COMPENSATION, onLockBusy: WAIT\|FAIL, defaultDeadlineMs}` — needs a reachable `REPLY` |
+| `updates` | `[{name, description?, accepts (JSON Schema), acceptedWhile: [stepIds], validate: [{expression, message}], set: {var: JEXL}, completes: <WAIT_FOR_MESSAGE id>, reply \| replyTemplate, sensitive: [fields], allowSensitiveVariables?}]` |
+| `startPolicy` | `{key?, debounce?, throttle?: {limit, period, onLimit: queue\|drop}, singleton?: skip\|replace}` for REST starts and sync invocations (triggers may have their own); no definition-level `debounce` with `syncInvocation` |
+| `businessKeyPolicy` | `unique` (default) \| `allowAfterFinished` \| `allowAfterFailed` \| `terminateRunning` |
+| `processLock` | `{name?, key}` — serialize whole instances by a JEXL key |
+| `retention` | `P30D` \| `{completed, cancelled, error, compensated, compensationFailed: <duration>\|forever}` |
+| `searchAttributes` | `{name: "${expr}"}` or `{name: {value: "${expr}", type: keyword\|text\|number\|date\|bool}}`, ≤ 20 |
+| `sensitiveVariables` | names or globs; needs `workflow.encryption.keys.*` ([security.md](security.md)) |
+| `requiredRoles`, `requiredScopes` | enforced with `workflow.security.flow-authorization.enabled=true` |
+| `defaultMaxStepExecutions` | default cap on a step's successful runs (loops) |
+| `limitConcurrentExecutions`, `maxConcurrentExecutions`, `enqueueOnLimit` | concurrency cap per definition |
+| `paused` | runtime flag (pause/resume a whole definition); not an authoring decision |
 
 ## Step fields
 
 | Field | Applies to | Notes |
 |---|---|---|
-| `id`, `type`, `name`, `description` | all | `type` ∈ START/ACTION/USER_TASK/RULE/TIMER/WAIT_FOR_MESSAGE/SEND_MESSAGE/PROCESS/FORK/JOIN/END |
-| `preconditionStepId` | all | single step that must complete first |
-| `preconditionStepIds` | all | steps that must ALL complete first; wins over the singular form when non-empty |
-| `preconditions` | all | `{stepId, expression?, onFalse?}` per incoming link — the condition belongs to that route in; wins over both spellings above. `onFalse`: `WAIT` (default, the step waits and the process stays open around it) or `DISCARD` (a branch not taken — skipped, process may finish) |
-| `preconditionExpression` | all | JEXL guard; while falsy the step never runs (stays `CREATED`, → `CANCELLED` at `END`). Older, step-wide spelling: folded into every link as an `onFalse: DISCARD` guard |
-| `parallel` | all | **deprecated and ignored** — every eligible step runs concurrently |
-| `topic` | ACTION | worker destination (Kafka mode; ignored embedded) |
-| `formId` | USER_TASK | form to render |
-| `ruleId` | RULE | rule to evaluate (rule-engine catalog) |
-| `duration` | TIMER | wait length; ISO-8601 or ms |
-| `untilVariable` | TIMER | variable holding an ISO-8601 date/date-time; wins over `duration` |
-| `until` | TIMER | moment `{date, offset, at, zone, ifPast}` (or date template); follows variable changes; exclusive with duration/untilVariable |
-| `deadline` | ACTION/USER_TASK/RULE/WAIT_FOR_MESSAGE/PROCESS/HTTP_CALL/LLM_CALL | moment by which to finish; timeout that retries don't extend; earlier of it and `timeout` wins |
-| `messageName` | WAIT_FOR_MESSAGE, SEND_MESSAGE | message to wait for / emit; **required** for both |
-| `correlationExpression` | WAIT_FOR_MESSAGE, SEND_MESSAGE | JEXL producing the correlation key; **required** for both (use `businessKey` for the business key) |
-| `messageVariables` | SEND_MESSAGE | array of process-variable names the message carries; empty/absent = none |
-| `childWorkflowDefinitionId` | PROCESS | child workflow id; **required**, must differ from the workflow's own id |
-| `outputVariables` | PROCESS | child variables copied back to the parent on completion; empty/absent = none |
-| `timeout` | all | ISO-8601 (`PT30S`,`PT1H30M`) or ms int; `0`=none |
-| `retries` | all | auto-retry count on ERROR/TIMEOUT |
-| `rollbackable` + `compensationStepId` | all | saga compensation on failure |
-| `maxSuccessfulExecutions` | all | cap on successful runs per process; enforced when a `repeat`/`loopBack` would run the step again (the step fails); `0` inherits `defaultMaxStepExecutions` |
-| `forEach` | ACTION/USER_TASK/PROCESS/HTTP_CALL/LLM_CALL/RULE | `{items, as?, indexAs?, mode?: parallel\|sequential, maxConcurrency?, output?, outputElement?, completion?: all\|any\|JEXL}` — once per item; see Loops below |
-| `repeat` | same | `{until, maxIterations, delay?}` — run again until `until` holds |
-| `loopBack` | all but START/END/REPLY | `{to, while?, maxIterations, delay?}` — re-run the section from `to` (upstream) to here |
-
-## Loops and multi-instance
-
-Never draw a cycle in the preconditions — it is rejected. Declare repetition instead
-(guide: `doc/src/content/docs/guides/loops-and-multi-instance.md`):
-
-```yaml
-- id: reserve
-  type: ACTION
-  topic: booking
-  preconditionStepId: start
-  compensable: true
-  compensationStepId: release        # runs once per completed iteration, sees room + what it reported
-  forEach: { items: rooms, as: room, output: reservations, outputElement: reservationId }
-- id: poll
-  type: HTTP_CALL
-  preconditionStepId: reserve
-  http: { connection: pay, path: "/p/${paymentId}", output: { paymentStatus: "body.status" } }
-  repeat: { until: "paymentStatus == 'SETTLED'", maxIterations: 20, delay: PT30S }
-- id: rework                         # on a CHOICE branch: no `while` = always loop
-  type: ACTION
-  topic: notify
-  preconditions: [ { stepId: decide, expression: "verdict == 'REWORK'" } ]
-  loopBack: { to: draft, maxIterations: 5 }
-```
-
-- forEach iterations are separate tasks (own id/retries/timeout); a worker sees `item`/`index` (or
-  `as`/`indexAs`) as variables. Iteration results do NOT land on the process — use `output`.
-- One iteration failing for good fails the step; `completion: any` or a condition ends it early.
-- `maxIterations` is required on `repeat`/`loopBack`; exceeding any cap fails the step.
-- Engine limits: `workflow.foreach.max-items`, `workflow.loops.max-iterations` (both 1000).
+| `id`, `type`, `name` | all | **all three required**; `description` optional |
+| `preconditionStepId` / `preconditionStepIds` | all | one / ALL must complete first |
+| `preconditions` | all | `[{stepId, expression?, onFalse?: WAIT\|DISCARD}]` — condition per incoming link; wins over the two above. `WAIT` (default) holds the step until variables change; `DISCARD` = branch not taken |
+| `preconditionExpression` | all | step-wide JEXL guard = a `DISCARD` guard on every link (older spelling) |
+| `timeout` | waiting/worker steps | ISO-8601 (`PT30S`) or ms; `TIMEOUT` → retry or failure |
+| `retries` | worker steps | retries on ERROR/TIMEOUT with backoff (`workflow.retry.backoff-*`) |
+| `onTimeoutStepId` | waiting steps | on timeout route to that step instead of failing (guard the target with `preconditions: [{stepId: <this>, expression: "false"}]`) |
+| `deadline` | waiting steps | moment by which to finish (`{date, offset, at, zone}` or a date template); retries don't extend it |
+| `compensable` + `compensationStepId` | worker steps | saga undo; compensation step has NO preconditions (`rollbackable` = old spelling) |
+| `priority` | ACTION, HTTP_CALL, LLM_CALL, RULE, AGENT_CALL | 0–100, default 50 |
+| `topic` | worker steps | Kafka destination (default `downstream`; `http-calls`/`llm-calls` for built-ins); embedded ignores it |
+| `task` | ACTION | task contract `<id>` or `<id>@<version>` (`.ectask`) |
+| `formId`, `assignment`, `escalation` | USER_TASK | see below |
+| `ruleId` | RULE | rule from the rule catalog; outputs → variables |
+| `duration` / `untilVariable` / `until` | TIMER | exactly one |
+| `messageName` + `correlationExpression` | WAIT_FOR_MESSAGE, SEND_MESSAGE | both required; `correlationExpression: businessKey` correlates by business key |
+| `onEvent` | WAIT_FOR_MESSAGE | `{destination, type, correlationKey?, filter?, variables?}` — a domain event is the message |
+| `messageVariables` | SEND_MESSAGE | variables the message carries (absent = none) |
+| `awaitReply` | HTTP_CALL, PUBLISH_EVENT | `{messageName, correlationExpression, onEvent?}` — wait for the reply in the same step |
+| `childWorkflowDefinitionId`, `outputVariables`, `sensitiveOutputs` | PROCESS | child definition; variables copied back (absent = none) |
+| `joinType` | JOIN | `AND` (default) \| `XOR` |
+| `lockName`, `lockKey` | LOCK/UNLOCK | JEXL key |
+| `replyVariables` \| `replyExpression` \| `replyTemplate` | REPLY | at most one |
+| `event` | PUBLISH_EVENT | `{destination, type, key?, payload \| payloadTemplate \| payloadVariables, format?}` |
+| `http` | HTTP_CALL | `{connection + path \| url, method, query, headers, body \| bodyTemplate, successStatus, output, auth, retryOn}` |
+| `llm` | LLM_CALL | `{connection, model?, system?, prompt, temperature?, maxTokens?, responseSchema?, output? \| outputVariable?, usageVariable?, allowSensitiveVariables?}` |
+| `agent` | AGENT_CALL | `{connection, goal, tools, maxSteps, system?, model?, output?, maxTokens?, maxDuration?, toolConcurrency?, onToolError?: fail\|report, allowSensitiveVariables?}` |
+| `continueAsNew` | CONTINUE_AS_NEW | `{version?: same\|latest, variables?: [names] \| {name: template}}` |
+| `forEach` | ACTION, USER_TASK, PROCESS, HTTP_CALL, LLM_CALL, RULE | `{items, as?, indexAs?, mode?: parallel\|sequential, maxConcurrency?, output?, outputElement?, completion?: all\|any\|JEXL}` |
+| `repeat` | same as forEach | `{until, maxIterations, delay?}` |
+| `loopBack` | all but START/END/REPLY | `{to, while?, maxIterations, delay?}` |
+| `maxSuccessfulExecutions` | all | cap enforced when a loop would run the step again |
+| `parallel` | — | deprecated, ignored |
 
 ## Step types
 
-- **START** — entry point: no worker, completes instantly at process creation. Must have no
-  preconditions; several STARTs = concurrent entry branches.
-- **ACTION** — dispatch to a worker. Kafka: publishes `TaskExecutionRequested` to `topic`.
-  Embedded: routed to the single `EmbeddedTaskExecutor` (topic ignored).
-- **USER_TASK** — pause for a human; creates a `FormExecution` for `formId` (needs `forms-engine`).
-- **RULE** — evaluate a business rule (`ruleId`) from the rule catalog; outputs merge into process variables (needs `rule-runtime` on the evaluating side; taskId is `evaluate-rule`).
-- **TIMER** — durable wait, no worker: `duration` (ISO-8601 or ms) or `untilVariable` (variable with an
-  ISO-8601 date/date-time; wins) or `until` — a moment from the process's data: `{date: "${checkinDate}",
-  offset: -P3D, at: "09:00", zone: "${hotelZone}", ifPast: fire|timeout}` (offset days are calendar
-  arithmetic in `zone`; `zone` default `workflow.time.zone`). An `until` moment FOLLOWS variable changes
-  while waiting. `ifPast: timeout` → TIMEOUT → `onTimeoutStepId` or failure. Survives restarts; a
-  misconfigured timer ends the step `ERROR`. Any waiting step may have a `deadline` (same moment, no
-  ifPast): a timeout that retries don't extend; earlier of it and `timeout` wins.
-- **WAIT_FOR_MESSAGE** (previously `MESSAGE`; old name still deserializes) — durable wait for a
-  `MessageReceived(messageName, correlationKey, variables)` (via `POST /workflow/api/messages`, Kafka
-  `upstream` as `"type":"message-received"`, MCP `sendMessage`, or a SEND_MESSAGE step). Correlates on
-  the required JEXL `correlationExpression` over variables (fail-closed; use `businessKey` for
-  the business key). Message variables merge into the process; unmatched messages are ignored, not buffered.
-- **SEND_MESSAGE** — the throw side, no worker: on start, evaluates `correlationExpression`, emits
-  `MessageReceived(messageName, correlationKey, messageVariables)` through the outbox and completes
-  immediately. Fire-and-forget (delivery not acknowledged; unmatched messages discarded). Missing
-  fields or an unevaluable correlation key → step `ERROR` (fails loud, unlike precondition guards).
-- **PROCESS** — run `childWorkflowDefinitionId` as a child workflow, no worker: the child starts
-  with ALL parent variables and the deterministic businessKey `parent:<stepExecutionId>`
-  (idempotent); the parent step waits `PENDING`; on child `COMPLETED` only the child variables
-  named in `outputVariables` are copied back (absent = none); child `ERROR`/`CANCELLED` →
-  parent step `ERROR` (normal retry/compensation). `timeout` bounds the wait. Parent-side
-  `CANCELLED`/`ERROR`/`TIMEOUT` (retries exhausted) cancels a still-running child (cascades to
-  grandchildren); while retries remain the child keeps running and a retried step re-attaches
-  to it.
-- **FORK / JOIN** — no-worker nodes that complete instantly. FORK is the explicit fan-out
-  (every step preconditioned on it starts concurrently); JOIN is the barrier — its
-  `preconditionStepIds` must ALL complete.
-- **LOCK / UNLOCK** — no worker: take / release a named per-key lock (`lockName`, JEXL `lockKey`);
-  a busy lock parks the step `WAITING_ON_LOCK`, admitted FIFO.
-- **REPLY** — no worker: records the answer for a synchronous caller from `replyVariables` (a JSON
-  object of those variables), a JEXL `replyExpression` or a `replyTemplate` (none = `{}`), in the same transition,
-  then the flow carries on (before END = the result; earlier = answer now, keep going). **At most one
-  per run** — two REPLYs must sit on different branches of a CHOICE that dominates both (or a step's
-  normal vs `onTimeoutStepId` route); FORK branches are rejected. Not a compensation step, not
-  injectable by DYNAMIC. Unevaluable or oversized (`workflow.sync.max-reply-bytes`) → step `ERROR`.
-- **PUBLISH_EVENT** — no worker: `event: {destination, type, key?, payload | payloadTemplate |
-  payloadVariables, format?}`. Written to the outbox with the step's completion (published iff the step
-  completed; at-least-once; id = step execution id). `destination` is a logical name mapped by
-  `workflow.events.destinations.<name>.topic` — never a topic in the definition. Kafka: CloudEvent
-  (binary default / structured / plain), key default business key. Embedded: `ExternalEventPublisher`
-  bean (default: Spring `ExternalEventPublished` event).
-- **`awaitReply`** (HTTP_CALL and PUBLISH_EVENT) — `{messageName, correlationExpression, onEvent?}`, the
-  fields of a WAIT_FOR_MESSAGE: the request step waits for its reply, armed in the same transaction that
-  sends the request, so a fast reply is never lost. Prefer it to request → WAIT_FOR_MESSAGE (racy). The
-  step completes on the reply; `timeout`/`retries`/`onTimeoutStepId` bound the exchange (a retry
-  re-sends and re-arms). HTTP_CALL: 2xx first → `output` recorded, still waiting; reply first → step
-  complete, late response ignored; failed request → fails as usual.
-- **HTTP_CALL** — `http: {connection + path | url, method, query, headers, body | bodyTemplate,
-  successStatus, output, auth, retryOn}`. Engine renders the request and dispatches built-in task
-  `http-call@1` (library `worker-http`; kafka topic `http-calls`, app `http-worker-standalone-app`).
-  `output`: variable ← JEXL over `{status, headers, body}`. Default `retryOn: [5xx, io]` — a 4xx is
-  final (no retries, compensation runs). Auth: connection's profile, a named profile
-  (`workflow.http.auth.<name>`) or inline with credentials ONLY as `${secret:NAME}` (literal secrets
-  fail validation). Absolute URLs: `workflow.http.allowed-hosts`, internal addresses always refused.
-  Credentials on an absolute URL: a named profile needs its host in `workflow.http.auth.<name>.hosts`
-  (or `allowed-hosts` set); inline `${secret:…}` needs `allowed-hosts`; else `HTTP_FORBIDDEN_AUTH`.
-- **LLM_CALL** — `llm: {connection, model?, system?, prompt, temperature?, maxTokens?, responseSchema?,
-  output?, outputVariable?, usageVariable?}` (one of output/outputVariable required). Engine renders
-  system/prompt (text templates) and dispatches built-in task `llm-call@1` (library `worker-llm`, Spring
-  AI; kafka topic `llm-calls`, app `llm-worker-standalone-app`). `responseSchema` → the answer must be
-  JSON valid against it (`LLM_INVALID_OUTPUT`, retried). `output`: variable ← JEXL over `{text, json,
-  usage, model, finishReason}`. Provider 4xx final; 429/5xx/timeouts retried. Keys ONLY in
-  `workflow.llm.connections.<name>.api-key` — no key or `${secret:}` in the block (fails validation).
-- **AGENT_CALL** — `agent: {connection, model?, system?, goal, tools: [{name, description, step | http |
-  process (+outputVariables) | task (+topic), inputSchema?, approval?: {formId, assignee?, candidateUsers?,
-  candidateGroups?}}], output?: {schema?, mapping?, variable?}, maxSteps, maxTokens?, maxDuration?,
-  toolConcurrency?, onToolError?: fail|report}`. A model loop where each turn is a child execution on the
-  built-in `agent-turn@1` task (worker-llm, topic `llm-calls`; step `timeout`/`retries` per turn) and each
-  tool call a child execution of the tool's step (own retries/timeout/compensation). A `step:` tool must
-  be used only as a tool (no preconditions; nobody's precondition). Args validated against `inputSchema`
-  before anything runs; tools never write process vars (their report is the model's tool result). Budgets
-  fail final: `AGENT_MAX_STEPS`, `AGENT_MAX_TOKENS`, `AGENT_TIMEOUT`. Not compensable itself; no
-  forEach/repeat/loopBack. Test: `runtime.whenAgent(id).thenCallTool(name, args).thenAnswer(json)`.
-  Retries send the same `Idempotency-Key` (step execution id).
-- **Payload templates** (replyTemplate, event payload, http body/url/path/query/headers): JSON/YAML
-  whose string leaves hold `${JEXL}`; a leaf that is exactly one expression keeps its type (a variable
-  holding JSON is parsed); text around makes a string; `$${` escapes. Context: variables, `process`
-  {id, businessKey, workflowDefinitionId, version}, `step` {id, name, executionId}, `now`,
-  `businessKey`. Text form: `payloadTemplate` / `bodyTemplate`.
-- **CONTINUE_AS_NEW** — `continueAsNew: {version?: same|latest, variables?: [names] | {name: template}}`
-  (absent = all variables). Ends the run like END (COMPLETED, outcome `continued`) and creates, in the same
-  transaction, a fresh run of the same definition with the same business key; linked `continuedFrom`/
-  `continuedAs`. Nothing may follow it; no forEach/repeat/loopBack. A child continuing keeps its parent step
-  waiting until the last run ends. Use with loops to keep history bounded.
-- **END** — exactly one; process → `COMPLETED`. Put a JOIN before it if there are branches.
+- **START** — the single entry point (at most one per definition); no worker, completes at creation, no preconditions.
+- **ACTION** — dispatch a task to a worker ([workers.md](workers.md)).
+- **USER_TASK** — a human form (`formId`; forms-engine). `assignment: {assignee?, candidateUsers?,
+  candidateGroups?, priority?, dueDate?, followUpDate?}` (templates rendered at creation; a task naming
+  people is visible/claimable only by them, their groups and task admins). `escalation: [{after,
+  action?: reassign|notify|escalateTo, to?, escalateTo?, publishEvent?}]` fired once each in order;
+  only one `escalateTo`, last; not with `deadline`. Submitted values → variables.
+- **RULE** — evaluate `ruleId` (rule-runtime); outputs → variables.
+- **TIMER** — durable wait: `duration`, `untilVariable` (ISO date/date-time variable) or `until: {date:
+  "${checkIn}", offset: -P3D, at: "09:00", zone: "${zone}", ifPast: fire|timeout}` (follows variable changes).
+- **WAIT_FOR_MESSAGE** — wait for a message (REST `/workflow/api/messages`, Kafka `upstream`
+  `message-received`, MCP `sendMessage`, a `SEND_MESSAGE`, or `onEvent`). Unmatched messages are dropped,
+  not buffered. May begin a flow (no preconditions).
+- **SEND_MESSAGE** — emit a message to another process; fire-and-forget; fails loud (ERROR) on bad config.
+- **PUBLISH_EVENT** — domain event through the outbox (published iff the step completes; CloudEvents on
+  Kafka; `ExternalEventPublisher` bean embedded; `workflow.events.destinations.<name>.topic` maps the name).
+- **HTTP_CALL / LLM_CALL / AGENT_CALL** — built-in tasks `http-call@1` (worker-http), `llm-call@1` and
+  `agent-turn@1` (worker-llm). See [patterns.md](patterns.md) and [security.md](security.md).
+- **PROCESS** — child workflow with ALL parent variables, business key `parent:<stepExecutionId>`;
+  child ERROR/CANCELLED → step ERROR; parent cancel cascades.
+- **FORK / JOIN / CHOICE** — no-worker gateways: FORK = all successors; CHOICE = exactly one (first
+  satisfied guard, longest first; unguarded link = default; it latches); JOIN `AND` waits for all,
+  `XOR` for the first. Pair FORK↔AND, CHOICE↔XOR.
+- **LOCK / UNLOCK** — per-key critical section; a busy lock parks the step `WAITING_ON_LOCK` (FIFO).
+- **REPLY** — answer a synchronous caller; at most one per run (two only on exclusive CHOICE branches);
+  the flow carries on.
+- **DYNAMIC** — a worker that injects steps at runtime (advanced; `workers` guide).
+- **CONTINUE_AS_NEW** — end this run (`COMPLETED`, outcome `continued`) and start a fresh run with the
+  same business key; nothing may follow it.
+- **END** — completes the process; one per definition.
 
-## Ordering
+## Execution model in five lines
 
-Steps execute by **pure data flow**: a step becomes eligible when ALL its preconditions
-(`preconditionStepIds` / `preconditionStepId`) have completed and its guard holds; every
-eligible step starts concurrently. Array order is irrelevant; `parallel` is ignored.
-**Roots rule:** a step with no preconditions does not run — it must be a `START`, a
-`WAIT_FOR_MESSAGE` beginning a flow, or another step's `compensationStepId` (started by the
-rollback pipeline). Anything else with no preconditions is rejected at load. Migrating an old
-definition = add one `START` step and point the old first steps at it.
+1. A step becomes eligible when all its preconditions are `COMPLETED` and its guards hold.
+2. All eligible steps run concurrently; array order is irrelevant.
+3. A falsy `DISCARD` guard = branch not taken (step ends `CANCELLED` when the process completes);
+   a falsy `WAIT` link holds the step and keeps the process open.
+4. A failure with retries left → `AWAITING_RETRY` → re-run; retries exhausted → compensation of
+   completed compensable steps in reverse order → process `COMPENSATED` (or `COMPENSATION_FAILED`),
+   or `ERROR` when there is nothing to compensate.
+5. The process completes at `END`, or when nothing is runnable any more.
 
-## Patterns
+## Variables, JEXL and templates
 
-Human approval:
-```json
-{ "id": "approve", "type": "USER_TASK", "name": "Manager Approval",
-  "formId": "expense-approval-form", "preconditionStepId": "submit", "timeout": 86400000 }
-```
+- Variables are `(name, string)` pairs; structured values are JSON text (forEach/HTTP templates read them as structure).
+- JEXL (guards, `correlationExpression`, `until` in `repeat`, `output` mappings): `amount > 1000`,
+  `status == 'OK'`, `a && b`. Coerces numeric strings.
+- Payload templates (`http` url/path/query/headers/body, `event.payload`, `replyTemplate`, trigger
+  `businessKey`/`variables`): `${expr}` inside strings; a leaf that is exactly one `${expr}` keeps its type;
+  `$${` escapes. Context: variables, `process {id, businessKey, workflowDefinitionId, version}`,
+  `step {id, name, executionId}`, `now`, `businessKey`; triggers see the event (`data.x`, `id`, `subject`, `key`).
 
-Conditional (JEXL) — skip when false:
-```json
-{ "id": "review", "type": "USER_TASK", "formId": "review-form",
-  "preconditionStepId": "check", "preconditionExpression": "amount > 1000" }
-```
+## Working copies (jpa)
 
-Parallel (fan-out + barrier):
-```json
-{ "id": "fork",  "type": "FORK", "name": "Fork", "preconditionStepId": "process" },
-{ "id": "email", "type": "ACTION", "topic": "email-service", "preconditionStepId": "fork" },
-{ "id": "sms",   "type": "ACTION", "topic": "sms-service",   "preconditionStepId": "fork" },
-{ "id": "join",  "type": "JOIN", "name": "Join", "preconditionStepIds": ["email", "sms"] }
-```
-
-Child workflow:
-```json
-{ "id": "run-kyc", "type": "PROCESS", "name": "Run KYC",
-  "childWorkflowDefinitionId": "kyc-workflow", "outputVariables": ["kycResult"],
-  "preconditionStepId": "create-customer", "timeout": "PT1H" }
-```
-
-Saga with compensation:
-```json
-{ "id": "reserve-hotel", "type": "ACTION", "topic": "hotel-service",
-  "preconditionStepId": "start",
-  "rollbackable": true, "compensationStepId": "cancel-hotel", "retries": 2 },
-{ "id": "cancel-hotel",  "type": "ACTION", "topic": "hotel-service" }
-```
-Compensation steps are ordinary `ACTION` steps with **no preconditions**: they are named by
-the step they undo, and the compensation pipeline starts them directly to undo completed work
-when the process fails. Older definitions anchor them to the step they compensate with
-`"preconditionExpression": "false"` and still work.
-
-## Working copies (jpa mode)
-
-A `DRAFT` clone (`draftOfId` = original id) you can edit while production keeps running.
-**Promote** works on any `DRAFT`: with a `draftOfId`, content is copied onto the original,
-`version` bumped, copy deleted (running processes unaffected); a standalone draft
-(`draftOfId == null`) is simply activated in place. One working copy per definition.
+A `DRAFT` clone (`draftOfId`) is edited while production runs; promoting copies it onto the original and
+bumps the version (running processes keep theirs — migrate them explicitly if needed).

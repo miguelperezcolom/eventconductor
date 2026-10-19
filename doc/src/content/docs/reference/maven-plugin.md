@@ -57,7 +57,7 @@ replicated by the plugin and will only fail when the engine loads the definition
 <plugin>
   <groupId>io.mateu.workflow</groupId>
   <artifactId>workflow-maven-plugin</artifactId>
-  <version>2.1.1</version>
+  <version>${eventconductor.version}</version> <!-- the same version as workflow-engine -->
   <executions>
     <execution>
       <goals>
