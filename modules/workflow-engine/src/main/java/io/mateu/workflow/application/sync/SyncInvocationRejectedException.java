@@ -20,7 +20,14 @@ public class SyncInvocationRejectedException extends RuntimeException {
          * Sharded: this idempotency key (or business key) is placed on another shard — a retry that
          * landed on the wrong shard. {@link #shard()} says which one owns it.
          */
-        ON_ANOTHER_SHARD
+        ON_ANOTHER_SHARD,
+        /**
+         * The definition's {@code startPolicy} throttle has no room in its window (2.33). A synchronous caller is
+         * never queued, whatever {@code onLimit} says: retry later.
+         */
+        THROTTLED,
+        /** The definition's {@code startPolicy} is a {@code singleton: skip} and a start of the key is still running (2.33). */
+        SINGLETON_RUNNING
     }
 
     private final Reason reason;

@@ -1,0 +1,14 @@
+{
+  "id": "ui-continue-as-new",
+  "name": "UI Continue as new",
+  "version": 1,
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "greet", "type": "ACTION", "name": "Greet the user", "topic": "work", "preconditionStepId": "start" },
+    { "id": "round", "type": "CHOICE", "name": "Another round", "preconditionStepId": "greet" },
+    { "id": "again", "type": "CONTINUE_AS_NEW", "name": "Run again",
+      "preconditions": [ { "stepId": "round", "expression": "round == '1'" } ],
+      "continueAsNew": { "variables": { "round": "2" } } },
+    { "id": "end", "type": "END", "name": "Done", "preconditions": [ { "stepId": "round" } ] }
+  ]
+}

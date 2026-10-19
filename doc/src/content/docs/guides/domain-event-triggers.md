@@ -46,6 +46,11 @@ A trigger starts a process **as the engine itself** (like cron: the definition's
 - a **paused definition** still creates the process, already PAUSED;
 - a **paused trigger** starts nothing, and resuming it does not replay what arrived meanwhile.
 
+A trigger can also carry a `startPolicy` — debounce a burst of events into one start, throttle to N starts
+a period per key, or keep one process per key (`singleton: skip | replace`); its `key` is a template over the
+event. The receipt then says what flow control did (`DEBOUNCED`, `THROTTLED`, `DROPPED`, `SKIPPED`,
+`REPLACED`). See [Flow control](/guides/flow-control/).
+
 ### `events.yaml`: triggers outside the definition
 
 The same trigger, naming the workflow it starts, can live in an `events.yaml` (or `events.yml`) next to the definitions — `classpath:/workflows/events.yaml`, an imported directory or a git repository — so that *linking* an event to a workflow is not a change to the workflow. A bare list, or the list under a single `triggers:` key:

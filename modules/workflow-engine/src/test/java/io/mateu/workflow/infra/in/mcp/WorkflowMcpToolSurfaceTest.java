@@ -48,6 +48,8 @@ class WorkflowMcpToolSurfaceTest {
             "importWorkflowDefinitionsFromGit",
             // Added with AGENT_CALL (MINOR).
             "getAgentTranscript",
+            // Added with CONTINUE_AS_NEW and businessKeyPolicy (MINOR).
+            "listRunsOfBusinessKey",
     };
 
     private static String[] toolNamesOf(Class<?> type) {

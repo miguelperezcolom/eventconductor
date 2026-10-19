@@ -90,10 +90,11 @@ public class EventTriggerMcpTools implements McpTools, McpSystemContext {
     public TriggerView createEventTrigger(String id, String workflowId, String destination, String type,
                                           @ToolParam(required = false, description = "JEXL filter over the event; empty for none") String filter,
                                           @ToolParam(required = false, description = "Business key template; empty for the default") String businessKey,
-                                          @ToolParam(required = false, description = "Variable templates by name (name -> template over the event, e.g. {\"customerId\": \"${data.after.id}\"}). Omitted or null: every top-level member of data becomes a variable. An empty object {}: the process gets no variables.") Map<String, Object> variables) {
+                                          @ToolParam(required = false, description = "Variable templates by name (name -> template over the event, e.g. {\"customerId\": \"${data.after.id}\"}). Omitted or null: every top-level member of data becomes a variable. An empty object {}: the process gets no variables.") Map<String, Object> variables,
+                                          @ToolParam(required = false, description = "Per-key flow control of this trigger's starts (2.33), e.g. {\"key\": \"${data.customerId}\", \"debounce\": \"PT30S\"} or {\"throttle\": {\"limit\": 10, \"period\": \"PT1M\", \"onLimit\": \"queue\"}} or {\"singleton\": \"skip\"}; omitted: the workflow's own startPolicy, if any.") io.mateu.workflow.domain.aggregates.StartPolicy startPolicy) {
         log.info("Creating event trigger {} for {}", id, workflowId);
         return eventTriggerService.create(new EventTriggerService.TriggerDraft(id, workflowId, destination, type, filter,
-                businessKey, variables), callerContext());
+                businessKey, variables, startPolicy), callerContext());
     }
 
     @Tool(description = "Edit a UI/API event trigger: destination, type, filter, business key and variables are replaced;"
@@ -102,10 +103,11 @@ public class EventTriggerMcpTools implements McpTools, McpSystemContext {
     public TriggerView updateEventTrigger(String workflowId, String triggerId, String destination, String type,
                                           @ToolParam(required = false, description = "JEXL filter over the event; empty for none") String filter,
                                           @ToolParam(required = false, description = "Business key template; empty for the default") String businessKey,
-                                          @ToolParam(required = false, description = "Variable templates by name (name -> template over the event, e.g. {\"customerId\": \"${data.after.id}\"}). Omitted or null: every top-level member of data becomes a variable. An empty object {}: the process gets no variables.") Map<String, Object> variables) {
+                                          @ToolParam(required = false, description = "Variable templates by name (name -> template over the event, e.g. {\"customerId\": \"${data.after.id}\"}). Omitted or null: every top-level member of data becomes a variable. An empty object {}: the process gets no variables.") Map<String, Object> variables,
+                                          @ToolParam(required = false, description = "Per-key flow control of this trigger's starts (2.33), e.g. {\"key\": \"${data.customerId}\", \"debounce\": \"PT30S\"} or {\"throttle\": {\"limit\": 10, \"period\": \"PT1M\", \"onLimit\": \"queue\"}} or {\"singleton\": \"skip\"}; omitted: the workflow's own startPolicy, if any.") io.mateu.workflow.domain.aggregates.StartPolicy startPolicy) {
         log.info("Updating event trigger {}/{}", workflowId, triggerId);
         return eventTriggerService.update(workflowId, triggerId, new EventTriggerService.TriggerDraft(triggerId, workflowId,
-                destination, type, filter, businessKey, variables), callerContext());
+                destination, type, filter, businessKey, variables, startPolicy), callerContext());
     }
 
     @Tool(description = "Delete a UI/API event trigger (and its pause). Fails for a trigger declared in a definition or an"

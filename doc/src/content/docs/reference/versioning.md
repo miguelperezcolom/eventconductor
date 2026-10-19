@@ -106,6 +106,11 @@ older schema in place with no manual step, and no migration drops or rewrites ex
 take a backup before a MAJOR upgrade. Run one engine version at a time through the migration;
 skipping intermediate MAJORs is not supported unless a release note says otherwise.
 
+A MINOR upgrade can be rolled — old and new pods side by side on one database — unless its release
+note says otherwise: its migrations keep every column and constraint the previous MINOR reads. 2.33's,
+for instance, keeps `process_entity.business_key` `UNIQUE` and builds its new indexes `CONCURRENTLY` on
+PostgreSQL; see [Long-running processes](/guides/long-running-processes/#upgrading-to-233-rolling).
+
 The migration files themselves are **not** part of the public contract: their names, numbering and
 contents are implementation detail, like the schema they build. What is stable is that upgrading the
 engine upgrades the schema for you.

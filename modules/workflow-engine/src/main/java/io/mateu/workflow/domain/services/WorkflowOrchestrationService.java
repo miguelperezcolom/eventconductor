@@ -224,8 +224,9 @@ public class WorkflowOrchestrationService {
                 .filter(stepExecution -> shouldRunStep(stepExecution, processNow, current, stepCache))
                 .toList();
 
+        // A CONTINUE_AS_NEW ends the process exactly as an END does; the step-over then starts the next run.
         boolean hasEndStep = executableSteps.stream()
-                .anyMatch(stepExecution -> StepType.END.equals(getStep(stepExecution, stepCache).type()));
+                .anyMatch(stepExecution -> endsTheProcess(getStep(stepExecution, stepCache)));
 
         if (hasEndStep) {
             return handleEndStepTransition(pass, current, executableSteps, stepCache);
@@ -892,6 +893,11 @@ public class WorkflowOrchestrationService {
                 evaluation.undefinedVariables().size() == 1 ? "was" : "were");
     }
 
+    /** END, and CONTINUE_AS_NEW (which ends this run as END does and hands over to the next). */
+    private static boolean endsTheProcess(Step step) {
+        return StepType.END.equals(step.type()) || StepType.CONTINUE_AS_NEW.equals(step.type());
+    }
+
     private TransitionResult handleEndStepTransition(Pass pass, List<StepExecution> stepExecutions, List<StepExecution> executableSteps, Map<String, Step> cache) {
         var process = pass.process;
         List<StepExecution> stepsToSave = new ArrayList<>();
@@ -900,7 +906,7 @@ public class WorkflowOrchestrationService {
         // recorded COMPLETED — it never ran; it falls into the cancel stream below like every
         // other in-flight step.
         List<StepExecution> endSteps = executableSteps.stream()
-                .filter(stepExecution -> StepType.END.equals(getStep(stepExecution, cache).type()))
+                .filter(stepExecution -> endsTheProcess(getStep(stepExecution, cache)))
                 .toList();
         // Stamped finished, which withStatus alone does not do: an END step is completed straight
         // from here and never goes through updateStatus, so it was the one terminal execution in

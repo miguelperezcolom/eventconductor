@@ -1,0 +1,16 @@
+id: report-throttled
+name: At most two reports a minute per tenant, the rest queued
+version: 1
+triggers:
+  - id: on-request
+    destination: reports
+    type: com.acme.report.requested
+    businessKey: "report-${data.n}"
+    variables: { tenant: "${data.tenant}", n: "${data.n}" }
+    startPolicy:
+      key: "${data.tenant}"
+      throttle: { limit: 2, period: PT1M }
+steps:
+  - { id: start, type: START, name: Start }
+  - { id: render, type: ACTION, name: Render, topic: reports, preconditionStepId: start }
+  - { id: end, type: END, name: End, preconditionStepId: render }

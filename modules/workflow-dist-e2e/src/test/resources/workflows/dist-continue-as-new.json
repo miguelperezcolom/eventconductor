@@ -1,0 +1,14 @@
+{
+  "id": "dist-continue-as-new",
+  "name": "Distributed CONTINUE_AS_NEW chain",
+  "version": 1,
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "tick", "type": "ACTION", "name": "Tick", "topic": "work", "preconditionStepId": "start" },
+    { "id": "more", "type": "CHOICE", "name": "More", "preconditionStepId": "tick" },
+    { "id": "again", "type": "CONTINUE_AS_NEW", "name": "Again",
+      "preconditions": [ { "stepId": "more", "expression": "count < 3" } ],
+      "continueAsNew": { "variables": ["count"] } },
+    { "id": "end", "type": "END", "name": "End", "preconditions": [ { "stepId": "more" } ] }
+  ]
+}

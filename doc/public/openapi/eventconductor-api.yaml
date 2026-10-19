@@ -606,13 +606,23 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Process"
-          description: A process of this definition already has the business key.
+          description: "A process of this definition already has the business key\
+            \ (and the definition's businessKeyPolicy keeps it), or its startPolicy's\
+            \ singleton skipped the start while this, the running one, goes on (EventConductor-Flow-Control:\
+            \ skipped)."
         "201":
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Process"
           description: Started; Location names the new process.
+        "202":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StartHeldBack"
+          description: "The definition's startPolicy held the start back: debounced\
+            \ or throttled (queued). No process yet."
         "400":
           content:
             application/problem+json:
@@ -638,6 +648,13 @@ paths:
                 $ref: "#/components/schemas/ProblemDetail"
           description: "The key is taken by another definition's process, or the definition\
             \ accepts no new processes."
+        "429":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: The definition's startPolicy throttle dropped the start; Retry-After
+            says when a window has room.
       summary: Start a process
       tags:
       - Processes
@@ -2386,6 +2403,11 @@ components:
           - STARTED
           - DELIVERED
           - ERROR
+          - DEBOUNCED
+          - THROTTLED
+          - DROPPED
+          - SKIPPED
+          - REPLACED
         receiptKey:
           type: string
         receivedAt:
@@ -2726,6 +2748,15 @@ components:
           type: integer
           format: int32
           description: 0–100.
+        continuedAs:
+          type: string
+          description: "CONTINUE_AS_NEW (2.33): the run that continues this one; null\
+            \ otherwise."
+        continuedFrom:
+          type: string
+          description: "CONTINUE_AS_NEW (2.33): the run this one continues — same\
+            \ business key; null otherwise. A run purged by retention leaves the id\
+            \ behind."
         created:
           type: string
         definitionId:
@@ -2742,6 +2773,10 @@ components:
         name:
           type: string
           description: The definition's name.
+        outcome:
+          type: string
+          description: '"continued" for a COMPLETED run a CONTINUE_AS_NEW handed over
+            to continuedAs; null otherwise.'
         parentStepExecutionId:
           type: string
           description: The PROCESS step execution that spawned it; null for a top-level
@@ -3016,6 +3051,35 @@ components:
         variables:
           type: object
           additionalProperties: {}
+    StartHeldBack:
+      type: object
+      description: "A start the definition's startPolicy (2.33) held back: debounced\
+        \ (it starts after a quiet period, with the last start's data) or throttled\
+        \ (queued until a window has room). No process exists yet."
+      properties:
+        businessKey:
+          type: string
+          description: The business key the process will have when it starts (a debounce
+            keeps the last start's).
+        detail:
+          type: string
+        dueAt:
+          type: string
+          description: "When it is due, at the earliest."
+        flowControl:
+          type: string
+          description: debounced or throttled.
+    StartPolicy:
+      type: object
+      properties:
+        debounce:
+          type: string
+        key:
+          type: string
+        singleton:
+          type: string
+        throttle:
+          $ref: "#/components/schemas/Throttle"
     StartProcessRequest:
       type: object
       description: What to start.
@@ -3101,6 +3165,16 @@ components:
         workerId:
           type: string
           description: "Worker that ran it, when one did."
+    Throttle:
+      type: object
+      properties:
+        limit:
+          type: integer
+          format: int32
+        onLimit:
+          type: string
+        period:
+          type: string
     TriggerBody:
       type: object
       properties:
@@ -3112,6 +3186,8 @@ components:
           type: string
         id:
           type: string
+        startPolicy:
+          $ref: "#/components/schemas/StartPolicy"
         type:
           type: string
         variables:
@@ -3147,6 +3223,8 @@ components:
           type: string
         sourceLabel:
           type: string
+        startPolicy:
+          $ref: "#/components/schemas/StartPolicy"
         state:
           type: string
           enum:

@@ -63,7 +63,7 @@ public class OracleDbLockDialect implements DbLockDialect {
     public String claimHttpTasksSql(int topicCount) {
         return "SELECT id FROM http_task WHERE id IN ("
                 + "SELECT id FROM (SELECT id FROM http_task WHERE topic IN (" + DbLockDialect.placeholders(topicCount)
-                + ") AND cancelled = ? AND (lease_until IS NULL OR lease_until < ?) ORDER BY created_at) "
+                + ") AND cancelled = ? AND (lease_until IS NULL OR lease_until < ?) ORDER BY priority DESC, created_at) "
                 + "WHERE ROWNUM <= ?) FOR UPDATE SKIP LOCKED";
     }
 }

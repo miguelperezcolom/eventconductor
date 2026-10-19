@@ -87,12 +87,26 @@ public class WorkflowDefinitionDBRepository implements WorkflowDefinitionReposit
                 .withRetention(retentionFromJson(entity.getRetentionJson()))
                 .withSearchAttributes(searchAttributesFromJson(entity.getSearchAttributesJson()))
                 .withSensitiveVariables(sensitiveVariablesFromJson(entity.getSensitiveVariablesJson()))
-                .withUpdates(updatesFromJson(entity.getUpdatesJson()));
+                .withUpdates(updatesFromJson(entity.getUpdatesJson()))
+                .withStartPolicy(startPolicyFromJson(entity.getStartPolicyJson()))
+                .withBusinessKeyPolicy(entity.getBusinessKeyPolicy());
     }
 
     /** The stored sensitive variables, or null when the definition declares none (read leniently, like the tags). */
     private static List<String> sensitiveVariablesFromJson(String json) {
         return tagsFromJson(json);
+    }
+
+    /** The stored start policy, or null when the definition declares none (read leniently). */
+    private static io.mateu.workflow.domain.aggregates.StartPolicy startPolicyFromJson(String json) {
+        if (json == null || json.isBlank()) {
+            return null;
+        }
+        try {
+            return LAYOUT_MAPPER.readValue(json, io.mateu.workflow.domain.aggregates.StartPolicy.class);
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     /** The stored process-level lock, or null when the definition declares none (read leniently). */
@@ -283,7 +297,9 @@ public class WorkflowDefinitionDBRepository implements WorkflowDefinitionReposit
                 retentionToJson(workflowDefinition.retention()),
                 searchAttributesToJson(workflowDefinition.searchAttributes()),
                 workflowDefinition.sensitiveVariables() == null ? null : toJson(workflowDefinition.sensitiveVariables()),
-                updatesToJson(workflowDefinition.updates())
+                updatesToJson(workflowDefinition.updates()),
+                workflowDefinition.startPolicy() == null ? null : toJson(workflowDefinition.startPolicy()),
+                workflowDefinition.businessKeyPolicy()
         ));
         triggerCleanup().definitionSaved(workflowDefinition);
         return workflowDefinition.id();

@@ -1,0 +1,7 @@
+id: bk-unique
+name: A key names one process
+version: 1
+steps:
+  - { id: start, type: START, name: Start }
+  - { id: bku-work, type: ACTION, name: Work, topic: work, preconditionStepId: start }
+  - { id: end, type: END, name: End, preconditionStepId: bku-work }

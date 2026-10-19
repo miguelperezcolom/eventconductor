@@ -11,7 +11,7 @@ import org.springframework.context.annotation.Configuration;
 @EnableConfigurationProperties({GitImportProperties.class, DirectoryImportProperties.class, MessageApiProperties.class,
         TaskContractDirectoryImportProperties.class, TaskContractGitImportProperties.class,
         EventDestinationsProperties.class, ProcessRetentionProperties.class, HttpWorkersProperties.class,
-        BatchOperationProperties.class})
+        BatchOperationProperties.class, WorkerRateLimitProperties.class})
 public class WorkflowEngineConfiguration {
 
     /**

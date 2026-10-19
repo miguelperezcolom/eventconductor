@@ -80,6 +80,21 @@ public abstract class HttpTaskQueueContract {
     }
 
     @Test
+    void higherPriorityIsClaimedFirstThenOldestFirst() {
+        queue.offer(task("old-normal", "payments", 1, T0));
+        queue.offer(task("new-urgent", "payments", 1, T0.plusSeconds(5)).withPriority(90));
+        queue.offer(task("older-urgent", "payments", 1, T0.plusSeconds(2)).withPriority(90));
+        queue.offer(task("low", "payments", 1, T0.minusSeconds(5)).withPriority(10));
+
+        var claimed = queue.claim(List.of("payments"), 3, "w1", T0.plusSeconds(10), T0.plusSeconds(70));
+
+        assertThat(claimed).extracting(HttpTask::id).containsExactly("older-urgent", "new-urgent", "old-normal");
+        assertThat(claimed.get(0).priority()).isEqualTo(90);
+        assertThat(queue.claim(List.of("payments"), 3, "w1", T0.plusSeconds(10), T0.plusSeconds(70)))
+                .extracting(HttpTask::id).containsExactly("low");
+    }
+
+    @Test
     void aNewerDispatchReplacesTheTaskAndItsLeaseButADuplicateChangesNothing() {
         queue.offer(task("t1", "payments", 1, T0));
         queue.claim(List.of("payments"), 1, "w1", T0, T0.plusSeconds(60));

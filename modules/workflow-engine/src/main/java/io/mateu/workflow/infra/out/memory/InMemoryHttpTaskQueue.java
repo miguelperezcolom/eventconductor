@@ -40,7 +40,7 @@ public class InMemoryHttpTaskQueue implements HttpTaskQueue {
         var claimed = tasks.values().stream()
                 .filter(task -> wanted.contains(task.topic()))
                 .filter(task -> !task.cancelled() && !task.leasedAt(now))
-                .sorted(Comparator.comparing(HttpTask::createdAt))
+                .sorted(HttpTask.CLAIM_ORDER)
                 .limit(Math.max(0, max))
                 .map(task -> task.leased(workerId, HttpTaskService.newLeaseToken(), leaseUntil))
                 .toList();

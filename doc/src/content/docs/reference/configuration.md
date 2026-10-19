@@ -424,6 +424,20 @@ Serve the tasks of some topics to workers in any language that long-poll `/workf
 
 With `workflow.persistence=jpa` the queue is the `http_task` table (migration `V50`), shared by every node; in memory mode it is in the heap.
 
+### Flow control and worker rate limits (`workflow.flow-control.*`, `workflow.workers.rate-limits.*`)
+
+See [Flow control](/guides/flow-control/).
+
+| Property | Default | Description |
+|---|---|---|
+| `workflow.flow-control.release-interval` | `PT1S` | How often due debounces and queued (throttled) starts are released (a scheduler pass). |
+| `workflow.flow-control.creation-grace` | `PT5M` | How long a singleton counts a start whose process is not visible yet (created asynchronously) as running. |
+| `workflow.workers.rate-limits.<topic>.permits` | — | Tasks of the topic dispatched per period (Kafka, HTTP queue and embedded alike); over it they wait `PENDING`. |
+| `workflow.workers.rate-limits.<topic>.period` | `PT1S` | The fixed window the permits are counted in. |
+| `workflow.workers.rate-limit-interval` | `PT0.2S` | How often waiting tasks are dispatched as permits free up (priority first, then one per process in turn). |
+
+With `workflow.persistence=jpa` the state is in `flow_control_key`, `flow_control_pending`, `rate_limit_window` and `deferred_dispatch` (migration `V56`), shared by every pod.
+
 ### Domain events (`workflow.events.*`)
 
 | Property | Default | Description |

@@ -11,7 +11,7 @@ The machine-readable description is published with these docs: **[`/openapi/even
 
 | Method and path | Does | Answers |
 |---|---|---|
-| `POST /workflow/api/processes` | Start `{definitionId, businessKey?, variables?}` | `201` + `Location`; `200` when the business key already names a process of that definition |
+| `POST /workflow/api/processes` | Start `{definitionId, businessKey?, variables?}` | `201` + `Location`; `200` when the business key already names a process of that definition (and its `businessKeyPolicy` keeps it), or a `startPolicy` singleton skipped the start; `202` `StartHeldBack` when a `startPolicy` debounced or queued it; `429` + `Retry-After` when its throttle dropped it |
 | `GET /workflow/api/processes` | One page of the listing (filters below) | `200` `ProcessPage` |
 | `GET /workflow/api/processes/by-key?businessKey=…` | The process with that business key (exact) | `200` `Process` |
 | `GET /workflow/api/processes/{id}` | The process, with its variables | `200` `Process` |
@@ -62,7 +62,9 @@ Location: /workflow/api/processes/5f0c…
  "parentStepExecutionId": null, "variables": {"orderId": "1001", "lines": "[{\"sku\":\"A\",\"qty\":2}]"}}
 ```
 
-- **Idempotent on the business key.** The same `businessKey` and `definitionId` again answers `200` with the process that already has it — a retried request never starts a second process. The same key for *another* definition is `409`. Without a business key every request starts a new process.
+- **Idempotent on the business key.** The same `businessKey` and `definitionId` again answers `200` with the process that already has it — a retried request never starts a second process. The same key for *another* definition is `409`. Without a business key every request starts a new process. A definition's [`businessKeyPolicy`](/guides/long-running-processes/#businesskeypolicy) can let a new run take the key once the previous one ended (or cancel a running one): then the same request starts a new run (`201`).
+- **Flow control.** A definition's [`startPolicy`](/guides/flow-control/) decides first: the `EventConductor-Flow-Control` header says what it did (`started`, `replaced`, `skipped`); a held-back start answers `202` with `{flowControl, businessKey, dueAt, detail}` and no process yet; a dropped one `429` with `Retry-After`.
+- **Chains.** A process view carries `continuedFrom`, `continuedAs` and `outcome` (`continued` for a run a [`CONTINUE_AS_NEW`](/guides/long-running-processes/) handed over); `by-key` answers the run that holds the key now.
 - **Variables are strings**, as the engine keeps them: a string stays itself, any other JSON value is stored as its JSON text.
 - A `traceparent` (and optionally `tracestate`, `baggage`) header makes the process join the caller's trace (`workflow.tracing.join-caller-trace`).
 - A paused definition still accepts the start: the process is created `PAUSED`. A disabled or archived one does not: `409`.

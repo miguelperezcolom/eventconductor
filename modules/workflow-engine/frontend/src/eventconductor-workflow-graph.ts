@@ -50,7 +50,8 @@ if (typeof window !== "undefined" && !window.__ecClipboardBridge) {
 type StepType =
     | "START" | "ACTION" | "USER_TASK" | "RULE" | "TIMER"
     | "WAIT_FOR_MESSAGE" | "SEND_MESSAGE" | "FORK" | "JOIN" | "CHOICE" | "PROCESS" | "END" | "DYNAMIC"
-    | "LOCK" | "UNLOCK" | "REPLY" | "PUBLISH_EVENT" | "HTTP_CALL" | "LLM_CALL" | "AGENT_CALL";
+    | "LOCK" | "UNLOCK" | "REPLY" | "PUBLISH_EVENT" | "HTTP_CALL" | "LLM_CALL" | "AGENT_CALL"
+    | "CONTINUE_AS_NEW";
 /** Whether a workflow is open for business. DRAFT is an older value that meant nothing. */
 type WorkflowStatus = "ACTIVE" | "DISABLED" | "ARCHIVED" | "DRAFT";
 
@@ -93,6 +94,10 @@ interface WorkflowStep {
     llm?: { connection?: string; model?: string; responseSchema?: unknown };
     /** AGENT_CALL only: the model, the goal and the tools it may call. */
     agent?: AgentSpec;
+    /** Worker steps only: 0–100, higher first; absent means the default, 50. */
+    priority?: number;
+    /** CONTINUE_AS_NEW only: the version the next run starts from and the variables it carries. */
+    continueAsNew?: ContinueAsNewSpec;
     /** TIMER only: wait a duration, until a variable's date, or until a moment. */
     duration?: number | string;
     untilVariable?: string;
@@ -146,6 +151,40 @@ interface RepeatSpec {
     until?: string;
     maxIterations?: number;
     delay?: number | string;
+}
+
+/** A CONTINUE_AS_NEW's block: `version` same (default) | latest; `variables` absent (all), a list, or name → template. */
+interface ContinueAsNewSpec {
+    version?: "same" | "latest";
+    variables?: string[] | Record<string, string>;
+}
+/** "latest · count, customer" — what a CONTINUE_AS_NEW carries into the next run. */
+function describeContinueAsNew(spec?: ContinueAsNewSpec): string {
+    const version = spec?.version === "latest" ? "latest version" : "same version";
+    const v = spec?.variables;
+    const vars = v === undefined ? "all variables"
+        : Array.isArray(v) ? (v.length ? v.join(", ") : "no variables")
+        : Object.keys(v).length ? Object.entries(v).map(([k, t]) => `${k}=${t}`).join(", ") : "no variables";
+    return version + " · " + vars;
+}
+
+/** A trigger's or a definition's `startPolicy`: per-key debounce, throttle and singleton. */
+interface StartPolicySpec {
+    key?: string;
+    debounce?: string;
+    throttle?: { limit?: number; period?: string; onLimit?: "queue" | "drop" };
+    singleton?: "skip" | "replace";
+}
+/** "debounce PT30S · throttle 10/PT1M queue · singleton skip · key ${data.customerId}". */
+function describeStartPolicy(p?: StartPolicySpec): string {
+    if (!p) return "";
+    const parts: string[] = [];
+    if (p.debounce) parts.push("debounce " + p.debounce);
+    if (p.throttle) parts.push("throttle " + (p.throttle.limit ?? "?") + "/" + (p.throttle.period ?? "?")
+        + " " + (p.throttle.onLimit ?? "queue"));
+    if (p.singleton) parts.push("singleton " + p.singleton);
+    if (p.key) parts.push("key " + p.key);
+    return parts.join(" · ");
 }
 
 /** One tool of an AGENT_CALL: exactly one of step, http, process and task says what runs. */
@@ -207,12 +246,19 @@ interface EventSource {
     filter?: string;
     correlationKey?: string;
     businessKey?: string;
+    /** Triggers only: per-key flow control of the starts it makes. */
+    startPolicy?: StartPolicySpec;
 }
 
 /** A domain event in words — "com.acme.booking.created ← bookings". */
 function describeEventSource(source: EventSource | undefined): string {
     if (!source) return "";
     return (source.type || "event") + " ← " + (source.destination || "?");
+}
+
+/** A trigger in words, with its start policy when it has one. */
+function describeTrigger(trigger: EventSource): string {
+    return describeEventSource(trigger) + (trigger.startPolicy ? " [" + describeStartPolicy(trigger.startPolicy) + "]" : "");
 }
 
 /** The ⚡ caption of a WAIT_FOR_MESSAGE fed by a domain event, the event's summary in its panel. */
@@ -292,6 +338,10 @@ interface WorkflowDefinition {
     layout?: Record<string, NodePos>;
     /** The domain events that start this workflow (drawn as a ⚡ badge on the START node). */
     triggers?: EventSource[];
+    /** Per-key flow control of API/sync starts and of the triggers without a policy of their own. */
+    startPolicy?: StartPolicySpec;
+    /** Whether a start may reuse a held business key: unique (default) and the reuse policies. */
+    businessKeyPolicy?: "unique" | "allowAfterFinished" | "allowAfterFailed" | "terminateRunning";
 }
 
 type StepState = "PENDING" | "RUNNING" | "COMPLETED" | "ERROR" | "TIMEOUT" | "CANCELLED" | "COMPENSATED" | "WAITING_ON_LOCK";
@@ -360,7 +410,7 @@ const PAD = 60;
 const STEP_TYPES: StepType[] = [
     "START", "ACTION", "USER_TASK", "RULE", "TIMER",
     "WAIT_FOR_MESSAGE", "SEND_MESSAGE", "FORK", "JOIN", "CHOICE", "PROCESS", "END", "DYNAMIC",
-    "LOCK", "UNLOCK", "REPLY", "PUBLISH_EVENT", "HTTP_CALL", "LLM_CALL", "AGENT_CALL",
+    "LOCK", "UNLOCK", "REPLY", "PUBLISH_EVENT", "HTTP_CALL", "LLM_CALL", "AGENT_CALL", "CONTINUE_AS_NEW",
 ];
 
 /**
@@ -422,6 +472,9 @@ const NODE_STYLE: Record<StepType, NodeStyle> = {
     LLM_CALL:         {fill: "#f5f3ff", stroke: "#7c3aed", symbol: "sparkle"},
     // A model working with tools: indigo, with a robot — its tools hang off it on dotted lines.
     AGENT_CALL:       {fill: "#eef2ff", stroke: "#4f46e5", symbol: "agent"},
+    // Ends this run and starts the next one of the chain: rose, with a restart arrow, drawn with the
+    // heavy border of an END — it is an end, followed by a fresh beginning.
+    CONTINUE_AS_NEW:  {fill: "#fdf2f8", stroke: "#db2777", symbol: "restart"},
 };
 /**
  * The paint properties written onto each element when the graph is exported as a standalone SVG.
@@ -523,6 +576,8 @@ const SYMBOLS: Record<string, ReturnType<typeof svg>> = {
     // A four-pointed sparkle with a small companion — a language model asked a question.
     sparkle:   svg`<path d="M5 1 Q5.6 4.4 9 5 Q5.6 5.6 5 9 Q4.4 5.6 1 5 Q4.4 4.4 5 1 Z"/><path d="M9.5 8 Q9.7 9.3 11 9.5 Q9.7 9.7 9.5 11 Q9.3 9.7 8 9.5 Q9.3 9.3 9.5 8 Z"/>`,
     // A robot head with an antenna — a model that acts, through tools.
+    // A circular arrow coming back on itself — the run ends and starts again (CONTINUE_AS_NEW).
+    restart:   svg`<path d="M10.2 4.2 A4.6 4.6 0 1 0 10.6 7.6"/><path d="M10.6 1.2 V4.4 H7.4"/>`,
     agent:     svg`<rect x="1.5" y="3.5" width="9" height="7.5" rx="1.6"/><path d="M6 3.5 V1.2"/><circle cx="6" cy="0.9" r="0.6"/><circle cx="4.2" cy="6.8" r="0.9"/><circle cx="7.8" cy="6.8" r="0.9"/><path d="M4.3 9.2 H7.7"/>`,
 };
 
@@ -551,7 +606,7 @@ function paletteIcon(t: StepType) {
     }
     return svg`<svg class="palette-icon" viewBox="0 0 22 22" width="22" height="22" aria-hidden="true">
         <rect x="1.5" y="4.5" width="19" height="13" rx="3.2" fill="${st.fill}" stroke="${st.stroke}"
-              stroke-width="1.5" stroke-dasharray="${st.dashed ? "3 2" : "0"}"/>
+              stroke-width="${t === "CONTINUE_AS_NEW" ? 2.4 : 1.5}" stroke-dasharray="${st.dashed ? "3 2" : "0"}"/>
         <g transform="translate(5, 5)" fill="none" stroke="${st.stroke}" stroke-width="1.2"
            stroke-linejoin="round">${SYMBOLS[st.symbol] ?? svg``}</g>
     </svg>`;
@@ -579,6 +634,7 @@ function badgeOf(step: WorkflowStep): string {
         case "LLM_CALL": return "✦ " + (step.llm?.connection || "llm") + (step.llm?.model ? " · " + step.llm.model : "");
         case "AGENT_CALL": return "🤖 " + (step.agent?.connection || "agent") + " · "
             + (step.agent?.tools?.length ?? 0) + " tools" + (step.agent?.maxSteps ? " · ≤" + step.agent.maxSteps : "");
+        case "CONTINUE_AS_NEW": return "↻ " + (step.continueAsNew?.version === "latest" ? "latest" : "same version");
         case "TIMER": return "⏱ " + (step.until ? describeMoment(step.until)
             : step.untilVariable ? "until " + step.untilVariable
             : step.duration ? String(step.duration) : "TIMER");
@@ -3218,6 +3274,26 @@ export class MateuWorkflowElk extends LitElement {
                                    this.emit();
                                }}"/>
                     `}
+                    <label title="The definition's startPolicy: per-key debounce, throttle and singleton of REST/sync starts and of the triggers without one of their own. Edit it in the file.">Start policy</label>
+                    <span class="inp" data-start-policy>${wf.startPolicy ? describeStartPolicy(wf.startPolicy) : "none"}</span>
+                    <label title="Whether a start may reuse a business key a process of this workflow already holds.">Business key</label>
+                    <select class="inp" data-business-key-policy
+                            @change="${(e: Event) => {
+                                const value = (e.target as HTMLSelectElement).value;
+                                if (value !== "unique") {
+                                    this.updateWf({businessKeyPolicy: value as WorkflowDefinition["businessKeyPolicy"]});
+                                    return;
+                                }
+                                const {businessKeyPolicy: _dropped, ...rest} = this.wf;
+                                this.wf = rest as WorkflowDefinition;
+                                this.emit();
+                            }}">
+                        ${([["unique", "unique — one process per key"],
+                            ["allowAfterFinished", "reuse once the run ended"],
+                            ["allowAfterFailed", "reuse once the run failed"],
+                            ["terminateRunning", "a new start replaces the running one"]] as const).map(([v, t]) => html`
+                            <option value="${v}" ?selected="${(wf.businessKeyPolicy ?? "unique") === v}">${t}</option>`)}
+                    </select>
                     <label>Limit concurrent</label>
                     <input type="checkbox" ?checked="${wf.limitConcurrentExecutions}"
                            @change="${(e: Event) => this.updateWf({limitConcurrentExecutions: (e.target as HTMLInputElement).checked})}"/>
@@ -3497,8 +3573,8 @@ export class MateuWorkflowElk extends LitElement {
             shape = svg`
                 <text class="node-badge" x="2" y="-7">${badgeText}</text>
                 ${stack}
-                <rect class="node-shape" width="${w}" height="${h}" rx="10"
-                      fill="${st.fill}" stroke="${st.stroke}" stroke-width="1.4"
+                <rect class="node-shape ${step.type === "CONTINUE_AS_NEW" ? "node-continue" : ""}" width="${w}" height="${h}" rx="10"
+                      fill="${st.fill}" stroke="${st.stroke}" stroke-width="${step.type === "CONTINUE_AS_NEW" ? 2.6 : 1.4}"
                       stroke-dasharray="${st.dashed ? "6 4" : "0"}" style="--ec-tint: ${st.stroke}"/>
                 <g class="node-symbol" transform="translate(${w - 23}, 9)"
                    fill="none" stroke="${st.stroke}" stroke-width="1.1" style="--ec-tint: ${st.stroke}"
@@ -3506,7 +3582,14 @@ export class MateuWorkflowElk extends LitElement {
                 <text class="node-title" x="14" y="${h / 2 - 2}">${label}</text>
                 <text class="node-id" x="14" y="${h / 2 + 14}">${step.id}</text>
                 ${step.forEach ? this.renderMiBadge(describeForEach(step.forEach), w, h, "mi-foreach") : nothing}
-                ${step.repeat ? this.renderMiBadge(describeRepeat(step.repeat), w, h, "mi-repeat") : nothing}`;
+                ${step.repeat ? this.renderMiBadge(describeRepeat(step.repeat), w, h, "mi-repeat") : nothing}
+                ${step.type === "CONTINUE_AS_NEW" ? this.renderMiBadge("↻ " + describeContinueAsNew(step.continueAsNew), w, h, "mi-continue") : nothing}
+                ${step.priority !== undefined && step.priority !== null ? svg`
+                    <g class="priority-chip" transform="translate(${w - 34}, ${h - 9})">
+                        <title>Priority ${step.priority} (0–100, higher first; default 50)</title>
+                        <rect width="28" height="14" rx="7"/>
+                        <text x="14" y="10.5" text-anchor="middle">P${step.priority}</text>
+                    </g>` : nothing}`;
         }
 
         // Read-only monitoring overlay: state tint / active highlight + a live process-count badge.
@@ -3622,7 +3705,7 @@ export class MateuWorkflowElk extends LitElement {
         const startTriggers = step.type === "START" ? (this.wf.triggers ?? []) : [];
         const triggerBadge = startTriggers.length ? svg`
             <g class="trigger-badge" transform="translate(${w - 5}, 5)">
-                <title>Started by ${startTriggers.map(describeEventSource).join(", ")}</title>
+                <title>Started by ${startTriggers.map(describeTrigger).join(", ")}</title>
                 <circle r="8"/>
                 <path class="trigger-spark" d="M 1 -5 L -3 1 H 0 L -1 5 L 4 -1 H 1 Z"/>
             </g>` : nothing;
@@ -3769,7 +3852,12 @@ export class MateuWorkflowElk extends LitElement {
                 <div class="tip-sub">${step.id} · ${step.type}</div>
                 ${badge.length > NODE_BADGE_CHARS ? html`<div class="tip-badge">${badge}</div>` : nothing}
                 ${step.type === "START" && this.wf.triggers?.length ? html`<div class="tip-badge">⚡ Started by
-                    ${this.wf.triggers.map(describeEventSource).join(", ")}</div>` : nothing}
+                    ${this.wf.triggers.map(describeTrigger).join(", ")}</div>` : nothing}
+                ${step.type === "START" && this.wf.startPolicy ? html`<div class="tip-badge">⛭ Start policy:
+                    ${describeStartPolicy(this.wf.startPolicy)}</div>` : nothing}
+                ${step.type === "CONTINUE_AS_NEW" ? html`<div class="tip-badge">↻ Ends this run and continues as a new one:
+                    ${describeContinueAsNew(step.continueAsNew)}</div>` : nothing}
+                ${step.priority !== undefined && step.priority !== null ? html`<div class="tip-badge">Priority ${step.priority}</div>` : nothing}
             </div>`;
     }
 
@@ -3880,7 +3968,17 @@ export class MateuWorkflowElk extends LitElement {
                         <textarea class="inp" rows="${Math.min(4, this.wf.triggers.length)}" readonly
                                   title="Edit the triggers of the definition in the YAML"
                                   .value="${this.wf.triggers.map(t => describeEventSource(t)
-                                      + (t.filter ? " · if " + t.filter : "")).join("\n")}"></textarea>`) : ""}
+                                      + (t.filter ? " · if " + t.filter : "")
+                                      + (t.startPolicy ? " · " + describeStartPolicy(t.startPolicy) : "")).join("\n")}"></textarea>`) : ""}
+                    ${["ACTION", "HTTP_CALL", "LLM_CALL", "RULE", "AGENT_CALL"].includes(step.type) ? field("Priority (0–100)", html`
+                        <input class="inp" type="number" min="0" max="100" placeholder="50" ?readonly="${ro}"
+                               data-priority="${step.id}" .value="${step.priority === undefined ? "" : String(step.priority)}"
+                               @change="${ro ? nothing : (e: Event) => {
+                                   const raw = (e.target as HTMLInputElement).value.trim();
+                                   const n = Math.round(Number(raw));
+                                   this.updateStep(step.id, {priority: raw === "" || isNaN(n) ? undefined : Math.max(0, Math.min(100, n))});
+                               }}"/>`) : ""}
+                    ${step.type === "CONTINUE_AS_NEW" ? this.renderContinueAsNewFields(step, field) : ""}
                     ${this.renderLoopFields(step, field)}
                     ${step.type === "REPLY" ? field("Reply variables", html`
                         <input class="inp" placeholder="bookingId, status" ?readonly="${ro}"
@@ -3900,6 +3998,49 @@ export class MateuWorkflowElk extends LitElement {
     }
 
     /**
+     * A CONTINUE_AS_NEW's block: the version the next run starts from (same, latest) and the variables
+     * it carries — empty for all of them, a comma list of names, or name=template pairs (one per line).
+     */
+    private renderContinueAsNewFields(step: WorkflowStep, field: (label: string, body: unknown) => unknown) {
+        const ro = this.readOnly;
+        const spec = step.continueAsNew ?? {};
+        const set = (patch: Partial<ContinueAsNewSpec>) => {
+            const next: ContinueAsNewSpec = {...spec, ...patch};
+            if (next.version === undefined || next.version === "same") delete next.version;
+            if (next.variables === undefined) delete next.variables;
+            this.updateStep(step.id, {continueAsNew: Object.keys(next).length ? next : undefined});
+        };
+        const vars = spec.variables;
+        const varsText = vars === undefined ? "" : Array.isArray(vars) ? vars.join(", ")
+            : Object.entries(vars).map(([k, v]) => `${k}=${v}`).join("\n");
+        return html`
+            ${field("Next run's version", html`
+                <select class="inp" ?disabled="${ro}" data-continue-version="${step.id}"
+                        @change="${ro ? nothing : (e: Event) => set({version: (e.target as HTMLSelectElement).value as "same" | "latest"})}">
+                    <option value="same" ?selected="${spec.version !== "latest"}">same — the version this run runs</option>
+                    <option value="latest" ?selected="${spec.version === "latest"}">latest — the definition as it is now</option>
+                </select>`)}
+            ${field("Carried variables", html`
+                <textarea class="inp" rows="3" ?readonly="${ro}" data-continue-variables="${step.id}"
+                          placeholder="all variables — or: count, customerId — or one name=\${template} per line"
+                          .value="${varsText}"
+                          @change="${ro ? nothing : (e: Event) => {
+                              const raw = (e.target as HTMLTextAreaElement).value.trim();
+                              if (raw === "") { set({variables: undefined}); return; }
+                              if (raw.includes("=")) {
+                                  const map: Record<string, string> = {};
+                                  raw.split("\n").map(l => l.trim()).filter(l => l.includes("=")).forEach(l => {
+                                      const i = l.indexOf("=");
+                                      map[l.slice(0, i).trim()] = l.slice(i + 1).trim();
+                                  });
+                                  set({variables: map});
+                              } else {
+                                  set({variables: raw.split(",").map(v => v.trim()).filter(v => v.length > 0)});
+                              }
+                          }}"></textarea>`)}`;
+    }
+
+    /**
      * The properties panel's loop and multi-instance fields: forEach and repeat on the step types
      * that can carry them, loopBack on any step but START, END and REPLY. A block whose fields are
      * all cleared is dropped from the step.
@@ -3907,7 +4048,7 @@ export class MateuWorkflowElk extends LitElement {
     private renderLoopFields(step: WorkflowStep, field: (label: string, body: unknown) => unknown) {
         const ro = this.readOnly;
         const repeatable = ["ACTION", "USER_TASK", "PROCESS", "HTTP_CALL", "LLM_CALL", "RULE"].includes(step.type);
-        const canLoopBack = !["START", "END", "REPLY"].includes(step.type);
+        const canLoopBack = !["START", "END", "REPLY", "CONTINUE_AS_NEW"].includes(step.type);
         const clean = <T extends object>(o: T): T | undefined => {
             const kept = Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined && v !== "" && !(typeof v === "number" && isNaN(v))));
             return Object.keys(kept).length ? kept as T : undefined;
@@ -4424,6 +4565,10 @@ export class MateuWorkflowElk extends LitElement {
         .node-stack {fill: var(--ec-surface, #fff); stroke-width: 1.2;}
         .mi-badge rect {fill: #f5f3ff; stroke: #7c3aed; stroke-width: 1;}
         .mi-badge text {font-size: 10px; fill: #5b21b6; font-weight: 700;}
+        .mi-badge.mi-continue rect {fill: #fdf2f8; stroke: #db2777;}
+        .mi-badge.mi-continue text {fill: #9d174d;}
+        .priority-chip rect {fill: var(--ec-surface); stroke: var(--ec-border); stroke-width: 1;}
+        .priority-chip text {font-size: 9.5px; font-weight: 700; fill: var(--ec-text);}
         .ov-iterations rect {fill: #7c3aed;}
         .ov-iterations text {font-size: 10px; fill: #fff; font-weight: 700;}
         .loop-section {border-top: 1px dashed var(--ec-border, #e2e8f0); padding-top: 6px; margin-top: 4px;}

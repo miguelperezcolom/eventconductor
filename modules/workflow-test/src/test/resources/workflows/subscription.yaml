@@ -1,0 +1,14 @@
+id: subscription
+name: A monthly subscription, one run per period
+version: 1
+retention: P1D
+businessKeyPolicy: allowAfterFinished
+steps:
+  - { id: start, type: START, name: Start }
+  - { id: bill, type: ACTION, name: Bill the period, topic: billing, preconditionStepId: start }
+  - { id: period, type: TIMER, name: Wait for the next period, duration: 2592000000, preconditionStepId: bill }
+  - id: next-period
+    type: CONTINUE_AS_NEW
+    name: Next period
+    preconditionStepId: period
+    continueAsNew: { variables: [customerId, period] }

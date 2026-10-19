@@ -54,4 +54,16 @@ public class EventTriggerEntity {
 
     @Column(name = "variables_json", columnDefinition = "TEXT")
     private String variablesJson;
+
+    /** The trigger's own {@code startPolicy} as JSON (V56); null for none. */
+    @Column(name = "start_policy_json", columnDefinition = "TEXT")
+    private String startPolicyJson;
+
+    /** The row before flow control (V56): no start policy. */
+    public EventTriggerEntity(String id, String sourceKey, int entryIndex, String workflowId, String triggerId,
+                              String destination, String eventType, String filterExpression, String businessKey,
+                              String variablesJson) {
+        this(id, sourceKey, entryIndex, workflowId, triggerId, destination, eventType, filterExpression, businessKey,
+                variablesJson, null);
+    }
 }

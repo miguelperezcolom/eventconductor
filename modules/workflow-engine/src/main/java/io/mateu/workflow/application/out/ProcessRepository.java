@@ -14,7 +14,39 @@ import java.util.Optional;
 
 public interface ProcessRepository extends CrudStore<Process> {
 
+    /**
+     * The process that holds this business key now — the only one, unless the definition's
+     * {@code businessKeyPolicy} or a CONTINUE_AS_NEW let later runs take the key over, in which case it is
+     * the latest of them.
+     */
     Optional<Process> findByBusinessKey(String businessKey);
+
+    /**
+     * Makes the run {@code processId} let go of its business key, now — so a later run of the chain can take it,
+     * in this same unit of work. A database store writes it before returning: the key is unique, and the new run's
+     * insert must not be flushed ahead of this update.
+     */
+    default void releaseBusinessKey(String processId) {
+        findById(processId).ifPresent(process -> {
+            process.releaseBusinessKey();
+            save(process);
+        });
+    }
+
+    /** Writes what this unit of work has saved so far (a no-op where saves are immediate). */
+    default void flush() {
+    }
+
+    /** Every run that has had this business key, oldest first (2.33: a key may name a chain of runs). */
+    default List<Process> findAllByBusinessKey(String businessKey) {
+        if (businessKey == null) {
+            return List.of();
+        }
+        return findAll().stream().filter(process -> businessKey.equals(process.getBusinessKey()))
+                .sorted(java.util.Comparator.comparing(Process::getCreated,
+                        java.util.Comparator.nullsFirst(java.util.Comparator.naturalOrder())))
+                .toList();
+    }
 
     /**
      * Which of these processes have recorded a reply — the one question the pods waiting on

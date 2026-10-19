@@ -1,0 +1,10 @@
+id: api-throttled
+name: One export per tenant an hour, the rest dropped
+version: 1
+startPolicy:
+  key: "${tenant}"
+  throttle: { limit: 1, period: PT1H, onLimit: drop }
+steps:
+  - { id: start, type: START, name: Start }
+  - { id: api-export, type: ACTION, name: Export, topic: work, preconditionStepId: start }
+  - { id: end, type: END, name: End, preconditionStepId: api-export }

@@ -40,8 +40,9 @@ expressive enough to model retries, timeouts, compensation (saga), parallel exec
 (steps run as a pure dataflow over the precondition graph, with `FORK`/`JOIN` fan-out and
 barriers), child workflows (`PROCESS` steps), conditional branching (JEXL expressions),
 loops and multi-instance (`forEach` over a list, `repeat` until a condition, `loopBack` to re-run a
-section — declared, capped and validated, never a precondition cycle), and human tasks — all in a
-single flat file.
+section — declared, capped and validated, never a precondition cycle), long-lived processes
+(`CONTINUE_AS_NEW`, `businessKeyPolicy`), per-key flow control of starts (`startPolicy`: debounce,
+throttle, singleton) and human tasks — all in a single flat file.
 
 ### Validated at build time, not at runtime
 Because definitions are data owned by developers, the `workflow-maven-plugin` validates your
@@ -672,6 +673,8 @@ order is irrelevant. Every step with no preconditions must be a `START` or a
 | `forEach` | object | — | Run the step once per item: `{items, as?, indexAs?, mode?, maxConcurrency?, output?, outputElement?, completion?}` (see [Loops and Multi-Instance](doc/src/content/docs/guides/loops-and-multi-instance.md)) |
 | `repeat` | object | — | Run the step again until a condition holds: `{until, maxIterations, delay?}` |
 | `loopBack` | object | — | Re-run the section from `to` to this step while `while` holds: `{to, while?, maxIterations, delay?}` |
+| `priority` | integer 0–100 | `50` | Worker steps: higher first on the HTTP worker queue, the embedded pool and a rate-limited topic's queue (see [Flow control](doc/src/content/docs/guides/flow-control.md)) |
+| `continueAsNew` | object | — | CONTINUE_AS_NEW only: `{version?: same\|latest, variables?}` — the next run of the chain (see [Long-running processes](doc/src/content/docs/guides/long-running-processes.md)) |
 
 ### Workflow-level fields
 
@@ -683,6 +686,8 @@ Besides `id`, `name`, `version`, `description`, `status` and the concurrency set
 | `cronExpression` | string (Spring cron, 6 fields) | — | While the definition is ACTIVE, a process instance is created automatically at each occurrence (shorthand for one schedule without variables) |
 | `schedules` | list of `{id?, cron, zone?, variables?}` | — | Scheduled starts with their own zone and initial variables — see [Scheduled starts](#scheduled-starts-cron) |
 | `defaultMaxStepExecutions` | integer | `0` | Default cap on successful executions per step within one process instance; a step's `maxSuccessfulExecutions` overrides it; `0` = unbounded |
+| `startPolicy` | `{key?, debounce?, throttle?, singleton?}` | — | Per-key flow control of REST and sync-invocation starts and of triggers without their own — see [Flow control](doc/src/content/docs/guides/flow-control.md) |
+| `businessKeyPolicy` | `unique` \| `allowAfterFinished` \| `allowAfterFailed` \| `terminateRunning` | `unique` | Whether a start may reuse a business key a process of this definition holds — see [Long-running processes](doc/src/content/docs/guides/long-running-processes.md) |
 
 ### Scheduled starts (cron)
 

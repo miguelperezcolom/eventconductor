@@ -33,12 +33,12 @@ final class ProcessListingJpql {
         }
         var searchText = filter.normalisedSearchText();
         if (searchText != null) {
-            text.append(" and lower(concat(coalesce(p.name, ''), ' ', coalesce(p.businessKey, ''))) like :pattern");
+            text.append(" and lower(concat(coalesce(p.name, ''), ' ', coalesce(p.businessKey, p.releasedBusinessKey, ''))) like :pattern");
             params.put("pattern", "%" + searchText.toLowerCase() + "%");
         }
         var businessKey = filter.normalisedBusinessKey();
         if (businessKey != null) {
-            text.append(" and lower(coalesce(p.businessKey, '')) like :businessKey");
+            text.append(" and lower(coalesce(p.businessKey, p.releasedBusinessKey, '')) like :businessKey");
             params.put("businessKey", "%" + businessKey.toLowerCase() + "%");
         }
         if (filter.workflowDefinitionId() != null) {

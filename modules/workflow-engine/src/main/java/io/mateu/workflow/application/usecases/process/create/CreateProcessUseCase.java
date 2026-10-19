@@ -11,6 +11,7 @@ import io.mateu.workflow.security.FlowAuthorizationService;
 import io.mateu.workflow.security.AuthorizationContext;
 import io.mateu.workflow.application.usecases.stepexecution.update.UpdateStepExecutionCommand;
 import io.mateu.workflow.application.usecases.stepexecution.update.UpdateStepExecutionUseCase;
+import io.mateu.workflow.domain.aggregates.BusinessKeyPolicy;
 import io.mateu.workflow.domain.aggregates.Process;
 import io.mateu.workflow.domain.aggregates.ProcessStatus;
 import io.mateu.workflow.domain.aggregates.StepExecution;
@@ -38,6 +39,8 @@ public class CreateProcessUseCase {
     // creation, so a direct dependency would close an injection cycle.
     final ObjectProvider<UpdateStepExecutionUseCase> updateStepExecutionUseCase;
     final ObjectProvider<io.mateu.workflow.application.services.ProcessTrace> processTrace;
+    // A provider: cancelling a holder (businessKeyPolicy terminateRunning) reaches back into the step pipeline.
+    final ObjectProvider<io.mateu.workflow.application.usecases.process.cancel.CancelProcessUseCase> cancelProcessUseCase;
 
     /**
      * Whether a process created with a caller's W3C trace context joins that trace. On by default:
@@ -84,7 +87,7 @@ public class CreateProcessUseCase {
     boolean flowAuthorizationEnabled;
 
     public void handle(CreateProcessCommand command) {
-        if (isAPROCESSStepsChild(command)) {
+        if (isAPROCESSStepsChild(command) && command.continuedFromProcessId() == null) {
             var child = childToStart(command);
             if (child != null) {
                 create(child);
@@ -104,11 +107,18 @@ public class CreateProcessUseCase {
                 return;
             }
         }
+        // A key held by a run that may hand it over (businessKeyPolicy, CONTINUE_AS_NEW) is released here, before
+        // the new run is created: the key stays UNIQUE in the store, held by one run at a time.
         if (command.businessKey() != null && !command.businessKey().isBlank()) {
-            if (processRepository.findByBusinessKey(command.businessKey()).isPresent()) {
-                log.warn("Process with business key '{}' already exists, ignoring duplicate creation request",
-                        command.businessKey());
-                return;
+            var holder = processRepository.findByBusinessKey(command.businessKey()).orElse(null);
+            if (holder != null) {
+                var reusable = reusableKeyHolder(command, holder);
+                if (reusable == null) {
+                    log.warn("Process with business key '{}' already exists, ignoring duplicate creation request",
+                            command.businessKey());
+                    return;
+                }
+                processRepository.releaseBusinessKey(reusable);
             }
         }
 
@@ -137,7 +147,8 @@ public class CreateProcessUseCase {
         // reads and writes back stays exactly as its author wrote it. Applying it in the
         // repository instead would let an editor round-trip bake the default in permanently.
         var workflowDefinition = StepTimeoutDefaults.applyTo(
-                workflowDefinitionRepository.findById(command.workflowDefinitionId())
+                command.definition() != null ? command.definition()
+                        : workflowDefinitionRepository.findById(command.workflowDefinitionId())
                         .orElseThrow(() -> new UnknownWorkflowDefinitionException(command.workflowDefinitionId())),
                 defaultStepTimeoutMillis);
 
@@ -180,6 +191,10 @@ public class CreateProcessUseCase {
             log.info("Workflow definition '{}' is paused — process {} created PAUSED",
                     workflowDefinition.id(), process.getId());
         }
+        // After any @With copy above, which would not carry it.
+        if (command.continuedFromProcessId() != null) {
+            process.continues(command.continuedFromProcessId());
+        }
         processRepository.save(process);
 
         // Joined before anything reads the process's anchor: the step-over this creation triggers
@@ -196,6 +211,49 @@ public class CreateProcessUseCase {
         // enviar evento proceso creado (para step over)
 
 
+    }
+
+    /**
+     * Whether {@code holder}'s business key may be reused by this creation, and so which run the new one
+     * takes it over from (null: it may not — the creation collapses into the holder, as it always did).
+     *
+     * <ul>
+     *   <li>A CONTINUE_AS_NEW continues its own run: always reused.</li>
+     *   <li>A key held by another definition's process is never reused.</li>
+     *   <li>Otherwise the definition's {@code businessKeyPolicy} decides (see {@link BusinessKeyPolicy});
+     *       {@code terminateRunning} cancels a running holder first, here, before the new run is created.</li>
+     * </ul>
+     */
+    private String reusableKeyHolder(CreateProcessCommand command, Process holder) {
+        if (command.continuedFromProcessId() != null) {
+            return holder.getId().equals(command.continuedFromProcessId()) ? holder.getId() : null;
+        }
+        if (!java.util.Objects.equals(holder.getWorkflowDefinitionId(), command.workflowDefinitionId())) {
+            return null;
+        }
+        var definition = command.definition() != null ? command.definition()
+                : workflowDefinitionRepository.findById(command.workflowDefinitionId()).orElse(null);
+        if (definition == null) {
+            return null;
+        }
+        var policy = definition.keyPolicy();
+        switch (policy.decide(holder.getStatus())) {
+            case KEEP:
+                return null;
+            case TERMINATE_AND_REUSE:
+                log.info("Business key '{}' of workflow '{}' is held by running process {}: cancelled for a new run"
+                        + " (businessKeyPolicy terminateRunning)", command.businessKey(), definition.id(), holder.getId());
+                cancelProcessUseCase.getObject().handle(
+                        new io.mateu.workflow.application.usecases.process.cancel.CancelProcessCommand(holder.getId()));
+                workflowMetrics.businessKeyReused(definition.id(), policy.text());
+                return holder.getId();
+            default:
+                log.info("Business key '{}' of workflow '{}' passes from {} process {} to a new run"
+                                + " (businessKeyPolicy {})", command.businessKey(), definition.id(), holder.getStatus(),
+                        holder.getId(), policy.text());
+                workflowMetrics.businessKeyReused(definition.id(), policy.text());
+                return holder.getId();
+        }
     }
 
     /**

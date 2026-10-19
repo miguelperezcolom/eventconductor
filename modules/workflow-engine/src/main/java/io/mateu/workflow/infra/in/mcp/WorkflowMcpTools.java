@@ -74,9 +74,20 @@ public class WorkflowMcpTools implements McpTools, McpSystemContext {
             String id, String name, String businessKey,
             String status, int completionPct, String created, String finished) {}
 
+    /**
+     * A process. {@code continuedFrom}/{@code continuedAs} link the runs of a CONTINUE_AS_NEW chain (same business
+     * key), {@code outcome} is {@code continued} for a run that handed over to the next (2.33).
+     */
     public record ProcessDetail(
             String id, String name, String businessKey, String status,
-            int completionPct, List<String> variables, List<StepSummary> steps) {}
+            int completionPct, List<String> variables, List<StepSummary> steps,
+            String continuedFrom, String continuedAs, String outcome) {
+
+        public ProcessDetail(String id, String name, String businessKey, String status,
+                             int completionPct, List<String> variables, List<StepSummary> steps) {
+            this(id, name, businessKey, status, completionPct, variables, steps, null, null, null);
+        }
+    }
 
     /**
      * One step execution. A loop runs a step again as a new execution ({@code iteration} 1, 2…, the
@@ -194,7 +205,8 @@ public class WorkflowMcpTools implements McpTools, McpSystemContext {
                 .map(v -> v.name() + "=" + v.value()).toList();
         return new ProcessDetail(
                 process.getId(), process.getName(), process.getBusinessKey(),
-                process.getStatus().name(), process.getCompletionPercentage(), vars, steps);
+                process.getStatus().name(), process.getCompletionPercentage(), vars, steps,
+                process.getContinuedFromProcessId(), process.getContinuedAsProcessId(), process.outcome());
     }
 
     @Tool(description = "Get the transcript of an AGENT_CALL step execution: the goal, each model turn, the tool"
@@ -215,12 +227,21 @@ public class WorkflowMcpTools implements McpTools, McpSystemContext {
         return result;
     }
 
-    @Tool(description = "Find a workflow process by its business key")
+    @Tool(description = "Find a workflow process by its business key — the run that holds the key now (with a"
+            + " CONTINUE_AS_NEW chain or a businessKeyPolicy that reuses keys, the latest run; see listRunsOfBusinessKey)")
     public ProcessDetail findProcessByBusinessKey(String businessKey) {
         log.info("Finding process by business key " + businessKey);
         Process process = processRepository.findByBusinessKey(businessKey)
                 .orElseThrow(() -> new IllegalArgumentException("No process found for business key: " + businessKey));
         return getProcessDetails(process.getId());
+    }
+
+    @Tool(description = "Every run that has had a business key, oldest first: the runs of a CONTINUE_AS_NEW chain"
+            + " (linked by continuedFrom/continuedAs) or the runs a businessKeyPolicy let reuse the key.")
+    public List<ProcessDetail> listRunsOfBusinessKey(String businessKey) {
+        return processRepository.findAllByBusinessKey(businessKey).stream()
+                .map(run -> getProcessDetails(run.getId()))
+                .toList();
     }
 
     public record ProcessIndexEntry(

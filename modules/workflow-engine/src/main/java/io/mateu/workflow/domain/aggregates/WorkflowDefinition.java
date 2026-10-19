@@ -185,7 +185,25 @@ public record WorkflowDefinition(
          */
         @Hidden
         @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
-        List<UpdateDefinition> updates
+        List<UpdateDefinition> updates,
+        /**
+         * Per-key flow control of this definition's starts — debounce, throttle, singleton (see
+         * {@link StartPolicy}) — applied to REST, MCP and console starts, synchronous invocations, and the
+         * event triggers that declare no policy of their own. Null — the default — means none. Part of the
+         * version (what starts a workflow is part of it, as its triggers are).
+         */
+        @Hidden
+        @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+        StartPolicy startPolicy,
+        /**
+         * Whether a start may reuse a business key a process of this definition already holds:
+         * {@code unique} (the default, as before 2.33), {@code allowAfterFinished}, {@code allowAfterFailed}
+         * or {@code terminateRunning} (see {@link BusinessKeyPolicy}). Null means unique and is what the
+         * exporter omits.
+         */
+        @Hidden
+        @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+        String businessKeyPolicy
 ) implements Identifiable, SearchableText, LookupOptionsSupplier, VisibilitySupplier {
 
     /**
@@ -219,6 +237,26 @@ public record WorkflowDefinition(
                 : sensitiveVariables.stream().map(v -> v == null ? null : v.trim()).toList();
         // Null kept apart from empty, as the layout: only null is omitted on export.
         updates = updates == null ? null : List.copyOf(updates);
+    }
+
+    /**
+     * The canonical shape before flow control (2.33), so every caller of the full constructor keeps compiling and
+     * the definition declares no {@code startPolicy} and the default {@code businessKeyPolicy}.
+     */
+    public WorkflowDefinition(String id, String name, int version, String description,
+                              boolean limitConcurrentExecutions, int maxConcurrentExecutions,
+                              boolean enqueueOnLimit, String cronExpression, int defaultMaxStepExecutions,
+                              List<Step> steps, boolean paused, WorkflowStatus declaredStatus,
+                              WorkflowStatus runtimeStatus, List<String> requiredScopes,
+                              List<String> requiredRoles, int maxSteps, Map<String, NodePosition> layout,
+                              ProcessLock processLock, SyncInvocation syncInvocation, List<CronSchedule> schedules,
+                              List<EventTrigger> triggers, List<String> tags, ProcessRetention retention,
+                              Map<String, Object> searchAttributes, List<String> sensitiveVariables,
+                              List<UpdateDefinition> updates) {
+        this(id, name, version, description, limitConcurrentExecutions, maxConcurrentExecutions,
+                enqueueOnLimit, cronExpression, defaultMaxStepExecutions, steps, paused, declaredStatus,
+                runtimeStatus, requiredScopes, requiredRoles, maxSteps, layout, processLock, syncInvocation,
+                schedules, triggers, tags, retention, searchAttributes, sensitiveVariables, updates, null, null);
     }
 
     /**
@@ -454,21 +492,21 @@ public record WorkflowDefinition(
     public WorkflowDefinition withPaused(boolean newPaused) {
         return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
-                steps, newPaused, declaredStatus, runtimeStatus, requiredScopes, requiredRoles, maxSteps, layout, processLock, syncInvocation, schedules, triggers, tags, retention, searchAttributes, sensitiveVariables, updates);
+                steps, newPaused, declaredStatus, runtimeStatus, requiredScopes, requiredRoles, maxSteps, layout, processLock, syncInvocation, schedules, triggers, tags, retention, searchAttributes, sensitiveVariables, updates, startPolicy, businessKeyPolicy);
     }
 
     /** Returns a copy with a different runtime status — what an operator decided. */
     public WorkflowDefinition withRuntimeStatus(WorkflowStatus newStatus) {
         return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
-                steps, paused, declaredStatus, newStatus, requiredScopes, requiredRoles, maxSteps, layout, processLock, syncInvocation, schedules, triggers, tags, retention, searchAttributes, sensitiveVariables, updates);
+                steps, paused, declaredStatus, newStatus, requiredScopes, requiredRoles, maxSteps, layout, processLock, syncInvocation, schedules, triggers, tags, retention, searchAttributes, sensitiveVariables, updates, startPolicy, businessKeyPolicy);
     }
 
     /** Returns a copy with a different declared status — what the definition file says. */
     public WorkflowDefinition withDeclaredStatus(WorkflowStatus newStatus) {
         return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
-                steps, paused, newStatus, runtimeStatus, requiredScopes, requiredRoles, maxSteps, layout, processLock, syncInvocation, schedules, triggers, tags, retention, searchAttributes, sensitiveVariables, updates);
+                steps, paused, newStatus, runtimeStatus, requiredScopes, requiredRoles, maxSteps, layout, processLock, syncInvocation, schedules, triggers, tags, retention, searchAttributes, sensitiveVariables, updates, startPolicy, businessKeyPolicy);
     }
 
     /** Kept for callers written against the boolean API. */
@@ -485,21 +523,21 @@ public record WorkflowDefinition(
     public WorkflowDefinition withRuntimeStateOf(WorkflowDefinition existing) {
         return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
-                steps, existing.paused(), declaredStatus, existing.runtimeStatus(), requiredScopes, requiredRoles, maxSteps, layout, processLock, syncInvocation, schedules, triggers, tags, retention, searchAttributes, sensitiveVariables, updates);
+                steps, existing.paused(), declaredStatus, existing.runtimeStatus(), requiredScopes, requiredRoles, maxSteps, layout, processLock, syncInvocation, schedules, triggers, tags, retention, searchAttributes, sensitiveVariables, updates, startPolicy, businessKeyPolicy);
     }
 
     /** Returns a copy carrying a different step list, every other field unchanged. */
     public WorkflowDefinition withSteps(List<Step> newSteps) {
         return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
-                newSteps, paused, declaredStatus, runtimeStatus, requiredScopes, requiredRoles, maxSteps, layout, processLock, syncInvocation, schedules, triggers, tags, retention, searchAttributes, sensitiveVariables, updates);
+                newSteps, paused, declaredStatus, runtimeStatus, requiredScopes, requiredRoles, maxSteps, layout, processLock, syncInvocation, schedules, triggers, tags, retention, searchAttributes, sensitiveVariables, updates, startPolicy, businessKeyPolicy);
     }
 
     /** Returns a copy carrying the given per-process step cap ({@code maxSteps}). */
     public WorkflowDefinition withMaxSteps(int newMaxSteps) {
         return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
-                steps, paused, declaredStatus, runtimeStatus, requiredScopes, requiredRoles, newMaxSteps, layout, processLock, syncInvocation, schedules, triggers, tags, retention, searchAttributes, sensitiveVariables, updates);
+                steps, paused, declaredStatus, runtimeStatus, requiredScopes, requiredRoles, newMaxSteps, layout, processLock, syncInvocation, schedules, triggers, tags, retention, searchAttributes, sensitiveVariables, updates, startPolicy, businessKeyPolicy);
     }
 
     /**
@@ -513,7 +551,7 @@ public record WorkflowDefinition(
         return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
                 steps, paused, declaredStatus, runtimeStatus, requiredScopes, requiredRoles, maxSteps,
-                newLayout, processLock, syncInvocation, schedules, triggers, tags, retention, searchAttributes, sensitiveVariables, updates);
+                newLayout, processLock, syncInvocation, schedules, triggers, tags, retention, searchAttributes, sensitiveVariables, updates, startPolicy, businessKeyPolicy);
     }
 
     /**
@@ -527,7 +565,7 @@ public record WorkflowDefinition(
         return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
                 steps, paused, declaredStatus, runtimeStatus, requiredScopes, requiredRoles, maxSteps,
-                layout, newProcessLock, syncInvocation, schedules, triggers, tags, retention, searchAttributes, sensitiveVariables, updates);
+                layout, newProcessLock, syncInvocation, schedules, triggers, tags, retention, searchAttributes, sensitiveVariables, updates, startPolicy, businessKeyPolicy);
     }
 
     /**
@@ -538,7 +576,7 @@ public record WorkflowDefinition(
         return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
                 steps, paused, declaredStatus, runtimeStatus, requiredScopes, requiredRoles, maxSteps,
-                layout, processLock, newSyncInvocation, schedules, triggers, tags, retention, searchAttributes, sensitiveVariables, updates);
+                layout, processLock, newSyncInvocation, schedules, triggers, tags, retention, searchAttributes, sensitiveVariables, updates, startPolicy, businessKeyPolicy);
     }
 
     /**
@@ -549,7 +587,7 @@ public record WorkflowDefinition(
         return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
                 steps, paused, declaredStatus, runtimeStatus, requiredScopes, requiredRoles, maxSteps,
-                layout, processLock, syncInvocation, newSchedules, triggers, tags, retention, searchAttributes, sensitiveVariables, updates);
+                layout, processLock, syncInvocation, newSchedules, triggers, tags, retention, searchAttributes, sensitiveVariables, updates, startPolicy, businessKeyPolicy);
     }
 
     /**
@@ -560,7 +598,7 @@ public record WorkflowDefinition(
         return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
                 steps, paused, declaredStatus, runtimeStatus, requiredScopes, requiredRoles, maxSteps,
-                layout, processLock, syncInvocation, schedules, newTriggers, tags, retention, searchAttributes, sensitiveVariables, updates);
+                layout, processLock, syncInvocation, schedules, newTriggers, tags, retention, searchAttributes, sensitiveVariables, updates, startPolicy, businessKeyPolicy);
     }
 
     /** Returns a copy carrying different tags — chained wherever a definition is rebuilt, like {@link #withTriggers}. */
@@ -568,7 +606,7 @@ public record WorkflowDefinition(
         return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
                 steps, paused, declaredStatus, runtimeStatus, requiredScopes, requiredRoles, maxSteps,
-                layout, processLock, syncInvocation, schedules, triggers, newTags, retention, searchAttributes, sensitiveVariables, updates);
+                layout, processLock, syncInvocation, schedules, triggers, newTags, retention, searchAttributes, sensitiveVariables, updates, startPolicy, businessKeyPolicy);
     }
 
     /**
@@ -579,7 +617,7 @@ public record WorkflowDefinition(
         return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
                 steps, paused, declaredStatus, runtimeStatus, requiredScopes, requiredRoles, maxSteps,
-                layout, processLock, syncInvocation, schedules, triggers, tags, newRetention, searchAttributes, sensitiveVariables, updates);
+                layout, processLock, syncInvocation, schedules, triggers, tags, newRetention, searchAttributes, sensitiveVariables, updates, startPolicy, businessKeyPolicy);
     }
 
     /**
@@ -590,7 +628,7 @@ public record WorkflowDefinition(
         return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
                 steps, paused, declaredStatus, runtimeStatus, requiredScopes, requiredRoles, maxSteps,
-                layout, processLock, syncInvocation, schedules, triggers, tags, retention, newSearchAttributes, sensitiveVariables, updates);
+                layout, processLock, syncInvocation, schedules, triggers, tags, retention, newSearchAttributes, sensitiveVariables, updates, startPolicy, businessKeyPolicy);
     }
 
     /**
@@ -602,7 +640,7 @@ public record WorkflowDefinition(
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
                 steps, paused, declaredStatus, runtimeStatus, requiredScopes, requiredRoles, maxSteps,
                 layout, processLock, syncInvocation, schedules, triggers, tags, retention, searchAttributes,
-                newSensitiveVariables, updates);
+                newSensitiveVariables, updates, startPolicy, businessKeyPolicy);
     }
 
     /**
@@ -614,7 +652,7 @@ public record WorkflowDefinition(
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
                 steps, paused, declaredStatus, runtimeStatus, requiredScopes, requiredRoles, maxSteps,
                 layout, processLock, syncInvocation, schedules, triggers, tags, retention, searchAttributes,
-                sensitiveVariables, newUpdates);
+                sensitiveVariables, newUpdates, startPolicy, businessKeyPolicy);
     }
 
     /** The update declared under {@code updateName}, if any. */
@@ -646,6 +684,35 @@ public record WorkflowDefinition(
     /** Whether this definition declares any sensitive variable. */
     public boolean declaresSensitiveVariables() {
         return !sensitiveVariablePatterns().isEmpty();
+    }
+
+    /** Returns a copy carrying a different start policy — chained wherever a definition is rebuilt, like {@link #withSearchAttributes}. */
+    public WorkflowDefinition withStartPolicy(StartPolicy newStartPolicy) {
+        return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
+                maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
+                steps, paused, declaredStatus, runtimeStatus, requiredScopes, requiredRoles, maxSteps,
+                layout, processLock, syncInvocation, schedules, triggers, tags, retention, searchAttributes,
+                sensitiveVariables, updates, newStartPolicy, businessKeyPolicy);
+    }
+
+    /** Returns a copy carrying a different business-key policy — chained wherever a definition is rebuilt. */
+    public WorkflowDefinition withBusinessKeyPolicy(String newBusinessKeyPolicy) {
+        return new WorkflowDefinition(id, name, version, description, limitConcurrentExecutions,
+                maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
+                steps, paused, declaredStatus, runtimeStatus, requiredScopes, requiredRoles, maxSteps,
+                layout, processLock, syncInvocation, schedules, triggers, tags, retention, searchAttributes,
+                sensitiveVariables, updates, startPolicy, newBusinessKeyPolicy);
+    }
+
+    /** The business-key policy in force: the declared one, or {@code unique}. */
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    public BusinessKeyPolicy keyPolicy() {
+        return BusinessKeyPolicy.of(businessKeyPolicy);
+    }
+
+    /** The start policy a trigger's starts follow: its own, else this definition's; null for none. */
+    public StartPolicy startPolicyFor(EventTrigger trigger) {
+        return trigger != null && trigger.startPolicy() != null ? trigger.startPolicy() : startPolicy;
     }
 
     /** The declared search attributes, parsed (name, value template, type); empty when none. */
@@ -686,7 +753,7 @@ public record WorkflowDefinition(
     public WorkflowDefinition withVersion(int newVersion) {
         return new WorkflowDefinition(id, name, newVersion, description, limitConcurrentExecutions,
                 maxConcurrentExecutions, enqueueOnLimit, cronExpression, defaultMaxStepExecutions,
-                steps, paused, declaredStatus(), runtimeStatus(), requiredScopes, requiredRoles, maxSteps, layout, processLock, syncInvocation, schedules, triggers, tags, retention, searchAttributes, sensitiveVariables, updates);
+                steps, paused, declaredStatus(), runtimeStatus(), requiredScopes, requiredRoles, maxSteps, layout, processLock, syncInvocation, schedules, triggers, tags, retention, searchAttributes, sensitiveVariables, updates, startPolicy, businessKeyPolicy);
     }
 
     // ── Detail-view lifecycle buttons (conditional on state via VisibilitySupplier) ──
@@ -881,6 +948,45 @@ public record WorkflowDefinition(
         }
     }
 
+    /**
+     * The start policies (the definition's and each trigger's), the business-key policy, every step's
+     * priority and every CONTINUE_AS_NEW — the rules the Maven plugin applies too ({@code FlowControlRules}).
+     */
+    private void checkFlowControl() {
+        var violations = new java.util.ArrayList<String>();
+        if (startPolicy != null) {
+            violations.addAll(startPolicy.violations("startPolicy"));
+            violations.addAll(io.mateu.workflow.analysis.FlowControlRules.syncInvocationViolations(
+                    startPolicy.asMap(), syncInvocation != null, "startPolicy"));
+        }
+        if (triggers != null) {
+            for (int i = 0; i < triggers.size(); i++) {
+                if (triggers.get(i).startPolicy() != null) {
+                    violations.addAll(triggers.get(i).startPolicy().violations("triggers[" + i + "].startPolicy"));
+                }
+            }
+        }
+        violations.addAll(io.mateu.workflow.analysis.FlowControlRules.businessKeyPolicyViolations(businessKeyPolicy, null));
+        if (steps != null) {
+            for (var step : steps) {
+                violations.addAll(io.mateu.workflow.analysis.FlowControlRules.priorityViolations(
+                        step.id(), step.type() == null ? null : step.type().name(), step.priority()));
+                if (StepType.CONTINUE_AS_NEW.equals(step.type()) || step.continueAsNew() != null) {
+                    var successors = steps.stream()
+                            .filter(other -> other.preconditionIds().contains(step.id()))
+                            .map(Step::id).toList();
+                    violations.addAll(io.mateu.workflow.analysis.FlowControlRules.continueAsNewViolations(
+                            step.id(), step.type() == null ? null : step.type().name(),
+                            step.continueAsNew() == null ? null : step.continueAsNew().asMap(), successors,
+                            step.forEach() != null || step.repeat() != null || step.loopBack() != null));
+                }
+            }
+        }
+        if (!violations.isEmpty()) {
+            throw new IllegalStateException(String.join("; ", violations) + ".");
+        }
+    }
+
     private void checkTriggers() {
         if (triggers == null) return;
         var violations = new java.util.ArrayList<String>();
@@ -923,6 +1029,7 @@ public record WorkflowDefinition(
      * @throws IllegalStateException if any invariant is violated.
      */
     public void checkInvariants() {
+        checkFlowControl();
         checkSchedules();
         checkTriggers();
         checkTags();

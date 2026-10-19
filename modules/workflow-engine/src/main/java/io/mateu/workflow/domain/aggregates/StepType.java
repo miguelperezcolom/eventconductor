@@ -57,7 +57,14 @@ public enum StepType {
      * calls is a child execution of the tool's own step — retried, timed out, cancelled and compensated
      * like any step — until the model answers or a budget is spent.
      */
-    AGENT_CALL;
+    AGENT_CALL,
+
+    /**
+     * Ends this process — COMPLETED, outcome {@code continued} — and starts a fresh run of the same
+     * definition with the same business key and the variables its {@code continueAsNew} block carries,
+     * the two linked. Keeps the history of an entity- or subscription-style process bounded.
+     */
+    CONTINUE_AS_NEW;
 
     /**
      * Accepts the pre-rename alias {@code MESSAGE} (now {@code WAIT_FOR_MESSAGE}) so that the

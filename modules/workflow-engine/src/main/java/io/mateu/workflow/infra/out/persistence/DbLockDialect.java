@@ -72,7 +72,7 @@ public interface DbLockDialect {
      */
     default String claimHttpTasksSql(int topicCount) {
         return "SELECT id FROM http_task WHERE topic IN (" + placeholders(topicCount) + ") AND cancelled = ? "
-                + "AND (lease_until IS NULL OR lease_until < ?) ORDER BY created_at LIMIT ? FOR UPDATE SKIP LOCKED";
+                + "AND (lease_until IS NULL OR lease_until < ?) ORDER BY priority DESC, created_at LIMIT ? FOR UPDATE SKIP LOCKED";
     }
 
     /** {@code ?, ?, ?} — {@code count} JDBC placeholders. */

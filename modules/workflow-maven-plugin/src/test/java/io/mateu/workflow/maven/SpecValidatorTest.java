@@ -1012,4 +1012,42 @@ class SpecValidatorTest {
         assertThat(violations).anyMatch(v -> v.contains("Mars/Olympus"));
         assertThat(violations).anyMatch(v -> v.contains("deadline has an unknown field 'ifPast'"));
     }
+
+    @Test
+    void flowControlAndLongLivedProcessesAreCheckedByTheSharedRules() throws Exception {
+        var good = json("""
+                {"id": "a", "name": "A", "version": 1, "businessKeyPolicy": "allowAfterFinished",
+                 "startPolicy": {"key": "${customerId}", "throttle": {"limit": 10, "period": "PT1M", "onLimit": "drop"},
+                   "singleton": "replace"},
+                 "triggers": [{"destination": "orders", "type": "com.acme.order.updated",
+                   "startPolicy": {"key": "${data.customerId}", "debounce": "PT30S"}}],
+                 "steps": [
+                  {"id": "start", "type": "START", "name": "Start"},
+                  {"id": "call", "type": "ACTION", "name": "Call", "priority": 90, "preconditionStepId": "start"},
+                  {"id": "next", "type": "CONTINUE_AS_NEW", "name": "Next", "preconditionStepId": "call",
+                   "continueAsNew": {"version": "latest", "variables": {"month": "${month + 1}"}}}
+                ]}
+                """);
+        assertThat(validator.validate(SpecValidator.Kind.WORKFLOW, good)).isEmpty();
+
+        var bad = json("""
+                {"id": "a", "name": "A", "version": 1, "businessKeyPolicy": "reuse",
+                 "syncInvocation": {"enabled": true},
+                 "startPolicy": {"debounce": "PT1S", "throttle": {"limit": 0, "period": "PT1M"}},
+                 "triggers": [{"destination": "orders", "type": "x", "startPolicy": {"key": "${data.id}"}}],
+                 "steps": [
+                  {"id": "start", "type": "START", "name": "Start"},
+                  {"id": "wait", "type": "TIMER", "name": "Wait", "duration": 1000, "priority": 5, "preconditionStepId": "start"},
+                  {"id": "next", "type": "CONTINUE_AS_NEW", "name": "Next", "preconditionStepId": "wait"},
+                  {"id": "after", "type": "END", "name": "After", "preconditionStepId": "next"}
+                ]}
+                """);
+        var violations = validator.validate(SpecValidator.Kind.WORKFLOW, bad);
+        assertThat(violations).anyMatch(v -> v.contains("businessKeyPolicy"));
+        assertThat(violations).anyMatch(v -> v.contains("debounce cannot apply to a definition invocable synchronously"));
+        assertThat(violations).anyMatch(v -> v.contains("limit must be a whole number"));
+        assertThat(violations).anyMatch(v -> v.contains("triggers[0].startPolicy") && v.contains("at least one of"));
+        assertThat(violations).anyMatch(v -> v.contains("priority applies to steps that dispatch a task"));
+        assertThat(violations).anyMatch(v -> v.contains("no step may follow it"));
+    }
 }

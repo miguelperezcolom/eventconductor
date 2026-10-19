@@ -812,6 +812,10 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
             if (step.awaitsReply() && !armReplyWait(step, process)) {
                 return this;
             }
+        } else if (StepType.CONTINUE_AS_NEW.equals(step.type())) {
+            // No worker: the orchestration ends the process here as an END does, and the step-over starts
+            // the next run of the chain in the same transaction (StepOverProcessUseCase#continueAsNew).
+            send(new TaskLogEmitted(id, MessageType.Info, "CONTINUE_AS_NEW step " + step.name() + " reached."));
         } else if (StepType.REPLY.equals(step.type())) {
             // A reply involves no worker: the step stays PENDING and the step-over use case, which
             // holds the process as well as the step, computes the payload, records it on the
@@ -857,6 +861,17 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
                     id, this.awaitingMessageName, this.awaitingCorrelationKey, true, processId));
         }
         return true;
+    }
+
+    /**
+     * This step's task waits for a permit of its topic's rate limit: it stays PENDING, and the clock of its
+     * timeout is not running — it starts when the task is actually dispatched ({@link #withStartedAt}).
+     */
+    public StepExecution deferredByRateLimit() {
+        this.deadlineAt = null;
+        send(new TaskLogEmitted(id, MessageType.Info, "Waiting for a permit of the rate limit of topic '"
+                + topic() + "' before the task is dispatched."));
+        return this;
     }
 
     /** Queues an event for the outside world on this step, to be written to the outbox with it. */

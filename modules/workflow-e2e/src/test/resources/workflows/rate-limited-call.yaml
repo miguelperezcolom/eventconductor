@@ -1,0 +1,7 @@
+id: rate-limited-call
+name: A call to a rate-limited partner
+version: 1
+steps:
+  - { id: start, type: START, name: Start }
+  - { id: limited-call, type: ACTION, name: Call, topic: limited, timeout: 500, preconditionStepId: start }
+  - { id: end, type: END, name: End, preconditionStepId: limited-call }

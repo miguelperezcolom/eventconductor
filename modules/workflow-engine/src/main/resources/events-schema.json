@@ -82,6 +82,101 @@
           ],
           "description": "The started process's initial variables, by name, each a payload template over the event (\"${data.after.id}\"; a non-string value becomes its JSON text, as process variables are strings). Absent means every top-level member of data when data is a JSON object; {} means none.",
           "additionalProperties": true
+        },
+        "startPolicy": {
+          "$ref": "#/$defs/StartPolicy",
+          "description": "This trigger's own flow control (2.33): debounce, throttle and/or singleton per key, the key a template over the event. Absent: the workflow's own startPolicy, if any."
+        }
+      }
+    },
+    "StartPolicy": {
+      "title": "StartPolicy",
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "Per-key flow control of starts (2.33): debounce, throttle and/or singleton, counted per rendered key. Order: debounce → singleton → throttle → start. On a definition it applies to REST and sync-invocation starts and to the triggers that declare none; on a trigger, to that trigger's starts. See the 'Flow control' guide.",
+      "additionalProperties": false,
+      "anyOf": [
+        {
+          "required": [
+            "debounce"
+          ]
+        },
+        {
+          "required": [
+            "throttle"
+          ]
+        },
+        {
+          "required": [
+            "singleton"
+          ]
+        }
+      ],
+      "properties": {
+        "key": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1,
+          "description": "Text template rendering the key the policy counts by — over the event for a trigger's own policy (\"${data.customerId}\"), over the start's variables plus businessKey and workflowId for a definition's (\"${customerId}\"). Absent: one key for every start. A key that does not render, or renders empty, refuses the start (an ERROR receipt, or 400)."
+        },
+        "debounce": {
+          "type": "string",
+          "pattern": "^P(\\d+D)?(T(\\d+H)?(\\d+M)?(\\d+(\\.\\d+)?S)?)?$",
+          "description": "ISO-8601 duration: the first start of a key opens a quiet period; each further start replaces the waiting one (the last one's data and business key win) and pushes the period back. When it ends, the last start goes on (singleton, throttle). Not allowed on a definition invocable synchronously."
+        },
+        "throttle": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "description": "At most limit starts per key per fixed window of period (the window opens with its first start).",
+          "additionalProperties": false,
+          "required": [
+            "limit",
+            "period"
+          ],
+          "properties": {
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000000,
+              "description": "Starts admitted per window."
+            },
+            "period": {
+              "type": "string",
+              "pattern": "^P(\\d+D)?(T(\\d+H)?(\\d+M)?(\\d+(\\.\\d+)?S)?)?$",
+              "description": "The window, an ISO-8601 duration (PT1M, PT1H, P1D)."
+            },
+            "onLimit": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "enum": [
+                "queue",
+                "drop",
+                null
+              ],
+              "default": "queue",
+              "description": "Over the limit: queue (FIFO, released as windows open — a synchronous caller is refused instead) or drop."
+            }
+          }
+        },
+        "singleton": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "skip",
+            "replace",
+            null
+          ],
+          "description": "While the last start of the key is still running: skip the new one (REST answers 200 with the running process), or replace — cancel the running one and start the new one."
         }
       }
     }

@@ -1,0 +1,7 @@
+id: partner-call
+name: One call to the partner API
+version: 1
+steps:
+  - { id: start, type: START, name: Start }
+  - { id: call, type: ACTION, name: Call the partner, topic: partner-api, timeout: 30000, preconditionStepId: start }
+  - { id: end, type: END, name: End, preconditionStepId: call }

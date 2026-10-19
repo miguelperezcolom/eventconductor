@@ -25,5 +25,11 @@ public record EventReceipt(String receiptKey, String receiver, Kind kind, String
     public enum Kind { TRIGGER, WAIT }
 
     /** A process was started, a message was delivered, or the receiver could not use the event. */
-    public enum Outcome { STARTED, DELIVERED, ERROR }
+    /**
+     * What the receiver did. STARTED / DELIVERED / ERROR, and — a trigger whose start met a
+     * {@code startPolicy} (2.33) — DEBOUNCED (absorbed into a pending start), THROTTLED (queued until its
+     * window has room), DROPPED (over a throttle that drops), SKIPPED (a singleton already running for the key)
+     * and REPLACED (started, the running one cancelled).
+     */
+    public enum Outcome { STARTED, DELIVERED, ERROR, DEBOUNCED, THROTTLED, DROPPED, SKIPPED, REPLACED }
 }

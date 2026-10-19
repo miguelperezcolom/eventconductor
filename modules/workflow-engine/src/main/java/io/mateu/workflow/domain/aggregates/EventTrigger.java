@@ -30,11 +30,19 @@ import java.util.Map;
  *                    redelivered event collapses into the process it already started
  * @param variables   the started process's initial variables, each a template over the event; null
  *                    means the top-level members of {@code data} (when it is a JSON object); empty means none
+ * @param startPolicy optional per-key flow control of the starts this trigger makes (debounce, throttle,
+ *                    singleton; its key a template over the event); null means the definition's, if any
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
-@JsonPropertyOrder({"id", "destination", "type", "filter", "businessKey", "variables"})
+@JsonPropertyOrder({"id", "destination", "type", "filter", "businessKey", "variables", "startPolicy"})
 public record EventTrigger(String id, String destination, String type, String filter, String businessKey,
-                           Map<String, Object> variables) {
+                           Map<String, Object> variables, StartPolicy startPolicy) {
+
+    /** The shape before flow control: a trigger with no start policy of its own. */
+    public EventTrigger(String id, String destination, String type, String filter, String businessKey,
+                        Map<String, Object> variables) {
+        this(id, destination, type, filter, businessKey, variables, null);
+    }
 
     public EventTrigger {
         id = blank(id) ? null : id.trim();
@@ -48,7 +56,7 @@ public record EventTrigger(String id, String destination, String type, String fi
 
     /** The same trigger under another id. */
     public EventTrigger withId(String newId) {
-        return new EventTrigger(newId, destination, type, filter, businessKey, variables);
+        return new EventTrigger(newId, destination, type, filter, businessKey, variables, startPolicy);
     }
 
     private static boolean blank(String s) {

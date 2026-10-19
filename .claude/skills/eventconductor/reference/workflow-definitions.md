@@ -29,7 +29,17 @@ trigger; a WAIT_FOR_MESSAGE can wait for one with `onEvent: {destination, type, 
 `defaultMaxStepExecutions?` (default cap on a step's successful runs, enforced when a `repeat`/`loopBack` would run it again),
 `processLock?` (`{name?, key}` — serialize instances by a JEXL key),
 `syncInvocation?` (`{enabled, onFailure: REPLY_IMMEDIATELY|REPLY_AFTER_COMPENSATION, onLockBusy: WAIT|FAIL, defaultDeadlineMs}` —
-lets a caller start an instance over HTTP and wait for its REPLY; `enabled` requires a reachable REPLY), `steps[]`.
+lets a caller start an instance over HTTP and wait for its REPLY; `enabled` requires a reachable REPLY), `startPolicy?` (`{key?, debounce?, throttle?: {limit, period, onLimit?: queue|drop}, singleton?: skip|replace}` —
+per-key flow control of REST starts, sync invocations and triggers without their own; a trigger may carry its
+own `startPolicy` with `key` over the event; order debounce → singleton → throttle; receipts DEBOUNCED/
+THROTTLED/DROPPED/SKIPPED/REPLACED; REST 202 held back / 429 dropped; no definition-level debounce with
+syncInvocation; not for cron/children/console),
+`businessKeyPolicy?` (`unique` default | `allowAfterFinished` | `allowAfterFailed` | `terminateRunning` — may a
+start take over a key a run of this definition holds; every start path; lookup by key = current holder), `steps[]`.
+
+Worker side: `workflow.workers.rate-limits.<topic>.{permits, period}` caps dispatch per topic (task waits PENDING,
+its timeout not running; released by priority, then round-robin per process); step `priority` 0–100 (default 50)
+orders the HTTP queue, the embedded pool and that queue — Kafka keeps topic order.
 
 Add `"$schema"` (JSON) or a `# yaml-language-server: $schema=...` comment (YAML) pointing at
 `modules/workflow-engine/src/main/resources/workflow-definition-schema.json` for autocomplete.
@@ -182,6 +192,11 @@ Never draw a cycle in the preconditions — it is rejected. Declare repetition i
   holding JSON is parsed); text around makes a string; `$${` escapes. Context: variables, `process`
   {id, businessKey, workflowDefinitionId, version}, `step` {id, name, executionId}, `now`,
   `businessKey`. Text form: `payloadTemplate` / `bodyTemplate`.
+- **CONTINUE_AS_NEW** — `continueAsNew: {version?: same|latest, variables?: [names] | {name: template}}`
+  (absent = all variables). Ends the run like END (COMPLETED, outcome `continued`) and creates, in the same
+  transaction, a fresh run of the same definition with the same business key; linked `continuedFrom`/
+  `continuedAs`. Nothing may follow it; no forEach/repeat/loopBack. A child continuing keeps its parent step
+  waiting until the last run ends. Use with loops to keep history bounded.
 - **END** — exactly one; process → `COMPLETED`. Put a JOIN before it if there are branches.
 
 ## Ordering

@@ -1,0 +1,8 @@
+id: api-singleton
+name: One reconciliation per account at a time
+version: 1
+startPolicy: { key: "${account}", singleton: skip }
+steps:
+  - { id: start, type: START, name: Start }
+  - { id: api-reconcile, type: ACTION, name: Reconcile, topic: work, preconditionStepId: start }
+  - { id: end, type: END, name: End, preconditionStepId: api-reconcile }

@@ -262,6 +262,24 @@
         }
       }
     },
+    "startPolicy": {
+      "$ref": "#/$defs/StartPolicy"
+    },
+    "businessKeyPolicy": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "unique",
+        "allowAfterFinished",
+        "allowAfterFailed",
+        "terminateRunning",
+        null
+      ],
+      "default": "unique",
+      "description": "Whether a start may reuse a business key a process of this definition already holds (2.33): unique (the default — a second start collapses into the first process), allowAfterFinished (a new run once the holder ended, however), allowAfterFailed (once it ended other than COMPLETED), terminateRunning (a running holder is cancelled; an ended one hands the key over). A key held by another definition's process is never reused. Applies to every start path, update-with-start included. See the 'Long-running processes' guide."
+    },
     "updates": {
       "type": [
         "array",
@@ -609,6 +627,10 @@
           ],
           "description": "The variables, by name, each a payload template over the event (\"${data.bookingId}\"; a leaf that is exactly one expression keeps its type, and a non-string value becomes its JSON text, as process variables are strings). Absent means every top-level member of data when data is a JSON object; {} means none. Evaluated over the event context: id, source, type, subject, time, key (the Kafka record key, or the key given to the REST/MCP inject), destination, datacontenttype, data (the payload parsed as JSON — objects are maps, so data.bookingId — or its raw text) and extensions (any other CloudEvents attribute).",
           "additionalProperties": true
+        },
+        "startPolicy": {
+          "$ref": "#/$defs/StartPolicy",
+          "description": "This trigger's own flow control; its key is a template over the event. Absent: the definition's startPolicy, if any."
         }
       }
     },
@@ -799,7 +821,8 @@
             "PUBLISH_EVENT",
             "HTTP_CALL",
             "LLM_CALL",
-            "AGENT_CALL"
+            "AGENT_CALL",
+            "CONTINUE_AS_NEW"
           ]
         },
         "name": {
@@ -907,6 +930,15 @@
           ],
           "default": "downstream",
           "description": "Logical destination this step's task is dispatched to, so a step may be handed to a worker pool of its own. Optional: omitted (the default) means the shared 'downstream' destination, where every task went before per-step routing existed. In Kafka mode a topic with no binding of its own becomes a dynamic destination, created on first use. Embedded mode has one in-process executor and no transport to route over, so it takes every task whatever this says. The step's cancellation follows its task to the same destination. When a task contract is referenced (see `task`), its topic is the default and an explicit `topic` here overrides it."
+        },
+        "priority": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 100,
+          "description": "ACTION, HTTP_CALL, LLM_CALL, RULE and AGENT_CALL only (2.33): 0–100, higher first; absent means 50. Honoured by the HTTP worker queue, the embedded worker pool and the queue of a rate-limited topic; carried on the task for Kafka workers (a topic keeps its own order)."
         },
         "task": {
           "type": [
@@ -1978,6 +2010,48 @@
               }
             }
           }
+        },
+        "continueAsNew": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "description": "CONTINUE_AS_NEW only (2.33): the run ends COMPLETED (outcome continued) and a fresh run of the definition starts with the same business key and these variables, the two linked (continuedFrom/continuedAs). No step may follow it.",
+          "additionalProperties": false,
+          "properties": {
+            "version": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "enum": [
+                "same",
+                "latest",
+                null
+              ],
+              "default": "same",
+              "description": "same: the definition snapshot this run runs; latest: the definition as the engine has it now."
+            },
+            "variables": {
+              "description": "Absent: every variable. A list of names: those. A map: name → template over the process (${month + 1}).",
+              "oneOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": {}
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
         }
       },
       "allOf": [
@@ -2275,6 +2349,97 @@
           }
         }
       ]
+    },
+    "StartPolicy": {
+      "title": "StartPolicy",
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "Per-key flow control of starts (2.33): debounce, throttle and/or singleton, counted per rendered key. Order: debounce → singleton → throttle → start. On a definition it applies to REST and sync-invocation starts and to the triggers that declare none; on a trigger, to that trigger's starts. See the 'Flow control' guide.",
+      "additionalProperties": false,
+      "anyOf": [
+        {
+          "required": [
+            "debounce"
+          ]
+        },
+        {
+          "required": [
+            "throttle"
+          ]
+        },
+        {
+          "required": [
+            "singleton"
+          ]
+        }
+      ],
+      "properties": {
+        "key": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1,
+          "description": "Text template rendering the key the policy counts by — over the event for a trigger's own policy (\"${data.customerId}\"), over the start's variables plus businessKey and workflowId for a definition's (\"${customerId}\"). Absent: one key for every start. A key that does not render, or renders empty, refuses the start (an ERROR receipt, or 400)."
+        },
+        "debounce": {
+          "type": "string",
+          "pattern": "^P(\\d+D)?(T(\\d+H)?(\\d+M)?(\\d+(\\.\\d+)?S)?)?$",
+          "description": "ISO-8601 duration: the first start of a key opens a quiet period; each further start replaces the waiting one (the last one's data and business key win) and pushes the period back. When it ends, the last start goes on (singleton, throttle). Not allowed on a definition invocable synchronously."
+        },
+        "throttle": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "description": "At most limit starts per key per fixed window of period (the window opens with its first start).",
+          "additionalProperties": false,
+          "required": [
+            "limit",
+            "period"
+          ],
+          "properties": {
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000000,
+              "description": "Starts admitted per window."
+            },
+            "period": {
+              "type": "string",
+              "pattern": "^P(\\d+D)?(T(\\d+H)?(\\d+M)?(\\d+(\\.\\d+)?S)?)?$",
+              "description": "The window, an ISO-8601 duration (PT1M, PT1H, P1D)."
+            },
+            "onLimit": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "enum": [
+                "queue",
+                "drop",
+                null
+              ],
+              "default": "queue",
+              "description": "Over the limit: queue (FIFO, released as windows open — a synchronous caller is refused instead) or drop."
+            }
+          }
+        },
+        "singleton": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "skip",
+            "replace",
+            null
+          ],
+          "description": "While the last start of the key is still running: skip the new one (REST answers 200 with the running process), or replace — cancel the running one and start the new one."
+        }
+      }
     }
   }
 }

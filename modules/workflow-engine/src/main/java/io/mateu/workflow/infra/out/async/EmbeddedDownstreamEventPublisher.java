@@ -17,7 +17,6 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -127,9 +126,11 @@ public class EmbeddedDownstreamEventPublisher implements DownstreamEventPublishe
             return;
         }
         var threadNumber = new AtomicInteger();
+        // A priority queue (2.33): a waiting task of a higher step priority is picked first, equal ones in
+        // the order they came. Unbounded by itself, so the capacity is enforced in publish().
         executor = new ThreadPoolExecutor(workerThreads, workerThreads,
                 0L, TimeUnit.MILLISECONDS,
-                new LinkedBlockingQueue<>(Math.max(1, queueCapacity)),
+                new java.util.concurrent.PriorityBlockingQueue<Runnable>(Math.max(1, Math.min(queueCapacity, 1024))),
                 runnable -> {
                     var thread = new Thread(runnable, "embedded-worker-" + threadNumber.incrementAndGet());
                     thread.setDaemon(true);
@@ -188,7 +189,28 @@ public class EmbeddedDownstreamEventPublisher implements DownstreamEventPublishe
         }
         // A rejection here propagates: it is classified retryable, so the message stays in the
         // outbox and is offered again once the pool has room.
-        pool.execute(() -> executeOffTheCallingThread(request));
+        if (pool.getQueue().size() >= Math.max(1, queueCapacity)) {
+            throw new java.util.concurrent.RejectedExecutionException("Embedded worker queue is full ("
+                    + queueCapacity + " tasks waiting)");
+        }
+        pool.execute(new Prioritized(request.effectivePriority(), sequence.getAndIncrement(),
+                () -> executeOffTheCallingThread(request)));
+    }
+
+    private final java.util.concurrent.atomic.AtomicLong sequence = new java.util.concurrent.atomic.AtomicLong();
+
+    /** A queued task: higher priority first, then first come. */
+    record Prioritized(int priority, long sequence, Runnable task) implements Runnable, Comparable<Prioritized> {
+        @Override
+        public void run() {
+            task.run();
+        }
+
+        @Override
+        public int compareTo(Prioritized other) {
+            int byPriority = Integer.compare(other.priority, priority);
+            return byPriority != 0 ? byPriority : Long.compare(sequence, other.sequence);
+        }
     }
 
     private void executeInline(TaskExecutionRequested request) {

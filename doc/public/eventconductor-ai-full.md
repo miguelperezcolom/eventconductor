@@ -113,6 +113,8 @@ Written in JSON or YAML (`.json`, `.yaml`, `.yml`); version-controlled and PR-re
 | `defaultMaxStepExecutions` | integer | Default cap on successful runs per step, enforced when a `repeat`/`loopBack` would run a step again (the step fails); a step's `maxSuccessfulExecutions` overrides it; `0` = no cap of its own |
 | `syncInvocation` | object | `{enabled, onFailure, onLockBusy, defaultDeadlineMs}` — lets a caller start an instance over HTTP and wait for its `REPLY`. `onFailure`: `REPLY_IMMEDIATELY` (default; answers FAILED with compensation IN_PROGRESS/NONE as soon as the process fails) or `REPLY_AFTER_COMPENSATION` (answers COMPENSATED/COMPENSATION_FAILED when the rollback ends). `onLockBusy`: `WAIT` (default, queue FIFO) or `FAIL` (409, no instance) |
 | `processLock` | object | `{name, key}` — serialize every instance of this definition by a JEXL `key` (e.g. `bookingId`): instances resolving to the same key run one at a time, the rest wait FIFO. The process-level counterpart of a `LOCK`/`UNLOCK` section |
+| `startPolicy` | object | `{key?, debounce?, throttle?: {limit, period, onLimit?: queue\|drop}, singleton?: skip\|replace}` — per-key flow control of starts (2.33): `key` a template over the start's variables (+`businessKey`, `workflowId`); applies to `POST /workflow/api/processes` (201 / 200 skipped / 202 held back / 429 dropped, header `EventConductor-Flow-Control`), sync invocation (409 `SINGLETON_RUNNING`, 429 `THROTTLED`; no definition-level `debounce` when `syncInvocation` is set) and triggers without their own. A trigger can carry its own `startPolicy` (key over the event); receipts then say `DEBOUNCED`/`THROTTLED`/`DROPPED`/`SKIPPED`/`REPLACED`. Order debounce → singleton → throttle; durable (`flow_control_key`/`flow_control_pending`, row lock per key), released by a scheduler pass. Not applied to cron, PROCESS children, raw upstream creations, the console |
+| `businessKeyPolicy` | string | `unique` (default) \| `allowAfterFinished` \| `allowAfterFailed` \| `terminateRunning` — whether a start may take over a business key a run of this definition holds (2.33); every start path; never a key of another definition. A key then names a chain of runs; lookup by key answers the current holder (the UNIQUE `business_key`; earlier runs keep it in `released_business_key`) |
 | `steps` | array | The step definitions |
 
 ### Runtime state
@@ -356,6 +358,16 @@ The precondition graph stays acyclic (a cycle is still an error); repetition is 
 - Compensation runs once per completed iteration/pass, newest first, each seeing that run's item/index and reported variables.
 - Storage: passes are step executions with `iteration` > 0 (earlier ones `superseded`); iterations have `parentExecutionId` + `itemIndex` (migration V47).
 
+### CONTINUE_AS_NEW — hand over to a fresh run
+```yaml
+- id: next-month
+  type: CONTINUE_AS_NEW
+  name: Next month
+  preconditionStepId: bill
+  continueAsNew: { version: latest, variables: { customerId: "${customerId}", month: "${month + 1}" } }
+```
+Ends the run as END does (COMPLETED, outcome `continued`, other branches cancelled) and, in the same transaction, creates a new run of the same definition (`version: same` = this run's snapshot, default; `latest`) with the same business key and the carried variables (absent = all; list of names; map of templates). Linked `continuedFrom`/`continuedAs` (REST, MCP, console). A child continuing keeps the parent step waiting until the last run ends. Nothing may follow it; no forEach/repeat/loopBack. Keeps history bounded (with loops).
+
 ### END — complete the process
 ```json
 { "id": "end", "type": "END", "name": "Done", "preconditionStepId": "last-step" }
@@ -363,6 +375,8 @@ The precondition graph stays acyclic (a cycle is still an error); repetition is 
 Exactly one per workflow. Transitions the process to `COMPLETED`. With parallel branches, precede it with a JOIN.
 
 ### Common step fields
+
+`priority` (0–100, default 50; ACTION, HTTP_CALL, LLM_CALL, RULE, AGENT_CALL): ordering of the HTTP worker queue, the embedded pool (`workflow.embedded.worker-threads > 0`) and the rate-limit queue; Kafka keeps topic order. Worker rate limits per topic: `workflow.workers.rate-limits.<topic>.{permits, period}` — over it the task waits PENDING (timeout not running), released priority first then round-robin per process.
 
 | Field | Type | Default | Description |
 |---|---|---|---|

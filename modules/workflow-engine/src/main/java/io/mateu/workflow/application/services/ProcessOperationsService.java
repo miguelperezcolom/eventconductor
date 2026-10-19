@@ -133,8 +133,31 @@ public class ProcessOperationsService {
     // ── Start ────────────────────────────────────────────────────────────────────────────────────
 
     /** The outcome of a start: the process, and whether this call created it or found it already there. */
-    public record StartOutcome(Process process, boolean created) {
+    public record StartOutcome(Process process, boolean created,
+                               io.mateu.workflow.application.flowcontrol.FlowControlService.Decision flowControl) {
+
+        public StartOutcome(Process process, boolean created) {
+            this(process, created, null);
+        }
     }
+
+    /** A start the definition's {@code startPolicy} dropped (over a throttle): the caller may try again at {@link #retryAt()}. */
+    public static class StartDroppedException extends RuntimeException {
+        private final java.time.LocalDateTime retryAt;
+
+        public StartDroppedException(String message, java.time.LocalDateTime retryAt) {
+            super(message);
+            this.retryAt = retryAt;
+        }
+
+        public java.time.LocalDateTime retryAt() {
+            return retryAt;
+        }
+    }
+
+    /** Flow control of API starts; a provider so hand-built instances (tests) work without it. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    ObjectProvider<io.mateu.workflow.application.flowcontrol.FlowControlService> flowControl;
 
     /**
      * Starts a process of {@code definitionId}, or — when {@code businessKey} already names a process
@@ -157,20 +180,29 @@ public class ProcessOperationsService {
         InputLimits.checkNamedValues(variables, Variable::name, Variable::value, "this process");
         var key = businessKey == null || businessKey.isBlank() ? null : businessKey;
 
+        var definition = workflowDefinitionRepository.findById(definitionId)
+                .orElseThrow(() -> new UnknownWorkflowDefinitionException(definitionId));
         if (key != null) {
             var existing = processRepository.findByBusinessKey(key);
-            if (existing.isPresent()) {
+            // The existing run answers (200) unless the definition's businessKeyPolicy lets a new run take the
+            // key over — which the creation below then does (cancelling a running holder for terminateRunning).
+            if (existing.isPresent() && (!definitionId.equals(existing.get().getWorkflowDefinitionId())
+                    || definition.keyPolicy().decide(existing.get().getStatus())
+                    == io.mateu.workflow.domain.aggregates.BusinessKeyPolicy.Decision.KEEP)) {
                 return replay(existing.get(), definitionId, caller);
             }
         }
-        var definition = workflowDefinitionRepository.findById(definitionId)
-                .orElseThrow(() -> new UnknownWorkflowDefinitionException(definitionId));
         if (!definition.status().accceptsNewInstances()) {
             // The use case would ignore the creation; a caller waiting for an answer is told why.
             throw new NotAcceptingInstancesException(definitionId, definition.status().name());
         }
 
         var processId = UUID.randomUUID().toString();
+        var policy = definition.startPolicy();
+        var flow = flowControl == null ? null : flowControl.getIfAvailable();
+        if (policy != null && flow != null) {
+            return startUnderPolicy(flow, definition, processId, key, variables, caller, traceContext);
+        }
         createProcessUseCase.handle(new CreateProcessCommand(processId, definitionId, key,
                 variables == null ? List.of() : variables, null, caller, traceContext));
         var created = processRepository.findById(processId);
@@ -186,6 +218,54 @@ public class ProcessOperationsService {
             }
         }
         throw new NotAcceptingInstancesException(definitionId, definition.status().name());
+    }
+
+    /**
+     * A start under the definition's {@code startPolicy}: started now (201), the running one for a singleton
+     * that skips (200), held back by a debounce or a throttle queue (202, no process yet), or dropped
+     * ({@link StartDroppedException}, 429).
+     */
+    private StartOutcome startUnderPolicy(io.mateu.workflow.application.flowcontrol.FlowControlService flow,
+                                          io.mateu.workflow.domain.aggregates.WorkflowDefinition definition,
+                                          String processId, String key, List<Variable> variables,
+                                          AuthorizationContext caller, TraceContext traceContext) {
+        // Judged before anything is held back: a start the caller may not make must not wait to be refused.
+        CreateProcessUseCase.refuseIfCallerMayNotStart(definition, caller, key);
+        var values = new java.util.LinkedHashMap<String, String>();
+        (variables == null ? List.<Variable>of() : variables).forEach(v -> values.put(v.name(), v.value()));
+        String flowKey;
+        try {
+            flowKey = io.mateu.workflow.application.flowcontrol.FlowKeys.overVariables(definition.startPolicy(),
+                    definition.id(), key, values);
+        } catch (io.mateu.workflow.application.flowcontrol.FlowKeys.UnrenderableKeyException e) {
+            throw new IllegalArgumentException(e.getMessage());
+        }
+        var start = new io.mateu.workflow.application.flowcontrol.FlowStart(
+                io.mateu.workflow.application.flowcontrol.FlowStart.startScope(definition.id()), flowKey, definition.id(),
+                key, values, caller, io.mateu.workflow.application.flowcontrol.FlowStart.START, null,
+                definition.startPolicy(), false);
+        var decision = flow.admit(start, s -> {
+            createProcessUseCase.handle(new CreateProcessCommand(processId, definition.id(), s.businessKey(),
+                    variables == null ? List.of() : variables, null, caller, traceContext));
+            return new io.mateu.workflow.application.flowcontrol.FlowControlService.Started(processId, s.businessKey());
+        }, io.mateu.workflow.application.flowcontrol.FlowControlService.Mode.DEFAULT);
+        return switch (decision.outcome()) {
+            case STARTED, REPLACED -> {
+                var created = processRepository.findById(processId);
+                if (created.isEmpty()) {
+                    throw new NotAcceptingInstancesException(definition.id(), definition.status().name());
+                }
+                yield new StartOutcome(created.get(), true, decision);
+            }
+            case SKIPPED -> {
+                var running = decision.processId() != null ? processRepository.findById(decision.processId())
+                        : processRepository.findByBusinessKey(decision.businessKey());
+                yield new StartOutcome(running.orElse(null), false, decision);
+            }
+            case DEBOUNCED, THROTTLED -> new StartOutcome(null, false, decision);
+            case DROPPED -> throw new StartDroppedException("Start of workflow '" + definition.id() + "' "
+                    + decision.detail() + (flowKey.isEmpty() ? "" : " for key '" + flowKey + "'") + ".", decision.dueAt());
+        };
     }
 
     private StartOutcome replay(Process existing, String definitionId, AuthorizationContext caller) {

@@ -1,0 +1,8 @@
+id: bk-terminate
+name: A new run replaces the running one
+version: 1
+businessKeyPolicy: terminateRunning
+steps:
+  - { id: start, type: START, name: Start }
+  - { id: bkt-work, type: ACTION, name: Work, topic: work, preconditionStepId: start }
+  - { id: end, type: END, name: End, preconditionStepId: bkt-work }

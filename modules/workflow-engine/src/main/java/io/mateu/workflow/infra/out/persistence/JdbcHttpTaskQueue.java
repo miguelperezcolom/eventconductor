@@ -35,7 +35,7 @@ public class JdbcHttpTaskQueue implements HttpTaskQueue {
     private static final TypeReference<List<Variable>> VARIABLES = new TypeReference<>() {
     };
     private static final String COLUMNS = "id, process_id, workflow_definition_id, step_id, task_id, topic, "
-            + "variables_json, attempt, created_at, lease_until, worker_id, lease_token, deliveries, cancelled";
+            + "variables_json, attempt, created_at, lease_until, worker_id, lease_token, deliveries, cancelled, priority";
 
     private final JdbcTemplate jdbc;
     private final DbLockDialect dialect;
@@ -52,10 +52,10 @@ public class JdbcHttpTaskQueue implements HttpTaskQueue {
         var variables = write(task.variables());
         var replaced = jdbc.update("UPDATE http_task SET process_id = ?, workflow_definition_id = ?, step_id = ?, "
                         + "task_id = ?, topic = ?, variables_json = ?, attempt = ?, created_at = ?, lease_until = NULL, "
-                        + "worker_id = NULL, lease_token = NULL, deliveries = 0, cancelled = ? "
+                        + "worker_id = NULL, lease_token = NULL, deliveries = 0, cancelled = ?, priority = ? "
                         + "WHERE id = ? AND COALESCE(attempt, 0) < ?",
                 task.processId(), task.workflowDefinitionId(), task.stepId(), task.taskId(), task.topic(), variables,
-                task.attempt(), Timestamp.valueOf(task.createdAt()), false, task.id(), task.attemptOrZero());
+                task.attempt(), Timestamp.valueOf(task.createdAt()), false, task.priority(), task.id(), task.attemptOrZero());
         if (replaced > 0) {
             return true;
         }
@@ -63,9 +63,9 @@ public class JdbcHttpTaskQueue implements HttpTaskQueue {
         if (present != null && present > 0) {
             return false;
         }
-        jdbc.update("INSERT INTO http_task (" + COLUMNS + ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, 0, ?)",
+        jdbc.update("INSERT INTO http_task (" + COLUMNS + ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, 0, ?, ?)",
                 task.id(), task.processId(), task.workflowDefinitionId(), task.stepId(), task.taskId(), task.topic(),
-                variables, task.attempt(), Timestamp.valueOf(task.createdAt()), false);
+                variables, task.attempt(), Timestamp.valueOf(task.createdAt()), false, task.priority());
         return true;
     }
 
@@ -89,7 +89,7 @@ public class JdbcHttpTaskQueue implements HttpTaskQueue {
                         Timestamp.valueOf(leaseUntil), workerId, token, id);
                 find(id).ifPresent(claimed::add);
             }
-            claimed.sort(java.util.Comparator.comparing(HttpTask::createdAt));
+            claimed.sort(HttpTask.CLAIM_ORDER);
             return claimed;
         });
         return result == null ? List.of() : result;
@@ -160,7 +160,8 @@ public class JdbcHttpTaskQueue implements HttpTaskQueue {
             rs.getString("worker_id"),
             rs.getString("lease_token"),
             rs.getInt("deliveries"),
-            rs.getBoolean("cancelled"));
+            rs.getBoolean("cancelled"),
+            rs.getInt("priority"));
 
     private static LocalDateTime toLocal(Timestamp timestamp) {
         return timestamp == null ? null : timestamp.toLocalDateTime();

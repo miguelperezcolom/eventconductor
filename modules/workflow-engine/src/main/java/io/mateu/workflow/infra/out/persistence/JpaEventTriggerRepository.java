@@ -55,7 +55,7 @@ public class JpaEventTriggerRepository implements EventTriggerRepository {
         repository.saveAll(triggers.stream().map(t -> new EventTriggerEntity(
                 id(source, t.index()), source, t.index(), t.workflowId(), t.trigger().id(), t.trigger().destination(),
                 t.trigger().type(), t.trigger().filter(), t.trigger().businessKey(),
-                variablesToJson(t.trigger().variables()))).toList());
+                variablesToJson(t.trigger().variables()), startPolicyToJson(t.trigger().startPolicy()))).toList());
     }
 
     /** Keyed by {@code <workflow>/<trigger>}, so saving it again (an edit) overwrites the row. */
@@ -65,7 +65,7 @@ public class JpaEventTriggerRepository implements EventTriggerRepository {
         var t = trigger.trigger();
         repository.save(new EventTriggerEntity(id(EventFileTrigger.API_SOURCE, trigger.key()), EventFileTrigger.API_SOURCE,
                 0, trigger.workflowId(), t.id(), t.destination(), t.type(), t.filter(), t.businessKey(),
-                variablesToJson(t.variables())));
+                variablesToJson(t.variables()), startPolicyToJson(t.startPolicy())));
     }
 
     @Override
@@ -80,7 +80,8 @@ public class JpaEventTriggerRepository implements EventTriggerRepository {
     private static EventFileTrigger map(EventTriggerEntity row) {
         return new EventFileTrigger(row.getSourceKey(), row.getEntryIndex(), row.getWorkflowId(),
                 new EventTrigger(row.getTriggerId(), row.getDestination(), row.getEventType(), row.getFilterExpression(),
-                        row.getBusinessKey(), variablesFromJson(row.getVariablesJson())));
+                        row.getBusinessKey(), variablesFromJson(row.getVariablesJson()),
+                        startPolicyFromJson(row.getStartPolicyJson())));
     }
 
     static String id(String source, int index) {
@@ -115,6 +116,28 @@ public class JpaEventTriggerRepository implements EventTriggerRepository {
         }
         try {
             return MAPPER.readValue(json, new TypeReference<LinkedHashMap<String, Object>>() {});
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static String startPolicyToJson(io.mateu.workflow.domain.aggregates.StartPolicy policy) {
+        if (policy == null) {
+            return null;
+        }
+        try {
+            return MAPPER.writeValueAsString(policy);
+        } catch (Exception e) {
+            throw new IllegalStateException("Could not serialise a trigger's start policy", e);
+        }
+    }
+
+    private static io.mateu.workflow.domain.aggregates.StartPolicy startPolicyFromJson(String json) {
+        if (json == null || json.isBlank()) {
+            return null;
+        }
+        try {
+            return MAPPER.readValue(json, io.mateu.workflow.domain.aggregates.StartPolicy.class);
         } catch (Exception e) {
             return null;
         }

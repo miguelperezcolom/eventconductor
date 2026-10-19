@@ -52,6 +52,7 @@ The process tools have REST twins on the same application services — start, re
 | `findBottleneck` | Where processes get stuck: slowest step, steps with waiting instances, steps with failures |
 | `importWorkflowDefinitionsFromGit` | Pull and upsert workflow JSON files from Git |
 | `getAgentTranscript` | The transcript of an `AGENT_CALL` step execution: goal, model turns, tool calls and results, tokens |
+| `listRunsOfBusinessKey` | Every run that has had a business key, oldest first — a `CONTINUE_AS_NEW` chain (linked by `continuedFrom`/`continuedAs`) or the runs a `businessKeyPolicy` let reuse it |
 | `listWorkflowDefinitions` | The definitions (id, name, status, whether they accept new instances) — what a schedule can start |
 | `listSchedules` / `getSchedule` | Every schedule, optionally of one workflow: cron (and in words), zone, variables, source, whether it is editable, paused, next starts |
 | `createSchedule` / `updateSchedule` / `deleteSchedule` | Manage the schedules created through the engine (source UI/API). A schedule declared in a definition or a `cron.yaml` is owned by its file and refused here |

@@ -58,6 +58,8 @@ public class StepOverProcessUseCase {
     final ObjectProvider<StepOverProcessUseCase> self;
     // A provider: only needed to link a REPLY's span back to its synchronous caller's trace.
     final ObjectProvider<io.mateu.workflow.application.out.InvocationRepository> invocationRepository;
+    // A provider: creating a process reaches the step pipeline that leads back here (CONTINUE_AS_NEW).
+    final ObjectProvider<io.mateu.workflow.application.usecases.process.create.CreateProcessUseCase> createProcessUseCase;
 
     /** Where PUBLISH_EVENT steps may publish; optional so hand-built instances (tests) still work. */
     @org.springframework.beans.factory.annotation.Autowired(required = false)
@@ -149,8 +151,22 @@ public class StepOverProcessUseCase {
         // completion — published if and only if the step completed.
         resolvePublishSteps(result.getUpdatedProcess(), result.getStepsToSave(), pendingBefore);
 
-        if (result.getUpdatedProcess() != process || replied) {
+        // A CONTINUE_AS_NEW that completed this pass ended the process (as an END does): the next run of
+        // the chain is created below, after this one is saved, in this same transaction.
+        var continuation = continuationOf(result.getUpdatedProcess(), result.getStepsToSave(), statusBefore);
+        if (continuation != null) {
+            result.getUpdatedProcess().continueAs(continuation.nextProcessId());
+            // The next run takes the key: this one lets go of it in the same save.
+            result.getUpdatedProcess().releaseBusinessKey();
+        }
+
+        if (result.getUpdatedProcess() != process || replied || continuation != null) {
             processRepository.save(result.getUpdatedProcess());
+        }
+        if (continuation != null) {
+            // Written before the next run's insert: business_key is UNIQUE, and a flush orders inserts first.
+            processRepository.flush();
+            startNextRun(result.getUpdatedProcess(), continuation);
         }
         tagOutcome(result.getUpdatedProcess(), result.getStepsToSave());
 
@@ -212,6 +228,60 @@ public class StepOverProcessUseCase {
             recordProcessTraceService.processReachedTerminalStatus(result.getUpdatedProcess());
         }
         return result.isFollowUp();
+    }
+
+    /** The next run a CONTINUE_AS_NEW asks for: its id, the variables it carries, the definition it starts from. */
+    record Continuation(String stepId, String nextProcessId, List<io.mateu.workflow.domain.aggregates.Variable> variables,
+                        WorkflowDefinition definition) {
+    }
+
+    /**
+     * The continuation a CONTINUE_AS_NEW step that completed in this pass asks for; null when none did. Its
+     * variables are computed from the process as it stands — every variable, the listed ones, or each
+     * template of a map rendered over the process. A template that fails carries no value for its name
+     * (logged): the next run still starts, as a continuation that must not be lost.
+     */
+    private Continuation continuationOf(Process process, List<StepExecution> stepsToSave,
+                                        java.util.Map<String, StepExecutionStatus> statusBefore) {
+        if (process.getStatus() != ProcessStatus.COMPLETED || process.getContinuedAsProcessId() != null) {
+            return null;
+        }
+        for (var stepExecution : stepsToSave) {
+            if (!StepExecutionStatus.COMPLETED.equals(stepExecution.getStatus())
+                    || StepExecutionStatus.COMPLETED.equals(statusBefore.get(stepExecution.getId()))) {
+                continue;
+            }
+            var step = pojoFromJson(stepExecution.getStepJson(), Step.class);
+            if (!StepType.CONTINUE_AS_NEW.equals(step.type())) {
+                continue;
+            }
+            var variables = io.mateu.workflow.domain.services.ContinueAsNewVariables.of(step, process,
+                    problem -> stepExecution.logError(problem));
+            WorkflowDefinition definition = null;
+            if (step.continueAsNew() == null || !step.continueAsNew().latest()) {
+                try {
+                    definition = pojoFromJson(process.getWorkflowDefinitionJson(), WorkflowDefinition.class);
+                } catch (RuntimeException e) {
+                    definition = null; // no readable snapshot: the definition as it is now
+                }
+            }
+            var next = java.util.UUID.randomUUID().toString();
+            stepExecution.logInfo("Continued as new: process " + next + " carries on with "
+                    + variables.size() + " variable(s)" + (definition == null ? " on the latest version." : "."));
+            return new Continuation(step.id(), next, variables, definition);
+        }
+        return null;
+    }
+
+    /** Creates the next run of the chain: same definition (snapshot or latest), same business key, same parent. */
+    private void startNextRun(Process ended, Continuation continuation) {
+        log.info("Process {} continues as new: process {} (business key '{}')", ended.getId(),
+                continuation.nextProcessId(), ended.getBusinessKey());
+        createProcessUseCase.getObject().handle(new io.mateu.workflow.application.usecases.process.create.CreateProcessCommand(
+                continuation.nextProcessId(), ended.getWorkflowDefinitionId(), ended.getBusinessKey(),
+                continuation.variables(), ended.getParentStepExecutionId(),
+                io.mateu.workflow.security.AuthorizationContext.SYSTEM, null, ended.getId(), continuation.definition()));
+        workflowMetrics.processContinuedAsNew(ended.getWorkflowDefinitionId());
     }
 
     /**

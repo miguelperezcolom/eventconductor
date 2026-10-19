@@ -831,6 +831,25 @@ The agent's execution is a container: each model turn is a child dispatched to t
 
 ---
 
+## CONTINUE_AS_NEW
+
+Ends this run — `COMPLETED`, outcome `continued`, other branches cancelled as an `END` does — and starts a fresh
+run of the same definition with the same business key and the variables it carries, the two linked
+(`continuedFrom` / `continuedAs`). Keeps the history of entity- and subscription-style processes bounded. See
+[Long-running processes](/guides/long-running-processes/).
+
+```json
+{ "id": "next-month", "type": "CONTINUE_AS_NEW", "name": "Next month", "preconditionStepId": "bill",
+  "continueAsNew": { "version": "latest", "variables": { "customerId": "${customerId}", "month": "${month + 1}" } } }
+```
+
+**Optional:** `continueAsNew.version` — `same` (default: the snapshot this run runs) or `latest`;
+`continueAsNew.variables` — absent: every variable; a list of names; or a map of name → template over the
+process. No step may follow it; no `forEach`, `repeat` or `loopBack`. A child process that continues keeps its
+parent step waiting until the last run of the chain ends.
+
+---
+
 ## Common fields (all step types)
 
 | Field | Type | Default | Description |
@@ -856,4 +875,5 @@ The agent's execution is a container: each model turn is a child dispatched to t
 | `maxSuccessfulExecutions` | integer | `0` | Cap on how many times this step may successfully run within one process instance (backstop against runaway loops). `0` inherits the workflow-level `defaultMaxStepExecutions`; both `0` = only the loop's own `maxIterations` and `workflow.loops.max-iterations` bound it. Enforced when a `repeat` or `loopBack` would run the step again: the step fails instead |
 | `forEach` | object | — | ACTION, USER_TASK, PROCESS, HTTP_CALL, LLM_CALL, RULE: run the step once per item — `{items, as?, indexAs?, mode?, maxConcurrency?, output?, outputElement?, completion?}`. See [Loops and Multi-Instance](/guides/loops-and-multi-instance/#foreach--once-per-item) |
 | `repeat` | object | — | Same types: run the step again until a condition holds — `{until, maxIterations, delay?}`. See [repeat](/guides/loops-and-multi-instance/#repeat--one-step-until-a-condition) |
+| `priority` | integer | `50` | ACTION, HTTP_CALL, LLM_CALL, RULE, AGENT_CALL: 0–100, higher first. Honoured by the HTTP worker queue, the embedded worker pool and the rate-limit queue; a Kafka topic keeps its own order. See [Flow control](/guides/flow-control/#task-priority) |
 | `loopBack` | object | — | Any step but START/END/REPLY: when it completes and `while` holds, run every step from `to` to here again — `{to, while?, maxIterations, delay?}`. See [loopBack](/guides/loops-and-multi-instance/#loopback--run-a-section-again) |

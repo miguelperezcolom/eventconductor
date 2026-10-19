@@ -1,0 +1,17 @@
+id: can-counter
+name: Counts across runs with CONTINUE_AS_NEW
+version: 1
+steps:
+  - { id: start, type: START, name: Start }
+  - { id: tick, type: ACTION, name: Tick, topic: work, preconditionStepId: start }
+  - { id: more, type: CHOICE, name: More to count, preconditionStepId: tick }
+  - id: again
+    type: CONTINUE_AS_NEW
+    name: Next run
+    preconditions: [ { stepId: more, expression: "count < 3" } ]
+    continueAsNew:
+      variables: { count: "${count}", customer: "${customer}" }
+  - id: done
+    type: END
+    name: Done
+    preconditions: [ { stepId: more } ]

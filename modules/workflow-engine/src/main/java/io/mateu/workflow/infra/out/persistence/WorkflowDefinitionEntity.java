@@ -136,4 +136,12 @@ public class WorkflowDefinitionEntity {
     @Column(columnDefinition = "TEXT")
     String updatesJson;
 
+    /** The definition's {@code startPolicy} as JSON, or null when it declares none (V56). */
+    @Column(columnDefinition = "TEXT")
+    String startPolicyJson;
+
+    /** The definition's {@code businessKeyPolicy} as the file writes it, or null for the default (V56). */
+    @Column(length = 40)
+    String businessKeyPolicy;
+
 }

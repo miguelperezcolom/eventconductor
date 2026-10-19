@@ -78,6 +78,10 @@ public class InboundEventService {
     private final ObjectProvider<MeterRegistry> meterRegistry;
     private final ProcessRepository processes;
 
+    /** Flow control of trigger starts (startPolicy); a provider, so hand-built instances (tests) work without it. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    ObjectProvider<io.mateu.workflow.application.flowcontrol.FlowControlService> flowControl;
+
     public InboundEventService(WorkflowDefinitionRepository workflowDefinitionRepository,
                                EventTriggerRepository fileTriggers,
                                EventReceiptRepository receipts,
@@ -105,9 +109,18 @@ public class InboundEventService {
     public record Result(String destination, String eventId, String eventSource, List<EventReceipt> receipts,
                          List<String> duplicates) {
 
-        /** How many processes this delivery started. */
+        /** How many processes this delivery started (a singleton's replacement included). */
         public long started() {
-            return receipts.stream().filter(r -> r.outcome() == EventReceipt.Outcome.STARTED).count();
+            return receipts.stream().filter(r -> r.outcome() == EventReceipt.Outcome.STARTED
+                    || r.outcome() == EventReceipt.Outcome.REPLACED).count();
+        }
+
+        /** How many of its starts flow control held back, dropped or skipped. */
+        public long flowControlled() {
+            return receipts.stream().filter(r -> switch (r.outcome()) {
+                case DEBOUNCED, THROTTLED, DROPPED, SKIPPED -> true;
+                default -> false;
+            }).count();
         }
 
         /** How many messages this delivery dispatched to waiting steps. */
@@ -208,6 +221,12 @@ public class InboundEventService {
             acted.add(receipt);
             return;
         }
+        var policy = definition.startPolicyFor(trigger);
+        var flow = flowControl == null ? null : flowControl.getIfAvailable();
+        if (policy != null && flow != null) {
+            startUnderPolicy(flow, policy, definition, trigger, event, context, businessKey, variables, receiver, acted);
+            return;
+        }
         log.info("Event {} ({}) on '{}' starts workflow '{}' through trigger '{}' (business key {})",
                 event.id(), event.type(), event.destination(), definition.id(), trigger.id(), businessKey);
         // The engine acting for itself, as for cron: SYSTEM, so flow-authorization requirements do not
@@ -216,6 +235,49 @@ public class InboundEventService {
                 null, AuthorizationContext.SYSTEM));
         var receipt = receipt(receiver, receiver, EventReceipt.Kind.TRIGGER, event, EventReceipt.Outcome.STARTED,
                 definition.id(), trigger.id(), businessKey, null, null, null);
+        receipts.save(receipt);
+        acted.add(receipt);
+    }
+
+    /**
+     * A trigger start under a {@code startPolicy} (the trigger's own, keyed over the event, or the definition's,
+     * keyed over the start's variables): flow control decides, and the receipt says what it decided — so a
+     * redelivery of an event that was debounced, throttled, dropped or skipped is a duplicate like any other.
+     */
+    private void startUnderPolicy(io.mateu.workflow.application.flowcontrol.FlowControlService flow,
+                                  io.mateu.workflow.domain.aggregates.StartPolicy policy, WorkflowDefinition definition,
+                                  EventTrigger trigger, InboundEvent event, Map<String, Object> context, String businessKey,
+                                  Map<String, String> variables, String receiver, List<EventReceipt> acted) {
+        var own = trigger.startPolicy() != null;
+        String flowKey;
+        try {
+            flowKey = own ? io.mateu.workflow.application.flowcontrol.FlowKeys.render(policy, context)
+                    : io.mateu.workflow.application.flowcontrol.FlowKeys.overVariables(policy, definition.id(), businessKey, variables);
+        } catch (io.mateu.workflow.application.flowcontrol.FlowKeys.UnrenderableKeyException e) {
+            log.warn("Trigger '{}' of workflow '{}' could not key event {}: {}", trigger.id(), definition.id(), event.id(),
+                    e.getMessage());
+            var receipt = receipt(receiver + "#error", receiver, EventReceipt.Kind.TRIGGER, event, EventReceipt.Outcome.ERROR,
+                    definition.id(), trigger.id(), businessKey, null, null, e.getMessage());
+            receipts.save(receipt);
+            acted.add(receipt);
+            return;
+        }
+        var scope = own ? io.mateu.workflow.application.flowcontrol.FlowStart.triggerScope(definition.id(), trigger.id())
+                : io.mateu.workflow.application.flowcontrol.FlowStart.startScope(definition.id());
+        var start = new io.mateu.workflow.application.flowcontrol.FlowStart(scope, flowKey, definition.id(), businessKey,
+                variables, AuthorizationContext.SYSTEM, io.mateu.workflow.application.flowcontrol.FlowStart.TRIGGER,
+                trigger.id(), policy, false);
+        var decision = flow.admit(start, s -> {
+            ingressRouter.route(new ProcessCreationRequested(s.workflowId(), s.businessKey(), toVariables(s.variables()),
+                    null, AuthorizationContext.SYSTEM));
+            return new io.mateu.workflow.application.flowcontrol.FlowControlService.Started(null, s.businessKey());
+        }, io.mateu.workflow.application.flowcontrol.FlowControlService.Mode.DEFAULT);
+        var outcome = EventReceipt.Outcome.valueOf(decision.outcome().name());
+        log.info("Event {} ({}) on '{}' for workflow '{}' through trigger '{}': {}", event.id(), event.type(),
+                event.destination(), definition.id(), trigger.id(), decision.detail());
+        var receipt = receipt(receiver, receiver, EventReceipt.Kind.TRIGGER, event, outcome, definition.id(), trigger.id(),
+                decision.businessKey() != null ? decision.businessKey() : businessKey, null, null,
+                (flowKey.isEmpty() ? "" : "key '" + flowKey + "': ") + decision.detail());
         receipts.save(receipt);
         acted.add(receipt);
     }

@@ -11,7 +11,7 @@ class HttpTaskClaimSqlTest {
     void theDefaultClaimLimitsInsideTheStatementAndSkipsLockedRows() {
         var sql = new PostgresDbLockDialect().claimHttpTasksSql(3);
         assertThat(sql).contains("topic IN (?, ?, ?)", "cancelled = ?", "lease_until < ?",
-                "ORDER BY created_at LIMIT ? FOR UPDATE SKIP LOCKED");
+                "ORDER BY priority DESC, created_at LIMIT ? FOR UPDATE SKIP LOCKED");
         assertThat(new MariaDbLockDialect().claimHttpTasksSql(1)).contains("topic IN (?)");
         assertThat(new H2DbLockDialect().claimHttpTasksSql(0)).contains("topic IN (?)");
     }
@@ -19,7 +19,7 @@ class HttpTaskClaimSqlTest {
     @Test
     void oracleLimitsWithRownumOutsideTheSort() {
         var sql = new OracleDbLockDialect().claimHttpTasksSql(2);
-        assertThat(sql).contains("topic IN (?, ?)", "ORDER BY created_at) WHERE ROWNUM <= ?) FOR UPDATE SKIP LOCKED")
+        assertThat(sql).contains("topic IN (?, ?)", "ORDER BY priority DESC, created_at) WHERE ROWNUM <= ?) FOR UPDATE SKIP LOCKED")
                 .doesNotContain("LIMIT");
     }
 }

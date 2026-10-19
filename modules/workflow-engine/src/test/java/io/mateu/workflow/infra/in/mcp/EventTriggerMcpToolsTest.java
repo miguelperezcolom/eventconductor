@@ -127,10 +127,12 @@ class EventTriggerMcpToolsTest {
         when(definitions.findById("onboarding")).thenReturn(java.util.Optional.of(onboarding));
 
         var created = tools.createEventTrigger("cdc", "onboarding", "customers-cdc", "*", "data.op == 'u'", null,
-                java.util.Map.of("customerId", "${data.after.id}"));
+                java.util.Map.of("customerId", "${data.after.id}"),
+                new io.mateu.workflow.domain.aggregates.StartPolicy("${data.after.id}", null, null, "skip"));
+        assertThat(created.startPolicy().singleton()).isEqualTo("skip");
         assertThat(created.origin()).isEqualTo("API");
         assertThat(created.editable()).isTrue();
-        assertThat(tools.updateEventTrigger("onboarding", "cdc", "customers-cdc", "io.debezium.*", null, null, null).type())
+        assertThat(tools.updateEventTrigger("onboarding", "cdc", "customers-cdc", "io.debezium.*", null, null, null, null).type())
                 .isEqualTo("io.debezium.*");
         assertThat(tools.exportEventTriggerYaml("onboarding", "cdc")).contains("- id: cdc", "workflow: onboarding");
         assertThat(tools.deleteEventTrigger("onboarding", "cdc")).isEqualTo("Trigger onboarding/cdc deleted");
@@ -161,16 +163,16 @@ class EventTriggerMcpToolsTest {
     void aCallerWhoMayNotStartTheWorkflowCannotCreateOrEditItsTrigger() {
         var allowed = guardedTools(new io.mateu.workflow.security.AuthorizationContext("alice",
                 List.of("payments:write"), List.of()));
-        assertThat(allowed.createEventTrigger("cdc", "payout", "payments", "*", null, null, null).origin())
+        assertThat(allowed.createEventTrigger("cdc", "payout", "payments", "*", null, null, null, null).origin())
                 .isEqualTo("API");
 
         var refused = guardedTools(new io.mateu.workflow.security.AuthorizationContext("bob", List.of(), List.of()));
         org.assertj.core.api.Assertions.assertThatThrownBy(() ->
-                        refused.createEventTrigger("other", "payout", "payments", "*", null, null, null))
+                        refused.createEventTrigger("other", "payout", "payments", "*", null, null, null, null))
                 .isInstanceOf(io.mateu.workflow.security.FlowAuthorizationDeniedException.class)
                 .hasMessageContaining("payments:write");
         org.assertj.core.api.Assertions.assertThatThrownBy(() -> guardedTools(null)
-                        .createEventTrigger("other", "payout", "payments", "*", null, null, null))
+                        .createEventTrigger("other", "payout", "payments", "*", null, null, null, null))
                 .isInstanceOf(io.mateu.workflow.security.FlowAuthorizationDeniedException.class);
     }
 

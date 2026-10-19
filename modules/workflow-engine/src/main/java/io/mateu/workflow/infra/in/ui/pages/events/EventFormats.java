@@ -39,6 +39,11 @@ public final class EventFormats {
             case STARTED -> new Status(StatusType.SUCCESS, "Started");
             case DELIVERED -> new Status(StatusType.INFO, "Delivered");
             case ERROR -> new Status(StatusType.DANGER, "Error");
+            case DEBOUNCED -> new Status(StatusType.INFO, "Debounced");
+            case THROTTLED -> new Status(StatusType.WARNING, "Throttled");
+            case DROPPED -> new Status(StatusType.NONE, "Dropped");
+            case SKIPPED -> new Status(StatusType.NONE, "Skipped");
+            case REPLACED -> new Status(StatusType.SUCCESS, "Replaced");
         };
     }
 

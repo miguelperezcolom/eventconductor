@@ -26,6 +26,10 @@ public class StartStepExecutionUseCase {
     final io.mateu.workflow.application.services.ProcessTrace processTrace;
     private final DownstreamEventPublisher downstreamEventPublisher;
 
+    /** Per-topic worker rate limits; optional, so hand-built instances (tests) dispatch unlimited. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    org.springframework.beans.factory.ObjectProvider<io.mateu.workflow.application.ratelimit.DispatchRateLimiter> rateLimiter;
+
     public void handle(StartStepExecutionCommand command) {
         // The step execution is read here, before the span, only to learn which process this
         // dispatch belongs to: the span is anchored to that process's trace so it lands in the same
@@ -42,7 +46,31 @@ public class StartStepExecutionUseCase {
                 () -> dispatch(command, stepExecution));
     }
 
+    /**
+     * Dispatches a task its topic's rate limit held back, now that a permit is its own (the
+     * {@code RateLimitedDispatchPass} took it). A step that is no longer PENDING — cancelled, timed out,
+     * completed by an operator while it waited — is not dispatched.
+     */
+    public void dispatchHeldBack(String stepExecutionId) {
+        var stepExecution = stepExecutionRepository.findById(stepExecutionId).orElse(null);
+        if (stepExecution == null) {
+            return;
+        }
+        workflowTracing.continuing(
+                processTrace.contextFor(stepExecution.getProcessId()),
+                "eventconductor.dispatch-step",
+                java.util.Map.of("eventconductor.process.id", String.valueOf(stepExecution.getProcessId()),
+                        "eventconductor.step.executionId", stepExecutionId,
+                        "eventconductor.step.id", String.valueOf(stepExecution.getStepId()),
+                        "eventconductor.workflow.id", String.valueOf(stepExecution.getWorkflowDefinitionId())),
+                () -> dispatch(new StartStepExecutionCommand(stepExecutionId), stepExecution, true));
+    }
+
     private void dispatch(StartStepExecutionCommand command, StepExecution stepExecution) {
+        dispatch(command, stepExecution, false);
+    }
+
+    private void dispatch(StartStepExecutionCommand command, StepExecution stepExecution, boolean permitTaken) {
         // Idempotency: only dispatch if the step is still waiting (PENDING).
         // A duplicate event arriving after the worker has already responded
         // (status RUNNING / COMPLETED / ERROR / …) is silently ignored.
@@ -50,6 +78,17 @@ public class StartStepExecutionUseCase {
             log.warn("Step execution {} is already in status {}, ignoring duplicate TaskExecutionRequested",
                     command.stepExecutionId(), stepExecution.getStatus());
             return;
+        }
+        // A rate-limited topic: no permit, no dispatch. The step stays PENDING, its timeout clock not running
+        // (it starts below, at dispatch), until the RateLimitedDispatchPass hands it a permit.
+        var limiter = rateLimiter == null ? null : rateLimiter.getIfAvailable();
+        if (!permitTaken && limiter != null && limiter.limits(stepExecution.topic())) {
+            var declared = pojoFromJson(stepExecution.getStepJson(), Step.class);
+            if (!limiter.admitOrDefer(stepExecution.id(), stepExecution.getProcessId(), stepExecution.topic(),
+                    declared.effectivePriority())) {
+                stepExecutionRepository.save(stepExecution.deferredByRateLimit());
+                return;
+            }
         }
         // The step's clock starts here, not where the step was marked started.
         //
@@ -105,7 +144,8 @@ public class StartStepExecutionUseCase {
                 stepExecution.getVariables().stream()
                         .map(variable -> new Variable(variable.name(), variable.value()))
                         .toList(),
-                stepExecution.getDispatchCount()
+                stepExecution.getDispatchCount(),
+                step.priority()
         // StepExecution.topic(), not the step's own field: it knows the default topics of the built-in
         // tasks (http-calls, llm-calls), the same ones cancellation is sent to. With step.topic() an
         // HTTP_CALL without a topic went to `downstream`, where no http worker listens.

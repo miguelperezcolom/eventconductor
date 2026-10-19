@@ -80,7 +80,7 @@ public class ProcessDBRepository implements ProcessRepository {
                 entity.getWorkflowDefinitionId(),
                 entity.getWorkflowDefinitionVersion(),
                 entity.getWorkflowDefinitionJson(),
-                entity.getBusinessKey(),
+                entity.getBusinessKey() != null ? entity.getBusinessKey() : entity.getReleasedBusinessKey(),
                 protection().variablesFromJson(entity.getVariables()),
                 ProcessStatus.valueOf(entity.getStatus()),
                 entity.getCompletionPercentage(),
@@ -90,7 +90,10 @@ public class ProcessDBRepository implements ProcessRepository {
                 entity.getPausedAt(),
                 entity.getParentStepExecutionId(),
                 entity.getVersion(),
-                replyOf(entity, protection())
+                replyOf(entity, protection()),
+                entity.getContinuedFromProcessId(),
+                entity.getContinuedAsProcessId(),
+                entity.getBusinessKey() == null && entity.getReleasedBusinessKey() != null
         );
         // Registered, so its step executions and events find the process's policy without loading it again.
         protection().policies().of(process);
@@ -135,10 +138,11 @@ public class ProcessDBRepository implements ProcessRepository {
                     .orElse(null);
             processStatusAnnouncer.announceIfChanged(process, previousStatus, searchAttributes);
         }
-        // Normalize empty businessKey to null so the unique constraint does not
-        // reject multiple processes that have no business key.
+        // Normalize empty businessKey to null: no key, nothing to claim.
         var businessKey = (process.getBusinessKey() == null || process.getBusinessKey().isBlank())
                 ? null : process.getBusinessKey();
+        // A run that handed its key over keeps it apart: the UNIQUE column names only the run holding it.
+        var released = businessKey != null && process.isBusinessKeyReleased();
         var reply = process.getReply();
         // Whether this save is the one that records the reply — the moment the other pods are told.
         // Read before the save: afterwards the row says replied either way.
@@ -149,7 +153,7 @@ public class ProcessDBRepository implements ProcessRepository {
         var sensitive = protection().policies().of(process);
         processEntityRepository.save(new ProcessEntity(
                 process.getId(),
-                businessKey,
+                released ? null : businessKey,
                 process.getName(),
                 protection().variablesJson(process.getVariables(), sensitive),
                 process.getStatus().name(),
@@ -169,7 +173,10 @@ public class ProcessDBRepository implements ProcessRepository {
                 reply == null ? null : reply.outcome().name(),
                 reply == null ? null : reply.compensation().name(),
                 reply == null ? null : reply.error(),
-                reply == null ? null : reply.repliedAt()
+                reply == null ? null : reply.repliedAt(),
+                process.getContinuedFromProcessId(),
+                process.getContinuedAsProcessId(),
+                released ? businessKey : null
         ));
         // Captured here, at the one moment the event and the context that produced it are both
         // in hand: the relay publishes this row later, from a thread that has neither.
@@ -223,8 +230,45 @@ public class ProcessDBRepository implements ProcessRepository {
 
     @Override
     public Optional<Process> findByBusinessKey(String businessKey) {
-        return processEntityRepository.findByBusinessKey(businessKey)
-                .map(this::map);
+        if (businessKey == null || businessKey.isBlank()) {
+            return Optional.empty();
+        }
+        // The run that holds the key now: the UNIQUE column names it and nothing else.
+        return processEntityRepository.findByBusinessKey(businessKey).map(this::map);
+    }
+
+    @Override
+    public List<Process> findAllByBusinessKey(String businessKey) {
+        if (businessKey == null || businessKey.isBlank()) {
+            return List.of();
+        }
+        return processEntityRepository.findAllRunsOfBusinessKey(businessKey).stream().map(this::map).toList();
+    }
+
+    /**
+     * The release goes through the ordinary save (so the optimistic version fences a concurrent takeover: two
+     * starts racing to take the key from one run cannot both win) and is flushed at once: the next run's insert
+     * of the same key must reach the UNIQUE column after it, and Hibernate orders a flush's inserts first.
+     */
+    @Override
+    public void releaseBusinessKey(String processId) {
+        findById(processId).ifPresent(process -> {
+            process.releaseBusinessKey();
+            save(process);
+            flush();
+        });
+    }
+
+    /**
+     * Inside a transaction, writes what it holds now; outside one there is nothing to write — each save has
+     * already committed on its own (the release then commits before the next run's insert, and the UNIQUE
+     * column still refuses a second holder if another start slips in between).
+     */
+    @Override
+    public void flush() {
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()) {
+            entityManager.flush();
+        }
     }
 
     @Override

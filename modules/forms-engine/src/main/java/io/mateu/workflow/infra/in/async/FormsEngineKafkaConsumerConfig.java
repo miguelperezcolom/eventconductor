@@ -35,7 +35,7 @@ public class FormsEngineKafkaConsumerConfig {
                     + (event instanceof TaskExecutionRequested task ? " " + task.taskExecutionId() : ""));
             if (event instanceof TaskExecutionRequested(
                     String taskExecutionId, String processId, String workflowDefinitionId, String stepId, String taskId,
-                    java.util.List<io.mateu.workflow.dtos.Variable> variables, Integer attempt
+                    java.util.List<io.mateu.workflow.dtos.Variable> variables, Integer attempt, Integer priority
             )) {
 
                 if ("complete-form".equals(taskId)) {

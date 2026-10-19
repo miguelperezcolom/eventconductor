@@ -44,7 +44,7 @@ public class HttpTaskInbox {
         var stored = queue.offer(HttpTask.queued(request.taskExecutionId(), request.processId(),
                 request.workflowDefinitionId(), request.stepId(), request.taskId(),
                 DownstreamEventPublisher.destinationFor(topic), request.variables(), request.attempt(),
-                EngineClock.now()));
+                EngineClock.now()).withPriority(request.effectivePriority()));
         if (!stored) {
             log.debug("Task {} attempt {} is already queued for HTTP workers; duplicate dispatch ignored",
                     request.taskExecutionId(), request.attempt());

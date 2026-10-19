@@ -70,6 +70,9 @@ public class SyncInvocationService {
     }
     final org.springframework.beans.factory.ObjectProvider<io.mateu.workflow.application.out.ProcessPlacementRepository> placement;
     final org.springframework.beans.factory.ObjectProvider<io.mateu.workflow.application.services.ProcessTrace> processTrace;
+    /** Flow control of starts (startPolicy); optional, so hand-built instances (tests) work without it. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    org.springframework.beans.factory.ObjectProvider<io.mateu.workflow.application.flowcontrol.FlowControlService> flowControl;
 
     @org.springframework.beans.factory.annotation.Value("${workflow.sharding.enabled:false}")
     boolean sharding;
@@ -255,10 +258,63 @@ public class SyncInvocationService {
                 .toList();
         var businessKey = request.businessKey() == null || request.businessKey().isBlank()
                 ? null : request.businessKey();
-        if (businessKey != null && processRepository.findByBusinessKey(businessKey).isPresent()) {
-            throw reject(definition.id(), SyncInvocationRejectedException.Reason.BUSINESS_KEY_TAKEN,
-                    "A process with business key '" + businessKey + "' already exists.");
+        if (businessKey != null) {
+            var holder = processRepository.findByBusinessKey(businessKey);
+            // Taken, unless the definition's businessKeyPolicy lets a new run take the key over from it.
+            if (holder.isPresent() && (!definition.id().equals(holder.get().getWorkflowDefinitionId())
+                    || definition.keyPolicy().decide(holder.get().getStatus())
+                    == io.mateu.workflow.domain.aggregates.BusinessKeyPolicy.Decision.KEEP)) {
+                throw reject(definition.id(), SyncInvocationRejectedException.Reason.BUSINESS_KEY_TAKEN,
+                        "A process with business key '" + businessKey + "' already exists.");
+            }
         }
+        var flow = flowControl == null ? null : flowControl.getIfAvailable();
+        if (definition.startPolicy() != null && flow != null) {
+            admitUnderPolicy(flow, definition, invocation, request, businessKey, variables);
+            return;
+        }
+        createNow(definition, invocation, request, businessKey, variables);
+    }
+
+    /**
+     * The definition's {@code startPolicy} decides (2.33), with nothing held back: a synchronous caller is
+     * answered now. Started (a singleton's replacement included) → the invocation goes on; a singleton that
+     * skips → {@code SINGLETON_RUNNING}; no room in the throttle's window → {@code THROTTLED}, whatever its
+     * {@code onLimit} — the invocation is rolled back with the refusal, so a retry is a new request.
+     */
+    private void admitUnderPolicy(io.mateu.workflow.application.flowcontrol.FlowControlService flow,
+                                  WorkflowDefinition definition, Invocation invocation, StartRequest request,
+                                  String businessKey, List<Variable> variables) {
+        var values = new java.util.LinkedHashMap<String, String>();
+        variables.forEach(v -> values.put(v.name(), v.value()));
+        String flowKey;
+        try {
+            flowKey = io.mateu.workflow.application.flowcontrol.FlowKeys.overVariables(definition.startPolicy(),
+                    definition.id(), businessKey, values);
+        } catch (io.mateu.workflow.application.flowcontrol.FlowKeys.UnrenderableKeyException e) {
+            throw new IllegalArgumentException(e.getMessage());
+        }
+        var start = new io.mateu.workflow.application.flowcontrol.FlowStart(
+                io.mateu.workflow.application.flowcontrol.FlowStart.startScope(definition.id()), flowKey, definition.id(),
+                businessKey, values, request.caller(), io.mateu.workflow.application.flowcontrol.FlowStart.START, null,
+                definition.startPolicy(), false);
+        var decision = flow.admit(start, s -> {
+            createNow(definition, invocation, request, businessKey, variables);
+            return new io.mateu.workflow.application.flowcontrol.FlowControlService.Started(invocation.processId(), businessKey);
+        }, io.mateu.workflow.application.flowcontrol.FlowControlService.Mode.IMMEDIATE_ONLY);
+        switch (decision.outcome()) {
+            case STARTED, REPLACED -> {
+            }
+            case SKIPPED -> throw reject(definition.id(), SyncInvocationRejectedException.Reason.SINGLETON_RUNNING,
+                    "A start of '" + definition.id() + "'" + (flowKey.isEmpty() ? "" : " for key '" + flowKey + "'")
+                            + " is still running (startPolicy singleton: skip).");
+            default -> throw reject(definition.id(), SyncInvocationRejectedException.Reason.THROTTLED,
+                    "Start of '" + definition.id() + "' " + decision.detail() + "; retry later.");
+        }
+    }
+
+    private void createNow(WorkflowDefinition definition, Invocation invocation, StartRequest request,
+                           String businessKey, List<Variable> variables) {
         boolean tookLock = takeProcessLockOrRefuse(definition, invocation, businessKey, variables);
         try {
             createProcessUseCase.handle(new CreateProcessCommand(invocation.processId(),

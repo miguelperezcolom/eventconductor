@@ -62,7 +62,7 @@ public class RuleTaskKafkaConsumerConfig {
         return event -> {
             if (event instanceof TaskExecutionRequested(
                     String taskExecutionId, String processId, String workflowDefinitionId, String stepId,
-                    String taskId, List<Variable> variables, Integer attempt)
+                    String taskId, List<Variable> variables, Integer attempt, Integer priority)
                     && EVALUATE_RULE_TASK_ID.equals(taskId)) {
                 evaluate(taskExecutionId, processId, variables, attempt);
             }

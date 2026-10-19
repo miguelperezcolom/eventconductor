@@ -12,7 +12,12 @@ import java.util.Optional;
 
 public interface ProcessEntityRepository extends JpaRepository<ProcessEntity, String> {
 
+    /** The run that holds this key now (the column is UNIQUE; a run that handed it over keeps it apart). */
     Optional<ProcessEntity> findByBusinessKey(String businessKey);
+
+    /** Every run with this key, oldest first: a chain of CONTINUE_AS_NEW runs, or the runs a reuse policy allowed. */
+    @Query("select p from ProcessEntity p where p.businessKey = :key or p.releasedBusinessKey = :key order by p.created")
+    List<ProcessEntity> findAllRunsOfBusinessKey(@Param("key") String businessKey);
 
     /** Which of these processes have replied — one query for every caller waiting on a pod. */
     @Query("select p.id from ProcessEntity p where p.id in :ids and p.repliedAt is not null")
@@ -59,12 +64,12 @@ public interface ProcessEntityRepository extends JpaRepository<ProcessEntity, St
             select p.id as id, p.name as name, p.status as status,
                    p.completionPercentage as completionPercentage,
                    p.created as created, p.started as started, p.finished as finished,
-                   p.businessKey as businessKey, p.workflowDefinitionId as workflowDefinitionId
+                   coalesce(p.businessKey, p.releasedBusinessKey) as businessKey, p.workflowDefinitionId as workflowDefinitionId
             from ProcessEntity p
             where (:onlyErrors = false or p.status = 'ERROR')
               and (:pattern is null
-                   or lower(concat(coalesce(p.name, ''), ' ', coalesce(p.businessKey, ''))) like :pattern)
-              and (:businessKey is null or lower(coalesce(p.businessKey, '')) like :businessKey)
+                   or lower(concat(coalesce(p.name, ''), ' ', coalesce(p.businessKey, p.releasedBusinessKey, ''))) like :pattern)
+              and (:businessKey is null or lower(coalesce(p.businessKey, p.releasedBusinessKey, '')) like :businessKey)
               and (:definitionId is null or p.workflowDefinitionId = :definitionId)
               and (:anyDefinition = true or p.workflowDefinitionId in :definitionIds)
               and (:anyStatus = true or p.status in :statuses)
@@ -95,8 +100,8 @@ public interface ProcessEntityRepository extends JpaRepository<ProcessEntity, St
             from ProcessEntity p
             where (:onlyErrors = false or p.status = 'ERROR')
               and (:pattern is null
-                   or lower(concat(coalesce(p.name, ''), ' ', coalesce(p.businessKey, ''))) like :pattern)
-              and (:businessKey is null or lower(coalesce(p.businessKey, '')) like :businessKey)
+                   or lower(concat(coalesce(p.name, ''), ' ', coalesce(p.businessKey, p.releasedBusinessKey, ''))) like :pattern)
+              and (:businessKey is null or lower(coalesce(p.businessKey, p.releasedBusinessKey, '')) like :businessKey)
               and (:definitionId is null or p.workflowDefinitionId = :definitionId)
               and (:anyDefinition = true or p.workflowDefinitionId in :definitionIds)
               and (:anyStatus = true or p.status in :statuses)

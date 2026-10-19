@@ -24,8 +24,25 @@ public record CreateProcessCommand(
          * The caller's W3C trace context, for the process to join rather than start a trace of its
          * own; null when the caller sent none. See {@code ProcessTrace}.
          */
-        TraceContext traceContext
+        TraceContext traceContext,
+        /**
+         * CONTINUE_AS_NEW only: the run this one continues — it holds the key, and hands it over whatever
+         * the definition's businessKeyPolicy says. Null for every other creation.
+         */
+        String continuedFromProcessId,
+        /**
+         * CONTINUE_AS_NEW with version {@code same}: the definition snapshot the new run starts from (the one
+         * the previous run ran), instead of the definition as it is now. Null: the current definition.
+         */
+        io.mateu.workflow.domain.aggregates.WorkflowDefinition definition
 ) {
+
+    public CreateProcessCommand(String processId, String workflowDefinitionId, String businessKey,
+                                List<Variable> variables, String parentStepExecutionId,
+                                AuthorizationContext caller, TraceContext traceContext) {
+        this(processId, workflowDefinitionId, businessKey, variables, parentStepExecutionId, caller, traceContext,
+                null, null);
+    }
 
     /** The shape before trace propagation: a creation that joins no caller's trace. */
     public CreateProcessCommand(String processId, String workflowDefinitionId, String businessKey,

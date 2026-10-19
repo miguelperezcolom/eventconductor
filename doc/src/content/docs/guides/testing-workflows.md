@@ -178,6 +178,10 @@ the delay is over, and `advanceTime` stops there. Each run is its own step execu
 `0 0 9 * * *` schedule starts three processes, each at 09:00. Find them with
 `runtime.processes("nightly-report")`. **Retention purges** run too, when they are enabled.
 
+**Flow control** too: `advanceTime` stops where a [`startPolicy`](/guides/flow-control/#testing) debounce
+window closes or a throttle window opens, and where a [rate-limited topic](/guides/flow-control/#worker-rate-limits)
+has permits again.
+
 ## Mocking tasks
 
 | Mock | Matches |

@@ -1,0 +1,15 @@
+id: flow-throttle-trigger
+name: One payout run per two seconds, the rest queued
+version: 1
+triggers:
+  - id: on-payout
+    destination: e2e-payouts
+    type: com.acme.payout.requested
+    businessKey: "payout-${data.n}"
+    variables: { n: "${data.n}" }
+    startPolicy:
+      throttle: { limit: 1, period: PT2S }
+steps:
+  - { id: start, type: START, name: Start }
+  - { id: payout, type: ACTION, name: Pay out, topic: work, preconditionStepId: start }
+  - { id: end, type: END, name: End, preconditionStepId: payout }

@@ -1,0 +1,12 @@
+id: partner-batch
+name: A call per item to the partner API
+version: 1
+steps:
+  - { id: start, type: START, name: Start }
+  - id: batch-call
+    type: ACTION
+    name: Call per item
+    topic: partner-api
+    preconditionStepId: start
+    forEach: { items: items, as: item, mode: parallel }
+  - { id: end, type: END, name: End, preconditionStepId: batch-call }

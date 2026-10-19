@@ -77,8 +77,10 @@ Variables are process variables, which are strings: a JSON string passes through
 | the deadline passed first | **202** + `Location` + `Retry-After` | the envelope without a reply — **the process carries on** |
 | missing `Idempotency-Key` | 400 | |
 | the key was already used for a different request | 422 | |
-| not sync-invocable, disabled, business key taken, lock busy (`onLockBusy: FAIL`), or placed on another shard | 409 | a problem with `reason` (and `shard` for `ON_ANOTHER_SHARD`) |
+| not sync-invocable, disabled, business key taken (and the definition's [`businessKeyPolicy`](/guides/long-running-processes/#businesskeypolicy) keeps it), lock busy (`onLockBusy: FAIL`), or placed on another shard | 409 | a problem with `reason` (and `shard` for `ON_ANOTHER_SHARD`) |
 | too many callers waiting on this node | 429 + `Retry-After` | nothing was created |
+| the definition's [`startPolicy`](/guides/flow-control/) singleton (`skip`) has a start of the key running | 409 `SINGLETON_RUNNING` | nothing was created |
+| the definition's `startPolicy` throttle has no room in its window (whatever its `onLimit`: a synchronous caller is never queued) | 429 `THROTTLED` + `Retry-After` | nothing was created |
 
 The envelope:
 

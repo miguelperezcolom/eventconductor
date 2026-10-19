@@ -120,8 +120,12 @@ public class InMemoryProcessRepository implements ProcessRepository {
 
     @Override
     public Optional<Process> findByBusinessKey(String businessKey) {
+        if (businessKey == null) {
+            return Optional.empty();
+        }
+        // The run that holds it: one at a time, as the database's UNIQUE column has it.
         return store.values().stream()
-                .filter(p -> businessKey.equals(p.getBusinessKey()))
-                .findFirst();
+                .filter(p -> businessKey.equals(p.getBusinessKey()) && !p.isBusinessKeyReleased())
+                .max(Comparator.comparing(Process::getCreated, Comparator.nullsFirst(Comparator.naturalOrder())));
     }
 }

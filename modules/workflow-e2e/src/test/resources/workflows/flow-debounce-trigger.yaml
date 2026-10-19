@@ -1,0 +1,14 @@
+id: flow-debounce-trigger
+name: Re-index a product once its edits settle
+version: 1
+triggers:
+  - id: on-edit
+    destination: e2e-catalog
+    type: com.acme.product.edited
+    businessKey: "reindex-${data.sku}-${data.rev}"
+    variables: { sku: "${data.sku}", rev: "${data.rev}" }
+    startPolicy: { key: "${data.sku}", debounce: PT1S }
+steps:
+  - { id: start, type: START, name: Start }
+  - { id: reindex, type: ACTION, name: Re-index, topic: work, preconditionStepId: start }
+  - { id: end, type: END, name: End, preconditionStepId: reindex }

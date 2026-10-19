@@ -89,6 +89,26 @@ public class Process extends AggregateRoot implements Identifiable {
      */
     @Hidden
     private ProcessReply reply;
+    /**
+     * The run this one continues (CONTINUE_AS_NEW): the previous process of the chain, same business key.
+     * Null for a process that started any other way.
+     */
+    @Hidden
+    private String continuedFromProcessId;
+    /**
+     * The run that continues this one: set when a CONTINUE_AS_NEW step ended this process (COMPLETED,
+     * outcome {@code continued}). Null otherwise.
+     */
+    @Hidden
+    private String continuedAsProcessId;
+    /**
+     * Whether this run has handed its business key over to a later run (a CONTINUE_AS_NEW, or a start the
+     * definition's {@code businessKeyPolicy} let reuse the key). It still shows the key; it no longer holds it:
+     * the store keeps a released key apart ({@code process_entity.released_business_key}) so the UNIQUE column
+     * {@code business_key} names only the run that holds it now.
+     */
+    @Hidden
+    private boolean businessKeyReleased;
 
     public static Process create(
             String processId,
@@ -163,6 +183,28 @@ public class Process extends AggregateRoot implements Identifiable {
             this.variables = new java.util.ArrayList<>(this.variables);
         }
         this.variables.removeIf(variable -> names.contains(variable.name()));
+    }
+
+    /** {@code continued} for a run a CONTINUE_AS_NEW ended (the next run carries on), else null. */
+    public String outcome() {
+        return continuedAsProcessId != null ? "continued" : null;
+    }
+
+    /** Hands this run's business key over to a later run: it keeps showing it, no longer holds it. */
+    public void releaseBusinessKey() {
+        if (businessKey != null && !businessKey.isBlank()) {
+            this.businessKeyReleased = true;
+        }
+    }
+
+    /** Marks this new process as the run that continues {@code previousRunId} (CONTINUE_AS_NEW). */
+    public void continues(String previousRunId) {
+        this.continuedFromProcessId = previousRunId;
+    }
+
+    /** Ends this run as continued by {@code nextProcessId}: COMPLETED, with the link to its successor. */
+    public void continueAs(String nextProcessId) {
+        this.continuedAsProcessId = nextProcessId;
     }
 
     /** Whether this process has already given its (one) reply. */

@@ -63,8 +63,8 @@ public class EventTriggerImporter {
 
     private static final YAMLMapper YAML = new YAMLMapper();
     private static final Set<String> ENTRY_FIELDS =
-            Set.of("id", "destination", "type", "workflow", "filter", "businessKey", "variables");
-    private static final String ALLOWED = "id, destination, type, workflow, filter, businessKey, variables";
+            Set.of("id", "destination", "type", "workflow", "filter", "businessKey", "variables", "startPolicy");
+    private static final String ALLOWED = "id, destination, type, workflow, filter, businessKey, variables, startPolicy";
 
     final WorkflowDefinitionRepository workflowDefinitionRepository;
     final EventTriggerRepository eventTriggerRepository;
@@ -199,6 +199,31 @@ public class EventTriggerImporter {
                         + " Put the workflow in the template (e.g. '<workflow>-${data.id}').", workflows, template));
     }
 
+    /** An entry's {@code startPolicy}, validated by the shared rules; null when absent or invalid (with errors). */
+    private static io.mateu.workflow.domain.aggregates.StartPolicy startPolicy(JsonNode node, String where, List<String> errors) {
+        if (node == null || node.isNull()) {
+            return null;
+        }
+        Object raw;
+        try {
+            raw = YAML.treeToValue(node, Object.class);
+        } catch (Exception e) {
+            errors.add(where + ": startPolicy could not be read (" + e.getMessage() + ")");
+            return null;
+        }
+        var violations = io.mateu.workflow.analysis.FlowControlRules.startPolicyViolations(raw, where + " startPolicy");
+        if (!violations.isEmpty()) {
+            errors.addAll(violations);
+            return null;
+        }
+        try {
+            return YAML.treeToValue(node, io.mateu.workflow.domain.aggregates.StartPolicy.class);
+        } catch (Exception e) {
+            errors.add(where + ": startPolicy could not be read (" + e.getMessage() + ")");
+            return null;
+        }
+    }
+
     /** Parses one events file into its valid entries and the errors of the others. Pure. */
     public static Parsed parse(String fileName, byte[] content) {
         JsonNode root;
@@ -252,8 +277,10 @@ public class EventTriggerImporter {
             var variables = variables(node.get("variables"), where, entryErrors);
             entryErrors.addAll(io.mateu.workflow.domain.aggregates.WorkflowDefinition.eventTemplateProblems(
                     filter, businessKey, variables, where));
+            var startPolicy = startPolicy(node.get("startPolicy"), where, entryErrors);
             if (entryErrors.isEmpty()) {
-                entries.add(new Entry(workflow.trim(), new EventTrigger(id, destination, type, filter, businessKey, variables)));
+                entries.add(new Entry(workflow.trim(), new EventTrigger(id, destination, type, filter, businessKey, variables,
+                        startPolicy)));
             } else {
                 errors.addAll(entryErrors);
             }

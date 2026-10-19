@@ -129,6 +129,14 @@ public class WorkflowDefinitionVersioningService {
         if (d.updates() != null) {
             canonical.put("updates", io.mateu.core.infra.JsonSerializer.toJson(d.updates()));
         }
+        // Flow control and the business-key policy (2.33) decide what a start does, as the triggers do;
+        // only written when present, so a definition without them hashes as before.
+        if (d.startPolicy() != null) {
+            canonical.put("startPolicy", io.mateu.core.infra.JsonSerializer.toJson(d.startPolicy()));
+        }
+        if (d.businessKeyPolicy() != null) {
+            canonical.put("businessKeyPolicy", d.businessKeyPolicy());
+        }
         canonical.put("defaultMaxStepExecutions", d.defaultMaxStepExecutions());
         canonical.put("steps", d.steps().stream()
                 .sorted(Comparator.comparing(Step::id, Comparator.nullsLast(Comparator.naturalOrder())))

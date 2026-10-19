@@ -117,13 +117,21 @@ public class ProcessRestController {
             description = "Starts a process of the definition. Idempotent on the business key: the same key and"
                     + " definition again returns the existing process with 200.")
     @ApiResponses({
-            @ApiResponse(responseCode = "201", description = "Started; Location names the new process."),
-            @ApiResponse(responseCode = "200", description = "A process of this definition already has the business key."),
+            @ApiResponse(responseCode = "201", description = "Started; Location names the new process.",
+                    content = @Content(schema = @Schema(implementation = ProcessView.class))),
+            @ApiResponse(responseCode = "200", description = "A process of this definition already has the business key"
+                    + " (and the definition's businessKeyPolicy keeps it), or its startPolicy's singleton skipped the start"
+                    + " while this, the running one, goes on (EventConductor-Flow-Control: skipped).",
+                    content = @Content(schema = @Schema(implementation = ProcessView.class))),
+            @ApiResponse(responseCode = "202", description = "The definition's startPolicy held the start back: debounced or"
+                    + " throttled (queued). No process yet.", content = @Content(schema = @Schema(implementation = ProcessApi.StartHeldBackView.class))),
+            @ApiResponse(responseCode = "429", description = "The definition's startPolicy throttle dropped the start; Retry-After"
+                    + " says when a window has room.", content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class))),
             @ApiResponse(responseCode = "400", description = "No definitionId, or over the engine's input limits.", content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class))),
             @ApiResponse(responseCode = "403", description = "The caller may not start the definition.", content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class))),
             @ApiResponse(responseCode = "404", description = "No such definition.", content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class))),
             @ApiResponse(responseCode = "409", description = "The key is taken by another definition's process, or the definition accepts no new processes.", content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))})
-    public ResponseEntity<ProcessView> start(
+    public ResponseEntity<?> start(
             @Parameter(hidden = true) @RequestHeader(value = "X-Api-Key", required = false) String apiKey,
             @Parameter(description = "W3C trace context: the process joins the caller's trace.")
             @RequestHeader(value = TraceContext.TRACEPARENT, required = false) String traceparent,
@@ -136,11 +144,29 @@ public class ProcessRestController {
         }
         var outcome = processes.start(body.definitionId(), body.businessKey(), variablesOf(body.variables()),
                 caller(), TraceContext.of(traceparent, tracestate, baggage));
+        var flow = outcome.flowControl();
+        if (outcome.process() == null) {
+            // Held back by the startPolicy: debounced or throttled. Nothing to point at yet.
+            return ResponseEntity.accepted()
+                    .header(FLOW_CONTROL_HEADER, flow == null ? "held" : flow.outcome().text())
+                    .body(new ProcessApi.StartHeldBackView(flow == null ? null : flow.outcome().text(),
+                            flow == null ? null : flow.businessKey(), flow == null ? null : format(flow.dueAt()),
+                            flow == null ? null : flow.detail()));
+        }
         var view = ProcessView.of(outcome.process());
         var location = URI.create("/workflow/api/processes/" + view.id());
-        return outcome.created()
-                ? ResponseEntity.created(location).body(view)
-                : ResponseEntity.ok().location(location).body(view);
+        var response = outcome.created() ? ResponseEntity.created(location) : ResponseEntity.ok().location(location);
+        if (flow != null) {
+            response.header(FLOW_CONTROL_HEADER, flow.outcome().text());
+        }
+        return response.body(view);
+    }
+
+    /** What a definition's startPolicy decided about a start (2.33): started, replaced, skipped, debounced, throttled. */
+    static final String FLOW_CONTROL_HEADER = "EventConductor-Flow-Control";
+
+    private static String format(java.time.LocalDateTime time) {
+        return time == null ? null : time.toString();
     }
 
     // ── Reads ────────────────────────────────────────────────────────────────────────────────────
@@ -463,6 +489,16 @@ public class ProcessRestController {
     @ExceptionHandler({BusinessKeyTakenException.class, NotAcceptingInstancesException.class})
     ProblemDetail onConflict(RuntimeException e) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, e.getMessage());
+    }
+
+    @ExceptionHandler(ProcessOperationsService.StartDroppedException.class)
+    ResponseEntity<ProblemDetail> onDropped(ProcessOperationsService.StartDroppedException e) {
+        var response = ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).header(FLOW_CONTROL_HEADER, "dropped");
+        if (e.retryAt() != null) {
+            var seconds = Math.max(1, java.time.Duration.between(io.mateu.workflow.time.EngineClock.now(), e.retryAt()).toSeconds());
+            response.header(org.springframework.http.HttpHeaders.RETRY_AFTER, String.valueOf(seconds));
+        }
+        return response.body(ProblemDetail.forStatusAndDetail(HttpStatus.TOO_MANY_REQUESTS, e.getMessage()));
     }
 
     @ExceptionHandler(FlowAuthorizationDeniedException.class)

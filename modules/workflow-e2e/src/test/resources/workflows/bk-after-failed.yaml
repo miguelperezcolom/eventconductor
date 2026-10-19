@@ -1,0 +1,8 @@
+id: bk-after-failed
+name: A key reusable once its run failed
+version: 1
+businessKeyPolicy: allowAfterFailed
+steps:
+  - { id: start, type: START, name: Start }
+  - { id: bkx-work, type: ACTION, name: Work, topic: work, preconditionStepId: start }
+  - { id: end, type: END, name: End, preconditionStepId: bkx-work }

@@ -37,6 +37,11 @@ public class NotifyParentStepService {
         if (process.getParentStepExecutionId() == null) {
             return;
         }
+        if (process.getContinuedAsProcessId() != null) {
+            // A CONTINUE_AS_NEW handed the work on to the next run of the chain, which carries the same
+            // parent step: the parent hears when the LAST run ends, not when this one does.
+            return;
+        }
         var parentStepExecution = stepExecutionRepository.findById(process.getParentStepExecutionId()).orElse(null);
         if (parentStepExecution == null) {
             log.warn("Child process {} references unknown parent step execution {}",

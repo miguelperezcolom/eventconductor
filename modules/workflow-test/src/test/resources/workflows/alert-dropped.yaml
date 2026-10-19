@@ -1,0 +1,15 @@
+id: alert-dropped
+name: At most two alerts a minute, the rest dropped
+version: 1
+triggers:
+  - id: on-alert
+    destination: alerts
+    type: com.acme.alert.raised
+    businessKey: "alert-${data.n}"
+    variables: { n: "${data.n}" }
+    startPolicy:
+      throttle: { limit: 2, period: PT1M, onLimit: drop }
+steps:
+  - { id: start, type: START, name: Start }
+  - { id: page, type: ACTION, name: Page, topic: alerts, preconditionStepId: start }
+  - { id: end, type: END, name: End, preconditionStepId: page }

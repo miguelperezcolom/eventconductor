@@ -114,7 +114,8 @@ public class EventRestController {
 
     /** The body of a create or an edit. {@code id} and {@code workflowId} are only read on create. */
     public record TriggerBody(String id, String workflowId, String destination, String type, String filter,
-                              String businessKey, Map<String, Object> variables) {
+                              String businessKey, Map<String, Object> variables,
+                              io.mateu.workflow.domain.aggregates.StartPolicy startPolicy) {
     }
 
     @PostMapping("/triggers")
@@ -125,7 +126,8 @@ public class EventRestController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A JSON body is required.");
         }
         var created = eventTriggerService.create(new EventTriggerService.TriggerDraft(body.id(), body.workflowId(),
-                body.destination(), body.type(), body.filter(), body.businessKey(), body.variables()), callerContext());
+                body.destination(), body.type(), body.filter(), body.businessKey(), body.variables(), body.startPolicy()),
+                callerContext());
         return org.springframework.http.ResponseEntity
                 .created(java.net.URI.create("/workflow/api/triggers/" + created.workflowId() + "/" + created.triggerId()))
                 .body(created);
@@ -141,7 +143,7 @@ public class EventRestController {
         }
         return eventTriggerService.update(workflowId, triggerId, new EventTriggerService.TriggerDraft(triggerId,
                 body.workflowId() == null ? workflowId : body.workflowId(), body.destination(), body.type(), body.filter(),
-                body.businessKey(), body.variables()), callerContext());
+                body.businessKey(), body.variables(), body.startPolicy()), callerContext());
     }
 
     @org.springframework.web.bind.annotation.DeleteMapping("/triggers/{workflowId}/{triggerId}")

@@ -99,6 +99,8 @@ final class PostgresTestDatabase {
                 .dataSource(dataSource)
                 .locations("classpath:db/migration/workflow")
                 .table("workflow_schema_history")
+                // As ManagedSchema: V56.1 builds indexes CONCURRENTLY, which a transactional lock would block.
+                .configuration(java.util.Map.of("flyway.postgresql.transactional.lock", "false"))
                 .load()
                 .migrate();
     }
@@ -109,6 +111,8 @@ final class PostgresTestDatabase {
                 .dataSource(dataSource)
                 .locations("classpath:db/migration/workflow")
                 .table("workflow_schema_history")
+                // As ManagedSchema: V56.1 builds indexes CONCURRENTLY, which a transactional lock would block.
+                .configuration(java.util.Map.of("flyway.postgresql.transactional.lock", "false"))
                 .target(version)
                 .load()
                 .migrate();

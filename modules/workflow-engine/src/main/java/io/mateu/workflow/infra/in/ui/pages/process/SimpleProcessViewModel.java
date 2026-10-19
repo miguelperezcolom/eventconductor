@@ -122,6 +122,16 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
      */
     Status invocation;
 
+    /**
+     * CONTINUE_AS_NEW (2.33): the run this one continues, and the run that continues it — the ids of the
+     * neighbouring runs of the chain, under the same business key. Hidden when there are none.
+     */
+    @Label("Continues run")
+    String continuedFrom;
+
+    @Label("Continued as run")
+    String continuedAs;
+
     /** Raw domain status, kept for the pause/resume toolbar visibility rules (the badge shows {@link #status}). */
     @Hidden
     ProcessStatus processStatus;
@@ -287,6 +297,12 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
                 .toList();
         // Sensitive values read as the mask; the Reveal action is the audited way to read one.
         this.variables = io.mateu.workflow.application.services.SensitiveVariableMasking.variables(process).stream().map(variable -> new Variable(variable.name(), variable.value())).toList();
+        this.continuedFrom = process.getContinuedFromProcessId();
+        this.continuedAs = process.getContinuedAsProcessId();
+        if (this.continuedAs != null) {
+            // COMPLETED, handed over: say so on the badge rather than as a plain completion.
+            this.status = new Status(StatusType.SUCCESS, "Continued as new");
+        }
         loadReply(process);
         this.updates = updateEntries(id, processUpdateRepository,
                 io.mateu.workflow.application.services.SensitiveVariableMasking.namesOf(process));
@@ -991,6 +1007,12 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
     public boolean isHidden(String memberName, HttpRequest httpRequest) {
         if ("invocation".equals(memberName)) {
             return invocation == null;
+        }
+        if ("continuedFrom".equals(memberName)) {
+            return continuedFrom == null;
+        }
+        if ("continuedAs".equals(memberName)) {
+            return continuedAs == null;
         }
         if (memberName != null && memberName.startsWith("repl")) {
             // The whole Reply tab: nothing to show until the process has answered.

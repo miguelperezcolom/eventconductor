@@ -358,6 +358,20 @@ public class SpecValidator {
             schedules.forEach(schedule -> scheduleIds.add(text(schedule, "id")));
             violations.addAll(io.mateu.workflow.analysis.ScheduleRules.duplicateIdViolations(scheduleIds, "schedules"));
         }
+        // Flow control and the business-key policy (2.33): the engine's own FlowControlRules.
+        JsonNode startPolicy = wf.get("startPolicy");
+        if (startPolicy != null && !startPolicy.isNull()) {
+            Object policy = TEMPLATE_READER.convertValue(startPolicy, Object.class);
+            violations.addAll(io.mateu.workflow.analysis.FlowControlRules.startPolicyViolations(policy, "startPolicy"));
+            JsonNode sync = wf.get("syncInvocation");
+            violations.addAll(io.mateu.workflow.analysis.FlowControlRules.syncInvocationViolations(policy,
+                    sync != null && !sync.isNull(), "startPolicy"));
+        }
+        JsonNode keyPolicy = wf.get("businessKeyPolicy");
+        if (keyPolicy != null && !keyPolicy.isNull()) {
+            violations.addAll(io.mateu.workflow.analysis.FlowControlRules.businessKeyPolicyViolations(
+                    keyPolicy.isTextual() ? keyPolicy.asText() : keyPolicy.toString(), null));
+        }
         // Event triggers: the engine's own EventTriggerRules, then their filter and templates.
         JsonNode triggers = wf.get("triggers");
         if (triggers != null && triggers.isArray()) {
@@ -369,6 +383,11 @@ public class SpecValidator {
                 violations.addAll(io.mateu.workflow.analysis.EventTriggerRules.triggerViolations(
                         text(trigger, "id"), text(trigger, "destination"), text(trigger, "type"), where));
                 checkEventReading(trigger, "businessKey", where, violations);
+                JsonNode triggerPolicy = trigger.get("startPolicy");
+                if (triggerPolicy != null && !triggerPolicy.isNull()) {
+                    violations.addAll(io.mateu.workflow.analysis.FlowControlRules.startPolicyViolations(
+                            TEMPLATE_READER.convertValue(triggerPolicy, Object.class), where + ".startPolicy"));
+                }
             }
             violations.addAll(io.mateu.workflow.analysis.EventTriggerRules.duplicateIdViolations(triggerIds, "triggers"));
         }
@@ -423,6 +442,26 @@ public class SpecValidator {
             }
             if ("START".equals(type) && !preconditions.isEmpty()) {
                 violations.add("START step '" + id + "' cannot have preconditions.");
+            }
+            // Task priority and CONTINUE_AS_NEW (2.33): the engine's own FlowControlRules.
+            JsonNode priority = step.get("priority");
+            if (priority != null && !priority.isNull()) {
+                violations.addAll(io.mateu.workflow.analysis.FlowControlRules.priorityViolations(id, type,
+                        priority.isNumber() ? (Object) priority.numberValue() : priority.asText()));
+            }
+            JsonNode continueAsNew = step.get("continueAsNew");
+            if ("CONTINUE_AS_NEW".equals(type) || (continueAsNew != null && !continueAsNew.isNull())) {
+                var successors = new ArrayList<String>();
+                for (JsonNode other : steps) {
+                    if (text(other, "id") != null && preconditions(other).contains(id)) {
+                        successors.add(text(other, "id"));
+                    }
+                }
+                violations.addAll(io.mateu.workflow.analysis.FlowControlRules.continueAsNewViolations(id, type,
+                        continueAsNew == null || continueAsNew.isNull() ? null
+                                : TEMPLATE_READER.convertValue(continueAsNew, Object.class),
+                        successors, has(step, "forEach") || has(step, "repeat")
+                                || has(step, "loopBack")));
             }
             if (!"START".equals(type) && !"WAIT_FOR_MESSAGE".equals(type) && preconditions.isEmpty()
                     && !compensationTargets.contains(id) && !toolSteps.contains(id)) {
@@ -893,6 +932,11 @@ public class SpecValidator {
         if (node == null) return null;
         JsonNode value = node.get(field);
         return value != null && value.isTextual() ? value.asText() : null;
+    }
+
+    private static boolean has(JsonNode node, String field) {
+        var value = node.get(field);
+        return value != null && !value.isNull();
     }
 
     private static boolean isSet(String value) {

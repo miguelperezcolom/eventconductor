@@ -1,0 +1,14 @@
+id: order-sync
+name: Sync a customer's orders once the burst is over
+version: 1
+triggers:
+  - id: on-order
+    destination: orders
+    type: com.acme.order.updated
+    businessKey: "sync-${data.customerId}-${data.seq}"
+    variables: { customerId: "${data.customerId}", seq: "${data.seq}" }
+    startPolicy: { key: "${data.customerId}", debounce: PT30S }
+steps:
+  - { id: start, type: START, name: Start }
+  - { id: sync, type: ACTION, name: Sync, topic: sync, preconditionStepId: start }
+  - { id: end, type: END, name: End, preconditionStepId: sync }

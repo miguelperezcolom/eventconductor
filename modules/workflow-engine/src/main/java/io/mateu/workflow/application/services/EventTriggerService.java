@@ -76,7 +76,14 @@ public class EventTriggerService {
      * {@code variables} null means "data's top-level members", empty means none.
      */
     public record TriggerDraft(String id, String workflowId, String destination, String type, String filter,
-                               String businessKey, Map<String, Object> variables) {
+                               String businessKey, Map<String, Object> variables,
+                               io.mateu.workflow.domain.aggregates.StartPolicy startPolicy) {
+
+        /** A draft with no start policy of its own (the definition's applies, if any). */
+        public TriggerDraft(String id, String workflowId, String destination, String type, String filter,
+                            String businessKey, Map<String, Object> variables) {
+            this(id, workflowId, destination, type, filter, businessKey, variables, null);
+        }
     }
 
     /** No trigger has that key. */
@@ -126,7 +133,7 @@ public class EventTriggerService {
                               Map<String, Object> variables, String workflowStatus, boolean workflowPaused,
                               boolean paused, Instant pausedAt, String pausedBy, TriggerState state,
                               String origin, String source, String sourceLabel, String declaredIn, String duplicateOf,
-                              boolean editable) {
+                              boolean editable, io.mateu.workflow.domain.aggregates.StartPolicy startPolicy) {
 
         /** The key the trigger's pause is kept under: {@code <workflow>/<trigger>}. */
         public String key() {
@@ -223,7 +230,7 @@ public class EventTriggerService {
             violations.add("a trigger's workflow never changes: delete it and create one for '" + draft.workflowId() + "'");
         }
         var trigger = validated(entry.trigger().id(), new TriggerDraft(triggerId, workflowId, draft.destination(), draft.type(),
-                draft.filter(), draft.businessKey(), draft.variables()), violations);
+                draft.filter(), draft.businessKey(), draft.variables(), draft.startPolicy()), violations);
         authorize(workflowId, caller, "event trigger '" + triggerId + "'");
         fileTriggers.save(new EventFileTrigger(EventFileTrigger.API_SOURCE, 0, workflowId, trigger));
         log.info("Event trigger '{}' of workflow '{}' updated ({} on {})", triggerId, workflowId, trigger.type(), trigger.destination());
@@ -321,10 +328,14 @@ public class EventTriggerService {
         // would only fail later, as an ERROR receipt on every event.
         violations.addAll(io.mateu.workflow.domain.aggregates.WorkflowDefinition.eventTemplateProblems(
                 draft.filter(), draft.businessKey(), draft.variables(), "the trigger"));
+        if (draft.startPolicy() != null) {
+            violations.addAll(draft.startPolicy().violations("startPolicy"));
+        }
         if (!violations.isEmpty()) {
             throw new InvalidTriggerException(violations);
         }
-        return new EventTrigger(id, draft.destination(), draft.type(), draft.filter(), draft.businessKey(), draft.variables());
+        return new EventTrigger(id, draft.destination(), draft.type(), draft.filter(), draft.businessKey(), draft.variables(),
+                draft.startPolicy());
     }
 
     /** Pauses a trigger: events that arrive while it is paused start nothing, and are not replayed on resume. */
@@ -389,7 +400,7 @@ public class EventTriggerService {
                 definition.status().name(), definition.paused(), pause != null,
                 pause == null ? null : pause.pausedAt(), pause == null ? null : pause.pausedBy(), state,
                 entry.origin().name(), entry.source(), entry.sourceLabel(), entry.declaredIn(), entry.duplicateOf(),
-                entry.editable());
+                entry.editable(), trigger.startPolicy());
     }
 
     private List<WorkflowDefinition> definitions() {

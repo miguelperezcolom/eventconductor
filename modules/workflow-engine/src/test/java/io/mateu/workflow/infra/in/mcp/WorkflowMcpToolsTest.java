@@ -100,7 +100,7 @@ class WorkflowMcpToolsTest {
                 .map(java.lang.reflect.Method::getName).toList();
         assertThat(Arrays.stream(callbacks).map(c -> c.getToolDefinition().name()))
                 .containsExactlyInAnyOrderElementsOf(declared)
-                .hasSize(17);
+                .hasSize(18);
         assertThat(tools.getSystemContext()).contains("retryProcess", "restartProcess", "sendMessage", "findBottleneck");
     }
 

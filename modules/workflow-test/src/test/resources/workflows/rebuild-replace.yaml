@@ -1,0 +1,15 @@
+id: rebuild-replace
+name: The latest rebuild wins
+version: 1
+triggers:
+  - id: on-change
+    destination: catalog
+    type: com.acme.catalog.changed
+    businessKey: "rebuild-${data.n}"
+    variables: { shop: "${data.shop}" }
+    startPolicy: { key: "${data.shop}", singleton: replace }
+steps:
+  - { id: start, type: START, name: Start }
+  - { id: built, type: WAIT_FOR_MESSAGE, name: Built, preconditionStepId: start,
+      messageName: rebuild-done, correlationExpression: businessKey }
+  - { id: end, type: END, name: End, preconditionStepId: built }

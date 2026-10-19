@@ -441,6 +441,55 @@ public class MicrometerWorkflowMetrics implements WorkflowMetrics {
     }
 
     @Override
+    public void flowControlDecision(String workflowDefinitionId, String scope, String outcome) {
+        var registry = registry();
+        if (registry == null) return;
+        Counter.builder("eventconductor.flow.starts")
+                .description("Starts that met a startPolicy, by what it decided (started, debounced, throttled,"
+                        + " dropped, skipped, replaced, released)")
+                .tag(TAG_WORKFLOW_DEFINITION_ID, tagValue(workflowDefinitionId))
+                .tag("scope", scope == null ? UNKNOWN : scope.startsWith("trigger:") ? "trigger" : "start")
+                .tag(TAG_OUTCOME, outcome == null ? UNKNOWN : outcome)
+                .register(registry)
+                .increment();
+    }
+
+    @Override
+    public void rateLimited(String topic, String outcome) {
+        var registry = registry();
+        if (registry == null) return;
+        Counter.builder("eventconductor.dispatch.rate_limited")
+                .description("Tasks that waited for a permit of their topic's rate limit (deferred) and got one (released)")
+                .tag("topic", topic == null ? UNKNOWN : topic)
+                .tag(TAG_OUTCOME, outcome == null ? UNKNOWN : outcome)
+                .register(registry)
+                .increment();
+    }
+
+    @Override
+    public void processContinuedAsNew(String workflowDefinitionId) {
+        var registry = registry();
+        if (registry == null) return;
+        Counter.builder("eventconductor.process.continued_as_new")
+                .description("Runs a CONTINUE_AS_NEW ended, each starting the next run of its chain")
+                .tag(TAG_WORKFLOW_DEFINITION_ID, tagValue(workflowDefinitionId))
+                .register(registry)
+                .increment();
+    }
+
+    @Override
+    public void businessKeyReused(String workflowDefinitionId, String policy) {
+        var registry = registry();
+        if (registry == null) return;
+        Counter.builder("eventconductor.process.business_key_reused")
+                .description("Starts that took a business key over from an earlier run (businessKeyPolicy)")
+                .tag(TAG_WORKFLOW_DEFINITION_ID, tagValue(workflowDefinitionId))
+                .tag("policy", policy == null ? UNKNOWN : policy)
+                .register(registry)
+                .increment();
+    }
+
+    @Override
     public void syncInvocationRejected(String workflowDefinitionId, String reason) {
         var registry = registry();
         if (registry == null) return;

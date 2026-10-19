@@ -1,0 +1,15 @@
+id: refresh-singleton
+name: One refresh per account at a time
+version: 1
+triggers:
+  - id: on-change
+    destination: accounts
+    type: com.acme.account.changed
+    businessKey: "refresh-${data.account}-${data.n}"
+    variables: { account: "${data.account}" }
+    startPolicy: { key: "${data.account}", singleton: skip }
+steps:
+  - { id: start, type: START, name: Start }
+  - { id: settled, type: WAIT_FOR_MESSAGE, name: Settled, preconditionStepId: start,
+      messageName: refresh-settled, correlationExpression: businessKey }
+  - { id: end, type: END, name: End, preconditionStepId: settled }

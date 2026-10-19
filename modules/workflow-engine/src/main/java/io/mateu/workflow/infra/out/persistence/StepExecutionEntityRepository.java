@@ -264,7 +264,7 @@ public interface StepExecutionEntityRepository extends JpaRepository<StepExecuti
      * {@code (:id is null or …)}, which is not portable.
      */
     @Query("""
-            select s.id as stepExecutionId, s.processId as processId, p.businessKey as businessKey,
+            select s.id as stepExecutionId, s.processId as processId, coalesce(p.businessKey, p.releasedBusinessKey) as businessKey,
                    s.workflowDefinitionId as definitionId, s.stepId as stepId, s.status as status,
                    s.finishedAt as finishedAt
             from StepExecutionEntity s

@@ -27,4 +27,12 @@ public interface SchedulerPass {
      *         contract on what was done.
      */
     int runOnce();
+
+    /**
+     * The next moment this pass has something to do, when it knows — so the test kit's {@code advanceTime}
+     * stops there instead of jumping over it. Empty (the default) for a pass the kit learns about otherwise.
+     */
+    default java.util.Optional<java.time.Instant> nextDueAt() {
+        return java.util.Optional.empty();
+    }
 }

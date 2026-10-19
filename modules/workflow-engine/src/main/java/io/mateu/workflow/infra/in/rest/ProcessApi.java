@@ -58,7 +58,14 @@ public final class ProcessApi {
             String parentStepExecutionId,
             Map<String, String> variables,
             @Schema(description = "Its search attributes, by name, as the definition declares them (2.30); empty when it declares none.")
-            Map<String, String> searchAttributes) {
+            Map<String, String> searchAttributes,
+            @Schema(description = "CONTINUE_AS_NEW (2.33): the run this one continues — same business key; null otherwise."
+                    + " A run purged by retention leaves the id behind.")
+            String continuedFrom,
+            @Schema(description = "CONTINUE_AS_NEW (2.33): the run that continues this one; null otherwise.")
+            String continuedAs,
+            @Schema(description = "\"continued\" for a COMPLETED run a CONTINUE_AS_NEW handed over to continuedAs; null otherwise.")
+            String outcome) {
 
         static ProcessView of(Process process) {
             return new ProcessView(process.getId(), process.getWorkflowDefinitionId(),
@@ -66,8 +73,20 @@ public final class ProcessApi {
                     nameOf(process.getStatus()), process.getCompletionPercentage(),
                     format(process.getCreated()), format(process.getStarted()), format(process.getFinished()),
                     format(process.getPausedAt()), process.getParentStepExecutionId(), variablesOf(process),
-                    searchAttributesOf(process));
+                    searchAttributesOf(process), process.getContinuedFromProcessId(), process.getContinuedAsProcessId(),
+                    process.outcome());
         }
+    }
+
+    @Schema(name = "StartHeldBack", description = "A start the definition's startPolicy (2.33) held back: debounced (it"
+            + " starts after a quiet period, with the last start's data) or throttled (queued until a window has room)."
+            + " No process exists yet.")
+    public record StartHeldBackView(
+            @Schema(description = "debounced or throttled.") String flowControl,
+            @Schema(description = "The business key the process will have when it starts (a debounce keeps the last start's).")
+            String businessKey,
+            @Schema(description = "When it is due, at the earliest.") String dueAt,
+            String detail) {
     }
 
     @Schema(name = "ProcessSummary", description = "A process as the listing shows it: no variables.")

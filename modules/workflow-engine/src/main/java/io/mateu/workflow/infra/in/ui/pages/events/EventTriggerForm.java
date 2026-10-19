@@ -83,6 +83,13 @@ public class EventTriggerForm {
             + " started process gets no variables at all.")
     boolean dataMembers = true;
 
+    @Label("Start policy")
+    @io.mateu.uidl.annotations.Stereotype(io.mateu.uidl.data.FieldStereotype.textarea)
+    @Help("Optional per-key flow control of the starts, as JSON: {\"key\": \"${data.customerId}\", \"debounce\": \"PT30S\"},"
+            + " {\"throttle\": {\"limit\": 10, \"period\": \"PT1M\", \"onLimit\": \"queue\"}}, {\"singleton\": \"skip\"}."
+            + " Empty: the workflow's own startPolicy, if any.")
+    String startPolicy;
+
     /** The form for editing {@code view}. */
     static EventTriggerForm of(TriggerView view) {
         var form = new EventTriggerForm();
@@ -94,6 +101,7 @@ public class EventTriggerForm {
         form.businessKey = view.businessKey();
         // null is "data's top-level members", {} is "none": two different triggers.
         form.dataMembers = view.variables() == null;
+        form.startPolicy = view.startPolicy() == null ? null : text(view.startPolicy());
         form.variables = view.variables() == null ? new ArrayList<>() : new ArrayList<>(view.variables().entrySet().stream()
                 .map(e -> new Variable(e.getKey(), text(e.getValue())))
                 .toList());
@@ -114,7 +122,20 @@ public class EventTriggerForm {
         } else {
             map = dataMembers ? null : new LinkedHashMap<>();
         }
-        return new TriggerDraft(id, workflowId, destination, type, filter, businessKey, map);
+        return new TriggerDraft(id, workflowId, destination, type, filter, businessKey, map, policy(startPolicy));
+    }
+
+    /** The start policy the form's JSON describes; null when empty. */
+    static io.mateu.workflow.domain.aggregates.StartPolicy policy(String json) {
+        if (json == null || json.isBlank()) {
+            return null;
+        }
+        try {
+            return JSON.readValue(json, io.mateu.workflow.domain.aggregates.StartPolicy.class);
+        } catch (JsonProcessingException e) {
+            throw new IllegalArgumentException("Start policy: not a JSON object of key, debounce, throttle and singleton ("
+                    + e.getOriginalMessage() + ")");
+        }
     }
 
     /** A template as the form shows it: text as it is, anything else (a nested map, a list, a number) as JSON. */

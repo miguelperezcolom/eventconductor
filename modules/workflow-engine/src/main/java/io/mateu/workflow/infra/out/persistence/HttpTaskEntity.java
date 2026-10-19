@@ -67,4 +67,9 @@ public class HttpTaskEntity {
 
     @Column(name = "cancelled", nullable = false)
     private boolean cancelled;
+
+    /** 0–100, higher first (V56); claimed ORDER BY priority DESC, created_at. */
+    @Column(name = "priority", nullable = false)
+    @org.hibernate.annotations.ColumnDefault("50")
+    private int priority = 50;
 }

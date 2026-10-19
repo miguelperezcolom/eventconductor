@@ -1,0 +1,13 @@
+{
+  "id": "sync-flow-controlled",
+  "name": "Synchronous quote, one per customer at a time, two an hour",
+  "version": 1,
+  "syncInvocation": { "enabled": true },
+  "startPolicy": { "key": "${customer}", "singleton": "skip", "throttle": { "limit": 2, "period": "PT1H" } },
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "sfc-quote", "type": "ACTION", "name": "Quote", "topic": "work", "preconditionStepId": "start" },
+    { "id": "reply", "type": "REPLY", "name": "Reply", "replyVariables": ["price"], "preconditionStepId": "sfc-quote" },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "reply" }
+  ]
+}

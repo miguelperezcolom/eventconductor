@@ -1,0 +1,7 @@
+id: partner-urgent
+name: An urgent call to the partner API
+version: 1
+steps:
+  - { id: start, type: START, name: Start }
+  - { id: urgent-call, type: ACTION, name: Urgent call, topic: partner-api, priority: 90, preconditionStepId: start }
+  - { id: end, type: END, name: End, preconditionStepId: urgent-call }

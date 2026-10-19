@@ -181,6 +181,21 @@ public interface WorkflowMetrics {
      */
     default void syncInvocationAnswered(String workflowDefinitionId, String outcome, Duration latency) {}
 
+    /**
+     * A start met a {@code startPolicy}: {@code outcome} is started, debounced, throttled, dropped, skipped,
+     * replaced, or released (a debounced or queued start leaving its wait).
+     */
+    default void flowControlDecision(String workflowDefinitionId, String scope, String outcome) {}
+
+    /** A task waited for a permit of its topic's rate limit ({@code deferred}), or got one later ({@code released}). */
+    default void rateLimited(String topic, String outcome) {}
+
+    /** A CONTINUE_AS_NEW ended a run and started the next one of the chain. */
+    default void processContinuedAsNew(String workflowDefinitionId) {}
+
+    /** A start took a business key over from an earlier run, as the definition's businessKeyPolicy allowed. */
+    default void businessKeyReused(String workflowDefinitionId, String policy) {}
+
     /** A synchronous invocation was refused before creating anything; {@code reason} says why. */
     default void syncInvocationRejected(String workflowDefinitionId, String reason) {}
 

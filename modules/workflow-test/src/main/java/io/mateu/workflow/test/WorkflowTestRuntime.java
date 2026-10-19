@@ -249,6 +249,13 @@ public final class WorkflowTestRuntime {
                 next = moment;
             }
         }
+        // Whatever else a pass knows it has due — a debounce window closing, a throttle window opening.
+        for (var pass : schedulerPasses()) {
+            var due = pass.nextDueAt().orElse(null);
+            if (due != null && due.isAfter(now) && !due.isAfter(target) && (next == null || due.isBefore(next))) {
+                next = due;
+            }
+        }
         var cron = context.getBeanProvider(InMemoryCronStartScheduler.class).getIfAvailable();
         if (cron != null) {
             var occurrence = cron.nextOccurrence().orElse(null);

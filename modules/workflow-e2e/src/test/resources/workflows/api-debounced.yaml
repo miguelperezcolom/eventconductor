@@ -1,0 +1,8 @@
+id: api-debounced
+name: Recompute a customer's score once the edits settle
+version: 1
+startPolicy: { key: "${customerId}", debounce: PT1S }
+steps:
+  - { id: start, type: START, name: Start }
+  - { id: api-score, type: ACTION, name: Score, topic: work, preconditionStepId: start }
+  - { id: end, type: END, name: End, preconditionStepId: api-score }

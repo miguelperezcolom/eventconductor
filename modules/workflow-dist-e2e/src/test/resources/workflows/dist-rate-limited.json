@@ -1,0 +1,10 @@
+{
+  "id": "dist-rate-limited",
+  "name": "Distributed rate-limited call",
+  "version": 1,
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "call", "type": "ACTION", "name": "Call", "topic": "work", "timeout": 800, "preconditionStepId": "start" },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "call" }
+  ]
+}

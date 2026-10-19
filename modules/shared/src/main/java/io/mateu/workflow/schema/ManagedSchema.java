@@ -36,6 +36,17 @@ public final class ManagedSchema {
 
     private static final Logger log = LoggerFactory.getLogger(ManagedSchema.class);
 
+    private static final boolean POSTGRES_SUPPORT = present("org.flywaydb.database.postgresql.PostgreSQLConfigurationExtension");
+
+    private static boolean present(String className) {
+        try {
+            Class.forName(className, false, ManagedSchema.class.getClassLoader());
+            return true;
+        } catch (ClassNotFoundException | LinkageError e) {
+            return false;
+        }
+    }
+
     private final String engine;
     private final String location;
     private final String historyTable;
@@ -71,16 +82,23 @@ public final class ManagedSchema {
         // The engine's own classloader rather than the thread context one: the migrations are
         // resources of the engine jar, and this has to resolve the same way whether the engine is
         // on a plain classpath, inside a Boot fat jar, or in a host application's module layer.
-        var flyway = Flyway.configure(getClass().getClassLoader())
+        var configuration = Flyway.configure(getClass().getClassLoader())
                 .dataSource(dataSource)
                 .locations(location)
                 .table(historyTable)
                 .baselineOnMigrate(true)
                 .baselineVersion("0")
                 .validateOnMigrate(true)
-                .outOfOrder(false)
-                .load();
+                .outOfOrder(false);
 
+        if (POSTGRES_SUPPORT) {
+            // A session-level advisory lock rather than one held in an open transaction: an index built
+            // CONCURRENTLY (2.33's V56.1) waits for every older transaction to end, Flyway's own included, and would
+            // wait behind a transactional lock until it gave up. Only set where Flyway's PostgreSQL support is on the
+            // classpath: elsewhere the property is unknown to Flyway, and there is no PostgreSQL to need it.
+            configuration.configuration(java.util.Map.of("flyway.postgresql.transactional.lock", "false"));
+        }
+        var flyway = configuration.load();
         var result = flyway.migrate();
 
         if (result.migrationsExecuted == 0) {

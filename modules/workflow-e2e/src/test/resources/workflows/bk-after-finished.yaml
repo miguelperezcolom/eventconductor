@@ -1,0 +1,8 @@
+id: bk-after-finished
+name: A key reusable once its run ended
+version: 1
+businessKeyPolicy: allowAfterFinished
+steps:
+  - { id: start, type: START, name: Start }
+  - { id: bkf-work, type: ACTION, name: Work, topic: work, preconditionStepId: start }
+  - { id: end, type: END, name: End, preconditionStepId: bkf-work }
