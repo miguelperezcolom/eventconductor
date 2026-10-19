@@ -67,6 +67,7 @@ public class InMemoryProcessRepository implements ProcessRepository {
             processStatusAnnouncer.announceIfChanged(process, previous == null ? null : previous.getStatus(),
                     searchAttributeIndexer == null ? null : searchAttributeIndexer.index(process));
         }
+        refuseASecondHolder(process);
         store.put(process.id(), process);
         if (process.hasReplied() && replySignal != null) {
             replySignal.ifAvailable(signal -> signal.replyRecorded(process.id()));
@@ -74,6 +75,28 @@ public class InMemoryProcessRepository implements ProcessRepository {
         process.popEvents().forEach(event ->
                 processDomainEventUseCase.handle(new ProcessDomainEventCommand(event)));
         return process.id();
+    }
+
+    /**
+     * The database's UNIQUE {@code business_key}, here: a process may hold a key only while no other process holds it
+     * (one that handed it over — {@code businessKeyReleased} — no longer does). Without it the memory store would
+     * quietly keep two holders where JPA refuses the second, and a lookup by key would pick one of them.
+     */
+    private void refuseASecondHolder(Process process) {
+        var key = process.getBusinessKey();
+        if (key == null || key.isBlank() || process.isBusinessKeyReleased()) {
+            return;
+        }
+        synchronized (store) {
+            store.values().stream()
+                    .filter(other -> !other.id().equals(process.id()) && key.equals(other.getBusinessKey())
+                            && !other.isBusinessKeyReleased())
+                    .findAny()
+                    .ifPresent(other -> {
+                        throw new org.springframework.dao.DuplicateKeyException("Business key '" + key
+                                + "' is already held by process " + other.id());
+                    });
+        }
     }
 
     @Override

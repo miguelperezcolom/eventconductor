@@ -28,10 +28,10 @@ class LongLivedProcessesE2eTest extends AbstractE2eTest {
             callback.complete(List.of(var("count", String.valueOf(count + 1)), var("scratch", "x" + invocation)));
         });
 
-        createProcess("can-counter", "can-1", new Variable("count", "0"), new Variable("customer", "c-9"),
+        createProcess("can-counter", "ll-chain-1", new Variable("count", "0"), new Variable("customer", "c-9"),
                 new Variable("bulky", "drop me"));
 
-        var runs = processRepository.findAllByBusinessKey("can-1");
+        var runs = processRepository.findAllByBusinessKey("ll-chain-1");
         assertThat(runs).hasSize(3);
         assertThat(runs).allMatch(run -> run.getStatus() == ProcessStatus.COMPLETED);
         var first = runs.get(0);
@@ -50,8 +50,8 @@ class LongLivedProcessesE2eTest extends AbstractE2eTest {
                 .contains("count", "customer").doesNotContain("bulky");
         assertThat(value(last)).isEqualTo("3");
         // The key resolves to the run that holds it now.
-        assertThat(process("can-1").getId()).isEqualTo(last.getId());
-        assertThat(steps("can-1")).anyMatch(s -> "done".equals(s.getStepId()));
+        assertThat(process("ll-chain-1").getId()).isEqualTo(last.getId());
+        assertThat(steps("ll-chain-1")).anyMatch(s -> "done".equals(s.getStepId()));
         assertThat(worker.invocationsOf("tick")).isEqualTo(3);
     }
 

@@ -150,4 +150,31 @@ class InMemoryProcessRepositoryTest {
         assertThat(repo.findStalled(IDLE_BEFORE, 20)).containsExactly("newer", "older");
         assertThat(repo.findStalled(IDLE_BEFORE, 1)).containsExactly("newer");
     }
+
+    /** The memory store keeps the database's UNIQUE business key: one holder, found by the key; a released run frees it. */
+    @org.junit.jupiter.api.Test
+    void aBusinessKeyHasOneHolderAsInTheDatabase() {
+        var first = io.mateu.workflow.domain.aggregates.Process.builder().id("p-1").businessKey("k-1")
+                .status(io.mateu.workflow.domain.aggregates.ProcessStatus.RUNNING)
+                .created(java.time.LocalDateTime.of(2026, 1, 1, 0, 0)).build();
+        repo.save(first);
+        org.assertj.core.api.Assertions.assertThat(repo.findByBusinessKey("k-1")).get()
+                .extracting(io.mateu.workflow.domain.aggregates.Process::getId).isEqualTo("p-1");
+
+        var second = io.mateu.workflow.domain.aggregates.Process.builder().id("p-2").businessKey("k-1")
+                .status(io.mateu.workflow.domain.aggregates.ProcessStatus.RUNNING)
+                .created(java.time.LocalDateTime.of(2026, 1, 2, 0, 0)).build();
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> repo.save(second))
+                .isInstanceOf(org.springframework.dao.DuplicateKeyException.class);
+        org.assertj.core.api.Assertions.assertThat(repo.findById("p-2")).isEmpty();
+
+        repo.releaseBusinessKey("p-1");
+        repo.save(second);
+        org.assertj.core.api.Assertions.assertThat(repo.findByBusinessKey("k-1")).get()
+                .extracting(io.mateu.workflow.domain.aggregates.Process::getId).isEqualTo("p-2");
+        org.assertj.core.api.Assertions.assertThat(repo.findAllByBusinessKey("k-1"))
+                .extracting(io.mateu.workflow.domain.aggregates.Process::getId).containsExactly("p-1", "p-2");
+        // Saving the holder again is no duplicate.
+        repo.save(second);
+    }
 }
