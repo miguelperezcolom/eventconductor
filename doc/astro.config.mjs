@@ -80,6 +80,7 @@ export default defineConfig({
 						{ label: 'Payload Templates', slug: 'guides/payload-templates' },
 						{ label: 'Scheduling and Deadlines', slug: 'guides/scheduling-and-deadlines' },
 						{ label: 'Implementing Workers', slug: 'guides/workers' },
+						{ label: 'Testing Workflows', slug: 'guides/testing-workflows' },
 						{ label: 'The Test Worker', slug: 'guides/test-worker' },
 						{ label: 'Loops and Multi-Instance', slug: 'guides/loops-and-multi-instance' },
 						{ label: 'Dynamic Workflows', slug: 'guides/dynamic-workflows' },

@@ -14,6 +14,12 @@ time you asked for, says what you told it to say, and finishes the way you told 
 engine cannot tell the difference — the replies go out over the same topics, through the same
 synchronous retry-or-throw path a real worker's do.
 
+:::tip[Testing definitions in your build?]
+The test worker exercises a running deployment, in real time. To test your definitions in JUnit —
+in memory, with mocks and a clock that skips days in milliseconds — use the
+[workflow test kit](/guides/testing-workflows/).
+:::
+
 It ships as `apps/worker-standalone-app` (image `miguelperezcolom/worker-standalone-app`), and the
 compose stack runs it on port **8107**.
 

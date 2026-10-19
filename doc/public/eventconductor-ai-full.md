@@ -570,6 +570,38 @@ A worker that does no work: it plays back the scenario the process asks for, so 
 - **Against a running deployment** the scenario travels the same way — start the process from the orchestrator UI with a `TEST_CONFIG` variable, or put it on the `ProcessCreationRequested` event: `"variables": [{"name": "TEST_CONFIG", "value": "{\"default\":{\"durationMs\":200}}"}]`. The value is a **string**, so the JSON is escaped inside it. An event whose own JSON is broken never becomes an event — no process is created, nothing is parked in the dead-letter store (conversion fails before any handler runs), and the producer still exits 0; check that processes were created, not that the producer succeeded. A broken `TEST_CONFIG` *string* inside a valid event fails loudly instead: the process runs and its first task reports the parse error.
 - **Topic collision:** the test worker and the forms engine both bind `downstream` by default, in different consumer groups, so both receive every task and the worker answers `USER_TASK`s meant for people. Give human tasks their own topic (`"topic": "forms"`) and bind the forms engine there. One shared consumer group does not fix it — they compete for the message.
 
+### Testing definitions in JUnit: the `workflow-test` kit
+
+`io.mateu.workflow:workflow-test` (test scope; package `io.mateu.workflow.test`) runs the user's own definitions in a JUnit 5 test — the real engine in embedded + memory mode, no server/broker/DB — with a clock the test moves. Definitions load from `classpath:/workflows/`; more via `@EventConductorTest(definitions = {"src/test/flows"})` or `runtime.deploy(...)`.
+
+```java
+@EventConductorTest
+class BookingSagaTest {
+    @Test
+    void refundsWhenTheCaptureIsDeclined(WorkflowTestRuntime runtime) {
+        runtime.whenTask("reserve-room").thenComplete();
+        runtime.whenTask("charge-card").thenComplete(Map.of("chargeId", "ch_1"));
+        runtime.whenTask("capture-payment").thenFail("CARD_EXPIRED", false);  // final failure
+        runtime.whenTask("refund").thenComplete();
+        runtime.whenTask("release-room").thenComplete();
+
+        var booking = runtime.start("booking-saga", "B-1", Map.of("amount", 120));
+        runtime.advanceTime(Duration.ofDays(3));                              // the P3D TIMER fires
+
+        assertThat(booking).isCompensated().hasPassedSteps("refund", "release").hasNotPassedSteps("capture");
+    }
+}
+```
+
+- **Mocks**: `whenStep(stepId)` wins; `whenTask(x)` matches the task id without version, the step id when the step names no task, or the step's `topic`. Answers `thenComplete(map)`, `thenFail(code)` (retryable) / `thenFail(code, false)` (final), `thenTimeout()` (never answers), `thenAnswer(invocation -> TaskOutcome.complete(...) | fail(...) | noReply())`; consumed in order, the last repeats. An un-mocked task runs the app's real `TaskHandler` when the test boots it (`classes = {WorkflowTestApplication.class, MyHandlers.class}`, needs `worker-embedded`), otherwise waits: answer with `completeTask(p, step, vars)`, `failTask(p, step, code, retryable)`, `completeUserTask(p, step, submitted)` (USER_TASKs always wait unless mocked).
+- **HTTP_CALL / LLM_CALL** never reach the network: `whenHttpCall(step).thenRespond(status, body[, headers])` / `.thenIoError()` apply the step's `successStatus`, `retryOn`, `output`; `whenLlmCall(step).thenAnswer(text)` / `.thenFail(code, retryable)` apply `outputVariable`, `usageVariable`, `output` (schema not validated). Unstubbed → the step fails `HTTP_CALL_NOT_STUBBED` / `LLM_CALL_NOT_STUBBED`. Stubs record `requests()`.
+- **Time**: `advanceTime(Duration)` / `advanceTimeTo(LocalDateTime)` jump from one due moment to the next (TIMER at its moment, a timeout 1 ms after its limit — it expires strictly after —, retry backoffs with the real policy, `repeat`/`loopBack` `delay`s, cron occurrences — one process each), running every scheduler pass at each; `runUntilIdle()`; `now()`. Every call is synchronous.
+- **Other drivers**: `sendMessage(name, correlationKey, vars)`, `publishEvent(destination, type, data)` (triggers + `onEvent`), `publishedEvents(p)`, `cancel(p)`, `process(businessKey)`, `processes(definitionId)`, `invocationsOf(step)` (each with `variables`, `attempt`, `at` = engine time).
+- **Assertions** (`WorkflowAssertions.assertThat(process)`): `isCompleted`, `isCompensated`, `isCompensationFailed`, `isFailed`, `isCancelled`, `isRunning`, `hasStatus`, `hasPassedSteps`, `hasNotPassedSteps`, `isWaitingAt(step)`, `hasStepStatus(step, status)`, `stepExecutions(step)` (AssertJ list; a retried step is ONE execution), `hasVariable(name, value)` (text as text, else JSON), `hasVariables`, `doesNotHaveVariable`, `hasReplied()`, `hasReplied(json)`, `hasReplyOutcome`, `hasPublishedEvent(type)`.
+- The Spring context is cached across test classes: mocks and invocations reset per test, the clock only moves forward, processes from earlier tests never consume the current test's mocks. Business keys are unique per engine — pass a distinct one or `null` (generated).
+- Engine side: business time is read from `io.mateu.workflow.time.EngineClock` (bean `eventconductorClock`, default `Clock.systemDefaultZone()`); every scheduler implements `SchedulerPass.runOnce()`; `workflow.schedulers.background=false` keeps their loops from starting.
+- Versus the test worker: the kit tests definitions in the build, in memory, in skipped time; the test worker exercises a running deployment in real time via `TEST_CONFIG`.
+
 ---
 
 ## 8. Retries, timeouts & sagas (compensation)

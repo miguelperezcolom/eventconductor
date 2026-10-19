@@ -51,6 +51,15 @@ precondition-cycle detection, cron validity, JEXL parseability, decision-table a
 JSON-schema conformance — so a bad definition fails the PR
 instead of the running engine. See [Build-time validation](#build-time-validation-maven-plugin).
 
+### Tested in plain JUnit, with time skipping
+The `workflow-test` module (test scope) runs **your** definitions inside a JUnit 5 test — the
+real engine, in memory — with task mocks (`whenTask("charge-card").thenFail("DECLINED", false)`),
+`HTTP_CALL`/`LLM_CALL` stubs that never reach the network, AssertJ assertions on the process
+(`isCompensated()`, `hasPassedSteps(...)`, `isWaitingAt(...)`, `hasReplied(...)`) and a clock you
+move: `advanceTime(Duration.ofDays(3))` fires every TIMER, timeout, retry backoff and cron
+occurrence on the way, in milliseconds. See the
+[Testing Workflows guide](https://miguelperezcolom.github.io/eventconductor/guides/testing-workflows/).
+
 ### Built-in forms engine
 The `forms-engine` module handles form definitions, validation, and rendering. User-task steps
 reference a form by ID; the engine takes care of the rest. Forms are defined in JSON, stored
@@ -348,6 +357,7 @@ eventconductor/
 │   ├── worker-llm/            Built-in llm-call task (LLM_CALL steps, Spring AI)
 │   ├── workflow-maven-plugin/ Build-time validator for workflow/form/rule definitions
 │   ├── workflow-e2e/          End-to-end test suite (embedded + JPA/H2 modes)
+│   ├── workflow-test/         Test kit for users' definitions: @EventConductorTest, mocks, time skipping
 │   ├── workflow-dist-e2e/     Distributed test suite (Testcontainers: Postgres + Kafka; -Pdist-e2e)
 │   ├── workflow-ui-e2e/       Browser end-to-end tests of the engine's UI (-Pui-e2e)
 │   ├── workflow-benchmark/    Benchmark harness (-Pbenchmark)
