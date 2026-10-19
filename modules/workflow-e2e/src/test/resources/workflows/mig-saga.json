@@ -1,0 +1,13 @@
+{
+  "id": "mig-saga",
+  "name": "A saga, version 1 of the migration tests",
+  "version": 1,
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "charge", "type": "ACTION", "name": "Charge", "topic": "work", "compensable": true,
+      "compensationStepId": "refund", "preconditionStepId": "start" },
+    { "id": "ship", "type": "ACTION", "name": "Ship", "topic": "work", "retries": 0, "preconditionStepId": "charge" },
+    { "id": "refund", "type": "ACTION", "name": "Refund", "topic": "work" },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "ship" }
+  ]
+}

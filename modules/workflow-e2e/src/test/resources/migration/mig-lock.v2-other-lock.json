@@ -1,0 +1,12 @@
+{
+  "id": "mig-lock",
+  "name": "v2: another lock",
+  "version": 2,
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "lock", "type": "LOCK", "name": "Lock", "lockName": "mig-rooms", "lockKey": "bookingId", "preconditionStepId": "start" },
+    { "id": "work", "type": "ACTION", "name": "Work", "topic": "work", "preconditionStepId": "lock" },
+    { "id": "unlock", "type": "UNLOCK", "name": "Unlock", "lockName": "mig-rooms", "lockKey": "bookingId", "preconditionStepId": "work" },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "unlock" }
+  ]
+}

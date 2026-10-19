@@ -27,6 +27,8 @@ The machine-readable description is published with these docs: **[`/openapi/even
 | `POST /workflow/api/processes/{id}/variables` | Change a live process's variables `{set?, remove?, reason}` | `202` |
 | `POST /workflow/api/processes/{id}/steps/{stepExecutionId}/complete` | Complete a step execution by hand `{variables?, reason}` | `202` |
 | `POST /workflow/api/processes/{id}/retry-from/{stepId}` | Run a live process again from one of its steps `{reason}` | `202` |
+| `POST /workflow/api/processes/{id}/migrate` | Move a live process onto another version of its definition `{targetVersion?, stepMapping?, variableMapping?, reason}` | `202` |
+| `POST /workflow/api/processes/{id}/migrate/dry-run` | The plan of that migration, changing nothing `{targetVersion?, stepMapping?, variableMapping?}` | `200` `MigrationPlan` |
 | `GET /workflow/api/incidents?definitionId=…` | Failed steps of failed processes, grouped by definition, step and error family | `200` `IncidentList` |
 | `GET /workflow/api/incidents/{key}/processes?limit=…` | The failed steps (and processes) of one incident | `200` `IncidentMember[]` |
 | `POST /workflow/api/incidents/{key}/retry` | Retry every failed step of one incident `{reason}` | `202` `IncidentRetryAccepted` |
@@ -100,6 +102,10 @@ Before accepting, the API checks what a synchronous caller needs to know: the pr
 
 Set variables, complete a step and retry from a step change a live (`RUNNING`, `PAUSED` or `ERROR`) process by hand. Each needs a `reason` (`400` without one), answers `202` with `{processId, command, stepExecutionId, stepId}`, and is carried out — and recorded, with the caller and the reason, in the process log — by the node that owns the process. Before accepting, the API checks with the engine's own rules: `404` for an unknown process, step execution or step; `409` with the reason when the process or the step is not in a status the operation is done from, when a saga rollback is under way, for a retry from a step that has not run yet, or when another failure is not downstream of it. Semantics, locks and compensations: [Operating running processes](/guides/operating-running-processes/).
 
+### Migration
+
+`POST /{id}/migrate` moves a live process onto another version of its definition (`targetVersion`; absent for the definition as it is now), each step onto the target's step of the same id or the one `stepMapping` names, setting `variableMapping`'s variables; `reason` mandatory. It is planned before it is accepted: `409` lists the problems that refuse it, `400` for a version that does not exist (or any version but the current one in memory mode), `404` for an unknown process. `POST /{id}/migrate/dry-run` answers the plan — `fromVersion`, `toVersion`, `executable`, the effective `mapping`, every step's `state` and `action` (`REMAP`, `KEEP_TASK`, `REDISPATCH`, `REARM`, `HISTORY`, `DROP`, `CARRY`, `ADD`, `ADD_PASSED`) and the `problems` (`ERROR` refuses, `WARNING` is reported) — without changing anything; a process owned by another node is planned there (`409` here). Semantics and rules: [Migrating running processes](/guides/migrating-running-processes/).
+
 The incidents endpoints group the failures waiting for an operator; a group retry is a `RETRY` batch operation over the incident — `202` with its `batchOperationId`, `Location` naming the batch — see [Incidents](/guides/operating-running-processes/#incidents).
 
 ## Batch operations
@@ -108,7 +114,7 @@ The incidents endpoints group the failures waiting for an operator; a group retr
 
 | Method and path | Does | Answers |
 |---|---|---|
-| `POST /workflow/api/batch-operations` | Create `{type, filter, variables?, remove?, stepId?, reason?}` — `type` `CANCEL`, `RETRY`, `RESTART`, `PAUSE`, `RESUME`, `SET_VARIABLES` (`variables` to set, `remove` names; `reason` mandatory) or `RETRY_FROM_STEP` (`stepId`; `reason` mandatory); `filter` `{definitionId?, tag?, status?[], from?, to?, businessKey?, q?, onlyErrors?, query?, attributes?: {name: value}}`, at least one | `202` + `Location`, the batch `CREATED` with `matched` |
+| `POST /workflow/api/batch-operations` | Create `{type, filter, variables?, remove?, stepId?, reason?, targetVersion?, fromVersion?, stepMapping?}` — `type` `CANCEL`, `RETRY`, `RESTART`, `PAUSE`, `RESUME`, `SET_VARIABLES` (`variables` to set, `remove` names; `reason` mandatory), `RETRY_FROM_STEP` (`stepId`; `reason` mandatory) or `MIGRATE` (`targetVersion`, `fromVersion`, `stepMapping`, `variables` to set; `reason` mandatory; the filter must name the definition); `filter` `{definitionId?, tag?, status?[], from?, to?, businessKey?, q?, onlyErrors?, query?, attributes?: {name: value}}`, at least one | `202` + `Location`, the batch `CREATED` with `matched` |
 | `GET /workflow/api/batch-operations` | The most recent batches, newest first | `200` `BatchOperation[]` |
 | `GET /workflow/api/batch-operations/{id}` | One batch: `status`, `matched`, `processed`, `succeeded`, `failed`, `skipped`, `skippedByReason` (`notApplicable`, `notAuthorized`, `gone`), `percent`, `errors` (a sample), `createdBy`, dates, `failure` | `200`; `404` |
 | `POST /workflow/api/batch-operations/{id}/cancel` | Stop it: no further process is touched | `200`; `404`; `409` when it already finished |

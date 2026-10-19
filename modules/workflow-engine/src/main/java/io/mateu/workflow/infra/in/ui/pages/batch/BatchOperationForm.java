@@ -32,8 +32,8 @@ public class BatchOperationForm {
     @NotNull
     @Label("Operation")
     @Help("What is done to each process: CANCEL, RETRY (pick an ERROR or CANCELLED process up where it stopped),"
-            + " RESTART (run it again from the beginning), PAUSE, RESUME, SET_VARIABLES or RETRY_FROM_STEP (a live"
-            + " process, audited with your name and the reason). A process the operation does not apply to is skipped,"
+            + " RESTART (run it again from the beginning), PAUSE, RESUME, SET_VARIABLES, RETRY_FROM_STEP or MIGRATE (a"
+            + " live process, audited with your name and the reason; MIGRATE needs the definition). A process the operation does not apply to is skipped,"
             + " not failed.")
     BatchOperationType type;
 
@@ -79,12 +79,30 @@ public class BatchOperationForm {
     @Help("RETRY_FROM_STEP: the step id each process runs again from.")
     String stepId;
 
+    @Label("From version")
+    @Help("MIGRATE: only the processes on this version (the others are skipped).")
+    Integer fromVersion;
+
+    @Label("To version")
+    @Help("MIGRATE: the version to move to; empty for the definition as it is now.")
+    Integer targetVersion;
+
+    @Label("Step mapping")
+    @Help("MIGRATE: one source=target per line, over the default (the same step id); source= says no counterpart.")
+    @io.mateu.uidl.annotations.Stereotype(io.mateu.uidl.data.FieldStereotype.textarea)
+    String stepMapping;
+
     @Label("Reason")
-    @Help("Mandatory for SET_VARIABLES and RETRY_FROM_STEP: recorded with your name in each process's audit trail.")
+    @Help("Mandatory for SET_VARIABLES, RETRY_FROM_STEP and MIGRATE: recorded with your name in each process's audit trail.")
     String reason;
 
     /** The parameters the form describes. */
     java.util.Map<String, String> parameters() {
+        if (type == BatchOperationType.MIGRATE) {
+            return io.mateu.workflow.domain.batch.BatchOperationParameters.migrate(targetVersion, fromVersion,
+                    io.mateu.workflow.domain.batch.BatchOperationParameters.assignments(stepMapping),
+                    io.mateu.workflow.domain.batch.BatchOperationParameters.assignments(variablesToSet), reason);
+        }
         var remove = variablesToRemove == null ? java.util.List.<String>of()
                 : java.util.Arrays.stream(variablesToRemove.split(",")).map(String::strip).filter(n -> !n.isEmpty()).toList();
         return io.mateu.workflow.domain.batch.BatchOperationParameters.of(

@@ -1,0 +1,12 @@
+{
+  "id": "mig-linear",
+  "name": "v2: b became a timer",
+  "version": 2,
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "a", "type": "ACTION", "name": "A", "topic": "work", "preconditionStepId": "start" },
+    { "id": "b", "type": "TIMER", "name": "B", "duration": "PT1S", "preconditionStepId": "a" },
+    { "id": "c", "type": "ACTION", "name": "C", "topic": "work", "preconditionStepId": "b" },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "c" }
+  ]
+}

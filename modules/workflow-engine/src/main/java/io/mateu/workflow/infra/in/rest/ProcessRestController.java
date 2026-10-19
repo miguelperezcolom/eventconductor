@@ -395,6 +395,50 @@ public class ProcessRestController {
                 .body(new CommandAccepted(id, "retry-from-step", null, stepId));
     }
 
+    @PostMapping("/{id}/migrate")
+    @Operation(operationId = "migrateProcess", summary = "Move a live process onto another version of its definition",
+            description = "RUNNING, PAUSED or ERROR. Each step becomes the target's step of the same id (when its type is"
+                    + " compatible) or the one `stepMapping` names, keeping what the process has done: a task in flight is"
+                    + " kept when its contract did not change and re-dispatched when it did, timers and message waits are"
+                    + " re-armed, steps the target adds run when their preconditions hold. Planned first: a plan with an"
+                    + " error is refused with `409` and its problems — see the dry run. Recorded, with the caller and the"
+                    + " reason, in the process's log.")
+    @ApiResponses({@ApiResponse(responseCode = "202", description = "Accepted."),
+            @ApiResponse(responseCode = "400", description = "No reason, no such version, or over the input limits.", content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class))),
+            @ApiResponse(responseCode = "403", description = "The caller may not operate on the process.", content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class))),
+            @ApiResponse(responseCode = "404", description = "No such process, or its definition is gone.", content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class))),
+            @ApiResponse(responseCode = "409", description = "The migration is refused; the detail lists why.", content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))})
+    public ResponseEntity<CommandAccepted> migrate(
+            @Parameter(hidden = true) @RequestHeader(value = "X-Api-Key", required = false) String apiKey,
+            @PathVariable("id") String id,
+            @RequestBody(required = false) ProcessApi.MigrateRequest body) {
+        verify(apiKey);
+        if (body == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A JSON body is required.");
+        }
+        processes.migrate(id, body.targetVersion(), body.stepMapping(), body.variableMapping(), body.reason(), caller());
+        return accepted(id, "migrate", null);
+    }
+
+    @PostMapping("/{id}/migrate/dry-run")
+    @Operation(operationId = "dryRunProcessMigration", summary = "Plan a migration without carrying it out",
+            description = "What `migrate` would do with the same body — the effective mapping, every step's fate and"
+                    + " the problems (an ERROR refuses it) — changing nothing. The reason is not needed.")
+    @ApiResponses({@ApiResponse(responseCode = "200", description = "The plan."),
+            @ApiResponse(responseCode = "400", description = "No such version, or over the input limits.", content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class))),
+            @ApiResponse(responseCode = "403", description = "The caller may not operate on the process.", content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class))),
+            @ApiResponse(responseCode = "404", description = "No such process, or its definition is gone.", content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class))),
+            @ApiResponse(responseCode = "409", description = "The process lives on another node.", content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))})
+    public ProcessApi.MigrationPlanView dryRunMigration(
+            @Parameter(hidden = true) @RequestHeader(value = "X-Api-Key", required = false) String apiKey,
+            @PathVariable("id") String id,
+            @RequestBody(required = false) ProcessApi.MigrateRequest body) {
+        verify(apiKey);
+        var request = body == null ? new ProcessApi.MigrateRequest(null, null, null, null) : body;
+        return ProcessApi.MigrationPlanView.of(processes.dryRunMigration(id, request.targetVersion(),
+                request.stepMapping(), request.variableMapping(), caller()));
+    }
+
     // ── Errors: application/problem+json ─────────────────────────────────────────────────────────
 
     @ExceptionHandler(ProcessNotFoundException.class)

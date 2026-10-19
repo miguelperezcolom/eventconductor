@@ -1,0 +1,12 @@
+{
+  "id": "mig-linear",
+  "name": "Three steps in a row, version 1 of the migration tests",
+  "version": 1,
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "a", "type": "ACTION", "name": "A", "topic": "work", "preconditionStepId": "start" },
+    { "id": "b", "type": "ACTION", "name": "B", "topic": "work", "preconditionStepId": "a" },
+    { "id": "c", "type": "ACTION", "name": "C", "topic": "work", "preconditionStepId": "b" },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "c" }
+  ]
+}

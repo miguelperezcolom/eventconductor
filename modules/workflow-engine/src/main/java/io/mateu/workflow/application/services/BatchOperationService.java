@@ -112,6 +112,24 @@ public class BatchOperationService {
                 throw noSuchStep;
             }
         });
+        // 2.31: each live process of the definition onto another version, planned and refused one by one.
+        actions.put(BatchOperationType.MIGRATE, (id, batch) -> {
+            var parameters = batch.parameters();
+            var from = io.mateu.workflow.domain.batch.BatchOperationParameters.version(parameters,
+                    BatchOperationType.FROM_VERSION);
+            if (from != null) {
+                var local = processRepository.findById(id).orElse(null);
+                if (local != null && local.getWorkflowDefinitionVersion() != from) {
+                    throw new ProcessStateConflictException(id, "migrate", local.getStatus(),
+                            "it runs v" + local.getWorkflowDefinitionVersion() + ", not v" + from);
+                }
+            }
+            processes.migrate(id, io.mateu.workflow.domain.batch.BatchOperationParameters.version(parameters,
+                            BatchOperationType.TARGET_VERSION),
+                    io.mateu.workflow.domain.batch.BatchOperationParameters.prefixed(parameters, BatchOperationType.MAP_PREFIX),
+                    io.mateu.workflow.domain.batch.BatchOperationParameters.prefixed(parameters, BatchOperationType.VAR_PREFIX),
+                    reasonOf(batch), batch.caller());
+        });
     }
 
     /** SET_VARIABLES: the variables to set, from {@code set.<name>} parameters. */
@@ -169,6 +187,21 @@ public class BatchOperationService {
                     io.mateu.workflow.domain.aggregates.Variable::value, "a change of process variables");
             remove.forEach(name -> io.mateu.workflow.input.InputLimits.checkIdentifier(name, "a variable to remove"));
         }
+        if (type == BatchOperationType.MIGRATE) {
+            io.mateu.workflow.domain.batch.BatchOperationParameters.version(given, BatchOperationType.TARGET_VERSION);
+            io.mateu.workflow.domain.batch.BatchOperationParameters.version(given, BatchOperationType.FROM_VERSION);
+            var mapping = io.mateu.workflow.domain.batch.BatchOperationParameters.prefixed(given, BatchOperationType.MAP_PREFIX);
+            mapping.forEach((from, to) -> {
+                io.mateu.workflow.input.InputLimits.checkIdentifier(from, "a migration's step mapping");
+                io.mateu.workflow.input.InputLimits.checkIdentifier(to, "a migration's step mapping");
+            });
+            var variables = io.mateu.workflow.domain.batch.BatchOperationParameters.prefixed(given, BatchOperationType.VAR_PREFIX);
+            variables.keySet().forEach(name -> {
+                if (name.isBlank()) {
+                    throw new IllegalArgumentException("A variable to set needs a name.");
+                }
+            });
+        }
         if (type == BatchOperationType.RETRY_FROM_STEP) {
             var stepId = given.get(BatchOperationType.STEP_ID);
             if (stepId == null || stepId.isBlank()) {
@@ -196,6 +229,10 @@ public class BatchOperationService {
                     + " dates, text or search attributes. It never acts on every process by default.");
         }
         checkParameters(type, parameters);
+        if (type == BatchOperationType.MIGRATE && filter.workflowDefinitionId() == null) {
+            throw new IllegalArgumentException("A MIGRATE batch moves the processes of one definition: its filter must name"
+                    + " the definition.");
+        }
         if (filter.incident() != null && type != BatchOperationType.RETRY) {
             throw new IllegalArgumentException("A batch over an incident retries it: type RETRY.");
         }

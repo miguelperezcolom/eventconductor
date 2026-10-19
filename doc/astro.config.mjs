@@ -87,6 +87,7 @@ export default defineConfig({
 						{ label: 'Dynamic Workflows', slug: 'guides/dynamic-workflows' },
 						{ label: 'Retries, Timeouts & Compensation', slug: 'guides/retries-timeouts-compensation' },
 						{ label: 'Operating running processes', slug: 'guides/operating-running-processes' },
+						{ label: 'Migrating running processes', slug: 'guides/migrating-running-processes' },
 						{ label: 'Process Analytics', slug: 'guides/analytics' },
 						{ label: 'Searching and Bulk Operations', slug: 'guides/searching-and-bulk-operations' },
 						{ label: 'Process Index (CQRS Read Model)', slug: 'guides/process-index' },

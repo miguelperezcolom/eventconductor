@@ -116,6 +116,9 @@ The engine contributes the `outbox`, `upstream`, `downstream`, `dead-letter` and
   "outputVariables": [{"name": "paymentRef", "value": "PHONE-8812"}], "reason": "Paid by phone", "requestedBy": "alice" }
 { "type": "retry-from-step-requested", "processId": "process-uuid", "stepId": "charge",
   "reason": "Partner API fixed", "requestedBy": "alice" }
+{ "type": "migrate-process-requested", "processId": "process-uuid", "targetVersion": 5,
+  "stepMapping": {"charge": "charge-card"}, "variableMapping": {"currency": "EUR"},
+  "reason": "v5 charges through the new gateway", "requestedBy": "alice" }
 
 // Steps a DYNAMIC step injects into its process
 {

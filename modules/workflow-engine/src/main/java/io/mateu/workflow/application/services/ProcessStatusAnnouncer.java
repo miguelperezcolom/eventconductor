@@ -59,6 +59,32 @@ public class ProcessStatusAnnouncer {
     }
 
     /**
+     * Queues a {@link ProcessStatusChanged} whatever the status did — for a change the index must learn
+     * that leaves the status alone: a migration moving the process onto another definition version
+     * (2.31). Nothing when the read model is off. The event says nothing of search attributes (null), so
+     * the index keeps what it has unless the save re-indexes them.
+     */
+    public void announce(Process process) {
+        if (!enabled) {
+            return;
+        }
+        process.send(new ProcessStatusChanged(
+                process.getId(),
+                process.getBusinessKey(),
+                process.getName(),
+                process.getWorkflowDefinitionId(),
+                process.getWorkflowDefinitionVersion(),
+                process.getStatus() == null ? null : process.getStatus().name(),
+                process.getCompletionPercentage(),
+                process.getCreated(),
+                process.getStarted(),
+                process.getFinished(),
+                EngineClock.now(),
+                shardId,
+                null));
+    }
+
+    /**
      * As {@link #announceIfChanged(Process, ProcessStatus)}, and also when only the process's search
      * attributes changed with this save: the index row is upserted whole, so it learns the new values
      * without a status change. The event carries the attributes whenever the definition declares any

@@ -681,6 +681,113 @@ paths:
       summary: The process's log
       tags:
       - Processes
+  /workflow/api/processes/{id}/migrate:
+    post:
+      description: "RUNNING, PAUSED or ERROR. Each step becomes the target's step\
+        \ of the same id (when its type is compatible) or the one `stepMapping` names,\
+        \ keeping what the process has done: a task in flight is kept when its contract\
+        \ did not change and re-dispatched when it did, timers and message waits are\
+        \ re-armed, steps the target adds run when their preconditions hold. Planned\
+        \ first: a plan with an error is refused with `409` and its problems — see\
+        \ the dry run. Recorded, with the caller and the reason, in the process's\
+        \ log."
+      operationId: migrateProcess
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MigrateRequest"
+      responses:
+        "202":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandAccepted"
+          description: Accepted.
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "No reason, no such version, or over the input limits."
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: The caller may not operate on the process.
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "No such process, or its definition is gone."
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: The migration is refused; the detail lists why.
+      summary: Move a live process onto another version of its definition
+      tags:
+      - Processes
+  /workflow/api/processes/{id}/migrate/dry-run:
+    post:
+      description: "What `migrate` would do with the same body — the effective mapping,\
+        \ every step's fate and the problems (an ERROR refuses it) — changing nothing.\
+        \ The reason is not needed."
+      operationId: dryRunProcessMigration
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MigrateRequest"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MigrationPlan"
+          description: The plan.
+        "400":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "No such version, or over the input limits."
+        "403":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: The caller may not operate on the process.
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: "No such process, or its definition is gone."
+        "409":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+          description: The process lives on another node.
+      summary: Plan a migration without carrying it out
+      tags:
+      - Processes
   /workflow/api/processes/{id}/pause:
     post:
       description: "PENDING or RUNNING: no new steps start and timer/timeout clocks\
@@ -1780,7 +1887,8 @@ components:
           type: object
           additionalProperties:
             type: string
-          description: "What the type takes: reason, stepId, set.<name>, remove.<name>."
+          description: "What the type takes: reason, stepId, set.<name>, remove.<name>;\
+            \ MIGRATE targetVersion, fromVersion, map.<source step>, var.<name>."
         percent:
           type: integer
           format: int32
@@ -1808,7 +1916,8 @@ components:
           format: int64
         type:
           type: string
-          description: "CANCEL, RETRY, RESTART, PAUSE, RESUME, SET_VARIABLES or RETRY_FROM_STEP."
+          description: "CANCEL, RETRY, RESTART, PAUSE, RESUME, SET_VARIABLES, RETRY_FROM_STEP\
+            \ or MIGRATE."
     CommandAccepted:
       type: object
       description: "A command was accepted (202). It is carried out asynchronously\
@@ -1817,7 +1926,7 @@ components:
         command:
           type: string
           description: "cancel, pause, resume, retry, restart, retry-step, set-variables,\
-            \ complete-step or retry-from-step."
+            \ complete-step, retry-from-step or migrate."
         processId:
           type: string
         stepExecutionId:
@@ -1856,10 +1965,15 @@ components:
       properties:
         filter:
           $ref: "#/components/schemas/FilterBody"
+        fromVersion:
+          type: integer
+          format: int32
+          description: "MIGRATE: only the processes on this version; the others are\
+            \ skipped as not applicable."
         reason:
           type: string
-          description: "Why — mandatory for SET_VARIABLES and RETRY_FROM_STEP, recorded\
-            \ in each process's audit trail."
+          description: "Why — mandatory for SET_VARIABLES, RETRY_FROM_STEP and MIGRATE,\
+            \ recorded in each process's audit trail."
         remove:
           type: array
           description: "SET_VARIABLES: the variables to remove."
@@ -1869,14 +1983,26 @@ components:
           type: string
           description: "RETRY_FROM_STEP: the step (a definition step id) to run each\
             \ process again from."
+        stepMapping:
+          type: object
+          additionalProperties:
+            type: string
+          description: "MIGRATE: source step id → target step id, the same for every\
+            \ process."
+        targetVersion:
+          type: integer
+          format: int32
+          description: "MIGRATE: the version to move to; absent for the definition\
+            \ as it is now."
         type:
           type: string
-          description: "CANCEL, RETRY, RESTART, PAUSE, RESUME, SET_VARIABLES or RETRY_FROM_STEP."
+          description: "CANCEL, RETRY, RESTART, PAUSE, RESUME, SET_VARIABLES, RETRY_FROM_STEP\
+            \ or MIGRATE."
         variables:
           type: object
           additionalProperties: {}
-          description: "SET_VARIABLES: the variables to set, by name (a non-string\
-            \ value is kept as its JSON)."
+          description: "SET_VARIABLES: the variables to set; MIGRATE: the variables\
+            \ the migration sets — by name (a non-string value is kept as its JSON)."
       required:
       - filter
       - type
@@ -2118,6 +2244,98 @@ components:
           description: "The message type (INFO, ERROR, …)."
         workerId:
           type: string
+    MigrateRequest:
+      type: object
+      description: A migration of a live process onto another version of its definition.
+      properties:
+        reason:
+          type: string
+          description: "Why — mandatory for the migration (not for a dry run), recorded\
+            \ in the process's audit trail."
+          example: v5 fixes the refund branch
+        stepMapping:
+          type: object
+          additionalProperties:
+            type: string
+          description: "Source step id → target step id, over the default (the same\
+            \ id, when the target has it with a compatible type). An empty target\
+            \ says the step has no counterpart."
+        targetVersion:
+          type: integer
+          format: int32
+          description: The version to move to; absent for the definition as it is
+            now.
+          example: 5
+        variableMapping:
+          type: object
+          additionalProperties:
+            type: string
+          description: Variables to set on the process as part of the migration (name
+            → value).
+    MigrationPlan:
+      type: object
+      description: "What a migration does: the mapping, every step's fate and the\
+        \ problems. Any ERROR refuses it."
+      properties:
+        executable:
+          type: boolean
+          description: Whether no problem refuses it.
+        fromVersion:
+          type: integer
+          format: int32
+        mapping:
+          type: object
+          additionalProperties:
+            type: string
+          description: "The effective mapping: source step id → target step id. A\
+            \ source step that is absent has no counterpart."
+        problems:
+          type: array
+          items:
+            $ref: "#/components/schemas/MigrationProblem"
+        processId:
+          type: string
+        steps:
+          type: array
+          items:
+            $ref: "#/components/schemas/MigrationStep"
+        toVersion:
+          type: integer
+          format: int32
+        workflowDefinitionId:
+          type: string
+    MigrationProblem:
+      type: object
+      description: A problem of a migration plan.
+      properties:
+        message:
+          type: string
+        severity:
+          type: string
+          description: ERROR (refuses) or WARNING.
+        stepId:
+          type: string
+          description: "The step it is about, or absent for the process."
+    MigrationStep:
+      type: object
+      description: One step's fate in a migration.
+      properties:
+        action:
+          type: string
+          description: "REMAP, KEEP_TASK, REDISPATCH, REARM, HISTORY, DROP, CARRY,\
+            \ ADD or ADD_PASSED; absent when the step refuses the migration."
+        note:
+          type: string
+        sourceStepId:
+          type: string
+          description: The step of the version the process runs; absent for a step
+            the target adds.
+        state:
+          type: string
+          description: "NOT_STARTED, ACTIVE, COMPLETED, SKIPPED or FAILED."
+        targetStepId:
+          type: string
+          description: The step it becomes; absent when it has no counterpart.
     OperationReason:
       type: object
       description: The reason a manual operation is performed.

@@ -401,6 +401,98 @@ public class ProcessOperationsService {
                 reason.strip(), subject(caller)));
     }
 
+    // ── Migration (2.31) ──────────────────────────────────────────────────────────────────────────
+
+    private io.mateu.workflow.application.usecases.process.operate.MigrationPlanner migrationPlanner;
+
+    /** Optional, so the engine's narrower test wirings need not build it; every application has it. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setMigrationPlanner(io.mateu.workflow.application.usecases.process.operate.MigrationPlanner migrationPlanner) {
+        this.migrationPlanner = migrationPlanner;
+    }
+
+    /**
+     * What a migration of the process would do, without doing it: the effective mapping, every step's fate
+     * and the problems — any error refuses it. Planned on this node from the process as it stands here.
+     *
+     * @param targetVersion null for the definition as it is now
+     * @throws ProcessNotFoundException      no such process
+     * @throws ProcessStateConflictException the process lives on another node (a dry run needs its steps)
+     * @throws IllegalArgumentException      no such version
+     */
+    public MigrationPreview dryRunMigration(String processId, Integer targetVersion, java.util.Map<String, String> stepMapping,
+                                            java.util.Map<String, String> variableMapping, AuthorizationContext caller) {
+        checkMigrationInput(stepMapping, variableMapping);
+        var process = ref(processId);
+        authorizeOperation(process.workflowDefinitionId(), caller, "plan the migration of process '" + processId + "'");
+        var local = processRepository.findById(processId).orElse(null);
+        if (local == null || migrationPlanner == null) {
+            throw new ProcessStateConflictException(processId, "plan the migration of", process.status(),
+                    "it is owned by another node, which is where its migration is planned");
+        }
+        var planned = migrationPlanner.plan(local, stepExecutionRepository.findByProcess(local), targetVersion,
+                stepMapping, variableMapping);
+        return new MigrationPreview(processId, local.getWorkflowDefinitionId(), local.getWorkflowDefinitionVersion(),
+                planned.target().version(), planned.plan());
+    }
+
+    /**
+     * Moves a live process onto another version of its definition. Planned here first — a plan with an
+     * error is refused with its problems — and carried out by {@code MigrateProcessUseCase} on the node that
+     * owns the process, where it is planned again.
+     *
+     * @throws IllegalArgumentException      no reason, a malformed mapping, or no such version
+     * @throws ProcessNotFoundException      no such process
+     * @throws ProcessStateConflictException the plan has errors (the message lists them), or the process is not live
+     */
+    public void migrate(String processId, Integer targetVersion, java.util.Map<String, String> stepMapping,
+                        java.util.Map<String, String> variableMapping, String reason, AuthorizationContext caller) {
+        requireReason(reason);
+        checkMigrationInput(stepMapping, variableMapping);
+        var process = ref(processId);
+        authorizeOperation(process.workflowDefinitionId(), caller, "migrate process '" + processId + "'");
+        var local = processRepository.findById(processId).orElse(null);
+        if (local != null && migrationPlanner != null) {
+            var plan = migrationPlanner.plan(local, stepExecutionRepository.findByProcess(local), targetVersion,
+                    stepMapping, variableMapping).plan();
+            if (!plan.executable()) {
+                throw new ProcessStateConflictException(processId, "migrate", process.status(),
+                        String.join("; ", plan.errors().stream().map(p -> p.message()).toList()));
+            }
+        } else {
+            var why = liveOrWhy(process.status());
+            if (why != null) {
+                throw new ProcessStateConflictException(processId, "migrate", process.status(), why);
+            }
+        }
+        commandDispatcher.dispatch(new io.mateu.workflow.dtos.events.integration.MigrateProcessRequested(processId,
+                targetVersion, stepMapping, variableMapping, reason.strip(), subject(caller)));
+    }
+
+    /** The versions a process of this definition can be migrated to, newest first. */
+    public List<Integer> migrationVersions(String definitionId) {
+        return migrationPlanner == null ? List.of() : migrationPlanner.versions(definitionId);
+    }
+
+    private static void checkMigrationInput(java.util.Map<String, String> stepMapping,
+                                            java.util.Map<String, String> variableMapping) {
+        io.mateu.workflow.application.services.UpstreamInputGuard.checkMapping(stepMapping, "a migration's step mapping");
+        if (variableMapping != null) {
+            variableMapping.keySet().forEach(name -> {
+                if (name == null || name.isBlank()) {
+                    throw new IllegalArgumentException("A variable to set needs a name.");
+                }
+            });
+            InputLimits.checkNamedValues(List.copyOf(variableMapping.entrySet()), java.util.Map.Entry::getKey,
+                    java.util.Map.Entry::getValue, "a migration's variables");
+        }
+    }
+
+    /** A dry run's answer. */
+    public record MigrationPreview(String processId, String workflowDefinitionId, int fromVersion, int toVersion,
+                                   io.mateu.workflow.analysis.MigrationRules.Plan plan) {
+    }
+
     /**
      * The gate of a manual operation: the definition's flow authorization (when it is on), and — whether
      * or not it is — {@code workflow.security.operations.required-roles}, every one of which the caller

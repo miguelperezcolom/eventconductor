@@ -14,7 +14,8 @@ import java.util.UUID;
 
 /**
  * The audit trail of the manual operations an operator performs on a live process — set its
- * variables, complete a step for it, run it again from a step, retry an incident group.
+ * variables, complete a step for it, run it again from a step, retry an incident group, move it onto
+ * another version of its definition.
  *
  * <p>Every one of them leaves a line in the process's own log, so it is read where everything else
  * about the process is read (its detail page, {@code GET /workflow/api/processes/{id}/logs}, the
@@ -47,6 +48,7 @@ public class OperatorAudit {
     public static final String COMPLETE_STEP = "complete-step";
     public static final String RETRY_FROM_STEP = "retry-from-step";
     public static final String RETRY_INCIDENT = "retry-incident";
+    public static final String MIGRATE = "migrate";
 
     final LogMessageRepository logMessageRepository;
     final WorkflowMetrics workflowMetrics;

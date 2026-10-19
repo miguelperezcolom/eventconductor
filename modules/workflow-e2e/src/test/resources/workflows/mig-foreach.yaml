@@ -1,0 +1,15 @@
+id: mig-foreach
+name: One line at a time, version 1 of the migration tests
+version: 1
+steps:
+  - { id: start, type: START, name: Start }
+  - id: line
+    type: ACTION
+    name: Handle a line
+    topic: work
+    preconditionStepId: start
+    forEach:
+      items: order.lines
+      mode: sequential
+      output: handled
+  - { id: end, type: END, name: End, preconditionStepId: line }

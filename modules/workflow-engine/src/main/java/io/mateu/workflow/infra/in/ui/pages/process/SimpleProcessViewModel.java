@@ -751,6 +751,19 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
     }
 
     /**
+     * Moves the process onto another version of its definition — an admin operation, recorded with the
+     * reason. Opens a dialog with a dry-run preview and the step mapping; see {@code MigrateProcessUseCase}.
+     */
+    @Toolbar(buttonStyle = ButtonStyle.secondary)
+    @Label("Migrate…")
+    @Action
+    public Object migrate() {
+        return io.mateu.workflow.infra.in.ui.pages.process.operate.OperationForms.dialog("Migrate to another version",
+                new io.mateu.workflow.infra.in.ui.pages.process.operate.MigrateForm()
+                        .forProcess(id));
+    }
+
+    /**
      * Copies the process's state to the clipboard as JSON — the identity, status, variables, steps
      * and the message/error log — so it can be pasted into a ticket or a chat without screenshotting
      * a screen a paste cannot carry.
@@ -881,7 +894,7 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
         // A cancelled process is stopped, not finished, and picking it up again is a normal
         // operator move; COMPLETED and COMPENSATED are terminal by design and stay out of it.
         if ("setVariables".equals(memberName) || "completeStep".equals(memberName)
-                || "retryFromStep".equals(memberName)) {
+                || "retryFromStep".equals(memberName) || "migrate".equals(memberName)) {
             // The manual operations: a live process only (ProcessOperationRules.LIVE).
             return processStatus == null
                     || !io.mateu.workflow.application.usecases.process.operate.ProcessOperationRules.LIVE.contains(processStatus);

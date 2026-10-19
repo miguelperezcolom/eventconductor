@@ -11,6 +11,8 @@ Retry, restart, pause, resume and cancel act on a process as a whole. Sometimes 
 | **Complete step** | Marks one step execution `COMPLETED` with the output variables you give, as if its worker had answered, and lets the flow carry on | a `PENDING`, `RUNNING`, `AWAITING_RETRY`, `ERROR` or `TIMEOUT` step of a `RUNNING`, `PAUSED` or `ERROR` process |
 | **Retry from step** | Reopens a step and every step downstream of it; the flow runs again from there | a step the process has already reached, of a `RUNNING`, `PAUSED` or `ERROR` process |
 
+To move a process onto another version of its definition instead, see [Migrating running processes](/guides/migrating-running-processes/).
+
 All three are reached from the process detail page (**Set variables**, **Complete step**, **Retry from step** — each opens a dialog that asks for the reason), the [processes REST API](/reference/processes-rest-api/#manual-operations) and the [MCP tools](/guides/mcp-overview/). A **reason is mandatory**.
 
 ## How an operation runs

@@ -1168,6 +1168,96 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
         updateStatus(status, true);
     }
 
+    // ------------------------------------------------------------------ migration (2.31)
+
+    /**
+     * Moves this execution onto a step of another version of its definition — an operator migrating
+     * the process. It takes the target step's id, frozen copy and position; its id, status, attempts and
+     * dispatch number stay, so a task kept at its worker still answers this execution.
+     *
+     * <p>A started, unfinished step is re-armed against the target: its deadline recomputed from its
+     * start (a TIMER keeps the time it has already waited; an AWAITING_RETRY keeps its backoff wake), and
+     * its message subscription from the target's wait — announced again, with the old one withdrawn,
+     * when the message or its key changed.
+     *
+     * @param refreshVariables whether the variables frozen at its start are replaced with the process's —
+     *                         for a step that waits rather than one whose worker already has them, so a
+     *                         timer's {@code untilVariable} the target introduces resolves
+     */
+    public void migrateTo(String targetStepJson, long position, Process process, boolean refreshVariables, String why) {
+        var step = pojoFromJson(targetStepJson, Step.class);
+        this.stepId = step.id();
+        this.stepJson = targetStepJson;
+        this.order = position;
+        boolean started = startedAt != null && status != null && !status.isTerminal()
+                && !StepExecutionStatus.CREATED.equals(status);
+        if (started) {
+            if (refreshVariables && parentExecutionId == null && process != null) {
+                this.variables = process.getVariables() == null ? List.of() : process.getVariables();
+            }
+            if (!StepExecutionStatus.AWAITING_RETRY.equals(status)) {
+                this.deadlineAt = migratedDeadline(step, process);
+            }
+            rearmSubscription(step, process);
+        }
+        send(new TaskLogEmitted(id, MessageType.Info, why));
+    }
+
+    /** The deadline of a started step under {@code step}: from the process's data when it follows them, else from its start. */
+    private LocalDateTime migratedDeadline(Step step, Process process) {
+        if (isContainer()) {
+            return null;
+        }
+        try {
+            if (followsProcess(step) && process != null) {
+                var recomputed = step.deadlineAt(startedAt, process.getVariables() == null ? List.of() : process.getVariables());
+                return recomputed == null ? deadlineAt : recomputed;
+            }
+            return step.deadlineAt(startedAt, variables);
+        } catch (IllegalArgumentException e) {
+            return deadlineAt;
+        }
+    }
+
+    /** The message subscription under {@code step}, re-announced when it moved. */
+    private void rearmSubscription(Step step, Process process) {
+        var wait = step.messageWait();
+        var waiting = StepExecutionStatus.PENDING.equals(status) && step.awaitsMessage()
+                && wait.messageName() != null && !wait.messageName().isBlank();
+        var name = waiting ? wait.messageName() : null;
+        var key = waiting && process != null ? MessageCorrelation.expectedKey(wait, process) : null;
+        if (Objects.equals(name, awaitingMessageName) && Objects.equals(key, awaitingCorrelationKey)) {
+            return;
+        }
+        if (awaitingMessageName != null) {
+            send(new io.mateu.workflow.dtos.events.domain.MessageSubscriptionChanged(
+                    id, awaitingMessageName, awaitingCorrelationKey, false, processId));
+        }
+        this.awaitingMessageName = name;
+        this.awaitingCorrelationKey = key;
+        if (name != null && key != null) {
+            send(new io.mateu.workflow.dtos.events.domain.MessageSubscriptionChanged(id, name, key, true, processId));
+        }
+    }
+
+    /**
+     * A step a migration added upstream of where the process already is: recorded COMPLETED without
+     * running, so it neither runs late nor holds the flow. Its frozen copy is marked not compensable —
+     * it did nothing, so a rollback has nothing of it to undo.
+     */
+    public static StepExecution passedByMigration(Step step, String processId, int position, String why) {
+        var passed = create(step.withCompensable(false), processId, position);
+        passed.status = StepExecutionStatus.COMPLETED;
+        passed.finishedAt = EngineClock.now();
+        passed.send(new TaskLogEmitted(passed.id, MessageType.Info, why));
+        return passed;
+    }
+
+    /** Moves a history execution (a superseded pass) under its step's new id; its frozen copy stays what ran. */
+    public void renameStep(String newStepId) {
+        this.stepId = newStepId;
+    }
+
     public void markWaitingOnLock() {
         this.status = StepExecutionStatus.WAITING_ON_LOCK;
         this.finishedAt = null;

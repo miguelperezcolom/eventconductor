@@ -119,6 +119,14 @@ public final class UpstreamInputGuard {
                 InputLimits.checkText(e.reason(), "an operation's reason");
                 InputLimits.checkIdentifier(e.requestedBy(), "requestedBy");
             }
+            case io.mateu.workflow.dtos.events.integration.MigrateProcessRequested e -> {
+                InputLimits.checkIdentifier(e.processId(), "processId");
+                checkMapping(e.stepMapping(), "a migration's step mapping");
+                InputLimits.checkNamedValues(java.util.List.copyOf(e.variableMapping().entrySet()), java.util.Map.Entry::getKey,
+                        java.util.Map.Entry::getValue, "a migration's variables");
+                InputLimits.checkText(e.reason(), "an operation's reason");
+                InputLimits.checkIdentifier(e.requestedBy(), "requestedBy");
+            }
             case io.mateu.workflow.dtos.events.integration.RetryFromStepRequested e -> {
                 InputLimits.checkIdentifier(e.processId(), "processId");
                 InputLimits.checkIdentifier(e.stepId(), "stepId");
@@ -132,5 +140,20 @@ public final class UpstreamInputGuard {
             default -> {
             }
         }
+    }
+
+    /** A step mapping: identifiers on both sides (a blank target is allowed: no counterpart), and not too many. */
+    static void checkMapping(java.util.Map<String, String> mapping, String what) {
+        if (mapping == null) {
+            return;
+        }
+        if (mapping.size() > InputLimits.MAX_VARIABLES) {
+            throw new InputLimits.InputRejectedException(what + " has " + mapping.size() + " entries, over the limit of "
+                    + InputLimits.MAX_VARIABLES);
+        }
+        mapping.forEach((from, to) -> {
+            InputLimits.checkIdentifier(from, what);
+            InputLimits.checkIdentifier(to, what);
+        });
     }
 }

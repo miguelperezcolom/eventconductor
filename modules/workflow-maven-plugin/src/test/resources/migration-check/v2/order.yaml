@@ -1,0 +1,8 @@
+id: order
+name: Order
+steps:
+  - { id: start, type: START, name: Start }
+  - { id: charge-card, type: HTTP_CALL, name: Charge, http: { url: "https://pay.example/charge", method: POST }, preconditionStepId: start }
+  - { id: wait-payment, type: WAIT_FOR_MESSAGE, name: Wait, messageName: paid, correlationExpression: orderId, preconditionStepId: charge-card }
+  - { id: ship, type: ACTION, name: Ship, topic: shipping, preconditionStepId: wait-payment }
+  - { id: end, type: END, name: End, preconditionStepId: ship }

@@ -1,0 +1,13 @@
+{
+  "id": "mig-wait",
+  "name": "A message wait and a timer, version 1 of the migration tests",
+  "version": 1,
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "wait", "type": "WAIT_FOR_MESSAGE", "name": "Wait for the payment", "messageName": "payment-received",
+      "correlationExpression": "orderId", "preconditionStepId": "start" },
+    { "id": "cool", "type": "TIMER", "name": "Cool down", "duration": "PT1H", "preconditionStepId": "start" },
+    { "id": "after", "type": "ACTION", "name": "After both", "topic": "work", "preconditionStepIds": ["wait", "cool"] },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "after" }
+  ]
+}

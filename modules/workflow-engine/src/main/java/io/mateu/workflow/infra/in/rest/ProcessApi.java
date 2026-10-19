@@ -165,8 +165,8 @@ public final class ProcessApi {
             + " asynchronously by the node that owns the process: read the process to see the outcome.")
     public record CommandAccepted(
             String processId,
-            @Schema(description = "cancel, pause, resume, retry, restart, retry-step, set-variables, complete-step or"
-                    + " retry-from-step.") String command,
+            @Schema(description = "cancel, pause, resume, retry, restart, retry-step, set-variables, complete-step,"
+                    + " retry-from-step or migrate.") String command,
             @Schema(description = "The step execution, for retry-step and complete-step.") String stepExecutionId,
             @Schema(description = "The definition's step, for retry-from-step.") String stepId) {
 
@@ -200,6 +200,62 @@ public final class ProcessApi {
             @Schema(description = "Why — mandatory, recorded in the process's audit trail.",
                     requiredMode = Schema.RequiredMode.REQUIRED, example = "Partner API fixed; re-run the booking")
             String reason) {
+    }
+
+    @Schema(name = "MigrateRequest", description = "A migration of a live process onto another version of its definition.")
+    public record MigrateRequest(
+            @Schema(description = "The version to move to; absent for the definition as it is now.", example = "5")
+            Integer targetVersion,
+            @Schema(description = "Source step id → target step id, over the default (the same id, when the target has"
+                    + " it with a compatible type). An empty target says the step has no counterpart.")
+            Map<String, String> stepMapping,
+            @Schema(description = "Variables to set on the process as part of the migration (name → value).")
+            Map<String, String> variableMapping,
+            @Schema(description = "Why — mandatory for the migration (not for a dry run), recorded in the process's"
+                    + " audit trail.", example = "v5 fixes the refund branch")
+            String reason) {
+    }
+
+    @Schema(name = "MigrationPlan", description = "What a migration does: the mapping, every step's fate and the"
+            + " problems. Any ERROR refuses it.")
+    public record MigrationPlanView(
+            String processId,
+            String workflowDefinitionId,
+            int fromVersion,
+            int toVersion,
+            @Schema(description = "Whether no problem refuses it.") boolean executable,
+            @Schema(description = "The effective mapping: source step id → target step id. A source step that is absent"
+                    + " has no counterpart.") Map<String, String> mapping,
+            java.util.List<MigrationStepView> steps,
+            java.util.List<MigrationProblemView> problems) {
+
+        public static MigrationPlanView of(io.mateu.workflow.application.services.ProcessOperationsService.MigrationPreview preview) {
+            var plan = preview.plan();
+            return new MigrationPlanView(preview.processId(), preview.workflowDefinitionId(), preview.fromVersion(),
+                    preview.toVersion(), plan.executable(), plan.mapping(),
+                    plan.steps().stream().map(step -> new MigrationStepView(step.sourceStepId(), step.targetStepId(),
+                            nameOf(step.state()), nameOf(step.action()), step.note())).toList(),
+                    plan.problems().stream().map(problem -> new MigrationProblemView(nameOf(problem.severity()),
+                            problem.stepId(), problem.message())).toList());
+        }
+    }
+
+    @Schema(name = "MigrationStep", description = "One step's fate in a migration.")
+    public record MigrationStepView(
+            @Schema(description = "The step of the version the process runs; absent for a step the target adds.")
+            String sourceStepId,
+            @Schema(description = "The step it becomes; absent when it has no counterpart.") String targetStepId,
+            @Schema(description = "NOT_STARTED, ACTIVE, COMPLETED, SKIPPED or FAILED.") String state,
+            @Schema(description = "REMAP, KEEP_TASK, REDISPATCH, REARM, HISTORY, DROP, CARRY, ADD or ADD_PASSED; absent"
+                    + " when the step refuses the migration.") String action,
+            String note) {
+    }
+
+    @Schema(name = "MigrationProblem", description = "A problem of a migration plan.")
+    public record MigrationProblemView(
+            @Schema(description = "ERROR (refuses) or WARNING.") String severity,
+            @Schema(description = "The step it is about, or absent for the process.") String stepId,
+            String message) {
     }
 
     private static final DateTimeFormatter ISO = DateTimeFormatter.ISO_LOCAL_DATE_TIME;

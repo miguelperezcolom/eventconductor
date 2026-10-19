@@ -42,8 +42,9 @@ class BatchOperationMcpToolsTest {
     void theToolsArePublished() {
         assertThat(Arrays.stream(BatchOperationMcpTools.class.getDeclaredMethods())
                 .filter(m -> m.isAnnotationPresent(Tool.class)).map(Method::getName).sorted())
-                .containsExactly("cancelBatchOperation", "createBatchOperation", "getBatchOperation", "listBatchOperations");
-        assertThat(MethodToolCallbackProvider.builder().toolObjects(tools).build().getToolCallbacks()).hasSize(4);
+                .containsExactly("cancelBatchOperation", "createBatchOperation", "getBatchOperation", "listBatchOperations",
+                        "migrateProcessesInBatch");
+        assertThat(MethodToolCallbackProvider.builder().toolObjects(tools).build().getToolCallbacks()).hasSize(5);
         assertThat(tools.getSystemContext()).contains("createBatchOperation");
     }
 
@@ -90,5 +91,22 @@ class BatchOperationMcpToolsTest {
         assertThatThrownBy(() -> tools.getBatchOperation("nope")).hasMessageContaining("No batch operation");
         assertThat(tools.cancelBatchOperation("b1").type()).isEqualTo("RETRY");
         assertThat(BatchOperationMcpTools.statusesOf(" , ")).isNull();
+    }
+
+    @Test
+    void aMigrateBatchIsOverTheDefinitionsLiveProcesses() {
+        when(service.create(any(), any(), any(), any())).thenReturn(batch());
+        tools.migrateProcessesInBatch("orders", 1, 2, null, java.util.Map.of("b", "b2"), null, "fix");
+        var filter = ArgumentCaptor.forClass(BatchOperationFilter.class);
+        verify(service).create(eq(BatchOperationType.MIGRATE), filter.capture(),
+                eq(java.util.Map.of("targetVersion", "2", "fromVersion", "1", "map.b", "b2", "reason", "fix")), isNull());
+        assertThat(filter.getValue().workflowDefinitionId()).isEqualTo("orders");
+        assertThat(filter.getValue().status()).containsExactlyInAnyOrder(ProcessStatus.RUNNING, ProcessStatus.PAUSED,
+                ProcessStatus.ERROR);
+
+        tools.migrateProcessesInBatch("orders", null, null, "paused", null, java.util.Map.of("x", "1"), "fix");
+        verify(service).create(eq(BatchOperationType.MIGRATE), filter.capture(),
+                eq(java.util.Map.of("var.x", "1", "reason", "fix")), isNull());
+        assertThat(filter.getValue().status()).containsExactly(ProcessStatus.PAUSED);
     }
 }

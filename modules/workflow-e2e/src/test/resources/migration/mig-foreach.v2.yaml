@@ -1,0 +1,16 @@
+id: mig-foreach
+name: "v2: the lines go to another topic, then a summary"
+version: 2
+steps:
+  - { id: start, type: START, name: Start }
+  - id: line
+    type: ACTION
+    name: Handle a line
+    topic: work-v2
+    preconditionStepId: start
+    forEach:
+      items: order.lines
+      mode: sequential
+      output: handled
+  - { id: summary, type: ACTION, name: Summary, topic: work, preconditionStepId: line }
+  - { id: end, type: END, name: End, preconditionStepId: summary }

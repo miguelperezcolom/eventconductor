@@ -44,7 +44,8 @@ import java.util.List;
  * <pre>
  *   POST /workflow/api/batch-operations               {type, filter: {definitionId?, tag?, status?, from?, to?,
  *                                                      businessKey?, q?, onlyErrors?, query?, attributes?},
- *                                                      variables?, remove?, stepId?, reason?}
+ *                                                      variables?, remove?, stepId?, reason?,
+ *                                                      targetVersion?, fromVersion?, stepMapping?}
  *   GET  /workflow/api/batch-operations               the most recent first
  *   GET  /workflow/api/batch-operations/{id}          one, with its progress and errors
  *   POST /workflow/api/batch-operations/{id}/cancel   stop it: no further process is touched
@@ -93,9 +94,13 @@ public class BatchOperationRestController {
             ProcessRestController.variablesOf(body.variables()).forEach(v -> set.put(v.name(), v.value()));
         }
         InputLimits.checkIdentifier(body.stepId(), "stepId");
-        var parameters = io.mateu.workflow.domain.batch.BatchOperationParameters.of(set, body.remove(), body.stepId(),
+        var type = BatchOperationApi.type(body.type());
+        var parameters = type == io.mateu.workflow.domain.batch.BatchOperationType.MIGRATE
+                ? io.mateu.workflow.domain.batch.BatchOperationParameters.migrate(body.targetVersion(), body.fromVersion(),
+                body.stepMapping(), set, body.reason())
+                : io.mateu.workflow.domain.batch.BatchOperationParameters.of(set, body.remove(), body.stepId(),
                 body.reason());
-        var created = batches.create(BatchOperationApi.type(body.type()), filterOf(body.filter()), parameters, caller());
+        var created = batches.create(type, filterOf(body.filter()), parameters, caller());
         return ResponseEntity.accepted().location(URI.create("/workflow/api/batch-operations/" + created.id()))
                 .body(BatchOperationView.of(created));
     }

@@ -96,6 +96,18 @@ class UpstreamInputGuardTest {
                 .isInstanceOf(InputRejectedException.class).hasMessageContaining("reason");
         assertThatCode(() -> UpstreamInputGuard.check(new io.mateu.workflow.dtos.events.integration.RetryFromStepRequested(
                 "p-1", "s", "fixed", null))).doesNotThrowAnyException();
+        assertThatCode(() -> UpstreamInputGuard.check(new io.mateu.workflow.dtos.events.integration.MigrateProcessRequested(
+                "p-1", 2, java.util.Map.of("b", "b2"), java.util.Map.of("x", "1"), "fix", "alice"))).doesNotThrowAnyException();
+        assertThatThrownBy(() -> UpstreamInputGuard.check(new io.mateu.workflow.dtos.events.integration.MigrateProcessRequested(
+                "p-1", 2, java.util.Map.of("b", TOO_LONG_KEY), null, "fix", "alice")))
+                .isInstanceOf(InputRejectedException.class).hasMessageContaining("step mapping");
+        var many = new java.util.HashMap<String, String>();
+        for (int i = 0; i <= io.mateu.workflow.input.InputLimits.MAX_VARIABLES; i++) {
+            many.put("s" + i, "t" + i);
+        }
+        assertThatThrownBy(() -> UpstreamInputGuard.checkMapping(many, "a mapping"))
+                .isInstanceOf(InputRejectedException.class).hasMessageContaining("entries");
+        assertThatCode(() -> UpstreamInputGuard.checkMapping(null, "a mapping")).doesNotThrowAnyException();
     }
 
     @Test

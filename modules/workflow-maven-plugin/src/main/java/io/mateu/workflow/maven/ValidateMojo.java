@@ -191,7 +191,7 @@ public class ValidateMojo extends AbstractMojo {
             List.of(".workflow.yaml", ".workflow.yml",
                     ".ec", ".ecform", ".ecrule", ".ectask", ".json", ".yaml", ".yml");
 
-    private static boolean isDefinitionFile(Path path) {
+    static boolean isDefinitionFile(Path path) {
         String name = path.getFileName().toString().toLowerCase();
         return DEFINITION_EXTENSIONS.stream().anyMatch(name::endsWith)
                 && !io.mateu.workflow.analysis.ScheduleRules.isCronFileName(name)
@@ -318,7 +318,7 @@ public class ValidateMojo extends AbstractMojo {
      * directory, definition extensions stripped (repeatedly), separators turned into dots — a copy of
      * {@code DerivedIds.forFile}, for the reason {@link #DEFINITION_EXTENSIONS} is one.
      */
-    private static String derivedId(Path root, Path file) {
+    static String derivedId(Path root, Path file) {
         String relative = root.relativize(file).toString().replace('\\', '/');
         for (boolean stripped = true; stripped; ) {
             stripped = false;

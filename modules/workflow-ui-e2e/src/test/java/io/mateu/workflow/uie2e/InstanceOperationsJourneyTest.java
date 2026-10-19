@@ -97,6 +97,39 @@ class InstanceOperationsJourneyTest extends AbstractUiE2eTest {
         new io.mateu.workflow.uie2e.pages.ProcessDetailPage(page).awaitLoaded();
     }
 
+    @Test
+    void anOperatorPreviewsAndMigratesAProcessToTheNewVersion() {
+        var id = startProcess("ui-long-running", "migrate-1");
+        var original = definitions.findById("ui-long-running").orElseThrow();
+        try {
+            var renamed = original.steps().stream()
+                    .map(step -> "wait".equals(step.id()) ? step.withName("Wait a long while, v2") : step).toList();
+            definitions.save(original.withSteps(renamed).withVersion(original.version() + 1));
+
+            var detail = ui.goToProcesses().open(id);
+            detail.runAction("Migrate…");
+            var dialog = page.getByRole(AriaRole.DIALOG).first();
+            assertThat(dialog).isVisible();
+            assertThat(dialog.getByLabel("Step mapping").first()).hasValue(java.util.regex.Pattern.compile("wait=wait"));
+            dialog.getByLabel("Reason").first().fill("v2 renames the wait");
+            dialog.getByRole(AriaRole.BUTTON, new com.microsoft.playwright.Locator.GetByRoleOptions().setName("Preview")).click();
+            assertThat(page.getByText(java.util.regex.Pattern.compile("can be migrated")).first()).isVisible();
+            dialog.getByRole(AriaRole.BUTTON, new com.microsoft.playwright.Locator.GetByRoleOptions().setName("Migrate")
+                    .setExact(true)).click();
+
+            awaitUntil(Duration.ofSeconds(20), () ->
+                    processes.findById(id).orElseThrow().getWorkflowDefinitionVersion() == original.version() + 1);
+            page.reload();
+            detail.openTab("Operations");
+            assertThat(page.getByText(java.util.regex.Pattern.compile("\\[migrate\\] by .*migrated from v")).first()).isVisible();
+        } finally {
+            definitions.save(original);
+        }
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    io.mateu.workflow.application.out.WorkflowDefinitionRepository definitions;
+
     @org.springframework.beans.factory.annotation.Autowired
     io.mateu.workflow.application.out.LogMessageRepository logs;
 

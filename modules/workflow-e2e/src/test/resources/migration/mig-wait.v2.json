@@ -1,0 +1,13 @@
+{
+  "id": "mig-wait",
+  "name": "v2: the message renamed and keyed by invoice, the timer half a second",
+  "version": 2,
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "wait", "type": "WAIT_FOR_MESSAGE", "name": "Wait for the settlement", "messageName": "payment-settled",
+      "correlationExpression": "invoiceId", "preconditionStepId": "start" },
+    { "id": "cool", "type": "TIMER", "name": "Cool down", "duration": "PT0.5S", "preconditionStepId": "start" },
+    { "id": "after", "type": "ACTION", "name": "After both", "topic": "work", "preconditionStepIds": ["wait", "cool"] },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "after" }
+  ]
+}

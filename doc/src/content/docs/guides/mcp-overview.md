@@ -30,6 +30,7 @@ The process tools have REST twins on the same application services — start, re
 |---|---|
 | `listProcesses` | Process instances with status and completion %; optionally filtered by `workflowDefinitionId`, `status`, `tag` and `query` — [search-attribute](/guides/searching-and-bulk-operations/) conditions such as `customerId = "C-9" AND amount > 100` (then one page: `page`, `size`) |
 | `createBatchOperation` / `listBatchOperations` / `getBatchOperation` / `cancelBatchOperation` | Cancel, retry, restart, pause, resume, set variables or retry from a step for every process a filter matches, in the background; follow its progress, skip reasons and errors; cancel it ([guide](/guides/searching-and-bulk-operations/#batch-operations)) |
+| `migrateProcessesInBatch` | A `MIGRATE` batch: move every live process of a definition (of one version, `fromVersion`) onto another version with one step mapping |
 | `getProcessDetails` | Full process detail: variables + all step executions |
 | `findProcessByBusinessKey` | Look up a process by its business key |
 | `getProcessLogs` | Audit trail and log messages for a process |
@@ -40,6 +41,7 @@ The process tools have REST twins on the same application services — start, re
 | `setProcessVariables` | Change a live process's variables (`set`, `remove`) — an audited admin operation; `reason` mandatory ([guide](/guides/operating-running-processes/)) |
 | `completeStepManually` | Complete a step execution by hand with output variables, as if its worker had answered; the flow carries on |
 | `retryProcessFromStep` | Run a live process again from one of its steps: it and everything downstream start over |
+| `dryRunProcessMigration` / `migrateProcess` | Plan, then carry out, moving a live process onto another version of its definition — a step mapping, variables, the reason ([guide](/guides/migrating-running-processes/)) |
 | `listIncidents` / `getIncidentProcesses` / `retryIncident` | Failures grouped by definition, step and error family; their processes; retry a whole group — as a RETRY batch operation, whose id it returns |
 | `pauseProcess` / `resumeProcess` | Pause a `PENDING` or `RUNNING` process (in-flight work finishes, successors held, clocks frozen) and resume it |
 | `pauseWorkflow` / `resumeWorkflow` | Pause/resume a whole definition: all its processes, with new instances born paused |

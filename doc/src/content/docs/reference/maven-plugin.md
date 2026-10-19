@@ -111,6 +111,28 @@ src/main/resources/workflows/order.yaml:
 | `failOnMissing` | `eventconductor.validate.failOnMissing` | `false` | Fail if a configured directory has no definitions. |
 | `skip` | `eventconductor.validate.skip` | `false` | Skip validation entirely. |
 
+## Checking a migration: the `check-migration` goal
+
+Before a new version of a workflow ships, `check-migration` checks that the processes running the old one could be [migrated](/guides/migrating-running-processes/) onto it: every step of the old version a process can be waiting in needs a compatible counterpart in the new one — by id, or by a mapping file. The same rules the engine applies when it migrates a process (`MigrationRules` in `definition-analysis`), on the two definitions alone.
+
+```bash
+mvn eventconductor:check-migration -Dfrom=v3                  # a git tag or ref, against the working copy
+mvn eventconductor:check-migration -Dfrom=v3 -Dto=v4
+mvn eventconductor:check-migration -Dfrom=released/workflows -Dmapping=src/main/resources/migration.yaml
+```
+
+`from` and `to` are each `current` (the workflows directory), a path (a definition file or a directory of them) or a git ref, read with `git show <ref>:<file>` for every definition file under the workflows directory. Steps without a compatible counterpart that a process can wait in fail the build; instantaneous steps, changed task contracts, forEach items and locks are warnings; a workflow missing from `to` is a warning.
+
+| Parameter | Property | Default | Description |
+|---|---|---|---|
+| `from` | `from` | (required) | The version processes run now: `current`, a path, or a git ref. |
+| `to` | `to` | `current` | The version to move them to. |
+| `mapping` | `mapping` | | YAML/JSON file `{<workflow id>: {<old step>: <new step>}}`; an empty target says "no counterpart". |
+| `workflow` | `workflow` | | Only this workflow. |
+| `workflowsDirectory` | | `${basedir}/src/main/resources/workflows` | Workflow definitions directory. |
+| `failOnError` | `eventconductor.migration.failOnError` | `true` | Fail the build on errors (otherwise warn). |
+| `skip` | `eventconductor.migration.skip` | `false` | Skip the check. |
+
 ## Generating worker types: the `generate-worker-sources` goal
 
 The second goal turns task contracts into the Java a worker developer implements against — records,

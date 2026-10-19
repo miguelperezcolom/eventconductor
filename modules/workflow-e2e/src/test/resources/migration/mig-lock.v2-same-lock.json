@@ -1,0 +1,13 @@
+{
+  "id": "mig-lock",
+  "name": "v2: the same lock, an audit step inside the section",
+  "version": 2,
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "lock", "type": "LOCK", "name": "Lock", "lockName": "mig", "lockKey": "bookingId", "preconditionStepId": "start" },
+    { "id": "work", "type": "ACTION", "name": "Work", "topic": "work", "preconditionStepId": "lock" },
+    { "id": "audit", "type": "ACTION", "name": "Audit", "topic": "work", "preconditionStepId": "work" },
+    { "id": "unlock", "type": "UNLOCK", "name": "Unlock", "lockName": "mig", "lockKey": "bookingId", "preconditionStepId": "audit" },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "unlock" }
+  ]
+}

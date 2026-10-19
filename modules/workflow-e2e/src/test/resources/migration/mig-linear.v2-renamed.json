@@ -1,0 +1,12 @@
+{
+  "id": "mig-linear",
+  "name": "v2: b renamed b2, sent to another topic",
+  "version": 2,
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "a", "type": "ACTION", "name": "A", "topic": "work", "preconditionStepId": "start" },
+    { "id": "b2", "type": "ACTION", "name": "B, the fixed one", "topic": "work-v2", "preconditionStepId": "a" },
+    { "id": "c", "type": "ACTION", "name": "C", "topic": "work", "preconditionStepId": "b2" },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "c" }
+  ]
+}

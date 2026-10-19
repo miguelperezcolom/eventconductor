@@ -60,7 +60,7 @@ A filter does not need to know an attribute's type — two definitions may decla
 
 ## Batch operations
 
-A batch operation applies one command — `CANCEL`, `RETRY`, `RESTART`, `PAUSE`, `RESUME`, or one of the [manual operations](/guides/operating-running-processes/) `SET_VARIABLES` (variables to set and remove) and `RETRY_FROM_STEP` (a step id), which take a mandatory `reason` — to every process a filter matches. The filter is the listing's (definition, tag, statuses, creation dates, business key, text, only-errors, search attributes) and must narrow something: a batch never acts on every process by default.
+A batch operation applies one command — `CANCEL`, `RETRY`, `RESTART`, `PAUSE`, `RESUME`, or one of the [manual operations](/guides/operating-running-processes/) `SET_VARIABLES` (variables to set and remove), `RETRY_FROM_STEP` (a step id) and `MIGRATE` (a target version, a `fromVersion`, a step mapping and variables — see [Migrating running processes](/guides/migrating-running-processes/#many-processes-a-migrate-batch)), which take a mandatory `reason` — to every process a filter matches. The filter is the listing's (definition, tag, statuses, creation dates, business key, text, only-errors, search attributes) and must narrow something: a batch never acts on every process by default.
 
 ```bash
 curl -X POST https://engine.example.com/workflow/api/batch-operations \

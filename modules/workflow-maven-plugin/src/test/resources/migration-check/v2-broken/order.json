@@ -1,0 +1,10 @@
+{
+  "id": "order",
+  "name": "Order",
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "charge", "type": "ACTION", "name": "Charge", "topic": "payments", "preconditionStepId": "start" },
+    { "id": "wait-payment", "type": "TIMER", "name": "Wait", "duration": 1000, "preconditionStepId": "charge" },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "wait-payment" }
+  ]
+}

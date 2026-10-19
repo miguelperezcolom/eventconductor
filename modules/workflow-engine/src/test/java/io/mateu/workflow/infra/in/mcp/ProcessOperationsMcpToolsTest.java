@@ -14,6 +14,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -36,6 +37,11 @@ class ProcessOperationsMcpToolsTest {
         doThrow(new ProcessOperationsService.ProcessStateConflictException("p-1", "retry", null, "nope"))
                 .when(operations).retryFromStep(any(), any(), any(), any());
         assertThat(tools.retryProcessFromStep("p-1", "a", "why")).startsWith("Refused:").contains("nope");
+
+        assertThat(tools.migrateProcess("p-1", 2, Map.of("b", "b2"), null, "why")).contains("Migration to v2");
+        verify(operations).migrate(eq("p-1"), eq(2), eq(Map.of("b", "b2")), isNull(), eq("why"), any());
+        assertThat(tools.migrateProcess("p-1", null, null, null, "why")).contains("the current version");
+        assertThat(tools.getSystemContext()).contains("migrateProcess");
     }
 
     @Test

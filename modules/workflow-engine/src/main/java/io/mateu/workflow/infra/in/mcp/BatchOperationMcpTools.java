@@ -40,7 +40,7 @@ public class BatchOperationMcpTools implements McpTools, McpSystemContext {
     public String getSystemContext() {
         return """
                 Operaciones masivas (batch operations) del motor:
-                - createBatchOperation aplica CANCEL, RETRY, RESTART, PAUSE, RESUME, SET_VARIABLES (setVariables/removeVariables) o RETRY_FROM_STEP (stepId) — estas dos con reason obligatoria, auditada en cada proceso — a todos los procesos que casan con un filtro (definición, estados, tag, business key, y atributos de búsqueda con query: customerId = "C-9" AND amount > 100). El filtro es obligatorio: nunca actúa sobre todos los procesos por defecto.
+                - createBatchOperation aplica CANCEL, RETRY, RESTART, PAUSE, RESUME, SET_VARIABLES (setVariables/removeVariables) o RETRY_FROM_STEP (stepId) — estas dos con reason obligatoria (y migrateProcessesInBatch: MIGRATE de los procesos de una definición a otra versión, con un mapeo de pasos común), auditada en cada proceso — a todos los procesos que casan con un filtro (definición, estados, tag, business key, y atributos de búsqueda con query: customerId = "C-9" AND amount > 100). El filtro es obligatorio: nunca actúa sobre todos los procesos por defecto.
                 - Se ejecuta en segundo plano, por páginas y con un límite de procesos por segundo; getBatchOperation da el progreso (matched, succeeded, failed, skipped y los motivos de los omitidos: notApplicable por estado, notAuthorized, gone) y una muestra de errores.
                 - cancelBatchOperation la detiene: no se toca ningún proceso más; lo hecho, hecho está.
                 - Antes de lanzarla, listProcesses con el mismo filtro dice a qué procesos afectará.
@@ -93,6 +93,33 @@ public class BatchOperationMcpTools implements McpTools, McpSystemContext {
         InputLimits.checkIdentifier(stepId, "stepId");
         var parameters = io.mateu.workflow.domain.batch.BatchOperationParameters.of(setVariables, remove, stepId, reason);
         return BatchOperationSummary.of(batches.create(typeOf(type), filter, parameters, callerContext()));
+    }
+
+    @Tool(description = "Move every live (RUNNING, PAUSED or ERROR) process of one workflow definition onto another"
+            + " version of it, in the background — a MIGRATE batch. fromVersion limits it to the processes on that"
+            + " version (the others are skipped); status narrows it further (comma-separated). The same stepMapping"
+            + " (source step id → target step id) for all; each process is planned on its own and one the plan refuses is"
+            + " skipped, not failed. Try dryRunProcessMigration on one first. A reason is mandatory, recorded in each"
+            + " process's audit trail. Returns the batch; follow it with getBatchOperation.")
+    public BatchOperationSummary migrateProcessesInBatch(
+            String workflowDefinitionId,
+            @ToolParam(required = false, description = "Only the processes on this version") Integer fromVersion,
+            @ToolParam(required = false, description = "The version to move to; empty for the current one") Integer targetVersion,
+            @ToolParam(required = false, description = "Comma-separated statuses; empty for RUNNING, PAUSED and ERROR") String status,
+            @ToolParam(required = false, description = "Source step id → target step id") Map<String, String> stepMapping,
+            @ToolParam(required = false, description = "Variables to set as part of the migration, by name") Map<String, String> variables,
+            @ToolParam(description = "Why — mandatory, recorded in each process's audit trail") String reason) {
+        InputLimits.checkIdentifier(workflowDefinitionId, "workflowDefinitionId");
+        var statuses = statusesOf(status);
+        var filter = new BatchOperationFilter(workflowDefinitionId, null, statuses == null || statuses.isEmpty()
+                ? java.util.Set.of(io.mateu.workflow.domain.aggregates.ProcessStatus.RUNNING,
+                io.mateu.workflow.domain.aggregates.ProcessStatus.PAUSED, io.mateu.workflow.domain.aggregates.ProcessStatus.ERROR)
+                : statuses, null, null, null, null, false, null);
+        var parameters = io.mateu.workflow.domain.batch.BatchOperationParameters.migrate(targetVersion, fromVersion,
+                stepMapping, variables, reason);
+        log.info("Creating a MIGRATE batch operation over {}", filter.describe());
+        return BatchOperationSummary.of(batches.create(io.mateu.workflow.domain.batch.BatchOperationType.MIGRATE, filter,
+                parameters, callerContext()));
     }
 
     @Tool(description = "List the batch operations, the most recent first, with their progress.")

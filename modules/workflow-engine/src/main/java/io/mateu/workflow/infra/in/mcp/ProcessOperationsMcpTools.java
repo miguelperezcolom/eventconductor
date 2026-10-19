@@ -49,6 +49,7 @@ public class ProcessOperationsMcpTools implements McpTools, McpSystemContext {
                 - completeStepManually da por completado a mano un paso (PENDING, RUNNING, AWAITING_RETRY, ERROR o TIMEOUT) con unas variables de salida, como si su worker hubiera respondido; el flujo sigue. Si era el último fallo de un proceso ERROR, vuelve a RUNNING.
                 - retryProcessFromStep vuelve a ejecutar un proceso desde un paso (stepId de la definición): ese paso y todos los que dependen de él vuelven a empezar; el resto queda igual.
                 - Se rechazan en procesos terminados (COMPLETED, CANCELLED, COMPENSATED, COMPENSATION_FAILED) y mientras un rollback de saga está en curso.
+                - migrateProcess mueve un proceso RUNNING, PAUSED o ERROR a otra versión de su definición (targetVersion; vacío = la actual): cada paso pasa al de mismo id (si el tipo es compatible) o al que diga stepMapping; las tareas en curso se conservan si su contrato no cambió y se re-despachan si cambió; timers y esperas de mensaje se rearman. Antes, dryRunProcessMigration devuelve el plan (qué pasa con cada paso y los problemas: un ERROR lo impide) sin cambiar nada. Para muchos procesos: migrateProcessesInBatch (batch MIGRATE).
                 - listIncidents agrupa los fallos (pasos ERROR/TIMEOUT de procesos ERROR) por definición, paso y familia de error; getIncidentProcesses da sus procesos y retryIncident reintenta todo el grupo.
                 """;
     }
@@ -90,6 +91,52 @@ public class ProcessOperationsMcpTools implements McpTools, McpSystemContext {
             @ToolParam(description = "Why — mandatory, recorded in the audit trail") String reason) {
         return run(() -> processOperations.retryFromStep(processId, stepId, reason, caller()),
                 "Retry from step " + stepId + " requested for process " + processId);
+    }
+
+    /** A migration plan, as the tools return it. */
+    public record MigrationPlanSummary(String processId, String workflowDefinitionId, int fromVersion, int toVersion,
+                                       boolean executable, Map<String, String> mapping, List<String> steps,
+                                       List<String> problems) {
+    }
+
+    @Tool(description = "Plan moving a live workflow process onto another version of its definition WITHOUT changing"
+            + " anything: the effective step mapping (source step id → target step id), what happens to every step"
+            + " (REMAP, KEEP_TASK, REDISPATCH, REARM, HISTORY, DROP, CARRY, ADD, ADD_PASSED) and the problems — an ERROR"
+            + " means migrateProcess would be refused. targetVersion empty means the definition as it is now.")
+    public Object dryRunProcessMigration(
+            String processId,
+            @ToolParam(required = false, description = "The version to move to; empty for the current one") Integer targetVersion,
+            @ToolParam(required = false, description = "Source step id → target step id, over the default (same id)") Map<String, String> stepMapping,
+            @ToolParam(required = false, description = "Variables to set as part of the migration, by name") Map<String, String> variableMapping) {
+        try {
+            var preview = processOperations.dryRunMigration(processId, targetVersion, stepMapping, variableMapping, caller());
+            var plan = preview.plan();
+            return new MigrationPlanSummary(preview.processId(), preview.workflowDefinitionId(), preview.fromVersion(),
+                    preview.toVersion(), plan.executable(), plan.mapping(),
+                    plan.steps().stream().map(step -> (step.sourceStepId() == null ? "(new)" : step.sourceStepId()) + " → "
+                            + (step.targetStepId() == null ? "(none)" : step.targetStepId()) + ": "
+                            + (step.action() == null ? "REFUSED" : step.action().name())
+                            + (step.note() == null ? "" : " — " + step.note())).toList(),
+                    plan.problems().stream().map(Object::toString).toList());
+        } catch (RuntimeException e) {
+            return "Refused: " + e.getMessage();
+        }
+    }
+
+    @Tool(description = "Move a live (RUNNING, PAUSED or ERROR) workflow process onto another version of its definition,"
+            + " keeping what it has done: each step becomes the target's step of the same id (compatible type) or the one"
+            + " stepMapping names; a task in flight is kept if its contract did not change, re-dispatched if it did;"
+            + " timers and message waits are re-armed; new steps run when their preconditions hold. Refused (with the"
+            + " reasons) when the plan has errors — see dryRunProcessMigration. A reason is mandatory and recorded.")
+    public String migrateProcess(
+            String processId,
+            @ToolParam(required = false, description = "The version to move to; empty for the current one") Integer targetVersion,
+            @ToolParam(required = false, description = "Source step id → target step id, over the default (same id)") Map<String, String> stepMapping,
+            @ToolParam(required = false, description = "Variables to set as part of the migration, by name") Map<String, String> variableMapping,
+            @ToolParam(description = "Why — mandatory, recorded in the audit trail") String reason) {
+        return run(() -> processOperations.migrate(processId, targetVersion, stepMapping, variableMapping, reason, caller()),
+                "Migration to " + (targetVersion == null ? "the current version" : "v" + targetVersion)
+                        + " requested for process " + processId);
     }
 
     /** One incident, as the tools return it. */

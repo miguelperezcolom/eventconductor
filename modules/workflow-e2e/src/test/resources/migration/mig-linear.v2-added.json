@@ -1,0 +1,13 @@
+{
+  "id": "mig-linear",
+  "name": "v2: c gone, x before a, d after b",
+  "version": 2,
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "x", "type": "ACTION", "name": "X", "topic": "work", "preconditionStepId": "start" },
+    { "id": "a", "type": "ACTION", "name": "A", "topic": "work", "preconditionStepId": "x" },
+    { "id": "b", "type": "ACTION", "name": "B", "topic": "work", "timeout": "PT1H", "preconditionStepId": "a" },
+    { "id": "d", "type": "ACTION", "name": "D", "topic": "work", "preconditionStepId": "b" },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "d" }
+  ]
+}

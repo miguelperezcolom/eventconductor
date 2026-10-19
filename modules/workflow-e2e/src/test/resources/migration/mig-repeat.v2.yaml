@@ -1,0 +1,15 @@
+id: mig-repeat
+name: "v2: poll renamed check-payment"
+version: 2
+steps:
+  - { id: start, type: START, name: Start }
+  - id: check-payment
+    type: ACTION
+    name: Check the payment
+    topic: work
+    preconditionStepId: start
+    repeat:
+      until: "paymentStatus == 'SETTLED'"
+      maxIterations: 5
+  - { id: ship, type: ACTION, name: Ship, topic: work, preconditionStepId: check-payment }
+  - { id: end, type: END, name: End, preconditionStepId: ship }

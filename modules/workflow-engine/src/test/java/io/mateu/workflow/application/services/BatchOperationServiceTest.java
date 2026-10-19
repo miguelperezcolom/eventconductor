@@ -28,6 +28,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -135,7 +136,9 @@ class BatchOperationServiceTest {
                 reason.capture(), any());
         assertThat(reason.getValue()).startsWith("why (batch ");
         verify(operations, org.mockito.Mockito.times(25)).retryFromStep(anyString(), eq("charge"), anyString(), any());
-        assertThat(service.list()).hasSize(7).allMatch(op -> op.status() == BatchOperationStatus.COMPLETED);
+        verify(operations, org.mockito.Mockito.times(25)).migrate(anyString(), isNull(), eq(Map.of()), eq(Map.of()),
+                anyString(), any());
+        assertThat(service.list()).hasSize(8).allMatch(op -> op.status() == BatchOperationStatus.COMPLETED);
     }
 
     @Test
@@ -227,5 +230,56 @@ class BatchOperationServiceTest {
         assertThat(op.progressed("p", 0, 30, Map.of(), manyErrors, LocalDateTime.now()).errors())
                 .hasSize(BatchOperation.MAX_ERRORS);
         assertThat(BatchOperation.create("y", BatchOperationType.CANCEL, filter, null, 0, null, LocalDateTime.now()).percent()).isZero();
+    }
+
+    @Test
+    void migrateMovesEachProcessOfTheVersionWithTheSameMapping() {
+        properties.setPageSize(30);
+        var onV2 = io.mateu.workflow.domain.aggregates.Process.builder().id("p01").workflowDefinitionVersion(2)
+                .status(ProcessStatus.RUNNING).build();
+        var onV1 = io.mateu.workflow.domain.aggregates.Process.builder().id("p00").workflowDefinitionVersion(1)
+                .status(ProcessStatus.RUNNING).build();
+        when(processes.findById("p00")).thenReturn(java.util.Optional.of(onV1));
+        when(processes.findById("p01")).thenReturn(java.util.Optional.of(onV2));
+        var parameters = io.mateu.workflow.domain.batch.BatchOperationParameters.migrate(3, 1, Map.of("b", "b2"),
+                Map.of("x", "1"), "fleet fix");
+        assertThat(parameters).containsEntry("targetVersion", "3").containsEntry("fromVersion", "1")
+                .containsEntry("map.b", "b2").containsEntry("var.x", "1").containsEntry("reason", "fleet fix");
+        var service = service();
+        var batch = service.create(BatchOperationType.MIGRATE, ERRORS, parameters, null);
+
+        service.runNextPage();
+
+        var done = repository.findById(batch.id()).orElseThrow();
+        // p01 is on v2: not applicable; every other one (not found locally, or on v1) is migrated.
+        assertThat(done.skipped()).isEqualTo(1);
+        assertThat(done.succeeded()).isEqualTo(24);
+        verify(operations).migrate(eq("p00"), eq(3), eq(Map.of("b", "b2")), eq(Map.of("x", "1")),
+                eq("fleet fix (batch " + batch.id() + ")"), any());
+        verify(operations, never()).migrate(eq("p01"), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void migrateParametersAreCheckedWhenTheBatchIsCreated() {
+        var service = service();
+        assertThatThrownBy(() -> service.create(BatchOperationType.MIGRATE, ERRORS,
+                io.mateu.workflow.domain.batch.BatchOperationParameters.migrate(null, null, null, null, null), null))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("reason");
+        assertThatThrownBy(() -> service.create(BatchOperationType.MIGRATE, ERRORS,
+                Map.of("reason", "r", "targetVersion", "latest"), null))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("not a version number");
+        assertThatThrownBy(() -> service.create(BatchOperationType.MIGRATE, ERRORS,
+                Map.of("reason", "r", "var. ", "1"), null))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("needs a name");
+        assertThatThrownBy(() -> service.create(BatchOperationType.MIGRATE,
+                new BatchOperationFilter(null, "t", null, null, null, null, null, false, null), Map.of("reason", "r"), null))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("must name the definition");
+        assertThat(service.create(BatchOperationType.MIGRATE, ERRORS,
+                Map.of("reason", "r", "targetVersion", "v4", "map.a", ""), null).parameters())
+                .containsEntry("targetVersion", "v4");
+        assertThat(io.mateu.workflow.domain.batch.BatchOperationParameters.version(Map.of("v", "V4"), "v")).isEqualTo(4);
+        assertThat(io.mateu.workflow.domain.batch.BatchOperationParameters.version(null, "v")).isNull();
+        assertThat(io.mateu.workflow.domain.batch.BatchOperationParameters.prefixed(null, "map.")).isEmpty();
+        assertThat(BatchOperationType.MIGRATE.isManualOperation()).isTrue();
     }
 }

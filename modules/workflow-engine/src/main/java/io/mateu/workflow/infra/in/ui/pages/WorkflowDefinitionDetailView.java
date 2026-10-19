@@ -337,6 +337,18 @@ public class WorkflowDefinitionDetailView implements VisibilitySupplier {
     }
 
     /**
+     * Moves the live processes of one version of this definition onto another — a MIGRATE batch operation
+     * (2.31), followed on the Batch operations page. Opens a dialog.
+     */
+    @Toolbar
+    @Label("Migrate instances…")
+    public Object migrateInstances() {
+        return io.mateu.workflow.infra.in.ui.pages.process.operate.OperationForms.dialog(
+                "Migrate instances of " + id + " to another version",
+                new io.mateu.workflow.infra.in.ui.pages.process.operate.MigrateInstancesForm().forDefinition(id));
+    }
+
+    /**
      * Only the runtime toggles are shown. The built-in CRUD write actions are always hidden:
      * definitions are authored as {@code .ec} files, so "edit" and "Add another" ({@code new}) make
      * no sense here.

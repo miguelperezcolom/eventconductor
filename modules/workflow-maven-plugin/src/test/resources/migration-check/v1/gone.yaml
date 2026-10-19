@@ -1,0 +1,4 @@
+id: gone
+name: A workflow v2 drops
+steps:
+  - { id: start, type: START, name: Start }

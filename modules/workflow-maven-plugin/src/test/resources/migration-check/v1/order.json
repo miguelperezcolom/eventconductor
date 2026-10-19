@@ -1,0 +1,11 @@
+{
+  "id": "order",
+  "name": "Order",
+  "steps": [
+    { "id": "start", "type": "START", "name": "Start" },
+    { "id": "charge", "type": "ACTION", "name": "Charge", "topic": "payments", "preconditionStepId": "start" },
+    { "id": "wait-payment", "type": "WAIT_FOR_MESSAGE", "name": "Wait", "messageName": "paid",
+      "correlationExpression": "orderId", "preconditionStepId": "charge" },
+    { "id": "end", "type": "END", "name": "End", "preconditionStepId": "wait-payment" }
+  ]
+}

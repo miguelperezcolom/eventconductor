@@ -32,6 +32,52 @@ public final class BatchOperationParameters {
         return parameters;
     }
 
+    /** A MIGRATE batch's parameters; null and blank inputs are left out. */
+    public static Map<String, String> migrate(Integer targetVersion, Integer fromVersion, Map<String, String> stepMapping,
+                                              Map<String, String> variables, String reason) {
+        var parameters = new LinkedHashMap<String, String>();
+        if (targetVersion != null) {
+            parameters.put(BatchOperationType.TARGET_VERSION, String.valueOf(targetVersion));
+        }
+        if (fromVersion != null) {
+            parameters.put(BatchOperationType.FROM_VERSION, String.valueOf(fromVersion));
+        }
+        if (stepMapping != null) {
+            stepMapping.forEach((from, to) -> parameters.put(BatchOperationType.MAP_PREFIX + from, to == null ? "" : to));
+        }
+        if (variables != null) {
+            variables.forEach((name, value) -> parameters.put(BatchOperationType.VAR_PREFIX + name, value));
+        }
+        if (reason != null && !reason.isBlank()) {
+            parameters.put(BatchOperationType.REASON, reason.strip());
+        }
+        return parameters;
+    }
+
+    /** The entries under {@code prefix}, without it, in order. */
+    public static Map<String, String> prefixed(Map<String, String> parameters, String prefix) {
+        var entries = new LinkedHashMap<String, String>();
+        if (parameters != null) {
+            parameters.entrySet().stream().filter(e -> e.getKey().startsWith(prefix))
+                    .sorted(Map.Entry.comparingByKey())
+                    .forEach(e -> entries.put(e.getKey().substring(prefix.length()), e.getValue()));
+        }
+        return entries;
+    }
+
+    /** A whole-number parameter, or null when absent. */
+    public static Integer version(Map<String, String> parameters, String key) {
+        var value = parameters == null ? null : parameters.get(key);
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return Integer.valueOf(value.strip().replaceFirst("^[vV]", ""));
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException(key + " '" + value + "' is not a version number.");
+        }
+    }
+
     /** {@code name=value} lines (the console's text box) as a map, in order; a line without {@code =} is refused. */
     public static Map<String, String> assignments(String text) {
         var set = new LinkedHashMap<String, String>();

@@ -154,6 +154,25 @@ class BatchOperationRestControllerMvcTest {
     }
 
     @Test
+    void aMigrateBatchCarriesItsVersionsAndMapping() throws Exception {
+        mvc.perform(post("/workflow/api/batch-operations").header("X-Api-Key", "k").contentType("application/json")
+                        .content("""
+                                {"type": "MIGRATE", "filter": {"definitionId": "orders", "status": ["RUNNING"]},
+                                 "targetVersion": 3, "fromVersion": 2, "stepMapping": {"charge": "charge-card"},
+                                 "variables": {"currency": "EUR"}, "reason": "v3 fixes the charge"}"""))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.type").value("MIGRATE"))
+                .andExpect(jsonPath("$.parameters.targetVersion").value("3"))
+                .andExpect(jsonPath("$.parameters.fromVersion").value("2"))
+                .andExpect(jsonPath("$['parameters']['map.charge']").value("charge-card"))
+                .andExpect(jsonPath("$['parameters']['var.currency']").value("EUR"));
+        mvc.perform(post("/workflow/api/batch-operations").header("X-Api-Key", "k").contentType("application/json")
+                        .content("{\"type\": \"MIGRATE\", \"filter\": {\"tag\": \"billing\"}, \"reason\": \"r\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value(containsString("must name the definition")));
+    }
+
+    @Test
     void anActiveBatchIsCancelled() throws Exception {
         var batch = batches.create(io.mateu.workflow.domain.batch.BatchOperationType.PAUSE,
                 new io.mateu.workflow.domain.batch.BatchOperationFilter("orders", null, null, null, null, null, null,
