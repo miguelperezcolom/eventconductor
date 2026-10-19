@@ -44,7 +44,18 @@ public final class UpdateEvaluator {
     }
 
     public static Outcome evaluate(UpdateDefinition update, Process process, Object payload, long maxResultBytes) {
-        var before = contextOf(process.getVariables(), process, payload);
+        return evaluate(update, process, payload, maxResultBytes, null);
+    }
+
+    /**
+     * The same, keeping the variables {@code sensitive} names out of what answers the caller — the guards and
+     * the reply — unless the update opts in ({@code allowSensitiveVariables}). {@code set} sees them all.
+     */
+    public static Outcome evaluate(UpdateDefinition update, Process process, Object payload, long maxResultBytes,
+                                   java.util.function.Predicate<String> sensitive) {
+        var hide = sensitive != null && !update.allowsSensitiveVariables();
+        var all = contextOf(process.getVariables(), process, payload);
+        var before = hide ? contextOf(visible(process.getVariables(), sensitive), process, payload) : all;
         if (update.validate() != null) {
             for (var validation : update.validate()) {
                 Object value;
@@ -64,7 +75,7 @@ public final class UpdateEvaluator {
         if (update.set() != null) {
             for (var entry : update.set().entrySet()) {
                 try {
-                    var value = JEXLEvaluator.evaluate(entry.getValue(), before).value();
+                    var value = JEXLEvaluator.evaluate(entry.getValue(), all).value();
                     written.add(new Variable(entry.getKey(), textOf(value)));
                 } catch (RuntimeException e) {
                     return new Failed("set." + entry.getKey() + " ('" + entry.getValue() + "') could not be evaluated: "
@@ -77,14 +88,15 @@ public final class UpdateEvaluator {
             after.removeIf(existing -> existing.name().equals(variable.name()));
             after.add(variable);
         });
+        var shown = hide ? visible(after, sensitive) : after;
         String result;
         try {
             if (update.replyTemplate() != null) {
-                var candidate = process.withVariables(after);
+                var candidate = process.withVariables(shown);
                 result = io.mateu.workflow.template.Templates.renderJson(update.replyTemplate(),
                         TemplateContext.of(candidate, null, null, scopeOf(payload)));
             } else if (update.reply() != null) {
-                result = JSON.writeValueAsString(JEXLEvaluator.evaluate(update.reply(), contextOf(after, process, payload)).value());
+                result = JSON.writeValueAsString(JEXLEvaluator.evaluate(update.reply(), contextOf(shown, process, payload)).value());
             } else {
                 result = "{}";
             }
@@ -142,32 +154,150 @@ public final class UpdateEvaluator {
         }
     }
 
+    private static List<Variable> visible(List<Variable> variables, java.util.function.Predicate<String> sensitive) {
+        return variables.stream().filter(variable -> !sensitive.test(variable.name())).toList();
+    }
+
+    /** What a masked value reads as — the same mask as every sensitive value the engine shows. */
+    public static final String MASK = io.mateu.workflow.analysis.SensitiveVariableRules.MASK;
+
+    private static final java.util.regex.Pattern PAYLOAD_FIELD =
+            java.util.regex.Pattern.compile("payload\\s*(?:\\.\\s*([A-Za-z_$][A-Za-z0-9_$]*)|\\[\\s*['\"]([^'\"]+)['\"]\\s*])");
+
     /**
-     * The payload as recorded and shown: every top-level field the update declares {@code sensitive}
-     * replaced by the mask. Not JSON (or not an object) → kept as it is when nothing is sensitive, masked
-     * whole otherwise.
+     * The top-level payload fields that must never be kept or carried in clear: the ones the update declares
+     * {@code sensitive}, the ones named like a sensitive variable, and the ones a {@code set} writes into a
+     * sensitive variable ({@code cardNumber: payload.card} protects {@code card}).
      */
-    public static String masked(UpdateDefinition update, String payloadJson) {
-        if (payloadJson == null || update == null || update.sensitive() == null) {
+    public static java.util.Set<String> protectedFields(UpdateDefinition update, java.util.function.Predicate<String> sensitive,
+                                                       java.util.Collection<String> fields) {
+        var protectedFields = new java.util.LinkedHashSet<String>();
+        if (update == null) {
+            return protectedFields;
+        }
+        if (update.sensitive() != null) {
+            protectedFields.addAll(update.sensitive());
+        }
+        if (sensitive != null) {
+            fields.stream().filter(sensitive).forEach(protectedFields::add);
+            if (update.set() != null) {
+                update.set().forEach((variable, expression) -> {
+                    if (variable != null && expression != null && sensitive.test(variable)) {
+                        var matcher = PAYLOAD_FIELD.matcher(expression);
+                        while (matcher.find()) {
+                            protectedFields.add(matcher.group(1) != null ? matcher.group(1) : matcher.group(2));
+                        }
+                    }
+                });
+            }
+        }
+        return protectedFields;
+    }
+
+    /**
+     * The payload with its protected fields sealed under the active key — how it is recorded and carried to
+     * the process's owner. Without encryption the fields are masked instead (the record then cannot carry
+     * them; the command carries the payload as it came, inside the engine). A payload that is not a JSON
+     * object is sealed (or masked) whole when the update declares anything sensitive.
+     */
+    public static String seal(UpdateDefinition update, String payloadJson, java.util.function.Predicate<String> sensitive,
+                              io.mateu.workflow.crypto.VariableEncryption encryption) {
+        if (payloadJson == null || update == null) {
+            return payloadJson;
+        }
+        var enabled = encryption != null && encryption.enabled();
+        try {
+            var tree = JSON.readTree(payloadJson);
+            if (!(tree instanceof com.fasterxml.jackson.databind.node.ObjectNode object)) {
+                var anything = update.sensitive() != null || (sensitive != null && update.set() != null
+                        && update.set().keySet().stream().anyMatch(sensitive));
+                return !anything ? payloadJson
+                        : JSON.writeValueAsString(enabled ? encryption.seal(payloadJson) : MASK);
+            }
+            var fields = new java.util.ArrayList<String>();
+            object.fieldNames().forEachRemaining(fields::add);
+            var protectedFields = protectedFields(update, sensitive, fields);
+            var changed = false;
+            for (var field : fields) {
+                if (protectedFields.contains(field)) {
+                    var value = object.get(field);
+                    object.put(field, enabled ? encryption.seal(JSON.writeValueAsString(value)) : MASK);
+                    changed = true;
+                }
+            }
+            return changed ? JSON.writeValueAsString(object) : payloadJson;
+        } catch (com.fasterxml.jackson.core.JsonProcessingException notJson) {
+            return update.sensitive() == null ? payloadJson : "\"" + MASK + "\"";
+        }
+    }
+
+    /** A payload {@link #seal sealed} for the record or the command, opened back to what the caller sent. */
+    public static String open(String payloadJson, io.mateu.workflow.crypto.VariableEncryption encryption) {
+        if (!io.mateu.workflow.crypto.SensitivePayloads.containsSealed(payloadJson) || encryption == null) {
             return payloadJson;
         }
         try {
             var tree = JSON.readTree(payloadJson);
-            if (!tree.isObject()) {
-                return "\"" + MASK + "\"";
+            if (tree.isTextual()) {
+                return encryption.open(tree.asText());
             }
-            var object = (com.fasterxml.jackson.databind.node.ObjectNode) tree;
-            var masked = new LinkedHashMap<String, Object>();
-            object.properties().forEach(entry -> masked.put(entry.getKey(),
-                    update.isSensitive(entry.getKey()) ? MASK : entry.getValue()));
-            return JSON.writeValueAsString(masked);
-        } catch (Exception e) {
-            return "\"" + MASK + "\"";
+            if (tree instanceof com.fasterxml.jackson.databind.node.ObjectNode object) {
+                var fields = new java.util.ArrayList<String>();
+                object.fieldNames().forEachRemaining(fields::add);
+                for (var field : fields) {
+                    var value = object.get(field);
+                    if (value.isTextual() && io.mateu.workflow.crypto.VariableEnvelope.isSealed(value.asText())) {
+                        object.set(field, JSON.readTree(encryption.open(value.asText())));
+                    }
+                }
+                return JSON.writeValueAsString(object);
+            }
+            return payloadJson;
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            throw new IllegalArgumentException("The payload is not JSON: " + e.getOriginalMessage(), e);
         }
     }
 
-    /** What a masked value reads as. */
-    public static final String MASK = "****";
+    /** A recorded payload or result as every door shows it: each sealed value — or a sealed whole — masked. */
+    public static String shown(String json) {
+        if (!io.mateu.workflow.crypto.SensitivePayloads.containsSealed(json)) {
+            return json;
+        }
+        try {
+            var tree = JSON.readTree(json);
+            if (tree.isTextual()) {
+                return JSON.writeValueAsString(MASK);
+            }
+            maskSealed(tree);
+            return JSON.writeValueAsString(tree);
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            return JSON.valueToTree(MASK).toString();
+        }
+    }
+
+    private static void maskSealed(com.fasterxml.jackson.databind.JsonNode node) {
+        if (node instanceof com.fasterxml.jackson.databind.node.ObjectNode object) {
+            var fields = new java.util.ArrayList<String>();
+            object.fieldNames().forEachRemaining(fields::add);
+            for (var field : fields) {
+                var child = object.get(field);
+                if (child.isTextual() && io.mateu.workflow.crypto.VariableEnvelope.isSealed(child.asText())) {
+                    object.put(field, MASK);
+                } else {
+                    maskSealed(child);
+                }
+            }
+        } else if (node instanceof com.fasterxml.jackson.databind.node.ArrayNode array) {
+            for (int i = 0; i < array.size(); i++) {
+                var child = array.get(i);
+                if (child.isTextual() && io.mateu.workflow.crypto.VariableEnvelope.isSealed(child.asText())) {
+                    array.set(i, MASK);
+                } else {
+                    maskSealed(child);
+                }
+            }
+        }
+    }
 
     private UpdateEvaluator() {
     }

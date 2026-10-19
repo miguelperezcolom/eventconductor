@@ -1,0 +1,18 @@
+{
+  "id": "sensitive-updates",
+  "name": "Updates of a process with a card number",
+  "version": 1,
+  "sensitiveVariables": ["cardNumber"],
+  "steps": [
+    {"id": "start", "type": "START", "name": "Start"},
+    {"id": "wait", "type": "WAIT_FOR_MESSAGE", "name": "Wait", "messageName": "sensitive-updates-go",
+     "correlationExpression": "businessKey", "preconditionStepId": "start"},
+    {"id": "end", "type": "END", "name": "End", "preconditionStepId": "wait"}
+  ],
+  "updates": [
+    {"name": "setCard", "accepts": {"type": "object", "required": ["card"]},
+     "set": {"cardNumber": "payload.card", "last4": "payload.card.substring(12)"},
+     "reply": "{'last4': last4}"},
+    {"name": "showCard", "reply": "{'cardNumber': cardNumber}", "allowSensitiveVariables": true}
+  ]
+}

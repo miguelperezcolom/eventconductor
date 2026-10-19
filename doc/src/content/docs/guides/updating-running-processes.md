@@ -72,7 +72,8 @@ updates:
 | `set` | Variables written: name → JEXL over `payload`, the variables **as they were before the update**, and `businessKey`. A value that is not text is stored as its JSON |
 | `completes` | A `WAIT_FOR_MESSAGE` step the update resumes, exactly as its message would; it must be waiting, or the update is not accepted (`409`). The same step can still be resumed by its message |
 | `reply` / `replyTemplate` | The result: a JEXL expression, or a [payload template](/guides/payload-templates/) (`payload` in scope), evaluated **after** `set` is written. Neither: `{}`. At most `workflow.sync.max-reply-bytes` |
-| `sensitive` | Payload fields that are never shown: the recorded copy of the payload carries `****` |
+| `sensitive` | Payload fields that are never shown: the record carries them sealed (see [Sensitive variables](#sensitive-variables)) and every door shows `••••` |
+| `allowSensitiveVariables` | Let `validate` and `reply`/`replyTemplate` read the definition's [sensitive variables](/guides/sensitive-data-and-encryption/). Off by default — see below |
 
 Everything is checked when the definition loads: names, schemas, the steps named, and every expression's syntax. `updates` is part of the definition's [version](/reference/versioning/): a process accepts the updates of the version it runs (and of the one a [migration](/guides/migrating-running-processes/) moves it to).
 
@@ -89,6 +90,27 @@ Under the process lock, on the node that owns the process:
 Then what follows a change of variables follows it, as when a worker writes them: message correlation keys and timers re-arm, and a step held by a [link guard](/guides/workflow-definitions/) that now holds is released. A resumed step moves the flow on through its own completion.
 
 A **paused**, **failed** (including while a saga rolls back) or **finished** process takes no updates. A process that a compensation is undoing runs the compensation steps with the variables the updates left — an update is part of the process's state, like any other write.
+
+## Sensitive variables
+
+In a definition that declares [`sensitiveVariables`](/guides/sensitive-data-and-encryption/), an update follows the same rules as every other write:
+
+- **What `set` writes into a sensitive variable is sealed** like any variable — at rest in the process row and in transit. The payload fields that feed it (`cardNumber: payload.card` protects `card`), the fields named like a sensitive variable and the ones the update declares `sensitive` are **sealed in the update's record** (`process_update.payload`) and in the `process-update-requested` command; the node that applies the update opens them. Without encryption keys they are masked in the record instead.
+- **Guards and replies answer the caller**, so they are an oracle on what they read: a definition whose update's `validate` or `reply`/`replyTemplate` reads a sensitive variable is **refused at load** unless the update opts in with `allowSensitiveVariables: true` (as an `LLM_CALL`'s `llm.allowSensitiveVariables`). At runtime the sensitive variables are left out of those expressions' context for an update that has not opted in; `set` always sees them (what it computes stays inside the engine).
+- **A result allowed to read them** is recorded sealed and given in clear **only to the request that sent the update** — and to a retry with its `Idempotency-Key`, which is the same request. `GET /workflow/api/updates/{id}`, the process's update list, the MCP tools and the console's Updates tab show it masked (`••••`), as they show sealed payload fields and the result's members named like a sensitive variable. Reading the value itself is the variable's [audited reveal](/guides/sensitive-data-and-encryption/).
+- **The idempotency fingerprint is keyed** (`h1:<keyId>:…`, an HMAC under a key derived from the active one), never a plain digest a card number could be guessed back from; a retry is verified under the key the stored fingerprint names.
+
+```yaml
+sensitiveVariables: [cardNumber]
+updates:
+  - name: replaceCard
+    accepts: { type: object, required: [card] }
+    set: { cardNumber: payload.card, last4: "payload.card.substring(12)" }
+    reply: "{'last4': last4}"                 # fine: last4 is not sensitive
+  - name: confirmCard
+    reply: "{'card': cardNumber}"             # reads cardNumber: refused at load without
+    allowSensitiveVariables: true             # this opt-in
+```
 
 ## Call an update over HTTP
 

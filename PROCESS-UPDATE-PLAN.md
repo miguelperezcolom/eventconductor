@@ -192,6 +192,20 @@ for the flow-control work running in parallel.
   `reply`/`replyTemplate`).
 - **Versioning**: `updates` is part of the content hash (it changes what a process accepts).
 
+### 3.7 Sensitive variables (#557, merged before this PR)
+
+- The fingerprint is `VariableEncryption.fingerprint` (keyed HMAC `h1:<keyId>:…`), verified with
+  `fingerprintMatches` (rotation-safe, legacy digests still verify).
+- Protected payload fields — declared `sensitive`, named like a sensitive variable, or read by a `set` that
+  writes a sensitive variable — are sealed (masked without keys) in `process_update.payload` and in the
+  `process-update-requested` command; the owner opens them. `set` into a sensitive variable is sealed by the
+  process repository like any write.
+- `validate` / `reply` / `replyTemplate` reading a sensitive variable is refused at load unless the update
+  declares `allowSensitiveVariables: true`; at runtime they do not see sensitive variables without it.
+- An opted-in result is recorded sealed (whole) and opened only for the caller (the POST, or a retry with its
+  key); GET, listings, MCP and the console mask sealed values and result members named like a sensitive
+  variable.
+
 ## 4. Tests
 
 - Unit: `UpdateEvaluator` (guards, set before/after, reply, failures), definition invariants, JSON
@@ -216,5 +230,3 @@ it. No new configuration (reuses `workflow.sync.*`).
 - **IDE plugins** schema sync + release (schema-driven; ride the next plugins release).
 - **Cross-shard by-key routing** of updates: a sharded fleet answers 404 for a process on another
   shard unless the caller addresses the owning shard (as messages/commands by id already route).
-- Payload masking by *sensitive variable* (#557): once merged, payload fields `set` into a sensitive
-  variable are masked too, and the fingerprint becomes keyed.

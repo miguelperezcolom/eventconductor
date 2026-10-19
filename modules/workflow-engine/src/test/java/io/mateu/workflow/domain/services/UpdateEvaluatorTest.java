@@ -111,16 +111,83 @@ class UpdateEvaluatorTest {
         assertThat(outcome).isInstanceOf(UpdateEvaluator.Failed.class);
     }
 
-    @Test
-    void sensitiveFieldsAreMaskedInTheRecordedPayload() {
-        var handler = new UpdateDefinition("pay", null, null, null, null, null, null, null, null, List.of("card"));
+    static io.mateu.workflow.crypto.VariableEncryption encryption() {
+        var key = new byte[32];
+        java.util.Arrays.fill(key, (byte) 7);
+        return new io.mateu.workflow.crypto.VariableEncryption(
+                new io.mateu.workflow.crypto.AesGcmVariableCodec("k1", Map.of("k1", key)));
+    }
 
-        assertThat(UpdateEvaluator.masked(handler, "{\"card\":\"4111\",\"amount\":3}"))
-                .isEqualTo("{\"card\":\"****\",\"amount\":3}");
-        assertThat(UpdateEvaluator.masked(handler, "[1]")).isEqualTo("\"****\"");
-        assertThat(UpdateEvaluator.masked(handler, "not json")).isEqualTo("\"****\"");
-        assertThat(UpdateEvaluator.masked(update(null, null, null, null), "{\"card\":\"4111\"}"))
-                .isEqualTo("{\"card\":\"4111\"}");
+    static final java.util.function.Predicate<String> CARD = name -> name.equals("cardNumber") || name.equals("pin");
+
+    @Test
+    void theFieldsASetWritesIntoASensitiveVariableAreProtected() {
+        var handler = new UpdateDefinition("pay", null, null, null, null,
+                set("cardNumber", "payload.card", "pin", "payload['code']", "amount", "payload.amount"),
+                null, null, null, List.of("cvv"));
+
+        assertThat(UpdateEvaluator.protectedFields(handler, CARD, List.of("card", "code", "amount", "cvv", "pin")))
+                .containsExactlyInAnyOrder("cvv", "pin", "card", "code");
+        assertThat(UpdateEvaluator.protectedFields(handler, null, List.of("card"))).containsExactly("cvv");
+        assertThat(UpdateEvaluator.protectedFields(null, CARD, List.of("card"))).isEmpty();
+    }
+
+    @Test
+    void protectedFieldsAreSealedOpenedBackAndShownMasked() {
+        var encryption = encryption();
+        var handler = new UpdateDefinition("pay", null, null, null, null, set("cardNumber", "payload.card"),
+                null, null, null, null);
+        var payload = "{\"card\":\"4111111111111111\",\"amount\":12,\"meta\":{\"a\":1}}";
+
+        var sealed = UpdateEvaluator.seal(handler, payload, CARD, encryption);
+
+        assertThat(sealed).doesNotContain("4111111111111111").contains("ec:enc:v1:k1:").contains("\"amount\":12");
+        assertThat(UpdateEvaluator.open(sealed, encryption)).isEqualTo(payload);
+        assertThat(UpdateEvaluator.shown(sealed)).isEqualTo("{\"card\":\"••••\",\"amount\":12,\"meta\":{\"a\":1}}");
+        // Without keys the record cannot carry them: masked.
+        assertThat(UpdateEvaluator.seal(handler, payload, CARD, io.mateu.workflow.crypto.VariableEncryption.DISABLED))
+                .contains("\"card\":\"••••\"").doesNotContain("4111");
+        // Nothing protected: as it came.
+        assertThat(UpdateEvaluator.seal(handler, payload, null, encryption)).isEqualTo(payload);
+        assertThat(UpdateEvaluator.open(payload, encryption)).isEqualTo(payload);
+        assertThat(UpdateEvaluator.shown(payload)).isEqualTo(payload);
+        assertThat(UpdateEvaluator.seal(null, payload, CARD, encryption)).isEqualTo(payload);
+    }
+
+    @Test
+    void aPayloadThatIsNotAnObjectIsSealedWholeWhenAnythingIsSensitive() {
+        var encryption = encryption();
+        var declared = new UpdateDefinition("pay", null, null, null, null, null, null, null, null, List.of("x"));
+
+        var sealed = UpdateEvaluator.seal(declared, "[1,2]", null, encryption);
+
+        assertThat(sealed).startsWith("\"ec:enc:v1:");
+        assertThat(UpdateEvaluator.open(sealed, encryption)).isEqualTo("[1,2]");
+        assertThat(UpdateEvaluator.shown(sealed)).isEqualTo("\"••••\"");
+        assertThat(UpdateEvaluator.seal(declared, "[1,2]", null, io.mateu.workflow.crypto.VariableEncryption.DISABLED))
+                .isEqualTo("\"••••\"");
+        assertThat(UpdateEvaluator.seal(declared, "not json", null, encryption)).isEqualTo("\"••••\"");
+        assertThat(UpdateEvaluator.seal(update(null, null, null, null), "[1]", CARD, encryption)).isEqualTo("[1]");
+        assertThat(UpdateEvaluator.shown("[\"" + encryption.seal("x") + "\", {\"y\": [\"" + encryption.seal("z") + "\"]}]"))
+                .isEqualTo("[\"••••\",{\"y\":[\"••••\"]}]");
+    }
+
+    @Test
+    void sensitiveVariablesAreKeptOutOfGuardsAndRepliesUnlessTheUpdateOptsIn() {
+        var process = process(new Variable("cardNumber", "4111"), new Variable("amount", "3"));
+        var hidden = new UpdateDefinition("peek", null, null, null,
+                List.of(new UpdateDefinition.Validation("cardNumber == null", null)),
+                set("last4", "cardNumber.substring(2)"), null, "{'card': cardNumber, 'last4': last4}", null, null);
+        var allowed = new UpdateDefinition("peek", null, null, null, null, null, null, "cardNumber", null, null, true);
+
+        var outcome = (UpdateEvaluator.Applied) UpdateEvaluator.evaluate(hidden, process, null, 0, CARD);
+        // set reads it (it stays inside the engine); the guard and the reply do not see it.
+        assertThat(outcome.variables()).containsExactly(new Variable("last4", "11"));
+        assertThat(outcome.result()).contains("\"card\":null").contains("\"last4\":\"11\"");
+        assertThat(((UpdateEvaluator.Applied) UpdateEvaluator.evaluate(allowed, process, null, 0, CARD)).result())
+                .isEqualTo("\"4111\"");
+        assertThat(allowed.allowsSensitiveVariables()).isTrue();
+        assertThat(hidden.allowsSensitiveVariables()).isFalse();
     }
 
     @Test

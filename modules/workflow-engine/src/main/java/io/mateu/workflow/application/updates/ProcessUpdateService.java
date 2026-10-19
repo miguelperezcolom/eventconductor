@@ -31,11 +31,8 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -92,6 +89,18 @@ public class ProcessUpdateService {
 
     @Value("${workflow.sync.max-reply-bytes:262144}")
     long maxResultBytes = 262_144;
+
+    /**
+     * Keys the request fingerprint (an HMAC under a key derived from the active one, never a plain digest a
+     * card number could be guessed back from), seals the payload fields that must not be kept or carried in
+     * clear, opens a sensitive result for its caller.
+     */
+    io.mateu.workflow.crypto.VariableEncryption encryption = io.mateu.workflow.crypto.VariableEncryption.DISABLED;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void encryption(io.mateu.workflow.crypto.VariableEncryption encryption) {
+        this.encryption = encryption == null ? io.mateu.workflow.crypto.VariableEncryption.DISABLED : encryption;
+    }
 
     /** Where an embedded node applies updates: off the request thread, so a deadline can be honoured. */
     private final ExecutorService applier = Executors.newThreadPerTaskExecutor(
@@ -164,14 +173,16 @@ public class ProcessUpdateService {
                         "Process '" + process.getId() + "' (" + process.getWorkflowDefinitionId() + " v"
                                 + process.getWorkflowDefinitionVersion() + ") declares no update '" + request.updateName() + "'."));
         var wait = waitFor(request.requestedWait());
-        var hash = fingerprint(request.updateName(), request.payload());
+        var canonical = canonicalOf(request.updateName(), request.payload());
+        var hash = encryption.fingerprint(canonical);
+        var sensitive = io.mateu.workflow.application.services.SensitiveVariableMasking.namesOf(process);
         if (request.idempotencyKey() != null) {
             var existing = updateRepository.findByKey(process.getId(), request.idempotencyKey());
             if (existing.isPresent()) {
-                var retried = retried(existing.get(), hash, wait, inline);
+                var retried = retried(existing.get(), canonical, wait, inline);
                 // Still REQUESTED: the command may have been lost on the way (a node that died, a broker
                 // that refused it) — send it again. The owner applies an update once, so this is harmless.
-                redrive(retried.update(), request.payload(), inline);
+                redrive(retried.update(), carried(handler, request.payload(), sensitive), inline);
                 return retried;
             }
         }
@@ -190,22 +201,24 @@ public class ProcessUpdateService {
         var now = EngineClock.now();
         var update = new ProcessUpdate(id, process.getId(), process.getWorkflowDefinitionId(), handler.name(),
                 request.idempotencyKey() == null ? id : request.idempotencyKey(), hash,
-                UpdateEvaluator.masked(handler, request.payload()), ProcessUpdate.Status.REQUESTED, null, null,
+                recorded(handler, request.payload(), sensitive, encryption), ProcessUpdate.Status.REQUESTED, null, null,
                 subject(request.caller()), false, now, null, now.plus(retention));
         try {
             updateRepository.insert(update);
         } catch (ProcessUpdateRepository.DuplicateUpdateException e) {
             // A concurrent retry took the key between the lookup and the insert: theirs is the update.
             var winner = updateRepository.findByKey(process.getId(), update.idempotencyKey()).orElseThrow(() -> e);
-            return retried(winner, hash, wait, inline);
+            return retried(winner, canonical, wait, inline);
         }
         log.info("Update '{}' {} of process {} requested", handler.name(), id, process.getId());
-        dispatch(update, request.payload(), inline);
+        dispatch(update, carried(handler, request.payload(), sensitive), inline);
         return new Submitted(updateRepository.findById(id).orElse(update), true, wait);
     }
 
-    private Submitted retried(ProcessUpdate existing, String hash, Duration wait, boolean inline) {
-        if (existing.requestHash() != null && !existing.requestHash().equals(hash)) {
+    private Submitted retried(ProcessUpdate existing, String canonical, Duration wait, boolean inline) {
+        // Verified under the key the stored fingerprint names: a key rotation inside the update's retention
+        // does not turn a genuine retry into a "key reused" refusal.
+        if (existing.requestHash() != null && !encryption.fingerprintMatches(existing.requestHash(), canonical)) {
             throw new ProcessUpdateRejectedException(ProcessUpdateRejectedException.Reason.IDEMPOTENCY_KEY_REUSED,
                     "Idempotency key '" + existing.idempotencyKey() + "' was already used for a different update.");
         }
@@ -305,7 +318,9 @@ public class ProcessUpdateService {
                 .workflowDefinitionId(definition.id()).workflowDefinitionVersion(definition.version())
                 .businessKey(request.businessKey()).variables(new ArrayList<>(initial))
                 .status(ProcessStatus.PENDING).build();
-        var outcome = UpdateEvaluator.evaluate(handler, candidate, UpdateEvaluator.payloadOf(request.payload()), maxResultBytes);
+        var sensitive = io.mateu.workflow.application.services.SensitiveVariablePolicies.of(definition);
+        var outcome = UpdateEvaluator.evaluate(handler, candidate, UpdateEvaluator.payloadOf(request.payload()), maxResultBytes,
+                sensitive.isEmpty() ? null : sensitive);
         var applied = switch (outcome) {
             case UpdateEvaluator.Refused refused -> throw new ProcessUpdateRejectedException(
                     ProcessUpdateRejectedException.Reason.REFUSED, refused.message());
@@ -322,8 +337,11 @@ public class ProcessUpdateService {
         var now = EngineClock.now();
         var update = new ProcessUpdate(id, processId, definition.id(), handler.name(),
                 request.idempotencyKey() == null ? id : request.idempotencyKey(),
-                fingerprint(request.updateName(), request.payload()), UpdateEvaluator.masked(handler, request.payload()),
-                ProcessUpdate.Status.COMPLETED, applied.result(), null, subject(request.caller()), true, now, now,
+                encryption.fingerprint(canonicalOf(request.updateName(), request.payload())),
+                recorded(handler, request.payload(), sensitive, encryption), ProcessUpdate.Status.COMPLETED,
+                !sensitive.isEmpty() && handler.allowsSensitiveVariables()
+                        ? ApplyProcessUpdateUseCase.sealedResult(applied.result(), encryption) : applied.result(),
+                null, subject(request.caller()), true, now, now,
                 now.plus(retention));
         var created = new boolean[1];
         updateRepository.inTransaction(() -> {
@@ -471,11 +489,12 @@ public class ProcessUpdateService {
     }
 
     /**
-     * The request's fingerprint: the update's name and its payload in a canonical form (object members
-     * sorted), so the same payload written differently is the same request. The idempotency key is not in
-     * it (it is the lookup), and neither is the wait.
+     * The request in the canonical form its fingerprint is computed over: the update's name and its payload
+     * with object members sorted, so the same payload written differently is the same request. The
+     * idempotency key is not in it (it is the lookup), and neither is the wait. Fingerprinted with
+     * {@code VariableEncryption.fingerprint} — keyed when encryption is configured.
      */
-    static String fingerprint(String updateName, String payload) {
+    static String canonicalOf(String updateName, String payload) {
         String canonical;
         try {
             canonical = payload == null || payload.isBlank() ? "null"
@@ -483,13 +502,100 @@ public class ProcessUpdateService {
         } catch (Exception e) {
             canonical = payload;
         }
-        try {
-            var digest = MessageDigest.getInstance("SHA-256")
-                    .digest((updateName + "\n" + canonical).getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(digest);
-        } catch (java.security.NoSuchAlgorithmException e) {
-            throw new IllegalStateException(e);
+        return updateName + "\n" + canonical;
+    }
+
+    /** The plain digest (no keys configured), for callers that have no encryption at hand. */
+    static String fingerprint(String updateName, String payload) {
+        return io.mateu.workflow.crypto.Fingerprints.of(canonicalOf(updateName, payload), null);
+    }
+
+    /**
+     * The payload as recorded: its protected fields (see {@code UpdateEvaluator#protectedFields}) sealed —
+     * masked without encryption. An update the definition does not declare has no rules to go by: with
+     * anything sensitive in the process, its payload is not kept at all.
+     */
+    static String recorded(UpdateDefinition handler, String payload, io.mateu.workflow.crypto.SensitiveNames sensitive,
+                           io.mateu.workflow.crypto.VariableEncryption encryption) {
+        if (handler == null) {
+            return sensitive.isEmpty() || payload == null ? payload : "\"" + UpdateEvaluator.MASK + "\"";
         }
+        return UpdateEvaluator.seal(handler, payload, sensitive.isEmpty() ? null : sensitive, encryption);
+    }
+
+    /** The payload as carried to the process's owner: sealed like the record when there are keys, as it came otherwise. */
+    private String carried(UpdateDefinition handler, String payload, io.mateu.workflow.crypto.SensitiveNames sensitive) {
+        return encryption.enabled() ? recorded(handler, payload, sensitive, encryption) : payload;
+    }
+
+    /**
+     * An update as its caller is answered — the POST that sent it, or a retry with its key: the result
+     * opened when it was sealed (an update allowed to read sensitive variables), the payload shown masked.
+     */
+    public ProcessUpdate forCaller(ProcessUpdate update) {
+        if (update == null) {
+            return null;
+        }
+        var result = update.result();
+        if (io.mateu.workflow.crypto.SensitivePayloads.containsSealed(result)) {
+            try {
+                result = UpdateEvaluator.open(result, encryption);
+            } catch (RuntimeException e) {
+                result = UpdateEvaluator.shown(result);
+            }
+        }
+        return withShown(update, UpdateEvaluator.shown(update.payload()), result);
+    }
+
+    /**
+     * An update as every other door shows it (GET, listings, MCP, the console): sealed payload fields and a
+     * sealed result masked, and the result's members named like a sensitive variable of the process masked.
+     */
+    public ProcessUpdate shownForProcess(ProcessUpdate update) {
+        if (update == null) {
+            return null;
+        }
+        var sensitive = processRepository.findById(update.processId())
+                .map(io.mateu.workflow.application.services.SensitiveVariableMasking::namesOf)
+                .orElse(io.mateu.workflow.crypto.SensitiveNames.NONE);
+        var shown = shown(update);
+        return withShown(shown, shown.payload(), maskMembers(shown.result(), sensitive));
+    }
+
+    /** A JSON object with the members named like a sensitive variable masked; anything else as it is. */
+    public static String maskMembers(String json, io.mateu.workflow.crypto.SensitiveNames sensitive) {
+        if (json == null || sensitive.isEmpty()) {
+            return json;
+        }
+        try {
+            var tree = CANONICAL.readTree(json);
+            if (!(tree instanceof com.fasterxml.jackson.databind.node.ObjectNode object)) {
+                return json;
+            }
+            var fields = new ArrayList<String>();
+            object.fieldNames().forEachRemaining(fields::add);
+            var changed = false;
+            for (var field : fields) {
+                if (sensitive.test(field)) {
+                    object.put(field, UpdateEvaluator.MASK);
+                    changed = true;
+                }
+            }
+            return changed ? new ObjectMapper().writeValueAsString(object) : json;
+        } catch (Exception e) {
+            return json;
+        }
+    }
+
+    /** {@link #shownForProcess} without the process: what is sealed is masked. */
+    public static ProcessUpdate shown(ProcessUpdate update) {
+        return withShown(update, UpdateEvaluator.shown(update.payload()), UpdateEvaluator.shown(update.result()));
+    }
+
+    private static ProcessUpdate withShown(ProcessUpdate update, String payload, String result) {
+        return new ProcessUpdate(update.id(), update.processId(), update.workflowDefinitionId(), update.name(),
+                update.idempotencyKey(), update.requestHash(), payload, update.status(), result, update.error(),
+                update.requestedBy(), update.withStart(), update.requestedAt(), update.completedAt(), update.expiresAt());
     }
 
     private static String subject(AuthorizationContext caller) {

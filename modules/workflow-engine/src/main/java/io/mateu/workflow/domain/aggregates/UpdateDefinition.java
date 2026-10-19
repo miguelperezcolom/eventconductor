@@ -33,14 +33,21 @@ import java.util.Map;
  * @param reply         optional JEXL expression whose value (as JSON) is the update's result
  * @param replyTemplate optional JSON template (as a REPLY's {@code replyTemplate}) for the result; one of
  *                      the two at most — neither answers {@code {}}
- * @param sensitive     payload fields never shown: the recorded copy of the payload carries a mask instead
+ * @param sensitive     payload fields never shown: the recorded copy of the payload carries them sealed
+ *                      (masked when no encryption key is configured), and every door shows a mask
+ * @param allowSensitiveVariables true to let {@code validate} and {@code reply}/{@code replyTemplate} read the
+ *                      definition's sensitive variables. Both answer the caller — a refusal or a result is an
+ *                      oracle on what they read — so a definition whose update reads one without opting in is
+ *                      refused at load, and at runtime they are left out of those expressions' context (as an
+ *                      LLM_CALL's {@code llm.allowSensitiveVariables}). {@code set} may always read them.
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonPropertyOrder({"name", "description", "accepts", "acceptedWhile", "validate", "set", "completes", "reply",
-        "replyTemplate", "sensitive"})
+        "replyTemplate", "sensitive", "allowSensitiveVariables"})
 public record UpdateDefinition(String name, String description, Map<String, Object> accepts,
                                List<String> acceptedWhile, List<Validation> validate, Map<String, String> set,
-                               String completes, String reply, Object replyTemplate, List<String> sensitive) {
+                               String completes, String reply, Object replyTemplate, List<String> sensitive,
+                               Boolean allowSensitiveVariables) {
 
     public UpdateDefinition {
         name = name == null ? null : name.trim();
@@ -53,6 +60,18 @@ public record UpdateDefinition(String name, String description, Map<String, Obje
         completes = blank(completes) ? null : completes.trim();
         reply = blank(reply) ? null : reply;
         sensitive = sensitive == null || sensitive.isEmpty() ? null : List.copyOf(sensitive);
+    }
+
+    /** The shape before {@code allowSensitiveVariables}: the update does not opt in. */
+    public UpdateDefinition(String name, String description, Map<String, Object> accepts, List<String> acceptedWhile,
+                            List<Validation> validate, Map<String, String> set, String completes, String reply,
+                            Object replyTemplate, List<String> sensitive) {
+        this(name, description, accepts, acceptedWhile, validate, set, completes, reply, replyTemplate, sensitive, null);
+    }
+
+    /** Whether the update's guards and reply may read sensitive variables. */
+    public boolean allowsSensitiveVariables() {
+        return Boolean.TRUE.equals(allowSensitiveVariables);
     }
 
     /**

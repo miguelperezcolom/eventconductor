@@ -99,7 +99,56 @@ public final class UpdateDefinitionRules {
                 violations.addAll(io.mateu.workflow.template.Templates.problems(update.replyTemplate(), where + " replyTemplate"));
             }
         }
+        violations.addAll(sensitiveViolations(definition));
         return violations;
+    }
+
+    /**
+     * The updates whose {@code validate} or {@code reply}/{@code replyTemplate} read a sensitive variable
+     * without {@code allowSensitiveVariables: true}. Both answer the caller — whether the guard held, what the
+     * reply says — so they would let a caller read (or probe) what is otherwise only shown masked.
+     */
+    public static List<String> sensitiveViolations(WorkflowDefinition definition) {
+        var violations = new ArrayList<String>();
+        var patterns = definition.sensitiveVariablePatterns();
+        if (definition.updates() == null || patterns.isEmpty()) {
+            return violations;
+        }
+        var sensitive = io.mateu.workflow.analysis.SensitiveVariableRules.matcher(patterns);
+        for (int i = 0; i < definition.updates().size(); i++) {
+            var update = definition.updates().get(i);
+            if (update == null || update.allowsSensitiveVariables()) {
+                continue;
+            }
+            var read = new java.util.LinkedHashSet<String>();
+            if (update.validate() != null) {
+                update.validate().forEach(validation -> read.addAll(
+                        io.mateu.workflow.analysis.SensitiveVariableRules.sensitiveReferences(validation.expression(), sensitive)));
+            }
+            read.addAll(io.mateu.workflow.analysis.SensitiveVariableRules.sensitiveReferences(update.reply(), sensitive));
+            templateLeaves(update.replyTemplate(), leaf -> read.addAll(
+                    io.mateu.workflow.analysis.SensitiveVariableRules.templateReferences(leaf, sensitive)));
+            if (!read.isEmpty()) {
+                violations.add("updates[" + i + "] '" + update.name() + "': validate or reply reads the sensitive variable(s) "
+                        + String.join(", ", read) + "; they answer the caller, so an update only reads sensitive values"
+                        + " there with allowSensitiveVariables: true");
+            }
+        }
+        return violations;
+    }
+
+    /** Every text leaf of a JSON template (keys included). */
+    static void templateLeaves(Object template, java.util.function.Consumer<String> leaf) {
+        if (template instanceof String text) {
+            leaf.accept(text);
+        } else if (template instanceof Map<?, ?> map) {
+            map.forEach((key, value) -> {
+                templateLeaves(key, leaf);
+                templateLeaves(value, leaf);
+            });
+        } else if (template instanceof java.util.Collection<?> list) {
+            list.forEach(item -> templateLeaves(item, leaf));
+        }
     }
 
     private static void expressionProblem(String expression, String where, List<String> violations) {

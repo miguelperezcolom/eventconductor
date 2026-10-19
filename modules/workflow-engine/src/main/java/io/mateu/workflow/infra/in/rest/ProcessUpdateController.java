@@ -219,7 +219,7 @@ public class ProcessUpdateController {
             var started = service.updateWithStart(new ProcessUpdateService.StartRequest(definitionId, body.businessKey(),
                     variables, body.update(), payload, blankToNull(idempotencyKey), SyncInvocationController.waitOf(prefer),
                     caller()));
-            return answer(started.update(), started.timeToWait());
+            return answer(started.update(), started.timeToWait(), true);
         } catch (RuntimeException e) {
             admission.release();
             throw e;
@@ -246,11 +246,11 @@ public class ProcessUpdateController {
         var wait = service.waitFor(requested == null ? Duration.ZERO : requested);
         if (wait.isZero() || update.isFinal()) {
             var result = new DeferredResult<ResponseEntity<Object>>();
-            result.setResult(toResponse(update));
+            result.setResult(toResponse(shownOrSelf(update)));
             return result;
         }
         acquireOrRefuse();
-        return answer(update, wait);
+        return answer(update, wait, false);
     }
 
     @GetMapping("/processes/{id}/updates")
@@ -261,7 +261,7 @@ public class ProcessUpdateController {
             @Parameter(hidden = true) @RequestHeader(value = "X-Api-Key", required = false) String apiKey,
             @PathVariable("id") String id) {
         verify(apiKey);
-        return service.list(id, caller()).stream().map(UpdateResponse::of).toList();
+        return service.list(id, caller()).stream().map(this::shownOrSelf).map(UpdateResponse::of).toList();
     }
 
     // ── Answering ──────────────────────────────────────────────────────────────────────────────────
@@ -270,21 +270,33 @@ public class ProcessUpdateController {
         acquireOrRefuse();
         try {
             var submitted = service.submit(request);
-            return answer(submitted.update(), submitted.timeToWait());
+            return answer(submitted.update(), submitted.timeToWait(), true);
         } catch (RuntimeException e) {
             admission.release();
             throw e;
         }
     }
 
-    /** Waits for the outcome (the admission permit is held) and answers whatever comes first. */
-    private DeferredResult<ResponseEntity<Object>> answer(ProcessUpdate update, Duration wait) {
+    /**
+     * Waits for the outcome (the admission permit is held) and answers whatever comes first — to the caller
+     * that sent the update ({@code forCaller}: a sealed result opened for it), or to a reader (masked).
+     */
+    private DeferredResult<ResponseEntity<Object>> answer(ProcessUpdate update, Duration wait, boolean forCaller) {
         var result = new DeferredResult<ResponseEntity<Object>>(wait.toMillis() + 30_000);
-        result.onTimeout(() -> result.setResult(toResponse(update)));
+        result.onTimeout(() -> result.setResult(toResponse(view(update, forCaller))));
         result.onCompletion(admission::release);
         service.await(update, wait).whenComplete((latest, error) ->
-                result.setResult(toResponse(error == null && latest != null ? latest : update)));
+                result.setResult(toResponse(view(error == null && latest != null ? latest : update, forCaller))));
         return result;
+    }
+
+    private ProcessUpdate view(ProcessUpdate update, boolean forCaller) {
+        var shown = forCaller ? service.forCaller(update) : service.shownForProcess(update);
+        return shown == null ? ProcessUpdateService.shown(update) : shown;
+    }
+
+    private ProcessUpdate shownOrSelf(ProcessUpdate update) {
+        return view(update, false);
     }
 
     static ResponseEntity<Object> toResponse(ProcessUpdate update) {

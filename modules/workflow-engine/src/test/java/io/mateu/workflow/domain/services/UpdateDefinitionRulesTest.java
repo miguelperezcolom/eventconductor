@@ -90,4 +90,27 @@ class UpdateDefinitionRulesTest {
         assertThat(definition.updatesOrEmpty()).isEmpty();
         assertThat(JSON.writeValueAsString(definition)).doesNotContain("\"updates\"");
     }
+
+    @Test
+    void guardsAndRepliesThatReadASensitiveVariableAreRefusedUnlessTheUpdateOptsIn() throws Exception {
+        var base = "{\"id\": \"orders\", \"name\": \"Orders\", \"sensitiveVariables\": [\"cardNumber\"], " + STEPS + ", \"updates\": ";
+
+        assertThatThrownBy(() -> JSON.readValue(base + "[{\"name\": \"a\", \"validate\": [{\"expression\": \"cardNumber != null\"}]}]}",
+                WorkflowDefinition.class).checkInvariants())
+                .hasMessageContaining("validate or reply reads the sensitive variable(s) cardNumber")
+                .hasMessageContaining("allowSensitiveVariables: true");
+        assertThatThrownBy(() -> JSON.readValue(base + "[{\"name\": \"a\", \"reply\": \"cardNumber\"}]}",
+                WorkflowDefinition.class).checkInvariants()).hasMessageContaining("cardNumber");
+        assertThatThrownBy(() -> JSON.readValue(base + "[{\"name\": \"a\", \"replyTemplate\": {\"card\": [\"${cardNumber}\"]}}]}",
+                WorkflowDefinition.class).checkInvariants()).hasMessageContaining("cardNumber");
+
+        // Opted in, or only set reading it, or reading the payload's own fields: fine.
+        JSON.readValue(base + "[{\"name\": \"a\", \"reply\": \"cardNumber\", \"allowSensitiveVariables\": true}]}",
+                WorkflowDefinition.class).checkInvariants();
+        JSON.readValue(base + "[{\"name\": \"a\", \"set\": {\"cardNumber\": \"payload.cardNumber\", \"x\": \"cardNumber\"},"
+                + " \"validate\": [{\"expression\": \"payload.cardNumber != null\"}], \"reply\": \"'ok'\"}]}",
+                WorkflowDefinition.class).checkInvariants();
+        // Without sensitive variables there is nothing to refuse.
+        definition("[{\"name\": \"a\", \"reply\": \"cardNumber\"}]").checkInvariants();
+    }
 }

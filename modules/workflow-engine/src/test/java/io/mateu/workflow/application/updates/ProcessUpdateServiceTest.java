@@ -144,7 +144,7 @@ class ProcessUpdateServiceTest {
 
         assertThat(update.status()).isEqualTo(ProcessUpdate.Status.COMPLETED);
         assertThat(update.result()).isEqualTo("{\"customer\":\"Ana\"}");
-        assertThat(update.payload()).isEqualTo("{\"name\":\"Ana\",\"pin\":\"****\"}");
+        assertThat(update.payload()).isEqualTo("{\"name\":\"Ana\",\"pin\":\"••••\"}");
         assertThat(update.idempotencyKey()).isEqualTo(update.id());
         assertThat(process.getVariables()).containsExactly(new Variable("customer", "Ana"));
         verify(processes).save(process);
@@ -273,7 +273,7 @@ class ProcessUpdateServiceTest {
         var applied = updates.findById("k-1").orElseThrow();
         assertThat(applied.status()).isEqualTo(ProcessUpdate.Status.COMPLETED);
         assertThat(applied.idempotencyKey()).isEqualTo("k-1");
-        assertThat(applied.payload()).contains("****");
+        assertThat(applied.payload()).contains("••••");
         assertThat(updates.findById("k-2").orElseThrow().status()).isEqualTo(ProcessUpdate.Status.FAILED);
         assertThat(updates.findById("k-2").orElseThrow().error()).contains("payload is not valid");
         assertThat(updates.findById("k-3")).isEmpty();

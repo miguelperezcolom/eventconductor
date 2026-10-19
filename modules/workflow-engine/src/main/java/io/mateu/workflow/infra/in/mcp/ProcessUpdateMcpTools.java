@@ -56,7 +56,7 @@ public class ProcessUpdateMcpTools implements McpTools, McpSystemContext {
         try {
             var submitted = updates.submit(new ProcessUpdateService.UpdateRequest(processId, businessKey, updateName,
                     payloadJson, idempotencyKey, null, caller()));
-            return describe(updates.await(submitted.update(), submitted.timeToWait()).join());
+            return describe(caller(updates.await(submitted.update(), submitted.timeToWait()).join()));
         } catch (RuntimeException e) {
             return "Refused: " + e.getMessage();
         }
@@ -74,7 +74,7 @@ public class ProcessUpdateMcpTools implements McpTools, McpSystemContext {
         try {
             var started = updates.updateWithStart(new ProcessUpdateService.StartRequest(workflowDefinitionId, businessKey,
                     variables, updateName, payloadJson, idempotencyKey, null, caller()));
-            var outcome = updates.await(started.update(), started.timeToWait()).join();
+            var outcome = caller(updates.await(started.update(), started.timeToWait()).join());
             return (started.started() ? "Started process " + outcome.processId() + ". " : "") + describe(outcome);
         } catch (RuntimeException e) {
             return "Refused: " + e.getMessage();
@@ -89,7 +89,7 @@ public class ProcessUpdateMcpTools implements McpTools, McpSystemContext {
             if (list.isEmpty()) {
                 return "Process " + processId + " has had no updates.";
             }
-            return list.stream().map(update -> "- " + update.requestedAt() + " " + update.name() + " [" + update.status() + "]"
+            return list.stream().map(this::shown).map(update -> "- " + update.requestedAt() + " " + update.name() + " [" + update.status() + "]"
                             + (update.requestedBy() == null ? "" : " by " + update.requestedBy())
                             + (update.payload() == null ? "" : " payload " + update.payload())
                             + (update.result() == null ? "" : " → " + update.result())
@@ -98,6 +98,18 @@ public class ProcessUpdateMcpTools implements McpTools, McpSystemContext {
         } catch (RuntimeException e) {
             return "Refused: " + e.getMessage();
         }
+    }
+
+    /** The answer to the caller that sent the update: a sealed result opened for it. */
+    private ProcessUpdate caller(ProcessUpdate update) {
+        var opened = updates.forCaller(update);
+        return opened == null ? ProcessUpdateService.shown(update) : opened;
+    }
+
+    /** As any other reader sees it: sealed values and sensitive members masked. */
+    private ProcessUpdate shown(ProcessUpdate update) {
+        var shown = updates.shownForProcess(update);
+        return shown == null ? ProcessUpdateService.shown(update) : shown;
     }
 
     private static String describe(ProcessUpdate update) {

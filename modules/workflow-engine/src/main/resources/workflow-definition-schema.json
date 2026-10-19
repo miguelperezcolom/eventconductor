@@ -343,7 +343,7 @@
               "type": "string",
               "minLength": 1
             },
-            "description": "Variables the update writes: name → JEXL expression over payload, the variables (as they were before the update) and businessKey. A value that is not text is stored as JSON."
+            "description": "Variables the update writes: name → JEXL expression over payload, the variables (as they were before the update) and businessKey. A value that is not text is stored as JSON. Payload fields a set writes into a sensitive variable are sealed in the update's record and in transit."
           },
           "completes": {
             "type": [
@@ -371,6 +371,14 @@
               "type": "string"
             },
             "description": "Payload fields never shown: the recorded copy of the payload (console, REST, MCP) carries a mask instead."
+          },
+          "allowSensitiveVariables": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Let validate and reply/replyTemplate read the definition's sensitiveVariables. They answer the caller (a refusal or a result is an oracle on what they read), so an update that reads one without opting in is refused at load, and at runtime sensitive variables are left out of their context. A result that may read them is recorded sealed and given in clear only to the request that sent the update. set may always read them.",
+            "default": false
           }
         }
       }

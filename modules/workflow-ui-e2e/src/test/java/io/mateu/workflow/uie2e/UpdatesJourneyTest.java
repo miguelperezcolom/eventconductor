@@ -36,7 +36,7 @@ class UpdatesJourneyTest extends AbstractUiE2eTest {
         assertThat(detail.tabShows("Refused")).isVisible();
         assertThat(detail.tabShows("Nowhere is not an address.")).isVisible();
         assertThat(detail.tabShows("{\"shipsTo\":\"Elm Street 2\"}")).isVisible();
-        assertThat(detail.tabShows("{\"address\":\"Elm Street 2\",\"pin\":\"****\"}")).isVisible();
+        assertThat(detail.tabShows("{\"address\":\"Elm Street 2\",\"pin\":\"••••\"}")).isVisible();
         assertThat(page.locator("text=4321 >> visible=true")).hasCount(0);
     }
 }

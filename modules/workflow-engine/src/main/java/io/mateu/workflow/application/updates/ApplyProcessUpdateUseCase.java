@@ -72,6 +72,14 @@ public class ApplyProcessUpdateUseCase {
     @Value("${workflow.sync.retention:PT24H}")
     Duration retention = Duration.ofHours(24);
 
+    /** Opens a payload whose protected fields came sealed, seals a sensitive result, keys the fingerprint. */
+    io.mateu.workflow.crypto.VariableEncryption encryption = io.mateu.workflow.crypto.VariableEncryption.DISABLED;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void encryption(io.mateu.workflow.crypto.VariableEncryption encryption) {
+        this.encryption = encryption == null ? io.mateu.workflow.crypto.VariableEncryption.DISABLED : encryption;
+    }
+
     public void handle(ProcessUpdateRequested command) {
         ProcessLockService.runExclusivelyOrThrow(processLockService, command.processId(), () -> doHandle(command));
     }
@@ -110,12 +118,14 @@ public class ApplyProcessUpdateUseCase {
         }
         Object payload;
         try {
-            payload = UpdateEvaluator.payloadOf(command.payload());
-        } catch (IllegalArgumentException e) {
+            payload = UpdateEvaluator.payloadOf(UpdateEvaluator.open(command.payload(), encryption));
+        } catch (RuntimeException e) {
             finish(update, process, ProcessUpdate.Status.FAILED, null, e.getMessage());
             return;
         }
-        var outcome = UpdateEvaluator.evaluate(handler, process, payload, maxResultBytes);
+        var sensitive = io.mateu.workflow.application.services.SensitiveVariableMasking.namesOf(process);
+        var outcome = UpdateEvaluator.evaluate(handler, process, payload, maxResultBytes,
+                sensitive.isEmpty() ? null : sensitive);
         switch (outcome) {
             case UpdateEvaluator.Refused refused ->
                     finish(update, process, ProcessUpdate.Status.REFUSED, null, refused.message());
@@ -123,12 +133,13 @@ public class ApplyProcessUpdateUseCase {
                 log.warn("Update '{}' of process {} failed: {}", update.name(), process.getId(), failed.message());
                 finish(update, process, ProcessUpdate.Status.FAILED, null, failed.message());
             }
-            case UpdateEvaluator.Applied applied -> apply(update, process, handler, steps, applied);
+            case UpdateEvaluator.Applied applied -> apply(update, process, handler, steps, applied,
+                    !sensitive.isEmpty() && handler.allowsSensitiveVariables());
         }
     }
 
     private void apply(ProcessUpdate update, Process process, UpdateDefinition handler, List<StepExecution> steps,
-                       UpdateEvaluator.Applied applied) {
+                       UpdateEvaluator.Applied applied, boolean sensitiveResult) {
         if (!applied.variables().isEmpty()) {
             process.updateVariables(applied.variables());
             processRepository.save(process);
@@ -142,7 +153,8 @@ public class ApplyProcessUpdateUseCase {
                         Duration.between(resumed.getStartedAt(), EngineClock.now()));
             }
         }
-        finish(update, process, ProcessUpdate.Status.COMPLETED, applied.result(), null);
+        finish(update, process, ProcessUpdate.Status.COMPLETED,
+                sensitiveResult ? sealedResult(applied.result(), encryption) : applied.result(), null);
         log(process, resumed == null ? null : resumed.id(), "Update '" + update.name() + "' applied"
                 + by(update)
                 + (applied.variables().isEmpty() ? "" : ": set " + String.join(", ",
@@ -156,6 +168,23 @@ public class ApplyProcessUpdateUseCase {
             // A step held by a link guard reading one of these may be free to go now. (A resumed step moves
             // the flow on through its own COMPLETED status change.)
             stepOverProcessUseCase.handle(new StepOverProcessCommand(process.getId()));
+        }
+    }
+
+    /**
+     * The result of an update allowed to read sensitive variables, as it is recorded: sealed whole (a JSON
+     * string holding the envelope), opened only for the caller (see {@code ProcessUpdateService#forCaller}).
+     * Without encryption it is kept as it is — memory mode holds plaintext in the heap anyway — and every
+     * door still masks it.
+     */
+    static String sealedResult(String result, io.mateu.workflow.crypto.VariableEncryption encryption) {
+        if (result == null || encryption == null || !encryption.enabled()) {
+            return result;
+        }
+        try {
+            return new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(encryption.seal(result));
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            throw new IllegalStateException(e);
         }
     }
 
@@ -205,13 +234,20 @@ public class ApplyProcessUpdateUseCase {
         var definition = definitionOf(process);
         var declared = definition == null ? null : definition.update(command.updateName()).orElse(null);
         var now = EngineClock.now();
+        var sensitive = io.mateu.workflow.application.services.SensitiveVariableMasking.namesOf(process);
+        String plain;
+        try {
+            plain = UpdateEvaluator.open(command.payload(), encryption);
+        } catch (RuntimeException e) {
+            plain = command.payload();
+        }
         var update = new ProcessUpdate(command.updateId(), process.getId(), process.getWorkflowDefinitionId(),
                 command.updateName(), command.updateId(),
-                ProcessUpdateService.fingerprint(command.updateName(), command.payload()),
-                UpdateEvaluator.masked(declared, command.payload()), ProcessUpdate.Status.REQUESTED, null, null,
+                encryption.fingerprint(ProcessUpdateService.canonicalOf(command.updateName(), plain)),
+                ProcessUpdateService.recorded(declared, plain, sensitive, encryption), ProcessUpdate.Status.REQUESTED, null, null,
                 command.requestedBy(), false, now, null, now.plus(retention));
         if (declared != null) {
-            var problems = ProcessUpdateService.payloadProblems(declared, command.payload());
+            var problems = ProcessUpdateService.payloadProblems(declared, plain);
             if (!problems.isEmpty()) {
                 update = update.finished(ProcessUpdate.Status.FAILED, null,
                         "The payload is not valid: " + String.join("; ", problems), now);

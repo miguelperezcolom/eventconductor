@@ -288,7 +288,8 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
         // Sensitive values read as the mask; the Reveal action is the audited way to read one.
         this.variables = io.mateu.workflow.application.services.SensitiveVariableMasking.variables(process).stream().map(variable -> new Variable(variable.name(), variable.value())).toList();
         loadReply(process);
-        this.updates = updateEntries(id, processUpdateRepository);
+        this.updates = updateEntries(id, processUpdateRepository,
+                io.mateu.workflow.application.services.SensitiveVariableMasking.namesOf(process));
         this.returnTo = httpRequest.getParameterValue("returnTo");
 
         if (ProcessStatus.COMPLETED.equals(process.getStatus())) {
@@ -336,12 +337,19 @@ public class SimpleProcessViewModel implements TriggersSupplier, VisibilitySuppl
      * every door shows them: sealed payload fields and a sealed result masked (see {@code ProcessUpdateService#shown}).
      */
     static List<io.mateu.workflow.infra.in.ui.pages.process.childcruds.UpdateEntry> updateEntries(
-            String processId, io.mateu.workflow.application.out.ProcessUpdateRepository repository) {
+            String processId, io.mateu.workflow.application.out.ProcessUpdateRepository repository,
+            io.mateu.workflow.crypto.SensitiveNames sensitive) {
         if (repository == null) {
             return List.of();
         }
         return repository.findByProcessId(processId).stream()
                 .map(io.mateu.workflow.application.updates.ProcessUpdateService::shown)
+                .map(update -> update.result() == null ? update : new io.mateu.workflow.application.updates.ProcessUpdate(
+                        update.id(), update.processId(), update.workflowDefinitionId(), update.name(),
+                        update.idempotencyKey(), update.requestHash(), update.payload(), update.status(),
+                        io.mateu.workflow.application.updates.ProcessUpdateService.maskMembers(update.result(), sensitive),
+                        update.error(), update.requestedBy(), update.withStart(), update.requestedAt(),
+                        update.completedAt(), update.expiresAt()))
                 .map(update -> new io.mateu.workflow.infra.in.ui.pages.process.childcruds.UpdateEntry(processId,
                         update.id(), update.requestedAt(), update.name(),
                         update.requestedBy() == null ? "anonymous" : update.requestedBy(),

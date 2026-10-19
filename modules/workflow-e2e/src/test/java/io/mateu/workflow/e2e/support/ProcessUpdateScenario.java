@@ -372,7 +372,7 @@ public class ProcessUpdateScenario {
 
         var noted = http.update(order.getId(), "addNote", "{\"note\": \"hi\", \"secret\": \"4111-1111\"}");
         assertThat(noted.getStatus()).isEqualTo(200);
-        assertThat(json(noted).path("payload").path("secret").asText()).isEqualTo("****");
+        assertThat(json(noted).path("payload").path("secret").asText()).isEqualTo("••••");
         assertThat(updates.findByProcessId(order.getId()).stream().map(ProcessUpdate::payload))
                 .noneMatch(payload -> payload != null && payload.contains("4111"));
     }
