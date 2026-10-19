@@ -442,6 +442,28 @@ class MigrationRulesTest {
         });
     }
 
+    @Test
+    void aHumanTaskKeepsEveryEscalationLevelThatFired() {
+        var two = List.of(map("after", "PT1H", "action", "notify"), map("after", "PT4H", "action", "reassign"));
+        var one = List.of(map("after", "PT2H", "action", "notify"));
+        var source = List.of(step("start", "START", null), step("approve", "USER_TASK", "start", "formId", "f",
+                "escalation", two), step("end", "END", "approve"));
+        var shorter = List.of(step("start", "START", null), step("approve", "USER_TASK", "start", "formId", "f",
+                "escalation", one), step("end", "END", "approve"));
+        var firedOne = states("start", State.COMPLETED,
+                "approve", new StepState("approve", State.ACTIVE, true, false, false, false, 1));
+        var firedTwo = states("start", State.COMPLETED,
+                "approve", new StepState("approve", State.ACTIVE, true, false, false, false, 2));
+
+        var ok = plan(new ArrayList<>(source), new ArrayList<>(shorter), Map.of(), firedOne, running());
+        assertThat(ok.executable()).isTrue();
+        assertThat(ok.ofSource("approve").action()).isEqualTo(Action.KEEP_TASK);
+        assertThat(messages(plan(new ArrayList<>(source), new ArrayList<>(shorter), Map.of(), firedTwo, running()).errors()))
+                .anyMatch(m -> m.contains("already fired 2 escalation level(s)") && m.contains("declares only 1"));
+        assertThat(messages(MigrationRules.checkDefinitions(new ArrayList<>(source), new ArrayList<>(shorter), null)))
+                .anyMatch(m -> m.contains("2 escalation level(s) become 1"));
+    }
+
     private static Map<String, String> map2(String... keyValues) {
         var map = new LinkedHashMap<String, String>();
         for (int i = 0; i < keyValues.length; i += 2) {

@@ -27,6 +27,8 @@ import io.mateu.workflow.dtos.events.domain.ProcessStatusChanged;
 import io.mateu.workflow.dtos.events.integration.TaskCancellationRequested;
 import io.mateu.workflow.infra.out.persistence.WorkflowDefinitionVersionEntity;
 import io.mateu.workflow.infra.out.persistence.WorkflowDefinitionVersionEntityRepository;
+import io.mateu.workflow.infra.out.persistence.JpaWorkflowDefinitionHistory;
+import io.mateu.workflow.application.out.WorkflowDefinitionHistory;
 import io.mateu.workflow.support.TrackedProcessLock;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -65,7 +67,7 @@ public class MigrateProcessUseCaseTest {
     final WorkflowDefinitionRepository definitions = mock(WorkflowDefinitionRepository.class);
     final WorkflowDefinitionVersionEntityRepository history = mock(WorkflowDefinitionVersionEntityRepository.class);
     @SuppressWarnings("unchecked")
-    final ObjectProvider<WorkflowDefinitionVersionEntityRepository> versions = mock(ObjectProvider.class);
+    final ObjectProvider<WorkflowDefinitionHistory> versions = mock(ObjectProvider.class);
     @SuppressWarnings("unchecked")
     final ObjectProvider<CancelProcessUseCase> cancel = mock(ObjectProvider.class);
     final LogMessageRepository logs = mock(LogMessageRepository.class);
@@ -317,7 +319,7 @@ public class MigrateProcessUseCaseTest {
     @Test
     void theTargetComesFromTheHistoryWhenThereIsOne() {
         when(definitions.findById("w")).thenReturn(Optional.of(definition(3, v1())));
-        when(versions.getIfAvailable()).thenReturn(history);
+        when(versions.getIfAvailable()).thenReturn(new JpaWorkflowDefinitionHistory(history));
         var entity = mock(WorkflowDefinitionVersionEntity.class);
         when(entity.getSnapshotJson()).thenReturn(toJson(definition(2, v1())));
         when(entity.getVersion()).thenReturn(2);

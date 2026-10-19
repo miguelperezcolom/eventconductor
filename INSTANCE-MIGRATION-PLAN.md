@@ -72,6 +72,14 @@ id and copy; one at a worker is kept or re-dispatched by the same contract rule 
 iteration keeps its item). The target must also be a forEach over the same `items` expression;
 anything else is refused (the item list was materialised from the old one).
 
+**Human task escalations** (#553): an active USER_TASK keeps its execution and its count of fired
+escalation levels; levels are matched **by position** (level 1 of the source is level 1 of the target).
+Its next escalation is re-armed from the target's levels, counted from when the task was created (as
+escalations always are), and an `escalateTo` among the levels that fired stays its on-timeout route. A
+target with fewer levels than have fired is refused ("a target keeps every level that fired"); the CI
+check warns when a target has fewer levels than the source. A task re-dispatched (its form changed)
+is a new task and its escalations start over.
+
 **Loops**: the current pass is migrated by its state; earlier passes (superseded) follow their step's
 mapping — renamed, so the loop's caps still count them — and keep their own frozen copies.
 
@@ -111,7 +119,8 @@ Errors (refuse):
    (an AND join needs all of them, an XOR join one) — it would be running before its inputs.
 7. An active forEach container whose target is not a forEach over the same items.
 8. Locks, as above.
-9. A variable an active (re-armed) step reads right now — a timer's `untilVariable`, a correlation
+9. An active USER_TASK that has fired more escalation levels than the target declares.
+10. A variable an active (re-armed) step reads right now — a timer's `untilVariable`, a correlation
    expression, a lock key — that the process does not have and the variable mapping does not give.
 
 Warnings (reported, allowed): variables read by steps still to run that the process does not have;

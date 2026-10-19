@@ -21,7 +21,7 @@ import io.mateu.workflow.infra.config.MessageApiProperties;
 import io.mateu.workflow.infra.in.mcp.ProcessOperationsMcpTools;
 import io.mateu.workflow.infra.out.memory.InMemoryLogMessageRepository;
 import io.mateu.workflow.infra.out.memory.InMemoryProcessRepositoryForTests;
-import io.mateu.workflow.infra.out.persistence.WorkflowDefinitionVersionEntityRepository;
+import io.mateu.workflow.application.out.WorkflowDefinitionHistory;
 import io.mateu.workflow.security.AuthorizationContext;
 import io.mateu.workflow.security.CallerResolver;
 import org.junit.jupiter.api.BeforeEach;
@@ -65,7 +65,7 @@ class MigrationRestMvcTest {
     @SuppressWarnings("unchecked")
     final ObjectProvider<ProcessIndexRepository> index = mock(ObjectProvider.class);
     @SuppressWarnings("unchecked")
-    final ObjectProvider<WorkflowDefinitionVersionEntityRepository> versions = mock(ObjectProvider.class);
+    final ObjectProvider<WorkflowDefinitionHistory> versions = mock(ObjectProvider.class);
     ProcessOperationsService service;
 
     @BeforeEach

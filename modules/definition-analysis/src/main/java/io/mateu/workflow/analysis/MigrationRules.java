@@ -95,15 +95,21 @@ public final class MigrationRules {
      * @param waitingOnLock queued at a LOCK
      * @param holdsLock     a completed LOCK whose critical section is still open (no UNLOCK yet)
      * @param injected      materialised at runtime by a DYNAMIC step
+     * @param escalationsFired for a USER_TASK, how many of its escalation levels already fired
      */
     public record StepState(String stepId, State state, boolean atWorker, boolean waitingOnLock, boolean holdsLock,
-                            boolean injected) {
+                            boolean injected, int escalationsFired) {
         public StepState {
             state = state == null ? State.NOT_STARTED : state;
         }
 
+        public StepState(String stepId, State state, boolean atWorker, boolean waitingOnLock, boolean holdsLock,
+                         boolean injected) {
+            this(stepId, state, atWorker, waitingOnLock, holdsLock, injected, 0);
+        }
+
         public StepState(String stepId, State state) {
-            this(stepId, state, false, false, false, false);
+            this(stepId, state, false, false, false, false, 0);
         }
     }
 
@@ -385,6 +391,12 @@ public final class MigrationRules {
             problems.add(error(id, "forEach step '" + id + "' is running its iterations, and '" + to
                     + "' is not a forEach over the same items"));
         }
+        if (runtime != null && runtime.escalationsFired() > 0 && into != null
+                && runtime.escalationsFired() > into.escalationLevels) {
+            problems.add(error(id, "human task '" + id + "' has already fired " + runtime.escalationsFired()
+                    + " escalation level(s), and '" + to + "' declares only " + into.escalationLevels
+                    + ": a target keeps every level that fired (levels are matched by position)"));
+        }
         if (runtime != null && runtime.atWorker()) {
             if (from == null || into == null || sameContract(from.raw, into.raw)) {
                 return new StepPlan(id, to, state, Action.KEEP_TASK, "the task in flight is kept");
@@ -520,6 +532,11 @@ public final class MigrationRules {
                 problems.add(warning(node.id, "'" + node.id + "' → '" + to + "': not a forEach over the same items; a"
                         + " process running its iterations could not be migrated"));
             }
+            if (into.escalationLevels < node.escalationLevels) {
+                problems.add(warning(node.id, "'" + node.id + "' → '" + to + "': " + node.escalationLevels
+                        + " escalation level(s) become " + into.escalationLevels + "; a task that already escalated past"
+                        + " level " + into.escalationLevels + " could not be migrated"));
+            }
             if ("LOCK".equals(node.type) && (!Objects.equals(node.lockName, into.lockName)
                     || !Objects.equals(node.lockKey, into.lockKey))) {
                 problems.add(warning(node.id, "'" + node.id + "' → '" + to + "': another lock; a process holding or"
@@ -594,6 +611,8 @@ public final class MigrationRules {
         final String forEachItems;
         final String lockName;
         final String lockKey;
+        /** For a USER_TASK, how many escalation levels it declares. */
+        final int escalationLevels;
         /** Read while the step waits: re-arming it evaluates them now. */
         final Set<String> readsNow = new TreeSet<>();
         /** Read when it starts: its guards, its items. */
@@ -626,6 +645,7 @@ public final class MigrationRules {
             this.forEachItems = raw.get("forEach") instanceof Map<?, ?> forEach ? text(forEach, "items") : null;
             this.lockName = text(raw, "lockName");
             this.lockKey = text(raw, "lockKey");
+            this.escalationLevels = raw.get("escalation") instanceof List<?> levels ? levels.size() : 0;
 
             var until = text(raw, "untilVariable");
             if (until != null) {

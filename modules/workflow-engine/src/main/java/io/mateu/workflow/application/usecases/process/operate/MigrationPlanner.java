@@ -12,7 +12,7 @@ import io.mateu.workflow.domain.aggregates.StepType;
 import io.mateu.workflow.domain.aggregates.WorkflowDefinition;
 import io.mateu.workflow.domain.services.StepExecutions;
 import io.mateu.workflow.domain.services.StepTimeoutDefaults;
-import io.mateu.workflow.infra.out.persistence.WorkflowDefinitionVersionEntityRepository;
+import io.mateu.workflow.application.out.WorkflowDefinitionHistory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -39,12 +39,12 @@ import static io.mateu.core.infra.JsonSerializer.toJson;
 public class MigrationPlanner {
 
     private final WorkflowDefinitionRepository definitions;
-    private final ObjectProvider<WorkflowDefinitionVersionEntityRepository> versions;
+    private final ObjectProvider<WorkflowDefinitionHistory> versions;
     private final ProcessOperationRules rules;
     private final long defaultStepTimeoutMillis;
 
     public MigrationPlanner(WorkflowDefinitionRepository definitions,
-                            ObjectProvider<WorkflowDefinitionVersionEntityRepository> versions,
+                            ObjectProvider<WorkflowDefinitionHistory> versions,
                             ProcessOperationRules rules,
                             @Value("${workflow.default-step-timeout-ms:0}") long defaultStepTimeoutMillis) {
         this.definitions = definitions;
@@ -135,10 +135,9 @@ public class MigrationPlanner {
                     + "' is not available: this engine keeps no version history (workflow.persistence=memory);"
                     + " only the current version, v" + current.version() + ", can be migrated to.");
         }
-        var recorded = history.findByDefinitionIdAndVersion(definitionId, version)
+        return prepared(history.find(definitionId, version)
                 .orElseThrow(() -> new IllegalArgumentException("Workflow '" + definitionId + "' has no version "
-                        + version + "."));
-        return prepared(pojoFromJson(recorded.getSnapshotJson(), WorkflowDefinition.class).withVersion(version));
+                        + version + ".")));
     }
 
     /** The versions a process of {@code definitionId} can be moved to, newest first. */
@@ -146,7 +145,7 @@ public class MigrationPlanner {
         var history = versions.getIfAvailable();
         var numbers = new java.util.TreeSet<Integer>(Comparator.reverseOrder());
         if (history != null) {
-            history.findByDefinitionIdOrderByVersionDesc(definitionId).forEach(v -> numbers.add(v.getVersion()));
+            numbers.addAll(history.versions(definitionId));
         }
         definitions.findById(definitionId).ifPresent(d -> numbers.add(d.version()));
         return List.copyOf(numbers);
@@ -200,7 +199,8 @@ public class MigrationPlanner {
                 && execution.getAwaitingMessageName() == null;
         return new MigrationRules.StepState(execution.getStepId(), state, atWorker,
                 StepExecutionStatus.WAITING_ON_LOCK.equals(status), holdsLock(execution, step, current),
-                execution.getInjectedByStepExecutionId() != null);
+                execution.getInjectedByStepExecutionId() != null,
+                step != null && StepType.USER_TASK.equals(step.type()) ? execution.escalationsFired() : 0);
     }
 
     /** A completed LOCK whose section no completed UNLOCK of the same lock has closed. */

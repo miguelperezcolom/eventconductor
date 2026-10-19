@@ -121,7 +121,7 @@ mvn eventconductor:check-migration -Dfrom=v3 -Dto=v4
 mvn eventconductor:check-migration -Dfrom=released/workflows -Dmapping=src/main/resources/migration.yaml
 ```
 
-`from` and `to` are each `current` (the workflows directory), a path (a definition file or a directory of them) or a git ref, read with `git show <ref>:<file>` for every definition file under the workflows directory. Steps without a compatible counterpart that a process can wait in fail the build; instantaneous steps, changed task contracts, forEach items and locks are warnings; a workflow missing from `to` is a warning.
+`from` and `to` are each `current` (the workflows directory), a path (a definition file or a directory of them) or a git ref, read with `git show <ref>:<file>` for every definition file under the workflows directory. Steps without a compatible counterpart that a process can wait in fail the build; instantaneous steps, changed task contracts, forEach items, locks and fewer escalation levels are warnings; a workflow missing from `to` is a warning.
 
 | Parameter | Property | Default | Description |
 |---|---|---|---|

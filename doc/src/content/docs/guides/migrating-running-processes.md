@@ -86,6 +86,8 @@ A step's **contract** is what its worker is asked to do: its type, `topic`, `tas
 
 **forEach.** A forEach running its iterations moves with them: each one at a worker is kept or dispatched again by the same contract rule, keeping its item. The target must be a forEach over the same `items`.
 
+**Human tasks that escalated.** A USER_TASK waiting for someone keeps its task and the escalation levels that already fired. Levels are matched **by position**: level 1 of the old version is level 1 of the new one. The next escalation is re-armed from the new version's levels, counted from when the task was created — so a target that escalates sooner can make it due at once — and an `escalateTo` among the levels that fired stays the task's route. A target with fewer levels than have fired is refused. If the task's form changed it is re-dispatched as a new task, and its escalations start over. See [Human tasks](/guides/human-tasks-assignment-and-escalation/).
+
 **Loops.** The current pass is migrated by its state; earlier passes are renamed with their step, so the loop's caps still count them.
 
 **Locks.** A process inside a critical section (its LOCK completed, its UNLOCK not yet) or queued at a LOCK keeps its lock only if the LOCK step maps onto a LOCK of the same `lockName` and `lockKey`. A process that holds its definition's `processLock` is refused if the target declares another one; a target that adds one is taken at the next step.
@@ -106,7 +108,8 @@ Refused (errors):
 6. An active step whose preconditions in the target are not satisfied by what the process has completed — it would be running before its inputs.
 7. An active forEach whose target is not a forEach over the same items.
 8. A held or queued lock the target would not keep.
-9. A variable a re-armed step reads right now (a timer's `untilVariable`, a correlation expression, a lock key) that the process does not have and `variableMapping` does not give.
+9. A human task that has fired more escalation levels than its target declares.
+10. A variable a re-armed step reads right now (a timer's `untilVariable`, a correlation expression, a lock key) that the process does not have and `variableMapping` does not give.
 
 Warnings: variables read by a step ready to run that the process does not have, compensable work dropped, re-dispatched tasks, steps recorded as passed, a `processLock` the target adds or drops.
 
@@ -143,7 +146,7 @@ booking:
   charge: charge-card
 ```
 
-A step without one fails the build (`-Deventconductor.migration.failOnError=false` only reports it). Instantaneous steps (START, END, FORK, JOIN, CHOICE, REPLY, SEND_MESSAGE, UNLOCK, a PUBLISH_EVENT that awaits nothing) and changed task contracts, forEach items and locks are warnings. See the [Maven plugin reference](/reference/maven-plugin/#checking-a-migration-the-check-migration-goal).
+A step without one fails the build (`-Deventconductor.migration.failOnError=false` only reports it). Instantaneous steps (START, END, FORK, JOIN, CHOICE, REPLY, SEND_MESSAGE, UNLOCK, a PUBLISH_EVENT that awaits nothing) and changed task contracts, forEach items, locks and fewer escalation levels are warnings. See the [Maven plugin reference](/reference/maven-plugin/#checking-a-migration-the-check-migration-goal).
 
 ## Audit, metrics and security
 

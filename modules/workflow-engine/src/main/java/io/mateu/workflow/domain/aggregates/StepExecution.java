@@ -1186,6 +1186,23 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
      */
     public void migrateTo(String targetStepJson, long position, Process process, boolean refreshVariables, String why) {
         var step = pojoFromJson(targetStepJson, Step.class);
+        // A human task keeps the escalation levels that fired (matched by position, the counter in its
+        // variables untouched); an escalateTo among them stays its on-timeout route, as escalated() left it.
+        var fired = StepType.USER_TASK.equals(step.type()) ? escalationsFired() : 0;
+        if (fired > 0) {
+            var levels = step.escalations();
+            String route = null;
+            for (int i = 0; i < Math.min(fired, levels.size()); i++) {
+                var escalateTo = levels.get(i).escalateTo();
+                if (escalateTo != null && !escalateTo.isBlank()) {
+                    route = escalateTo;
+                }
+            }
+            if (route != null) {
+                step = step.withOnTimeoutStepId(route);
+                targetStepJson = toJson(step);
+            }
+        }
         this.stepId = step.id();
         this.stepJson = targetStepJson;
         this.order = position;
@@ -1209,11 +1226,16 @@ public final class StepExecution extends AggregateRoot implements Identifiable {
             return null;
         }
         try {
+            LocalDateTime limit;
             if (followsProcess(step) && process != null) {
                 var recomputed = step.deadlineAt(startedAt, process.getVariables() == null ? List.of() : process.getVariables());
-                return recomputed == null ? deadlineAt : recomputed;
+                limit = recomputed == null ? deadlineAt : recomputed;
+            } else {
+                limit = step.deadlineAt(startedAt, variables);
             }
-            return step.deadlineAt(startedAt, variables);
+            // A human task's next escalation, from the target's levels, counted from when the task was created.
+            var escalation = nextEscalationAt();
+            return escalation == null ? limit : limit == null || escalation.isBefore(limit) ? escalation : limit;
         } catch (IllegalArgumentException e) {
             return deadlineAt;
         }
